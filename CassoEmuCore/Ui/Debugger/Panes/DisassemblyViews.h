@@ -5,105 +5,16 @@
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
 #include "Ui/Debugger/PaneBarSlot.h"
+#include "Ui/Debugger/Panes/DisassemblyBranchArrows.h"
+#include "Ui/Debugger/Panes/DisassemblyViewPane.h"
 #include "Ui/Debugger/Panes/ICodeViews.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 
 class CodeEditCommands;
-class CodeViewFind;
-class DebuggerPaneFrame;
-class DisassemblyGroup;
 class DisassemblyGutter;
-class DxuiInfoBanner;
-class HistoryBand;
 class SourceDocumentGroup;
 class SourcePane;
 class ToolbarCheckEntry;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane
-//
-//  One disassembly view: its toolbar of viewing options over its lines, and
-//  for the first view, the history band between them. The machine opens and
-//  closes the views after the first, as the snapshot lists them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class DisassemblyViewPane : public IDebuggerPane
-{
-public:
-    DisassemblyViewPane (IDebuggerPaneHost & host, DisassemblyGroup & group, int view);
-    ~DisassemblyViewPane() override;
-
-    DxuiListView                   * GetList        () const { return m_list; }
-    DxuiToolbar                    * GetBar         () const { return m_bar.GetBar(); }
-    HistoryBand                    * GetHistoryBand () const { return m_historyBand; }
-    DebuggerPaneFrame              * GetFrame       () const { return m_frame.get(); }
-
-    //  The view's rows, each a code line or a source line above it.
-    const std::vector<DisassemblyOptions::Row>  & GetRows () const { return m_rows; }
-    void                                          SetRows (std::vector<DisassemblyOptions::Row> rows) { m_rows = std::move (rows); }
-
-    //  Where each row's parts are in its cells, as its source row was filled;
-    //  the default for an instruction's row.
-    const std::vector<DisassemblyCells::SourceParts>  & GetSourceParts () const { return m_sourceParts; }
-    void                                                SetSourceParts (std::vector<DisassemblyCells::SourceParts> parts) { m_sourceParts = std::move (parts); }
-
-    //  The banner over the lines while a loaded file's program isn't in
-    //  memory: its text, or empty for none.
-    void              SetStaleText  (const std::wstring & text);
-    DxuiInfoBanner  * GetBanner     () const { return m_banner; }
-    bool              IsBannerShown () const { return m_isBannerShown; }
-
-    //  What the banner reads for the files whose program isn't in memory,
-    //  the debug file first when isDebugFileStale is set; empty for none.
-    static std::wstring              GetStaleText   (const std::vector<std::string> & names, bool isDebugFileStale);
-
-    const std::wstring               & GetId            () const override;
-    std::wstring                       GetTitle         () const override;
-    std::wstring                       GetTabTitle      () const override;
-    int                                GetStopFocusRank () const override;
-    void                               CreateControls   () override;
-    void                               Configure        () override;
-    bool                               TryGetOpened     (bool & isOpened) const override;
-    bool                               RequestOpen      () override;
-    bool                               RequestClose     () override;
-    bool                               IsFixed          () const override { return m_view == 0; }
-    void                               AddToDock        (DxuiDockSite & dock) override;
-    IDxuiControl                     * GetContent       () const override;
-    IDxuiFindTarget                  * GetFindView      () const override;
-    DebuggerPaneFrame                * GetFindFrame     () const override { return m_frame.get(); }
-    std::vector<IDxuiControl *>        GetControls      () const override;
-    std::vector<DxuiListView *>        GetLists         () const override { return { m_list }; }
-    std::vector<DxuiToolbar *>         GetBars          () const override { return { m_bar.GetBar() }; }
-    bool                               HasTextLists     () const override { return false; }
-    std::optional<PaneColorKeySpec>    GetColorKey      () const override;
-    void                               PlaceBar         () override { m_bar.Place(); }
-    bool                               RouteBarMouse    (const DxuiMouseEvent & ev) override;
-    bool                               AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
-
-private:
-    std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>>  GetFindLines () const;
-    std::optional<Word>                                                 GetFindStart (bool isTop) const;
-    void                                                                SelectFound  (Word address);
-
-    DisassemblyGroup                            & m_group;
-    int                                           m_view          = 0;
-    std::wstring                                  m_id;
-    PaneBarSlot                                   m_bar;
-    DxuiListView                                * m_list          = nullptr;
-    HistoryBand                                 * m_historyBand   = nullptr;
-    DxuiInfoBanner                              * m_banner        = nullptr;
-    bool                                          m_isBannerShown = false;
-    std::unique_ptr<DebuggerPaneFrame>            m_frame;
-    std::unique_ptr<CodeViewFind>                 m_find;
-    std::vector<DisassemblyOptions::Row>          m_rows;
-    std::vector<DisassemblyCells::SourceParts>    m_sourceParts;
-};
 
 
 
@@ -198,18 +109,17 @@ public:
     //  selection moves onto the line scrolled into view.
     void                             SelectEdgeAfterScroll (int view, bool isTop);
 
-    //  The PC's branch arrow in a view, a view past the code views being a
-    //  source document's; drawn, clicked to go where it points and back, and
-    //  its tip.
-    bool  GetBranchArrow   (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom = false) const;
-    void  PaintBranchArrow (IDxuiPainter & painter, int view);
-    bool  ClickBranchArrow (POINT pointPx);
-    bool  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    //  A key at a view's first or last row in view: an arrow or a page key
+    //  there scrolls the view through memory, and Ctrl+Page Up or Down selects
+    //  the top or bottom row in view. True when the key moved a view.
+    bool  ScrollCodeAtEdge   (WPARAM vk, IDxuiControl * focused);
+    bool  SelectCodeViewEdge (WPARAM vk, IDxuiControl * focused);
 
-    //  Whether a point is on a code view's glyph margin or the lanes its
-    //  branch arrows run in, left of the code, in a view or a source
-    //  document, where the pointer is an arrow rather than the I-beam.
-    bool                             IsOverArrowsOrGutter (POINT clientPx) const;
+    //  The PC's branch arrow over the views and the source documents.
+    DisassemblyBranchArrows  & GetArrows () { return m_arrows; }
+
+    //  The code list under a point, and which view it is.
+    DxuiListView  * FindCodeListAt (POINT clientPx, int & view) const;
 
     //  Over a name in a view -- a line's label, or the symbol an operand is
     //  written with -- its address and what it is.
@@ -239,8 +149,6 @@ private:
     void            FitLabels        (const DebuggerViewSnapshot & snapshot);
     void            SendShownLines   (int view, const std::vector<DisassemblyOptions::Row> & built);
     void            SetAddressScroll (int view, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
-    void            ClickSourceArrow (SourcePane & document);
-    DxuiListView  * FindCodeListAt   (POINT clientPx, int & view) const;
     static void     GetLineSymbol    (const DebuggerViewSnapshot::CodeLine & line, int column, std::string & name, Word & address);
     static void     AddOperandSymbol (DxuiListView::Cell & cell, const DebuggerViewSnapshot::CodeLine & line, uint32_t symbolArgb);
     static int      GetCodeEnd       (const DisassemblyCells::SourceParts & parts);
@@ -249,7 +157,6 @@ private:
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
     void                             SelectAsked        (int view, const DebuggerViewSnapshot & snapshot, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
                                                          const std::vector<DisassemblyOptions::Row> & built);
-    bool  GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
     bool  TryGetSourceText  (int fileId, int line, std::wstring & text);
 
     IDebuggerPaneHost                                   & m_host;
@@ -270,12 +177,12 @@ private:
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_edgeScrolledFrom;    // the first line when the key scrolled
     std::optional<Word>                                   m_navigatedTo;
     int                                                   m_navigatedView = 0;
-    bool                                                  m_isArrowAtTarget = false;
     std::wstring                                          m_sourceKey;                // the debug file's path and program key the text was read for
     std::map<int, std::vector<std::wstring>>              m_sourceText;
     std::set<int>                                         m_sourceMisses;             // files not found for m_missesFor
     const DebuggerViewSnapshot                          * m_missesFor = nullptr;
     ByteChanges                                           m_changes;
+    DisassemblyBranchArrows                               m_arrows { m_host, *this, m_sources };
     std::string                                           m_machine;
 
     //  The serial of the request each view last applied, so a rebuild of the

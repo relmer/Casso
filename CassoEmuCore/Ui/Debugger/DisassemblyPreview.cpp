@@ -22,7 +22,7 @@ DisassemblyPreview::DisassemblyPreview()
 {
     m_focusable = false;
 
-    DebuggerWindow::MakeDense (this);
+    DensePaneList::MakeDense (this);
     DisassemblyCells::Configure (*this);
 }
 

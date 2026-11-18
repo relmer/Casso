@@ -3,6 +3,8 @@
 #include "DialectProfile.h"
 #include "DialectRegistry.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 #include "Ui/Debugger/SourceSyntax.h"
 
 #include "CppUnitTest.h"
@@ -110,13 +112,13 @@ namespace DebuggerTests
 
         TEST_METHOD (TheSourcePaneColorsWithTheAssemblerGiven)
         {
-            SourcePane::Style               style;
+            SourceRowStyle                  style;
             std::vector<DxuiTextView::Row>  rows;
 
 
 
             style.syntax = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004, 0xFF000005, 0xFF000006 };
-            rows = SourcePane::BuildRows ({ L"        LDA   0       clear it" }, 0, {}, {}, style, {}, Assembler::Merlin);
+            rows = SourceRows::BuildRows ({ L"        LDA   0       clear it" }, 0, {}, {}, style, {}, Assembler::Merlin);
 
             Assert::AreEqual ((size_t) 3,  rows[0].spans.size());
             Assert::AreEqual (0xFF000006u, rows[0].spans[2].argb, L"the comment field");
@@ -127,13 +129,13 @@ namespace DebuggerTests
         //  A C file is colored as C, a block comment over its lines.
         TEST_METHOD (TheSourcePaneColorsACFileAsC)
         {
-            SourcePane::Style               style;
+            SourceRowStyle                  style;
             std::vector<DxuiTextView::Row>  rows;
 
 
 
             style.syntax = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004, 0xFF000005, 0xFF000006 };
-            rows = SourcePane::BuildRows ({ L"/* open", L"   return 1; */", L"return 2;" }, 0, {}, {}, style, {},
+            rows = SourceRows::BuildRows ({ L"/* open", L"   return 1; */", L"return 2;" }, 0, {}, {}, style, {},
                                           Assembler::Any, SourceSyntax::Listing::None, true);
 
             Assert::AreEqual ((size_t) 1,  rows[1].spans.size(), L"the second line is all comment");

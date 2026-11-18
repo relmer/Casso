@@ -9,6 +9,7 @@
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/ColorKeyButton.h"
@@ -197,7 +198,7 @@ namespace OperandResultTipTests
         {
             DxuiListView::Cell         cell    = DisassemblyCells::GetOperandAndResultCell (annotation, effect, kResult);
             OperandResultTip::Segment  segment = MakeSegment (cell.text, kTextLeft, placement, kOperand);
-            size_t                     at      = cell.text.find (SourcePane::kpszResultPrefix);
+            size_t                     at      = cell.text.find (SourceRows::kpszResultPrefix);
 
 
 
@@ -642,7 +643,7 @@ namespace OperandResultTipTests
 
             placement.segments.push_back (MakeSegment (L"bne w_inner", kCodeLeft, placement));
             placement.segments.push_back (MakeSegment (cell, kTextLeft, placement, kOperand));
-            placement.segments[1].resultAt  = (int) cell.find (SourcePane::kpszResultPrefix);
+            placement.segments[1].resultAt  = (int) cell.find (SourceRows::kpszResultPrefix);
             placement.segments[1].commentAt = (int) cell.find (L';');
             placement.operand               = 1;
 

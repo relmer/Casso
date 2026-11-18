@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/MemoryActions.h"
 
 
 
@@ -31,7 +32,7 @@ MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, ActionFn run, R
         std::vector<Byte>  values (bytes.begin(), bytes.end());
         std::vector<Byte>  before (required.begin(), required.end());
 
-        run ([address, values, before] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode, before); });
+        run ([address, values, before] (CommandMode mode) { return MemoryActions::GetPatch (address, values, mode, before); });
     });
     m_view->SetSource (&m_model);
 }

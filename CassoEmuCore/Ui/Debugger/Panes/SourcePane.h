@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/HeatStrip.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/DebuggerActions.h"
@@ -44,87 +45,12 @@ public:
                                                const std::string & programKey)>;
     using RunFn  = std::function<void (const DebuggerActionBuilder & build)>;
 
-    //  How the PC's line and breakpoints are drawn: the disassembly pane's
-    //  own marker color, row fill, breakpoint icons and PC arrow, so the two
-    //  panes mark a line alike, in the view's glyph margin, with the gray
-    //  breakpoint on a line with code under the pointer there. No breakpoint
-    //  icons draws a bullet in the marker column, and no PC arrow a triangle
-    //  there; no syntax colors leaves the text in the view's own color.
-    struct Style
-    {
-        uint32_t                               pcMarkerArgb = 0;
-        uint32_t                               pcRowArgb    = 0;
-        std::shared_ptr<const DxuiIconImage>   enabledIcon;
-        std::shared_ptr<const DxuiIconImage>   disabledIcon;
-        SourceSyntax::Colors                   syntax;
-        uint32_t                               resultArgb   = 0;
-        uint32_t                               operandArgb  = 0;
-        std::shared_ptr<const DxuiIconImage>   pcIcon;
-        std::shared_ptr<const DxuiIconImage>   hoverIcon;
-
-        bool operator== (const Style & other) const = default;
-    };
-
     //  A line's breakpoint: its id and whether it is enabled.
     struct LineBreakpoint
     {
         int   id        = 0;
         bool  isEnabled = true;
     };
-
-    //  What an operand's result is shown after, here and in the disassembly.
-    static constexpr const wchar_t * kpszResultPrefix = L"Result: ";
-
-    //  A row's cells: the marker, the line number, the source text, and the
-    //  annotation. The text's column is no wider than kAnnotationColumn, so
-    //  the annotations start near the code, and only a longer line pushes
-    //  that line's annotation along. An annotation is cut off at the view's
-    //  right edge, with its tip over it, rather than scrolled to.
-    static constexpr int    kTextCell         = 2;
-    static constexpr int    kAnnotationCell   = 3;
-    static constexpr int    kAnnotationColumn = 40;
-
-    //  The line numbers are followed by room for the branch arrow, which
-    //  stops short of the text.
-    static constexpr int    kNumberCell       = 1;
-    static constexpr int    kArrowGapCells    = 5;
-    static constexpr float  kArrowMarginDip   = 6.0f;
-
-    //  The symbol a source line has at a caret position, by its name, as
-    //  "count_text = $60F2", and after a < or > before it, the byte that
-    //  operator takes. False off a word, in a comment, or for a word that
-    //  isn't a symbol. The symbol found is in `found`, when one is passed.
-    static bool  TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text,
-                                   const SymbolInfo ** found = nullptr);
-
-    //  The lines of a symbol's tip after its address: the bytes there, as
-    //  "$60C1: 05", for a symbol that is not a constant, then its description
-    //  and the comment on its line in the source.
-    static void  AppendSymbolDetails (std::wstring & text, const std::string & name, Word address, bool isConstant,
-                                      const DebuggerViewSnapshot & snapshot, const std::string & comment);
-    //  The symbol whose name is the word at a character of a line, before a
-    //  comment, and where the word starts; null for none.
-    static const SymbolInfo *  FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start);
-
-    //  The word at a character of a line, before a comment, as FindSymbolAt
-    //  takes it; empty for none.
-    static std::wstring  GetWordAt (const std::wstring & line, int ch);
-
-    //  Whether a line defines a macro of a name: "name macro" as AS65 and
-    //  Merlin's MAC write it, or ".macro name" as ca65 writes it.
-    static bool  IsMacroDefinition (const std::wstring & line, const std::wstring & name);
-
-    //  Where a line's code starts: past its label and the spaces after it, or
-    //  at its start for a line with no code past a label.
-    static int   FindCodeStart (const std::wstring & line);
-
-    //  The first symbol the operand of the instruction starting at `codeAt`
-    //  is written with, before a comment, as "count_text = $60F2", and
-    //  where its word starts. False, and -1, for an operand with none.
-    //  Whether the word at a character is that symbol.
-    static bool  TryGetOperandSymbolText (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols, std::wstring & text);
-    static int   FindOperandSymbol       (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols);
-    static bool  IsOperandSymbolAt       (const std::wstring & line, int codeAt, int ch, const std::vector<SymbolInfo> & symbols);
 
     SourcePane (DxuiTextView * view, DxuiInfoBanner * banner, FindFn find, RunFn run);
 
@@ -145,7 +71,7 @@ public:
     void  Configure     (HWND hwnd);
 
     //  Rows are rebuilt with the next Apply when the style changes.
-    void  SetStyle      (const Style & style);
+    void  SetStyle      (const SourceRowStyle & style);
 
     //  The heat map's colors while the heat option is on, none while it is
     //  off: each line has the heat strip of the first range of bytes the
@@ -155,13 +81,6 @@ public:
     //  The outline drawn in the glyph margin of a line a bookmark is on,
     //  around the line's breakpoint when it has one.
     void  SetBookmarkMark (std::shared_ptr<const DxuiIconImage> mark) { m_bookmarkMark = std::move (mark); }
-
-    //  The heat strips of the rows, one a line from line 1, as the gutter
-    //  band's fills.
-    static void  AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
-                                const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
-                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette,
-                                const std::set<std::pair<int, int>> * unmatched = nullptr);
 
     //  Whose grammar colors the text: Any goes by what the file shows. Rows
     //  are rebuilt with the next Apply when it changes.
@@ -275,69 +194,7 @@ public:
     std::optional<int>  FindMacroLine     (const std::wstring & name) const;
     bool                IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
 
-    //  The line the PC's branch goes to in a file, if a line there starts at
-    //  it, and whether it lies below the marked line; false for no branch.
-    static bool  GetArrowTarget (const DebuggerViewSnapshot::SourceState & state, int fileId, int markedLine,
-                                 std::optional<int> & outTargetLine, bool & outIsBelow);
-
-    //  The pieces, apart from any view.
-    static std::vector<std::wstring>       SplitLines (const std::string & text);
-    static std::vector<DxuiTextView::Row>  BuildRows  (const std::vector<std::wstring> & lines, int markedLine,
-                                                       const std::set<int> & breakpointLines,
-                                                       const std::set<int> & disabledLines = {},
-                                                       const Style         & style         = {},
-                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {},
-                                                       SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any,
-                                                       SourceSyntax::Listing   listing   = SourceSyntax::Listing::None,
-                                                       bool                    isC       = false,
-                                                       int                     hoverLine = -1);
-
-    //  The source line each row shows.
-    static std::vector<int>  GetRowLines (const std::vector<DxuiTextView::Row> & rows);
-
-    //  Whether a line's opcode is a 65C02 mnemonic, so that it is one instruction.
-    static bool  IsInstructionLine (const std::wstring & line, SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
-
-    //  Whether a line is a label alone, with at most a comment after it.
-    static bool  IsLabelLine       (const std::wstring & line, SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any);
-
-    //  The command a double click on a line sends: clearing the breakpoint
-    //  already on it, or setting one.
-    static std::string                    GetToggleLine   (const DebuggerViewSnapshot::SourceState & state, int fileId, int line);
-    static std::optional<DebuggerAction>  GetToggleAction (const DebuggerViewSnapshot::SourceState & state, int fileId, int line, CommandMode mode);
-
-    static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
-                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine,
-                                        const std::string & invokedByName = std::string(), int invokedByLine = 0);
-
-    //  The banner's first line while the program in memory isn't the debug
-    //  file's.
-    static std::wstring  GetStaleText (const std::wstring & debugFilePath);
-
-    //  What to say when the file was found in a folder other than the one the
-    //  debug file has it in -- a copy in another search folder -- or empty.
-    //  A copy whose hash is the debug file's is the file the program was
-    //  built from, and the text has that.
-    static std::wstring  GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
-                                                const std::wstring & foundPath, bool isVerified = false);
-
-    //  Whether a macro's body can be offered: not when it is in the file that
-    //  could not be found.
-    static bool          CanShowBody   (bool hasText, int depth, int bodyFileId, int fileId);
-
-    //  The level the banner's button goes to: from outside every macro to the
-    //  body line, and from a body back out one invocation at a time.
-    static int           GetNextMacroLevel (int level, int deepest);
-
-    //  The level a request resolves to, -1 being the deepest.
-    static int           GetMacroLevel (const DebuggerViewSnapshot::SourceState & state, int level);
-
-    //  The file and line at a level, -1 being the body line.
-    static std::pair<int, int>  GetPlace (const DebuggerViewSnapshot::SourceState & state, int level);
-
 private:
-    static constexpr int  kTabWidth = 4;
-
     void                LoadFile        (int fileId);
     void                Rebuild         ();
     void                ShowLooseBanner ();
@@ -378,7 +235,7 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot::LineOperands>      m_rowsLineOperands;
     std::vector<int>                                               m_rowLines;
     std::set<int>                                                  m_disabledIds;
-    Style                                                          m_style;
+    SourceRowStyle                                                 m_style;
     std::optional<HeatMapView::Palette>                            m_heatPalette;
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heatLevels;
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_rowsHeatLevels;

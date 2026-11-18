@@ -5,6 +5,7 @@
 #include "Debugger/MachineDebugTarget.h"
 #include "EmuTests/TestMachine.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/HeatMapReader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,13 +104,13 @@ namespace CapturedDebugTargetTests
 
 
             DebugViewCapture::Take (*target, CallRecord(), 0, 0, *capture);
-            form = DebuggerViewState::GetOpcodeForm (target->GetInstructionSet(), 0xA9);
+            form = HeatMapReader::GetOpcodeForm (target->GetInstructionSet(), 0xA9);
 
             target.reset();
             machine.reset();
 
             Assert::IsNotNull (capture->instructionTable.get(), L"the capture owns a copy");
-            Assert::AreEqual  (form, DebuggerViewState::GetOpcodeForm (captured.GetInstructionSet(), 0xA9));
+            Assert::AreEqual  (form, HeatMapReader::GetOpcodeForm (captured.GetInstructionSet(), 0xA9));
         }
 
 

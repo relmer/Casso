@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/ReplyJson.h"
@@ -148,7 +149,7 @@ namespace BreakpointNameTests
             BreakpointStep  step;
 
             step.actions = { std::move (action) };
-            view.ExecuteBreakpointStep (controller.GetSession(), step);
+            view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         void  Undo()
@@ -156,7 +157,7 @@ namespace BreakpointNameTests
             BreakpointStep  step;
 
             step.kind = BreakpointStep::Kind::Undo;
-            view.ExecuteBreakpointStep (controller.GetSession(), step);
+            view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::string  Name()
@@ -180,8 +181,8 @@ namespace BreakpointNameTests
 
 
             rig.Run  ("BP 0300");
-            rig.Step (DebuggerActions::GetNameBreakpoint (0, "First", CommandMode::AppleWin));
-            rig.Step (DebuggerActions::GetNameBreakpoint (0, "Second", CommandMode::AppleWin));
+            rig.Step (BreakpointActions::GetNameBreakpoint (0, "First", CommandMode::AppleWin));
+            rig.Step (BreakpointActions::GetNameBreakpoint (0, "Second", CommandMode::AppleWin));
             Assert::AreEqual (std::string ("Second"), rig.Name());
 
             rig.Undo();

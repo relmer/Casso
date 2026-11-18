@@ -9,6 +9,7 @@
 #include "Seams/IHostDialogs.h"
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/BranchArrow.h"
+#include "Ui/Debugger/CommandBarController.h"
 #include "Ui/Debugger/CommandCompletion.h"
 #include "Ui/Debugger/ByteChanges.h"
 #include "Ui/Debugger/ColorLegend.h"
@@ -17,6 +18,9 @@
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerThemes.h"
+#include "Ui/Debugger/DebuggerWindowText.h"
+#include "Ui/Debugger/DensePaneList.h"
+#include "Ui/Debugger/GoToAddressText.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
@@ -27,8 +31,10 @@
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
 #include "Ui/Debugger/StopFocus.h"
+#include "Ui/Debugger/TextZoomLevels.h"
 #include "Ui/Debugger/SymbolComments.h"
 #include "Ui/Debugger/FocusAccentOwner.h"
+#include "Ui/Debugger/OpenViewsKeeper.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineScrub.h"
@@ -55,6 +61,7 @@
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/FloatingPanes.h"
 #include "Ui/Debugger/PaneColorKeys.h"
+#include "Ui/Debugger/PaneContentMouse.h"
 #include "Ui/Debugger/TooltipCoordinator.h"
 #include "Ui/Chrome/CassoTheme.h"
 
@@ -113,28 +120,19 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICommandBarHost, private IPaneContentMouseHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
                        private IFloatingPanesHost, private IColorKeysHost
 {
 public:
     DebuggerWindow();
     ~DebuggerWindow() override;
 
-    //  The dense look every pane's list has, public so the Options sheet's
-    //  preview matches the disassembly views.
-    static void  MakeDense (DxuiListView * list);
-
-    //  An Undo or Redo item and tip, with the edit: Undo change 2 bytes
-    //  at $0300", or the bare verb when there is nothing to say.
-    static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text);
-
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host, bool activate);
     void     RenderFrame ();
 
     //  The caption: the label from `--title`, ahead of Debugger, as on the
     //  emulator's window, then the open project's label.
-    static std::wstring  GetCaption     (const std::wstring & titlePrefix, const std::wstring & projectLabel = {});
-    void                 SetTitlePrefix (const std::wstring & titlePrefix) { m_titlePrefix = titlePrefix; SetTitle (GetCaption (m_titlePrefix, m_projectLabel)); }
+    void                 SetTitlePrefix (const std::wstring & titlePrefix) { m_titlePrefix = titlePrefix; SetTitle (DebuggerWindowText::GetCaption (m_titlePrefix, m_projectLabel)); }
 
     //  Detaches the host, for a shell tearing down before the window.
     void     DetachHost  () { m_host = nullptr; }
@@ -161,7 +159,14 @@ protected:
     bool     OnMouse                  (const DxuiMouseEvent & ev) override;
     bool     OnKey                    (const DxuiKeyEvent   & ev) override;
     bool     OnMappedCommand          (int commandId) override;
-    bool     IsCommandBarEntryEnabled (int id) const;
+
+    //  ICommandBarHost.
+    const DebuggerViewSnapshot * GetCommandBarSnapshot () const override { return m_snapshot.get(); }
+    bool                         IsReplayingHistory    () const override { return m_host != nullptr && m_host->IsReplayingHistory(); }
+    bool                         HasSelectedCodeRow    () const override;
+    bool                         RunMappedCommand      (int commandId) override { return OnMappedCommand (commandId); }
+
+    bool     IsCommandBarEntryEnabled (int id) const { return m_runControls.IsEnabled (id); }
     bool     TryStopReplay            ();
     bool     OnFilesDropped           (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint        (POINT clientPx) const override;
@@ -178,12 +183,12 @@ protected:
 
     //  Protected so a test can apply one as the status bar's slider does, and
     //  step one pane's as the keys and Ctrl+wheel do.
-    void     ApplyTextZoom    (float zoom);
-    void     StepTextZoom     (int steps);
-    void     ResetTextZoom    ();
-    float    GetTextZoom      () const { return m_textZoom; }
-    void     StepPaneTextZoom (const std::wstring & pane, int steps);
-    float    GetPaneTextZoom  (const std::wstring & pane) const;
+    void                    ApplyTextZoom    (float zoom);
+    void                    StepTextZoom     (int steps);
+    void                    ResetTextZoom    ();
+    float                   GetTextZoom      () const { return m_textZooms.GetWindowZoom(); }
+    const TextZoomLevels  & GetTextZooms     () const { return m_textZooms; }
+    void                    StepPaneTextZoom (const std::wstring & pane, int steps);
 
     //  Protected so a test can focus a control as a click does.
     void             FocusControl    (IDxuiControl * control) override { SetFocusedControl (control); }
@@ -375,9 +380,6 @@ protected:
     RECT                 GetZoomPopupRect () const { return m_windowZoom.GetPanelRect(); }
     RECT                 GetZoomResetRect () const { return m_windowZoom.GetResetRect(); }
 
-    //  The window's text size along the zoom panel's track, and back.
-    static float     GetTextZoomPosition (float zoom);
-    static float     GetTextZoomAt       (float position);
     void             UpdateStatusBar     ();
     void             SyncReplayDialog    (const ReplayProgress & progress);
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
@@ -422,10 +424,10 @@ protected:
     BreakpointsPane        & GetBreakpointsPane () const { return *m_breakpointsPane; }
     CodeEditCommands       & GetCodeEdits       () const { return *m_codeEdits; }
     DisassemblyGroup       & GetCodeGroup       () const { return *m_code; }
-    DisassemblyGutter      & GetCodeGutter      () const { return *m_gutter; }
+    DisassemblyGutter      & GetCodeGutter      () const override { return *m_gutter; }
     PaneColorKeys          & GetColorKeys       () const { return *m_colorKeys; }
     ConsolePane            & GetConsolePane     () const { return *m_consolePane; }
-    FindWidgetSet          & GetFindWidgets     () const { return *m_finds; }
+    FindWidgetSet          & GetFindWidgets     () const override { return *m_finds; }
     HeatMapPane            & GetHeatMapPane     () const { return *m_heatMapPane; }
     HeatRangesPane         & GetHeatRangesPane  () const { return *m_heatRangesPane; }
     MemoryWindowGroup      & GetMemoryGroup     () const { return *m_memoryGroup; }
@@ -438,7 +440,7 @@ protected:
     OperandTipController   & GetOperandTips     () override { return *m_operandTips; }
 
     //  The view of the step mode brought forward, at the PC.
-    void                     ShowNextStatement  ();
+    void                     ShowNextStatement  () override;
 
     //  Protected so a test can read a content menu's Go to definition row,
     //  and run it.
@@ -446,9 +448,6 @@ protected:
     bool     TryGetDefinitionAt      (POINT clientPx, Word & address) const;
     bool     TryGetMacroDefinitionAt (POINT clientPx, int & fileId, int & line) const;
     void     GoToDefinition          (Word address);
-
-    //  A go-to's address: hex, PC, or a symbol by name.
-    static bool  TryParseGoTo   (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress);
 
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
@@ -459,10 +458,10 @@ private:
     //  Pane metrics (FR-026a): the monospace face at a size whose line height
     //  a row barely exceeds, small cell padding, and eight rows owed to every
     //  pane at the default size.
-    static constexpr float  kPaneFontDip           = 12.0f;
-    static constexpr int    kPaneRowDip            = 16;
-    static constexpr int    kPaneHeaderDip         = 22;
-    static constexpr int    kPanePadDip            = 4;
+    static constexpr float  kPaneFontDip           = DensePaneList::kFontDip;
+    static constexpr int    kPaneRowDip            = DensePaneList::kRowDip;
+    static constexpr int    kPaneHeaderDip         = DensePaneList::kHeaderDip;
+    static constexpr int    kPanePadDip            = DensePaneList::kPadDip;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
     static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
@@ -474,14 +473,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr size_t kCodeOperandColumn     = DisassemblyCells::kOperandColumn;
     static constexpr size_t kCodeFirstTextColumn   = kCodeAddressColumn;
     static constexpr size_t kCodeColumnCount       = DisassemblyCells::kColumnCount;
-
-    //  The panes' text size runs from half to three times the usual, in
-    //  steps of ten percentage points.
-    static constexpr float  kMinTextZoom           = 0.5f;
-    static constexpr float  kMaxTextZoom           = 3.0f;
-    static constexpr float  kTextZoomStep          = 0.1f;
-    static constexpr float  kDefaultTextZoom       = 1.0f;
-
 
     void                                               ConfigureWidgets        ();
     void                                               LayoutWidgets           ();
@@ -506,7 +497,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::string                                        GetMenuState            () const;
     void                                               AddUnloadSymbolsRow     (std::vector<DxuiPopupMenuItem> & file);
     std::vector<DebuggerViewSnapshot::SymbolTableRow>  GetLoadedSymbolTables   () const;
-    void                                               RunCommandBarEntry      (int id) override;
+    void                                               RunCommandBarEntry      (int id) override { m_runControls.Run (id); }
     bool                                               RouteCommandBarMouse    (const DxuiMouseEvent & ev);
     bool                                               RouteMenuKey            (const DxuiKeyEvent & ev);
     void                                               ConfigureCommandBarHost ();
@@ -537,7 +528,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                          OpenOptions          ();
     void                          OpenSymbolFile       (const std::wstring & thenShow = std::wstring()) override;
     void                          BrowseForSource      () override;
-    void                          LoadFileIntoMemory   ();
+    void                          LoadFileIntoMemory   () override;
     HRESULT                       PickFileToOpen       (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked);
 
     //  The window's state a debug project saves with no setting of its own:
@@ -647,10 +638,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                                                 ClipPaneControls   ();
     void                                                 NoteViewFocus      (bool isSource) override;
     void                                                 NoteTabFocus       (POINT pointDip);
-    static IDxuiControl                                * FindFirstFocusable (IDxuiControl * node);
     int                                                  GetSourceSlotOf    (const std::wstring & pane) const;
     bool                                                 IsRestoringViews   () const override;
-    bool                                                 ForwardToList      (DxuiListView * list, const DxuiMouseEvent & ev);
     void                                                 ShowCode           (std::optional<Word> address);
     const std::vector<DebuggerViewSnapshot::CodeLine>  & GetCodeLines       (int view) const override;
     void                                                 ApplyCodeView      (int view);
@@ -707,7 +696,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  The debugger's colors, from the active theme: a breakpoint's red, the
     //  PC's arrow and row, the row another pane brought into view, a branch's
     //  destination, the annotations' comment color, and the syntax colors.
-    bool                                  IsDarkTheme            () const;
+    bool                                  IsDarkTheme            () const override;
     uint32_t                              GetBreakpointArgb      () const override;
     std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon      (bool enabled) override;
     std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () override;
@@ -727,19 +716,16 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     uint32_t                 GetResultArgb   () const override;
     SourceSyntax::Colors     GetSyntaxColors () const override;
     DebuggerTextColors::Set  GetTextColors   () const override;
-    void                     OfferPress      (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     //  The pointer's press, release or wheel over a find widget's plate.
     void                     RouteFindPlateMouse (const DxuiMouseEvent & ev);
 
-    std::vector<DxuiListView *>  GetLists          () const;
+    std::vector<DxuiListView *>  GetLists          () const override;
     std::vector<DxuiListView *>  GetTextLists      () const;
 
-    static LPCWSTR                 GetCursorOutsideLists (const IDxuiControl & node, POINT clientPx, const std::vector<DxuiListView *> & lists);
     void                           RefreshCursor         ();
     bool                           GoToAddressInPane     ();
-    static bool                    HasListWithin         (const IDxuiControl & node, const std::vector<DxuiListView *> & lists);
-    std::vector<IDxuiControl *>    GetPressTargets       () const;
+    std::vector<IDxuiControl *>    GetPressTargets       () const override;
     DxuiTextInput                * GetFocusedBox         () const;
     const DxuiTextInput          * GetBlinkingBox        () const;
     DxuiTextInput                * GetTextBoxAt          (POINT clientPx) const;
@@ -792,18 +778,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  before have been reopened yet. Reopening is asynchronous, so saving
     //  waits until a snapshot shows them -- or a few pass without -- rather
     //  than write back the empty set the window started with.
-    static constexpr int                  kSettlingSnapshots    = 10;
 
     //  The caption's parts, and when the project's label was last read.
     static constexpr int64_t              kProjectLabelMs       = 500;
     std::wstring                          m_titlePrefix;
     std::wstring                          m_projectLabel;
     int64_t                               m_projectLabelAt      = 0;
-    std::string                           m_openViewsSaved;
-    bool                                  m_openViewsRestored   = false;
-    int                                   m_openViewsSettling   = 0;
-    float                                 m_textZoom            = 1.0f;
-    std::map<std::wstring, float>         m_paneTextZooms;      // each pane's text size by pane id, over m_textZoom
+    OpenViewsKeeper                       m_openViews;
+    TextZoomLevels                        m_textZooms;
     DxuiTooltip                           m_tooltip;
     DxuiTipService                        m_tipService          { m_tooltip };
 
@@ -907,9 +889,10 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiToolbar                                * m_commandBar             = nullptr;
     DxuiMenuBar                                * m_menuBar                = nullptr;
     std::vector<DxuiMenuBarItem>                 m_menuBarItems;
-    std::unique_ptr<DebuggerCommands>            m_commands;
+    CommandBarController                         m_runControls            { static_cast<ICommandBarHost &> (*this) };
+    PaneContentMouse                             m_contentMouse           { static_cast<IPaneContentMouseHost &> (*this) };
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
-    int                                          m_heldCodeView           = -1;      // the code view whose menu is open
+    int                                          m_heldCodeView           = -1;   // the code view whose menu is open
     DxuiDockSite                               * m_dockSite               = nullptr;
     HINSTANCE                                    m_hInstance              = nullptr;
     std::unique_ptr<FloatingPanes>               m_floating;
@@ -917,7 +900,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     FocusAccentOwner                             m_accentOwner;
     bool                                         m_isOpeningFocusDue      = true;
     OpeningFocusDeferral                         m_openingFocus;
-    std::wstring                                 m_savedFocusPane;                   // the pane last saved as having the focus
+    std::wstring                                 m_savedFocusPane;   // the pane last saved as having the focus
     StopFocus                                    m_stopFocus;
     uint32_t                                     m_shownPaneSerial        = 0;
     bool                                         m_isHeatMapRecording     = false;
@@ -1012,12 +995,15 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     void                 ShowBasicLine          (Word line) override;
 
-    bool                         ShowColumnMenu     (DxuiListView * list, POINT clientPx);
-    bool                         HasOwnColumnWidths (const DxuiListView * list) const;
-    bool                         IsTextBox          (const IDxuiControl * control) const;
-    void                         NoteListReleased   (DxuiListView * list, POINT clientPx);
-    std::vector<IDxuiControl *>  GetLastChildren    () const;
-    void                         ApplyLogDeltas     ();
+    bool                         ShowColumnMenu      (DxuiListView * list, POINT clientPx);
+    bool                         HasOwnColumnWidths  (const DxuiListView * list) const;
+    bool                         IsTextBox           (const IDxuiControl * control) const;
+    void                         NoteListReleased    (DxuiListView * list, POINT clientPx) override;
+    std::vector<IDxuiControl *>  GetHoverBoxes       () const override;
+    void                         NoteCodeListPressed (DxuiListView * list) override;
+    bool                         ScrollCodeViewAt    (const DxuiMouseEvent & ev) override;
+    std::vector<IDxuiControl *>  GetLastChildren     () const;
+    void                         ApplyLogDeltas      ();
 
     //  The panes' info buttons and the color key they open, and the window's
     //  calls for them (IColorKeysHost).

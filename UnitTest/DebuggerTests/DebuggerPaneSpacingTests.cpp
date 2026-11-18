@@ -3,6 +3,7 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
@@ -177,11 +178,11 @@ namespace DebuggerTests
 
 
 
-            DebuggerViewState::AddCommandGap (lines);
-            DebuggerViewState::AddCommandGap (none);
+            DebuggerViewCommands::AddCommandGap (lines);
+            DebuggerViewCommands::AddCommandGap (none);
 
             Assert::AreEqual ((size_t) 3, lines.size());
-            Assert::AreEqual (std::string (DebuggerViewState::kCommandGap), lines[0]);
+            Assert::AreEqual (std::string (DebuggerViewCommands::kCommandGap), lines[0]);
             Assert::AreEqual (std::string ("> R"),                          lines[1]);
             Assert::IsTrue   (none.empty());
         }

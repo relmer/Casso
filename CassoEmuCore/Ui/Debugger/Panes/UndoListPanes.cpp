@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/RunActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -843,7 +845,7 @@ void RegistersPane::CommitWord (int row, Word typed)
 {
     if (GetEditWord (row).has_value() && *GetEditWord (row) != typed)
     {
-        m_host.RunAction (DebuggerActions::GetSetRegister ("PC", typed, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetSetRegister ("PC", typed, m_host.GetMode()));
     }
 }
 
@@ -872,7 +874,7 @@ void RegistersPane::CommitRegister (const std::string & name, Byte typed)
     }
 
     m_history.Record (name, *value, typed, m_pc, m_cycles);
-    m_host.RunAction (DebuggerActions::GetSetRegister (name, typed, m_host.GetMode()));
+    m_host.RunAction (MemoryActions::GetSetRegister (name, typed, m_host.GetMode()));
 }
 
 
@@ -1092,7 +1094,7 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
     {
-        items.push_back ({ L"Reset trip count", [this] { m_host.RunAction (DebuggerActions::GetResetCycles (m_host.GetMode())); } });
+        items.push_back ({ L"Reset trip count", [this] { m_host.RunAction (RunActions::GetResetCycles (m_host.GetMode())); } });
     }
 
     if (name == DebuggerViewState::kLastBranchRegister && m_lastBranchFrom.has_value())
@@ -1341,7 +1343,7 @@ void StackPane::CommitEdit (int row, Byte typed)
     value = m_stack[m_stack.size() - 1 - (size_t) row].value;
 
     m_history.Record (at, value, typed, m_pc, m_cycles);
-    m_host.RunAction (DebuggerActions::GetEnterByte (at, typed, m_host.GetMode()));
+    m_host.RunAction (MemoryActions::GetEnterByte (at, typed, m_host.GetMode()));
 }
 
 
@@ -1364,7 +1366,7 @@ void StackPane::PushByte()
 
     if (value.has_value())
     {
-        m_host.RunAction (DebuggerActions::GetPushByte (*value, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetPushByte (*value, m_host.GetMode()));
     }
 }
 
@@ -1403,8 +1405,8 @@ bool StackPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & item
     if (m_isPaused)
     {
         items.push_back ({ L"Push byte...", [this] { PushByte(); } });
-        items.push_back ({ L"Pop byte",     [this] { m_host.RunAction (DebuggerActions::GetPopByte (m_host.GetMode())); } });
-        items.push_back ({ L"Pop word",     [this] { m_host.RunAction (DebuggerActions::GetPopWord (m_host.GetMode())); } });
+        items.push_back ({ L"Pop byte",     [this] { m_host.RunAction (MemoryActions::GetPopByte (m_host.GetMode())); } });
+        items.push_back ({ L"Pop word",     [this] { m_host.RunAction (MemoryActions::GetPopWord (m_host.GetMode())); } });
     }
 
     AddUndoItems (items);

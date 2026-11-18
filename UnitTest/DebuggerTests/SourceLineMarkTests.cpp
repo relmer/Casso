@@ -3,6 +3,8 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 
 #include "CppUnitTest.h"
 
@@ -29,7 +31,7 @@ namespace DebuggerTests
     public:
         TEST_METHOD (ThePcLineAndBreakpointsAreMarkedAsInTheDisassembly)
         {
-            SourcePane::Style               style;
+            SourceRowStyle               style;
             std::vector<std::wstring>       lines (5, L"x");
             std::vector<DxuiTextView::Row>  rows;
 
@@ -40,7 +42,7 @@ namespace DebuggerTests
             style.enabledIcon  = std::make_shared<DxuiIconImage>();
             style.disabledIcon = std::make_shared<DxuiIconImage>();
 
-            rows = SourcePane::BuildRows (lines, 2, { 2, 4 }, { 4 }, style);
+            rows = SourceRows::BuildRows (lines, 2, { 2, 4 }, { 4 }, style);
 
             Assert::AreEqual (std::wstring (s_kpszTriangleRight), rows[1].cells[0], L"no bullet in the text");
             Assert::AreEqual (std::wstring (L" "),                rows[3].cells[0]);
@@ -60,10 +62,10 @@ namespace DebuggerTests
         //  on any line, so the line numbers follow the margin.
         TEST_METHOD (ThePcsArrowIsInTheGlyphMarginBesideTheBreakpoint)
         {
-            constexpr int                   kInArrowX = 14;   // inside the arrow, left of its tip
-            constexpr int                   kPastTipX = 39;   // inside the dot, past the arrow's tip
-            constexpr int                   kMiddle   = GutterGlyph::kSizePx / 2;
-            SourcePane::Style               style;
+            constexpr int   kInArrowX = 14;   // inside the arrow, left of its tip
+            constexpr int   kPastTipX = 39;   // inside the dot, past the arrow's tip
+            constexpr int   kMiddle   = GutterGlyph::kSizePx / 2;
+            SourceRowStyle  style;
             std::vector<std::wstring>       lines (5, L"x");
             std::vector<DxuiTextView::Row>  rows;
             const DxuiIconImage           * marked    = nullptr;
@@ -76,7 +78,7 @@ namespace DebuggerTests
             style.disabledIcon = GutterGlyph::MakeDot   (0xFFF4524D, false);
             style.pcIcon       = GutterGlyph::MakeArrow (style.pcMarkerArgb);
 
-            rows = SourcePane::BuildRows (lines, 2, { 4 }, {}, style);
+            rows = SourceRows::BuildRows (lines, 2, { 4 }, {}, style);
 
             Assert::AreEqual (style.pcIcon->width * 2, rows[1].icon->width, L"the arrow in the right square on a line with no breakpoint");
             Assert::IsTrue   (rows[3].icon == style.enabledIcon, L"a breakpoint's dot on its own line");
@@ -88,7 +90,7 @@ namespace DebuggerTests
                 Assert::IsTrue (row.cells[0].empty(), L"no marker in the text");
             }
 
-            rows   = SourcePane::BuildRows (lines, 4, { 4 }, {}, style);
+            rows   = SourceRows::BuildRows (lines, 4, { 4 }, {}, style);
             marked = rows[3].icon.get();
 
             Assert::IsNotNull (marked, L"the marked line with a breakpoint shows both");

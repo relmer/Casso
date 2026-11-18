@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/BreakpointGroupHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
@@ -119,7 +120,7 @@ namespace DebuggerTests
 
             rig.RunOk (std::format ("BPGROUP ! {} {} {}", first, second, memory));
 
-            Assert::IsTrue   (BreakpointHandlers::GetGroups (rig.session).empty(), L"an empty group is gone");
+            Assert::IsTrue   (BreakpointGroupHandlers::GetGroups (rig.session).empty(), L"an empty group is gone");
             Assert::AreEqual (std::string ("No breakpoint groups."), rig.RunOk ("BPGROUP").text.at (0));
         }
 

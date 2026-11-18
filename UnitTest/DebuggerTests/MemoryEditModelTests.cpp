@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -44,7 +45,7 @@ namespace DebuggerTests
                 Show (0x0300, MemoryRegion::MainRam);
                 model.SetOnPatch ([this] (Word address, std::span<const Byte> bytes, std::span<const Byte> before)
                 {
-                    lines.push_back (DebuggerActions::GetPatch (address, bytes, CommandMode::AppleWin).echo);
+                    lines.push_back (MemoryActions::GetPatch (address, bytes, CommandMode::AppleWin).echo);
                     required.assign (before.begin(), before.end());
                 });
             }

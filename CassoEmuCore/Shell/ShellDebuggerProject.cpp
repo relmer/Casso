@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/ShellDebugger.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Config/DebuggerSettings.h"
 #include "Core/PathResolver.h"
@@ -473,7 +475,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
 
 
         project.ApplyEngine (m_debugController->GetSession(), failures);
-        m_debugViewState.SetBreakpointUndoText (m_debugController->GetSession(), project.breakpointUndo);
+        m_debugViewState.GetCommands().SetBreakpointUndoText (m_debugController->GetSession(), project.breakpointUndo);
     }
 
     {
@@ -529,10 +531,10 @@ void ShellDebugger::RunStartupCommands()
 
 
 
-            echoed = m_debugViewState.ExecuteConsoleLine (m_debugController->GetSession(), command.text, command.mode);
+            echoed = m_debugViewState.GetCommands().ExecuteConsoleLine (m_debugController->GetSession(), command.text, command.mode);
         }
 
-        DebuggerViewState::AddCommandGap (echoed);
+        DebuggerViewCommands::AddCommandGap (echoed);
         lines.insert (lines.end(), echoed.begin(), echoed.end());
     }
 
@@ -664,7 +666,7 @@ void ShellDebugger::OnConfirmProjectMerge()
 
     if (choice == IDYES)
     {
-        RunDebuggerAction (DebuggerActions::GetProject ("MERGE", std::string(), CommandMode::AppleWin));
+        RunDebuggerAction (SessionActions::GetProject ("MERGE", std::string(), CommandMode::AppleWin));
     }
 }
 
@@ -929,7 +931,7 @@ void ShellDebugger::CaptureProject (DebugProject & project)
     //  The breakpoint undo history changes only on the CPU thread, which this
     //  runs on, so reading it takes no view lock; a PROJECT command arrives
     //  here with that lock already taken.
-    project.breakpointUndo = m_debugViewState.GetBreakpointUndoText();
+    project.breakpointUndo = m_debugViewState.GetCommands().GetBreakpointUndoText();
     project.CaptureEngine (m_debugController->GetSession(), &m_debugController->GetHandlers().GetExecution());
 
     if (m_projectWindowPending.has_value())

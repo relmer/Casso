@@ -33,6 +33,8 @@
 #include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineText.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
@@ -418,11 +420,11 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
         return parts;
     }
 
-    parts.operandColumn = (size_t) SourcePane::kAnnotationCell;
-    parts.codeColumn    = (size_t) SourcePane::kTextCell;
-    parts.rowColumn     = (size_t) SourcePane::kNumberCell;
+    parts.operandColumn = (size_t) SourceRows::kAnnotationCell;
+    parts.codeColumn    = (size_t) SourceRows::kTextCell;
+    parts.rowColumn     = (size_t) SourceRows::kNumberCell;
 
-    hasLine = row >= 0 && row < (int) text->GetRows().size() && text->GetRows()[(size_t) row].cells.size() > (size_t) SourcePane::kTextCell;
+    hasLine = row >= 0 && row < (int) text->GetRows().size() && text->GetRows()[(size_t) row].cells.size() > (size_t) SourceRows::kTextCell;
 
     if (!hasLine)
     {
@@ -430,12 +432,12 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
     }
 
     textRow          = &text->GetRows()[(size_t) row];
-    parts.codeChar = SourcePane::FindCodeStart (textRow->cells[(size_t) SourcePane::kTextCell]);
+    parts.codeChar = SourceLineText::FindCodeStart (textRow->cells[(size_t) SourceRows::kTextCell]);
 
-    if (m_snapshot != nullptr && m_snapshot->symbols != nullptr && textRow->cells.size() > (size_t) SourcePane::kAnnotationCell &&
-        !textRow->cells[(size_t) SourcePane::kAnnotationCell].empty())
+    if (m_snapshot != nullptr && m_snapshot->symbols != nullptr && textRow->cells.size() > (size_t) SourceRows::kAnnotationCell &&
+        !textRow->cells[(size_t) SourceRows::kAnnotationCell].empty())
     {
-        hasSymbol = SourcePane::TryGetOperandSymbolText (textRow->cells[(size_t) SourcePane::kTextCell], parts.codeChar, m_snapshot->symbols->symbols, parts.symbol);
+        hasSymbol = SourceLineText::TryGetOperandSymbolText (textRow->cells[(size_t) SourceRows::kTextCell], parts.codeChar, m_snapshot->symbols->symbols, parts.symbol);
         IGNORE_RETURN_VALUE (hasSymbol, false);
     }
 
@@ -779,7 +781,7 @@ bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document,
         return false;
     }
 
-    SourcePane::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_snapshot, GetSymbolComment (found->address, found->name));
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_snapshot, GetSymbolComment (found->address, found->name));
 
     tip             = DxuiTip();
     tip.anchor      = anchor;

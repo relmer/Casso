@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/MemoryActions.h"
 
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
@@ -84,7 +86,7 @@ bool DisassemblyGutter::Click (const DxuiMouseEvent & ev)
 
         if (line >= 0)
         {
-            m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_host.GetMode()));
+            m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_host.GetMode()));
             return true;
         }
 
@@ -192,7 +194,7 @@ bool DisassemblyGutter::Drop (const DxuiMouseEvent & ev)
 
     if (row == from)
     {
-        m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_host.GetMode()));
+        m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_host.GetMode()));
     }
     else if (DisassemblyOptions::CanTakeBreakpoint (m_views.GetCodeLines (view)[(size_t) line]))
     {
@@ -214,7 +216,7 @@ bool DisassemblyGutter::Drop (const DxuiMouseEvent & ev)
 
 void DisassemblyGutter::SetNextStatement (Word address)
 {
-    m_host.RunAction (DebuggerActions::GetSetRegister ("PC", std::format ("{:04X}", address), m_host.GetMode()));
+    m_host.RunAction (MemoryActions::GetSetRegister ("PC", std::format ("{:04X}", address), m_host.GetMode()));
 }
 
 

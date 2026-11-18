@@ -3,6 +3,12 @@
 #include "Debugger/AppleWinParser.h"
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
+#include "Ui/Debugger/SymbolActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Core/TextEncoding.h"
 
@@ -78,41 +84,41 @@ public:
 
 
 
-        AssertParsesTo (rig, "G",            DebuggerActions::GetRun              (aw));
-        AssertParsesTo (rig, "T",            DebuggerActions::GetStepInto         (aw));
-        AssertParsesTo (rig, "P",            DebuggerActions::GetStepOver         (aw));
-        AssertParsesTo (rig, "RTS",          DebuggerActions::GetStepOut          (aw));
-        AssertParsesTo (rig, "G 0300",       DebuggerActions::GetRunToCursor      (0x0300));
-        AssertParsesTo (rig, "BP 0300",      DebuggerActions::GetToggleBreakpoint (none, 0x0300, aw));
-        AssertParsesTo (rig, "BPE 3",        DebuggerActions::GetEnableBreakpoint (3, true,  aw));
-        AssertParsesTo (rig, "BPD 3",        DebuggerActions::GetEnableBreakpoint (3, false, aw));
-        AssertParsesTo (rig, "BPC 3",        DebuggerActions::GetClearBreakpoint  (3, aw));
-        AssertParsesTo (rig, "WC 2",         DebuggerActions::GetClearWatch       (2, aw));
-        AssertParsesTo (rig, "PANEL mmu",    DebuggerActions::GetPanel            ("mmu", true,  aw));
-        AssertParsesTo (rig, "PANEL CLOSE mmu", DebuggerActions::GetPanel         ("mmu", false, aw));
-        AssertParsesTo (rig, "MEB 0400 41",  DebuggerActions::GetPoke             (0x0400, 0x41, aw));
-        AssertParsesTo (rig, "HISTORY ON",   DebuggerActions::GetTraceToggle      (false, aw));
-        AssertParsesTo (rig, "HISTORY OFF",  DebuggerActions::GetTraceToggle      (true,  aw));
-        AssertParsesTo (rig, "MODE MONITOR", DebuggerActions::GetSetMode          (CommandMode::Monitor, aw));
-        AssertParsesTo (rig, "R P 30",       DebuggerActions::GetSetRegister      ("P", 0x30, aw));
-        AssertParsesTo (rig, "PROJECT MERGE", DebuggerActions::GetProject         ("MERGE", "", aw));
-        AssertParsesTo (rig, "PROJECT SAVEAS \"game.cassoproj\"", DebuggerActions::GetProject ("SAVEAS", "game.cassoproj", aw));
-        AssertParsesTo (rig, "DB 0300:030F",  DebuggerActions::GetMarkData       ("DB", 0x0300, 0x030F, aw));
-        AssertParsesTo (rig, "ASC 0300:030F", DebuggerActions::GetMarkData       ("ASC", 0x0300, 0x030F, aw));
-        AssertParsesTo (rig, "X 0300:030F",   DebuggerActions::GetClearData      (0x0300, 0x030F, aw));
-        AssertParsesTo (rig, "SYM LOOP = 0300", DebuggerActions::GetAddSymbol    ("LOOP", 0x0300, aw));
-        AssertParsesTo (rig, "BMA 0300",      DebuggerActions::GetAddBookmark    (0x0300, aw));
-        AssertParsesTo (rig, "BMC 2",         DebuggerActions::GetClearBookmark  (2, aw));
-        AssertParsesTo (rig, "STOPWATCH 0300 0310", DebuggerActions::GetStopwatch (0x0300, 0x0310, aw));
-        AssertParsesTo (rig, "JSR 0300",      DebuggerActions::GetCallSubroutine (0x0300, aw));
-        AssertParsesTo (rig, "SKIP 0300",     DebuggerActions::GetSkipRoutine    ("", 0x0300, aw));
-        AssertParsesTo (rig, "SYMUSER ON",    DebuggerActions::GetEnableSymbols  ("USER", true, aw));
-        AssertParsesTo (rig, "SYMMAIN OFF",   DebuggerActions::GetEnableSymbols  ("MAIN", false, aw));
-        AssertParsesTo (rig, "SYMUSER CLEAR", DebuggerActions::GetClearSymbols   ("USER", aw));
-        AssertParsesTo (rig, "SYMUSER SAVE \"out.sym\"", DebuggerActions::GetSaveSymbols ("USER", "out.sym", aw));
-        AssertParsesTo (rig, "SYMUSER ! LOOP", DebuggerActions::GetRemoveSymbol  ("USER", "LOOP", aw));
-        AssertParsesTo (rig, "PROFILE ON",    DebuggerActions::GetProfile        ("ON", aw));
-        AssertParsesTo (rig, "SKIP -0300",    DebuggerActions::GetRemoveSkip     ({ "", 0x0300, 0x0300 }, aw));
+        AssertParsesTo (rig, "G",            RunActions::GetRun              (aw));
+        AssertParsesTo (rig, "T",            RunActions::GetStepInto         (aw));
+        AssertParsesTo (rig, "P",            RunActions::GetStepOver         (aw));
+        AssertParsesTo (rig, "RTS",          RunActions::GetStepOut          (aw));
+        AssertParsesTo (rig, "G 0300",       RunActions::GetRunToCursor      (0x0300));
+        AssertParsesTo (rig, "BP 0300",      BreakpointActions::GetToggleBreakpoint (none, 0x0300, aw));
+        AssertParsesTo (rig, "BPE 3",        BreakpointActions::GetEnableBreakpoint (3, true,  aw));
+        AssertParsesTo (rig, "BPD 3",        BreakpointActions::GetEnableBreakpoint (3, false, aw));
+        AssertParsesTo (rig, "BPC 3",        BreakpointActions::GetClearBreakpoint  (3, aw));
+        AssertParsesTo (rig, "WC 2",         WatchActions::GetClearWatch       (2, aw));
+        AssertParsesTo (rig, "PANEL mmu",    SessionActions::GetPanel            ("mmu", true,  aw));
+        AssertParsesTo (rig, "PANEL CLOSE mmu", SessionActions::GetPanel         ("mmu", false, aw));
+        AssertParsesTo (rig, "MEB 0400 41",  MemoryActions::GetPoke             (0x0400, 0x41, aw));
+        AssertParsesTo (rig, "HISTORY ON",   SessionActions::GetTraceToggle      (false, aw));
+        AssertParsesTo (rig, "HISTORY OFF",  SessionActions::GetTraceToggle      (true,  aw));
+        AssertParsesTo (rig, "MODE MONITOR", SessionActions::GetSetMode          (CommandMode::Monitor, aw));
+        AssertParsesTo (rig, "R P 30",       MemoryActions::GetSetRegister      ("P", 0x30, aw));
+        AssertParsesTo (rig, "PROJECT MERGE", SessionActions::GetProject         ("MERGE", "", aw));
+        AssertParsesTo (rig, "PROJECT SAVEAS \"game.cassoproj\"", SessionActions::GetProject ("SAVEAS", "game.cassoproj", aw));
+        AssertParsesTo (rig, "DB 0300:030F",  SymbolActions::GetMarkData       ("DB", 0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "ASC 0300:030F", SymbolActions::GetMarkData       ("ASC", 0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "X 0300:030F",   SymbolActions::GetClearData      (0x0300, 0x030F, aw));
+        AssertParsesTo (rig, "SYM LOOP = 0300", SymbolActions::GetAddSymbol    ("LOOP", 0x0300, aw));
+        AssertParsesTo (rig, "BMA 0300",      WatchActions::GetAddBookmark    (0x0300, aw));
+        AssertParsesTo (rig, "BMC 2",         WatchActions::GetClearBookmark  (2, aw));
+        AssertParsesTo (rig, "STOPWATCH 0300 0310", RunActions::GetStopwatch (0x0300, 0x0310, aw));
+        AssertParsesTo (rig, "JSR 0300",      RunActions::GetCallSubroutine (0x0300, aw));
+        AssertParsesTo (rig, "SKIP 0300",     RunActions::GetSkipRoutine    ("", 0x0300, aw));
+        AssertParsesTo (rig, "SYMUSER ON",    SymbolActions::GetEnableSymbols  ("USER", true, aw));
+        AssertParsesTo (rig, "SYMMAIN OFF",   SymbolActions::GetEnableSymbols  ("MAIN", false, aw));
+        AssertParsesTo (rig, "SYMUSER CLEAR", SymbolActions::GetClearSymbols   ("USER", aw));
+        AssertParsesTo (rig, "SYMUSER SAVE \"out.sym\"", SymbolActions::GetSaveSymbols ("USER", "out.sym", aw));
+        AssertParsesTo (rig, "SYMUSER ! LOOP", SymbolActions::GetRemoveSymbol  ("USER", "LOOP", aw));
+        AssertParsesTo (rig, "PROFILE ON",    SessionActions::GetProfile        ("ON", aw));
+        AssertParsesTo (rig, "SKIP -0300",    RunActions::GetRemoveSkip     ({ "", 0x0300, 0x0300 }, aw));
     }
 
 
@@ -130,8 +136,8 @@ public:
 
         rig.Run ("MODE GSSQUARED");
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(),
-                                        Echoed (DebuggerActions::GetToggleBreakpoint (none, 0x0300, CommandMode::GSSquared)));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(),
+                                                      Echoed (BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::GSSquared)));
         after = rig.view.Build (rig.controller.GetSession());
 
         Assert::IsFalse  (lines.empty());
@@ -153,10 +159,10 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
         set = rig.view.Build (rig.controller.GetSession());
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetToggleBreakpoint (set, 0x0300, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (set, 0x0300, CommandMode::AppleWin));
         cleared = rig.view.Build (rig.controller.GetSession());
 
         Assert::AreEqual ((size_t) 1, set.breakpoints.size());
@@ -173,9 +179,9 @@ public:
 
 
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), Echoed (DebuggerActions::GetPanel ("mmu", true, CommandMode::AppleWin)));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), Echoed (SessionActions::GetPanel ("mmu", true, CommandMode::AppleWin)));
 
-        Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
+        Assert::IsTrue   (rig.view.GetPanels().IsPanelOpen ("mmu"));
         Assert::AreEqual (std::string (">PANEL mmu"), lines[0]);
     }
 
@@ -187,7 +193,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPoke (0x0400, 0x5A, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPoke (0x0400, 0x5A, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x0400));
     }
@@ -198,7 +204,7 @@ public:
     //  CLEAR, which unloads the debug file rather than only its symbols.
     TEST_METHOD (TheDebugFilesUnloadRowIsSrcClear)
     {
-        DebuggerAction  action = DebuggerActions::GetUnloadDebugFile (CommandMode::AppleWin);
+        DebuggerAction  action = SymbolActions::GetUnloadDebugFile (CommandMode::AppleWin);
 
 
 
@@ -220,17 +226,17 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, written, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, written, CommandMode::AppleWin));
         rig.machine.GetMemoryBus().WriteByte (0x0401, 0x33);
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
         lines = rig.view.Build (rig.controller.GetSession()).actionReply;
 
         Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0400), L"nothing was written");
         Assert::IsTrue   (std::ranges::any_of (lines, [] (const std::string & line) { return line.find ("$0401 has changed since the edit") != std::string::npos; }), L"the reply has the reason");
 
         rig.machine.GetMemoryBus().WriteByte (0x0401, 0xEA);
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
 
         Assert::AreEqual ((Byte) 0x11, rig.machine.GetMemoryBus().ReadByte (0x0400));
         Assert::AreEqual ((Byte) 0x22, rig.machine.GetMemoryBus().ReadByte (0x0401));
@@ -249,7 +255,7 @@ public:
 
         rig.Run ("MODE GSSQUARED");
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), Echoed (DebuggerActions::GetRunToCursor (0x0305)));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), Echoed (RunActions::GetRunToCursor (0x0305)));
 
         Assert::AreEqual (std::string (">G 0305"), lines[0]);
     }
@@ -270,8 +276,8 @@ public:
 
 
 
-        set    = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
-        failed = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetClearWatch (7, CommandMode::AppleWin));
+        set    = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
+        failed = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), WatchActions::GetClearWatch (7, CommandMode::AppleWin));
 
         Assert::IsTrue (set.empty(),    L"a breakpoint set from a control printed lines");
         Assert::IsTrue (failed.empty(), L"a failed action printed its error in the console");
@@ -281,7 +287,7 @@ public:
 
         Assert::IsFalse (snapshot.actionReply.empty(), L"the error is in the snapshot");
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetToggleBreakpoint (none, 0x0310, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0310, CommandMode::AppleWin));
         snapshot = rig.view.Build (rig.controller.GetSession());
 
         Assert::AreNotEqual (serial, snapshot.actionReplySerial, L"a new action has a new serial");
@@ -295,13 +301,13 @@ public:
     TEST_METHOD (TheSnapshotHasWhereTheReplyGoes)
     {
         ControllerRig         rig;
-        DebuggerAction        failing = DebuggerActions::GetClearWatch (7, CommandMode::AppleWin);
+        DebuggerAction        failing = WatchActions::GetClearWatch (7, CommandMode::AppleWin);
         DebuggerViewSnapshot  snapshot;
 
 
 
         failing.replyPane = L"Watches";
-        rig.view.ExecuteAction (rig.controller.GetSession(), failing);
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), failing);
         snapshot = rig.view.Build (rig.controller.GetSession());
 
         Assert::AreEqual (std::wstring (L"Watches"), snapshot.actionReplyPane);
@@ -310,7 +316,7 @@ public:
 
         failing.replyPane.clear();
         failing.isReplyBoxed = true;
-        rig.view.ExecuteAction (rig.controller.GetSession(), failing);
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), failing);
 
         Assert::IsTrue (rig.view.Build (rig.controller.GetSession()).isActionReplyBoxed);
     }
@@ -327,7 +333,7 @@ public:
 
 
         rig.machine.GetMemoryBus().WriteByte (0x6000, 0x5A);
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSearchMemory ("5A", CommandMode::AppleWin));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetSearchMemory ("5A", CommandMode::AppleWin));
 
         Assert::IsTrue  (lines.empty(), L"the search's matches went to the console");
         Assert::IsFalse (rig.view.Build (rig.controller.GetSession()).actionReply.empty(), L"the search's matches are missing");

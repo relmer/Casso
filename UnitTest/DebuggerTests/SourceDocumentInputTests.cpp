@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../Dxui/MockDxuiPainter.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/CodeMargins.h"
@@ -15,6 +16,9 @@
 #include "Ui/Debugger/Panes/OperandTipController.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineText.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 
 #include "CppUnitTest.h"
 
@@ -215,8 +219,8 @@ namespace SourceDocumentInputTests
                       },
                       [this] (const DebuggerActionBuilder & build) { echoes.push_back (build (CommandMode::AppleWin).echo); })
             {
-                DxuiDpiScaler       scaler;
-                SourcePane::Style   style;
+                DxuiDpiScaler   scaler;
+                SourceRowStyle  style;
 
 
 
@@ -267,10 +271,10 @@ namespace SourceDocumentInputTests
 
             Assert::IsTrue   (rig.pane.ClickGutter (POINT { GetGutterX(), GetRowY (1) }));
             Assert::AreEqual ((size_t) 1, rig.echoes.size());
-            Assert::AreEqual (DebuggerActions::GetSourceBreakpoint ("main.a65", 2, CommandMode::AppleWin).echo, rig.echoes.back(), L"set on LDA's line");
+            Assert::AreEqual (BreakpointActions::GetSourceBreakpoint ("main.a65", 2, CommandMode::AppleWin).echo, rig.echoes.back(), L"set on LDA's line");
 
             Assert::IsTrue   (rig.pane.ClickGutter (POINT { GetGutterX(), GetRowY (2) }));
-            Assert::AreEqual (DebuggerActions::GetClearBreakpoint (kBreakpointId, CommandMode::AppleWin).echo, rig.echoes.back(), L"cleared on RTS's line");
+            Assert::AreEqual (BreakpointActions::GetClearBreakpoint (kBreakpointId, CommandMode::AppleWin).echo, rig.echoes.back(), L"cleared on RTS's line");
 
             Assert::IsTrue   (rig.pane.ClickGutter (POINT { GetGutterX(), GetRowY (0) }), L"the press is the margin's");
             Assert::AreEqual ((size_t) 2, rig.echoes.size(), L"but a comment can't take a breakpoint");
@@ -359,15 +363,15 @@ namespace SourceDocumentInputTests
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (1) }, items);
             Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Set breakpoint" }, (L"LDA's line has no breakpoint: " + JoinLabels (items)).c_str());
             Run (items, L"Set breakpoint");
-            Assert::AreEqual (DebuggerActions::GetSourceBreakpoint ("main.a65", 2, snapshot->mode).echo, host.echoes.back());
+            Assert::AreEqual (BreakpointActions::GetSourceBreakpoint ("main.a65", 2, snapshot->mode).echo, host.echoes.back());
 
             items.clear();
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (2) }, items);
             Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Disable breakpoint", L"Remove breakpoint" }, L"RTS's line has one");
             Run (items, L"Disable breakpoint");
-            Assert::AreEqual (DebuggerActions::GetEnableBreakpoint (kBreakpointId, false, snapshot->mode).echo, host.echoes.back());
+            Assert::AreEqual (BreakpointActions::GetEnableBreakpoint (kBreakpointId, false, snapshot->mode).echo, host.echoes.back());
             Run (items, L"Remove breakpoint");
-            Assert::AreEqual (DebuggerActions::GetClearBreakpoint (kBreakpointId, snapshot->mode).echo, host.echoes.back());
+            Assert::AreEqual (BreakpointActions::GetClearBreakpoint (kBreakpointId, snapshot->mode).echo, host.echoes.back());
 
             snapshot = MakeSnapshot (true);
             window.TakeSnapshot (snapshot);
@@ -471,7 +475,7 @@ namespace SourceDocumentInputTests
 
 
 
-            Assert::IsTrue (view->GetCellLeftPx (1, SourcePane::kTextCell, text));
+            Assert::IsTrue (view->GetCellLeftPx (1, SourceRows::kTextCell, text));
 
             Assert::IsTrue (window.GetCursorForPoint (POINT { bounds.left + GetGutterX(), y }) == IDC_ARROW, L"the glyph margin");
             Assert::IsTrue (window.GetCursorForPoint (POINT { (LONG) text - 2, y }) == IDC_ARROW, L"the lanes left of the text");
@@ -571,16 +575,16 @@ namespace SourceDocumentInputTests
             view = OpenDocument (window, snapshot);
             window.GetOperandTips().SetDeviceForTest (&text, screen);
 
-            Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell), L"LDA's operand is in view");
+            Assert::IsTrue   (view->GetCellRectPx (1, SourceRows::kAnnotationCell, cell), L"LDA's operand is in view");
             Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
                               L"the view cuts the long operand off");
             Assert::AreEqual (2, layout.lineCount, L"the operand on one line and the result on the next");
             Assert::AreEqual (TextEncoding::NarrowToWide (operand.substr (0, operand.size() - 1)), layout.runs[0].text);
             Assert::AreEqual ((float) cell.left, layout.runs[0].leftPx, L"the tip's text starts at the cell's");
-            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kNumberCell, numberLeft));
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourceRows::kNumberCell, numberLeft));
             Assert::AreEqual ((LONG) numberLeft, layout.rect.left, L"the line below from the line's number");
 
-            Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
+            Assert::IsTrue   (view->GetCellRectPx (2, SourceRows::kAnnotationCell, cell));
             Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
                               L"a short operand fits");
         }
@@ -623,7 +627,7 @@ namespace SourceDocumentInputTests
             view = OpenDocument (window, snapshot);
             window.GetOperandTips().SetDeviceForTest (&text, screen);
 
-            Assert::IsTrue      (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell));
+            Assert::IsTrue      (view->GetCellRectPx (1, SourceRows::kAnnotationCell, cell));
             Assert::AreNotEqual (theme.ContentSelection(), theme.ContentHover());
 
             at = POINT { cell.left + 1, (cell.top + cell.bottom) / 2 };
@@ -649,17 +653,17 @@ namespace SourceDocumentInputTests
         {
             std::vector<SymbolInfo>  symbols (1);
             std::wstring             line    = L"loop    bne loop ; back to loop";
-            int                      codeAt  = SourcePane::FindCodeStart (line);
+            int                      codeAt  = SourceLineText::FindCodeStart (line);
 
 
 
             symbols[0].name    = "loop";
             symbols[0].address = 0x0300;
 
-            Assert::IsFalse (SourcePane::IsOperandSymbolAt (line, codeAt, 1,                                  symbols), L"the label");
-            Assert::IsTrue  (SourcePane::IsOperandSymbolAt (line, codeAt, (int) line.find (L"loop", codeAt) + 1, symbols), L"the operand");
-            Assert::IsFalse (SourcePane::IsOperandSymbolAt (line, codeAt, (int) line.rfind (L"loop") + 1,       symbols), L"the comment");
-            Assert::IsFalse (SourcePane::IsOperandSymbolAt (line, codeAt, codeAt + 1,                         symbols), L"the mnemonic");
+            Assert::IsFalse (SourceLineText::IsOperandSymbolAt (line, codeAt, 1,                                  symbols), L"the label");
+            Assert::IsTrue  (SourceLineText::IsOperandSymbolAt (line, codeAt, (int) line.find (L"loop", codeAt) + 1, symbols), L"the operand");
+            Assert::IsFalse (SourceLineText::IsOperandSymbolAt (line, codeAt, (int) line.rfind (L"loop") + 1,       symbols), L"the comment");
+            Assert::IsFalse (SourceLineText::IsOperandSymbolAt (line, codeAt, codeAt + 1,                         symbols), L"the mnemonic");
         }
 
 
@@ -699,13 +703,13 @@ namespace SourceDocumentInputTests
             for (int width = 1400; width > kLeastPx && !isPast; width -= kStepPx)
             {
                 window.Layout (RECT { 0, 0, width, 900 }, scaler);
-                isPast = view->IsVisible() && view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell) && cell.left >= view->GetTextAreaRightPx();
+                isPast = view->IsVisible() && view->GetCellRectPx (1, SourceRows::kAnnotationCell, cell) && cell.left >= view->GetTextAreaRightPx();
             }
 
             Assert::IsTrue (isPast, L"a narrower window puts LDA's operand past the view's edge");
 
             move.kind        = DxuiMouseEventKind::Move;
-            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kNumberCell, numberLeft));
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourceRows::kNumberCell, numberLeft));
             move.positionDip = POINT { (LONG) numberLeft + 1, (cell.top + cell.bottom) / 2 };
             (void) window.OnMouse (move);
 
@@ -760,22 +764,22 @@ namespace SourceDocumentInputTests
             //  LDA's line with a comment longer than the view, then a line of
             //  comment alone, as long.
             rows = view->GetRows();
-            rows[1].cells[(size_t) SourcePane::kTextCell] += L" " + comment;
-            rows[0].cells[(size_t) SourcePane::kTextCell]  = comment;
+            rows[1].cells[(size_t) SourceRows::kTextCell] += L" " + comment;
+            rows[0].cells[(size_t) SourceRows::kTextCell]  = comment;
             view->UpdateRows (std::move (rows));
 
-            Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kTextCell, cell));
+            Assert::IsTrue   (view->GetCellRectPx (1, SourceRows::kTextCell, cell));
             Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
                               L"the view cuts the line off");
             Assert::AreEqual (3, layout.lineCount);
-            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kTextCell], layout.runs[0].text, L"the line, comment and all, on the tip's first line");
+            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourceRows::kTextCell], layout.runs[0].text, L"the line, comment and all, on the tip's first line");
             Assert::AreEqual (0, layout.runs[0].line);
             Assert::AreEqual (std::wstring (L"A=00 X=01"),    layout.runs[1].text);
             Assert::AreEqual (std::wstring (L"Result: A=41"), layout.runs[2].text);
-            Assert::IsTrue   (view->GetCellLeftPx (1, SourcePane::kTextCell, codeLeft));
+            Assert::IsTrue   (view->GetCellLeftPx (1, SourceRows::kTextCell, codeLeft));
             Assert::AreEqual (codeLeft + (float) (kCodeChar * kGlyphPx), layout.runs[1].leftPx, L"the operand under the code");
 
-            Assert::IsTrue   (view->GetCellRectPx (0, SourcePane::kTextCell, cell));
+            Assert::IsTrue   (view->GetCellRectPx (0, SourceRows::kTextCell, cell));
             Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
                               L"a comment line the view cuts off has no tip");
             Assert::AreEqual (1, layout.lineCount);
@@ -814,16 +818,16 @@ namespace SourceDocumentInputTests
             lda.effect                    = "A=41";
             (void) DisassemblyCells::FillCodeRow (cells, lda, options, colors);
 
-            Assert::AreEqual (cells[DisassemblyCells::kOperandColumn].text, view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell],
+            Assert::AreEqual (cells[DisassemblyCells::kOperandColumn].text, view->GetRows()[1].cells[(size_t) SourceRows::kAnnotationCell],
                               L"the same text as the disassembly's");
 
             resultAt = std::get<0> (cells[DisassemblyCells::kOperandColumn].colorRanges.front());
 
             for (const DxuiTextView::Span & span : view->GetRows()[1].spans)
             {
-                isOperand = isOperand || (span.cell == SourcePane::kAnnotationCell && span.start == 0 &&
+                isOperand = isOperand || (span.cell == SourceRows::kAnnotationCell && span.start == 0 &&
                                           span.argb == cells[DisassemblyCells::kOperandColumn].argb);
-                isResult  = isResult  || (span.cell == SourcePane::kAnnotationCell && span.start == resultAt &&
+                isResult  = isResult  || (span.cell == SourceRows::kAnnotationCell && span.start == resultAt &&
                                           span.argb == std::get<2> (cells[DisassemblyCells::kOperandColumn].colorRanges.front()));
             }
 
@@ -867,7 +871,7 @@ namespace SourceDocumentInputTests
             view = OpenDocument (window, snapshot);
             window.GetOperandTips().SetDeviceForTest (&text, screen);
 
-            Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell));
+            Assert::IsTrue   (view->GetCellRectPx (1, SourceRows::kAnnotationCell, cell));
             Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell));
 
             Assert::AreEqual (2, layout.lineCount);

@@ -299,12 +299,12 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
             RunReadThenStores (rig);
 
             options.cumulative = true;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual (AccessHeatMap::kAddressCount, snapshot.heatMap.unwritten.size());
@@ -316,7 +316,7 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 1, rig.controller.GetSession().GetTarget().GetUnwrittenStatus().reads);
 
             options.ignoreSameWrites = true;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (snapshot.heatMap.write == snapshot.heatMap.changed, L"the writes shown are the changes");
@@ -333,7 +333,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
             rig.controller.GetSession().GetTarget().SetUnwrittenIgnore ({ { 0x2000, 0x20FF } });
             RunReadThenStores (rig);
@@ -343,7 +343,7 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 0, rig.controller.GetSession().GetTarget().GetUnwrittenStatus().reads);
 
             rig.controller.GetSession().SetUnwrittenBreak (true);
-            rig.view.SetHeatMapShown (false);
+            rig.view.GetHeatMap().SetHeatMapShown (false);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (rig.machine.GetMemoryBus().AreAllPagesWatched(), L"the break keeps the map recording");

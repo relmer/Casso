@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -548,7 +549,7 @@ namespace DebuggerCodeMenuTests
             }
 
             Run (items, L"Enable breakpoint");
-            Assert::AreEqual (DebuggerActions::GetEnableBreakpoint (1, true, snapshot->mode).echo, host.commands.back());
+            Assert::AreEqual (BreakpointActions::GetEnableBreakpoint (1, true, snapshot->mode).echo, host.commands.back());
         }
 
 

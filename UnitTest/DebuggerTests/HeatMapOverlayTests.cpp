@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../Dxui/MockDxuiPainter.h"
+#include "Ui/Debugger/HeatMapReader.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "ControllerRig.h"
@@ -157,11 +158,11 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("LDA (..),Y"),   DebuggerViewState::GetOpcodeForm (set, 0xB1));
-            Assert::AreEqual (std::string ("LDA #.."),      DebuggerViewState::GetOpcodeForm (set, 0xA9));
-            Assert::AreEqual (std::string ("LDA ...."),     DebuggerViewState::GetOpcodeForm (set, 0xAD));
-            Assert::AreEqual (std::string ("JMP (....,X)"), DebuggerViewState::GetOpcodeForm (set, 0x7C));
-            Assert::AreEqual (std::string ("INX"),          DebuggerViewState::GetOpcodeForm (set, 0xE8));
+            Assert::AreEqual (std::string ("LDA (..),Y"),   HeatMapReader::GetOpcodeForm (set, 0xB1));
+            Assert::AreEqual (std::string ("LDA #.."),      HeatMapReader::GetOpcodeForm (set, 0xA9));
+            Assert::AreEqual (std::string ("LDA ...."),     HeatMapReader::GetOpcodeForm (set, 0xAD));
+            Assert::AreEqual (std::string ("JMP (....,X)"), HeatMapReader::GetOpcodeForm (set, 0x7C));
+            Assert::AreEqual (std::string ("INX"),          HeatMapReader::GetOpcodeForm (set, 0xE8));
         }
 
 
@@ -386,7 +387,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41 at $0300.
@@ -409,14 +410,14 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("LDA #.."), (*snapshot.heatMap.opcodeForms)[0xA9]);
 
             options.bank = HeatMapOptions::Bank::Main;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue   (snapshot.heatMap.pc == Word (0x0302), L"the code is in main RAM");
             Assert::AreEqual ((int16_t) 0xA9, snapshot.heatMap.values[0x0300], L"main RAM's own byte");
 
             options.bank = HeatMapOptions::Bank::Aux;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse  (snapshot.heatMap.pc.has_value(), L"not in aux RAM");

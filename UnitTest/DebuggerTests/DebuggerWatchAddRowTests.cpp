@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -227,7 +228,7 @@ namespace DebuggerWatchAddRowTests
             window.Press (VK_RETURN);
 
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"one action");
-            Assert::AreEqual (DebuggerActions::GetClearWatch (0, CommandMode::AppleWin).echo, host.commands[0], L"the watch is removed");
+            Assert::AreEqual (WatchActions::GetClearWatch (0, CommandMode::AppleWin).echo, host.commands[0], L"the watch is removed");
         }
 
         //  A window with an empty watch grid whose columns have widths, as after a

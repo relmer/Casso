@@ -9,6 +9,7 @@
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -365,20 +366,20 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue   (SourcePane::TryGetSymbolText (line, 22, symbols, text));
+            Assert::IsTrue   (SourceLineText::TryGetSymbolText (line, 22, symbols, text));
             Assert::AreEqual (std::wstring (L"count_text = $60F2\n#>count_text = #$60, its high byte"), text);
 
-            Assert::IsTrue   (SourcePane::TryGetSymbolText (L"lda <count_text", 7, symbols, text));
+            Assert::IsTrue   (SourceLineText::TryGetSymbolText (L"lda <count_text", 7, symbols, text));
             Assert::AreEqual (std::wstring (L"count_text = $60F2\n<count_text = $F2, its low byte"), text);
 
-            Assert::IsTrue   (SourcePane::TryGetSymbolText (L"cmp #BAR_LENGTH", 15, symbols, text), L"just past the word");
+            Assert::IsTrue   (SourceLineText::TryGetSymbolText (L"cmp #BAR_LENGTH", 15, symbols, text), L"just past the word");
             Assert::AreEqual (std::wstring (L"BAR_LENGTH = $0028, a constant"), text);
 
-            Assert::IsTrue   (SourcePane::TryGetSymbolText (L"lda COUNT_TEXT", 6, symbols, text), L"in another case");
+            Assert::IsTrue   (SourceLineText::TryGetSymbolText (L"lda COUNT_TEXT", 6, symbols, text), L"in another case");
 
-            Assert::IsFalse (SourcePane::TryGetSymbolText (line, 4, symbols, text), L"off a word");
-            Assert::IsFalse (SourcePane::TryGetSymbolText (line, 13, symbols, text), L"a mnemonic, which is no symbol");
-            Assert::IsFalse (SourcePane::TryGetSymbolText (L"nop ; count_text", 8, symbols, text), L"a comment");
+            Assert::IsFalse (SourceLineText::TryGetSymbolText (line, 4, symbols, text), L"off a word");
+            Assert::IsFalse (SourceLineText::TryGetSymbolText (line, 13, symbols, text), L"a mnemonic, which is no symbol");
+            Assert::IsFalse (SourceLineText::TryGetSymbolText (L"nop ; count_text", 8, symbols, text), L"a comment");
         }
 
 
@@ -393,11 +394,11 @@ namespace DebuggerTests
 
             snapshot.symbolBytes.push_back ({ 0x60C1, 2, { 0x05, 0x10 } });
 
-            SourcePane::AppendSymbolDetails (text, "count", 0x60C1, false, snapshot, "; how many stars");
+            SourceLineText::AppendSymbolDetails (text, "count", 0x60C1, false, snapshot, "; how many stars");
             Assert::AreEqual (std::wstring (L"count = $60C1\n$60C1: 05 10\n; how many stars"), text);
 
             text = L"LIMIT = $60C1, a constant";
-            SourcePane::AppendSymbolDetails (text, "LIMIT", 0x60C1, true, snapshot, "");
+            SourceLineText::AppendSymbolDetails (text, "LIMIT", 0x60C1, true, snapshot, "");
             Assert::AreEqual (std::wstring (L"LIMIT = $60C1, a constant"), text);
         }
 
@@ -415,17 +416,17 @@ namespace DebuggerTests
 
 
 
-            found = SourcePane::FindSymbolAt (L"        jsr draw_counter", 16, symbols, start);
+            found = SourceLineText::FindSymbolAt (L"        jsr draw_counter", 16, symbols, start);
             Assert::IsNotNull (found);
             Assert::AreEqual  (std::string ("draw_counter"), found->name);
             Assert::AreEqual  (12, start);
 
-            found = SourcePane::FindSymbolAt (L"cmp #BAR_LENGTH", 7, symbols, start);
+            found = SourceLineText::FindSymbolAt (L"cmp #BAR_LENGTH", 7, symbols, start);
             Assert::IsNotNull (found, L"a constant is found, and AddGoToDefinition omits it");
             Assert::IsTrue    (found->isConstant);
 
-            Assert::IsNull (SourcePane::FindSymbolAt (L"        jsr draw_counter", 9, symbols, start), L"a mnemonic");
-            Assert::IsNull (SourcePane::FindSymbolAt (L"rts ; draw_counter", 10, symbols, start), L"a comment");
+            Assert::IsNull (SourceLineText::FindSymbolAt (L"        jsr draw_counter", 9, symbols, start), L"a mnemonic");
+            Assert::IsNull (SourceLineText::FindSymbolAt (L"rts ; draw_counter", 10, symbols, start), L"a comment");
         }
 
 
@@ -434,15 +435,15 @@ namespace DebuggerTests
         //  ca65 defines it.
         TEST_METHOD (AMacrosNameAndTheLineDefiningItAreFound)
         {
-            Assert::AreEqual (std::wstring (L"store"), SourcePane::GetWordAt (L"loop    store $0400", 10));
-            Assert::AreEqual (std::wstring(),         SourcePane::GetWordAt (L"rts ; store", 8), L"a comment");
+            Assert::AreEqual (std::wstring (L"store"), SourceLineText::GetWordAt (L"loop    store $0400", 10));
+            Assert::AreEqual (std::wstring(),         SourceLineText::GetWordAt (L"rts ; store", 8), L"a comment");
 
-            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"store   macro addr", L"store"));
-            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"clear   MACRO", L"clear"));
-            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"clear   MAC", L"clear"));
-            Assert::IsTrue  (SourcePane::IsMacroDefinition (L"        .macro clear", L"clear"));
-            Assert::IsFalse (SourcePane::IsMacroDefinition (L"loop    store $0400", L"store"), L"a use of the macro");
-            Assert::IsFalse (SourcePane::IsMacroDefinition (L"; store macro", L"store"), L"a comment");
+            Assert::IsTrue  (SourceLineText::IsMacroDefinition (L"store   macro addr", L"store"));
+            Assert::IsTrue  (SourceLineText::IsMacroDefinition (L"clear   MACRO", L"clear"));
+            Assert::IsTrue  (SourceLineText::IsMacroDefinition (L"clear   MAC", L"clear"));
+            Assert::IsTrue  (SourceLineText::IsMacroDefinition (L"        .macro clear", L"clear"));
+            Assert::IsFalse (SourceLineText::IsMacroDefinition (L"loop    store $0400", L"store"), L"a use of the macro");
+            Assert::IsFalse (SourceLineText::IsMacroDefinition (L"; store macro", L"store"), L"a comment");
         }
     };
 

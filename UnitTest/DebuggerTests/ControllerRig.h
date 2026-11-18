@@ -72,6 +72,6 @@ public:
     //  runs it, so the window's own names answer as they do there.
     Reply Run (const std::string & line, CommandMode mode = CommandMode::AppleWin)
     {
-        return view.ExecuteWindowLine (controller.GetSession(), line, mode);
+        return view.GetCommands().ExecuteWindowLine (controller.GetSession(), line, mode);
     }
 };

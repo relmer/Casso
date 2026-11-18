@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/SymbolActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Acia6551.h"
@@ -430,8 +432,8 @@ namespace DebuggerToolPanesTests
 
             Assert::IsTrue   (pane->RouteEditKey (remove, pane->GetList()), L"Delete is taken");
             Assert::AreEqual ((size_t) 2, host.commands.size());
-            Assert::AreEqual (DebuggerActions::GetClearBookmark (2, CommandMode::AppleWin).echo, host.commands[0], L"the higher number first");
-            Assert::AreEqual (DebuggerActions::GetClearBookmark (1, CommandMode::AppleWin).echo, host.commands[1]);
+            Assert::AreEqual (WatchActions::GetClearBookmark (2, CommandMode::AppleWin).echo, host.commands[0], L"the higher number first");
+            Assert::AreEqual (WatchActions::GetClearBookmark (1, CommandMode::AppleWin).echo, host.commands[1]);
         }
 
 
@@ -562,7 +564,7 @@ namespace DebuggerToolPanesTests
         //  that makes a range of the same kind and as many items to a line.
         TEST_METHOD (ADataRangesRenameMarksItAgainAsTheSameKind)
         {
-            DebuggerAction  action = DebuggerActions::GetMarkData ("DW4", 0x0800, 0x080F, CommandMode::AppleWin, "TABLE");
+            DebuggerAction  action = SymbolActions::GetMarkData ("DW4", 0x0800, 0x080F, CommandMode::AppleWin, "TABLE");
 
 
 

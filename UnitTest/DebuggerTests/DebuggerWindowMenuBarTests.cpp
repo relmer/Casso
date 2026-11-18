@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/GoToAddressText.h"
 #include "resource.h"
 
 #include "CppUnitTest.h"
@@ -639,7 +640,6 @@ namespace DebuggerMenuBarTests
 
     struct GoToProbe : public DebuggerWindow
     {
-        using DebuggerWindow::TryParseGoTo;
     };
 
     TEST_CLASS (GoToParseTests)
@@ -658,16 +658,16 @@ namespace DebuggerMenuBarTests
             symbols->symbols.push_back (SymbolInfo { "TXTPTR", 0x00B8 });
             snapshot.symbols = symbols;
 
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"0300", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"0300", &snapshot, address));
             Assert::AreEqual ((Word) 0x0300, address);
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L" $FD1B ", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L" $FD1B ", &snapshot, address));
             Assert::AreEqual ((Word) 0xFD1B, address);
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"pc", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"pc", &snapshot, address));
             Assert::AreEqual ((Word) 0x1234, address);
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"txtptr", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"txtptr", &snapshot, address));
             Assert::AreEqual ((Word) 0x00B8, address);
-            Assert::IsFalse  (GoToProbe::TryParseGoTo (L"NOSUCH", &snapshot, address));
-            Assert::IsFalse  (GoToProbe::TryParseGoTo (L"12345", &snapshot, address), L"more than four digits");
+            Assert::IsFalse  (GoToAddressText::TryParseGoTo (L"NOSUCH", &snapshot, address));
+            Assert::IsFalse  (GoToAddressText::TryParseGoTo (L"12345", &snapshot, address), L"more than four digits");
         }
     };
 }

@@ -135,10 +135,10 @@ namespace DebuggerStartupStateTests
         //  emulator's window has it ahead of Casso.
         TEST_METHOD (TheCaptionHasTheTitleLabelFirst)
         {
-            Assert::AreEqual (std::wstring (L"Debugger"),                DebuggerWindow::GetCaption (L""));
-            Assert::AreEqual (std::wstring (L"035-debugger - Debugger"), DebuggerWindow::GetCaption (L"035-debugger"));
-            Assert::AreEqual (std::wstring (L"035-debugger - Debugger - symbols-demo.dbg"), DebuggerWindow::GetCaption (L"035-debugger", L"symbols-demo.dbg"));
-            Assert::AreEqual (std::wstring (L"Debugger - Apple //e booting Sixies.po"),     DebuggerWindow::GetCaption (L"", L"Apple //e booting Sixies.po"));
+            Assert::AreEqual (std::wstring (L"Debugger"),                DebuggerWindowText::GetCaption (L""));
+            Assert::AreEqual (std::wstring (L"035-debugger - Debugger"), DebuggerWindowText::GetCaption (L"035-debugger"));
+            Assert::AreEqual (std::wstring (L"035-debugger - Debugger - symbols-demo.dbg"), DebuggerWindowText::GetCaption (L"035-debugger", L"symbols-demo.dbg"));
+            Assert::AreEqual (std::wstring (L"Debugger - Apple //e booting Sixies.po"),     DebuggerWindowText::GetCaption (L"", L"Apple //e booting Sixies.po"));
         }
 
 
@@ -297,9 +297,9 @@ namespace DebuggerStartupStateTests
 
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"the panel reopens through the window's own action");
 
-            lines = rig->view.ExecuteAction (rig->controller.GetSession(), host.actions[0]);
+            lines = rig->view.GetCommands().ExecuteAction (rig->controller.GetSession(), host.actions[0]);
 
-            Assert::IsTrue (rig->view.IsPanelOpen ("mmu"));
+            Assert::IsTrue (rig->view.GetPanels().IsPanelOpen ("mmu"));
             Assert::IsTrue (lines.empty(), L"no echo and no reply");
         }
 

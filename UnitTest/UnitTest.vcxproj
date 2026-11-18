@@ -323,6 +323,13 @@
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
+    <ClCompile Include="DebuggerTests\CodeViewsTests.cpp" />
+    <ClCompile Include="DebuggerTests\CodeAnnotationsTests.cpp" />
+    <ClCompile Include="DebuggerTests\WatchEditsTests.cpp" />
+    <ClCompile Include="DebuggerTests\MemoryWindowViewsTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerCommandLinesTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerViewCommandsTests.cpp" />
+    <ClCompile Include="DebuggerTests\DevicePanelViewsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerActionTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerPaneActionTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointColumnsTests.cpp" />
@@ -1402,6 +1409,7 @@
     <ClInclude Include="HResultAssert.h" />
     <ClInclude Include="UiTests\InMemoryFileSystem.h" />
     <ClInclude Include="DebuggerTests\ControllerRig.h" />
+    <ClInclude Include="DebuggerTests\DebuggerViewStateTestRig.h" />
     <ClInclude Include="DebuggerTests\FakeDiagnosticsProvider.h" />
     <ClInclude Include="DebuggerTests\HandlerTestRig.h" />
     <ClInclude Include="DebuggerTests\FakeHostPathResolver.h" />

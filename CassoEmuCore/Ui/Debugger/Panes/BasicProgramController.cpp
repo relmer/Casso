@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/BasicProgramController.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/RunActions.h"
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/CodeMargins.h"
@@ -494,10 +496,10 @@ void BasicProgramController::ToggleBreakpoint (Word line)
     definition.type    = BreakpointDefinition::Type::BasicLine;
     definition.address = std::to_string (line);
 
-    action = id.has_value() ? DebuggerActions::GetClearBreakpoint (*id, m_host.GetMode())
-                            : DebuggerActions::GetDefineBreakpoint (definition, m_host.GetMode());
+    action = id.has_value() ? BreakpointActions::GetClearBreakpoint (*id, m_host.GetMode())
+                            : BreakpointActions::GetDefineBreakpoint (definition, m_host.GetMode());
 
-    m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
+    m_host.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
 }
 
 
@@ -578,8 +580,8 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
                                      [this, at = *line] { ToggleBreakpoint (at); },
                                      [this, bp = id.value_or (-1)] (bool on)
                                      {
-                                         m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions,
-                                                                                                 { DebuggerActions::GetEnableBreakpoint (bp, on, m_host.GetMode()) }, {} }));
+                                         m_host.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions,
+                                                                                                 { BreakpointActions::GetEnableBreakpoint (bp, on, m_host.GetMode()) }, {} }));
                                      },
                                      [this, at = *line] { ToggleBreakpoint (at); });
     }
@@ -655,6 +657,6 @@ bool BasicProgramController::OnMappedAction (DebuggerKeySchemes::Action action, 
         return false;
     }
 
-    m_host.RunAction (DebuggerActions::GetBasicStep (*verb, m_host.GetMode()));
+    m_host.RunAction (RunActions::GetBasicStep (*verb, m_host.GetMode()));
     return true;
 }

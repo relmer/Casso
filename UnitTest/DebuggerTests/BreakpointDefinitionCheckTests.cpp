@@ -5,6 +5,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -75,7 +76,7 @@ namespace BreakpointDefinitionCheckTests
                  })
             {
                 Assert::AreEqual (std::string(), BreakpointDefinitionCheck::GetError (definition, snapshot, std::nullopt),
-                                  TextEncoding::NarrowToWide (DebuggerActions::GetBreakpointEcho (definition)).c_str());
+                                  TextEncoding::NarrowToWide (BreakpointActions::GetBreakpointEcho (definition)).c_str());
             }
         }
 
@@ -120,7 +121,7 @@ namespace BreakpointDefinitionCheckTests
                  })
             {
                 Assert::AreNotEqual (std::string(), BreakpointDefinitionCheck::GetError (definition, snapshot, std::nullopt),
-                                     TextEncoding::NarrowToWide (DebuggerActions::GetBreakpointEcho (definition)).c_str());
+                                     TextEncoding::NarrowToWide (BreakpointActions::GetBreakpointEcho (definition)).c_str());
             }
 
             snapshot.diskSlot = 6;
