@@ -320,9 +320,11 @@ bool CassoExplorerCopyOptionsDialog::Choose (HWND                               
                                              const std::vector<CopyOptionRows::Row>   & rows,
                                              DecodeOptions                            & ioOptions)
 {
-    HRESULT                         hr = S_OK;
+    HRESULT                         hr     = S_OK;
     CassoExplorerCopyOptionsDialog  dialog;
     DxuiWindow::CreateParams        params;
+    bool                            code   = std::find (rows.begin(), rows.end(), CopyOptionRows::Row::Code) != rows.end();
+    int                             lines  = (int) rows.size() + (code ? 2 : 0);
 
 
 
@@ -332,8 +334,8 @@ bool CassoExplorerCopyOptionsDialog::Choose (HWND                               
     params.title                    = L"Copy to folder with options";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 560, 160 + 36 * (int) (rows.size() + 2) };
-    params.minSizeDip               = { 440, 200 };
+    params.initialSizeDip           = { 560, 160 + 36 * lines };
+    params.minSizeDip               = { 440, 140 };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
