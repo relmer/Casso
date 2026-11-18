@@ -449,8 +449,8 @@ void DebugEventLogs::OnLive (uint64_t position)
 void DebugEventLogs::EndAt (uint64_t position)
 {
     const KeyframeStore  * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
-    size_t                 count     = (keyframes != nullptr) ? keyframes->GetCount() : 0;
-    bool                   isGap     = count > 0 && keyframes->GetInfo (count - 1).position == position && keyframes->GetInfo (count - 1).hasGapBefore;
+    size_t                 count     = (keyframes != nullptr) ? keyframes->GetArena().GetCount() : 0;
+    bool                   isGap     = count > 0 && keyframes->GetArena().GetInfo (count - 1).position == position && keyframes->GetArena().GetInfo (count - 1).hasGapBefore;
 
 
 
@@ -463,12 +463,12 @@ void DebugEventLogs::EndAt (uint64_t position)
 
     if (isGap)
     {
-        m_disk.cache.MarkGap    (position, keyframes->GetInfo (count - 1).cycle);
-        m_input.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
-        m_video.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
-        m_sound.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
-        m_serial.cache.MarkGap  (position, keyframes->GetInfo (count - 1).cycle);
-        m_network.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
+        m_disk.cache.MarkGap    (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_input.cache.MarkGap   (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_video.cache.MarkGap   (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_sound.cache.MarkGap   (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_serial.cache.MarkGap  (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_network.cache.MarkGap (position, keyframes->GetArena().GetInfo (count - 1).cycle);
     }
 }
 
@@ -860,11 +860,11 @@ uint64_t DebugEventLogs::GetCycleBase() const
 
 uint64_t DebugEventLogs::GetOldest() const
 {
-    bool  hasHistory = m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetCount() > 0;
+    bool  hasHistory = m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
 
 
 
-    return hasHistory ? m_controller->GetKeyframes().GetInfo (0).position : UINT64_MAX;
+    return hasHistory ? m_controller->GetKeyframes().GetArena().GetInfo (0).position : UINT64_MAX;
 }
 
 

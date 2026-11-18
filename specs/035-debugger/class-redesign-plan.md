@@ -239,23 +239,47 @@ is a separate design problem and is out of scope. Add what you find to tasks.md.
 packing pipeline and the public API. The first cut moved the codec, the easiest
 part.
 
+**State, at `45f9c5c6b`.** All on the caller's thread (the one that runs the
+machine) except the jobs, which a worker writes while they are in flight.
+
+| Field | Written by | Read by | Group |
+|---|---|---|---|
+| `m_settings` | `Configure`, `ChangeBudget` | the layout, `IsDue`, the drops | store |
+| `m_entries`, `m_first`, `m_count` | `Reserve`, `Relayout`, `SubmitJob`, `Collect`, the drops, `Clear` | every query | arena |
+| `m_arena`, `m_arenaBytes`, `m_arenaEnd` | `Reserve`, `Relayout`, `Place`, `DropNewerThan`, `Clear` | `TryFindRoom`, `Restore`, `CopyPacked`, `GetSide` | arena |
+| `m_storedBytes`, `m_sideBytes`, `m_isFull` | `Collect`, the drops, `ChangeBudget`, `Clear` | the budget, the meters | arena |
+| `m_groupLength`, `m_wholeBytes`, `m_groupWhole`, `m_groupDiffs` | `SubmitJob`, `Collect`, `ReloadLatestWhole`, `Clear` | `IsGroupDone`, the layout, `GetByteCount` | arena (the newest group) |
+| `m_pendingCount` | `SubmitJob`, `Collect`, `DropPending`, `Clear` | `TryFindRoom`, `TryDropOldestGroup`, `GetSide`, `CopyPacked` | queue, and the arena's unplaced entries |
+| `m_jobs`, `m_nextJob`, `m_queue` | `TakeJob`, `SubmitJob`, `RunJob` (worker), `SetWorkQueue` | `Collect`, `GetSide` | queue |
+| `m_codec` | `RunJob` (worker, while a job is in flight), `Restore`, `ReloadLatestWhole`, `Clear` | as written | queue |
+| `m_nextDueCycle`, `m_wallClock`, `m_dropListeners` | `ScheduleAfter`, setters | `IsDue`, `SubmitJob`, every drop | store |
+
+`m_pendingCount` is two facts that move together: the jobs in flight, and the
+newest entries listed without their packed bytes. The queue counts the first and
+the arena counts the second; only `KeyframeStore` changes either, and it changes
+both in the same call (`Submit` lists an entry and submits its job, `Collect`
+takes a job and places its entry, `DropPending` drops both).
+
 **Classes.**
 
 | Class | State | Thread | Responsibility |
 |---|---|---|---|
-| `KeyframeLayout` | none (static functions of `KeyframeSettings` and sizes) | any | `ComputeLayout`, `ComputeFitLayout`, `GetGroupSlots`, `GetLeastArena`. Direct tests. |
-| `KeyframeArena` | the entry ring, first, count, the arena and its size and end, stored and side byte totals, the group counters, the full flag | caller | `Place`, `TryFindRoom`, `Relayout`, `PopOldest`, drop oldest group, drop newer than, find at or before, find by position, find group start, side bytes of a collected entry. Direct tests with small arenas. |
-| `KeyframePackQueue` | the job array, next job, pending count, the work queue | caller submits, worker packs | `Take`, `Submit`, `Collect` (in order), `WaitForPending`, `DropPending`. Has the `KeyframeCodec`. |
+| `KeyframeLayout` | none (static functions of `KeyframeSettings` and sizes) | any | `GetStateRoom`, `GetPackedBound`, `GetGroupSlots`, `GetLeastArena`, `ComputeLayout`, `ComputeFitLayout`, `IsGroupDone`. Direct tests. |
+| `KeyframeArena` | the entry ring, first, count, the unplaced count, the arena and its size and end, stored and side byte totals, the newest group's counters, the full flag, the drop callback | caller | `Allocate`, `Relayout`, `List`, `PlaceNext`, `DropUnplaced`, `TryDropOldestGroup`, `DropOldestGroups`, `DropNewerThan`, `RecountNewestGroup`, `Clear`, and the queries: `GetCount`, `GetUnplacedCount`, `GetInfo`, `GetPacked`, `GetSide`, `TryFindAtOrBefore`, `TryFindByPosition`, `FindGroupStart`, the byte counts. Direct tests with small arenas. |
+| `KeyframePackQueue` | the jobs, next job, pending count, the work queue, the `KeyframeCodec` | caller submits, worker packs | `Reserve`, `Release`, `SetWorkQueue`, `IsFull`, `GetNext`, `Submit`, `TryTakeDone`, `WaitAll`, `DropAll`, `GetPending`, the codec. |
 | `KeyframeCodec` | as now | worker during a job, caller otherwise | as now |
-| `KeyframeStore` | settings, the drop listeners, the next due cycle, the wall clock | caller | `Configure`, `ChangeBudget`, `Add`, `Capture`, `Restore`, `RestoreAtPosition`, `CopyPacked`, `DoesStateMatch`, truncation, the listeners. Composes the three parts. |
+| `KeyframeStore` | settings, the drop listeners, the next due cycle, the wall clock, the arena, the pack queue | caller | `Configure`, `ChangeBudget`, `Clear`, `Release`, `Add`, `Capture`, `WaitForPending`, `Restore`, `RestoreAtPosition`, `CopyPacked`, `DoesStateMatch`, `TruncateAfter`, `DropAfterPosition`, the newest keyframe's marks, `GetSide`, `GetReservedBytes`, `IsDue`, `GetArena`. Composes the parts. |
 
-**Invariant to write into the headers.** The codec's buffers are touched by the
-worker only while a job is in flight, and by the caller only while none is. The
-arena is touched by the caller's thread only. `Collect` is the one place results
-cross.
+**Invariant, in the headers.** The codec's buffers and a job's are touched by
+the worker only while the job is in flight, and by the caller only while none
+is. The arena is touched by the caller's thread only. `Collect` is the one place
+results cross.
 
-**Callers.** `GetInfo`, `GetCount`, `TryFindByPosition` and the other queries move
-to `GetArena ()`. `ComputeChecksum` and `XorBytes` callers use `KeyframeCodec::`.
+**Callers.** `GetCount`, `GetPendingCount` (now `GetUnplacedCount`), `GetInfo`,
+`GetSideByteCount`, `GetByteCount`, `GetUsedBytes`, `IsFull`, `GetCapacity`,
+`GetArenaBytes`, `TryFindAtOrBefore` and `TryFindByPosition` move to
+`GetArena()`. `ComputeChecksum` and `XorBytes` callers use `KeyframeCodec::`.
+`KeyframeStore::kBufferCount` is `KeyframeLayout::kJobCount`.
 
 ### 4. ReverseController
 

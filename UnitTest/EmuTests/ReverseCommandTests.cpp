@@ -435,15 +435,15 @@ public:
 
         //  Only the oldest group goes, older than the stretch at the
         //  machine's position.
-        count  = controller.GetKeyframes().GetCount();
-        oldest = controller.GetKeyframes().GetInfo (0).storedBytes + controller.GetKeyframes().GetInfo (1).storedBytes;
+        count  = controller.GetKeyframes().GetArena().GetCount();
+        oldest = controller.GetKeyframes().GetArena().GetInfo (0).storedBytes + controller.GetKeyframes().GetArena().GetInfo (1).storedBytes;
 
-        Assert::IsTrue (controller.GetKeyframes().TryFindByPosition (before, here) && here >= 2, L"two keyframes older than the machine's");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().TryFindByPosition (before, here) && here >= 2, L"two keyframes older than the machine's");
 
-        hr = controller.GetKeyframes().ChangeBudget (controller.GetKeyframes().GetByteCount() - oldest);
+        hr = controller.GetKeyframes().ChangeBudget (controller.GetKeyframes().GetArena().GetByteCount() - oldest);
         AssertSucceeded (hr, L"ChangeBudget");
 
-        Assert::AreEqual (count - 2, controller.GetKeyframes().GetCount(), L"the oldest group was dropped");
+        Assert::AreEqual (count - 2, controller.GetKeyframes().GetArena().GetCount(), L"the oldest group was dropped");
 
         machine.GetRunner().StepOne();
         machine.GetRunner().StepOne();
@@ -480,17 +480,17 @@ public:
 
         machine.GetRunner().RunCycles (kRunCycles);
 
-        Assert::IsTrue (controller.GetKeyframes().GetCount() > 4, L"several groups recorded");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().GetCount() > 4, L"several groups recorded");
 
-        position = controller.GetKeyframes().GetInfo (1).position + 1;
+        position = controller.GetKeyframes().GetArena().GetInfo (1).position + 1;
 
         hr = controller.SeekToPosition (position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
-        hr = controller.ChangeBudget (controller.GetKeyframes().GetByteCount() * 2 / 3);
+        hr = controller.ChangeBudget (controller.GetKeyframes().GetArena().GetByteCount() * 2 / 3);
         AssertSucceeded (hr, L"ChangeBudget");
 
-        Assert::IsTrue (controller.GetKeyframes().TryFindByPosition (position, here), L"a keyframe at or before the machine's position");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().TryFindByPosition (position, here), L"a keyframe at or before the machine's position");
 
         machine.GetRunner().StepOne();
 
@@ -657,15 +657,15 @@ public:
         hr = controller.SetUserMaximumSpeed (true);
         AssertSucceeded (hr, L"SetUserMaximumSpeed on");
 
-        keyframes = controller.GetKeyframes().GetCount();
+        keyframes = controller.GetKeyframes().GetArena().GetCount();
         machine.GetRunner().RunCycles (s_kCommandGapCycles);
 
-        Assert::AreEqual (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe is taken while paused");
+        Assert::AreEqual (keyframes, controller.GetKeyframes().GetArena().GetCount(), L"no keyframe is taken while paused");
 
         hr = controller.SetUserMaximumSpeed (false);
         AssertSucceeded (hr, L"SetUserMaximumSpeed off");
 
-        resumed = controller.GetKeyframes().GetInfo (controller.GetKeyframes().GetCount() - 1);
+        resumed = controller.GetKeyframes().GetArena().GetInfo (controller.GetKeyframes().GetArena().GetCount() - 1);
 
         Assert::IsTrue (resumed.hasGapBefore, L"recording resumed with a keyframe after a gap");
         Assert::AreEqual<uint64_t> (gapStart.position, resumed.gapStart, L"the gap starts where recording paused");
@@ -817,9 +817,9 @@ private:
 
 
 
-        for (i = 0; i < store.GetCount(); i++)
+        for (i = 0; i < store.GetArena().GetCount(); i++)
         {
-            count += (store.GetInfo (i).position > first && store.GetInfo (i).position <= last) ? 1 : 0;
+            count += (store.GetArena().GetInfo (i).position > first && store.GetArena().GetInfo (i).position <= last) ? 1 : 0;
         }
 
         return count;

@@ -448,11 +448,11 @@ namespace DebuggerTests
         {
             const KeyframeStore  & keyframes = rig.controller.GetKeyframes();
             size_t                 index     = 0;
-            bool                   isFound   = keyframes.TryFindByPosition (position, index);
+            bool                   isFound   = keyframes.GetArena().TryFindByPosition (position, index);
 
 
 
-            return isFound && keyframes.GetInfo (index).position == position && keyframes.GetInfo (index).hasGapBefore;
+            return isFound && keyframes.GetArena().GetInfo (index).position == position && keyframes.GetArena().GetInfo (index).hasGapBefore;
         }
 
 
@@ -462,12 +462,12 @@ namespace DebuggerTests
         {
             const KeyframeStore  & keyframes = rig.controller.GetKeyframes();
             size_t                 index     = 0;
-            bool                   isFound   = keyframes.TryFindByPosition (position, index);
+            bool                   isFound   = keyframes.GetArena().TryFindByPosition (position, index);
 
 
 
             Assert::IsTrue (isFound, L"history holds a keyframe at or before the position");
-            return keyframes.GetInfo (index).position;
+            return keyframes.GetArena().GetInfo (index).position;
         }
 
 
@@ -486,8 +486,8 @@ namespace DebuggerTests
 
             for (i = 0; i < copies.GetCount() && areAt; i++)
             {
-                isFound = keyframes.TryFindByPosition (copies.GetPosition (i), index);
-                areAt   = isFound && keyframes.GetInfo (index).position == copies.GetPosition (i);
+                isFound = keyframes.GetArena().TryFindByPosition (copies.GetPosition (i), index);
+                areAt   = isFound && keyframes.GetArena().GetInfo (index).position == copies.GetPosition (i);
             }
 
             return areAt;
@@ -1691,7 +1691,7 @@ namespace DebuggerTests
             Assert::IsTrue (rig.controller.GetOldestPosition() > 0,  L"history let its oldest keyframes go");
             Assert::IsTrue (rig.history.GetCopies().GetCount() > 0,  L"copies of the record are kept");
             Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"none where history no longer holds a keyframe");
-            Assert::IsTrue (rig.history.GetCopies().GetCount() <= rig.controller.GetKeyframes().GetCount(), L"at most one a keyframe");
+            Assert::IsTrue (rig.history.GetCopies().GetCount() <= rig.controller.GetKeyframes().GetArena().GetCount(), L"at most one a keyframe");
 
             middle = (rig.controller.GetOldestPosition() + rig.base.machine.GetRunner().GetPosition()) / 2;
 
@@ -1772,7 +1772,7 @@ namespace DebuggerTests
             RunTo (rig.base.machine, kLongRun);
 
             count     = rig.history.GetCopies().GetCount();
-            keyframes = rig.controller.GetKeyframes().GetCapacity();
+            keyframes = rig.controller.GetKeyframes().GetArena().GetCapacity();
 
             Assert::IsTrue (count > 0, L"copies of the record are kept");
 

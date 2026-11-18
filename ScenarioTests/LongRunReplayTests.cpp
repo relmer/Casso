@@ -166,7 +166,7 @@ private:
         Assert::IsTrue (!isNetworkExpected || CountRecords (machine, InputKind::NetworkCall) > 0, (name + L": the card's received datagrams are in history").c_str());
 
         live      = Save (machine);
-        keyframes = controller.GetKeyframes().GetCount();
+        keyframes = controller.GetKeyframes().GetArena().GetCount();
         oldest    = controller.GetOldestPosition();
 
         Assert::IsTrue (keyframes > kSeconds, (name + L": the run spans many keyframes").c_str());
@@ -177,7 +177,7 @@ private:
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, (name + L": the replay matched every keyframe").c_str());
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, (name + L": nothing stopped it, so it reached the start").c_str());
         Assert::AreEqual<uint64_t> (oldest, machine.GetRunner().GetPosition(), (name + L": at the oldest position").c_str());
-        Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetCount(), (name + L": no keyframe was dropped").c_str());
+        Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetArena().GetCount(), (name + L": no keyframe was dropped").c_str());
 
         hr = controller.SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, (name + L": SeekToCycle live").c_str());

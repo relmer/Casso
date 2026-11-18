@@ -332,11 +332,11 @@ uint64_t TraceHistory::FindCycle (uint64_t cycle)
 
     for (i = bounds.size(); i > 0 && found == UINT64_MAX; i--)
     {
-        bool  isFound = keyframes != nullptr && keyframes->TryFindByPosition (bounds[i - 1].startPosition, index);
+        bool  isFound = keyframes != nullptr && keyframes->GetArena().TryFindByPosition (bounds[i - 1].startPosition, index);
 
 
 
-        if (!isFound || keyframes->GetInfo (index).cycle > cycle)
+        if (!isFound || keyframes->GetArena().GetInfo (index).cycle > cycle)
         {
             continue;
         }
@@ -452,7 +452,7 @@ bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
 {
     const KeyframeStore  & keyframes = m_controller->GetKeyframes();
     uint64_t               position  = m_machine.GetRunner().GetPosition();
-    uint64_t               newest    = keyframes.GetInfo (keyframes.GetCount() - 1).position;
+    uint64_t               newest    = keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position;
     bool                   isGrowing = m_controller->IsRecordingLive() && !IsStopped();
     bool                   isLive    = newest < position && !isGrowing && !m_controller->IsPaused();
 
@@ -480,7 +480,7 @@ bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
 
 bool TraceHistory::IsReadable() const
 {
-    return m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetCount() > 0;
+    return m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
 }
 
 

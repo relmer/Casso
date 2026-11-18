@@ -104,7 +104,7 @@ namespace ProfileHistoryTests
         {
             ProfileRig        rig;
             ProfileCountsPtr  counts = rig.BuildFrom (0);
-            uint64_t          first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t          first  = rig.controller.GetKeyframes().GetArena().GetInfo (0).cycle;
             uint64_t          span   = rig.machine.GetCpu()->GetTotalCycles() - first;
 
 
@@ -159,7 +159,7 @@ namespace ProfileHistoryTests
         TEST_METHOD (ARangeCountsOnlyItsOwnCycles)
         {
             ProfileRig        rig;
-            uint64_t          first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t          first  = rig.controller.GetKeyframes().GetArena().GetInfo (0).cycle;
             uint64_t          span   = rig.machine.GetCpu()->GetTotalCycles() - first;
             uint64_t          from   = first + span / 4;
             uint64_t          to     = first + span / 2;
@@ -200,7 +200,7 @@ namespace ProfileHistoryTests
             std::vector<ProfileHistory::Block>  blocks;
             ProfileCountsPtr                    counts;
             ProfileCountsPtr                    again;
-            uint64_t                            first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t                            first  = rig.controller.GetKeyframes().GetArena().GetInfo (0).cycle;
             uint64_t                            span   = rig.machine.GetCpu()->GetTotalCycles() - first;
 
 
@@ -252,8 +252,8 @@ namespace ProfileHistoryTests
             hr = rig.controller.OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
-            boundary = keyframes.GetInfo (keyframes.GetCount() - 1).position;
-            Assert::IsTrue (keyframes.GetInfo (keyframes.GetCount() - 1).isBoundary, L"the edit took a boundary keyframe");
+            boundary = keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position;
+            Assert::IsTrue (keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).isBoundary, L"the edit took a boundary keyframe");
 
             rig.machine.GetRunner().RunCycles (kMoreCycles);
 

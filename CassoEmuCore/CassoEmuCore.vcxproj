@@ -372,6 +372,9 @@
     <ClCompile Include="Debugger\Reverse\HistoryTimeline.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeCodec.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframeArena.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframeLayout.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframePackQueue.cpp" />
     <ClCompile Include="Debugger\Reverse\StateDiff.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeUnpacker.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryImageCache.cpp" />
@@ -1920,6 +1923,10 @@
     <ClInclude Include="Debugger\Reverse\HistoryTimeline.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeCodec.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframeArena.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframeLayout.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframePackQueue.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframeTypes.h" />
     <ClInclude Include="Debugger\Reverse\StateDiff.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeUnpacker.h" />
     <ClInclude Include="Debugger\Reverse\HistoryImageCache.h" />

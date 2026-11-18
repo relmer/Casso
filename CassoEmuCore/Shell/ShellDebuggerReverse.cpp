@@ -1324,9 +1324,9 @@ bool ShellDebugger::TryPublishHistoryPlayhead()
     m_historyThumbnails.SetPlayhead     (m_machine.GetRunner().GetPosition(), isBehind);
     m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
 
-    if (keyframes->GetCount() > 0)
+    if (keyframes->GetArena().GetCount() > 0)
     {
-        m_historyThumbnails.SetBegin (keyframes->GetInfo (0).cycle, keyframes->GetInfo (0).wallTime);
+        m_historyThumbnails.SetBegin (keyframes->GetArena().GetInfo (0).cycle, keyframes->GetArena().GetInfo (0).wallTime);
     }
 
     return true;

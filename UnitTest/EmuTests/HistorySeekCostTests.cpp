@@ -63,11 +63,11 @@ public:
             machine.GetRunner().RunCycles (interval);
         }
 
-        Assert::IsTrue (controller.GetKeyframes().GetCount() >= (size_t) s_kSeekKeyframes / 2, L"history was recorded");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().GetCount() >= (size_t) s_kSeekKeyframes / 2, L"history was recorded");
 
         //  Two stretches far apart, so every seek between them restores.
-        early = controller.GetKeyframes().GetInfo (2).cycle;
-        late  = controller.GetKeyframes().GetInfo (controller.GetKeyframes().GetCount() - 3).cycle;
+        early = controller.GetKeyframes().GetArena().GetInfo (2).cycle;
+        late  = controller.GetKeyframes().GetArena().GetInfo (controller.GetKeyframes().GetArena().GetCount() - 3).cycle;
 
         log += std::format ("history seek by cycle, {} build, keyframe every {} cycles\n", IsDebugBuild() ? "Debug" : "Release", interval);
 

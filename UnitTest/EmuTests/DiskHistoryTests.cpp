@@ -271,9 +271,9 @@ public:
         hr = controller.SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition forward past the reset");
 
-        isFound = controller.GetKeyframes().TryFindByPosition (liveEnd, keyframe);
+        isFound = controller.GetKeyframes().GetArena().TryFindByPosition (liveEnd, keyframe);
 
-        Assert::IsTrue             (isFound && controller.GetKeyframes().GetInfo (keyframe).position < resetAt, L"the replay to the live end starts before the reset");
+        Assert::IsTrue             (isFound && controller.GetKeyframes().GetArena().GetInfo (keyframe).position < resetAt, L"the replay to the live end starts before the reset");
         Assert::AreEqual<size_t>   (1, liveCount, L"the live reset wrote once, through the store");
         Assert::IsTrue             (isSaved, L"and the live disk has nothing left unsaved");
         Assert::AreEqual<size_t>   (liveCount, log.count, L"the replayed reset wrote nothing through the store");

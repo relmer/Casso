@@ -455,9 +455,9 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     isHeld = TryFindAtOrBefore (keyframes, position, index);
     CBRA (isHeld);
 
-    m_job.point.position = keyframes.GetInfo (index).position;
-    m_job.point.cycle    = keyframes.GetInfo (index).cycle;
-    m_job.point.wallTime = keyframes.GetInfo (index).wallTime;
+    m_job.point.position = keyframes.GetArena().GetInfo (index).position;
+    m_job.point.cycle    = keyframes.GetArena().GetInfo (index).cycle;
+    m_job.point.wallTime = keyframes.GetArena().GetInfo (index).wallTime;
 
     if (m_queue == nullptr)
     {
@@ -625,9 +625,9 @@ void HistoryThumbnails::OnKeyframeDrop (KeyframeDrop drop)
     {
         ForgetPictures (0);
     }
-    else if (drop == KeyframeDrop::Newest && m_keyframes != nullptr && m_keyframes->GetCount() > 0)
+    else if (drop == KeyframeDrop::Newest && m_keyframes != nullptr && m_keyframes->GetArena().GetCount() > 0)
     {
-        ForgetPictures (m_keyframes->GetInfo (m_keyframes->GetCount() - 1).position);
+        ForgetPictures (m_keyframes->GetArena().GetInfo (m_keyframes->GetArena().GetCount() - 1).position);
     }
 }
 
@@ -698,7 +698,7 @@ void HistoryThumbnails::PlanCells (
     uint64_t                           & ioStep,
     std::vector<HistoryThumbnailCell>  & outCells)
 {
-    size_t    held   = keyframes.GetCount();
+    size_t    held   = keyframes.GetArena().GetCount();
     uint64_t  oldest = 0;
     uint64_t  newest = 0;
     uint64_t  top    = 0;
@@ -715,8 +715,8 @@ void HistoryThumbnails::PlanCells (
         return;
     }
 
-    oldest = keyframes.GetInfo (0).position;
-    newest = keyframes.GetInfo (held - 1).position;
+    oldest = keyframes.GetArena().GetInfo (0).position;
+    newest = keyframes.GetArena().GetInfo (held - 1).position;
     ioStep = ChooseStep (newest - oldest, count, ioStep);
     top    = GetGridTop (newest, ioStep);
 
@@ -741,14 +741,14 @@ void HistoryThumbnails::PlanCells (
             index = 0;
         }
 
-        outCells[(size_t) i].position = keyframes.GetInfo (index).position;
-        outCells[(size_t) i].cycle    = keyframes.GetInfo (index).cycle;
-        outCells[(size_t) i].wallTime = keyframes.GetInfo (index).wallTime;
+        outCells[(size_t) i].position = keyframes.GetArena().GetInfo (index).position;
+        outCells[(size_t) i].cycle    = keyframes.GetArena().GetInfo (index).cycle;
+        outCells[(size_t) i].wallTime = keyframes.GetArena().GetInfo (index).wallTime;
     }
 
     outCells.back().position = newest;
-    outCells.back().cycle    = keyframes.GetInfo (held - 1).cycle;
-    outCells.back().wallTime = keyframes.GetInfo (held - 1).wallTime;
+    outCells.back().cycle    = keyframes.GetArena().GetInfo (held - 1).cycle;
+    outCells.back().wallTime = keyframes.GetArena().GetInfo (held - 1).wallTime;
     outCells.back().isLive   = true;
 }
 
@@ -837,7 +837,7 @@ bool HistoryThumbnails::DoesGridFit (
 
 
 
-    size_t    held = keyframes.GetCount();
+    size_t    held = keyframes.GetArena().GetCount();
     uint64_t  back = 0;
 
 
@@ -849,7 +849,7 @@ bool HistoryThumbnails::DoesGridFit (
 
     back = (uint64_t) (count - kOffGrid - 1) * step;
 
-    return back <= top && top - back >= keyframes.GetInfo (kSecond).position;
+    return back <= top && top - back >= keyframes.GetArena().GetInfo (kSecond).position;
 }
 
 
@@ -871,14 +871,14 @@ bool HistoryThumbnails::TryFindAtOrBefore (
     size_t               & outIndex)
 {
     size_t  low  = 0;
-    size_t  high = keyframes.GetCount();
+    size_t  high = keyframes.GetArena().GetCount();
     size_t  mid  = 0;
 
 
 
     outIndex = 0;
 
-    if (high == 0 || keyframes.GetInfo (0).position > position)
+    if (high == 0 || keyframes.GetArena().GetInfo (0).position > position)
     {
         return false;
     }
@@ -887,7 +887,7 @@ bool HistoryThumbnails::TryFindAtOrBefore (
     {
         mid = low + (high - low) / 2;
 
-        if (keyframes.GetInfo (mid).position <= position)
+        if (keyframes.GetArena().GetInfo (mid).position <= position)
         {
             low = mid;
         }

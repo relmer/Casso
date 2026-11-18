@@ -77,7 +77,7 @@ namespace MusicDemoReplayTests
             hr = controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");
 
-            keyframes = controller.GetKeyframes().GetCount();
+            keyframes = controller.GetKeyframes().GetArena().GetCount();
 
             hr = controller.SeekToCycle (middle, result);
             AssertSucceeded (hr, L"SeekToCycle");
@@ -88,7 +88,7 @@ namespace MusicDemoReplayTests
             Assert::AreEqual ((size_t) 0, controller.GetCutCount(),
                               TextEncoding::NarrowToWide ("history was cut: " + controller.GetLastDivergence()).c_str());
             Assert::IsFalse  (controller.IsInHistory(), L"the run got to the end of history");
-            Assert::IsTrue   (controller.GetKeyframes().GetCount() >= keyframes, L"no keyframe of the recording was dropped");
+            Assert::IsTrue   (controller.GetKeyframes().GetArena().GetCount() >= keyframes, L"no keyframe of the recording was dropped");
         }
     };
 }

@@ -140,7 +140,7 @@ namespace TraceHistoryTests
         {
             TraceRig                   rig;
             std::vector<TraceRecord>   window;
-            uint64_t                   oldest   = rig.controller.GetKeyframes().GetInfo (0).position;
+            uint64_t                   oldest   = rig.controller.GetKeyframes().GetArena().GetInfo (0).position;
 
 
 
@@ -175,12 +175,12 @@ namespace TraceHistoryTests
             TraceRig                         rig;
             std::vector<TraceHistoryEntry>   rebuilt;
             std::vector<TraceSpan>           spans;
-            uint64_t                         oldest   = rig.controller.GetKeyframes().GetInfo (0).position;
+            uint64_t                         oldest   = rig.controller.GetKeyframes().GetArena().GetInfo (0).position;
             uint64_t                         position = rig.machine.GetRunner().GetPosition();
 
 
 
-            Assert::IsTrue (rig.controller.GetKeyframes().GetCount() > TraceHistory::kRebuiltStretches, L"more stretches than the cache");
+            Assert::IsTrue (rig.controller.GetKeyframes().GetArena().GetCount() > TraceHistory::kRebuiltStretches, L"more stretches than the cache");
 
             Assert::IsTrue   (rig.logs.GetTraceHistory().TryGetEntries (oldest, position, rebuilt), L"all of history is rebuilt");
             Assert::AreEqual (position - oldest, (uint64_t) rebuilt.size());

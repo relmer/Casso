@@ -168,7 +168,7 @@ public:
 
 
 
-        return KeyframeStore::ComputeChecksum (state.data(), state.size());
+        return KeyframeCodec::ComputeChecksum (state.data(), state.size());
     }
 
 

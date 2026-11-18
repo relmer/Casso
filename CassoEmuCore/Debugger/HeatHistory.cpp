@@ -106,12 +106,12 @@ void HeatHistory::OnMapStarted()
     m_lookups.clear();
     DropAnchor();
 
-    isFound = m_keyframes != nullptr && m_keyframes->TryFindByPosition (position, index);
+    isFound = m_keyframes != nullptr && m_keyframes->GetArena().TryFindByPosition (position, index);
 
     if (isFound)
     {
         m_now.assign (AccessHeatMap::kEntryCount, 0);
-        SetAnchor (m_keyframes->GetInfo (index).position, m_now);
+        SetAnchor (m_keyframes->GetArena().GetInfo (index).position, m_now);
     }
 }
 
@@ -236,9 +236,9 @@ void HeatHistory::OnKeyframeAdding (
 
     m_map.GetTotalsNow (m_now);
 
-    if (m_hasAnchor && m_keyframes->GetCount() > 0 && TryFindKeyframe (m_anchorPosition, anchor))
+    if (m_hasAnchor && m_keyframes->GetArena().GetCount() > 0 && TryFindKeyframe (m_anchorPosition, anchor))
     {
-        newest  = m_keyframes->GetCount() - 1;
+        newest  = m_keyframes->GetArena().GetCount() - 1;
         earlier = &m_anchorTotals;
         hasWalk = true;
 
@@ -258,7 +258,7 @@ void HeatHistory::OnKeyframeAdding (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    isChanged = m_map.TakeKeptChange() || m_keyframes->GetCount() == 0;
+    isChanged = m_map.TakeKeptChange() || m_keyframes->GetArena().GetCount() == 0;
 
     if (isChanged)
     {
@@ -444,12 +444,12 @@ HeatAccessState HeatHistory::SearchHistory (
     hr = m_keyframes->WaitForPending();
     CHR (hr);
 
-    isFound = m_keyframes->TryFindByPosition (position, here);
+    isFound = m_keyframes->GetArena().TryFindByPosition (position, here);
     BAIL_OUT_IF (!isFound, S_OK);
 
-    hasCount = here + 1 >= m_keyframes->GetCount() || HasCountIn (here + 1, entry, hasSide) || !hasSide;
+    hasCount = here + 1 >= m_keyframes->GetArena().GetCount() || HasCountIn (here + 1, entry, hasSide) || !hasSide;
 
-    if (hasCount && m_keyframes->GetInfo (here).position < position)
+    if (hasCount && m_keyframes->GetArena().GetInfo (here).position < position)
     {
         hr = FindInStretch (here, position, cpu->GetHistoryCycles(), query, isFound, outAccess);
         CHR (hr);
@@ -459,7 +459,7 @@ HeatAccessState HeatHistory::SearchHistory (
 
     for (size_t index = here; index > 0; index--)
     {
-        if (m_keyframes->GetInfo (index).position <= m_heatFrom)
+        if (m_keyframes->GetArena().GetInfo (index).position <= m_heatFrom)
         {
             state = HeatAccessState::None;
             break;
@@ -474,13 +474,13 @@ HeatAccessState HeatHistory::SearchHistory (
             continue;
         }
 
-        hr = FindInStretch (index - 1, m_keyframes->GetInfo (index).position, m_keyframes->GetInfo (index).cycle, query, isFound, outAccess);
+        hr = FindInStretch (index - 1, m_keyframes->GetArena().GetInfo (index).position, m_keyframes->GetArena().GetInfo (index).cycle, query, isFound, outAccess);
         CHR (hr);
 
         //  A stretch the map started counting partway through has counts
         //  that include accesses before that. The replay counts only from
         //  where the map started, so finding none there means none since.
-        if (m_keyframes->GetInfo (index - 1).position <= m_heatFrom)
+        if (m_keyframes->GetArena().GetInfo (index - 1).position <= m_heatFrom)
         {
             state = HeatAccessState::None;
         }
@@ -488,7 +488,7 @@ HeatAccessState HeatHistory::SearchHistory (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    if (m_keyframes->GetInfo (0).position <= m_heatFrom)
+    if (m_keyframes->GetArena().GetInfo (0).position <= m_heatFrom)
     {
         state = HeatAccessState::None;
     }
@@ -580,7 +580,7 @@ HRESULT HeatHistory::FindInStretch (
     hr = AddPart (index, endPosition, endCycle, job);
     CHR (hr);
 
-    job.inputsFrom  = m_keyframes->GetInfo (index).journalIndex;
+    job.inputsFrom  = m_keyframes->GetArena().GetInfo (index).journalIndex;
     job.countFrom   = m_heatFrom;
     job.fadeSeconds = m_map.GetFadeSeconds();
     job.generation  = ++m_generation;
@@ -625,7 +625,7 @@ Error:
 
 void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
 {
-    size_t    count     = m_keyframes->GetCount();
+    size_t    count     = m_keyframes->GetArena().GetCount();
     size_t    index     = (drop == KeyframeDrop::Oldest) ? 0 : count - 1;
     bool      isApplied = false;
     uint64_t  cut       = m_machine.GetRunner().GetPosition();
@@ -637,7 +637,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
         GetKeptAt (1, m_bits);
 
         m_oldestBits.swap (m_bits);
-        m_oldestBitsAt = m_keyframes->GetInfo (1).position;
+        m_oldestBitsAt = m_keyframes->GetArena().GetInfo (1).position;
     }
     else if (drop == KeyframeDrop::All)
     {
@@ -648,7 +648,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
     {
         if (drop == KeyframeDrop::Newest && count >= 2)
         {
-            cut = std::min (cut, m_keyframes->GetInfo (count - 2).position);
+            cut = std::min (cut, m_keyframes->GetArena().GetInfo (count - 2).position);
         }
 
         m_map.ForgetAccessesFrom (cut);
@@ -661,7 +661,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
         return;
     }
 
-    if (count == 0 || m_keyframes->GetInfo (index).position != m_anchorPosition)
+    if (count == 0 || m_keyframes->GetArena().GetInfo (index).position != m_anchorPosition)
     {
         return;
     }
@@ -675,12 +675,12 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
     if (drop == KeyframeDrop::Oldest)
     {
         isApplied        = TryApplyStretch (1, false, m_anchorTotals);
-        m_anchorPosition = m_keyframes->GetInfo (1).position;
+        m_anchorPosition = m_keyframes->GetArena().GetInfo (1).position;
     }
     else
     {
         isApplied        = TryApplyStretch (index, true, m_anchorTotals);
-        m_anchorPosition = m_keyframes->GetInfo (index - 1).position;
+        m_anchorPosition = m_keyframes->GetArena().GetInfo (index - 1).position;
     }
 
     if (!isApplied)
@@ -703,7 +703,7 @@ bool HeatHistory::TryFindKeyframe (
     uint64_t   position,
     size_t   & outIndex) const
 {
-    return m_keyframes->TryFindByPosition (position, outIndex) && m_keyframes->GetInfo (outIndex).position == position;
+    return m_keyframes->GetArena().TryFindByPosition (position, outIndex) && m_keyframes->GetArena().GetInfo (outIndex).position == position;
 }
 
 
@@ -852,11 +852,11 @@ void HeatHistory::GetKeptAt (
 
     outBits.clear();
 
-    while (!isFound && k > 0 && m_keyframes != nullptr && k <= m_keyframes->GetCount())
+    while (!isFound && k > 0 && m_keyframes != nullptr && k <= m_keyframes->GetArena().GetCount())
     {
         k--;
 
-        if (m_keyframes->GetInfo (k).position <= m_map.GetCountFrom())
+        if (m_keyframes->GetArena().GetInfo (k).position <= m_map.GetCountFrom())
         {
             break;
         }
@@ -875,7 +875,7 @@ void HeatHistory::GetKeptAt (
             break;
         }
 
-        if (k == 0 && !m_oldestBits.empty() && m_oldestBitsAt == m_keyframes->GetInfo (0).position)
+        if (k == 0 && !m_oldestBits.empty() && m_oldestBitsAt == m_keyframes->GetArena().GetInfo (0).position)
         {
             outBits = m_oldestBits;
             isFound = true;
@@ -1106,12 +1106,12 @@ HRESULT HeatHistory::MakeRebuildJob (
     hr = m_keyframes->WaitForPending();
     CHR (hr);
 
-    isFound = m_keyframes->TryFindByPosition (position, target);
+    isFound = m_keyframes->GetArena().TryFindByPosition (position, target);
     BAIL_OUT_IF (!isFound, S_OK);
 
     start = FindWindowStart (target, cycle);
 
-    BAIL_OUT_IF (m_keyframes->GetInfo (start).position >= position, S_OK);
+    BAIL_OUT_IF (m_keyframes->GetArena().GetInfo (start).position >= position, S_OK);
 
     FindPartStarts (start, target, position, cycle, starts);
 
@@ -1121,7 +1121,7 @@ HRESULT HeatHistory::MakeRebuildJob (
         CHR (hr);
     }
 
-    outJob.inputsFrom  = m_keyframes->GetInfo (start).journalIndex;
+    outJob.inputsFrom  = m_keyframes->GetArena().GetInfo (start).journalIndex;
     outJob.countFrom   = m_heatFrom;
     outJob.fadeSeconds = m_map.GetFadeSeconds();
     outJob.generation  = ++m_generation;
@@ -1181,7 +1181,7 @@ void HeatHistory::FindPartStarts (
         cutCycle = cycle - cutCycle;
         cut      = target;
 
-        while (cut > start && m_keyframes->GetInfo (cut).cycle > cutCycle)
+        while (cut > start && m_keyframes->GetArena().GetInfo (cut).cycle > cutCycle)
         {
             cut--;
         }
@@ -1191,7 +1191,7 @@ void HeatHistory::FindPartStarts (
             break;
         }
 
-        if (m_keyframes->GetInfo (cut).position >= position || (!outStarts.empty() && cut >= outStarts.back()))
+        if (m_keyframes->GetArena().GetInfo (cut).position >= position || (!outStarts.empty() && cut >= outStarts.back()))
         {
             continue;
         }
@@ -1222,7 +1222,7 @@ HRESULT HeatHistory::AddPart (
     HeatRebuildJob   & ioJob)
 {
     HRESULT               hr   = S_OK;
-    const KeyframeInfo  & info = m_keyframes->GetInfo (index);
+    const KeyframeInfo  & info = m_keyframes->GetArena().GetInfo (index);
     KeyframeCopy          copy = KeyframeCopy::Gone;
     HeatRebuildPart       part;
 
@@ -1273,7 +1273,7 @@ size_t HeatHistory::FindWindowStart (
 
     while (start > 0)
     {
-        info = &m_keyframes->GetInfo (start);
+        info = &m_keyframes->GetArena().GetInfo (start);
 
         if (info->isBoundary || info->cycle > cycle || cycle - info->cycle >= window || info->position <= m_heatFrom)
         {

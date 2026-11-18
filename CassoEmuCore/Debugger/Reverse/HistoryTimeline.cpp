@@ -37,7 +37,7 @@ HistoryTimeline::HistoryTimeline (const KeyframeStore & keyframes) :
 uint64_t HistoryTimeline::GetWallTimeAt (uint64_t cycle) const
 {
     size_t  index   = 0;
-    bool    isFound = m_keyframes.TryFindAtOrBefore (cycle, index);
+    bool    isFound = m_keyframes.GetArena().TryFindAtOrBefore (cycle, index);
 
 
 
@@ -46,7 +46,7 @@ uint64_t HistoryTimeline::GetWallTimeAt (uint64_t cycle) const
         return 0;
     }
 
-    return HistoryStatus::GetWallTimeAt (m_keyframes.GetInfo (index).wallTime, m_keyframes.GetInfo (index).cycle, cycle);
+    return HistoryStatus::GetWallTimeAt (m_keyframes.GetArena().GetInfo (index).wallTime, m_keyframes.GetArena().GetInfo (index).cycle, cycle);
 }
 
 
@@ -71,9 +71,9 @@ uint64_t HistoryTimeline::GetWallTimeAtPosition (
     uint64_t  position,
     uint64_t  cycle) const
 {
-    size_t                 count   = m_keyframes.GetCount();
+    size_t                 count   = m_keyframes.GetArena().GetCount();
     size_t                 index   = 0;
-    bool                   isFound = m_keyframes.TryFindByPosition (position, index);
+    bool                   isFound = m_keyframes.GetArena().TryFindByPosition (position, index);
     const KeyframeInfo   * at      = nullptr;
     const KeyframeInfo   * next    = nullptr;
     double                 span    = 0;
@@ -87,8 +87,8 @@ uint64_t HistoryTimeline::GetWallTimeAtPosition (
     }
 
     index = isFound ? index : 0;
-    at    = &m_keyframes.GetInfo (index);
-    next  = (index + 1 < count) ? &m_keyframes.GetInfo (index + 1) : nullptr;
+    at    = &m_keyframes.GetArena().GetInfo (index);
+    next  = (index + 1 < count) ? &m_keyframes.GetArena().GetInfo (index + 1) : nullptr;
 
     if (next == nullptr || next->hasGapBefore || next->position <= at->position || at->wallTime == 0)
     {
@@ -125,13 +125,13 @@ bool HistoryTimeline::TryGetSummary (
 
 
 
-    if (keyframe + 1 >= m_keyframes.GetCount())
+    if (keyframe + 1 >= m_keyframes.GetArena().GetCount())
     {
         return false;
     }
 
-    at   = &m_keyframes.GetInfo (keyframe);
-    next = &m_keyframes.GetInfo (keyframe + 1);
+    at   = &m_keyframes.GetArena().GetInfo (keyframe);
+    next = &m_keyframes.GetArena().GetInfo (keyframe + 1);
 
     if (!next->activity.isKnown)
     {
@@ -163,14 +163,14 @@ bool HistoryTimeline::TryFindStretch (
     Stretch   & outStretch) const
 {
     size_t  keyframe = 0;
-    bool    isFound  = m_keyframes.TryFindByPosition (position, keyframe);
+    bool    isFound  = m_keyframes.GetArena().TryFindByPosition (position, keyframe);
 
 
 
     if (isFound)
     {
         outStretch.keyframe = keyframe;
-        outStretch.start    = m_keyframes.GetInfo (keyframe).position;
+        outStretch.start    = m_keyframes.GetArena().GetInfo (keyframe).position;
         outStretch.end      = GetSegmentEnd (keyframe, newestEnd);
     }
 
@@ -197,9 +197,9 @@ uint64_t HistoryTimeline::GetSegmentEnd (size_t keyframe, uint64_t newestEnd) co
 
 
 
-    if (keyframe + 1 < m_keyframes.GetCount())
+    if (keyframe + 1 < m_keyframes.GetArena().GetCount())
     {
-        next = &m_keyframes.GetInfo (keyframe + 1);
+        next = &m_keyframes.GetArena().GetInfo (keyframe + 1);
         end  = next->hasGapBefore ? next->gapStart : next->position;
     }
 

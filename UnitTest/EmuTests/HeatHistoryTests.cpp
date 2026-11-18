@@ -764,9 +764,9 @@ public:
             rig.machine.GetRunner().StepOne();
         }
 
-        Assert::IsTrue (rig.controller.GetKeyframes().GetCount() > 6, L"several stretches, or the test proves nothing");
+        Assert::IsTrue (rig.controller.GetKeyframes().GetArena().GetCount() > 6, L"several stretches, or the test proves nothing");
 
-        middle = rig.controller.GetKeyframes().GetInfo (4).position + 10;
+        middle = rig.controller.GetKeyframes().GetArena().GetInfo (4).position + 10;
 
         //  The reset comes after the first write, inside the first stretch.
         rig.Seek (start + 10);
@@ -850,8 +850,8 @@ public:
                             std::format (L"history dropped everything up to the reset at {}, or the test proves nothing: oldest {}, {} keyframes in {} bytes",
                                          reset,
                                          rig.controller.GetOldestPosition(),
-                                         rig.controller.GetKeyframes().GetCount(),
-                                         rig.controller.GetKeyframes().GetByteCount()).c_str());
+                                         rig.controller.GetKeyframes().GetArena().GetCount(),
+                                         rig.controller.GetKeyframes().GetArena().GetByteCount()).c_str());
 
             spread = SpreadPositions (rig.controller, end);
 
@@ -1214,9 +1214,9 @@ public:
 
         log += std::format ("heat rebuild, {} build, {} keyframes, {} bytes of history, {} of them heat counts\n",
                             IsDebugBuild() ? "Debug" : "Release",
-                            rig.controller.GetKeyframes().GetCount(),
-                            rig.controller.GetKeyframes().GetByteCount(),
-                            rig.controller.GetKeyframes().GetSideByteCount());
+                            rig.controller.GetKeyframes().GetArena().GetCount(),
+                            rig.controller.GetKeyframes().GetArena().GetByteCount(),
+                            rig.controller.GetKeyframes().GetArena().GetSideByteCount());
 
         for (int fade : kFades)
         {
@@ -1895,7 +1895,7 @@ private:
 
 
 
-        for (size_t i = 0; i < keyframes.GetCount(); i++)
+        for (size_t i = 0; i < keyframes.GetArena().GetCount(); i++)
         {
             keyframes.GetSide (i, side, size);
 
@@ -1908,7 +1908,7 @@ private:
             bitBytes   += written.size;
             whole      += (written.size > 0) ? 1 : 0;
 
-            if (i == 0 || counts.size == 0 || !history.TryGetTotalsAt (keyframes.GetInfo (i - 1).position, before) || !history.TryGetTotalsAt (keyframes.GetInfo (i).position, after))
+            if (i == 0 || counts.size == 0 || !history.TryGetTotalsAt (keyframes.GetArena().GetInfo (i - 1).position, before) || !history.TryGetTotalsAt (keyframes.GetArena().GetInfo (i).position, after))
             {
                 continue;
             }
@@ -1925,10 +1925,10 @@ private:
         }
 
         //  The heat map's sides are a small share of the history's bytes.
-        Assert::IsTrue ((countBytes + bitBytes) * 20 < keyframes.GetByteCount() - keyframes.GetSideByteCount(), L"the heat sides take under 5% of the snapshots' bytes");
+        Assert::IsTrue ((countBytes + bitBytes) * 20 < keyframes.GetArena().GetByteCount() - keyframes.GetArena().GetSideByteCount(), L"the heat sides take under 5% of the snapshots' bytes");
 
         return std::format ("{}: {} keyframes, {} bytes of snapshots; counts {} bytes ({} without the two new kinds), kept bits {} bytes, kept whole at {} keyframes\n",
-                            name, keyframes.GetCount(), keyframes.GetByteCount() - keyframes.GetSideByteCount(), countBytes, oldBytes, bitBytes, whole);
+                            name, keyframes.GetArena().GetCount(), keyframes.GetArena().GetByteCount() - keyframes.GetArena().GetSideByteCount(), countBytes, oldBytes, bitBytes, whole);
     }
 
 

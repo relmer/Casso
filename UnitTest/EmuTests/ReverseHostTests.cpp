@@ -63,7 +63,7 @@ public:
         hr = host.StartRecording (ReverseHost::MakeSettings (s_kHostBudgetMb, 1));
         AssertSucceeded (hr, L"StartRecording again, as a machine switch does");
 
-        Assert::AreEqual<size_t> (1, host.GetController().GetKeyframes().GetCount(), L"a restart begins history again");
+        Assert::AreEqual<size_t> (1, host.GetController().GetKeyframes().GetArena().GetCount(), L"a restart begins history again");
 
         host.StopRecording();
 
@@ -114,10 +114,10 @@ public:
 
         Assert::IsFalse (host.GetController().IsPaused(), L"an automatic raise keeps recording");
 
-        count = host.GetController().GetKeyframes().GetCount();
+        count = host.GetController().GetKeyframes().GetArena().GetCount();
         machine.GetRunner().RunCycles (s_kHostGapCycles);
 
-        Assert::IsTrue (host.GetController().GetKeyframes().GetCount() > count, L"keyframes are taken at an automatic Maximum");
+        Assert::IsTrue (host.GetController().GetKeyframes().GetArena().GetCount() > count, L"keyframes are taken at an automatic Maximum");
 
         cpu.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::User);
 
@@ -126,17 +126,17 @@ public:
 
         Assert::IsTrue (host.GetController().IsPaused(), L"the user's Maximum pauses recording");
 
-        count = host.GetController().GetKeyframes().GetCount();
+        count = host.GetController().GetKeyframes().GetArena().GetCount();
         machine.GetRunner().RunCycles (s_kHostGapCycles);
 
-        Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"no keyframe while paused");
+        Assert::AreEqual (count, host.GetController().GetKeyframes().GetArena().GetCount(), L"no keyframe while paused");
 
         cpu.SetSpeedMode (SpeedMode::Authentic, SpeedChooser::User);
 
         hr = host.OnFrame (cpu.IsUserMaximumSpeed());
         AssertSucceeded (hr, L"OnFrame back at 1x");
 
-        resumed = host.GetController().GetKeyframes().GetInfo (host.GetController().GetKeyframes().GetCount() - 1);
+        resumed = host.GetController().GetKeyframes().GetArena().GetInfo (host.GetController().GetKeyframes().GetArena().GetCount() - 1);
 
         Assert::IsFalse (host.GetController().IsPaused(), L"recording resumed");
         Assert::IsTrue  (resumed.hasGapBefore, L"the keyframe where it resumed follows a gap");
@@ -220,7 +220,7 @@ public:
         PrepareRecording (machine, host);
 
         liveEnd = machine.GetRunner().GetPosition();
-        count   = store.GetCount();
+        count   = store.GetArena().GetCount();
 
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBack");
@@ -231,14 +231,14 @@ public:
         AssertSucceeded (hr, L"GoLive");
 
         Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"live again from the old live end");
-        Assert::AreEqual (count, store.GetCount(), L"no history was dropped");
+        Assert::AreEqual (count, store.GetArena().GetCount(), L"no history was dropped");
 
         machine.GetRunner().RunCycles (s_kHostGapCycles);
 
-        Assert::IsTrue (store.GetCount() > count, L"keyframes taken after going live");
+        Assert::IsTrue (store.GetArena().GetCount() > count, L"keyframes taken after going live");
 
-        before  = store.GetInfo (count - 1);
-        after   = store.GetInfo (count);
+        before  = store.GetArena().GetInfo (count - 1);
+        after   = store.GetArena().GetInfo (count);
         wallGap = after.wallTime - before.wallTime;
 
         Assert::IsTrue (wallGap >= kMinuteTicks, L"the wall time stamped after going live jumps by the minute");
@@ -304,7 +304,7 @@ public:
 
         PrepareRecording (machine, host);
 
-        target = (host.GetController().GetKeyframes().GetInfo (0).cycle + machine.GetCpu()->GetTotalCycles()) / 2;
+        target = (host.GetController().GetKeyframes().GetArena().GetInfo (0).cycle + machine.GetCpu()->GetTotalCycles()) / 2;
 
         hr = host.Execute (ReverseCommand::SeekCycle, target, nullptr, result);
         AssertSucceeded (hr, L"SeekCycle");
@@ -375,12 +375,12 @@ public:
 
         host.SetLiveCallback ([&lives] () { lives++; });
 
-        count = host.GetController().GetKeyframes().GetCount();
+        count = host.GetController().GetKeyframes().GetArena().GetCount();
 
         hr = host.Diverge();
         AssertSucceeded (hr, L"Diverge while live");
 
-        Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"live, nothing is dropped or kept");
+        Assert::AreEqual (count, host.GetController().GetKeyframes().GetArena().GetCount(), L"live, nothing is dropped or kept");
 
         liveEnd = machine.GetRunner().GetPosition();
         target  = liveEnd - 100;
@@ -419,7 +419,7 @@ public:
         status = host.GetStatus();
 
         Assert::AreEqual<uint64_t> (machine.GetCpu()->GetTotalCycles(), status.cycle, L"the machine's cycle count");
-        Assert::IsTrue (status.wallTime >= host.GetController().GetKeyframes().GetInfo (0).wallTime, L"no earlier than history begins");
+        Assert::IsTrue (status.wallTime >= host.GetController().GetKeyframes().GetArena().GetInfo (0).wallTime, L"no earlier than history begins");
         Assert::IsTrue (status.wallTime != 0, L"a host time");
     }
 

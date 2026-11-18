@@ -140,10 +140,10 @@ HRESULT DebugEventHistory::AddStretch (
 
 
 
-    isFound = m_keyframes->TryFindByPosition (bounds.startPosition, index);
+    isFound = m_keyframes->GetArena().TryFindByPosition (bounds.startPosition, index);
     CBREx (isFound, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    hasNext = index + 1 < m_keyframes->GetCount();
+    hasNext = index + 1 < m_keyframes->GetArena().GetCount();
 
     hr = m_keyframes->CopyPacked (bounds.startPosition, m_noUnpacker, stretch.start, copy);
     CHR (hr);
@@ -151,11 +151,11 @@ HRESULT DebugEventHistory::AddStretch (
     CBREx (copy == KeyframeCopy::Copied, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
     stretch.startPosition = bounds.startPosition;
-    stretch.startCycle    = m_keyframes->GetInfo (index).cycle;
-    stretch.journalIndex  = m_keyframes->GetInfo (index).journalIndex;
+    stretch.startCycle    = m_keyframes->GetArena().GetInfo (index).cycle;
+    stretch.journalIndex  = m_keyframes->GetArena().GetInfo (index).journalIndex;
     stretch.endPosition   = bounds.endPosition;
-    stretch.endCycle      = (hasNext && !bounds.hasGapAfter && bounds.endPosition == m_keyframes->GetInfo (index + 1).position)
-                          ? m_keyframes->GetInfo (index + 1).cycle : 0;
+    stretch.endCycle      = (hasNext && !bounds.hasGapAfter && bounds.endPosition == m_keyframes->GetArena().GetInfo (index + 1).position)
+                          ? m_keyframes->GetArena().GetInfo (index + 1).cycle : 0;
 
     ioJob.stretches.push_back (std::move (stretch));
 

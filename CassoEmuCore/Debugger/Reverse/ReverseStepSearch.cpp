@@ -261,11 +261,11 @@ Error:
 
 bool ReverseStepSearch::HasNoCaller() const
 {
-    bool  isAskable = m_owner.m_isRecording && m_owner.m_isLive && m_callerProbe && m_owner.m_keyframes.GetCount() > 0;
+    bool  isAskable = m_owner.m_isRecording && m_owner.m_isLive && m_callerProbe && m_owner.m_keyframes.GetArena().GetCount() > 0;
 
 
 
-    return isAskable && m_callerProbe (m_owner.m_keyframes.GetInfo (0).cycle);
+    return isAskable && m_callerProbe (m_owner.m_keyframes.GetArena().GetInfo (0).cycle);
 }
 
 
@@ -307,7 +307,7 @@ HRESULT ReverseStepSearch::StepOutByRecord (
     BAIL_OUT_IF (!hasLinks || count == 0, S_OK);
 
     link     = m_callerLinks[count - 1];
-    isUsable = link.cycle >= m_owner.m_keyframes.GetInfo (0).cycle && !HasGapSince (link.cycle, m_owner.m_machine.GetRunner().GetPosition());
+    isUsable = link.cycle >= m_owner.m_keyframes.GetArena().GetInfo (0).cycle && !HasGapSince (link.cycle, m_owner.m_machine.GetRunner().GetPosition());
 
     if (!isUsable)
     {
@@ -363,7 +363,7 @@ Error:
 
 bool ReverseStepSearch::TryGetCallerLinks (size_t & outCount)
 {
-    bool  isAskable = m_owner.m_isRecording && m_owner.m_isLive && m_callerLinksProbe && m_owner.m_keyframes.GetCount() > 0;
+    bool  isAskable = m_owner.m_isRecording && m_owner.m_isLive && m_callerLinksProbe && m_owner.m_keyframes.GetArena().GetCount() > 0;
     bool  isLanded  = !m_owner.m_isLive && m_owner.m_machine.GetRunner().GetPosition() == m_callerLanding;
 
 
@@ -399,7 +399,7 @@ bool ReverseStepSearch::HasGapSince (
     uint64_t  cycle,
     uint64_t  position) const
 {
-    size_t                index  = m_owner.m_keyframes.GetCount();
+    size_t                index  = m_owner.m_keyframes.GetArena().GetCount();
     bool                  hasGap = m_owner.m_isLive && m_owner.m_isPaused && position > m_owner.m_pauseStart;
     const KeyframeInfo  * info   = nullptr;
 
@@ -408,7 +408,7 @@ bool ReverseStepSearch::HasGapSince (
     while (index > 0 && !hasGap)
     {
         index--;
-        info = &m_owner.m_keyframes.GetInfo (index);
+        info = &m_owner.m_keyframes.GetArena().GetInfo (index);
 
         if (info->cycle <= cycle)
         {

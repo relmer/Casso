@@ -297,7 +297,7 @@ HRESULT CallStackHistory::MakeJob (
     hr = keyframes->WaitForPending();
     CHR (hr);
 
-    count = keyframes->GetCount();
+    count = keyframes->GetArena().GetCount();
     BAIL_OUT_IF (count == 0, S_OK);
 
     outJob.isContinued = isContinued;
@@ -311,13 +311,13 @@ HRESULT CallStackHistory::MakeJob (
         part.startPosition = from;
         outJob.inputsFrom  = journalCursor;
 
-        isFound = keyframes->TryFindByPosition (from, index);
-        index   = !isFound ? 0 : (keyframes->GetInfo (index).position == from) ? index : index + 1;
+        isFound = keyframes->GetArena().TryFindByPosition (from, index);
+        index   = !isFound ? 0 : (keyframes->GetArena().GetInfo (index).position == from) ? index : index + 1;
     }
     else
     {
         start    = FindFreshStart (*keyframes, target);
-        info     = keyframes->GetInfo (start);
+        info     = keyframes->GetArena().GetInfo (start);
         isSeeded = TryFindSeed (*keyframes, info.position, target, index);
 
         BAIL_OUT_IF (!isSeeded && info.position >= target, S_OK);
@@ -347,7 +347,7 @@ HRESULT CallStackHistory::MakeJob (
 
     for (; index < count; index++)
     {
-        info = keyframes->GetInfo (index);
+        info = keyframes->GetArena().GetInfo (index);
 
         if (info.position > target)
         {
@@ -477,10 +477,10 @@ void CallStackHistory::Request()
     hr = keyframes.WaitForPending();
     CHR (hr);
 
-    if (keyframes.GetCount() > 0)
+    if (keyframes.GetArena().GetCount() > 0)
     {
         start     = FindFreshStart (keyframes, target);
-        isAtStart = keyframes.GetInfo (start).position == target;
+        isAtStart = keyframes.GetArena().GetInfo (start).position == target;
     }
 
     if (isAtStart)
@@ -801,9 +801,9 @@ void CallStackHistory::CommitCopies()
             last = copy.packed;
         }
 
-        isSame = keyframes.TryFindByPosition (copy.position, index);
-        isSame = isSame && keyframes.GetInfo (index).position == copy.position && keyframes.GetInfo (index).cycle == copy.cycle &&
-                 keyframes.GetInfo (index).checksum == copy.checksum;
+        isSame = keyframes.GetArena().TryFindByPosition (copy.position, index);
+        isSame = isSame && keyframes.GetArena().GetInfo (index).position == copy.position && keyframes.GetArena().GetInfo (index).cycle == copy.cycle &&
+                 keyframes.GetArena().GetInfo (index).checksum == copy.checksum;
 
         if (!isSame || last.empty())
         {
@@ -934,11 +934,11 @@ void CallStackHistory::OnKeyframeDrop (KeyframeDrop drop)
     switch (drop)
     {
     case KeyframeDrop::Oldest:
-        m_copies.Drop (keyframes.GetInfo (0).position);
+        m_copies.Drop (keyframes.GetArena().GetInfo (0).position);
         break;
 
     case KeyframeDrop::Newest:
-        m_copies.Drop (keyframes.GetInfo (keyframes.GetCount() - 1).position);
+        m_copies.Drop (keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position);
         break;
 
     default:
@@ -984,7 +984,7 @@ HRESULT CallStackHistory::CopyPart (
     CallStackRebuildPart   & outPart)
 {
     HRESULT               hr   = S_OK;
-    const KeyframeInfo  & info = m_history->GetKeyframes().GetInfo (index);
+    const KeyframeInfo  & info = m_history->GetKeyframes().GetArena().GetInfo (index);
     KeyframeCopy          copy = KeyframeCopy::Gone;
 
 
@@ -1048,8 +1048,8 @@ bool CallStackHistory::TryFindSeed (
 
 
 
-    isFound = isFound && position >= from && keyframes.TryFindByPosition (position, outIndex);
-    isFound = isFound && keyframes.GetInfo (outIndex).position == position;
+    isFound = isFound && position >= from && keyframes.GetArena().TryFindByPosition (position, outIndex);
+    isFound = isFound && keyframes.GetArena().GetInfo (outIndex).position == position;
 
     return isFound;
 }
@@ -1078,7 +1078,7 @@ size_t CallStackHistory::FindFreshStart (
 {
     const InputJournal  & journal  = m_machine.GetHostInput().GetJournal();
     const InputRecord   * record   = nullptr;
-    size_t                count    = keyframes.GetCount();
+    size_t                count    = keyframes.GetArena().GetCount();
     size_t                end      = journal.GetEndIndex();
     size_t                start    = 0;
     size_t                index    = 0;
@@ -1087,15 +1087,15 @@ size_t CallStackHistory::FindFreshStart (
 
 
 
-    for (index = 1; index < count && keyframes.GetInfo (index).position <= target; index++)
+    for (index = 1; index < count && keyframes.GetArena().GetInfo (index).position <= target; index++)
     {
-        if (keyframes.GetInfo (index).hasGapBefore)
+        if (keyframes.GetArena().GetInfo (index).hasGapBefore)
         {
             start = index;
         }
     }
 
-    for (index = (std::max) (keyframes.GetInfo (start).journalIndex, journal.GetBeginIndex()); index < end; index++)
+    for (index = (std::max) (keyframes.GetArena().GetInfo (start).journalIndex, journal.GetBeginIndex()); index < end; index++)
     {
         record = &journal.GetRecord (index);
 
@@ -1113,7 +1113,7 @@ size_t CallStackHistory::FindFreshStart (
 
     //  A keyframe taken before the power cycle was journaled holds an
     //  index no greater than the power cycle's.
-    for (index = start + 1; isCycled && index < count && keyframes.GetInfo (index).journalIndex <= cycled; index++)
+    for (index = start + 1; isCycled && index < count && keyframes.GetArena().GetInfo (index).journalIndex <= cycled; index++)
     {
         start = index;
     }

@@ -130,19 +130,19 @@ public:
 
         PrepareRecording (machine, host);
 
-        keyframes = host.GetController().GetKeyframes().GetCount();
+        keyframes = host.GetController().GetKeyframes().GetArena().GetCount();
 
         for (i = 0; i < s_kEditPokes; i++)
         {
             target.TryPoke (static_cast<Word> (s_kEditAddress + i), s_kEditValue);
         }
 
-        Assert::AreEqual (keyframes, host.GetController().GetKeyframes().GetCount(), L"no keyframe per poke");
+        Assert::AreEqual (keyframes, host.GetController().GetKeyframes().GetArena().GetCount(), L"no keyframe per poke");
 
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBack");
 
-        Assert::AreEqual (keyframes + 1, host.GetController().GetKeyframes().GetCount(), L"the pokes became one boundary");
+        Assert::AreEqual (keyframes + 1, host.GetController().GetKeyframes().GetArena().GetCount(), L"the pokes became one boundary");
 
         hr = host.Execute (ReverseCommand::GoLive, 0, nullptr, result);
         AssertSucceeded (hr, L"GoLive");

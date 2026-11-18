@@ -40,23 +40,23 @@ public:
 
         Fill (store, 16 * s_kBudgetMb, 0, kCount);
 
-        before   = store.GetCount();
+        before   = store.GetArena().GetCount();
         reserved = store.GetReservedBytes();
         Assert::AreEqual (kCount, before, L"16 MB holds every keyframe");
 
         hr = store.ChangeBudget (2 * s_kBudgetMb);
         AssertSucceeded (hr, L"ChangeBudget");
 
-        Assert::IsTrue (store.GetByteCount() <= 2 * s_kBudgetMb, L"the history must fit the smaller budget at once");
-        Assert::IsTrue (store.GetCount() < before,               L"the oldest keyframes are dropped");
-        Assert::IsTrue (store.GetCount() > 0,                    L"the newest group stays");
-        Assert::AreEqual<uint64_t> ((kCount - 1) * s_kBudgetInterval, store.GetInfo (store.GetCount() - 1).cycle, L"the newest keyframe stays");
+        Assert::IsTrue (store.GetArena().GetByteCount() <= 2 * s_kBudgetMb, L"the history must fit the smaller budget at once");
+        Assert::IsTrue (store.GetArena().GetCount() < before,               L"the oldest keyframes are dropped");
+        Assert::IsTrue (store.GetArena().GetCount() > 0,                    L"the newest group stays");
+        Assert::AreEqual<uint64_t> ((kCount - 1) * s_kBudgetInterval, store.GetArena().GetInfo (store.GetArena().GetCount() - 1).cycle, L"the newest keyframe stays");
         Assert::IsTrue (store.GetReservedBytes() < reserved,     L"the memory shrinks with the budget");
 
         AssertEveryKeyframeRestores (store);
 
         Fill (store, 0, kCount, 50);
-        Assert::IsTrue (store.GetByteCount() <= 2 * s_kBudgetMb, L"recording goes on within the new budget");
+        Assert::IsTrue (store.GetArena().GetByteCount() <= 2 * s_kBudgetMb, L"recording goes on within the new budget");
         AssertEveryKeyframeRestores (store);
     }
 
@@ -73,7 +73,7 @@ public:
 
         Fill (store, 2 * s_kBudgetMb, 0, kCount);
 
-        held     = store.GetCount();
+        held     = store.GetArena().GetCount();
         reserved = store.GetReservedBytes();
         Assert::IsTrue (held < kCount, L"2 MB must have dropped some keyframes");
 
@@ -81,11 +81,11 @@ public:
         AssertSucceeded (hr, L"ChangeBudget");
 
         Assert::IsTrue  (store.GetReservedBytes() > reserved, L"the memory grows as soon as the budget does");
-        Assert::AreEqual (held, store.GetCount(),             L"growing keeps every keyframe");
+        Assert::AreEqual (held, store.GetArena().GetCount(),             L"growing keeps every keyframe");
         AssertEveryKeyframeRestores (store);
 
         Fill (store, 0, kCount, kCount);
-        Assert::AreEqual (held + kCount, store.GetCount(), L"nothing is dropped while the larger budget has room");
+        Assert::AreEqual (held + kCount, store.GetArena().GetCount(), L"nothing is dropped while the larger budget has room");
         AssertEveryKeyframeRestores (store);
     }
 
@@ -143,9 +143,9 @@ private:
 
 
 
-        for (size_t i = 0; i < store.GetCount(); i++)
+        for (size_t i = 0; i < store.GetArena().GetCount(); i++)
         {
-            size_t  step = static_cast<size_t> (store.GetInfo (i).cycle / s_kBudgetInterval);
+            size_t  step = static_cast<size_t> (store.GetArena().GetInfo (i).cycle / s_kBudgetInterval);
 
             hr = store.Restore (i, restored);
             AssertSucceeded (hr, L"Restore");

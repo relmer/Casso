@@ -93,7 +93,7 @@ public:
 
         machine.GetRunner().RunCycles (s_kPowerCycleAfterCycles);
 
-        keyframes = controller.GetKeyframes().GetCount();
+        keyframes = controller.GetKeyframes().GetArena().GetCount();
         oldest    = controller.GetOldestPosition();
 
         hr = controller.ReverseContinue (neverStops, result);
@@ -102,7 +102,7 @@ public:
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, L"the replay matched every keyframe after the power cycle");
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"nothing stopped it, so it reached the start");
         Assert::AreEqual<uint64_t> (oldest, machine.GetRunner().GetPosition(), L"at the oldest position");
-        Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe was dropped");
+        Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetArena().GetCount(), L"no keyframe was dropped");
     }
 
 
@@ -181,10 +181,10 @@ public:
 
         machine.GetRunner().RunCycles (s_kPowerCycleWarmupCycles * 2);
 
-        for (i = 0; i < keyframes.GetCount(); i++)
+        for (i = 0; i < keyframes.GetArena().GetCount(); i++)
         {
-            after += keyframes.GetInfo (i).position > cycled ? 1 : 0;
-            Assert::IsTrue (i == 0 || keyframes.GetInfo (i).cycle > keyframes.GetInfo (i - 1).cycle, L"the keyframes' cycles only go up");
+            after += keyframes.GetArena().GetInfo (i).position > cycled ? 1 : 0;
+            Assert::IsTrue (i == 0 || keyframes.GetArena().GetInfo (i).cycle > keyframes.GetArena().GetInfo (i - 1).cycle, L"the keyframes' cycles only go up");
         }
 
         Assert::IsTrue (after > 0, L"keyframes are taken after the power cycle");

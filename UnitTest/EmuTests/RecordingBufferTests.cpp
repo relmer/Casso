@@ -103,17 +103,17 @@ public:
         AssertSucceeded (hr, L"Start");
 
         reserved   = controller.GetKeyframes().GetReservedBytes();
-        stateBytes = controller.GetKeyframes().GetInfo (0).stateBytes;
+        stateBytes = controller.GetKeyframes().GetArena().GetInfo (0).stateBytes;
 
         Assert::IsTrue (reserved >= s_kBufferBudget, L"the whole budget is taken at the start");
         Assert::IsTrue (reserved <= s_kBufferBudget + s_kBufferOverStates * stateBytes, L"and not much beyond it: the budget plus the work buffers");
 
         machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kBufferWarmFrames);
 
-        Logger::WriteMessage (std::format ("state {} bytes, {} reserved, {} keyframes in {} bytes, oldest at {}\n", stateBytes, reserved, controller.GetKeyframes().GetCount(), controller.GetKeyframes().GetByteCount(), controller.GetKeyframes().GetInfo (0).position).c_str());
+        Logger::WriteMessage (std::format ("state {} bytes, {} reserved, {} keyframes in {} bytes, oldest at {}\n", stateBytes, reserved, controller.GetKeyframes().GetArena().GetCount(), controller.GetKeyframes().GetArena().GetByteCount(), controller.GetKeyframes().GetArena().GetInfo (0).position).c_str());
 
-        Assert::IsTrue (controller.GetKeyframes().GetByteCount() <= s_kBufferBudget, L"the budget dropped the oldest keyframes");
-        Assert::IsTrue (controller.GetKeyframes().GetInfo (0).position > 0, L"so the oldest kept is not the first taken");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().GetByteCount() <= s_kBufferBudget, L"the budget dropped the oldest keyframes");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().GetInfo (0).position > 0, L"so the oldest kept is not the first taken");
         Assert::AreEqual (reserved, controller.GetKeyframes().GetReservedBytes(), L"and nothing more was taken");
     }
 
@@ -201,6 +201,6 @@ private:
 
 
 
-        return static_cast<size_t> (store.GetInfo (store.GetCount() - 1).cycle / store.GetSettings().intervalCycles);
+        return static_cast<size_t> (store.GetArena().GetInfo (store.GetArena().GetCount() - 1).cycle / store.GetSettings().intervalCycles);
     }
 };

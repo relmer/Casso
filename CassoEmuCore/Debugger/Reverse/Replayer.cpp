@@ -49,14 +49,14 @@ Replayer::Replayer (
 HRESULT Replayer::RestoreKeyframe (size_t index)
 {
     HRESULT       hr      = S_OK;
-    bool          isValid = index < m_keyframes.GetCount();
+    bool          isValid = index < m_keyframes.GetArena().GetCount();
     KeyframeInfo  info;
 
 
 
     CBRAEx (isValid, E_INVALIDARG);
 
-    info = m_keyframes.GetInfo (index);
+    info = m_keyframes.GetArena().GetInfo (index);
 
     m_restoreCount++;
 
@@ -601,10 +601,10 @@ HRESULT Replayer::LoadBoundaryIfDue()
 
     SyncNextKeyframe();
 
-    isDue = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    isDue = m_nextKeyframe < m_keyframes.GetArena().GetCount() && m_keyframes.GetArena().GetInfo (m_nextKeyframe).position == position;
     BAIL_OUT_IF (!isDue, S_OK);
 
-    info = m_keyframes.GetInfo (m_nextKeyframe);
+    info = m_keyframes.GetArena().GetInfo (m_nextKeyframe);
 
     BAIL_OUT_IF (!info.isBoundary, S_OK);
 
@@ -648,7 +648,7 @@ HRESULT Replayer::CheckKeyframe (ReplayReport & report)
 
     SyncNextKeyframe();
 
-    isDue = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    isDue = m_nextKeyframe < m_keyframes.GetArena().GetCount() && m_keyframes.GetArena().GetInfo (m_nextKeyframe).position == position;
     BAIL_OUT_IF (!isDue, S_OK);
 
     writer.Reuse (writer.TakeBytes());
@@ -692,14 +692,14 @@ Error:
 
 void Replayer::FindNextKeyframe (uint64_t afterPosition)
 {
-    size_t  count = m_keyframes.GetCount();
+    size_t  count = m_keyframes.GetArena().GetCount();
 
 
 
     m_nextKeyframe = 0;
     m_nextAfter    = afterPosition;
 
-    while (m_nextKeyframe < count && m_keyframes.GetInfo (m_nextKeyframe).position <= afterPosition)
+    while (m_nextKeyframe < count && m_keyframes.GetArena().GetInfo (m_nextKeyframe).position <= afterPosition)
     {
         m_nextKeyframe++;
     }
@@ -723,9 +723,9 @@ void Replayer::FindNextKeyframe (uint64_t afterPosition)
 
 void Replayer::SyncNextKeyframe()
 {
-    size_t  count    = m_keyframes.GetCount();
-    bool    isAfter  = m_nextKeyframe == 0 || (m_nextKeyframe <= count && m_keyframes.GetInfo (m_nextKeyframe - 1).position <= m_nextAfter);
-    bool    isBefore = m_nextKeyframe >= count || m_keyframes.GetInfo (m_nextKeyframe).position > m_nextAfter;
+    size_t  count    = m_keyframes.GetArena().GetCount();
+    bool    isAfter  = m_nextKeyframe == 0 || (m_nextKeyframe <= count && m_keyframes.GetArena().GetInfo (m_nextKeyframe - 1).position <= m_nextAfter);
+    bool    isBefore = m_nextKeyframe >= count || m_keyframes.GetArena().GetInfo (m_nextKeyframe).position > m_nextAfter;
 
 
 

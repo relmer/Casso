@@ -262,7 +262,7 @@ public:
 
         ReverseHost::FillBudget (store, later);
         Assert::IsTrue (later.beginWallTime > first.beginWallTime, L"dropping the oldest snapshots moves the wall-clock start forward");
-        Assert::AreEqual (1000 + store.GetInfo (0).position + 1, later.beginWallTime);
+        Assert::AreEqual (1000 + store.GetArena().GetInfo (0).position + 1, later.beginWallTime);
     }
 
 

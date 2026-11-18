@@ -209,7 +209,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
 {
     uint64_t                         position  = m_machine.GetRunner().GetPosition();
     const KeyframeStore            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
-    size_t                           count     = (keyframes != nullptr && m_controller->IsRecording()) ? keyframes->GetCount() : 0;
+    size_t                           count     = (keyframes != nullptr && m_controller->IsRecording()) ? keyframes->GetArena().GetCount() : 0;
     size_t                           first     = 0;
     uint64_t                         start     = 0;
     uint64_t                         newest    = 0;
@@ -220,7 +220,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
 
 
 
-        return keyframes->TryFindByPosition (at, index) && keyframes->GetInfo (index).position == at && keyframes->GetInfo (index).isBoundary;
+        return keyframes->GetArena().TryFindByPosition (at, index) && keyframes->GetArena().GetInfo (index).position == at && keyframes->GetArena().GetInfo (index).isBoundary;
     };
 
 
@@ -232,7 +232,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
         return;
     }
 
-    start = keyframes->TryFindAtOrBefore (fromCycle, first) ? keyframes->GetInfo (first).position : keyframes->GetInfo (0).position;
+    start = keyframes->GetArena().TryFindAtOrBefore (fromCycle, first) ? keyframes->GetArena().GetInfo (first).position : keyframes->GetArena().GetInfo (0).position;
 
     m_history.GetStretches (stretches);
 
@@ -265,7 +265,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
         }
     }
 
-    newest = keyframes->GetInfo (count - 1).position;
+    newest = keyframes->GetArena().GetInfo (count - 1).position;
 
     if (newest < position && newest >= start && !(m_controller->IsRecordingLive() && !IsStopped()) && !m_controller->IsPaused())
     {
@@ -309,8 +309,8 @@ void ProfileHistory::GetBlocks (
 
 
 
-        return keyframes->TryFindByPosition (position, at) && keyframes->GetInfo (at).position == position
-                   ? std::optional<uint64_t> (keyframes->GetInfo (at).cycle) : std::nullopt;
+        return keyframes->GetArena().TryFindByPosition (position, at) && keyframes->GetArena().GetInfo (at).position == position
+                   ? std::optional<uint64_t> (keyframes->GetArena().GetInfo (at).cycle) : std::nullopt;
     };
 
 
@@ -322,18 +322,18 @@ void ProfileHistory::GetBlocks (
     {
         Block  block;
 
-        if (keyframes == nullptr || !keyframes->TryFindByPosition (span.startPosition, index))
+        if (keyframes == nullptr || !keyframes->GetArena().TryFindByPosition (span.startPosition, index))
         {
             continue;
         }
 
         block.bounds        = { span.startPosition, span.endPosition, span.hasGapAfter };
-        block.startChecksum = keyframes->GetInfo (index).checksum;
-        block.isCacheable        = keyframes->GetInfo (index).cycle >= fromCycle;
+        block.startChecksum = keyframes->GetArena().GetInfo (index).checksum;
+        block.isCacheable        = keyframes->GetArena().GetInfo (index).cycle >= fromCycle;
 
-        for (size_t next = index + 1; next < keyframes->GetCount() && keyframes->GetInfo (next).position < span.endPosition; next++)
+        for (size_t next = index + 1; next < keyframes->GetArena().GetCount() && keyframes->GetArena().GetInfo (next).position < span.endPosition; next++)
         {
-            const KeyframeInfo  & info = keyframes->GetInfo (next);
+            const KeyframeInfo  & info = keyframes->GetArena().GetInfo (next);
 
             if (info.position / m_blockPositions == block.bounds.startPosition / m_blockPositions)
             {
@@ -352,8 +352,8 @@ void ProfileHistory::GetBlocks (
         }
 
         block.endChecksum = 0;
-        block.isCacheable      = block.isCacheable && keyframes->TryFindByPosition (span.endPosition, index) && !span.hasGapAfter;
-        block.endChecksum = block.isCacheable ? keyframes->GetInfo (index).checksum : 0;
+        block.isCacheable      = block.isCacheable && keyframes->GetArena().TryFindByPosition (span.endPosition, index) && !span.hasGapAfter;
+        block.endChecksum = block.isCacheable ? keyframes->GetArena().GetInfo (index).checksum : 0;
         outBlocks.push_back (block);
     }
 
@@ -427,7 +427,7 @@ HRESULT ProfileHistory::Build (
 
     //  A period from the oldest keyframe has no record of the calls open
     //  before history began.
-    m_isFromStart = m_controller == nullptr || m_controller->GetKeyframes().GetCount() == 0 || m_controller->GetKeyframes().GetInfo (0).cycle >= fromCycle;
+    m_isFromStart = m_controller == nullptr || m_controller->GetKeyframes().GetArena().GetCount() == 0 || m_controller->GetKeyframes().GetArena().GetInfo (0).cycle >= fromCycle;
 
     for (size_t i = 0; i < m_blocks.size(); i++)
     {
@@ -570,9 +570,9 @@ std::map<uint64_t, std::vector<CallStackFrame>> ProfileHistory::GetStartCalls (c
     {
         std::vector<CallStackFrame>  frames;
 
-        if (keyframes->TryFindByPosition (stretch.startPosition, index) && m_callsAt (stretch.startPosition, frames))
+        if (keyframes->GetArena().TryFindByPosition (stretch.startPosition, index) && m_callsAt (stretch.startPosition, frames))
         {
-            calls[keyframes->GetInfo (index).cycle] = std::move (frames);
+            calls[keyframes->GetArena().GetInfo (index).cycle] = std::move (frames);
         }
     }
 

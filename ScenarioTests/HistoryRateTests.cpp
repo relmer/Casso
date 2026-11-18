@@ -59,7 +59,7 @@ public:
         hr = controller.GetKeyframes().WaitForPending();
         AssertSucceeded (hr, L"WaitForPending after the warm-up");
 
-        startBytes = controller.GetKeyframes().GetByteCount();
+        startBytes = controller.GetKeyframes().GetArena().GetByteCount();
 
         for (frame = 0; frame < kSeconds * kFramesPerSecond; frame++)
         {
@@ -70,7 +70,7 @@ public:
         hr = controller.GetKeyframes().WaitForPending();
         AssertSucceeded (hr, L"WaitForPending");
 
-        return (double) (controller.GetKeyframes().GetByteCount() - startBytes) / (double) kSeconds;
+        return (double) (controller.GetKeyframes().GetArena().GetByteCount() - startBytes) / (double) kSeconds;
     }
 
 

@@ -670,7 +670,7 @@ HRESULT ReverseController::StepBackCycles (
     CBRA (cpu);
 
     now         = cpu->GetHistoryCycles();
-    oldestCycle = (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).cycle : now;
+    oldestCycle = (m_keyframes.GetArena().GetCount() > 0) ? m_keyframes.GetArena().GetInfo (0).cycle : now;
     target      = (now > cycles) ? now - cycles : 0;
     isBeforeAll = target < oldestCycle;
 
@@ -740,9 +740,9 @@ HRESULT ReverseController::ReverseContinue (
         }
 
         //  A stretch nothing could stop in is passed over unreplayed.
-        if (m_keyframes.TryFindByPosition (end - 1, keyframe) && TryGetSummary (keyframe, summary) && !stopTest.CanStopIn (summary))
+        if (m_keyframes.GetArena().TryFindByPosition (end - 1, keyframe) && TryGetSummary (keyframe, summary) && !stopTest.CanStopIn (summary))
         {
-            end = m_keyframes.GetInfo (keyframe).position;
+            end = m_keyframes.GetArena().GetInfo (keyframe).position;
             continue;
         }
 
@@ -857,7 +857,7 @@ bool ReverseController::IsInHistory() const
 
 uint64_t ReverseController::GetOldestPosition() const
 {
-    return (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).position : m_machine.GetRunner().GetPosition();
+    return (m_keyframes.GetArena().GetCount() > 0) ? m_keyframes.GetArena().GetInfo (0).position : m_machine.GetRunner().GetPosition();
 }
 
 
@@ -972,7 +972,7 @@ HRESULT ReverseController::Seek (
     CHR (hr);
 
     isHere = TryFindStretch (m_machine.GetRunner().GetPosition(), stretch);
-    isHere = isHere && isForward && (isByCycle ? m_keyframes.TryFindAtOrBefore (target.cycle, keyframe) : m_keyframes.TryFindByPosition (target.position, keyframe));
+    isHere = isHere && isForward && (isByCycle ? m_keyframes.GetArena().TryFindAtOrBefore (target.cycle, keyframe) : m_keyframes.GetArena().TryFindByPosition (target.position, keyframe));
     isHere = isHere && keyframe == stretch.keyframe && (isByCycle || target.position <= stretch.end);
 
     if (!isHere)
@@ -981,7 +981,7 @@ HRESULT ReverseController::Seek (
         CHR (hr);
 
         // Going forward into a gap: on to the keyframe where it ends.
-        if (isForward && !isByCycle && target.position > stretch.end && stretch.keyframe + 1 < m_keyframes.GetCount())
+        if (isForward && !isByCycle && target.position > stretch.end && stretch.keyframe + 1 < m_keyframes.GetArena().GetCount())
         {
             hr = m_replayer.RestoreKeyframe (stretch.keyframe + 1);
             CHR (hr);
@@ -1049,10 +1049,10 @@ HRESULT ReverseController::RestoreAtOrBefore (
     hr = m_keyframes.WaitForPending();
     CHR (hr);
 
-    hasAny = m_keyframes.GetCount() > 0;
+    hasAny = m_keyframes.GetArena().GetCount() > 0;
     CBRAEx (hasAny, E_UNEXPECTED);
 
-    isFound = isByCycle ? m_keyframes.TryFindAtOrBefore (cycle, keyframe) : m_keyframes.TryFindByPosition (position, keyframe);
+    isFound = isByCycle ? m_keyframes.GetArena().TryFindAtOrBefore (cycle, keyframe) : m_keyframes.GetArena().TryFindByPosition (position, keyframe);
 
     if (!isFound)
     {
@@ -1063,7 +1063,7 @@ HRESULT ReverseController::RestoreAtOrBefore (
     CHR (hr);
 
     outStretch.keyframe = keyframe;
-    outStretch.start    = m_keyframes.GetInfo (keyframe).position;
+    outStretch.start    = m_keyframes.GetArena().GetInfo (keyframe).position;
     outStretch.end      = GetSegmentEnd (keyframe);
 
 Error:
@@ -1102,7 +1102,7 @@ HRESULT ReverseController::HandleDivergence (
     m_cutCount++;
 
     good = report.divergedKeyframe - 1;
-    info = m_keyframes.GetInfo (good);
+    info = m_keyframes.GetArena().GetInfo (good);
 
     hr = m_replayer.RestoreKeyframe (good);
     CHR (hr);
@@ -1412,7 +1412,7 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
     // capture before the cycle count passes the newest keyframe's again (a
     // debugger edit or a disk change soon after a power cycle) cannot follow
     // it, so history before the power cycle goes and starts over here.
-    if (m_keyframes.GetCount() > 0 && m_keyframes.GetInfo (m_keyframes.GetCount() - 1).cycle >= cycle)
+    if (m_keyframes.GetArena().GetCount() > 0 && m_keyframes.GetArena().GetInfo (m_keyframes.GetArena().GetCount() - 1).cycle >= cycle)
     {
         m_keyframes.Clear();
     }
@@ -1445,14 +1445,14 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
         m_observer->OnKeyframeAdding (position, m_side);
     }
 
-    isFirst = m_keyframes.GetCount() == 0;
+    isFirst = m_keyframes.GetArena().GetCount() == 0;
 
     hr = m_keyframes.Add (position, cycle, journalEnd, writer, m_side);
     CHR (hr);
 
     NoteActivity (isFirst);
 
-    journal.DiscardBefore (m_keyframes.GetInfo (0).journalIndex);
+    journal.DiscardBefore (m_keyframes.GetArena().GetInfo (0).journalIndex);
 
     PruneRetainedMedia();
 
@@ -1660,7 +1660,7 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
         isFound = TryFindStretch (position, stretch);
         CBRAEx (isFound, E_UNEXPECTED);
 
-        if (position >= stretch.end && stretch.keyframe + 1 < m_keyframes.GetCount())
+        if (position >= stretch.end && stretch.keyframe + 1 < m_keyframes.GetArena().GetCount())
         {
             hr = m_replayer.RestoreKeyframe (stretch.keyframe + 1);
             CHR (hr);
@@ -1927,9 +1927,9 @@ void ReverseController::DiscardStepTable()
 
 void ReverseController::PruneRetainedMedia()
 {
-    if (m_keyframes.GetCount() > 0)
+    if (m_keyframes.GetArena().GetCount() > 0)
     {
-        m_machine.GetDiskStore().PruneRetainedMedia (m_keyframes.GetInfo (0).position);
+        m_machine.GetDiskStore().PruneRetainedMedia (m_keyframes.GetArena().GetInfo (0).position);
     }
 }
 
@@ -1962,7 +1962,7 @@ HRESULT ReverseController::UseWorkQueue()
 
     if (!isCreated)
     {
-        hr = m_workQueue.Create (KeyframeStore::kBufferCount, L"Casso history keyframes");
+        hr = m_workQueue.Create (KeyframeLayout::kJobCount, L"Casso history keyframes");
         CHR (hr);
     }
 

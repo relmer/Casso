@@ -161,7 +161,7 @@ namespace CallStackRebuildCostTests
         TestMachine               scratch  ("Apple2e", GetSlots (workload));
         KeyframeStore             none;
         Replayer                  replayer (scratch, none);
-        const KeyframeInfo      & oldest   = controller.GetKeyframes().GetInfo (0);
+        const KeyframeInfo      & oldest   = controller.GetKeyframes().GetArena().GetInfo (0);
         std::vector<Byte>         state;
         std::vector<InputRecord>  inputs;
         ReplayTarget              target;
@@ -282,7 +282,7 @@ namespace CallStackRebuildCostTests
                     warmup = TimeRebuild (rig, controller, replayer, frames);
                     IGNORE_RETURN_VALUE (warmup, 0.0);
 
-                    cycles = (double) (rig.machine.GetCpu()->GetTotalCycles() - controller.GetKeyframes().GetInfo (0).cycle) / kMillion;
+                    cycles = (double) (rig.machine.GetCpu()->GetTotalCycles() - controller.GetKeyframes().GetArena().GetInfo (0).cycle) / kMillion;
 
                     bare.push_back    (TimeBareReplay (rig, controller, workload) / cycles);
                     rebuilt.push_back (TimeRebuild    (rig, controller, replayer, frames) / cycles);
