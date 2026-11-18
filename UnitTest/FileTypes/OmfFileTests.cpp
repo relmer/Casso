@@ -14,7 +14,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  OmfFileTests
 //
 //  A version 2.1 segment built with a CONST, a cRELOC, a GLOBAL and an EXPR,
-//  then listed.
+//  then listed. The code segment's bytes are listed as 65816 code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +64,9 @@ public:
 
         Assert::AreEqual (std::wstring (L"Segment 1: \"MAIN\", load name \"\", code, dynamic, version 2.1"), file.lines[0]);
         Assert::AreEqual (std::wstring (L"  CONST 3 bytes"), file.lines[2]);
-        Assert::AreEqual (std::wstring (L"    0000: A9 00 60"), file.lines[3]);
+        Assert::IsTrue   (file.lines[3].starts_with (L"    0000"),        file.lines[3].c_str());
+        Assert::IsTrue   (file.lines[3].find (L"LDA") != std::wstring::npos, L"a code segment starts with a 16-bit accumulator");
+        Assert::IsTrue   (file.lines[3].find (L"#$6000") != std::wstring::npos, file.lines[3].c_str());
         Assert::AreEqual (std::wstring (L"  cRELOC 2 bytes, shift 0, at $1, value $2"), file.lines[4]);
         Assert::AreEqual (std::wstring (L"  GLOBAL X, length 1, type 'N'"), file.lines[5]);
         Assert::AreEqual (std::wstring (L"  EXPR 2 bytes: X $4 +"), file.lines[6]);
