@@ -30,8 +30,12 @@ public:
 
     using Port = FakeAppleFactory::Port;
 
-    static constexpr DWORD  kReplyMs   = 300;
-    static constexpr DWORD  kSpeeds[]  = { 9600, 115200 };
+    //  The time an Apple port has to reply. It is long enough for the fake
+    //  Apple's thread to answer on a loaded machine, and each silent port
+    //  takes this long at each speed.
+    static constexpr DWORD  kReplyMs     = 2000;
+    static constexpr DWORD  kNoReplyMs   = 300;
+    static constexpr DWORD  kSpeeds[]    = { 9600, 115200 };
 
     struct Sink : ICassoLinkSessionSink
     {
@@ -112,7 +116,7 @@ public:
 
         rig.factory.comPorts = { { L"COM1", Port::Silent }, { L"COM2", Port::Busy } };
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), CassoLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), CassoLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kNoReplyMs, port));
         Assert::IsTrue   (port.empty());
         Assert::IsTrue   (rig.factory.ArePortsClosed());
     }
