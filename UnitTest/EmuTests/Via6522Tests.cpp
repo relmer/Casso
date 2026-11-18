@@ -498,13 +498,13 @@ namespace Via6522TestNs
 
 
             // What an SSI-263 driver writes to arm the handshake: CA2 parked
-            // at a fixed output level in the same store that selects the CA1
-            // falling edge. The CA2 field is inert, but the write must be
-            // accepted -- this once asserted and stopped the machine.
+            // low in the same store that selects the CA1 falling edge. This
+            // once asserted and stopped the machine.
             via.WriteRegister (Via6522::kRegPcr, 0x0C);
 
             Assert::AreEqual (0x0C, (int) via.ReadRegister (Via6522::kRegPcr),
                               L"The CA2 mode field must read back as written");
+            Assert::IsFalse (via.GetCa2(), L"CA2 must be driven low");
 
             via.SetCa1 (false);
 
@@ -617,12 +617,262 @@ namespace Via6522TestNs
                               L"An undriven CA1 must never latch");
             Assert::AreEqual (0, (int) (ifr & Via6522::kIrqCb1),
                               L"An undriven CB1 must never latch");
+            Assert::AreEqual (0, (int) (ifr & (Via6522::kIrqCa2 | Via6522::kIrqCb2)),
+                              L"An undriven CA2 or CB2 must never latch");
+            Assert::AreEqual (0, (int) (ifr & Via6522::kIrqShift),
+                              L"A disabled shift register must never latch");
             Assert::IsFalse (cpu.IrqAsserted(),
                              L"No timer armed and no line driven must leave the IRQ line idle");
         }
 
 
+        TEST_METHOD (Ca2Input_SetsItsFlagOnTheSelectedEdge)
+        {
+            Via6522   viaFall;
+            Via6522   viaRise;
+
+
+
+            viaFall.WriteRegister (Via6522::kRegPcr, Pcr (Via6522::kC2InFalling, 0));
+            viaRise.WriteRegister (Via6522::kRegPcr, Pcr (Via6522::kC2InRising, 0));
+
+            viaFall.SetCa2 (false);
+            viaRise.SetCa2 (false);
+
+            Assert::AreEqual ((int) Via6522::kIrqCa2, (int) (viaFall.GetIfr() & Via6522::kIrqCa2));
+            Assert::AreEqual (0,                      (int) (viaRise.GetIfr() & Via6522::kIrqCa2));
+
+            viaRise.SetCa2 (true);
+            Assert::AreEqual ((int) Via6522::kIrqCa2, (int) (viaRise.GetIfr() & Via6522::kIrqCa2));
+        }
+
+
+        TEST_METHOD (Ca2Flag_ClearsOnPortAAccessUnlessIndependent)
+        {
+            Via6522   via;
+            Via6522   independent;
+
+
+
+            via.WriteRegister         (Via6522::kRegPcr, Pcr (Via6522::kC2InFalling, 0));
+            independent.WriteRegister (Via6522::kRegPcr, Pcr (Via6522::kC2InFallingIndependent, 0));
+
+            via.SetCa2         (false);
+            independent.SetCa2 (false);
+
+            via.ReadRegister         (Via6522::kRegOra);
+            independent.ReadRegister (Via6522::kRegOra);
+
+            Assert::AreEqual (0,                      (int) (via.GetIfr()         & Via6522::kIrqCa2));
+            Assert::AreEqual ((int) Via6522::kIrqCa2, (int) (independent.GetIfr() & Via6522::kIrqCa2));
+        }
+
+
+        TEST_METHOD (Ca2Output_DrivesTheModesLevel)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegPcr, Pcr (Via6522::kC2OutLow, 0));
+            Assert::IsFalse (via.GetCa2());
+
+            via.WriteRegister (Via6522::kRegPcr, Pcr (Via6522::kC2OutHigh, 0));
+            Assert::IsTrue (via.GetCa2());
+
+            via.WriteRegister (Via6522::kRegPcr, Pcr (Via6522::kC2OutHandshake, 0));
+            Assert::IsTrue (via.GetCa2(), L"A handshake starts high");
+
+            via.ReadRegister (Via6522::kRegOra);
+            Assert::IsFalse (via.GetCa2(), L"An ORA access drives it low");
+
+            via.SetCa1 (false);
+            Assert::IsTrue (via.GetCa2(), L"The CA1 edge returns it high");
+        }
+
+
+        TEST_METHOD (Cb2Input_SetsItsFlag_AndClearsOnPortBAccessUnlessIndependent)
+        {
+            Via6522   via;
+            Via6522   independent;
+
+
+
+            via.WriteRegister         (Via6522::kRegPcr, Pcr (0, Via6522::kC2InFalling));
+            independent.WriteRegister (Via6522::kRegPcr, Pcr (0, Via6522::kC2InFallingIndependent));
+
+            via.SetCb2         (false);
+            independent.SetCb2 (false);
+
+            Assert::AreEqual ((int) Via6522::kIrqCb2, (int) (via.GetIfr() & Via6522::kIrqCb2));
+
+            via.ReadRegister         (Via6522::kRegOrb);
+            independent.ReadRegister (Via6522::kRegOrb);
+
+            Assert::AreEqual (0,                      (int) (via.GetIfr()         & Via6522::kIrqCb2));
+            Assert::AreEqual ((int) Via6522::kIrqCb2, (int) (independent.GetIfr() & Via6522::kIrqCb2));
+        }
+
+
+        TEST_METHOD (Cb2Handshake_GoesLowOnlyOnAPortBWrite)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegPcr, Pcr (0, Via6522::kC2OutHandshake));
+
+            via.ReadRegister (Via6522::kRegOrb);
+            Assert::IsTrue (via.GetCb2(), L"A read does not start the handshake");
+
+            via.WriteRegister (Via6522::kRegOrb, 0);
+            Assert::IsFalse (via.GetCb2());
+
+            via.SetCb1 (false);
+            Assert::IsTrue (via.GetCb2(), L"The CB1 edge returns it high");
+        }
+
+
+        TEST_METHOD (ShiftInUnderCb1_TakesCb2OnRisingEdges_AndFlagsAfterEightBits)
+        {
+            constexpr Byte  kPattern = 0xA5;
+            Via6522         via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr, Acr (Via6522::kSrInCb1));
+            via.WriteRegister (Via6522::kRegSr,  0);
+
+            for (int bit = 7; bit >= 0; bit--)
+            {
+                Assert::AreEqual (0, (int) (via.GetIfr() & Via6522::kIrqShift));
+
+                via.SetCb2 (((kPattern >> bit) & 1) != 0);
+                PulseCb1   (via);
+            }
+
+            Assert::AreEqual ((int) Via6522::kIrqShift, (int) (via.GetIfr() & Via6522::kIrqShift));
+            Assert::AreEqual ((int) kPattern,           (int) via.PeekRegister (Via6522::kRegSr));
+            Assert::AreEqual (0,                        (int) (via.GetIfr() & Via6522::kIrqCb2),
+                              L"CB2 is the shift data line and doesn't set a flag");
+
+            PulseCb1 (via);
+            Assert::AreEqual ((int) kPattern, (int) via.PeekRegister (Via6522::kRegSr),
+                              L"The register stops after eight bits");
+        }
+
+
+        TEST_METHOD (ShiftOutUnderCb1_FlagsEveryEightPulses)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr, Acr (Via6522::kSrOutCb1));
+            via.WriteRegister (Via6522::kRegSr,  0x81);
+
+            via.SetCb1 (false);
+            Assert::IsTrue (via.GetCb2(), L"Bit 7 is shifted out on the falling edge");
+            via.SetCb1 (true);
+
+            for (int i = 1; i < 8; i++)
+            {
+                PulseCb1 (via);
+            }
+
+            Assert::AreEqual ((int) Via6522::kIrqShift, (int) (via.GetIfr() & Via6522::kIrqShift));
+            Assert::AreEqual (0x81,                     (int) via.PeekRegister (Via6522::kRegSr));
+
+            via.WriteRegister (Via6522::kRegIfr, Via6522::kIrqShift);
+
+            for (int i = 0; i < 7; i++)
+            {
+                PulseCb1 (via);
+            }
+
+            Assert::AreEqual (0, (int) (via.GetIfr() & Via6522::kIrqShift));
+
+            PulseCb1 (via);
+            Assert::AreEqual ((int) Via6522::kIrqShift, (int) (via.GetIfr() & Via6522::kIrqShift),
+                              L"The count goes on with no register access");
+        }
+
+
+        TEST_METHOD (ShiftUnderPhi2_TakesTwoCyclesPerBit)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr, Acr (Via6522::kSrInPhi2));
+            via.SetCb2        (true);
+            via.WriteRegister (Via6522::kRegSr,  0);
+
+            via.Tick (15);
+            Assert::AreEqual (0,    (int) (via.GetIfr() & Via6522::kIrqShift));
+            Assert::AreEqual (0x7F, (int) via.PeekRegister (Via6522::kRegSr));
+
+            via.Tick (1);
+            Assert::AreEqual ((int) Via6522::kIrqShift, (int) (via.GetIfr() & Via6522::kIrqShift));
+            Assert::AreEqual (0xFF,                     (int) via.PeekRegister (Via6522::kRegSr));
+        }
+
+
+        TEST_METHOD (ShiftUnderT2_TakesTwiceTheLowLatchPlusTwoPerBit)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr,  Acr (Via6522::kSrOutT2));
+            via.WriteRegister (Via6522::kRegT2CL, 3);
+            via.WriteRegister (Via6522::kRegSr,   0x80);
+
+            via.Tick (10);
+            Assert::IsTrue (via.GetCb2(), L"The first bit out is bit 7");
+
+            via.Tick (69);
+            Assert::AreEqual (0, (int) (via.GetIfr() & Via6522::kIrqShift));
+
+            via.Tick (1);
+            Assert::AreEqual ((int) Via6522::kIrqShift, (int) (via.GetIfr() & Via6522::kIrqShift));
+        }
+
+
+        TEST_METHOD (FreeRunningShiftOut_RotatesAndNeverFlags)
+        {
+            Via6522   via;
+
+
+
+            via.WriteRegister (Via6522::kRegAcr,  Acr (Via6522::kSrOutFreeT2));
+            via.WriteRegister (Via6522::kRegT2CL, 0);
+            via.WriteRegister (Via6522::kRegSr,   0x01);
+
+            via.Tick (4 * (8 * 100 + 3));
+
+            Assert::AreEqual (0,    (int) (via.GetIfr() & Via6522::kIrqShift));
+            Assert::AreEqual (0x08, (int) via.PeekRegister (Via6522::kRegSr));
+        }
+
+
     private:
+        static Byte Pcr (Byte ca2Mode, Byte cb2Mode)
+        {
+            return static_cast<Byte> ((ca2Mode << Via6522::kPcrCa2Shift) | (cb2Mode << Via6522::kPcrCb2Shift));
+        }
+
+        static Byte Acr (Byte shiftMode)
+        {
+            return static_cast<Byte> (shiftMode << Via6522::kAcrSrShift);
+        }
+
+        static void PulseCb1 (Via6522 & via)
+        {
+            via.SetCb1 (false);
+            via.SetCb1 (true);
+        }
+
         static void EnableTimer1Irq (Via6522 & via)
         {
             via.WriteRegister (Via6522::kRegIer,

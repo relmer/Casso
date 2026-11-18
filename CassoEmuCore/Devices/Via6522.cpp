@@ -27,11 +27,12 @@ Byte Via6522::ReadRegister (Byte reg)
 
     switch (reg & kRegisterMask)
     {
-    case kRegOrb:   ClearFlag (kIrqCb1);    break;
-    case kRegOra:   ClearFlag (kIrqCa1);    break;   // $F, the no-handshake alias, does not
-    case kRegT1CL:  ClearFlag (kIrqTimer1); break;
-    case kRegT2CL:  ClearFlag (kIrqTimer2); break;
-    default:                                break;
+    case kRegOrb:   ClearFlag (kIrqCb1);    OnPortBAccess (false); break;
+    case kRegOra:   ClearFlag (kIrqCa1);    OnPortAAccess();       break;   // $F, the no-handshake alias, does not
+    case kRegT1CL:  ClearFlag (kIrqTimer1);                        break;
+    case kRegT2CL:  ClearFlag (kIrqTimer2);                        break;
+    case kRegSr:    StartShift();                                  break;
+    default:                                                       break;
     }
 
     return result;
@@ -101,11 +102,13 @@ void Via6522::WriteRegister (Byte reg, Byte value)
     {
     case kRegOrb:
         ClearFlag (kIrqCb1);
+        OnPortBAccess (true);
         m_orb = value;
         break;
 
     case kRegOra:
         ClearFlag (kIrqCa1);
+        OnPortAAccess();
         m_ora = value;
         break;
 
@@ -154,12 +157,13 @@ void Via6522::WriteRegister (Byte reg, Byte value)
 
     case kRegSr:
         m_sr = value;
+        StartShift();
         break;
 
     case kRegAcr:
-        // Only the Timer1 continuous-mode bit changes behavior here. The rest
-        // -- T2 pulse counting, the shift register, PB7 output, port input
-        // latching -- are stored for read-back and are otherwise inert.
+        // The Timer1 continuous-mode bit and the shift register mode change
+        // behavior here. The rest -- T2 pulse counting, PB7 output, port
+        // input latching -- are stored for read-back and are otherwise inert.
         //
         // Configuring one is NOT a fault. `LDA #$C0 / STA ACR` is the ordinary
         // way to arm a Mockingboard's timer, T1 continuous with PB7 output
@@ -170,17 +174,13 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         break;
 
     case kRegPcr:
-        // The CA1/CB1 active-edge selects are modeled -- a speech card drives
-        // its ready line into one of them, and software must be able to choose
-        // the edge. The CA2/CB2 output-mode fields are stored for read-back
-        // and are otherwise inert.
-        //
-        // Configuring one is NOT a fault: an SSI-263 driver parks CA2 at a
-        // fixed output level as part of arming the A/R handshake, and writes
-        // that field in the same store that selects the CA1 edge. This once
-        // asserted to surface the dependency, which meant a correct speech
-        // driver stopped the machine with a dialog at its first setup write.
-        m_pcr = value;
+        // The CA1/CB1 active-edge selects and the CA2/CB2 modes. A speech
+        // card drives its ready line into CA1 or CB1, and an SSI-263 driver
+        // parks CA2 at a fixed output level in the same store that selects
+        // the CA1 edge. A handshake output starts high.
+        m_pcr    = value;
+        m_ca2Out = true;
+        m_cb2Out = true;
         break;
 
     case kRegIfr:
@@ -224,6 +224,7 @@ void Via6522::Tick (uint32_t cycles)
 {
     TickTimer1 (cycles);
     TickTimer2 (cycles);
+    TickShift  (cycles);
 }
 
 
@@ -260,12 +261,18 @@ void Via6522::Reset()
     m_portAIn = 0;
     m_portBIn = 0;
 
-    m_ca1 = true;
-    m_cb1 = true;
+    m_ca1    = true;
+    m_cb1    = true;
+    m_ca2    = true;
+    m_cb2    = true;
+    m_ca2Out = true;
+    m_cb2Out = true;
 
-    m_sr    = 0;
-    m_acr   = 0;
-    m_pcr   = 0;
+    m_sr        = 0;
+    m_srCount   = kSrBits;
+    m_srDivider = 0;
+    m_acr       = 0;
+    m_pcr       = 0;
 
     m_ifr   = 0;
     m_ier   = 0;
@@ -496,6 +503,11 @@ void Via6522::SetCa1 (bool level)
     if (active)
     {
         SetFlag (kIrqCa1);
+
+        if (GetCa2Mode() == kC2OutHandshake)
+        {
+            m_ca2Out = true;
+        }
     }
 }
 
@@ -508,25 +520,430 @@ void Via6522::SetCa1 (bool level)
 //  SetCb1
 //
 //  CB1 counterpart of SetCa1. The active edge is selected by PCR bit 4 and the
-//  flag is cleared by accessing ORB ($0).
+//  flag is cleared by accessing ORB ($0). CB1 is also the shift register's
+//  external clock: a bit is shifted in on the rising edge and out on the
+//  falling edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::SetCb1 (bool level)
 {
-    bool   rising = false;
-    bool   active = false;
+    bool   rising    = false;
+    bool   falling   = false;
+    bool   active    = false;
+    Byte   shiftMode = GetShiftMode();
+    bool   isRunning = m_srCount < kSrBits;
+    bool   isShiftIn = false;
+    bool   isShift   = false;
 
 
 
-    rising = (!m_cb1 && level);
-    active = ((m_pcr & kPcrCb1Rising) != 0) ? rising : (m_cb1 && !level);
+    rising    = (!m_cb1 && level);
+    falling   = (m_cb1 && !level);
+    active    = ((m_pcr & kPcrCb1Rising) != 0) ? rising : falling;
+    isShiftIn = shiftMode == kSrInCb1 && rising;
+    isShift   = isRunning && (isShiftIn || (shiftMode == kSrOutCb1 && falling));
 
     m_cb1 = level;
 
     if (active)
     {
         SetFlag (kIrqCb1);
+
+        if (GetCb2Mode() == kC2OutHandshake)
+        {
+            m_cb2Out = true;
+        }
+    }
+
+    if (isShift)
+    {
+        ShiftOne();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCa2
+//
+//  Drives the CA2 input. In an input mode, the edge the mode selects sets
+//  the CA2 flag. An output mode ignores the input.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::SetCa2 (bool level)
+{
+    bool  active = IsActiveEdge (GetCa2Mode(), m_ca2, level);
+
+
+
+    m_ca2 = level;
+
+    if (active)
+    {
+        SetFlag (kIrqCa2);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCb2
+//
+//  CB2 counterpart of SetCa2. While the shift register is enabled, CB2 is
+//  its data line and doesn't set a flag; a bit shifted in is the level here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::SetCb2 (bool level)
+{
+    bool  isShiftData = GetShiftMode() != kSrDisabled;
+    bool  active      = !isShiftData && IsActiveEdge (GetCb2Mode(), m_cb2, level);
+
+
+
+    m_cb2 = level;
+
+    if (active)
+    {
+        SetFlag (kIrqCb2);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsActiveEdge
+//
+//  Whether a change of a CA2 or CB2 input sets its flag in an input mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Via6522::IsActiveEdge (Byte mode, bool before, bool after)
+{
+    bool  isFallingMode = mode == kC2InFalling || mode == kC2InFallingIndependent;
+    bool  isRisingMode  = mode == kC2InRising  || mode == kC2InRisingIndependent;
+
+
+
+    return (isFallingMode && before && !after) || (isRisingMode && !before && after);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCa2
+//
+//  The pulse output returns high: its low pulse lasts one cycle, which is
+//  over by the time the next access is made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Via6522::GetCa2() const
+{
+    Byte  mode  = GetCa2Mode();
+    bool  level = m_ca2;
+
+
+
+    switch (mode)
+    {
+    case kC2OutHandshake:   level = m_ca2Out; break;
+    case kC2OutPulse:       level = true;     break;
+    case kC2OutLow:         level = false;    break;
+    case kC2OutHigh:        level = true;     break;
+    default:                                  break;
+    }
+
+    return level;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCb2
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Via6522::GetCb2() const
+{
+    Byte  shiftMode = GetShiftMode();
+    Byte  mode      = GetCb2Mode();
+    bool  level     = m_cb2;
+
+
+
+    if (shiftMode >= kSrOutFreeT2)
+    {
+        return m_cb2Out;
+    }
+
+    if (shiftMode != kSrDisabled)
+    {
+        return m_cb2;
+    }
+
+    switch (mode)
+    {
+    case kC2OutHandshake:   level = m_cb2Out; break;
+    case kC2OutPulse:       level = true;     break;
+    case kC2OutLow:         level = false;    break;
+    case kC2OutHigh:        level = true;     break;
+    default:                                  break;
+    }
+
+    return level;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPortAAccess
+//
+//  A read or write of ORA ($1) clears the CA2 flag unless CA2 is an
+//  independent input, and starts a CA2 handshake.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::OnPortAAccess()
+{
+    Byte  mode = GetCa2Mode();
+
+
+
+    if (mode == kC2InFalling || mode == kC2InRising)
+    {
+        ClearFlag (kIrqCa2);
+    }
+
+    if (mode == kC2OutHandshake)
+    {
+        m_ca2Out = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPortBAccess
+//
+//  A read or write of ORB ($0) clears the CB2 flag unless CB2 is an
+//  independent input. Only a write starts a CB2 handshake.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::OnPortBAccess (bool isWrite)
+{
+    Byte  mode         = GetCb2Mode();
+    bool  isShiftOwned = GetShiftMode() != kSrDisabled;
+
+
+
+    if (mode == kC2InFalling || mode == kC2InRising)
+    {
+        ClearFlag (kIrqCb2);
+    }
+
+    if (isWrite && !isShiftOwned && mode == kC2OutHandshake)
+    {
+        m_cb2Out = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetShiftPeriod
+//
+//  Cycles per bit for the timed shift modes, or 0 for the others. Under
+//  timer 2 the shift clock toggles each time T2's low counter runs out,
+//  every latch + 2 cycles, and a bit takes a full clock period. Under the
+//  system clock a bit takes two cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t Via6522::GetShiftPeriod() const
+{
+    constexpr uint32_t  kPhi2Period  = 2;
+    constexpr uint32_t  kT2Overhead  = 2;
+    constexpr uint32_t  kHalfPeriods = 2;
+    Byte                mode         = GetShiftMode();
+    uint32_t            period       = 0;
+
+
+
+    switch (mode)
+    {
+    case kSrInT2:
+    case kSrOutFreeT2:
+    case kSrOutT2:
+        period = kHalfPeriods * (m_t2LatchLo + kT2Overhead);
+        break;
+
+    case kSrInPhi2:
+    case kSrOutPhi2:
+        period = kPhi2Period;
+        break;
+
+    default:
+        break;
+    }
+
+    return period;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartShift
+//
+//  A read or write of SR clears the shift flag and starts eight bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::StartShift()
+{
+    ClearFlag (kIrqShift);
+
+    m_srCount   = 0;
+    m_srDivider = GetShiftPeriod();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickShift
+//
+//  Shifts the bits a timed mode clocks in `cycles`. Free-running output
+//  rotates the register endlessly, so only the count modulo eight matters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::TickShift (uint32_t cycles)
+{
+    uint32_t  period    = GetShiftPeriod();
+    bool      isFree    = GetShiftMode() == kSrOutFreeT2;
+    bool      isRunning = isFree || m_srCount < kSrBits;
+    uint64_t  remaining = 0;
+    uint64_t  shifts    = 0;
+
+
+
+    if (period == 0 || !isRunning || cycles == 0)
+    {
+        return;
+    }
+
+    if (m_srDivider == 0 || m_srDivider > period)
+    {
+        m_srDivider = period;
+    }
+
+    if (cycles < m_srDivider)
+    {
+        m_srDivider -= cycles;
+        return;
+    }
+
+    remaining   = cycles - m_srDivider;
+    shifts      = 1 + remaining / period;
+    m_srDivider = period - (uint32_t) (remaining % period);
+
+    if (isFree)
+    {
+        for (uint64_t i = 0; i < shifts % kSrBits; i++)
+        {
+            ShiftOne();
+        }
+
+        m_cb2Out = (m_sr & 0x01) != 0;
+        return;
+    }
+
+    for (uint64_t i = 0; i < shifts && m_srCount < kSrBits; i++)
+    {
+        ShiftOne();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShiftOne
+//
+//  Shifts one bit: in from CB2 at bit 0, or out of bit 7 to CB2 and back in
+//  at bit 0. The eighth bit sets the shift flag and stops the register,
+//  except under CB1 shifting out, where the count starts again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::ShiftOne()
+{
+    constexpr Byte  kTopBit = 0x80;
+    Byte            mode    = GetShiftMode();
+    bool            out     = (m_sr & kTopBit) != 0;
+
+
+
+    if (mode <= kSrInCb1)
+    {
+        m_sr = static_cast<Byte> ((m_sr << 1) | (m_cb2 ? 1 : 0));
+    }
+    else
+    {
+        m_sr     = static_cast<Byte> ((m_sr << 1) | (out ? 1 : 0));
+        m_cb2Out = out;
+    }
+
+    if (mode == kSrOutFreeT2)
+    {
+        return;
+    }
+
+    m_srCount++;
+
+    if (m_srCount >= kSrBits)
+    {
+        SetFlag (kIrqShift);
+
+        if (mode == kSrOutCb1)
+        {
+            m_srCount = 0;
+        }
     }
 }
 
@@ -759,6 +1176,12 @@ HRESULT Via6522::SaveState (StateWriter & writer) const
     writer.WriteUInt32 (static_cast<uint32_t> (m_t2Start));
     writer.WriteUInt32 (static_cast<uint32_t> (m_t2Counter));
     writer.WriteBool   (m_t2Armed);
+    writer.WriteBool   (m_ca2);
+    writer.WriteBool   (m_cb2);
+    writer.WriteBool   (m_ca2Out);
+    writer.WriteBool   (m_cb2Out);
+    writer.WriteByte   (m_srCount);
+    writer.WriteUInt32 (m_srDivider);
 
     return writer.EndSection();
 }
@@ -772,7 +1195,9 @@ HRESULT Via6522::SaveState (StateWriter & writer) const
 //  LoadState
 //
 //  IFR and IER hold source bits 0-6 only; a saved bit 7 in either is not
-//  something this class ever stores, so it fails the load.
+//  something this class ever stores, so it fails the load. A version 1
+//  state predates the CA2, CB2 and shift register fields, which load as
+//  after a reset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -811,11 +1236,29 @@ HRESULT Via6522::LoadState (StateReader & reader)
     reader.ReadUInt32 (t2Counter);
     reader.ReadBool   (m_t2Armed);
 
+    m_ca2       = true;
+    m_cb2       = true;
+    m_ca2Out    = true;
+    m_cb2Out    = true;
+    m_srCount   = kSrBits;
+    m_srDivider = 0;
+
+    if (version >= kFirstWithShiftRegister)
+    {
+        reader.ReadBool   (m_ca2);
+        reader.ReadBool   (m_cb2);
+        reader.ReadBool   (m_ca2Out);
+        reader.ReadBool   (m_cb2Out);
+        reader.ReadByte   (m_srCount);
+        reader.ReadUInt32 (m_srDivider);
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
     CBREx ((m_ifr & kIrqAny) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx ((m_ier & kIrqAny) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (m_srCount <= kSrBits,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_t1Counter = static_cast<int32_t> (t1Counter);
     m_t2Start   = static_cast<int32_t> (t2Start);

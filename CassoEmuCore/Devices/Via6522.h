@@ -29,13 +29,11 @@ struct DiagnosticsSnapshot;
 //
 //    $0 ORB/IRB    $8 T2C-L (read clears T2 flag; write -> T2 low latch)
 //    $1 ORA/IRA    $9 T2C-H (write loads counter, clears T2 flag, starts)
-//    $2 DDRB       $A SR    (shift register -- stored, not clocked)
-//    $3 DDRA       $B ACR   (T1/T2 mode select; SR/latch bits stored)
-//    $4 T1C-L      $C PCR   (handshake control -- stored, not modeled)
+//    $2 DDRB       $A SR    (shift register)
+//    $3 DDRA       $B ACR   (T1, T2 and shift register modes; latch bits stored)
+//    $4 T1C-L      $C PCR   (CA1, CB1 edges; CA2, CB2 modes)
 //    $5 T1C-H      $D IFR   (bit7 = IRQ summary, bit6 = T1, bit5 = T2, ...)
 //    $6 T1L-L      $E IER   (bit7 = set/clear control, per-source enables)
-//                           ($C PCR: CA1/CB1 active-edge selects are modeled;
-//                            the CA2/CB2 output modes are not)
 //    $7 T1L-H      $F ORA/IRA (same as $1, no CA handshake)
 //
 //  Timer 1 is a 16-bit down-counter clocked at the CPU phi2 rate. It is
@@ -46,11 +44,17 @@ struct DiagnosticsSnapshot;
 //  IRQ that Mockingboard music players use for timing. Timer 2 is one-shot
 //  timed only; PB6 pulse counting (ACR bit 5 = 1) is not modeled.
 //
+//  CA2 and CB2 are interrupt inputs on either edge, or outputs: handshake,
+//  pulse, or a fixed level. The shift register shifts under timer 2, the
+//  system clock or CB1, in or out through CB2, and sets its flag after
+//  eight bits. Shifting out under CB1 counts on past eight and sets the flag
+//  every eight bits; shifting out free-running under timer 2 never sets it.
+//
 //  Modeled: full register file, ports A/B + DDRs, Timer 1 (one-shot and
-//  continuous) and Timer 2 (one-shot), IFR/IER and the level-sensitive
-//  IRQ line. NOT modeled (registers stored, behavior absent): the shift
-//  register clocking, CA2/CB2 handshaking, PB6 pulse counting,
-//  and PB7 timer output. The Mockingboard needs none of these.
+//  continuous) and Timer 2 (one-shot), the control lines, the shift
+//  register, IFR/IER and the level-sensitive IRQ line. NOT modeled
+//  (registers stored, behavior absent): PB6 pulse counting, PB7 timer
+//  output and the port input latches.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,12 +98,37 @@ public:
     // IER write control bit: 1 = set the flagged enables, 0 = clear them.
     static constexpr Byte    kIerSetClear = 0x80;
 
+    // ACR bits 2-4: the shift register mode.
+    static constexpr Byte    kAcrSrShift      = 2;
+    static constexpr Byte    kAcrSrMask       = 0x07;
+    static constexpr Byte    kSrDisabled      = 0;
+    static constexpr Byte    kSrInT2          = 1;
+    static constexpr Byte    kSrInPhi2        = 2;
+    static constexpr Byte    kSrInCb1         = 3;
+    static constexpr Byte    kSrOutFreeT2     = 4;
+    static constexpr Byte    kSrOutT2         = 5;
+    static constexpr Byte    kSrOutPhi2       = 6;
+    static constexpr Byte    kSrOutCb1        = 7;
+    static constexpr Byte    kSrBits          = 8;
+
     // PCR: bit 0 selects the CA1 active edge, bit 4 the CB1 active edge
-    // (0 = falling, 1 = rising). The CA2/CB2 mode fields are stored but
-    // inert; software programs them freely and the write is accepted.
+    // (0 = falling, 1 = rising). Bits 1-3 are the CA2 mode and bits 5-7 the
+    // CB2 mode.
     static constexpr Byte    kPcrCa1Rising = 0x01;
     static constexpr Byte    kPcrCb1Rising = 0x10;
-    static constexpr Byte    kPcrModeled   = kPcrCa1Rising | kPcrCb1Rising;
+    static constexpr Byte    kPcrCa2Shift  = 1;
+    static constexpr Byte    kPcrCb2Shift  = 5;
+    static constexpr Byte    kPcrModeMask  = 0x07;
+
+    // CA2 and CB2 modes.
+    static constexpr Byte    kC2InFalling            = 0;
+    static constexpr Byte    kC2InFallingIndependent = 1;
+    static constexpr Byte    kC2InRising             = 2;
+    static constexpr Byte    kC2InRisingIndependent  = 3;
+    static constexpr Byte    kC2OutHandshake         = 4;
+    static constexpr Byte    kC2OutPulse             = 5;
+    static constexpr Byte    kC2OutLow               = 6;
+    static constexpr Byte    kC2OutHigh              = 7;
 
     Via6522 () { Reset (); }
 
@@ -138,9 +167,17 @@ public:
 
     void    SetCa1        (bool level);
     void    SetCb1        (bool level);
+    void    SetCa2        (bool level);
+    void    SetCb2        (bool level);
 
     bool    GetCa1        () const { return m_ca1; }
     bool    GetCb1        () const { return m_cb1; }
+
+    // The CA2 and CB2 pins: the output level in an output mode (CB2 also
+    // while the shift register shifts out), the input level otherwise.
+    bool    GetCa2        () const;
+    bool    GetCb2        () const;
+    Byte    GetShiftMode  () const { return static_cast<Byte> ((m_acr >> kAcrSrShift) & kAcrSrMask); }
 
     // Inspectors for tests.
     Byte     GetIfr        () const;
@@ -170,14 +207,26 @@ public:
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('V', 'I', 'A', ' ');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
 private:
-    void    TickTimer1  (uint32_t cycles);
-    void    TickTimer2  (uint32_t cycles);
-    void    SetFlag     (Byte flag);
-    void    ClearFlag   (Byte flag);
-    void    UpdateIrq   ();
+    static constexpr uint16_t  kFirstWithShiftRegister = 2;
+
+    void      TickTimer1     (uint32_t cycles);
+    void      TickTimer2     (uint32_t cycles);
+    void      TickShift      (uint32_t cycles);
+    void      StartShift     ();
+    void      ShiftOne       ();
+    void      OnPortAAccess  ();
+    void      OnPortBAccess  (bool isWrite);
+    Byte      GetCa2Mode     () const { return static_cast<Byte> ((m_pcr >> kPcrCa2Shift) & kPcrModeMask); }
+    Byte      GetCb2Mode     () const { return static_cast<Byte> ((m_pcr >> kPcrCb2Shift) & kPcrModeMask); }
+    uint32_t  GetShiftPeriod () const;
+    void      SetFlag        (Byte flag);
+    void      ClearFlag      (Byte flag);
+    void      UpdateIrq      ();
+
+    static bool  IsActiveEdge (Byte mode, bool before, bool after);
 
 protected:
     Byte  m_ora     = 0;
@@ -193,10 +242,18 @@ protected:
     // existed.
     bool  m_ca1 = true;
     bool  m_cb1 = true;
+    bool  m_ca2 = true;
+    bool  m_cb2 = true;
 
-    Byte     m_sr    = 0;
-    Byte     m_acr   = 0;
-    Byte     m_pcr   = 0;
+    // CA2's handshake output and CB2's handshake or shifted-out bit.
+    bool  m_ca2Out = true;
+    bool  m_cb2Out = true;
+
+    Byte      m_sr        = 0;
+    Byte      m_srCount   = kSrBits;   // bits shifted since the start; kSrBits when stopped
+    uint32_t  m_srDivider = 0;         // cycles to the next timed shift
+    Byte      m_acr       = 0;
+    Byte      m_pcr       = 0;
 
     // IFR holds flag bits 0..6 only; bit 7 (IRQ summary) is computed on read.
     Byte     m_ifr   = 0;
