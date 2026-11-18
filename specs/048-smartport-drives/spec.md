@@ -577,8 +577,8 @@ on each device's feed.
   power-on.
 - **SC-008**: In the desk scene, each external drive is recognizable as the
   real unit to the owner, judged side by side with reference photographs.
-- **SC-009**: Spec 033's block device scenario tests run on at least one card
-  from this spec.
+- **SC-009**: Spec 033's block device scenario tests run on at least one block
+  device from this spec.
 
 ## Assumptions
 
