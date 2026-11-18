@@ -242,10 +242,8 @@ protected:
     static constexpr int  kSourceTipView = kBasicTipView + 1;
     DxuiListView  * GetTipList       (int view) const override;
     DxuiTextView  * GetTipTextView   (int view) const override;
-    bool            ScrollCodeAtEdge (WPARAM vk, IDxuiControl * focused);
 
     //  Protected so a test can press Ctrl+Page Up or Ctrl+Page Down in a view.
-    bool            SelectCodeViewEdge (WPARAM vk, IDxuiControl * focused);
 
     //  Protected so a test can read the rows a view shows.
     int                          GetCodeLineOfRow    (int view, int row) const override;
@@ -320,6 +318,14 @@ protected:
     //  something moves, a caret's blink among them.
     static bool                IsFramePaintDue        (bool hasUpdate, bool isAnimating);
     void                       RequestPaint           ();
+
+    //  RenderFrame's stages, in order.
+    bool                       TakeHostUpdates        (int64_t now);
+    void                       RefreshFrame           (int64_t now);
+    bool                       TickFrame              (int64_t now);
+    bool                       TickMenuStrips         (int64_t now);
+    void                       PlaceFrameParts        ();
+    void                       PaintFrameIfDue        (bool hasUpdate, bool isAnimating);
 
     //  Protected so a test can apply the breakpoints and the open views as a
     //  snapshot does, set a snapshot without applying it, and read a pane's
@@ -455,17 +461,12 @@ private:
     static constexpr int    kMinWidthDip        = 760;
     static constexpr int    kMinHeightDip       = 520;
 
-    //  Pane metrics (FR-026a): the monospace face at a size whose line height
-    //  a row barely exceeds, small cell padding, and eight rows owed to every
-    //  pane at the default size.
-    static constexpr float  kPaneFontDip           = DensePaneList::kFontDip;
-    static constexpr int    kPaneRowDip            = DensePaneList::kRowDip;
-    static constexpr int    kPaneHeaderDip         = DensePaneList::kHeaderDip;
-    static constexpr int    kPanePadDip            = DensePaneList::kPadDip;
+    //  Pane metrics (FR-026a): eight rows owed to every pane at the default
+    //  size. DensePaneList has the font, row height and cell padding.
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
     static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
-static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
+    static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr size_t kCodeAddressColumn     = DisassemblyCells::kAddressColumn;
     static constexpr size_t kCodeBytesColumn       = DisassemblyCells::kBytesColumn;
     static constexpr size_t kCodeLabelColumn       = DisassemblyCells::kLabelColumn;
@@ -519,6 +520,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                          ConfigureMenuBar     ();
     bool                          RouteMenuBarMouse    (const DxuiMouseEvent & ev);
     bool                          RouteWindowMouse     (const DxuiMouseEvent & ev);
+    void                          NotePointer          (const DxuiMouseEvent & ev);
+    bool                          RoutePaneDragMouse   (const DxuiMouseEvent & ev);
+    bool                          RoutePaneEditMouse   (const DxuiMouseEvent & ev);
+    bool                          RouteCtrlMouse       (const DxuiMouseEvent & ev);
+    bool                          RouteChromeMouse     (const DxuiMouseEvent & ev);
+    bool                          RouteOverPanesMouse  (const DxuiMouseEvent & ev);
+    bool                          RouteRightPressMouse (const DxuiMouseEvent & ev);
+    bool                          RouteContentMouse    (const DxuiMouseEvent & ev);
     bool                          RouteMenuBarKey      (const DxuiKeyEvent & ev, bool & handled);
     DxuiMessageResult             OnKeyUp              (WPARAM vk, LPARAM lParam) override;
     std::shared_ptr<DxuiCommand>  MakeKeyedMenuCommand (int id, const std::wstring & label);
@@ -948,7 +957,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                                    GoLive               () override { GoLiveFromBand(); }
     const StopChanges                     & GetStopChanges       () const override { return m_stopChanges; }
     POINT                                   GetLastPressPx       () const override { return m_lastPressPx; }
-    int                                     GetPaneRowDip        () const override { return kPaneRowDip; }
+    int                                     GetPaneRowDip        () const override { return DensePaneList::kRowDip; }
     const DebuggerViewSnapshot            * GetLatestSnapshot    () const override { return m_snapshot.get(); }
     void                                    ActivatePaneTab      (const std::wstring & pane) override;
     bool                                    IsSameTabGroup       (const std::wstring & a, const std::wstring & b) const override;

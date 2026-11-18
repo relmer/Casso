@@ -779,40 +779,17 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DebuggerWindow::RouteWindowMouse
 //
+//  Each stage takes the event or passes it to the next, in the order the
+//  window's parts lie over one another.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
 {
-    int           x       = ev.positionDip.x;
-    int           y       = ev.positionDip.y;
-    std::wstring  pane;
+    NotePointer (ev);
 
-
-
-    //  The pointer left the window: its tip closes.
-    if (ev.kind == DxuiMouseEventKind::Leave)
+    if (RoutePaneDragMouse (ev))
     {
-        GetRoutedTips().OnLeave ((int64_t) GetTickCount64());
-    }
-
-    //  A press hides any tip at once: a button it lands on may open a dialog
-    //  or a menu, and the tip would stay up over it.
-    if (ev.kind == DxuiMouseEventKind::Down)
-    {
-        GetRoutedTips().OnPress();
-        m_openingFocus.OnUserInput();
-        m_stopFocus.OnInput (IsCommandPane (m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane()));
-        m_lastPressPx = POINT { x, y };
-    }
-
-    //  A pane's drag takes every event until the button comes up, wherever
-    //  the pointer is, so the menu bar, toolbars and status bar it crosses
-    //  neither take its moves nor show their tips. Off the panes, its cross
-    //  and its preview go at once.
-    if (m_floating->GetRoutingPane().empty() && m_dockSite->HasPointerDrag())
-    {
-        GetRoutedTooltip().HideImmediate();
-        (void) m_dockSite->OnMouse (ev);
         return true;
     }
 
@@ -824,8 +801,90 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
     //  a drag over the row.
     m_operandTips->Update (ev, ev.button == DxuiMouseButton::Left);
 
-    //  A pane's own box being edited, such as a breakpoint's name, a watch, a
-    //  register, a heat map range or its set's name.
+    return RoutePaneEditMouse (ev) || RouteCtrlMouse (ev) || RouteChromeMouse (ev) || RouteOverPanesMouse (ev) ||
+           RouteRightPressMouse (ev) || RouteContentMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::NotePointer
+//
+//  The pointer leaving the window closes its tip. A press hides any tip at
+//  once: a button it lands on may open a dialog or a menu, and the tip would
+//  stay up over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NotePointer (const DxuiMouseEvent & ev)
+{
+    const std::wstring  & routing = m_floating->GetRoutingPane();
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        GetRoutedTips().OnLeave ((int64_t) GetTickCount64());
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        GetRoutedTips().OnPress();
+        m_openingFocus.OnUserInput();
+        m_stopFocus.OnInput (IsCommandPane (routing.empty() ? m_dockSite->GetPaneAt (ev.positionDip) : routing));
+        m_lastPressPx = POINT { ev.positionDip.x, ev.positionDip.y };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RoutePaneDragMouse
+//
+//  A pane's drag takes every event until the button comes up, wherever the
+//  pointer is, so the menu bar, toolbars and status bar it crosses don't
+//  get its moves, and their tips don't open. Off the panes, its cross and
+//  its preview go at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RoutePaneDragMouse (const DxuiMouseEvent & ev)
+{
+    if (!m_floating->GetRoutingPane().empty() || !m_dockSite->HasPointerDrag())
+    {
+        return false;
+    }
+
+    GetRoutedTooltip().HideImmediate();
+    (void) m_dockSite->OnMouse (ev);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RoutePaneEditMouse
+//
+//  A pane's box being edited, such as a breakpoint's name, a watch, a
+//  register, a heat map range or its set's name. Then a pane's use of the
+//  mouse ahead of every other control, such as the wheel over the profiler's
+//  timeline, which zooms the timeline rather than scrolling or sizing the
+//  text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RoutePaneEditMouse (const DxuiMouseEvent & ev)
+{
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEditMouse (ev))
@@ -834,9 +893,6 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  A pane's use of the mouse ahead of every other control, such as the
-    //  wheel over the profiler's timeline, which zooms the timeline rather
-    //  than scrolling or sizing the text.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEarlyMouse (ev))
@@ -845,35 +901,51 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  Ctrl+click on a symbol in a code view or a source document goes to its
-    //  definition, as the menu's Go to definition does.
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && ev.ctrl && !ev.shift && !ev.alt)
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteCtrlMouse
+//
+//  Ctrl+click on a symbol in a code view or a source document goes to its
+//  definition, as the menu's Go to definition does.
+//
+//  Ctrl+wheel anywhere over a pane whose content zooms, such as the heat
+//  map, zooms that content, over its bar and its empty space as much as over
+//  the content itself. Over any other pane it sizes that pane's text alone,
+//  as Ctrl+Plus and Ctrl+Minus do, before a view that would take the wheel
+//  for itself. Off the panes it does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteCtrlMouse (const DxuiMouseEvent & ev)
+{
+    bool  isCtrlClick = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && ev.ctrl && !ev.shift && !ev.alt;
+    bool  isCtrlWheel = ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f;
+    Word  address     = 0;
+    int   fileId      = -1;
+    int   line        = 0;
+
+
+
+    if (isCtrlClick && TryGetDefinitionAt (ev.positionDip, address))
     {
-        Word  address = 0;
-        int   fileId  = -1;
-        int   line    = 0;
-
-
-
-        if (TryGetDefinitionAt (ev.positionDip, address))
-        {
-            GoToDefinition (address);
-            return true;
-        }
-
-        if (TryGetMacroDefinitionAt (ev.positionDip, fileId, line))
-        {
-            m_sources->Open (fileId, line, true);
-            return true;
-        }
+        GoToDefinition (address);
+        return true;
     }
 
-    //  Ctrl+wheel anywhere over a pane whose content zooms, such as the heat
-    //  map, zooms that content, over its bar and its empty space as much as
-    //  over the content itself. Over any other pane it sizes that pane's text
-    //  alone, as Ctrl+Plus and Ctrl+Minus do, before a view that would take
-    //  the wheel for itself. Off the panes it does nothing.
-    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
+    if (isCtrlClick && TryGetMacroDefinitionAt (ev.positionDip, fileId, line))
+    {
+        m_sources->Open (fileId, line, true);
+        return true;
+    }
+
+    if (isCtrlWheel)
     {
         std::wstring  pane = GetRoutedPaneAt (ev.positionDip);
 
@@ -887,46 +959,59 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  The status bar and the menu bar take the events over them ahead of the
-    //  timeline, so the pointer leaving the timeline for either is handled
-    //  here, which closes the timeline's preview.
-    if (m_floating->GetRoutingPane().empty() && !m_timelineHost.IsFloating() && m_timelineBar != nullptr &&
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteChromeMouse
+//
+//  The bars around the panes, while no floating pane has the pointer. The
+//  status bar and the menu bar take the events over them ahead of the
+//  timeline, so the pointer leaving the timeline for either is handled here,
+//  which closes the timeline's preview. The status bar's zoom popup lies over
+//  everything while it is open. The menu bar comes before the command bar:
+//  each has its strip and whatever menu it has open. Then the panes' info
+//  buttons at the ends of the toolbars, and each pane's bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteChromeMouse (const DxuiMouseEvent & ev)
+{
+    bool  isDocked = m_floating->GetRoutingPane().empty();
+
+
+
+    if (isDocked && !m_timelineHost.IsFloating() && m_timelineBar != nullptr &&
         !DxuiDockSite::Contains (m_timelineBar->GetBounds(), ev.positionDip))
     {
         m_timelineBar->OnToolbarMouseLeave();
     }
 
-    //  The status bar's zoom popup lies over everything while it is open, and
-    //  the status bar owns its band.
-    if (m_floating->GetRoutingPane().empty() && RouteStatusBarMouse (ev))
+    if (isDocked && (RouteStatusBarMouse (ev) || RouteMenuBarMouse (ev)))
     {
         return true;
     }
 
-    //  The menu bar first, then the command bar: each owns its strip and
-    //  whatever menu it has open.
-    if (m_floating->GetRoutingPane().empty() && RouteMenuBarMouse (ev))
+    if (isDocked && !m_timelineHost.IsFloating() && RouteTimelineMouse (ev))
     {
         return true;
     }
 
-    if (m_floating->GetRoutingPane().empty() && !m_timelineHost.IsFloating() && RouteTimelineMouse (ev))
+    if (isDocked && !m_barHost.IsFloating() && RouteCommandBarMouse (ev))
     {
         return true;
     }
 
-    if (m_floating->GetRoutingPane().empty() && !m_barHost.IsFloating() && RouteCommandBarMouse (ev))
-    {
-        return true;
-    }
-
-    //  The panes' info buttons first: they sit at the ends of the toolbars.
     if (m_colorKeys->RouteMouse (ev))
     {
         return true;
     }
 
-    //  Then each pane's on the pane interface.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteBarMouse (ev))
@@ -935,33 +1020,53 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  A find widget lies over its pane's content, so a press, a release or
-    //  the wheel on its plate is the widget's whether or not one of its
-    //  controls takes it, and never reaches the content under it. Its moves
-    //  go on below, for the tips and the hover.
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteOverPanesMouse
+//
+//  What lies over the panes' content. A find widget lies over its pane, so
+//  a press, a release or the wheel on its plate is the widget's whether or
+//  not one of its controls takes it; its moves go on, for the tips and the
+//  hover. A press on a disassembly or source tab sets the step mode as a
+//  press inside that pane does. A click on a branch arrow goes to where it
+//  points, and the next back. Then the dock site: its strips, its sashes and
+//  a drag in progress. A tip that is up as a drag starts is hidden, since
+//  tips are off during a drag. A pane slid out from an edge lies over
+//  others, so its area goes to that pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteOverPanesMouse (const DxuiMouseEvent & ev)
+{
+    bool  isDocked    = m_floating->GetRoutingPane().empty();
+    bool  isLeftPress = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
+
+
+
     if (ev.kind != DxuiMouseEventKind::Move && ev.kind != DxuiMouseEventKind::Leave && m_finds->IsOverPlate (ev.positionDip))
     {
         RouteFindPlateMouse (ev);
         return true;
     }
 
-    //  A press on a disassembly or source tab sets the step mode as a press
-    //  inside that pane does.
-    if (m_floating->GetRoutingPane().empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    if (isDocked && isLeftPress)
     {
         NoteTabFocus (ev.positionDip);
     }
 
-    //  A click on a branch arrow goes to where it points, and the next back.
-    if (m_floating->GetRoutingPane().empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
-        m_code->GetArrows().ClickBranchArrow (ev.positionDip))
+    if (isDocked && isLeftPress && m_code->GetArrows().ClickBranchArrow (ev.positionDip))
     {
         return true;
     }
 
-    //  Then the site: its strips, its sashes and a drag in progress lie over
-    //  the panes. A tip up as a drag starts goes, as none shows during one.
-    if (m_floating->GetRoutingPane().empty() && m_dockSite->OnMouse (ev))
+    if (isDocked && m_dockSite->OnMouse (ev))
     {
         if (m_dockSite->IsDragging())
         {
@@ -971,44 +1076,80 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A pane slid out from an edge lies over others, so its area is its own.
-    if (m_floating->GetRoutingPane().empty() && !m_dockSite->GetSlidPane().empty() && ev.kind != DxuiMouseEventKind::Move &&
+    if (isDocked && !m_dockSite->GetSlidPane().empty() && ev.kind != DxuiMouseEventKind::Move &&
         DxuiDockSite::Contains (m_dockSite->GetSlidRect(), ev.positionDip))
     {
         return m_floating->RouteMouse (m_dockSite->GetSlidPane(), ev);
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteRightPressMouse
+//
+//  A right press over a text box opens the box's edit menu rather than its
+//  pane's. Over a pane's content it opens the content's menu, and over a
+//  part of it with none, no menu; over its tab or title, the menu of what
+//  can be done with the pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteRightPressMouse (const DxuiMouseEvent & ev)
+{
+    const std::wstring  & routing = m_floating->GetRoutingPane();
+    std::wstring          pane;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Right)
     {
-        //  Over a text box, the box's edit menu rather than its pane's.
-        if (DxuiTextInput * box = GetTextBoxAt (ev.positionDip); box != nullptr)
-        {
-            ShowTextBoxMenu (*box, ev.positionDip);
-            return true;
-        }
+        return false;
+    }
 
-        pane = m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane();
-
-        //  Over a pane's content, the content's menu, and over a part of it
-        //  with none, no menu; over its tab or title, the menu of what can be
-        //  done with the pane.
-        if (!pane.empty() && !ShowContentMenu (pane, ev.positionDip) && !IsOverPaneContent (pane, ev.positionDip))
-        {
-            ShowDockToMenu (pane, ev.positionDip);
-        }
-
+    if (DxuiTextInput * box = GetTextBoxAt (ev.positionDip); box != nullptr)
+    {
+        ShowTextBoxMenu (*box, ev.positionDip);
         return true;
     }
 
-    //  The find widget floats over its pane's text, so a press on it is the
-    //  widget's, not the text's.
+    pane = routing.empty() ? m_dockSite->GetPaneAt (ev.positionDip) : routing;
+
+    if (!pane.empty() && !ShowContentMenu (pane, ev.positionDip) && !IsOverPaneContent (pane, ev.positionDip))
+    {
+        ShowDockToMenu (pane, ev.positionDip);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteContentMouse
+//
+//  The panes' content. The find widget floats over its pane's text, so a
+//  press on it goes to the widget, not the text. Then what a pane draws, such
+//  as the heat map and the flame graph, and last the lists and text views.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteContentMouse (const DxuiMouseEvent & ev)
+{
     if (!m_finds->IsOverPlate (ev.positionDip) &&
         (m_sources->RouteMouse (ev) || m_consolePane->GetOutput().RouteMouse (ev, m_consolePane->GetCommandLine().GetBox())))
     {
         return true;
     }
 
-    //  What a pane draws, such as the heat map and the flame graph.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteContentMouse (ev))
@@ -1577,12 +1718,12 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
-    if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && ScrollCodeAtEdge (ev.vk, focused))
+    if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && m_code->ScrollCodeAtEdge (ev.vk, focused))
     {
         return true;
     }
 
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && SelectCodeViewEdge (ev.vk, focused))
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && m_code->SelectCodeViewEdge (ev.vk, focused))
     {
         return true;
     }

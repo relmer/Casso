@@ -447,40 +447,6 @@ bool DebuggerWindow::HasSelectedCodeRow() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ScrollCodeAtEdge
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::ScrollCodeAtEdge (
-    WPARAM           vk,
-    IDxuiControl   * focused)
-{
-    return m_code->ScrollCodeAtEdge (vk, focused);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SelectCodeViewEdge
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::SelectCodeViewEdge (
-    WPARAM           vk,
-    IDxuiControl   * focused)
-{
-    return m_code->SelectCodeViewEdge (vk, focused);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::StepTextZoom
 //
 //  Each size is a whole number of ten-percentage-point steps, so a step past
@@ -592,9 +558,9 @@ void DebuggerWindow::ApplyTextSizes()
 
         for (DxuiListView * list : pane->GetLists())
         {
-            list->SetFontSizeDip     (kPaneFontDip * zoom);
-            list->SetRowHeightDip    ((int) std::lround (kPaneRowDip * zoom));
-            list->SetHeaderHeightDip ((int) std::lround (kPaneHeaderDip * zoom));
+            list->SetFontSizeDip     (DensePaneList::kFontDip * zoom);
+            list->SetRowHeightDip    ((int) std::lround (DensePaneList::kRowDip * zoom));
+            list->SetHeaderHeightDip ((int) std::lround (DensePaneList::kHeaderDip * zoom));
             list->ResetAutoFit();
         }
 
@@ -1016,13 +982,9 @@ void DebuggerWindow::LayoutWidgets()
 
 void DebuggerWindow::RenderFrame()
 {
-    std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
-    std::vector<std::string>                     console;
-    int64_t                                      now         = (int64_t) GetTickCount64();
-    bool                                         hasUpdate   = false;
-    bool                                         isAnimating = GetCapture() != nullptr;
-    const DxuiTextInput                        * caret       = nullptr;
-    bool                                         isCaretOn   = false;
+    int64_t  now         = (int64_t) GetTickCount64();
+    bool     hasUpdate   = false;
+    bool     isAnimating = GetCapture() != nullptr;
 
 
 
@@ -1030,6 +992,34 @@ void DebuggerWindow::RenderFrame()
     {
         return;
     }
+
+    hasUpdate = TakeHostUpdates (now);
+    RefreshFrame (now);
+    isAnimating = TickFrame (now) || isAnimating;
+    PlaceFrameParts();
+    PaintFrameIfDue (hasUpdate, isAnimating);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TakeHostUpdates
+//
+//  The project state and the snapshot and console lines the CPU thread
+//  published since the last frame. Returns true when an update came in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TakeHostUpdates (int64_t now)
+{
+    std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
+    std::vector<std::string>                     console;
+    bool                                         hasUpdate = false;
+
+
 
     SaveUndoHistories();
     UpdateProjectCaption (now);
@@ -1056,6 +1046,25 @@ void DebuggerWindow::RenderFrame()
         AppendConsole (console);
     }
 
+    return hasUpdate;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefreshFrame
+//
+//  The parts that follow the snapshot or the clock: the command line's
+//  ghost text, the status bar, the reply banner, the lists, the heat map's
+//  recording, the focus accent and the code views' line counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefreshFrame (int64_t now)
+{
     m_consolePane->GetCommandLine().RefreshGhost();
     UpdateStatusBar();
     PlaceReplyBanner (now);
@@ -1076,40 +1085,30 @@ void DebuggerWindow::RenderFrame()
     //  and each of those has been missed in turn. Measured once a frame, the
     //  view fills whatever room it has; only a change is sent.
     m_code->UpdateLines();
+}
 
-    //  A drop-down slides open on ticks its host supplies. Without them the
-    //  menu stayed at the first frame of its reveal, a sliver under the
-    //  entry, and Panels, Dialect and Keys looked as if they did nothing.
-    //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar })
-    {
-        if (strip != nullptr && strip->WantsTick())
-        {
-            strip->TickMenus (now);
-            isAnimating = true;
-        }
-    }
 
-    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
-    {
-        for (DxuiToolbar * strip : pane->GetBars())
-        {
-            if (strip != nullptr && strip->WantsTick())
-            {
-                strip->TickMenus (now);
-                isAnimating = true;
-            }
-        }
-    }
 
-    if (m_menuBar->WantsTick())
-    {
-        m_menuBar->TickMenus (now);
-        isAnimating = true;
-    }
 
-    //  A menu dismissed by a click outside closes in its own popup, so the
-    //  theme it previewed is put back here.
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TickFrame
+//
+//  Advances everything that moves: menus, tips, floating panes, the panes,
+//  the timeline scrub, the window zoom and a pane pinned or unpinned.
+//  Returns true while any of them is moving.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TickFrame (int64_t now)
+{
+    bool  isAnimating = TickMenuStrips (now);
+
+
+
+    //  A menu dismissed by a click outside closes in its popup, so the theme
+    //  it previewed is put back here.
     EndThemePreview();
 
     if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
@@ -1136,12 +1135,76 @@ void DebuggerWindow::RenderFrame()
     //  A pane pinned or unpinned morphs between its place and its edge tab.
     isAnimating = (m_dockSite != nullptr && m_dockSite->TickAnimation()) || isAnimating;
 
+    return isAnimating;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TickMenuStrips
+//
+//  A drop-down slides open on ticks its host supplies. Without them the menu
+//  stayed at the first frame of its reveal, a sliver under the entry, and
+//  Panels, Dialect and Keys looked as if they did nothing. Returns true while
+//  a menu on the command bar, a pane's bar or the menu bar is moving.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TickMenuStrips (int64_t now)
+{
+    std::vector<DxuiToolbar *>  strips      { m_commandBar };
+    bool                        isAnimating = false;
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetBars(), std::back_inserter (strips));
+    }
+
+    for (DxuiToolbar * strip : strips)
+    {
+        if (strip != nullptr && strip->WantsTick())
+        {
+            strip->TickMenus (now);
+            isAnimating = true;
+        }
+    }
+
+    if (m_menuBar->WantsTick())
+    {
+        m_menuBar->TickMenus (now);
+        isAnimating = true;
+    }
+
+    return isAnimating;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceFrameParts
+//
+//  The floating panes, the command bar, the timeline, the pane bars and the
+//  controls that lie over the panes, placed for this frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceFrameParts()
+{
     m_floating->Sync();
     m_barHost.Sync();
     SyncCommandBarFloatTip();
     SyncTimeline();
     m_floating->CarryTornOff();
     m_floating->ActivateMoved();
+
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->PlaceBar();
@@ -1152,17 +1215,32 @@ void DebuggerWindow::RenderFrame()
     ClipPaneControls();
 
     m_sources->FollowMarkedLines();
-
-
     m_floating->PollCaptionDrags();
+}
 
-    //  A caret on screen blinks: the window paints when its phase turns.
-    caret       = GetBlinkingBox();
-    isCaretOn   = caret != nullptr && caret->IsCaretOn();
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintFrameIfDue
+//
+//  A caret on screen blinks: the window paints when its phase turns. The
+//  history bar's shimmer, while it is all that moves, paints alone over the
+//  frame saved under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintFrameIfDue (bool hasUpdate, bool isAnimating)
+{
+    const DxuiTextInput  * caret     = GetBlinkingBox();
+    bool                   isCaretOn = caret != nullptr && caret->IsCaretOn();
+
+
+
     isAnimating = isAnimating || caret != m_paintedCaret || isCaretOn != m_isPaintedCaretOn;
 
-    //  The history bar's shimmer, while it is all that moves, paints alone
-    //  over the frame saved under it.
     if (!IsFramePaintDue (hasUpdate, isAnimating))
     {
         if (IsTimelineShimmering())
