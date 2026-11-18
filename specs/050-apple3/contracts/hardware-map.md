@@ -192,7 +192,10 @@ least 500 microseconds, starts the ramp and times it until `$C066` goes low
 | Fact | Checked |
 |---|---|
 | 74 keys plus a recessed Reset key; an 8 by 10 matrix scanned by an encoder ROM; Shift, Control, Alpha Lock and the two Apple keys are wired directly | SVC 8.1, 8.7 |
-| Every key's code, alone and with Shift, Control and both: the table on SVC 8.6 | SVC 8.6 |
+| Every key's code, alone and with Shift, Control and both: the table on SVC 8.6 (PDF page 150), copied into `Apple3Keyboard.cpp` and the keyboard tests | SVC 8.6 |
+| The table prints the left arrow as `$8B`, the up arrow's code. The console driver's equates are `LARROW = ASC_BS`, `RARROW = ASC_NAK`, `UARROW = ASC_VT` and `DARROW = ASC_LF`, so the arrows are `$88`, `$95`, `$8B` and `$8A` | CON 1.31, lines 68-71 |
+| The table prints Shift-Control-6 as `$53`. Every other key's Shift-Control code is its Shift code or that code's low five bits, so it is taken as `$1E` | SVC 8.6 (inferred) |
+| The encoder sends the uppercase code for a letter with or without Shift; the console driver forms the case from the KB port's Shift and Alpha Lock bits | CON 1.31, `KIHXFORM` |
 | A key repeats after half a second at 10 per second, and at 30 per second with Apple 2 pressed after it | SVC 8.1; SDD, "The Keyboard" |
 | The four arrow keys have a second contact that turns on the fast repeat | SVC 8.1, 8.7 |
 | Apple 1 sets bit 7 of the code the console driver returns | SDD, "The Keyboard" |

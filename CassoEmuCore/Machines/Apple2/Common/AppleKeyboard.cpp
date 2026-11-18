@@ -241,6 +241,8 @@ void AppleKeyboard::PressKey (Byte asciiChar)
     // Store key with bit 7 set (strobe) in a single atomic write
     m_latchedKey.store (
         TranslateTypedChar (asciiChar) | 0x80, memory_order_release);
+
+    OnKeyLatched (asciiChar, false);
 }
 
 
@@ -260,6 +262,7 @@ void AppleKeyboard::PressKeyOnCpuThread (Byte asciiChar)
 
 
     m_latchedKey.store (latch, memory_order_release);
+    OnKeyLatched (asciiChar, false);
 
     if (m_inputJournal != nullptr)
     {
@@ -625,7 +628,7 @@ Byte AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
 
         m_repeatAccumUs += elapsed;
 
-        threshold = m_repeatStarted ? kKeyRepeatIntervalUs
+        threshold = m_repeatStarted ? GetRepeatIntervalUs()
                                     : kKeyRepeatDelayUs;
 
         if (m_repeatAccumUs >= threshold)
@@ -633,7 +636,10 @@ Byte AppleKeyboard::TickAutoRepeat (uint32_t elapsedMicroseconds)
             m_repeatAccumUs -= threshold;
             m_repeatStarted  = true;
             fired            = (Byte) (key & kKeyCodeMask);
-            PressKey (fired);
+
+            // The latch alone: a repeat is the same key, so OnKeyLatched
+            // isn't called again.
+            m_latchedKey.store (TranslateTypedChar (fired) | 0x80, memory_order_release);
 
             // The shell journals each repeat itself, so the read that sees
             // this latch is not the first to know of it.
@@ -748,7 +754,8 @@ Byte AppleKeyboard::PressSpecialKey (AppleSpecialKey key)
 
     if (code != 0)
     {
-        PressKey (code);
+        m_latchedKey.store (TranslateTypedChar (code) | 0x80, memory_order_release);
+        OnKeyLatched (code, true);
     }
 
     return code;

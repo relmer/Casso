@@ -209,6 +209,15 @@ protected:
     // and only MapSpecialKey answers the latter.
     virtual Byte TranslateTypedChar (Byte ch) const;
 
+    // Called after a press latches a key: a typed character, or a special
+    // key from PressSpecialKey. An auto-repeat of the same key is not a new
+    // press. The Apple /// reports a special key differently from the typed
+    // control character with the same code.
+    virtual void OnKeyLatched (Byte asciiChar, bool isSpecialKey) { UNREFERENCED_PARAMETER (asciiChar); UNREFERENCED_PARAMETER (isSpecialKey); }
+
+    // The steady repeat interval once the delay has passed.
+    virtual uint32_t GetRepeatIntervalUs () const { return kKeyRepeatIntervalUs; }
+
 protected:
     // Producer-side coalesced emit helpers (CPU thread). Each fires the
     // matching sink callback only when the observed value changed, so a
