@@ -227,6 +227,43 @@ public:
         Assert::IsTrue (GetScreenText (*machine.GetApple3()).find (date) != std::string::npos, TextEncoding::Utf8ToWide (GetScreenText (*machine.GetApple3())).c_str());
     }
 
+    //  The Confidence Program's Machine Configuration screen: the memory
+    //  size, the drive online, and every interrupt source checked.
+    static void CheckMachineConfiguration (uint32_t memoryK)
+    {
+        TestMachine        machine ("Apple3", [memoryK] (MachineConfig & config) { config.memoryK = memoryK; });
+        std::vector<Byte>  bytes   = GuestSession::RequireRepoImage ("Disks/Apple/apple3-confidence-test.dsk");
+        std::string        screen;
+
+
+
+        MountBytes (machine, 0, "apple3-confidence-test.dsk", bytes);
+
+        Assert::IsTrue (RunUntilScreenHas (machine, "RETURN to accept", kSecondsToPrompt), L"the menu is on the screen");
+        Type (machine, "\r");
+        Assert::IsTrue (RunUntilScreenHas (machine, "ESCAPE to exit", kSecondsToPrompt), L"the configuration checks are done");
+
+        screen = GetScreenText (*machine.GetApple3());
+
+        Assert::IsTrue (screen.find (std::format ("Memory Map good for: {}K", memoryK)) != std::string::npos, TextEncoding::Utf8ToWide (screen).c_str());
+        Assert::IsTrue (screen.find ("Online          [*]") != std::string::npos, L".D1 is online");
+        Assert::IsTrue (screen.find ("D.6522      [*]     [*]     [*]     [*]     [*]     [*]") != std::string::npos, L"D VIA interrupts");
+        Assert::IsTrue (screen.find ("E.6522      [*]     [*]     [*]     [*]     [*]     [*]") != std::string::npos, L"E VIA interrupts");
+        Assert::IsTrue (screen.find ("IRQ  [*]        I/O NMI  [*]           ACIA  [*]") != std::string::npos, L"IRQ, NMI and ACIA");
+    }
+
+
+    TEST_METHOD (ConfidenceProgram_MachineConfiguration_128K)
+    {
+        CheckMachineConfiguration (128);
+    }
+
+
+    TEST_METHOD (ConfidenceProgram_MachineConfiguration_256K)
+    {
+        CheckMachineConfiguration (256);
+    }
+
     TEST_METHOD (BusinessBasic_PrintsSixTimesSeven)
     {
         TestMachine  machine ("Apple3");

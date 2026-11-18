@@ -169,7 +169,9 @@ public:
     }
 
 
-    TEST_METHOD (Bank_256KHasSevenBanks_PastTheLastWraps)
+    //  Banks 0 to 6 on 256K. Bank 7 has no RAM: it reads $FF, and a write to
+    //  it doesn't change any bank.
+    TEST_METHOD (Bank_256KHasSevenBanks_PastTheLastHasNoRam)
     {
         Apple3TestFixture  f (Apple3Mmu::kRam256K);
 
@@ -182,11 +184,18 @@ public:
 
         Assert::AreEqual ((size_t) 7, f.mmu.GetBankCount());
         Assert::AreEqual ((Byte) 0x66, f.mmu.PeekPhysical (6, 0x0000));
-        Assert::AreEqual ((Byte) 0x72, f.mmu.PeekPhysical (2, 0x0001));
+        Assert::AreEqual ((Byte) 0xFF, f.bus.ReadByte (0x2001), L"bank 7 reads $FF");
+
+        for (size_t bank = 0; bank < 7; bank++)
+        {
+            Assert::AreNotEqual ((Byte) 0x72, f.mmu.PeekPhysical (bank, 0x0001), std::format (L"bank {} has no write to bank 7", bank).c_str());
+        }
     }
 
 
-    TEST_METHOD (Bank_128KPastTheLastWraps)
+    //  Banks 0 to 2 on 128K: the Confidence Program measures 128K only when
+    //  banks 3 to 7 do not answer as RAM.
+    TEST_METHOD (Bank_128KPastTheLastHasNoRam)
     {
         Apple3TestFixture  f;
 
@@ -194,13 +203,15 @@ public:
 
         f.mmu.SetBank (5);
         f.bus.WriteByte (0x2000, 0x55);
+        Assert::AreEqual ((Byte) 0xFF, f.bus.ReadByte (0x2000), L"bank 5 reads $FF");
+
         f.mmu.SetBank (3);
         f.bus.WriteByte (0x2001, 0x33);
+        Assert::AreEqual ((Byte) 0xFF, f.bus.ReadByte (0x2001), L"bank 3 reads $FF");
 
-        Assert::AreEqual ((Byte) 0x55, f.mmu.PeekPhysical (1, 0x0000));
-        Assert::AreEqual ((Byte) 0x33, f.mmu.PeekPhysical (2, 0x0001));
+        Assert::AreNotEqual ((Byte) 0x55, f.mmu.PeekPhysical (1, 0x0000));
+        Assert::AreNotEqual ((Byte) 0x33, f.mmu.PeekPhysical (2, 0x0001));
     }
-
 
     TEST_METHOD (SystemBank_HasLowAndHighRegions)
     {

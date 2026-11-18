@@ -104,12 +104,16 @@ private:
     static constexpr Word    kViaFirst           = 0xFFD0;
     static constexpr Word    kViaLast            = 0xFFEF;
     static constexpr int     kPageCount          = 0x100;
+    static constexpr size_t  kPageBytes          = 0x100;
 
     Byte   * GetSystemBankCell   (Word address);
     Byte   * GetBankCell         (Byte bank, Word offset);
+    Byte   * GetExtendedCell     (Byte bank, Word offset);
+    Byte   * GetReadCells        (Byte page);
+    Byte   * GetWriteCells       (Byte page);
     Byte   * GetSystemPage       (Byte page);
     Byte   * GetExtendedPage     (Byte extension, Word address);
-    size_t   WrapBank            (size_t bank) const;
+    bool     IsBankPresent       (Byte bank) const;
     bool     IsIoPage            (int page) const;
     bool     IsViaAddress        (Word address) const;
     Byte     ReadFloatingBus     () const;
@@ -138,4 +142,8 @@ private:
 
     int                m_extendedPage  = -1;
     Byte             * m_extendedCells = nullptr;
+
+    //  The pages an absent bank reads and writes.
+    std::array<Byte, kPageBytes>  m_absentRead  = {};
+    std::array<Byte, kPageBytes>  m_absentWrite = {};
 };

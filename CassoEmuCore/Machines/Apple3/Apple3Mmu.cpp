@@ -38,7 +38,6 @@ static constexpr Byte    s_kExtensionBits         = 0x8F;
 static constexpr Byte    s_kExtensionBankBits     = 0x0F;
 static constexpr Byte    s_kSystemArrangement     = 0x8F;
 static constexpr Byte    s_kBankBits              = 0x0F;
-static constexpr size_t  s_kBankInPlaceOfSystem   = 2;
 static constexpr Word    s_kFirstExtendedAddress  = 0x0100;
 
 
@@ -51,7 +50,10 @@ static constexpr Word    s_kFirstExtendedAddress  = 0x0100;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Apple3Mmu::Apple3Mmu() = default;
+Apple3Mmu::Apple3Mmu()
+{
+    m_absentRead.fill (0xFF);
+}
 
 
 
@@ -235,29 +237,20 @@ Byte Apple3Mmu::PeekSystem (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WrapBank
+//  IsBankPresent
 //
-//  The physical bank a bank number selects. A number past the installed
-//  banks wraps modulo the physical bank count, and a number that lands on
-//  the system bank selects bank 2. Past the highest bank Apple documents
-//  the result as undefined; this is the behavior of MAME's Apple /// driver.
+//  Banks 0 to 2 on 128K and 0 to 6 on 256K: the physical banks but the last,
+//  which is the system bank. A bank past them has no RAM: it reads $FF, and
+//  a write to it is discarded. Apple documents the result as undefined; the
+//  Confidence Program's memory map reports 128K on a 128K machine only
+//  when the absent banks do not answer as RAM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t Apple3Mmu::WrapBank (size_t bank) const
+bool Apple3Mmu::IsBankPresent (Byte bank) const
 {
-    size_t  physical = bank % m_physicalBanks;
-
-
-
-    if (physical == m_physicalBanks - 1)
-    {
-        physical = s_kBankInPlaceOfSystem;
-    }
-
-    return physical;
+    return (size_t) bank + 1 < m_physicalBanks;
 }
-
 
 
 
@@ -286,20 +279,37 @@ Byte * Apple3Mmu::GetSystemBankCell (Word address)
 //
 //  GetBankCell
 //
-//  A cell of a switched bank by bank number and offset. The offset may run
-//  past the bank's 32K into the next physical bank, wrapping at the end of
-//  RAM, so an extended address of $8000 or above is in bank
-//  n + 1.
+//  A cell of a switched bank by bank number and offset, or null for an
+//  absent bank.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte * Apple3Mmu::GetBankCell (Byte bank, Word offset)
 {
-    size_t  index = ((WrapBank (bank) * kBankBytes) + offset) % m_ram.size();
+    return IsBankPresent (bank) ? &m_ram[(size_t) bank * kBankBytes + offset] : nullptr;
+}
 
 
 
-    return &m_ram[index];
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetExtendedCell
+//
+//  A cell of an extended access: the bank pair's RAM is consecutive, so an
+//  address of $8000 or above is in bank n + 1, and past the last bank the
+//  system bank. Null past the end of RAM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * Apple3Mmu::GetExtendedCell (Byte bank, Word offset)
+{
+    size_t  index = (size_t) bank * kBankBytes + offset;
+
+
+
+    return (index < m_ram.size()) ? &m_ram[index] : nullptr;
 }
 
 
@@ -334,6 +344,38 @@ Byte * Apple3Mmu::GetSystemPage (Byte page)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetReadCells / GetWriteCells
+//
+//  A page of the system address space, or for an absent bank the page that
+//  reads $FF and the page whose writes are discarded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * Apple3Mmu::GetReadCells (Byte page)
+{
+    Byte  * cells = GetSystemPage (page);
+
+
+
+    return (cells != nullptr) ? cells : m_absentRead.data();
+}
+
+
+Byte * Apple3Mmu::GetWriteCells (Byte page)
+{
+    Byte  * cells = GetSystemPage (page);
+
+
+
+    return (cells != nullptr) ? cells : m_absentWrite.data();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetExtendedPage
 //
 //  The page of an extended access at an address, from the extension
@@ -350,7 +392,7 @@ Byte * Apple3Mmu::GetExtendedPage (Byte extension, Word address)
 
     if (extension != s_kSystemArrangement)
     {
-        return GetBankCell ((Byte) (extension & s_kExtensionBankBits), page);
+        return GetExtendedCell ((Byte) (extension & s_kExtensionBankBits), page);
     }
 
     if (page >= s_kFirstBankAddress && page < s_kFirstHighAddress)
@@ -471,7 +513,7 @@ void Apple3Mmu::BuildReadMap()
 
     for (int page = 0; page < kPageCount; page++)
     {
-        m_readMap[(size_t) page] = GetSystemPage ((Byte) page);
+        m_readMap[(size_t) page] = GetReadCells ((Byte) page);
 
         if (IsIoPage (page) || page == s_kTopPage)
         {
@@ -483,8 +525,8 @@ void Apple3Mmu::BuildReadMap()
         }
     }
 
-    m_readMap[0]            = GetSystemPage (m_zeroPage);
-    m_readMap[s_kStackPage] = GetSystemPage (stackPage);
+    m_readMap[0]            = GetReadCells (m_zeroPage);
+    m_readMap[s_kStackPage] = GetReadCells (stackPage);
 }
 
 
@@ -503,7 +545,8 @@ void Apple3Mmu::BuildReadMap()
 
 void Apple3Mmu::BuildWriteMap()
 {
-    bool  isProtected = (m_environment & kEnvWriteProtect) != 0;
+    bool  isProtected    = (m_environment & kEnvWriteProtect) != 0;
+    bool  isPrimaryStack = (m_environment & kEnvPrimaryStack) != 0;
 
 
 
@@ -513,11 +556,11 @@ void Apple3Mmu::BuildWriteMap()
 
 
 
-        m_writeMap[(size_t) page] = isBlocked ? nullptr : GetSystemPage ((Byte) page);
+        m_writeMap[(size_t) page] = isBlocked ? nullptr : GetWriteCells ((Byte) page);
     }
 
-    m_writeMap[0]            = m_readMap[0];
-    m_writeMap[s_kStackPage] = m_readMap[s_kStackPage];
+    m_writeMap[0]            = GetWriteCells (m_zeroPage);
+    m_writeMap[s_kStackPage] = GetWriteCells (isPrimaryStack ? s_kStackPage : (Byte) (m_zeroPage ^ s_kStackPageXor));
 }
 
 
@@ -742,8 +785,10 @@ bool Apple3Mmu::TryBeginExtendedAccess (Byte pointerHigh, Word effectiveAddress)
     m_extendedPage  = page;
     m_extendedCells = GetExtendedPage (extension, effectiveAddress);
 
-    m_bus->SetReadPage  (page, m_extendedCells);
-    m_bus->SetWritePage (page, m_extendedCells);
+    m_bus->SetReadPage  (page, (m_extendedCells != nullptr) ? m_extendedCells : m_absentRead.data());
+    m_bus->SetWritePage (page, (m_extendedCells != nullptr) ? m_extendedCells : m_absentWrite.data());
+
+    m_extendedCells = (m_extendedCells != nullptr) ? m_extendedCells : m_absentWrite.data();
 
     return true;
 }

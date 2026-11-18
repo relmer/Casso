@@ -258,16 +258,16 @@ public:
 
         PokeBank   (f, 1, 0x0444, 0x15);
         SetPointer (f, form, 0x0444, 0x85);
-        Assert::AreEqual ((Byte) 0x15, Load (f, form), L"bank 5 wraps to bank 1 on 128K");
+        Assert::AreEqual ((Byte) 0xFF, Load (f, form), L"bank 5 has no RAM on 128K");
 
         SetPointer (f, form, 0x8000, 0x82);
         Store      (f, form, 0x2F);
-        Assert::AreEqual ((Byte) 0x2F, f.mmu.PeekPhysical (kSystemBank, 0x0000), L"past bank 2 on 128K");
+        Assert::AreEqual ((Byte) 0x2F, f.mmu.PeekPhysical (kSystemBank, 0x0000), L"the bank after bank 2 on 128K is the system bank");
     }
 
 
-    TEST_METHOD (PastTheHighestBank_Wraps_IndirectY) { CheckAbsentBank (Form::IndirectY); }
-    TEST_METHOD (PastTheHighestBank_Wraps_XIndirect) { CheckAbsentBank (Form::XIndirect); }
+    TEST_METHOD (PastTheHighestBank_HasNoRam_IndirectY) { CheckAbsentBank (Form::IndirectY); }
+    TEST_METHOD (PastTheHighestBank_HasNoRam_XIndirect) { CheckAbsentBank (Form::XIndirect); }
 
 
     TEST_METHOD (OnlyIndirectInstructionsAreFlagged)
