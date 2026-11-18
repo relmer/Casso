@@ -70,4 +70,35 @@ public:
 
         Assert::IsTrue (isRetry);
     }
+
+
+    //  Control-Reset resets the VIAs, so the environment register reads
+    //  $FF again, but only while environment bit 4 is set.
+    static Byte ResetWithEnvironment (Byte environment)
+    {
+        TestMachine  machine ("Apple3");
+
+
+
+        machine.GetRunner().RunCycles (kTicksPerSecond / 10);
+        machine.GetCpu()->WriteByte (0xFFD3, 0xFF);
+        machine.GetCpu()->WriteByte (0xFFDF, environment);
+        Assert::AreEqual (environment, machine.GetApple3()->GetMmu().GetEnvironment());
+
+        machine.SoftReset();
+
+        return machine.GetApple3()->GetMmu().GetEnvironment();
+    }
+
+
+    TEST_METHOD (ControlReset_ResetsTheVias_WithBit4Set)
+    {
+        Assert::AreEqual ((Byte) 0xFF, ResetWithEnvironment (0x77));
+    }
+
+
+    TEST_METHOD (ControlReset_IsIgnored_WithBit4Clear)
+    {
+        Assert::AreEqual ((Byte) 0x67, ResetWithEnvironment (0x67));
+    }
 };

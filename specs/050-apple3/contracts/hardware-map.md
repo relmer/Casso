@@ -258,7 +258,7 @@ least 500 microseconds, starts the ramp and times it until `$C066` goes low
 | The keyboard returns Apple II codes on the KA port; the KB port is not locked out | SVC 8.7 |
 | The machine runs at 1 MHz in emulation | DDW p. 80 |
 | Hi-res is as on an Apple II | SVC 10.3 |
-| Control-Reset does not end emulation | SVC 8.5 |
+| Control-Reset is a system reset, so it ends emulation and the Apple II session; SVC 8.5's "cannot be used for recovery from Apple ][ mode" refers to that. Reset alone is an NMI, and while `AII SW` is low the NMI also drives `IORESET` to the slots. The emulation disk locks with environment `$FC`, so the reset key works under the lockout | SVC 8.5; SVC sheet 9 (keyboard logic: LS139 J11, LS02 D9, LS05 H9); Apple II Emulation disk, 2026-11-18 |
 | Emulation has the Apple II's video modes. The display decoder's inputs are the Apple II switches: `$C050`/`$C051` graphics / text, `$C052`/`$C053` full / mixed, `$C054`/`$C055` page, `$C056`/`$C057` lo-res / hi-res. Text is the "40 Character Apple ][" mode: black and white, from the RAM character generator | SVC 6.2, 6.24 (decoder ROM G5 with its `AII LORES` output) |
 | The disk's menu runs before the lockout and draws with a downloaded character set. After Return the machine is locked, INSERT APPLE II DISK is on the screen, and the Apple II boot code runs from `$C600` | Apple II Emulation disk, 2026-11-18 |
 | The keyboard has no Apple II mode: the Apple II software reads only the KA port | SVC 8.7 |
@@ -299,7 +299,7 @@ boot) when the device is built.
 | Under the ROM | A write to `$F000-$FFFF` with the ROM selected goes to the RAM beneath, unless write-protected. `$FFC0-$FFCF` reads the RAM even with the ROM selected | |
 | Shared slot space | An access to a slot's `$Cn00` page selects that slot for `$C800-$CFFF`; an access to `$CFFF` clears the selection and goes to no card, as on the Apple II | SVC 10.3 (`$C020` deselect); DDW p. 22 |
 | Zero page in the banked region | A zero page register value of `$20-$9F` selects a page of the current bank, and `$A0` and above a page of the S-bank | SVC 2.10 |
-| Keyboard reset | Control with Reset is a CPU reset; Reset alone is an NMI; both only while environment bit 4 is set | SVC 8.5, 8.8 |
+| Keyboard reset | Control with Reset is a system reset, the VIAs included, so the ROM is selected for the reset vector; Reset alone is an NMI; both only while environment bit 4 is set | SVC 8.5, 8.8; SVC sheet 9 |
 | Beeper | `$C040-$C04D`. `$C04E/F` is a character RAM enable that software does not rely on | SVC 10.3 |
 | CPU and VIA clocks | CPU nominal clock is 14.31818 MHz / 7; the VIAs run at 14.31818 MHz / 14; the 6551 has a 1.8432 MHz clock | SVC 5.1, 3.10 |
 

@@ -180,6 +180,22 @@ public:
     }
 
 
+    TEST_METHOD (Plus_BootsBusinessBasic)
+    {
+        TestMachine  machine ("Apple3Plus");
+
+
+
+        MountBusinessBasic (machine);
+
+        Assert::IsTrue (RunUntilScreenHas (machine, "Apple Business BASIC v1.23", kSecondsToPrompt), L"the Plus boots SOS and Business BASIC");
+        Assert::IsTrue (RunUntilScreenHas (machine, "BLOCKS FREE", kSecondsToPrompt));
+
+        RunCommand (machine, "PRINT 6*7");
+        Assert::IsTrue (GetScreenText (*machine.GetApple3()).find ("\n42 ") != std::string::npos, L"BASIC prints 42");
+    }
+
+
     //  A SOS error is on the screen whatever the memory size. The stock
     //  SOS.DRIVER files have no .D4, so CATALOG .D4 is an error.
     static void CheckErrorIsReported (uint32_t memoryK)
@@ -520,6 +536,7 @@ public:
         apple3.GetApple3()->GetKeyboard().PressKey ('\r');
         Assert::IsTrue (RunUntilScreenHas (apple3, "INSERT APPLE II DISK", kSecondsToPrompt), L"INSERT APPLE II DISK is on the screen");
         Assert::IsTrue (apple3.GetApple3()->GetMmu().IsLockedOut(), L"and the machine is locked into emulation");
+        Assert::IsTrue (apple3.GetApple3()->IsResetKeyEnabled(), L"the reset key is on under the lockout");
 
         MountBytes (apple3, kDrive1, "master.dsk", master);
         Assert::IsTrue (RunUntilScreenHas (apple3, "SYSTEM MASTER", kSecondsToPrompt), L"the System Master boots");
@@ -532,5 +549,11 @@ public:
 
         CheckGraphicsMatch (apple3, apple2, { "GR", "COLOR=13", "PLOT 10,10", "HLIN 0,39 AT 20", "COLOR=6", "VLIN 0,39 AT 30" }, L"lo-res");
         CheckGraphicsMatch (apple3, apple2, { "HGR", "HCOLOR=3", "HPLOT 0,0 TO 279,159", "HCOLOR=5", "HPLOT 0,159 TO 279,0" }, L"hi-res");
+
+        //  Control-Reset is a system reset: the Apple /// boots from its ROM,
+        //  and the Apple II session is gone (SVC 8.5).
+        apple3.SoftReset();
+        Assert::IsFalse (apple3.GetApple3()->GetMmu().IsLockedOut(), L"Control-Reset ends the lockout");
+        Assert::IsTrue  (apple3.GetCpu()->GetPC() >= Apple3System::kRomStart, L"and the CPU starts in the ROM");
     }
 };

@@ -339,12 +339,20 @@ void MachineHost::DetachSerialPorts()
 //  Dirty disks are flushed through the store before the devices reset, so
 //  the guest's writes survive a reset and every safeguard on a write
 //  applies: not while reverse execution has the disks, nor during a replay
-//  of a reset from history. The tape stops, and stays in.
+//  of a reset from history. The tape stops, and stays in. On the Apple ///,
+//  environment bit 4 clear turns the reset key off (SVC 8.8), so nothing
+//  resets.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::SoftReset()
 {
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_parts.apple3 != nullptr && !m_parts.apple3->IsResetKeyEnabled(), S_OK);
+
     m_diskStore->SoftReset();
     m_tape.Stop();
 
@@ -391,6 +399,9 @@ void MachineHost::SoftReset()
     {
         m_parts.joyport->OnMachineReset();
     }
+
+Error:
+    return;
 }
 
 

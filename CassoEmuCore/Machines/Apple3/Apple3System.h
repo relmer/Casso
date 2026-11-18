@@ -65,6 +65,9 @@ public:
     void      PowerOn            (Prng & prng);
     void      Reset              ();
 
+    //  Control with Reset is a system reset while environment bit 4 is set.
+    bool      IsResetKeyEnabled  () const { return (m_mmu.GetEnvironment() & Apple3Mmu::kEnvResetEnable) != 0; }
+
     void      GetStateParts      (std::vector<IMachineState *> & outParts);
 
     //  The master clock count the VIAs and the 6551 were last run to. The
