@@ -118,25 +118,25 @@ private:
         InLine,
     };
 
-    void  ResetSettings      ();
-    void  ReceiveCommandByte (Byte sent, uint64_t cycle);
-    void  ReceiveDataByte    (Byte value, uint64_t cycle);
-    void  ExecuteLine        (const std::string & line, uint64_t cycle);
-    bool  ExecuteCommand     (const std::string & line, size_t & at, uint64_t cycle, bool & outHasResult);
-    bool  ExecuteRegister    (const std::string & line, size_t & at);
-    bool  ExecuteAmpersand   (const std::string & line, size_t & at);
-    bool  Dial               (const std::string & dialString, uint64_t cycle);
-    void  Answer             (uint64_t cycle);
-    void  HangUp             ();
-    void  GoOnline           (uint64_t cycle);
-    void  EndCall            (bool sendNoCarrier);
-    void  SendResult         (Result result);
-    void  SendText           (const std::string & text);
-    void  Echo               (Byte value);
-    uint64_t  GetGuardCycles () const;
-    uint64_t  SecondsToCycles (uint32_t seconds) const;
-    bool  IsEscapeEnabled    () const;
-    static int  ReadNumber   (const std::string & line, size_t & at, bool & outHasDigits);
+    void        ResetSettings      ();
+    void        ReceiveCommandByte (Byte sent, uint64_t cycle);
+    void        ReceiveDataByte    (Byte value, uint64_t cycle);
+    void        ExecuteLine        (const std::string & line, uint64_t cycle);
+    bool        ExecuteCommand     (const std::string & line, size_t & at, uint64_t cycle, bool & outHasResult);
+    bool        ExecuteRegister    (const std::string & line, size_t & at);
+    bool        ExecuteAmpersand   (const std::string & line, size_t & at);
+    bool        Dial               (const std::string & dialString, uint64_t cycle);
+    void        Answer             (uint64_t cycle);
+    void        HangUp             ();
+    void        GoOnline           (uint64_t cycle);
+    void        EndCall            (bool sendNoCarrier);
+    void        SendResult         (Result result);
+    void        SendText           (const std::string & text);
+    void        Echo               (Byte value);
+    uint64_t    GetGuardCycles     () const;
+    uint64_t    SecondsToCycles    (uint32_t seconds) const;
+    bool        IsEscapeEnabled    () const;
+    static int  ReadNumber         (const std::string & line, size_t & at, bool & outHasDigits);
 
     uint32_t                          m_cpuClockHz     = 0;
     double                            m_baud           = 0.0;

@@ -70,13 +70,13 @@ public:
 
     // Called as the list opens, before it is drawn, so a list of things that
     // come and go, as the PC's COM ports do, can be read again.
-    void  SetOnOpen   (std::function<void()> fn) { m_onOpen = std::move (fn); }
-    void  Open           ();
-    void  Close          ();
-    bool  IsOpen()       const { return m_open; }
-    int   GetHighlightIndex () const { return m_highlight; }
-    int   GetSelectedIndex  () const { return m_selected; }
-    const RECT & GetRect()    const { return m_boundsDip; }
+    void         SetOnOpen         (std::function<void()> fn) { m_onOpen = std::move (fn); }
+    void         Open              ();
+    void         Close             ();
+    bool         IsOpen            () const { return m_open; }
+    int          GetHighlightIndex () const { return m_highlight; }
+    int          GetSelectedIndex  () const { return m_selected; }
+    const RECT & GetRect           () const { return m_boundsDip; }
 
     // What the open menu covers of THIS window, in GetRect()'s space. Empty
     // when closed, and empty when the menu is a real popup window too -- that

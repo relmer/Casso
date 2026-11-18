@@ -150,7 +150,7 @@ public:
     // machine calls it once per instruction with the cycles it took.
     void      SetCpuClockHz (uint32_t hz);
     uint32_t  GetCpuClockHz () const { return m_cpuClockHz; }
-    void    Tick          (uint32_t cycles);
+    void      Tick          (uint32_t cycles);
 
     // Route transmitted bytes. Caller-owned; pass nullptr to detach. Any
     // change empties the receive queue and restores CTS, DSR and DCD to true.

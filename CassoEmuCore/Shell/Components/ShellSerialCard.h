@@ -63,9 +63,9 @@ public:
     bool                OfferMouseToBanner  (DxuiMouseEventKind kind, int x, int y);
 
 private:
-    void  Show     (const SerialCardNotice & notice);
+    void  Show            (const SerialCardNotice & notice);
     void  ShowLinkReports ();
-    void  OnAction (size_t index);
+    void  OnAction        (size_t index);
 
     EmulatorShell                        & m_shell;
     DxuiInfoBanner                         m_banner;

@@ -66,16 +66,16 @@ public:
     void  Rebuild  ();
 
     // Test accessors.
-    int                   GetRowCount       () const { return static_cast<int> (m_rowSettings.size()); }
-    SscSetting            GetRowSetting     (int row) const { return m_rowSettings[static_cast<size_t> (row)]; }
-    DxuiComboBox        & GetRowDropdown    (int row) { return m_rowCombos[row]; }
-    DxuiComboBox        & GetAttachDropdown ()        { return m_attachment.GetAttachDropdown(); }
-    SerialAttachmentView & GetAttachment    ()        { return m_attachment; }
-    SscSwitchesView     & GetSwitchesView   ()        { return m_switchesView; }
-    const std::wstring  & GetRowNote        (int row) const { return m_rowNoteText[row]; }
-    const std::wstring  & GetAttachNote     () const  { return m_attachment.GetNoteText(); }
-    DxuiInfoTip         & GetRowInfoTip     (int row) { return m_rowTips[row]; }
-    DxuiButton          & GetRestoreButton  ()        { return m_restore; }
+    int                    GetRowCount       () const { return static_cast<int> (m_rowSettings.size()); }
+    SscSetting             GetRowSetting     (int row) const { return m_rowSettings[static_cast<size_t> (row)]; }
+    DxuiComboBox         & GetRowDropdown    (int row) { return m_rowCombos[row]; }
+    DxuiComboBox         & GetAttachDropdown ()        { return m_attachment.GetAttachDropdown(); }
+    SerialAttachmentView & GetAttachment     ()        { return m_attachment; }
+    SscSwitchesView      & GetSwitchesView   ()        { return m_switchesView; }
+    const std::wstring   & GetRowNote        (int row) const { return m_rowNoteText[row]; }
+    const std::wstring   & GetAttachNote     () const  { return m_attachment.GetNoteText(); }
+    DxuiInfoTip          & GetRowInfoTip     (int row) { return m_rowTips[row]; }
+    DxuiButton           & GetRestoreButton  ()        { return m_restore; }
 
 private:
     static RECT          MakeRect          (int l, int t, int w, int h);
@@ -84,14 +84,14 @@ private:
     int                  GetLabelColumnPx     (const DxuiDpiScaler & scaler) const;
     int                  GetDropdownWidthPx   (const DxuiDpiScaler & scaler, int maxPx) const;
 
-    SscSwitches  ReadStagedSwitches () const;
-    void         StageSwitches      (const SscSwitches & switches);
-    void         SyncSwitches       (const SscSwitches & switches);
-    void         Relayout           ();
-    void         OnRowPicked        (int row, int choice);
+    SscSwitches  ReadStagedSwitches  () const;
+    void         StageSwitches       (const SscSwitches & switches);
+    void         SyncSwitches        (const SscSwitches & switches);
+    void         Relayout            ();
+    void         OnRowPicked         (int row, int choice);
     void         OnAttachmentChanged (const SerialAttachmentChoice & choice);
-    void         OnSwitchToggled    (SscBank bank, int number);
-    void         OnRestoreDefaults  ();
+    void         OnSwitchToggled     (SscBank bank, int number);
+    void         OnRestoreDefaults   ();
 
     SettingsPanelState *     m_state     = nullptr;
     DxuiHwndSource *         m_popupHost = nullptr;

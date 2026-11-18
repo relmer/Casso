@@ -277,10 +277,10 @@ private:
     int            m_serialPortsPageIndex  = -1;
     bool           m_serialPortsTabVisible = true;
 
-    void           UpdateSerialPortsTabVisibility ();
-    bool           BrowseSerialFile               (bool forOutput, std::string & inOutPath);
-    bool           IsSerialFirmwareMissing   () const;
-    std::wstring   GetSerialFirmwareStatus   () const;
+    void          UpdateSerialPortsTabVisibility ();
+    bool          BrowseSerialFile               (bool forOutput, std::string & inOutPath);
+    bool          IsSerialFirmwareMissing        () const;
+    std::wstring  GetSerialFirmwareStatus        () const;
 
     // The card is turned on only with Apple's firmware installed. Turning it
     // on without the firmware turns it off again and opens the download
