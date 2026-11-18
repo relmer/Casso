@@ -170,54 +170,90 @@ public:
         return S_OK;
     }
 
+    //  A copy-protected disk captured raw on an emulated //c: returns how
+    //  many of its whole tracks with data are in the capture and how many
+    //  it has, and the capture's boot verdict. Its sectors aren't compared,
+    //  as its tracks aren't standard.
+    static void  CaptureGame (const wchar_t * name, int & outFound, int & outTracks, BootVerdict & outVerdict)
+    {
+        std::vector<Byte>          source  = GuestSession::FindGameImage (name);
+        std::vector<Byte>          module;
+        DiskImage                  original;
+        DiskImage                  captured;
+        CassoLinkCapture::Result   result;
+        BootReport                 report;
+        std::string                machine;
+        std::vector<std::string>   missing;
 
-    //  Copy-protected disks captured raw on an emulated //c: each whole
-    //  track the disk has data on is in the capture, and the capture boots,
-    //  as the disk does (SC-055). Their sectors aren't compared, as their
-    //  tracks aren't standard. Disks whose tracks don't capture in emulation
-    //  are listed in tasks.md's T790.
+
+
+        outFound  = 0;
+        outTracks = 0;
+
+        Assert::IsFalse (source.empty(), (std::wstring (name) + L" is in the game images").c_str());
+
+        ProgramRig  rig (std::vector<Byte> (143360, 0));
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+        AssertSucceeded (WozLoader::Load (source, original));
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-17T00:00:00Z", {}, result));
+        AssertSucceeded (WozLoader::Load (result.woz, captured));
+
+        for (int quarter = 0; quarter <= CassoLinkCapture::kLastPosition; quarter += 4)
+        {
+            bool  hasData = !GetBits (original, quarter).empty();
+
+            outTracks += hasData ? 1 : 0;
+            outFound  += (hasData && !GetBits (captured, quarter).empty()) ? 1 : 0;
+        }
+
+        AssertSucceeded (BootCheck::Run (result.woz, DiskFormat::Woz, "Apple //e enhanced", {}, BuildFromFixtures, report, machine, missing));
+
+        outVerdict = report.verdict;
+
+        Logger::WriteMessage (std::format ("{}: {} of {} whole tracks captured, {} weak, {} unstable, {} reads; boot {}\n", TextEncoding::WideToUtf8 (name), outFound, outTracks,
+                                           result.weak.size(), result.unstable.size(), result.reads, BootProbe::GetVerdictName (outVerdict)).c_str());
+    }
+
+
+    //  A copy-protected disk captured, every whole track with data in the
+    //  capture, and the capture booted, as the disk is (SC-055).
+    static void  AssertCapturedAndBoots (const wchar_t * name)
+    {
+        int          found   = 0;
+        int          tracks  = 0;
+        BootVerdict  verdict = BootVerdict::Unclear;
+
+
+
+        CaptureGame (name, found, tracks, verdict);
+
+        Assert::AreEqual (tracks, found, (std::wstring (name) + L": every whole track with data is in the capture").c_str());
+        Assert::IsTrue   (verdict == BootVerdict::Booted, (std::wstring (name) + L": the capture boots").c_str());
+    }
+
+
     TEST_METHOD (CopyProtectedDisks_AreCapturedTrackForTrack_AndBoot)
     {
-        static constexpr const wchar_t *  kGames[] = { L"HardHatMack.woz", L"AppleStellarInvaders.woz" };
+        AssertCapturedAndBoots (L"HardHatMack.woz");
+        AssertCapturedAndBoots (L"AppleStellarInvaders.woz");
+    }
 
-        for (const wchar_t * name : kGames)
-        {
-            std::vector<Byte>          source  = GuestSession::FindGameImage (name);
-            std::vector<Byte>          module;
-            DiskImage                  original;
-            DiskImage                  captured;
-            CassoLinkCapture::Result   result;
-            BootReport                 report;
-            std::string                machine;
-            std::vector<std::string>   missing;
-            int                        tracks  = 0;
-            int                        found   = 0;
 
-            Assert::IsFalse (source.empty(), (std::wstring (name) + L" is in the game images").c_str());
+    //  Choplifter's tracks are 4-and-4 bytes with no sync bytes and long
+    //  stretches with no flux, which the drive reads as random bits, so each
+    //  revolution is a different count of bytes.
+    TEST_METHOD (Choplifter_TracksWithNoFlux_AreCaptured_AndBoot)
+    {
+        AssertCapturedAndBoots (L"Choplifter.woz");
+    }
 
-            ProgramRig  rig (std::vector<Byte> (143360, 0));
 
-            AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
-            AssertSucceeded (WozLoader::Load (source, original));
-            AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-            AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-17T00:00:00Z", {}, result));
-            AssertSucceeded (WozLoader::Load (result.woz, captured));
-
-            for (int quarter = 0; quarter <= CassoLinkCapture::kLastPosition; quarter += 4)
-            {
-                bool  hasData = !GetBits (original, quarter).empty();
-
-                tracks += hasData ? 1 : 0;
-                found  += (hasData && !GetBits (captured, quarter).empty()) ? 1 : 0;
-            }
-
-            AssertSucceeded (BootCheck::Run (result.woz, DiskFormat::Woz, "Apple //e enhanced", {}, BuildFromFixtures, report, machine, missing));
-
-            Logger::WriteMessage (std::format ("{}: {} of {} whole tracks captured, {} weak, {} unstable; boot {}\n", TextEncoding::WideToUtf8 (name), found, tracks,
-                                               result.weak.size(), result.unstable.size(), BootProbe::GetVerdictName (report.verdict)).c_str());
-
-            Assert::AreEqual (tracks, found, (std::wstring (name) + L": every whole track with data is in the capture").c_str());
-            Assert::IsTrue   (report.verdict == BootVerdict::Booted, (std::wstring (name) + L": the capture boots").c_str());
-        }
+    //  Rocky's Boots' track 34 has a sector whose data field has E7 bytes
+    //  followed by one or two zero bits, which the protection times.
+    TEST_METHOD (RockysBoots_TimingBits_AreCaptured_AndBoot)
+    {
+        AssertCapturedAndBoots (L"RockysBoots.woz");
     }
 };
