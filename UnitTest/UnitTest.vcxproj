@@ -1190,6 +1190,7 @@
     <ClCompile Include="Apple3Tests\Apple3CharacterSetTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3TextModeTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3KeyboardTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3DiskControllerTests.cpp" />
     <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />

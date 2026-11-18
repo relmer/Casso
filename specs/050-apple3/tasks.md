@@ -80,7 +80,7 @@ the screen text.
 - [x] T025 [P] [US1] Write character set tests (loading through the documented mechanism changes glyphs; nothing else does; power-on contents) in `UnitTest/Apple3Tests/Apple3CharacterSetTests.cpp`
 - [x] T026 [P] [US1] Write text mode decoding tests for 40-column, 40-column color and 80-column: normal, inverse, and flashing in the 40-column black and white mode, in `UnitTest/Apple3Tests/Apple3TextModeTests.cpp`
 - [x] T027 [P] [US1] Write keyboard tests (code and flags for every key of the Apple /// layout, strobe, repeat, interrupt) in `UnitTest/Apple3Tests/Apple3KeyboardTests.cpp`
-- [ ] T028 [P] [US1] Write disk controller tests for the built-in drive (select, motor, read latch, write) in `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp`
+- [x] T028 [P] [US1] Write disk controller tests for the built-in drive (select, motor, read latch, write) in `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp`
 - [ ] T029 [US1] Write scenario tests (no-disk screen with an empty drive; Business BASIC prompt on 128K and 256K; `PRINT 6*7` prints 42; a missing disk or ROM fails the test) in `ScenarioTests/Apple3SosTests.cpp`
 
 ### Implementation
@@ -90,7 +90,7 @@ the screen text.
 - [x] T032 [P] [US1] Implement `Apple3TextMode`, `Apple3ColorTextMode` and `Apple380ColTextMode` in `CassoEmuCore/Machines/Apple3/`
 - [ ] T033 [P] [US1] Implement `Apple3Keyboard` and add the `Apple3` layout to the keyboard layout tables in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.h` and `.cpp`. Done except the layout tables, the settings key list and the input journal records for the KB port's modifier keys, which touch shell and debugger files and wait for the 035 merge
 - [x] T034 [US1] List in `specs/050-apple3/research.md` under R8 every place `Disk2Controller` and its consumers assume two drives
-- [ ] T035 [US1] Implement `Apple3DiskController` over `Disk2NibbleEngine` with the built-in drive working, in `CassoEmuCore/Machines/Apple3/Apple3DiskController.h` and `.cpp`
+- [x] T035 [US1] Implement `Apple3DiskController` over `Disk2NibbleEngine` with the built-in drive working, in `CassoEmuCore/Machines/Apple3/Apple3DiskController.h` and `.cpp`
 - [ ] T036 [US1] Wire video, keyboard, disk and power-on state into `CassoEmuCore/Shell/Apple3MachineBuilder.cpp` and the frame renderer in `CassoEmuCore/Video/MachineFrameRenderer.cpp`
 - [ ] T037 [US1] Report a missing or wrong-size `Apple3.rom` through the existing missing-ROM path (FR-005) in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
 - [ ] T038 [US1] Boot the Business BASIC disk headless, fix what stops it, and get T029 passing
