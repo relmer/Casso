@@ -1,4 +1,4 @@
-# Class redesign plan: the six classes behind T1533
+# Class redesign plan: the classes behind T1533 and the new storage hardware
 
 **Branch**: `035-debugger`. **Written**: 2026-11-18. **For**: the session that implements it.
 
@@ -99,6 +99,7 @@ result, not a goal.
 5. `ReverseController`.
 6. `Cpu`.
 7. `AppleWinParser`.
+8. The storage hardware (section 7). Do 7a's Disk II part with step 2, and 7c with step 3.
 
 Push after each class once the full gates pass, so branch `050-apple-III` can
 merge in stages.
@@ -286,6 +287,73 @@ breakpoint family and added forwarders.
 `BreakpointDefinitionCheck.cpp`, `DebuggerViewState.cpp` (or wherever group 1
 moved that code) and `DirectPaneActionTests.cpp` call
 `AppleWinBreakpointParser` or `AppleWinArgumentForms` directly.
+
+### 7. The storage hardware from master (state and peek work, 2026-11-17)
+
+These classes are under the size limit, so CS0026 never flagged them. The state
+work (T1525 to T1531) and the peek work (T1532) were added to them quickly and
+have design problems of the same kind. Classes: `Iwm`, `Ncr5380`, `ScsiBus`,
+`AppleScsiCard`, `ProFileCard`, `ProFileDrive`, `LironCard`, `SmartPortHost`,
+`Apple35ControllerCard`, `Apple35CardMemory`, `Apple2cSmartPort`,
+`Apple2cPlusDiskPort`, `Sony35Drive`, `BlockDeviceMedia`, and the interfaces
+`IDiskPortHook` and `IExpansionRomCard`.
+
+**7a. One evaluation for a read and its peek.** Each `Peek...` function is a second
+copy of its `Read...` function, rewritten to predict the side effects.
+`Ncr5380::PeekRegister` and `ReadRegister` are the same switch twice, with
+`WouldTakeBus` and `PeekBusAndStatus` as predictions of `UpdateArbitration` and
+`GetBusAndStatus`. Only the tests check that the two return the same byte. Redesign each register read
+as two steps:
+
+- `Evaluate (reg) const` returns the byte and a small struct of the effects the
+  read has (interrupt cleared, arbitration taken, byte consumed, counter moved).
+- `Read` calls `Evaluate` and applies the effects. `Peek` calls `Evaluate` and
+  discards them.
+
+`Iwm::GetSwitchesAfter` is already this form; make `Iwm::Access` use it, so the
+switch logic exists once. Apply the same form to `Ncr5380` (registers, DMA, DRQ),
+`ProFileCard` and `ProFileDrive`, the slot ROM and expansion ROM accesses of the
+four cards, `Apple2cSmartPort`, `Apple2cPlusDiskPort`, and the Disk II card
+sequencer's `TryPeekIo` (section 1). `IDiskPortHook` then has one evaluation
+method in place of `OnIwmAccess` plus `TryPeekIwmAccess`, and
+`AreFloppiesEnabled` plus `PeekFloppiesEnabled`. Where a peek cannot be worked
+out today (a status read that moves a phase), the evaluation form usually makes
+it possible; remove each `return false` that it makes unnecessary.
+
+**7b. `BlockDeviceMedia` has three modes behind flags.** A file, a decoded WOZ and
+a replay copy are distinguished by `m_file`, `m_isWoz` and `m_isReplayCopy`, and
+`ReadBlock`, `WriteBlock`, `LoadState`, `Flush` and `Detach` each branch on them.
+Redesign as a block source interface with three implementations (file, WOZ
+blocks, shared copy) and one class for what is common: the path, the one-drive-per-path rule, the
+write protection, the written-block overlay and its state. `Sony35Drive` has the
+same two-way branch (WOZ image or block media) in `Insert`, `Eject`, `Flush`,
+`SaveState`, `LoadState` and the replay copy. It becomes one disk interface with
+two implementations.
+
+**7c. `MachineHost` lists four card types to catch them up.** `CatchUpCards`
+loops over `lironCards`, `apple35Cards`, the //c SmartPort and the //c Plus port
+by type. Add an interface (`ICatchUpDevice`, one method) and one list in
+`MachineRefs`, as `serialChips` is, filled by the builder. `MachineReplayMedia::Get`
+has the same list by type; the cards should report their `IReplayMedia` drives
+through an interface, and section 2's `MachineStorage` collects them.
+
+**7d. `IMachineState::HasMedia`.** A virtual on the core state interface, added so
+a picture load can skip the storage cards. Either it stays, or
+`MachineStateStream` tests something narrower (for example, whether
+the part implements the interface from 7c that reports drives). Choose one. One mechanism,
+not two.
+
+**7e. State code written from field lists.** Each `SaveState` and `LoadState` in
+these classes was generated from the member list. Check each against the class's
+invariants: fields that are caches (rebuilt on load) and must not be saved, fields
+validated on load, and pointers encoded as IDs (`Apple2cPlusDiskPort::PortDrive`'s
+driven ID). The byte layout is fixed by rule 6 from `4b20fcd8c` on; a layout
+change found necessary here requires the owner's decision and a version bump.
+
+**Tests.** The peek tests from T1532 (`IwmTests`, `Ncr5380Tests`, `ProFileTests`,
+`AppleScsiCardTests`, `Apple35ControllerCardTests`, `SmartPortBusTests`,
+`IoPeekTests`) and its mutation checks are the net for 7a. `BlockDeviceMediaTests`
+and the replay tests are the net for 7b.
 
 ## The other files of T1533
 
