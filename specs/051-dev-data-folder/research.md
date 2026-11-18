@@ -45,7 +45,9 @@
 
 The broker runs elevated and may run under another account, so `LOCALAPPDATA` there was never the user's folder. With R1 it uses the folder for the broker's exe, which sits beside `Casso.exe`.
 
-**Left as is**: the CiderPress2 lookups in `ArchiveTests.cpp`, `Dos32Tests.cpp` and `LargeVolumeTests.cpp`, which locate an installed tool, not Casso data. `scripts/RunHarteTests.ps1` uses `LOCALAPPDATA\Casso\HarteTests` as a large shared test cache that no build reads at runtime; moving it would copy the full vector set into every checkout.
+**Found by the tree search**: `GuestSession::FindStockImage` in `UnitTest/EmuTests/GuestSession.cpp` looked for the stock disks in `LOCALAPPDATA\Casso\Disks`. It now looks in `<data folder>\Disks`, and its failure messages include the folder searched. `scripts/FetchRoms.ps1` has a row for `SSC.rom` that only the default layout uses, since the emulator downloads it when the card is turned on and the unit suite doesn't read it.
+
+**Left as is**: the CiderPress2 lookups in `ArchiveTests.cpp`, `Dos32Tests.cpp` and `LargeVolumeTests.cpp`, and the CiderPress2 and MAME defaults in `scripts/FetchCiderPressTestFiles.ps1` and `scripts/MameSnapshot.ps1`, which locate an installed tool, not Casso data. `scripts/RunHarteTests.ps1` uses `LOCALAPPDATA\Casso\HarteTests` as a large shared test cache that no build reads at runtime; moving it would copy the full vector set into every checkout.
 
 ## R6: Readers of a machine config on disk
 

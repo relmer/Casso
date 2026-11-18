@@ -91,6 +91,10 @@ $cPlusRoot   = "$mirrorRoot/Apple%20IIc%20plus/ROM%20Images"
 $cPlusRomUrl = "$cPlusRoot/Apple%20IIc%20plus%20ROM%2005%20-%20342-0625-A%20-%201988.bin"
 $cPlusVidUrl = "$cPlusRoot/Apple%20IIc%20plus%20Video%20ROM%20-%20342-0265-A.bin"
 
+#  The Super Serial Card firmware, which the emulator downloads when the card
+#  is turned on. The scenario tests that boot it read it from the data folder.
+$sscRomUrl   = "$cardRoot/Serial/Apple%20II%20Super%20Serial%20Card/ROM%20Images/Apple%20II%20Super%20Serial%20Card%20ROM%20-%20341-0065-A.bin"
+
 #  One row per file Casso wants on disk. The same upstream file can appear
 #  more than once under different destinations: the ][ and ][+ share a
 #  character generator, the //e, Enhanced //e and //c share the MouseText one,
@@ -115,15 +119,17 @@ $romFiles = @(
     @{ Url = $proFile5Url;  Dest = '341-0271-A.rom';        Subdir = 'Devices/ProFileCard';   Size = 2048;  Sha1 = 'd9d4a7a2c14232c3872f9bbf55aff1b31f9a1cb5'; Desc = 'ProFile interface card ROM, 5 MB (341-0271-A)' },
     @{ Url = $proFile10Url; Dest = '341-0299-B.rom';        Subdir = 'Devices/ProFileCard';   Size = 2048;  Sha1 = '81750f023f964c2f3781d687cee5b1ea5b49d4ea'; Desc = 'ProFile interface card ROM, 10 MB (341-0299-B)' },
     @{ Url = $cPlusRomUrl;  Dest = 'Apple2cPlus.rom';       Subdir = 'Machines/Apple2cPlus';  Size = 32768; Sha1 = '1a27ae26966bbafd825d08ad1a24742d3e33557c'; Desc = 'Apple //c Plus ROM 05 (342-0625-A)' },
-    @{ Url = $cPlusVidUrl;  Dest = 'Apple2cPlus_Video.rom'; Subdir = 'Machines/Apple2cPlus';  Size = 4096;  Sha1 = 'b2b5d87f52693817fc747df087a4aa1ddcdb1f10'; Desc = 'Apple //c Plus Character Generator + MouseText (342-0265-A)' }
+    @{ Url = $cPlusVidUrl;  Dest = 'Apple2cPlus_Video.rom'; Subdir = 'Machines/Apple2cPlus';  Size = 4096;  Sha1 = 'b2b5d87f52693817fc747df087a4aa1ddcdb1f10'; Desc = 'Apple //c Plus Character Generator + MouseText (342-0265-A)' },
+    @{ Url = $sscRomUrl;    Dest = 'SSC.rom';               Subdir = 'Devices/SuperSerialCard'; Size = 2048; ProductOnly = $true; Desc = 'Super Serial Card firmware (341-0065-A)' }
 )
 
 #  The flat fixture layout wants each file once. Two rows that differ only in
-#  Subdir collapse to one here.
+#  Subdir collapse to one here, and a row only a running build reads is left
+#  out.
 if ($Fixtures) {
     $seen     = @{}
     $romFiles = @($romFiles | ForEach-Object {
-        if (-not $seen.ContainsKey($_.Dest)) {
+        if (-not $_.ContainsKey('ProductOnly') -and -not $seen.ContainsKey($_.Dest)) {
             $seen[$_.Dest] = $true
             $_
         }

@@ -13,6 +13,7 @@
 #include "CassoLink/LinkFault.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CassoLinkConnector.h"
+#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Tape/ITapeAudioDecoder.h"
@@ -41,9 +42,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  These are scenario tests because all but the link disk run Apple's
 //  firmware for the card, from
-//  %LOCALAPPDATA%\Casso\Devices\SuperSerialCard\SSC.rom, which is not
-//  committed; they fail without it, as the card's other guest-visible cases
-//  do.
+//  <data folder>\Devices\SuperSerialCard\SSC.rom, which is not committed and
+//  which scripts/FetchRoms.ps1 fetches; they fail without it, as the card's
+//  other guest-visible cases do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,23 +96,16 @@ public:
 
     static std::filesystem::path  RequireFirmwarePath()
     {
-        char *                 root = nullptr;
-        size_t                 len  = 0;
-        std::filesystem::path  path;
+        std::filesystem::path  folder  = PathResolver::GetDataFolder();
+        std::filesystem::path  path    = folder / L"Devices" / L"SuperSerialCard" / L"SSC.rom";
         std::error_code        ec;
+        std::wstring           message = std::format (
+            L"Apple's Super Serial Card firmware is REQUIRED by this case and was not found in the "
+            L"data folder {}. To get it, run scripts/FetchRoms.ps1", folder.wstring());
 
 
 
-        if (_dupenv_s (&root, &len, "LOCALAPPDATA") == 0 && root != nullptr)
-        {
-            path = std::filesystem::path (root) / "Casso" / "Devices" / "SuperSerialCard" / "SSC.rom";
-            free (root);
-        }
-
-        Assert::AreEqual<uintmax_t> (2048, std::filesystem::file_size (path, ec),
-            L"Apple's Super Serial Card firmware is REQUIRED by this case and was not found at "
-            L"%LOCALAPPDATA%\\Casso\\Devices\\SuperSerialCard\\SSC.rom. To get it, turn the card on "
-            L"under Settings > Machine and accept the download");
+        Assert::AreEqual<uintmax_t> (2048, std::filesystem::file_size (path, ec), message.c_str());
 
         return path;
     }

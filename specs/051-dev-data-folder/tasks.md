@@ -59,13 +59,13 @@ Every user story depends on this phase.
 
 **Independent test**: Quickstart check 1, plus a forced crash dump.
 
-- [ ] T014 [US2] In `CassoEmuCore/Gui/GuiMain.cpp`, copy `PathResolver::GetDataFolder() / L"CrashDumps"` into a static `wchar_t` buffer before the unhandled-exception filter is installed, and have the filter at line 566 use that buffer and nothing else.
-- [ ] T015 [P] [US2] Make `ThumbnailStore::GetDefaultFolder` in `CassoEmuCore/DiskCheck/ThumbnailStore.cpp` return `PathResolver::GetDataFolder() / L"Thumbnails"`.
-- [ ] T016 [P] [US2] Make `Win32UpdateHost::GetDownloadFolder` in `CassoEmuCore/Update/Win32UpdateHost.cpp` return `<data folder>\Updates`.
-- [ ] T017 [P] [US2] Make `Win32StorageCardBroker::AppendLog` in `CassoEmuCore/Seams/RawDevice/Win32StorageCardBroker.cpp` write under the data folder at the same relative path.
-- [ ] T018 [P] [US2] Make the SSC ROM lookups in `ScenarioTests/CassoLinkSuperSerialTests.cpp:105` and `ScenarioTests/GuestVisibleSuperSerialCardTests.cpp:448` use `PathResolver::GetDataFolder()`, with the folder searched and `scripts/FetchRoms.ps1` in the failure message.
-- [ ] T019 [US2] Search the tree for any remaining `LOCALAPPDATA`, `FOLDERID_LocalAppData` and `AppData\\Local` references in `CassoEmuCore`, `CassoCore`, `ScenarioTests` and `scripts`. Each hit outside the CiderPress2 lookups and `RunHarteTests.ps1` gets a task here or a reason in research.md R5.
-- [ ] T020 [US2] Launch with `CASSO_PROFILE_DIR` set to a scratch folder and confirm every file the run writes lands there, crash dumps included (trigger one with a debugger break).
+- [x] T014 [US2] In `CassoEmuCore/Gui/GuiMain.cpp`, copy `PathResolver::GetDataFolder() / L"CrashDumps"` into a static `wchar_t` buffer before the unhandled-exception filter is installed, and have the filter at line 566 use that buffer and nothing else.
+- [x] T015 [P] [US2] Make `ThumbnailStore::GetDefaultFolder` in `CassoEmuCore/DiskCheck/ThumbnailStore.cpp` return `PathResolver::GetDataFolder() / L"Thumbnails"`.
+- [x] T016 [P] [US2] Make `Win32UpdateHost::GetDownloadFolder` in `CassoEmuCore/Update/Win32UpdateHost.cpp` return `<data folder>\Updates`.
+- [x] T017 [P] [US2] Make `Win32StorageCardBroker::AppendLog` in `CassoEmuCore/Seams/RawDevice/Win32StorageCardBroker.cpp` write under the data folder at the same relative path.
+- [x] T018 [P] [US2] Make the SSC ROM lookups in `ScenarioTests/CassoLinkSuperSerialTests.cpp:105` and `ScenarioTests/GuestVisibleSuperSerialCardTests.cpp:448` use `PathResolver::GetDataFolder()`, with the folder searched and `scripts/FetchRoms.ps1` in the failure message.
+- [x] T019 [US2] Search the tree for any remaining `LOCALAPPDATA`, `FOLDERID_LocalAppData` and `AppData\\Local` references in `CassoEmuCore`, `CassoCore`, `ScenarioTests` and `scripts`. Each hit outside the CiderPress2 lookups and `RunHarteTests.ps1` gets a task here or a reason in research.md R5.
+- [x] T020 [US2] Launch with `CASSO_PROFILE_DIR` set to a scratch folder and confirm every file the run writes lands there, crash dumps included (trigger one with a debugger break).
 
 ---
 
