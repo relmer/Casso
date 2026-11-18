@@ -89,7 +89,7 @@ the screen text.
 - [ ] T031 [US1] Implement `Apple3Video` (mode switches, display buffer, video enable, vertical blanking to the VIAs, beam position) in `CassoEmuCore/Machines/Apple3/Apple3Video.h` and `.cpp`
 - [ ] T032 [P] [US1] Implement `Apple3TextMode`, `Apple3ColorTextMode` and `Apple380ColTextMode` in `CassoEmuCore/Machines/Apple3/`
 - [ ] T033 [P] [US1] Implement `Apple3Keyboard` and add the `Apple3` layout to the keyboard layout tables in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.h` and `.cpp`
-- [ ] T034 [US1] List in `specs/050-apple3/research.md` under R8 every place `Disk2Controller` and its consumers assume two drives
+- [x] T034 [US1] List in `specs/050-apple3/research.md` under R8 every place `Disk2Controller` and its consumers assume two drives
 - [ ] T035 [US1] Implement `Apple3DiskController` over `Disk2NibbleEngine` with the built-in drive working, in `CassoEmuCore/Machines/Apple3/Apple3DiskController.h` and `.cpp`
 - [ ] T036 [US1] Wire video, keyboard, disk and power-on state into `CassoEmuCore/Shell/Apple3MachineBuilder.cpp` and the frame renderer in `CassoEmuCore/Video/MachineFrameRenderer.cpp`
 - [ ] T037 [US1] Report a missing or wrong-size `Apple3.rom` through the existing missing-ROM path (FR-005) in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`

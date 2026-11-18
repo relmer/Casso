@@ -306,6 +306,30 @@ tasks.
 **To verify**: the select addresses in `$C0D0-$C0DF`, the motor and enable
 behavior with several drives, and the external drive daisy chain signals.
 
+**Two-drive survey (T034, `origin/master` at `17f7bb75c`, 2026-11-17)**: 048
+(SmartPort drives, merged into master through 033) lifted the limit for
+3.5-inch and SmartPort drives only. `MachineHost::FindFloppy35` resolves any
+number of units for the //c Plus chain, the //c SmartPort, Liron and the 3.5
+controller, and `DriveLabel` prints "unit N" past drive 2. The 5.25-inch path,
+the one the Apple /// drives use, is two drives everywhere:
+
+| Place | The two-drive assumption |
+|---|---|
+| `Disk2Controller.h` | `kDriveCount = 2`; the phase, quarter track, visit, access log, write block, IWM drive, image, active disk and engine arrays are sized by it, several with two-element initializers |
+| `DiskImageStore.h` | `kDriveCount = 2` per slot: mounting, persistence and `MachineHost`'s restore loop |
+| `DiskManager.cpp` and `.h` | `drive == 0 \|\| drive == 1` asserts on insert and eject; slot 6 only; the eject command chosen per drive (`IDM_DISK_EJECT2`); widget, chrome, write-protect, nibble count and source path arrays of two |
+| `ShellDisks.h`, `ShellChrome`, `ShellChromeDriveBar.cpp`, `ShellRenderer.h` | drive widgets, widget state, user write protect and the write-protect and info icon flags are `std::array<..., 2>` |
+| `ShellDeskScene` | labels, info icons, their rectangles and label paths are arrays of two; the drive count comes from `MachineConfig::AttachedDiskIiDriveCount` |
+| `EmulatorWindow.cpp` | only drive 0 is drawn, plus drive 1 when the external drive is attached |
+| `ShellInspectorHost.h`, `InspectorStatusPublisher.h`, `InspectorRequestQueue.h` | `kDriveCount = 2` and arrays sized by it |
+| `AutoMountResolver` | the persisted snapshot is two paths |
+| `CommandLineParser.cpp`, `CommandLineOptions.h` | `--disk1` and `--disk2` only; a bare image path fills drive 1, then drive 2 |
+| `MachineBuilder.cpp` | the Disk II drive count is `Disk2Controller::kDriveCount` |
+
+CassoLink's `kDriveCount = 2` is the real Apple II's drive pair on the serial
+link and is out of scope. The 3.5-inch path is the pattern for the change: a
+port with an internal drive, a count of external drives, and lookup by index.
+
 ## R9. Video and the character set
 
 **Decision**: Seven `IVideoMode` classes in `CassoEmuCore/Machines/Apple3/`.
