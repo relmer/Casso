@@ -197,6 +197,7 @@
     <ClCompile Include="CollectionScaleTests.cpp" />
     <ClCompile Include="CassoLinkBlockTests.cpp" />
     <ClCompile Include="CassoLinkAppleIIITests.cpp" />
+    <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
     <ClCompile Include="CassoLinkCassetteTests.cpp" />
     <ClCompile Include="CassoLinkThirteenSectorTests.cpp" />
     <ClCompile Include="NestedContainerTests.cpp" />
