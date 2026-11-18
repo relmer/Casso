@@ -343,6 +343,7 @@ protected:
     static constexpr uint32_t  kIwmCellNs     = Disk2NibbleEngine::kCyclesPerBit * kIwmNsPerCycle;
 
     Byte      AccessIwm    (int offset, bool isWrite, Byte value);
+    bool      TryPeekIwm   (int offset, Byte & value) const;
     uint64_t  GetIwmNow    ();
     void      OnIwmPhases  (int drive, uint8_t phases);
     void      OnIwmEnable  (int drive, bool isEnabled);

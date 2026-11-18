@@ -101,6 +101,28 @@ Byte Apple35ControllerCard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  The window returns the floating bus. The bank latch a read sets is left
+//  alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple35ControllerCard::TryPeekIo (Word address, Byte & value)
+{
+    (void) address;
+
+    value = m_bus.GetFloatingBusValue();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,6 +204,30 @@ Byte Apple35ControllerCard::OnSlotPageAccess (Word address, bool isWrite, Byte v
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekSlotPage
+//
+//  The card's RAM page as of the card's last catch-up: the card's CPU
+//  doesn't run, and the expansion ROM's selection is left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple35ControllerCard::TryPeekSlotPage (Word address, Byte & value) const
+{
+    constexpr Word  kPageMask = 0xFF;
+
+
+
+    value = m_memory.GetRam()[kPageRam + (address & kPageMask)];
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadExpansionRom
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,6 +237,26 @@ Byte Apple35ControllerCard::ReadExpansionRom (Word address)
     CatchUp();
 
     return m_memory.GetRam()[GetRamAddress (address)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekExpansionRom
+//
+//  The card's RAM as of the card's last catch-up, without running the
+//  card's CPU.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple35ControllerCard::TryPeekExpansionRom (Word address, Byte & value) const
+{
+    value = m_memory.GetRam()[GetRamAddress (address)];
+
+    return true;
 }
 
 

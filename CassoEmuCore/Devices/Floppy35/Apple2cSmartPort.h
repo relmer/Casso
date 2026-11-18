@@ -43,7 +43,8 @@ public:
     void  Reset    () override { m_port.Reset(); }
 
     // IDiskPortHook
-    bool  OnIwmAccess (int offset, bool isWrite, Byte value, Byte & outValue) override;
+    bool  OnIwmAccess      (int offset, bool isWrite, Byte value, Byte & outValue) override;
+    bool  TryPeekIwmAccess (int offset, bool & outIsPorts, Byte & outValue) const override;
 
     // IFloppy35EventSource
     void  SetFloppy35EventSink (IFloppy35EventSink * sink) override { m_port.SetFloppy35EventSink (sink); }

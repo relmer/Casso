@@ -85,16 +85,20 @@ public:
     //  The data lines: the initiator's byte when it drives them, ORed with
     //  the target's in an input phase.
     Byte       GetData  () const;
-    bool       IsBsy    () const { return m_initiator.bsy || m_targetBsy; }
-    bool       IsSel    () const { return m_initiator.sel; }
-    bool       IsAtn    () const { return m_initiator.atn; }
-    bool       IsAck    () const { return m_initiator.ack; }
-    bool       IsRst    () const { return m_initiator.rst; }
-    bool       IsReq    () const;
-    bool       IsMsg    () const { return m_msg; }
-    bool       IsCd     () const { return m_cd; }
-    bool       IsIo     () const { return m_io; }
-    ScsiPhase  GetPhase () const { return m_phase; }
+
+    //  The target's byte alone: what it adds to the data lines in an input
+    //  phase.
+    Byte       GetTargetData () const;
+    bool       IsBsy         () const { return m_initiator.bsy || m_targetBsy; }
+    bool       IsSel         () const { return m_initiator.sel; }
+    bool       IsAtn         () const { return m_initiator.atn; }
+    bool       IsAck         () const { return m_initiator.ack; }
+    bool       IsRst         () const { return m_initiator.rst; }
+    bool       IsReq         () const;
+    bool       IsMsg         () const { return m_msg; }
+    bool       IsCd          () const { return m_cd; }
+    bool       IsIo          () const { return m_io; }
+    ScsiPhase  GetPhase      () const { return m_phase; }
 
     //  The command bytes of the last command, for a log.
     const std::vector<Byte> & GetLastCommand () const { return m_lastCommand; }

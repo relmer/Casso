@@ -97,6 +97,38 @@ Byte ProFileCard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Read's byte, with the data in latch's byte left on the drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProFileCard::TryPeekIo (Word address, Byte & value)
+{
+    Word  offset = (Word) (address - m_ioStart);
+
+
+
+    value = m_bus.GetFloatingBusValue();
+
+    if (offset == s_kDataIn)
+    {
+        value = m_drive->PeekData();
+    }
+    else if (offset == s_kStatus)
+    {
+        value = (Byte) ((m_drive->IsBusy() ? 0 : s_kStatusIdle) | (m_drive->IsPresent() ? 0 : s_kStatusAbsent));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +210,30 @@ Byte ProFileCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
     }
 
     return m_rom.empty() ? m_bus.GetFloatingBusValue() : m_rom[kRomPageAt + offset];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekSlotPage
+//
+//  The ROM's last page, with the handshake line and the expansion ROM's
+//  selection left as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProFileCard::TryPeekSlotPage (Word address, Byte & value) const
+{
+    constexpr Word  kPageMask = 0xFF;
+
+
+
+    value = m_rom.empty() ? m_bus.GetFloatingBusValue() : m_rom[kRomPageAt + (address & kPageMask)];
+
+    return true;
 }
 
 

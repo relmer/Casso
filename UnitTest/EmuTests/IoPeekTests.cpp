@@ -64,8 +64,7 @@ namespace IoPeekTests
     //
     //  IoPeekTests
     //
-    //  A peek returns the byte a read returns, and a switch a read operates
-    //  has no peek.
+    //  A peek returns the byte a read returns.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,25 +74,10 @@ namespace IoPeekTests
 
         //  Every address of the I/O page and the slot pages has a peek, and
         //  each peek is the byte the read made just after it returns, on
-        //  every kind of machine. Some cards' switches have none: an IWM's,
-        //  since a read runs its drives up to the CPU's time (the //c's disk
-        //  port, and the UniDisk 3.5 card the //e has in slot 5), and the
-        //  SCSI card's in slot 7, whose controller's registers change as they
-        //  are read.
+        //  every kind of machine.
         TEST_METHOD (EachPeekReturnsTheByteAReadReturns)
         {
-            auto  hasNoPeek = [] (const char * id, uint32_t address)
-            {
-                std::string  machine = id;
-                uint32_t     page    = address >> 4;
-
-                return (machine == "Apple2c") ? page == 0xC0Eu
-                     : (machine != "Apple2Plus") && (page == 0xC0Du || page == 0xC0Fu);
-            };
-
-
-
-            for (const char * id : { "Apple2Plus", "Apple2e", "Apple2eEnhanced", "Apple2c" })
+            for (const char * id : { "Apple2Plus", "Apple2e", "Apple2eEnhanced", "Apple2c", "Apple2cPlus" })
             {
                 TestMachine  machine (id, TestMachine::Slots::AsShipped);
                 MemoryBus  & bus     = machine.GetMemoryBus();
@@ -111,12 +95,6 @@ namespace IoPeekTests
                 for (uint32_t address = 0xC000; address <= 0xCFFF; address++)
                 {
                     std::wstring  what = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (id), address);
-
-                    if (hasNoPeek (id, address))
-                    {
-                        Assert::IsFalse (bus.TryPeekIo ((Word) address, peeked), what.c_str());
-                        continue;
-                    }
 
                     Assert::IsTrue (bus.TryPeekIo ((Word) address, peeked), what.c_str());
 

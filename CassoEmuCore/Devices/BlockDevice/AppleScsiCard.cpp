@@ -130,6 +130,47 @@ Byte AppleScsiCard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  Read's byte, with the 5380's registers, its DMA port and its DRQ line read
+//  by their peeks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleScsiCard::TryPeekIo (Word address, Byte & value)
+{
+    Word  offset = (Word) (address - m_ioStart);
+
+
+
+    value = m_memoryBus.GetFloatingBusValue();
+
+    if (offset <= s_kNcrLast)
+    {
+        value = m_ncr.PeekRegister (offset);
+    }
+    else if (offset == s_kDmaPort)
+    {
+        value = m_ncr.PeekDma();
+    }
+    else if (offset == s_kIdPort)
+    {
+        value = (Byte) (1 << kCardId);
+    }
+    else if (offset == s_kDrqPort)
+    {
+        value = m_ncr.PeekDrq() ? s_kDrqBit : (Byte) 0;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +279,29 @@ Byte AppleScsiCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
     m_selected = true;
 
     return m_rom.empty() ? m_memoryBus.GetFloatingBusValue() : m_rom[address & kPageMask];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekSlotPage
+//
+//  The ROM's first page, with the expansion ROM left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleScsiCard::TryPeekSlotPage (Word address, Byte & value) const
+{
+    constexpr Word  kPageMask = 0xFF;
+
+
+
+    value = m_rom.empty() ? m_memoryBus.GetFloatingBusValue() : m_rom[address & kPageMask];
+
+    return true;
 }
 
 

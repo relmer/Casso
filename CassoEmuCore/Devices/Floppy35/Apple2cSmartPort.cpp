@@ -38,6 +38,37 @@ bool Apple2cSmartPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIwmAccess
+//
+//  OnIwmAccess's answer for a read, from the switches as they are after the
+//  access. The port's byte is the one a read returns only when the port is
+//  selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cSmartPort::TryPeekIwmAccess (int offset, bool & outIsPorts, Byte & outValue) const
+{
+    Iwm::SwitchState  after      = m_port.GetSwitchesAfter (offset);
+    bool              isDriveTwo = after.drive == kDriveTwo;
+    bool              hasDrives  = m_port.GetDriveCount() > 0;
+    bool              hasBus     = !m_hasFloppyAfter || m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset();
+    Byte              byte       = 0;
+    bool              canPeek    = m_port.TryPeekAccess (offset, byte);
+
+
+
+    outIsPorts = isDriveTwo && hasDrives && hasBus;
+    outValue   = outIsPorts ? byte : (Byte) 0;
+
+    return canPeek || !outIsPorts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Apple2cSmartPort::SaveState
 //
 ////////////////////////////////////////////////////////////////////////////////

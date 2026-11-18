@@ -51,11 +51,14 @@ public:
     Word  GetEnd     () const override { return m_ioEnd; }
     void  Reset      () override;
     void  SoftReset  () override;
+    bool  TryPeekIo  (Word address, Byte & value) override;
 
     // IExpansionRomCard
     Byte  OnSlotPageAccess       (Word address, bool isWrite, Byte value) override;
+    bool  TryPeekSlotPage        (Word address, Byte & value) const override;
     bool  IsExpansionRomSelected () const override { return m_selected; }
     Byte  ReadExpansionRom       (Word address) override;
+    bool  TryPeekExpansionRom    (Word address, Byte & value) const override;
     void  DeselectExpansionRom   () override { m_selected = false; }
     void  WriteExpansionRom      (Word address, Byte value) override;
     bool  UsesStrobePage         () const override { return true; }

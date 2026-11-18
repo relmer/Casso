@@ -155,6 +155,36 @@ void ProFileDrive::EndHandshake()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PeekData
+//
+//  ReadData's byte, with the transfer left where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte ProFileDrive::PeekData() const
+{
+    Byte  value = 0;
+
+
+
+    if (m_presenting)
+    {
+        value = m_state;
+    }
+    else if (m_phase == Phase::Sending && m_index < m_buffer.size())
+    {
+        value = m_buffer[m_index];
+    }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WriteData
 //
 //  A byte the host strobes onto the bus: a handshake answer, a command

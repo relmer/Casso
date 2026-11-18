@@ -86,6 +86,23 @@ Byte LironCard::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  The IWM's byte for the switch, with the drives left where they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool LironCard::TryPeekIo (Word address, Byte & value)
+{
+    return m_port.TryPeekAccess (address & s_kSwitchMask, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +146,25 @@ Byte LironCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
     m_selected = true;
 
     return m_rom.empty() ? (Byte) 0xFF : m_rom[(size_t) m_slot * 0x100 + (address & s_kPageMask)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekSlotPage
+//
+//  The slot's ROM page, with the expansion ROM left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool LironCard::TryPeekSlotPage (Word address, Byte & value) const
+{
+    value = m_rom.empty() ? (Byte) 0xFF : m_rom[(size_t) m_slot * 0x100 + (address & s_kPageMask)];
+
+    return true;
 }
 
 

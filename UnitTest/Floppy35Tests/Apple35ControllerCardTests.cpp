@@ -213,4 +213,54 @@ public:
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH), memory.SetFirmware (std::vector<Byte> (0x4000, 0)));
         Assert::IsFalse (memory.HasFirmware());
     }
+
+    //  A peek of the slot page has the card's RAM as of its last catch-up
+    //  and runs the card's CPU no further; the read that follows runs it.
+    TEST_METHOD (Peek_SlotPageDoesNotRunTheCpu)
+    {
+        MemoryBus              bus;
+        Apple35ControllerCard  card (kSlot, bus);
+        uint64_t               hostCycles = 0;
+        uint64_t               start      = 0;
+        Byte                   peeked     = 0xFF;
+
+
+
+        Assert::AreEqual (S_OK, card.SetFirmware (MakeRom (0x7B01, 0x20)));
+        card.SetHostClock (&hostCycles, kHostHz);
+        start = card.GetCardCpu().GetCycles();
+
+        hostCycles = kHostHz / 10;
+
+        Assert::IsTrue   (card.TryPeekSlotPage (0xC501, peeked));
+        Assert::AreEqual ((Byte) 0, peeked, L"the card's CPU has not stored the byte yet");
+        Assert::AreEqual (start, card.GetCardCpu().GetCycles(), L"the peek ran no cycle");
+        Assert::IsFalse  (card.IsExpansionRomSelected());
+
+        Assert::AreEqual ((Byte) 0x20, card.OnSlotPageAccess (0xC501, false, 0));
+        Assert::IsTrue   (card.TryPeekSlotPage (0xC501, peeked));
+        Assert::AreEqual ((Byte) 0x20, peeked);
+    }
+
+
+    //  A peek in the card's I/O window doesn't change the bank the last
+    //  access latched, and a peek of the expansion window has the RAM at that bank.
+    TEST_METHOD (Peek_IoWindowKeepsTheBank)
+    {
+        MemoryBus              bus;
+        Apple35ControllerCard  card (kSlot, bus);
+        Byte                   peeked = 0;
+
+
+
+        card.Read (0xC0D3);
+        card.GetCardMemory().GetRam()[3 * 0x400 + 0x10] = 0x6C;
+
+        Assert::IsTrue   (card.TryPeekIo (0xC0D7, peeked));
+        Assert::AreEqual ((Byte) 3, card.GetBank());
+
+        Assert::IsTrue   (card.TryPeekExpansionRom (0xC810, peeked));
+        Assert::AreEqual ((Byte) 0x6C, peeked);
+    }
+
 };

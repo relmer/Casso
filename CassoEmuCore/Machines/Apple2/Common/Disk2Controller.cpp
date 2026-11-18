@@ -135,8 +135,8 @@ Byte Disk2Controller::Read (Word address)
 //  Q6, Q7 and the drive as they are after the switch at address, then the
 //  byte HandleReadDispatch returns for those: the data latch, run forward
 //  to the CPU's cycle on a copy of the drive; the sense line; or 0 with Q7
-//  on. The //c's IWM has no peek: a read runs its drives up to the CPU's
-//  time, and nothing runs a copy of them.
+//  on. In IWM mode the peek is the //c's IWM as of its last access: a read runs
+//  its drives up to the CPU's time, and nothing runs a copy of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,8 +153,7 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
 
     if (m_iwmMode)
     {
-        value = 0;
-        return false;
+        return TryPeekIwm (offset, value);
     }
 
     switch (offset)
@@ -197,6 +196,49 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
     value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_motorOn)) ? 0x80 : PeekLatch (drive, delta);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIwm
+//
+//  AccessIwm's byte for a read, then the port hook's: the IWM's byte with the
+//  drives enabled, 0 without them, or the hook's when the access is the
+//  hook's. False where the IWM or the hook cannot work it out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::TryPeekIwm (int offset, Byte & value) const
+{
+    bool  isEnabled = m_portHook == nullptr || m_portHook->PeekFloppiesEnabled();
+    bool  isPorts   = false;
+    bool  canPeek   = true;
+    Byte  port      = 0;
+
+
+
+    value = 0;
+
+    if (isEnabled)
+    {
+        canPeek = m_iwm.TryPeekAccess (offset, value);
+    }
+
+    if (m_portHook != nullptr)
+    {
+        canPeek = canPeek && m_portHook->TryPeekIwmAccess (offset, isPorts, port);
+
+        if (isPorts)
+        {
+            value = port;
+        }
+    }
+
+    return canPeek;
 }
 
 

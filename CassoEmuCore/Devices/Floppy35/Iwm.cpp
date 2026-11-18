@@ -151,6 +151,152 @@ Byte Iwm::AccessIsm (int offset, bool isWrite, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetSwitchesAfter
+//
+//  The switch at an offset is applied to a copy of the switches, as
+//  SetSwitch applies it. In the SWIM's ISM mode no switch moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Iwm::SwitchState Iwm::GetSwitchesAfter (int offset) const
+{
+    int          sw     = (offset >> 1) & 7;
+    bool         on     = (offset & 1) != 0;
+    SwitchState  state;
+
+
+
+    state.q6           = m_q6;
+    state.q7           = m_q7;
+    state.isEnabled    = m_enabled;
+    state.isOffPending = m_motorOffPending;
+    state.drive        = m_driveSelect;
+
+    if (m_ism)
+    {
+        return state;
+    }
+
+    if (sw < s_kSwitchEnable)
+    {
+        state.isDriveMoved = m_phases[(size_t) sw] != on;
+    }
+    else if (sw == s_kSwitchEnable)
+    {
+        if (on)
+        {
+            state.isEnabled    = true;
+            state.isOffPending = false;
+        }
+        else if (m_enabled && (m_mode & kModeNoTimer) == 0)
+        {
+            state.isOffPending = true;
+        }
+        else
+        {
+            state.isEnabled = false;
+        }
+    }
+    else if (sw == s_kSwitchSelect)
+    {
+        state.drive = on ? 1 : 0;
+    }
+    else if (sw == s_kSwitchQ6)
+    {
+        state.q6 = on;
+    }
+    else
+    {
+        state.q7 = on;
+    }
+
+    return state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekAccess
+//
+//  The register Q6 and Q7 select after the switch, read as ReadRegister
+//  reads it. A status read is false when the access moves a phase or selects
+//  another drive, since the drive's sense line follows both. In the ISM mode
+//  a read with bit 3 clear returns 0, and a read of the parameter RAM does
+//  not advance its counter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Iwm::TryPeekAccess (int offset, Byte & value) const
+{
+    constexpr int     kReadBit = 0x08;
+    constexpr int     kRegMask = 0x07;
+    constexpr int     kParam   = 3;
+    constexpr int     kPhase   = 4;
+    constexpr int     kMode    = 6;
+    SwitchState       after    = GetSwitchesAfter (offset);
+    IDiskDriveBus   * drive    = m_drives[(size_t) after.drive];
+    bool              isFull   = m_bufferFull;
+    bool              isUnder  = m_underrun;
+    bool              isSame   = after.drive == m_driveSelect || m_drives[(size_t) m_driveSelect] == drive;
+    int               reg      = offset & kRegMask;
+    bool              result   = true;
+
+
+
+    value = 0xFF;
+
+    if (m_ism)
+    {
+        value = 0;
+
+        if ((offset & kReadBit) != 0)
+        {
+            value = (reg == kParam) ? m_param[m_paramIndex]
+                  : (reg == kPhase) ? m_ismPhase
+                  : (reg == kMode)  ? m_ismMode
+                  :                   (Byte) 0;
+        }
+
+        return true;
+    }
+
+    if (!after.q7 && !after.q6)
+    {
+        value = after.isEnabled ? m_data : (Byte) 0xFF;
+    }
+    else if (!after.q7 && after.q6)
+    {
+        result = !after.isDriveMoved && isSame;
+
+        if (result)
+        {
+            value = (Byte) (((drive == nullptr || drive->GetSense()) ? s_kSenseBit : 0) |
+                            ((after.isEnabled && !after.isOffPending) ? s_kEnableBit : 0) | (m_mode & kModeMask));
+        }
+    }
+    else if (after.q7 && !after.q6)
+    {
+        if (!m_q7)
+        {
+            isFull  = false;
+            isUnder = false;
+        }
+
+        value = (Byte) ((isFull ? 0 : s_kEmptyBit) | (isUnder ? 0 : s_kNoUnderrun) | s_kLowBits);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AdvanceTo
 //
 ////////////////////////////////////////////////////////////////////////////////

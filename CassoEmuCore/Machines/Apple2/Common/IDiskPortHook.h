@@ -30,4 +30,20 @@ public:
 
     virtual bool  OnIwmAccess        (int offset, bool isWrite, Byte value, Byte & outValue) = 0;
     virtual bool  AreFloppiesEnabled () { return true; }
+
+    //  What AreFloppiesEnabled returns, without recording it. A false
+    //  return makes the controller's peek fail.
+    virtual bool  PeekFloppiesEnabled () const { return false; }
+
+    //  What OnIwmAccess returns for a read of `offset`, and the byte it
+    //  returns in `outValue` when it returns true, without the access. False
+    //  where the hook has no peek.
+    virtual bool  TryPeekIwmAccess (int offset, bool & outIsPorts, Byte & outValue) const
+    {
+        (void) offset;
+        outIsPorts = false;
+        outValue   = 0;
+
+        return false;
+    }
 };

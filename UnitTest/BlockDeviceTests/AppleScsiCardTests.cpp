@@ -179,4 +179,42 @@ public:
         Assert::IsTrue  (FAILED (hr));
         Assert::IsFalse (card.HasFirmware());
     }
+
+    //  Every offset of the window peeks as the byte its read returns, with
+    //  the 5380's registers and the DRQ port read by their peeks.
+    TEST_METHOD (Peek_EachPortIsTheByteItsReadReturns)
+    {
+        MemoryBus      bus;
+        AppleScsiCard  card (kSlot, bus);
+        Byte           peeked = 0;
+
+
+
+        card.Write (kIoBase + 2, Ncr5380::kModeDma);
+
+        for (Word offset = 0; offset < 16; offset++)
+        {
+            Assert::IsTrue   (card.TryPeekIo ((Word) (kIoBase + offset), peeked), std::format (L"offset {}", offset).c_str());
+            Assert::AreEqual (card.Read ((Word) (kIoBase + offset)), peeked, std::format (L"offset {}", offset).c_str());
+        }
+    }
+
+
+    //  A peek of the slot page has the ROM's byte and doesn't select the
+    //  card's expansion ROM.
+    TEST_METHOD (Peek_SlotPageDoesNotSelect)
+    {
+        MemoryBus      bus;
+        AppleScsiCard  card (kSlot, bus);
+        Byte           peeked = 0;
+
+
+
+        Assert::AreEqual (S_OK, card.SetFirmware (MakeRom()));
+
+        Assert::IsTrue   (card.TryPeekSlotPage (0xC700, peeked));
+        Assert::AreEqual ((Byte) 0xA0, peeked);
+        Assert::IsFalse  (card.IsExpansionRomSelected());
+    }
+
 };

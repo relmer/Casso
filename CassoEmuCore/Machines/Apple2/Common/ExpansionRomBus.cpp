@@ -72,6 +72,7 @@ bool ExpansionRomBus::TryPeekIo (Word address, Byte & value)
     constexpr Byte  kAllBitsHigh = 0xFF;
     Byte            result       = kAllBitsHigh;
     bool            anyDrive     = false;
+    Byte            byte         = 0;
 
 
 
@@ -79,7 +80,12 @@ bool ExpansionRomBus::TryPeekIo (Word address, Byte & value)
     {
         if (address < kDeselectStart && card->IsExpansionRomSelected())
         {
-            result   = static_cast<Byte> (result & card->ReadExpansionRom (address));
+            if (!card->TryPeekExpansionRom (address, byte))
+            {
+                byte = card->ReadExpansionRom (address);
+            }
+
+            result   = static_cast<Byte> (result & byte);
             anyDrive = true;
         }
     }
