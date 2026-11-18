@@ -36,7 +36,7 @@ static constexpr int   kMarkNibbles      = 3;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseDiskArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseDiskArguments (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     const Tokens                        & tokens = args.tokens;
     size_t                                at     = 0;
@@ -411,5 +411,5 @@ bool AppleWinBreakpointParser::TryEvaluateQuietly (const std::string & text, con
 
 
 
-    return !text.empty() && AppleWinParser::TryEvaluate (text, context, value, error);
+    return !text.empty() && AppleWinArgumentForms::TryEvaluate (text, context, value, error);
 }

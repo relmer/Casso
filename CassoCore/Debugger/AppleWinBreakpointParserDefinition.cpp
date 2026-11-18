@@ -110,13 +110,13 @@ bool AppleWinBreakpointParser::TryMakeBreakpoint (const BreakpointDefinition & d
                      : (definition.type == Type::Write) ? DebugVerb::SetWriteWatchpoint
                      :                                    DebugVerb::SetMemoryWatchpoint;
         command.text = definition.isBefore ? "BEFORE" : "AFTER";
-        return AppleWinParser::TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
+        return AppleWinArgumentForms::TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
 
     case Type::Value:
         command.verb = DebugVerb::SetValueBreakpoint;
 
-        if (!AppleWinParser::TryParseRange (definition.address, context, command, error) || !IsLiveRange (command, error) ||
-            !AppleWinParser::TryEvaluate (definition.value, context, value, error))
+        if (!AppleWinArgumentForms::TryParseRange (definition.address, context, command, error) || !IsLiveRange (command, error) ||
+            !AppleWinArgumentForms::TryEvaluate (definition.value, context, value, error))
         {
             return false;
         }
@@ -158,7 +158,7 @@ bool AppleWinBreakpointParser::TryMakeBreakpoint (const BreakpointDefinition & d
 
     case Type::VideoLine:
         command.verb = DebugVerb::BreakOnVideoLine;
-        return AppleWinParser::TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
+        return AppleWinArgumentForms::TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
 
     case Type::Beam:
         command.verb = DebugVerb::BreakOnBeam;
@@ -171,13 +171,13 @@ bool AppleWinBreakpointParser::TryMakeBreakpoint (const BreakpointDefinition & d
 
         command.hasA1 = true;
         command.hasA2 = true;
-        return AppleWinParser::TryEvaluate (definition.address, context, command.a1, error) && AppleWinParser::TryEvaluate (definition.value, context, command.a2, error);
+        return AppleWinArgumentForms::TryEvaluate (definition.address, context, command.a1, error) && AppleWinArgumentForms::TryEvaluate (definition.value, context, command.a2, error);
 
     case Type::SourceLine:
         command.verb = DebugVerb::SetSourceBreakpoint;
         command.text = definition.file;
 
-        if (!AppleWinParser::TryParseCount (definition.address, command.count, syntax))
+        if (!AppleWinArgumentForms::TryParseCount (definition.address, command.count, syntax))
         {
             error = std::format ("{} is not a line number.", definition.address);
             return false;
@@ -236,12 +236,12 @@ bool AppleWinBreakpointParser::TryMakeExecute (const BreakpointDefinition & defi
         return false;
     }
 
-    if (AppleWinParser::TryParseSourceLine (tokens[0], context, command))
+    if (AppleWinArgumentForms::TryParseSourceLine (tokens[0], context, command))
     {
         return true;
     }
 
-    if (!AppleWinParser::TryParseRange (tokens[0], context, command, error))
+    if (!AppleWinArgumentForms::TryParseRange (tokens[0], context, command, error))
     {
         return false;
     }

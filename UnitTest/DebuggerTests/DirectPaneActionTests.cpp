@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Debugger/AppleWinBreakpointParser.h"
 #include "Debugger/AppleWinParser.h"
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerActions.h"
@@ -112,7 +113,7 @@ public:
             std::string          error;
 
             Assert::IsTrue   (parsed.status == ParseStatus::Ok, what.c_str());
-            Assert::IsTrue   (AppleWinParser::TryMakeBreakpoint (definition, rig.controller.GetSession(), made, error), (what + L": " + TextEncoding::NarrowToWide (error)).c_str());
+            Assert::IsTrue   (AppleWinBreakpointParser::TryMakeBreakpoint (definition, rig.controller.GetSession(), made, error), (what + L": " + TextEncoding::NarrowToWide (error)).c_str());
             Assert::AreEqual ((int) parsed.command.verb, (int) made.verb,  what.c_str());
             Assert::AreEqual (parsed.command.a1,         made.a1,          what.c_str());
             Assert::AreEqual (parsed.command.a2,         made.a2,          what.c_str());
@@ -145,13 +146,13 @@ public:
 
 
 
-        Assert::IsFalse (AppleWinParser::TryMakeBreakpoint ({ Type::Value, false, false, "0300", "100" }, rig.controller.GetSession(), made, error));
+        Assert::IsFalse (AppleWinBreakpointParser::TryMakeBreakpoint ({ Type::Value, false, false, "0300", "100" }, rig.controller.GetSession(), made, error));
         Assert::AreEqual (std::string ("$100 is not a byte. The value is one byte, $00-$FF."), error);
 
-        Assert::IsFalse (AppleWinParser::TryMakeBreakpoint ({ Type::SourceLine, false, false, "abc", "", "", 0, 0, "", "main.a65" }, rig.controller.GetSession(), made, error));
+        Assert::IsFalse (AppleWinBreakpointParser::TryMakeBreakpoint ({ Type::SourceLine, false, false, "abc", "", "", 0, 0, "", "main.a65" }, rig.controller.GetSession(), made, error));
         Assert::AreEqual (std::string ("abc is not a line number."), error);
 
-        Assert::IsFalse (AppleWinParser::TryMakeBreakpoint ({ Type::Execute }, rig.controller.GetSession(), made, error));
+        Assert::IsFalse (AppleWinBreakpointParser::TryMakeBreakpoint ({ Type::Execute }, rig.controller.GetSession(), made, error));
         Assert::AreEqual (std::string ("The address is empty."), error);
     }
 

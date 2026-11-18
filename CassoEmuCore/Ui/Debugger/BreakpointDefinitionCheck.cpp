@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/BreakpointDefinitionCheck.h"
-#include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinBreakpointParser.h"
 #include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DiskValueSymbols.h"
@@ -26,7 +26,7 @@ std::string BreakpointDefinitionCheck::GetError (const BreakpointDefinition & de
     SnapshotContext      context (snapshot);
     DebugCommand         command;
     std::string          error;
-    bool                 isMade  = AppleWinParser::TryMakeBreakpoint (definition, context, command, error);
+    bool                 isMade  = AppleWinBreakpointParser::TryMakeBreakpoint (definition, context, command, error);
     bool                 isWatch = command.verb == DebugVerb::SetMemoryWatchpoint || command.verb == DebugVerb::SetReadWatchpoint ||
                                    command.verb == DebugVerb::SetWriteWatchpoint;
     bool                 isValue = command.verb == DebugVerb::SetValueBreakpoint;

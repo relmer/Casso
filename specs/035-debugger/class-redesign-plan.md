@@ -363,29 +363,29 @@ use `GetTrace ()`; `SetOpcodeWatch` and `SetFetchSink` callers use
 
 ### 6. AppleWinParser
 
-**Problem.** One static class parses every command family. The first cut moved the
+**Problem.** One static class parsed every command family. The first cut moved the
 breakpoint family and added forwarders.
 
-**Classes.** Confirm the grouping against `AppleWinCommandFamily` in
-`AppleWinCommandTable.h`; one parser class per family or per closely related set.
+**Classes.** One parser per set of families in `AppleWinCommandFamily`, with the
+dispatch in `AppleWinParser::TryParseArguments`.
 
 | Class | Contents |
 |---|---|
-| `AppleWinArguments` (struct, in a separate header) | the command entry, tokens, rest, context |
-| `AppleWinArgumentForms` | the forms several families share: `TryEvaluate`, `TryParseRange`, `TryParseSourceLine`, `TryParseValues` and `ValueWidth`, `TryParseCount`, `TryParseDecimal`, `IsNumberOrRange`, `TryParseIdOrAll`, `TryParseSearchItems`, `TryParseSearchWord` |
+| `AppleWinArguments` (struct, in a separate header) | the command entry, tokens, rest, context, and the `Tokens` type |
+| `AppleWinArgumentForms` | `TryEvaluate`, `GetTextAfterFirstWord`, `TryParseRange`, `TryParseSourceLine`, `TryParseValues` and `ValueWidth`, `TryParseCount`, `TryParseDecimal`, `IsNumberOrRange`, `TryParseIdOrAll`, `TryParseSearchItems`, and the private `TryParseSearchWord`. Direct tests in `AppleWinArgumentFormsTests`. |
 | `AppleWinText` | as now |
-| `AppleWinBreakpointParser` | as now, plus nothing of other families |
-| `AppleWinMemoryParser` | memory, data, `IsBlockName` |
-| `AppleWinRunParser` | run, register, flag, skip, engine, history, calls |
-| `AppleWinViewParser` | list, symbol, output, panel, the BASIC reference form |
-| `AppleWinShorthand` | the shorthand and move shorthand forms |
+| `AppleWinBreakpointParser` | the Breakpoints and Video families, `TryParseIfClause`, `TryParseCondition`, `TryMakeBreakpoint` |
+| `AppleWinMemoryParser` | the Memory, Assembler and Data families; `IsBlockName` is private |
+| `AppleWinRunParser` | the Cpu, Flags and Engine families, with register, skip, calls and history arguments private |
+| `AppleWinViewParser` | the Watch, ZeroPage, Bookmarks, Symbols and Output families, and `PANEL`, which the Engine family's parser calls; the BASIC reference form is private |
+| `AppleWinShorthand` | `TryParse` and the private `TryParseMove`: the Monitor forms in place of a command |
 | `AppleWinParser` | `Parse` and the dispatch by family. No argument parsing. |
 
-**Callers.** Remove `AppleWinParser::TryParseIfClause`, `TryParseCondition` and
-`TryMakeBreakpoint`. `WinDbgParser.cpp`, `GSSquaredParser.cpp`,
-`BreakpointDefinitionCheck.cpp`, `DebuggerViewState.cpp` (or wherever group 1
-moved that code) and `DirectPaneActionTests.cpp` call
-`AppleWinBreakpointParser` or `AppleWinArgumentForms` directly.
+**Callers.** `AppleWinParser::TryParseIfClause`, `TryParseCondition` and
+`TryMakeBreakpoint` are removed. `WinDbgParser.cpp`, `GSSquaredParser.cpp`,
+`BreakpointDefinitionCheck.cpp`, `DebuggerViewState.cpp`, the handlers, the heat
+map's range sets and `DirectPaneActionTests.cpp` call `AppleWinBreakpointParser`
+or `AppleWinArgumentForms` directly. Header 122 to 55 lines, `.cpp` 1,910 to 114.
 
 ### 7. The storage hardware from master (state and peek work, 2026-11-17)
 

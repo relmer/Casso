@@ -10,6 +10,8 @@
 #include "Debugger/AccessHeatMap.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/AppleWinArgumentForms.h"
+#include "Debugger/AppleWinBreakpointParser.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/GSSquaredParser.h"
@@ -2986,7 +2988,7 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     if (action.breakpoint.has_value() && command.verb == DebugVerb::EditBreakpoint)
     {
-        if (!AppleWinParser::TryMakeBreakpoint (*action.breakpoint, session, made, error))
+        if (!AppleWinBreakpointParser::TryMakeBreakpoint (*action.breakpoint, session, made, error))
         {
             return false;
         }
@@ -2997,12 +2999,12 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     if (action.breakpoint.has_value())
     {
-        return AppleWinParser::TryMakeBreakpoint (*action.breakpoint, session, command, error);
+        return AppleWinBreakpointParser::TryMakeBreakpoint (*action.breakpoint, session, command, error);
     }
 
     if (command.verb == DebugVerb::SearchMemory)
     {
-        return AppleWinParser::TryParseSearchItems (action.operand, session, command, error);
+        return AppleWinArgumentForms::TryParseSearchItems (action.operand, session, command, error);
     }
 
     if (action.operand.empty())
@@ -3020,7 +3022,7 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     if (command.verb != DebugVerb::EnterBytes && command.verb != DebugVerb::EnterWords)
     {
-        return AppleWinParser::TryEvaluate (action.operand, session, command.a1, error);
+        return AppleWinArgumentForms::TryEvaluate (action.operand, session, command.a1, error);
     }
 
     command.values.clear();
@@ -3028,7 +3030,7 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
     while (tokens >> token)
     {
-        if (!AppleWinParser::TryEvaluate (token, session, value, error))
+        if (!AppleWinArgumentForms::TryEvaluate (token, session, value, error))
         {
             return false;
         }
@@ -5205,7 +5207,7 @@ bool DebuggerViewState::TryResolveGoTo (
         return true;
     }
 
-    if (!AppleWinParser::TryEvaluate (operand.core, context, value, error))
+    if (!AppleWinArgumentForms::TryEvaluate (operand.core, context, value, error))
     {
         return false;
     }

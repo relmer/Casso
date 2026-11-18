@@ -177,6 +177,11 @@
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
     <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
+    <ClCompile Include="Debugger\AppleWinArgumentForms.cpp" />
+    <ClCompile Include="Debugger\AppleWinMemoryParser.cpp" />
+    <ClCompile Include="Debugger\AppleWinRunParser.cpp" />
+    <ClCompile Include="Debugger\AppleWinShorthand.cpp" />
+    <ClCompile Include="Debugger\AppleWinViewParser.cpp" />
     <ClCompile Include="Debugger\AppleWinBreakpointParser.cpp" />
     <ClCompile Include="Debugger\AppleWinBreakpointParserDefinition.cpp" />
     <ClCompile Include="Debugger\AppleWinBreakpointParserDisk.cpp" />
@@ -277,6 +282,12 @@
     <ClInclude Include="Debugger\AppleWinCommandTable.h" />
     <ClInclude Include="Debugger\AppleWinBreakpointParser.h" />
     <ClInclude Include="Debugger\AppleWinParser.h" />
+    <ClInclude Include="Debugger\AppleWinArguments.h" />
+    <ClInclude Include="Debugger\AppleWinArgumentForms.h" />
+    <ClInclude Include="Debugger\AppleWinMemoryParser.h" />
+    <ClInclude Include="Debugger\AppleWinRunParser.h" />
+    <ClInclude Include="Debugger\AppleWinShorthand.h" />
+    <ClInclude Include="Debugger\AppleWinViewParser.h" />
     <ClInclude Include="Debugger\AppleWinText.h" />
     <ClInclude Include="Debugger\CassoCommandReference.h" />
     <ClInclude Include="Debugger\DebugCommandPayload.h" />

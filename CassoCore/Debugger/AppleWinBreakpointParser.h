@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
-#include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinArgumentForms.h"
 
+struct BreakpointDefinition;
 struct DiskBreakSpec;
 struct DiskMarkPattern;
 
@@ -25,24 +26,23 @@ struct DiskMarkPattern;
 class AppleWinBreakpointParser
 {
 public:
-    using Arguments = AppleWinParser::Arguments;
-    using Tokens    = AppleWinParser::Tokens;
+    using Tokens = AppleWinArguments::Tokens;
 
-    static bool         TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
-    static bool         TryParseNameArguments       (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseBreakpointArguments (const AppleWinArguments & source, DebugCommand & command, std::string & error);
+    static bool         TryParseNameArguments       (const AppleWinArguments & args, DebugCommand & command, std::string & error);
     static bool         TryParseIfClause            (Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
     static bool         TryParseCondition           (const std::string & subject, const Tokens & tokens, size_t first, DebugCommand & command, std::string & error, NumberSyntax syntax = NumberSyntax::AppleWin);
     static bool         TryParseFreeCondition       (const std::string & text, DebugCommand & command, std::string & error, NumberSyntax syntax);
-    static bool         TryParseOpcodes             (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseOpcodes             (const AppleWinArguments & args, DebugCommand & command, std::string & error);
     static void         NoteSymbol                  (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool         TryMakeBreakpoint           (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error);
 
 private:
-    static bool         TryParseValueBreakpoint     (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseValueBreakpoint     (const AppleWinArguments & args, DebugCommand & command, std::string & error);
     static bool         TryParseRegisterCondition   (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax);
-    static bool         TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
-    static bool         TryParseBeamArguments       (const Arguments & args, DebugCommand & command, std::string & error);
-    static bool         TryParseFrameArguments      (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseWatchpointArguments (const AppleWinArguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseBeamArguments       (const AppleWinArguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseFrameArguments      (const AppleWinArguments & args, DebugCommand & command, std::string & error);
     static std::string  CutIfClause                 (const std::string & text);
     static bool         IsMnemonicToken             (const std::string & token);
 
@@ -53,7 +53,7 @@ private:
     static bool         IsLiveRange                 (const DebugCommand & command, std::string & error);
 
     //  BPDISK (AppleWinBreakpointParserDisk.cpp).
-    static bool         TryParseDiskArguments       (const Arguments & args, DebugCommand & command, std::string & error);
+    static bool         TryParseDiskArguments       (const AppleWinArguments & args, DebugCommand & command, std::string & error);
     static bool         TryParseDiskEventArguments  (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec);
     static bool         TryParseDiskNumber          (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, std::optional<Byte> & outValue);
     static bool         TryParseDiskFields          (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, int count);

@@ -18,10 +18,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseBreakpointArguments (const AppleWinArguments & source, DebugCommand & command, std::string & error)
 {
     static constexpr std::string_view  kOperators = "<>=!";
-    Arguments                          args          = source;
+    AppleWinArguments                  args          = source;
     bool                               isConditional = !args.tokens.empty() && kOperators.find (args.tokens[0][0]) != std::string_view::npos;
     bool                               takesIf       = command.verb == DebugVerb::SetMemoryWatchpoint        ||
                                                        command.verb == DebugVerb::SetReadWatchpoint          ||
@@ -100,12 +100,12 @@ bool AppleWinBreakpointParser::TryParseBreakpointArguments (const Arguments & so
             return false;
         }
 
-        if (command.verb == DebugVerb::SetBreakpoint && AppleWinParser::TryParseSourceLine (args.tokens[0], *args.context, command))
+        if (command.verb == DebugVerb::SetBreakpoint && AppleWinArgumentForms::TryParseSourceLine (args.tokens[0], *args.context, command))
         {
             return true;
         }
 
-        if (!AppleWinParser::TryParseRange (args.tokens[0], *args.context, command, error))
+        if (!AppleWinArgumentForms::TryParseRange (args.tokens[0], *args.context, command, error))
         {
             return false;
         }
@@ -148,7 +148,7 @@ bool AppleWinBreakpointParser::TryParseBreakpointArguments (const Arguments & so
     case DebugVerb::ClearBreakpoint:
     case DebugVerb::DisableBreakpoint:
     case DebugVerb::EnableBreakpoint:
-        return AppleWinParser::TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax());
+        return AppleWinArgumentForms::TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax());
 
     // BPCHANGE # flags keeps the flags' case: E and e differ. BPEDIT # def
     // carries the new definition for the handler to parse as its own line.
@@ -162,7 +162,7 @@ bool AppleWinBreakpointParser::TryParseBreakpointArguments (const Arguments & so
             return false;
         }
 
-        if (!AppleWinParser::TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax()))
+        if (!AppleWinArgumentForms::TryParseIdOrAll (args.tokens, command, error, args.context->GetNumberSyntax()))
         {
             return false;
         }
@@ -208,7 +208,7 @@ bool AppleWinBreakpointParser::TryParseBreakpointArguments (const Arguments & so
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseNameArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseNameArguments (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     std::string  rest  = args.rest;
     size_t       start = rest.find_first_not_of (" \t");
@@ -225,7 +225,7 @@ bool AppleWinBreakpointParser::TryParseNameArguments (const Arguments & args, De
 
     id.push_back (rest.substr (start, end - start));
 
-    if (!AppleWinParser::TryParseIdOrAll (id, command, error, args.context->GetNumberSyntax()))
+    if (!AppleWinArgumentForms::TryParseIdOrAll (id, command, error, args.context->GetNumberSyntax()))
     {
         return false;
     }
@@ -369,7 +369,7 @@ void AppleWinBreakpointParser::NoteSymbol (const std::string & text, const IDebu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseOpcodes (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseOpcodes (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     Tokens  bytes;
 
@@ -388,7 +388,7 @@ bool AppleWinBreakpointParser::TryParseOpcodes (const Arguments & args, DebugCom
         command.text += (command.text.empty() ? "" : " ") + AppleWinText::ToUpper (token);
     }
 
-    return AppleWinParser::TryParseValues (bytes, 0, AppleWinParser::ValueWidth::Bytes, *args.context, command, error);
+    return AppleWinArgumentForms::TryParseValues (bytes, 0, AppleWinArgumentForms::ValueWidth::Bytes, *args.context, command, error);
 }
 
 
@@ -433,7 +433,7 @@ bool AppleWinBreakpointParser::IsMnemonicToken (const std::string & token)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseValueBreakpoint (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseValueBreakpoint (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     static constexpr Word  kMaxByte = 0xFF;
     Word                   value    = 0;
@@ -446,7 +446,7 @@ bool AppleWinBreakpointParser::TryParseValueBreakpoint (const Arguments & args, 
         return false;
     }
 
-    if (!AppleWinParser::TryParseRange (args.tokens[0], *args.context, command, error) || !AppleWinParser::TryEvaluate (args.tokens[1], *args.context, value, error))
+    if (!AppleWinArgumentForms::TryParseRange (args.tokens[0], *args.context, command, error) || !AppleWinArgumentForms::TryEvaluate (args.tokens[1], *args.context, value, error))
     {
         return false;
     }
@@ -526,7 +526,7 @@ bool AppleWinBreakpointParser::TryParseRegisterCondition (const Tokens & tokens,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseWatchpointArguments (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     if (args.tokens.empty())
     {
@@ -547,7 +547,7 @@ bool AppleWinBreakpointParser::TryParseWatchpointArguments (const Arguments & ar
         }
     }
 
-    return AppleWinParser::TryParseRange (args.tokens[0], *args.context, command, error);
+    return AppleWinArgumentForms::TryParseRange (args.tokens[0], *args.context, command, error);
 }
 
 
@@ -563,7 +563,7 @@ bool AppleWinBreakpointParser::TryParseWatchpointArguments (const Arguments & ar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseBeamArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseBeamArguments (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     std::string  word = (args.tokens.size() == 1) ? AppleWinText::ToUpper (args.tokens[0]) : std::string();
 
@@ -584,8 +584,8 @@ bool AppleWinBreakpointParser::TryParseBeamArguments (const Arguments & args, De
     command.hasA1 = true;
     command.hasA2 = true;
 
-    return AppleWinParser::TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
-           AppleWinParser::TryEvaluate (args.tokens[1], *args.context, command.a2, error);
+    return AppleWinArgumentForms::TryEvaluate (args.tokens[0], *args.context, command.a1, error) &&
+           AppleWinArgumentForms::TryEvaluate (args.tokens[1], *args.context, command.a2, error);
 }
 
 
@@ -600,7 +600,7 @@ bool AppleWinBreakpointParser::TryParseBeamArguments (const Arguments & args, De
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinBreakpointParser::TryParseFrameArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseFrameArguments (const AppleWinArguments & args, DebugCommand & command, std::string & error)
 {
     Word  value = 1;
 
@@ -612,7 +612,7 @@ bool AppleWinBreakpointParser::TryParseFrameArguments (const Arguments & args, D
         return false;
     }
 
-    if (!args.tokens.empty() && !AppleWinParser::TryEvaluate (args.tokens[0], *args.context, value, error))
+    if (!args.tokens.empty() && !AppleWinArgumentForms::TryEvaluate (args.tokens[0], *args.context, value, error))
     {
         return false;
     }

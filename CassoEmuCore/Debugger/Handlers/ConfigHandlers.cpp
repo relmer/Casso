@@ -7,7 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/Channel/HostAccessPolicy.h"
-#include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinArgumentForms.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -1071,7 +1071,7 @@ bool ConfigHandlers::TryUnquote (const std::string & item, std::string & text)
 
 bool ConfigHandlers::TryEvaluate (DebugSession & session, const std::string & text, Word & value, std::string & error)
 {
-    return AppleWinParser::TryEvaluate (text, session, value, error);
+    return AppleWinArgumentForms::TryEvaluate (text, session, value, error);
 }
 
 
