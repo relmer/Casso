@@ -38,6 +38,7 @@ static constexpr int  s_kProfilePeriod = 5;
 
 ProfilerPane::ProfilerPane (const DebuggerPaneParts & parts) :
     ToolListPane (parts, DebuggerLayout::kProfiler, L"Profiler"),
+    m_latest (parts.latest),
     m_bar        (parts, DebuggerLayout::kProfiler, L"Profiler commands"),
     m_navigator  (parts, *this)
 {
@@ -443,7 +444,7 @@ void ProfilerPane::Refresh()
 
 void ProfilerPane::RunProfile (const char * words)
 {
-    m_host.RunAction (SessionActions::GetProfile (words, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetProfile (words, m_latest.GetMode()));
 }
 
 
@@ -866,7 +867,7 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & i
 
     if (address.has_value())
     {
-        items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_host, at); } });
+        items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_host, m_latest.GetMode(), at); } });
         m_host.AddBookmarkItem (*address, items);
     }
 
@@ -905,7 +906,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
     if (routine.has_value() && *routine < m_navigator.GetLists().byOpcode->routines.size() && m_navigator.GetLists().byOpcode->routines[*routine].kind != RoutineKind::Top)
     {
-        items.push_back ({ L"Add symbol here...", [this, at = m_navigator.GetLists().byOpcode->routines[*routine].address] { AddSymbolDialog::Run (m_host, at); } });
+        items.push_back ({ L"Add symbol here...", [this, at = m_navigator.GetLists().byOpcode->routines[*routine].address] { AddSymbolDialog::Run (m_host, m_latest.GetMode(), at); } });
     }
 }
 

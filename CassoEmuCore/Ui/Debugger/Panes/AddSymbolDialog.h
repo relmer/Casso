@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Debugger/DebugCommand.h"
+
 class IDebuggerPaneHost;
 
 
@@ -21,5 +23,5 @@ class IDebuggerPaneHost;
 class AddSymbolDialog
 {
 public:
-    static void  Run (IDebuggerPaneHost & host, Word address);
+    static void  Run (IDebuggerPaneHost & host, CommandMode mode, Word address);
 };

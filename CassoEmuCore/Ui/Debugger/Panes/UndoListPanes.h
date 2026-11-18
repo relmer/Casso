@@ -187,6 +187,7 @@ private:
     void                 CommitRegister       (const std::string & name, Byte typed);
     void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
+    const LatestSnapshot                            & m_latest;
     const DebuggerPaneLook                          & m_look;
     RegisterHistory                                   m_history;
     HistoryBand                                     * m_band           = nullptr;
@@ -235,6 +236,7 @@ protected:
 private:
     void                           PushByte     ();
 
+    const LatestSnapshot                          & m_latest;
     const DebuggerPaneLook                        & m_look;
     StackHistory                                    m_history;
     std::vector<DebuggerViewSnapshot::StackLine>    m_stack;

@@ -19,6 +19,7 @@
 
 CallStackController::CallStackController (const DebuggerPaneParts & parts) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_look (parts.look)
 {
 }
@@ -75,7 +76,7 @@ void CallStackController::CreateControls()
 
     m_model = std::make_unique<CallStackPane> (
         m_list, m_button,
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
+        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_latest.GetMode())); },
         [this] (Word address)                        { m_host.GoToCode (address); },
         [this] (Word line)                           { m_host.ShowBasicLine (line); });
 }

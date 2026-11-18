@@ -51,12 +51,13 @@ public:
     void                 SetNextStatement (Word address);
 
 private:
-    IDebuggerPaneHost    & m_host;
-    const ICodeViews     & m_views;
-    ApplyFn                m_apply;
-    int                    m_hoverView   = -1;
-    int                    m_hoverRow    = -1;
-    int                    m_dragView    = -1;
-    int                    m_dragRow     = -1;
-    int                    m_dragOverRow = -1;
+    IDebuggerPaneHost     & m_host;
+    const LatestSnapshot  & m_latest;
+    const ICodeViews      & m_views;
+    ApplyFn                 m_apply;
+    int                     m_hoverView   = -1;
+    int                     m_hoverRow    = -1;
+    int                     m_dragView    = -1;
+    int                     m_dragRow     = -1;
+    int                     m_dragOverRow = -1;
 };

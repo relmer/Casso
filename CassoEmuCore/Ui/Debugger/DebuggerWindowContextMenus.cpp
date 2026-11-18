@@ -101,12 +101,12 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
     //  A disassembly view that does not follow the PC can take it over.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
-        if (pane != DebuggerLayout::GetCodePaneId (view) || m_snapshot == nullptr)
+        if (pane != DebuggerLayout::GetCodePaneId (view) || m_latest.Get() == nullptr)
         {
             continue;
         }
 
-        if (m_snapshot->followView != view)
+        if (m_latest.Get()->followView != view)
         {
             m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Follow PC", [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
             menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -134,9 +134,9 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             {
                 source->SetAssembler (each);
 
-                if (m_snapshot != nullptr)
+                if (m_latest.Get() != nullptr)
                 {
-                    source->Apply (*m_snapshot);
+                    source->Apply (*m_latest.Get());
                 }
             }));
 
@@ -189,7 +189,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
 
 
-    if (m_snapshot == nullptr)
+    if (m_latest.Get() == nullptr)
     {
         return false;
     }
@@ -424,7 +424,7 @@ bool DebuggerWindow::TryGetDefinitionAt (POINT clientPx, Word & address) const
 
 
 
-    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+    if (m_latest.Get() == nullptr || m_latest.Get()->symbols == nullptr)
     {
         return false;
     }
@@ -437,7 +437,7 @@ bool DebuggerWindow::TryGetDefinitionAt (POINT clientPx, Word & address) const
 
             if (document.IsShown() && document.GetView() != nullptr && DxuiDockSite::Contains (document.GetView()->GetBounds(), clientPx))
             {
-                found = document.GetModel().FindSymbolAt (clientPx, m_snapshot->symbols->symbols);
+                found = document.GetModel().FindSymbolAt (clientPx, m_latest.Get()->symbols->symbols);
             }
         }
 
@@ -450,7 +450,7 @@ bool DebuggerWindow::TryGetDefinitionAt (POINT clientPx, Word & address) const
         address = found->address;
     }
 
-    return std::ranges::none_of (m_snapshot->symbols->symbols, [&name] (const SymbolInfo & symbol) { return symbol.name == name && symbol.isConstant; });
+    return std::ranges::none_of (m_latest.Get()->symbols->symbols, [&name] (const SymbolInfo & symbol) { return symbol.name == name && symbol.isConstant; });
 }
 
 
@@ -473,9 +473,9 @@ void DebuggerWindow::GoToDefinition (Word address)
 
 
 
-    if (m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->lineAddresses != nullptr && m_host != nullptr)
+    if (m_latest.Get() != nullptr && m_latest.Get()->source.has_value() && m_latest.Get()->source->lineAddresses != nullptr && m_host != nullptr)
     {
-        m_symbolComments.SetSource (*m_snapshot->source);
+        m_symbolComments.SetSource (*m_latest.Get()->source);
 
         place = m_symbolComments.FindLabelLine (address, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
         {
@@ -591,8 +591,8 @@ std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuI
 void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMenuItems & items)
 {
     constexpr const wchar_t  * kpszLabel = L"Never step into this routine";
-    auto                       found     = m_snapshot == nullptr ? std::vector<StepFilterEntry>::const_iterator()
-                                                                 : std::ranges::find_if (m_snapshot->stepFilters, [&name, address] (const StepFilterEntry & entry)
+    auto                       found     = m_latest.Get() == nullptr ? std::vector<StepFilterEntry>::const_iterator()
+                                                                 : std::ranges::find_if (m_latest.Get()->stepFilters, [&name, address] (const StepFilterEntry & entry)
                                                                    {
                                                                        return !name.empty() ? _stricmp (entry.name.c_str(), name.c_str()) == 0
                                                                                             : entry.name.empty() && address >= entry.first && address <= entry.last;
@@ -600,7 +600,7 @@ void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMe
 
 
 
-    if (m_snapshot != nullptr && found != m_snapshot->stepFilters.end())
+    if (m_latest.Get() != nullptr && found != m_latest.Get()->stepFilters.end())
     {
         items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (RunActions::GetRemoveSkip (entry, GetMode())); } });
         return;
@@ -625,12 +625,12 @@ void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMe
 
 void DebuggerWindow::AddBookmarkItem (Word address, PaneMenuItems & items)
 {
-    auto  found = (m_snapshot == nullptr) ? std::vector<DebuggerViewSnapshot::WatchLine>::const_iterator()
-                                          : std::ranges::find_if (m_snapshot->bookmarks, [address] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == address; });
+    auto  found = (m_latest.Get() == nullptr) ? std::vector<DebuggerViewSnapshot::WatchLine>::const_iterator()
+                                          : std::ranges::find_if (m_latest.Get()->bookmarks, [address] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == address; });
 
 
 
-    if (m_snapshot != nullptr && found != m_snapshot->bookmarks.end())
+    if (m_latest.Get() != nullptr && found != m_latest.Get()->bookmarks.end())
     {
         items.push_back ({ L"Remove bookmark", [this, id = found->id] { RunAction (WatchActions::GetClearBookmark (id, GetMode())); } });
     }
@@ -907,7 +907,7 @@ void DebuggerWindow::AddShowInMemory (const std::wstring & what, const std::stri
 
 void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
 {
-    const DebuggerViewSnapshot  & s    = *m_snapshot;
+    const DebuggerViewSnapshot  & s    = *m_latest.Get();
     auto                          copy = [this, list] { DxuiClipboard::SetText (GetHwnd(), list->GetSelectionText()); };
 
 

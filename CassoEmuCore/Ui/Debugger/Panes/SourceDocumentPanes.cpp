@@ -28,6 +28,7 @@ namespace fs = std::filesystem;
 
 SourceDocumentPane::SourceDocumentPane (const DebuggerPaneParts & parts, SourceDocumentGroup & group, int slot) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_look (parts.look),
     m_group       (group),
     m_slot        (slot),
@@ -95,7 +96,7 @@ void SourceDocumentPane::CreateControls()
 
             return (host != nullptr) ? host->FindDebuggerSource (record, path, key) : SourceLookup();
         },
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); });
+        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_latest.GetMode())); });
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
@@ -334,7 +335,7 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
     {
         PaneMenu::AddBreakpointRows (items, std::nullopt, [this, line]
         {
-            std::optional<DebuggerAction>  action = m_model->GetSetBreakpointAction (line, m_host.GetMode());
+            std::optional<DebuggerAction>  action = m_model->GetSetBreakpointAction (line, m_latest.GetMode());
 
             if (action.has_value())
             {
@@ -345,8 +346,8 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
     }
 
     PaneMenu::AddBreakpointRows (items, breakpoint->isEnabled, nullptr,
-                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
-                                 [this, id = breakpoint->id] { m_host.RunAction (BreakpointActions::GetClearBreakpoint (id, m_host.GetMode())); });
+                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_latest.GetMode())); },
+                                 [this, id = breakpoint->id] { m_host.RunAction (BreakpointActions::GetClearBreakpoint (id, m_latest.GetMode())); });
 }
 
 
@@ -452,6 +453,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
 SourceDocumentGroup::SourceDocumentGroup (const DebuggerPaneParts & parts) :
     m_host (parts.host),
+    m_latest (parts.latest),
     m_parts (parts)
 {
 }
@@ -511,7 +513,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> SourceDocumentGroup::CreateDocuments
 
 void SourceDocumentGroup::Apply()
 {
-    const DebuggerViewSnapshot                              & snapshot  = *m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                              & snapshot  = *m_latest.Get();
     const std::optional<DebuggerViewSnapshot::SourceState>  & source    = snapshot.source;
     std::wstring                                              loadedFor;
     bool                                                      relayout  = false;
@@ -660,7 +662,7 @@ void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
 
 void SourceDocumentGroup::Open (int fileId, int line, bool activate)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     int                           keep     = snapshot != nullptr && snapshot->source.has_value() ? snapshot->source->fileId : -1;
     int                           slot     = m_files.Open (fileId, keep);
 
@@ -756,7 +758,7 @@ void SourceDocumentGroup::Close (int slot)
     m_files.Close (slot);
     m_documents[(size_t) slot]->GetModel().SetFile (-1);
 
-    if (m_host.GetLatestSnapshot() != nullptr)
+    if (m_latest.Get() != nullptr)
     {
         Apply();
         m_host.SaveOpenViews();
@@ -814,7 +816,7 @@ void SourceDocumentGroup::Restore (const DebuggerViewSnapshot & snapshot)
 
 void SourceDocumentGroup::ToggleMacroBody()
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
 
@@ -880,7 +882,7 @@ void SourceDocumentGroup::ShowLine (int fileId, int line)
 
 bool SourceDocumentGroup::ShowPc()
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     std::pair<int, int>           place    = { -1, 0 };
 
 
@@ -1005,7 +1007,7 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
 
         //  An action changes the pane's text while the machine is paused,
         //  when no snapshot is coming with it.
-        if (onBanner && ev.kind == DxuiMouseEventKind::Up && m_host.GetLatestSnapshot() != nullptr)
+        if (onBanner && ev.kind == DxuiMouseEventKind::Up && m_latest.Get() != nullptr)
         {
             Apply();
         }
@@ -1159,7 +1161,7 @@ std::string SourceDocumentGroup::FormatOpen (const std::function<std::string (in
 void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
 {
     IDebuggerWindowHost         * host     = m_host.GetWindowHost();
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     SourceLookup                  lookup;
     int                           index    = -1;
     bool                          loaded   = snapshot != nullptr && snapshot->source.has_value();
@@ -1181,7 +1183,7 @@ void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
     {
         if (host->DoesDebuggerFileExist (beside))
         {
-            m_host.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_latest.GetMode()));
             m_pendingLoose = path;
             break;
         }
@@ -1232,7 +1234,7 @@ void SourceDocumentGroup::OpenLooseFile (const std::wstring & path, const std::s
 
     m_documents[(size_t) slot]->GetModel().ShowLoose (path, text, isSource);
 
-    if (m_host.GetLatestSnapshot() != nullptr)
+    if (m_latest.Get() != nullptr)
     {
         Apply();
     }
@@ -1308,7 +1310,7 @@ void SourceDocumentGroup::BrowseForSource()
 
 void SourceDocumentGroup::ShowDropped (const std::wstring & path)
 {
-    const DebuggerViewSnapshot::SourceState & source = *m_host.GetLatestSnapshot()->source;
+    const DebuggerViewSnapshot::SourceState & source = *m_latest.Get()->source;
     SourceLookup                              lookup;
     int                                       index  = -1;
 

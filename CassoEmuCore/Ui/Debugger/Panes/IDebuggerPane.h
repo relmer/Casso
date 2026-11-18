@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerPaneLook.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/IDebuggerWindowHost.h"
+#include "Ui/Debugger/LatestSnapshot.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/StopChanges.h"
@@ -105,9 +106,8 @@ public:
     //  and the settings saved for it; none for a window with no host.
     virtual IDebuggerWindowHost  * GetWindowHost    () = 0;
 
-    //  Runs a control's action, in the console's mode.
+    //  Runs a control's action.
     virtual void                   RunAction        (const DebuggerAction & action) = 0;
-    virtual CommandMode            GetMode          () const = 0;
 
     //  Moves the disassembly to an address, or to the PC with none; a memory
     //  window in view to one, or the last one used, bringing it forward; and
@@ -138,10 +138,6 @@ public:
 
     //  Goes back to the machine's present from a point in its history.
     virtual void                   GoLive           () = 0;
-
-    //  What changed since the last stop, a register's, a stack byte's or a
-    //  watch's value, by its key.
-    virtual const StopChanges    & GetStopChanges   () const = 0;
 
     //  Where the last press was, in the window's pixels, for a list's
     //  double-click to find which of a row's cells it landed in.
@@ -243,9 +239,6 @@ public:
     //  The part of a bar's slot its toolbar is laid out in, short of the
     //  pane's info button.
     virtual RECT                   GetBarStrip      (const std::wstring & pane, const RECT & slot) = 0;
-
-    //  The snapshot the window last applied, none before the first.
-    virtual const DebuggerViewSnapshot * GetLatestSnapshot () const = 0;
 
     //  Opens the dialog for a zero-page pointer to watch, as Add zero-page
     //  pointer... does.

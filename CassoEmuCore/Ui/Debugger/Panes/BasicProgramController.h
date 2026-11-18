@@ -71,6 +71,7 @@ private:
 
     std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
 
+    const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
     PaneBarSlot                           m_bar;
     DxuiListView                        * m_list          = nullptr;

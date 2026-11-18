@@ -104,6 +104,7 @@ private:
     void  Save           ();
     void  SortBy         (int column);
 
+    const LatestSnapshot                       & m_latest;
     PaneBarSlot                                  m_bar;
     ProfileTimeline                            * m_timeline        = nullptr;
     ProfileProgress                            * m_progress        = nullptr;
@@ -113,14 +114,14 @@ private:
     bool                                         m_isPeriodRead    = false;
     bool                                         m_isBuilding      = false;
     bool                                         m_isPaused        = false;
-    std::optional<uint64_t>                      m_stopCycle;        // where the machine is stopped, with history
-    std::optional<uint64_t>                      m_builtCycle;       // the stop the last profile was requested at
+    std::optional<uint64_t>                      m_stopCycle;   // where the machine is stopped, with history
+    std::optional<uint64_t>                      m_builtCycle;   // the stop the last profile was requested at
     FlameGraphView                             * m_flameGraph      = nullptr;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
     ProfileRows::View                            m_view            = ProfileRows::View::Routines;
     ProfileRows::Sorts                           m_sorts           = ProfileRows::GetDefaultSorts();
-    std::vector<size_t>                          m_order;            // the list's rows as indexes in the profile's entries
-    std::optional<size_t>                        m_selectedRoutine;  // the flame graph's selection, an index in the profile's routines
+    std::vector<size_t>                          m_order;   // the list's rows as indexes in the profile's entries
+    std::optional<size_t>                        m_selectedRoutine;   // the flame graph's selection, an index in the profile's routines
     bool                                         m_isOn            = false;
     ProfileTimelineNavigator                     m_navigator;
 };

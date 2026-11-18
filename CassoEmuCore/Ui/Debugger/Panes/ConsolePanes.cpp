@@ -705,6 +705,7 @@ bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 
 CommandLine::CommandLine (const DebuggerPaneParts & parts, ConsoleOutput & output) :
     m_host   (parts.host),
+    m_latest (parts.latest),
     m_look (parts.look),
     m_output (output)
 {
@@ -808,7 +809,7 @@ void CommandLine::Submit()
     HRESULT                       hr       = S_OK;
     IDebuggerWindowHost         * host     = m_host.GetWindowHost();
     IHostDialogs                * dialogs  = m_host.GetHostDialogs();
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     std::wstring                  typed    = m_box->GetText();
     std::string                   line     = TextEncoding::WideToNarrow (typed);
     std::optional<DebugVerb>      fileVerb;
@@ -1116,6 +1117,7 @@ void CommandLine::SaveHistory()
 
 ConsoleModeBar::ConsoleModeBar (const DebuggerPaneParts & parts) :
     m_host (parts.host),
+    m_latest (parts.latest),
     m_bar  (parts, DebuggerLayout::kConsole, L"Console commands")
 {
 }
@@ -1216,7 +1218,7 @@ const std::vector<ConsoleModeBar::ModeChoice> & ConsoleModeBar::GetModeChoices()
 
 void ConsoleModeBar::SetMenus()
 {
-    const DebuggerViewSnapshot      * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot      * snapshot = m_latest.Get();
     std::vector<DxuiPopupMenuItem>    modes;
     std::wstring                      before   = m_dialect->label;
 
@@ -1234,7 +1236,7 @@ void ConsoleModeBar::SetMenus()
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (label, current, [this, target]
         {
-            DebuggerAction  action = SessionActions::GetSetMode (target, m_host.GetMode());
+            DebuggerAction  action = SessionActions::GetSetMode (target, m_latest.GetMode());
 
 
 

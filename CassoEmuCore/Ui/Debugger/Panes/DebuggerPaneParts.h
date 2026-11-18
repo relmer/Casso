@@ -2,6 +2,7 @@
 
 class DebuggerPaneLook;
 class IDebuggerPaneHost;
+class LatestSnapshot;
 
 
 
@@ -22,4 +23,5 @@ struct DebuggerPaneParts
 {
     IDebuggerPaneHost       & host;
     const DebuggerPaneLook  & look;
+    const LatestSnapshot    & latest;
 };

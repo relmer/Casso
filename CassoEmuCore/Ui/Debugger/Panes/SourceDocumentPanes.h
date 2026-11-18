@@ -70,6 +70,7 @@ public:
     void         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
+    const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
     SourceDocumentGroup                 & m_group;
     int                                   m_slot          = 0;
@@ -185,6 +186,7 @@ private:
     void                             TakeOverLoose  (const std::wstring & path, int fileId);
 
     IDebuggerPaneHost                    & m_host;
+    const LatestSnapshot                 & m_latest;
     const DebuggerPaneParts              & m_parts;
     std::vector<SourceDocumentPane *>      m_documents;
     SourceDocuments                        m_files;

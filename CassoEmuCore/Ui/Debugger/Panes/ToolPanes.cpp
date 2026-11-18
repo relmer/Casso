@@ -204,6 +204,7 @@ Error:
 SymbolsPane::SymbolsPane (const DebuggerPaneParts & parts, Kind kind) :
     ToolListPane (parts, (kind == Kind::User) ? DebuggerLayout::kSymbols : DebuggerLayout::kMachineSymbols,
                         (kind == Kind::User) ? L"User symbols" : L"Machine symbols"),
+    m_latest (parts.latest),
     m_kind       (kind)
 {
 }
@@ -255,7 +256,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && each->isHeading)
         {
-            m_host.RunAction (SymbolActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_latest.GetMode()));
         }
     });
 }
@@ -484,7 +485,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         items.push_back ({ L"Go to",  [this, at = each->address] { m_host.GoToCode (at); } });
         items.push_back ({ L"Remove", [this, table = each->table, name = each->name]
         {
-            m_host.RunAction (SymbolActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_latest.GetMode()));
         } });
     }
 
@@ -494,7 +495,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         std::string  file  = (m_symbols != nullptr) ? GetFileOf (*m_symbols, each->table) : std::string();
         std::wstring label = file.empty() ? std::wstring (L"Clear table") : L"Unload " + TextEncoding::NarrowToWide (file);
 
-        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (SymbolActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
+        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (SymbolActions::GetClearSymbols (SymbolTable::ToUpper (table), m_latest.GetMode())); } });
         items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
     }
 
@@ -520,7 +521,7 @@ void SymbolsPane::SaveTable (const std::string & table)
 
     if (!path.empty())
     {
-        m_host.RunAction (SymbolActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
+        m_host.RunAction (SymbolActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_latest.GetMode()));
     }
 }
 
@@ -684,7 +685,8 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
 ////////////////////////////////////////////////////////////////////////////////
 
 BookmarksPane::BookmarksPane (const DebuggerPaneParts & parts) :
-    ToolListPane (parts, DebuggerLayout::kBookmarks, L"Bookmarks")
+    ToolListPane (parts, DebuggerLayout::kBookmarks, L"Bookmarks"),
+    m_latest (parts.latest)
 {
 }
 
@@ -754,7 +756,7 @@ void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void BookmarksPane::SortBy (int column)
 {
-    const DebuggerViewSnapshot                      * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                      * snapshot = m_latest.Get();
     std::optional<DebuggerViewSnapshot::WatchLine>    selected = GetBookmark (m_list->GetSelectedRow());
 
 
@@ -915,7 +917,7 @@ void BookmarksPane::DeleteRows (const std::vector<int> & rows)
 
     for (int id : ids)
     {
-        m_host.RunAction (WatchActions::GetClearBookmark (id, m_host.GetMode()));
+        m_host.RunAction (WatchActions::GetClearBookmark (id, m_latest.GetMode()));
     }
 }
 
@@ -1006,6 +1008,7 @@ std::optional<Word> BookmarksPane::GetNext (const std::vector<DebuggerViewSnapsh
 
 DataBlocksPane::DataBlocksPane (const DebuggerPaneParts & parts) :
     ToolListPane (parts, DebuggerLayout::kDataBlocks, L"Data ranges"),
+    m_latest (parts.latest),
     m_filters    (parts)
 {
 }
@@ -1032,9 +1035,9 @@ void DataBlocksPane::Configure()
 
     m_filters.Attach (m_list, { kKindColumn }, [this]
     {
-        if (m_host.GetLatestSnapshot() != nullptr)
+        if (m_latest.Get() != nullptr)
         {
-            Apply (*m_host.GetLatestSnapshot());
+            Apply (*m_latest.Get());
         }
     });
 
@@ -1105,7 +1108,7 @@ void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void DataBlocksPane::SortBy (int column)
 {
-    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot     * snapshot = m_latest.Get();
     std::optional<DataBlockEntry>    selected = GetBlock (m_list->GetSelectedRow());
 
 
@@ -1297,7 +1300,7 @@ void DataBlocksPane::Rename (const DataBlockEntry & block)
 
     if (typed.has_value() && TextEncoding::WideToNarrow (*typed) != block.name)
     {
-        m_host.RunAction (SymbolActions::GetMarkData (GetDirective (block), block.first, block.last, m_host.GetMode(), TextEncoding::WideToNarrow (*typed)));
+        m_host.RunAction (SymbolActions::GetMarkData (GetDirective (block), block.first, block.last, m_latest.GetMode(), TextEncoding::WideToNarrow (*typed)));
     }
 }
 
@@ -1359,7 +1362,7 @@ void DataBlocksPane::DeleteRows (const std::vector<int> & rows)
 
     for (const DataBlockEntry & block : blocks)
     {
-        m_host.RunAction (SymbolActions::GetClearData (block.first, block.last, m_host.GetMode()));
+        m_host.RunAction (SymbolActions::GetClearData (block.first, block.last, m_latest.GetMode()));
     }
 }
 

@@ -149,7 +149,7 @@ void DebuggerWindow::ReloadProjectState()
 {
     m_code->SetOptions (DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions()));
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_latest.Get() != nullptr; view++)
     {
         ApplyCodeView (view);
     }

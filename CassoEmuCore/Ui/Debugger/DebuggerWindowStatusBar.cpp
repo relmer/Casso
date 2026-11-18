@@ -137,9 +137,9 @@ void DebuggerWindow::UpdateStatusBar()
 {
     using Beam = std::optional<DebuggerViewSnapshot::BeamState>;
 
-    HistoryStatus  status      = (m_snapshot != nullptr) ? m_snapshot->history  : HistoryStatus();
-    Beam           beam        = (m_snapshot != nullptr) ? m_snapshot->beam     : std::nullopt;
-    bool           isPaused    = (m_snapshot != nullptr) && m_snapshot->isPaused;
+    HistoryStatus  status      = (m_latest.Get() != nullptr) ? m_latest.Get()->history  : HistoryStatus();
+    Beam           beam        = (m_latest.Get() != nullptr) ? m_latest.Get()->beam     : std::nullopt;
+    bool           isPaused    = (m_latest.Get() != nullptr) && m_latest.Get()->isPaused;
     ReplayProgress progress    = (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress();
     float          fill        = DebuggerStatusText::GetHistoryFill (status);
 
@@ -147,14 +147,14 @@ void DebuggerWindow::UpdateStatusBar()
 
     SyncReplayDialog (progress);
 
-    if (m_snapshot != nullptr && m_actionReplySerial != m_snapshot->actionReplySerial)
+    if (m_latest.Get() != nullptr && m_actionReplySerial != m_latest.Get()->actionReplySerial)
     {
-        if (m_actionReplySerial.has_value() && !m_snapshot->actionReply.empty())
+        if (m_actionReplySerial.has_value() && !m_latest.Get()->actionReply.empty())
         {
-            ShowActionReply (*m_snapshot);
+            ShowActionReply (*m_latest.Get());
         }
 
-        m_actionReplySerial = m_snapshot->actionReplySerial;
+        m_actionReplySerial = m_latest.Get()->actionReplySerial;
     }
 
     if (m_statusBar == nullptr)
@@ -162,7 +162,7 @@ void DebuggerWindow::UpdateStatusBar()
         return;
     }
 
-    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_snapshot != nullptr) ? m_snapshot->runNotice : std::string()));
+    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_latest.Get() != nullptr) ? m_latest.Get()->runNotice : std::string()));
     m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));

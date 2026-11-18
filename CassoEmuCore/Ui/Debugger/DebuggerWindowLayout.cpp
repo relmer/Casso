@@ -703,7 +703,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 bool DebuggerWindow::IsTimelineShimmering() const
 {
-    return m_snapshot != nullptr && m_snapshot->history.isBehindLive && m_timelineBar != nullptr && m_timelineBar->IsVisible() &&
+    return m_latest.Get() != nullptr && m_latest.Get()->history.isBehindLive && m_timelineBar != nullptr && m_timelineBar->IsVisible() &&
            IsRoutable (m_timelineBar);
 }
 
@@ -769,7 +769,7 @@ bool DebuggerWindow::HasTopLayer() const
         {
             //  The PC's branch, or the one a step just took to the PC, which
             //  can be out of the lines built for the view.
-            if (m_code->IsOpen (view) && line.isCurrent && (line.target.has_value() || m_snapshot->branchedFrom.has_value()))
+            if (m_code->IsOpen (view) && line.isCurrent && (line.target.has_value() || m_latest.Get()->branchedFrom.has_value()))
             {
                 return true;
             }
@@ -780,8 +780,8 @@ bool DebuggerWindow::HasTopLayer() const
     {
         const SourceDocumentPane  & document = m_sources->GetDocument (slot);
 
-        if (document.IsShown() && document.GetModel().IsActive() && m_snapshot != nullptr &&
-            m_snapshot->source.has_value() && m_snapshot->source->pcTarget.has_value())
+        if (document.IsShown() && document.GetModel().IsActive() && m_latest.Get() != nullptr &&
+            m_latest.Get()->source.has_value() && m_latest.Get()->source->pcTarget.has_value())
         {
             return true;
         }
@@ -925,7 +925,7 @@ bool DebuggerWindow::IsFixedPane (const std::wstring & pane) const
 
 std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
 {
-    return ViewMenuRows::GetPanes (m_panes, m_snapshot.get());
+    return ViewMenuRows::GetPanes (m_panes, m_latest.Get());
 }
 
 

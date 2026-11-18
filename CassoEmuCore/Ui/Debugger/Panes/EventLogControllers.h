@@ -245,5 +245,6 @@ private:
     bool          IsVideo          () const { return m_kind == DebugLogKind::Video; }
     void          SetBarEntries    ();
 
+    const LatestSnapshot        & m_latest;
     std::unique_ptr<IoLogPane>    m_model;
 };

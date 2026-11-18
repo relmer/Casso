@@ -52,6 +52,7 @@ public:
     bool                             OnGoToKey           () override;
 
 private:
+    const LatestSnapshot                & m_latest;
     MemoryWindowGroup                   & m_group;
     int                                   m_windowId = 0;
     std::wstring                          m_id;
@@ -163,6 +164,7 @@ private:
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
 
+    const LatestSnapshot                                                  & m_latest;
     const DebuggerPaneParts                                               & m_parts;
     const DebuggerPaneLook                                                & m_look;
     std::array<MemoryWindowPane *, DebuggerViewState::kMaxMemoryWindows>    m_windows      = {};

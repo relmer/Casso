@@ -434,10 +434,10 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
     textRow          = &text->GetRows()[(size_t) row];
     parts.codeChar = SourceLineText::FindCodeStart (textRow->cells[(size_t) SourceRows::kTextCell]);
 
-    if (m_snapshot != nullptr && m_snapshot->symbols != nullptr && textRow->cells.size() > (size_t) SourceRows::kAnnotationCell &&
+    if (m_latest.Get() != nullptr && m_latest.Get()->symbols != nullptr && textRow->cells.size() > (size_t) SourceRows::kAnnotationCell &&
         !textRow->cells[(size_t) SourceRows::kAnnotationCell].empty())
     {
-        hasSymbol = SourceLineText::TryGetOperandSymbolText (textRow->cells[(size_t) SourceRows::kTextCell], parts.codeChar, m_snapshot->symbols->symbols, parts.symbol);
+        hasSymbol = SourceLineText::TryGetOperandSymbolText (textRow->cells[(size_t) SourceRows::kTextCell], parts.codeChar, m_latest.Get()->symbols->symbols, parts.symbol);
         IGNORE_RETURN_VALUE (hasSymbol, false);
     }
 
@@ -774,14 +774,14 @@ bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document,
 
 
 
-    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() ||
-        (m_operandTips->IsSymbolShownAt (clientPx) && document.GetModel().IsOperandSymbolAt (clientPx, m_snapshot->symbols->symbols)) ||
-        !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor, &found))
+    if (m_latest.Get() == nullptr || m_latest.Get()->symbols == nullptr || !document.IsShown() ||
+        (m_operandTips->IsSymbolShownAt (clientPx) && document.GetModel().IsOperandSymbolAt (clientPx, m_latest.Get()->symbols->symbols)) ||
+        !document.GetModel().TryGetSymbolTip (clientPx, m_latest.Get()->symbols->symbols, text, anchor, &found))
     {
         return false;
     }
 
-    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_snapshot, GetSymbolComment (found->address, found->name));
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_latest.Get(), GetSymbolComment (found->address, found->name));
 
     tip             = DxuiTip();
     tip.anchor      = anchor;
@@ -806,7 +806,7 @@ bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document,
 bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, DxuiTip & tip) const
 {
     if (m_statusBar == nullptr || m_statusBar->FindFieldAt (clientPx) != (int) kStatusHistory ||
-        DebuggerStatusText::GetHistoryFill (m_snapshot != nullptr ? m_snapshot->history : HistoryStatus()) < 0.0f)
+        DebuggerStatusText::GetHistoryFill (m_latest.Get() != nullptr ? m_latest.Get()->history : HistoryStatus()) < 0.0f)
     {
         return false;
     }

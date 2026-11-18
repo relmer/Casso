@@ -63,6 +63,7 @@ private:
     void  SetDriveBarEntries ();
     void  SetDrives          (DiskHeadView::DriveChoice choice);
 
+    const LatestSnapshot                       & m_latest;
     const DebuggerPaneParts                    & m_parts;
     const DebuggerPaneLook                     & m_look;
     std::string                                  m_panelId;

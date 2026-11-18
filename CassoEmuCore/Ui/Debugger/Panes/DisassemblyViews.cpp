@@ -46,6 +46,7 @@ DisassemblyViewPane::~DisassemblyViewPane() = default;
 
 DisassemblyGroup::DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources) :
     m_host       (parts.host),
+    m_latest (parts.latest),
     m_parts (parts),
     m_look (parts.look),
     m_gutter     (gutter),
@@ -113,7 +114,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> DisassemblyGroup::CreateViews()
 const std::vector<DebuggerViewSnapshot::CodeLine> & DisassemblyGroup::GetCodeLines (int view) const
 {
     static const std::vector<DebuggerViewSnapshot::CodeLine>  kNone;
-    const DebuggerViewSnapshot                              * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                              * snapshot = m_latest.Get();
 
 
 
@@ -300,7 +301,7 @@ std::vector<DxuiToolbar::Entry> DisassemblyGroup::BuildBarEntries()
         {
             m_optionEntries.back()->SetTipSource ([this]
             {
-                const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+                const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
                 return DisassemblyOptions::GetLineNumbersTip (snapshot != nullptr && snapshot->source.has_value(), m_options.IsOn (DisassemblyOptions::Option::Source));
             });
@@ -309,7 +310,7 @@ std::vector<DxuiToolbar::Entry> DisassemblyGroup::BuildBarEntries()
         {
             m_optionEntries.back()->SetTipSource ([this]
             {
-                const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+                const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
                 return DisassemblyOptions::GetSymbolsTip ((snapshot != nullptr) ? snapshot->symbolSources : std::vector<std::string>());
             });
@@ -356,7 +357,7 @@ void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
 
     m_host.SyncHeatRecording();
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_host.GetLatestSnapshot() != nullptr; view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_latest.Get() != nullptr; view++)
     {
         ApplyView (view);
     }
@@ -379,7 +380,7 @@ void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
 
 bool DisassemblyGroup::IsOptionEnabled (DisassemblyOptions::Option option) const
 {
-    const DebuggerViewSnapshot  * snapshot     = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot     = m_latest.Get();
     bool                          hasDebugFile = snapshot != nullptr && snapshot->source.has_value();
 
 
@@ -454,7 +455,7 @@ void DisassemblyGroup::FitLabels (const DebuggerViewSnapshot & snapshot)
 
 void DisassemblyGroup::Apply()
 {
-    const DebuggerViewSnapshot  & snapshot = *m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  & snapshot = *m_latest.Get();
 
 
 
@@ -615,7 +616,7 @@ void DisassemblyGroup::ApplyView (int view)
 
 DisassemblyGroup::RowContext DisassemblyGroup::MakeRowContext (int view)
 {
-    RowContext    context     { m_host.GetLatestSnapshot(), m_look.GetTheme(), GetCodeList (view), GetCodeLines (view) };
+    RowContext    context     { m_latest.Get(), m_look.GetTheme(), GetCodeList (view), GetCodeLines (view) };
     std::wstring  text;
     int           pcSourceRow = -1;
 
@@ -949,8 +950,8 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
 
     //  A bookmark's outline goes around the dot's place, so a breakpoint on
     //  the line is seen inside it.
-    if (m_host.GetLatestSnapshot() != nullptr &&
-        std::ranges::any_of (m_host.GetLatestSnapshot()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
+    if (m_latest.Get() != nullptr &&
+        std::ranges::any_of (m_latest.Get()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
     {
         gutter.icon = m_look.GetBookmarkMark (gutter.icon);
         gutter.tip  = ColorLegend::JoinLines ({ gutter.tip, L"Bookmark" });
@@ -1145,7 +1146,7 @@ void DisassemblyGroup::UpdateLines()
 
 void DisassemblyGroup::ShowCode (std::optional<Word> address)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     IDebuggerWindowHost         * host     = m_host.GetWindowHost();
     int                           view     = address.has_value() ? m_active : ((snapshot != nullptr) ? snapshot->followView : 0);
 

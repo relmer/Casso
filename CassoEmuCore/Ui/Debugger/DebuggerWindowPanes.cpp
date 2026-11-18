@@ -501,7 +501,7 @@ DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
 void DebuggerWindow::AddZeroPagePointer()
 {
     std::optional<Byte>  address = ByteDialog::RunModal (GetRoutingHwnd(), m_look.GetTheme(), L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText,
-                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_snapshot != nullptr) ? m_snapshot->memoryImage.get() : nullptr); });
+                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_latest.Get() != nullptr) ? m_latest.Get()->memoryImage.get() : nullptr); });
 
 
 
@@ -523,9 +523,9 @@ void DebuggerWindow::AddZeroPagePointer()
 
 void DebuggerWindow::ApplyBreakpoints()
 {
-    if (m_snapshot != nullptr)
+    if (m_latest.Get() != nullptr)
     {
-        m_breakpointsPane->Apply (*m_snapshot);
+        m_breakpointsPane->Apply (*m_latest.Get());
     }
 }
 
@@ -697,7 +697,7 @@ bool DebuggerWindow::IsCodeHeatOn() const
 
 void DebuggerWindow::ShowNextStatement()
 {
-    bool  isBySource = m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource;
+    bool  isBySource = m_latest.Get() != nullptr && m_latest.Get()->source.has_value() && m_latest.Get()->source->stepBySource;
 
 
 
@@ -949,12 +949,12 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
 
 std::string DebuggerWindow::GetSymbolComment (Word address, const std::string & name)
 {
-    if (m_snapshot == nullptr || !m_snapshot->source.has_value() || m_host == nullptr)
+    if (m_latest.Get() == nullptr || !m_latest.Get()->source.has_value() || m_host == nullptr)
     {
         return {};
     }
 
-    m_symbolComments.SetSource (*m_snapshot->source);
+    m_symbolComments.SetSource (*m_latest.Get()->source);
 
     return m_symbolComments.GetComment (address, name, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
     {
@@ -992,8 +992,8 @@ void DebuggerWindow::MarkPaneTab (const std::wstring & pane)
 
 void DebuggerWindow::ApplyHeatMap()
 {
-    m_heatMapPane->Apply    (*m_snapshot);
-    m_heatRangesPane->Apply (*m_snapshot);
+    m_heatMapPane->Apply    (*m_latest.Get());
+    m_heatRangesPane->Apply (*m_latest.Get());
 }
 
 
@@ -1037,12 +1037,12 @@ void DebuggerWindow::EditStepFilters()
 
 
 
-        if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+        if (m_latest.Get() == nullptr || m_latest.Get()->symbols == nullptr)
         {
             return std::nullopt;
         }
 
-        for (const SymbolInfo & symbol : m_snapshot->symbols->symbols)
+        for (const SymbolInfo & symbol : m_latest.Get()->symbols->symbols)
         {
             if (_stricmp (symbol.name.c_str(), narrow.c_str()) == 0)
             {
@@ -1055,12 +1055,12 @@ void DebuggerWindow::EditStepFilters()
 
 
 
-    if (m_snapshot == nullptr)
+    if (m_latest.Get() == nullptr)
     {
         return;
     }
 
-    for (const StepFilterEntry & entry : m_snapshot->stepFilters)
+    for (const StepFilterEntry & entry : m_latest.Get()->stepFilters)
     {
         before.push_back (TextEncoding::NarrowToWide (RunActions::GetRemoveSkip (entry, GetMode()).command.text));
     }
@@ -1080,11 +1080,11 @@ void DebuggerWindow::EditStepFilters()
         return;
     }
 
-    for (size_t i = 0; i < m_snapshot->stepFilters.size(); i++)
+    for (size_t i = 0; i < m_latest.Get()->stepFilters.size(); i++)
     {
         if (std::ranges::find (*after, before[i]) == after->end())
         {
-            actions.push_back (RunActions::GetRemoveSkip (m_snapshot->stepFilters[i], GetMode()));
+            actions.push_back (RunActions::GetRemoveSkip (m_latest.Get()->stepFilters[i], GetMode()));
         }
     }
 
@@ -1153,7 +1153,7 @@ Word DebuggerWindow::GetCursorAddress() const
         return GetCodeLines (m_code->GetActive())[(size_t) line].address;
     }
 
-    return (m_snapshot != nullptr) ? m_snapshot->pc : 0;
+    return (m_latest.Get() != nullptr) ? m_latest.Get()->pc : 0;
 }
 
 
@@ -1172,11 +1172,11 @@ Word DebuggerWindow::GetCursorAddress() const
 void DebuggerWindow::ToggleBookmarkAtCursor()
 {
     Word  at       = GetCursorAddress();
-    auto  bookmark = std::ranges::find_if (m_snapshot->bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
+    auto  bookmark = std::ranges::find_if (m_latest.Get()->bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
 
 
 
-    RunAction (bookmark != m_snapshot->bookmarks.end() ? WatchActions::GetClearBookmark (bookmark->id, GetMode())
+    RunAction (bookmark != m_latest.Get()->bookmarks.end() ? WatchActions::GetClearBookmark (bookmark->id, GetMode())
                                                        : WatchActions::GetAddBookmark (at, GetMode()));
 }
 
@@ -1195,7 +1195,7 @@ void DebuggerWindow::ToggleBookmarkAtCursor()
 
 void DebuggerWindow::GoToBookmark (bool isBackward)
 {
-    std::optional<Word>  next = BookmarksPane::GetNext (m_snapshot->bookmarks, GetCursorAddress(), isBackward);
+    std::optional<Word>  next = BookmarksPane::GetNext (m_latest.Get()->bookmarks, GetCursorAddress(), isBackward);
 
 
 

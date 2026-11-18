@@ -28,6 +28,7 @@
 
 DisassemblyViewPane::DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_group       (group),
     m_view        (view),
     m_id          (DebuggerLayout::GetCodePaneId (view)),
@@ -169,7 +170,7 @@ IDxuiFindTarget * DisassemblyViewPane::GetFindView() const
 
 std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> DisassemblyViewPane::GetFindLines() const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
 
@@ -309,7 +310,7 @@ bool DisassemblyViewPane::TryGetOpened (bool & isOpened) const
 bool DisassemblyViewPane::RequestOpen()
 {
     IDebuggerWindowHost         * host     = m_host.GetWindowHost();
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
 
@@ -535,7 +536,7 @@ bool DisassemblyViewPane::RouteBarMouse (const DxuiMouseEvent & ev)
 
 bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     int                           index    = m_group.GetMenuLineOfRow (m_view, row);
     RECT                          bounds   = m_list->GetBounds();
     int                           column   = DensePaneList::GetColumnAt (m_list, m_host.GetLastPressPx().x - bounds.left);
@@ -572,13 +573,13 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     {
         PaneMenu::AddBreakpointRows (items, line.isEnabled, nullptr,
                                      (breakpoint == snapshot->breakpoints.end()) ? std::function<void (bool)>()
-                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
-                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); });
+                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_latest.GetMode())); },
+                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_latest.Get(), at, m_latest.GetMode())); });
     }
     else if (DisassemblyOptions::CanTakeBreakpoint (line))
     {
         PaneMenu::AddBreakpointRows (items, std::nullopt,
-                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); },
+                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_latest.Get(), at, m_latest.GetMode())); },
                                      nullptr, nullptr);
     }
 

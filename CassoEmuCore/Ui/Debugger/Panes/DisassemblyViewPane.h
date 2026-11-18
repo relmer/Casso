@@ -83,6 +83,7 @@ private:
     std::optional<Word>                                                 GetFindStart (bool isTop) const;
     void                                                                SelectFound  (Word address);
 
+    const LatestSnapshot                        & m_latest;
     DisassemblyGroup                            & m_group;
     int                                           m_view          = 0;
     std::wstring                                  m_id;

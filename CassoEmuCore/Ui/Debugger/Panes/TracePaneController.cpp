@@ -22,6 +22,7 @@
 
 TracePaneController::TracePaneController (const DebuggerPaneParts & parts) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_look (parts.look)
 {
 }
@@ -354,7 +355,7 @@ void TracePaneController::Save()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (SessionActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
 
 Error:
     return;

@@ -59,10 +59,11 @@ private:
         std::wstring       text;
     };
 
-    IDebuggerPaneHost    & m_host;
-    const ICodeViews     & m_views;
-    std::vector<Edit>      m_undo;
-    std::vector<Edit>      m_redo;
+    IDebuggerPaneHost     & m_host;
+    const LatestSnapshot  & m_latest;
+    const ICodeViews      & m_views;
+    std::vector<Edit>       m_undo;
+    std::vector<Edit>       m_redo;
 
     //  Where Start stopwatch here was chosen, until Stop stopwatch here.
     std::optional<Word>    m_stopwatchStart;

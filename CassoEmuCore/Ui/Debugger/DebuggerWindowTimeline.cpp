@@ -231,7 +231,7 @@ void DebuggerWindow::MakePendingSeek()
 
 
 
-    if (!m_pendingSeek.has_value() || m_snapshot == nullptr || !m_snapshot->isPaused)
+    if (!m_pendingSeek.has_value() || m_latest.Get() == nullptr || !m_latest.Get()->isPaused)
     {
         return;
     }
@@ -264,7 +264,7 @@ void DebuggerWindow::OnTimelineScrub (
     uint64_t  cycle,
     bool      isFinal)
 {
-    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+    bool  paused = m_latest.Get() != nullptr && m_latest.Get()->isPaused;
 
 
 
@@ -290,7 +290,7 @@ void DebuggerWindow::OnTimelineScrub (
 
 void DebuggerWindow::SyncTimelineScrub()
 {
-    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+    bool  paused = m_latest.Get() != nullptr && m_latest.Get()->isPaused;
 
 
 
@@ -350,8 +350,8 @@ void DebuggerWindow::ApplyTimelineScrub (const HistoryTimelineScrubStep & step)
 void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
 {
     HistoryThumbnails         * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
-    bool                        paused     = m_snapshot != nullptr && m_snapshot->isPaused;
-    bool                        behindLive = (thumbnails != nullptr) ? thumbnails->GetPlayhead().IsBehindLive() : m_snapshot != nullptr && m_snapshot->history.isBehindLive;
+    bool                        paused     = m_latest.Get() != nullptr && m_latest.Get()->isPaused;
+    bool                        behindLive = (thumbnails != nullptr) ? thumbnails->GetPlayhead().IsBehindLive() : m_latest.Get() != nullptr && m_latest.Get()->history.isBehindLive;
     HistoryTimelineClickPlan    plan       = HistoryTimelineClick::Plan (cell, paused, behindLive);
 
 
@@ -405,7 +405,7 @@ void DebuggerWindow::GoLiveFromBand()
 
     live.isLive = true;
 
-    if (m_snapshot != nullptr && !m_snapshot->isPaused)
+    if (m_latest.Get() != nullptr && !m_latest.Get()->isPaused)
     {
         OnTimelineSeek (live);
     }

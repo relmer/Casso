@@ -47,6 +47,7 @@ public:
     bool                           AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
+    const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
     DxuiListView                        * m_list   = nullptr;
     DxuiButton                          * m_button = nullptr;

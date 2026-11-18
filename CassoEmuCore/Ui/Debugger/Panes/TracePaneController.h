@@ -55,9 +55,10 @@ private:
     //  A trace key's action, from the key or a click on its hint.
     bool                             RunTraceAction    (int action);
 
+    const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
-    DxuiListView                        * m_list  = nullptr;
-    KeyHintLine                         * m_hint  = nullptr;
+    DxuiListView                        * m_list   = nullptr;
+    KeyHintLine                         * m_hint   = nullptr;
     std::unique_ptr<TracePane>            m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
 };

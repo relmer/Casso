@@ -23,7 +23,7 @@ struct DebuggerViewSnapshot;
 class DisassemblySourceText
 {
 public:
-    explicit DisassemblySourceText (const DebuggerPaneParts & parts) : m_host (parts.host) {}
+    explicit DisassemblySourceText (const DebuggerPaneParts & parts) : m_host (parts.host), m_latest (parts.latest) {}
 
     //  A source line's text, as it is drawn in the source rows; false where
     //  the file isn't found.
@@ -31,6 +31,7 @@ public:
 
 private:
     IDebuggerPaneHost                         & m_host;
+    const LatestSnapshot &  m_latest;
     std::wstring                                m_key;        // the debug file's path and program key the text was read for
     std::map<int, std::vector<std::wstring>>    m_text;
     std::set<int>                               m_misses;     // files not found for m_missesFor

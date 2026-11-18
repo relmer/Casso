@@ -507,6 +507,7 @@ bool ValueEditPane::RouteListKey (const DxuiKeyEvent &)
 
 RegistersPane::RegistersPane (const DebuggerPaneParts & parts) :
     ValueEditPane (parts, DebuggerLayout::kRegisters, L"Registers", ColorLegend::Pane::Registers),
+    m_latest (parts.latest),
     m_look (parts.look)
 {
 }
@@ -625,7 +626,7 @@ void RegistersPane::AddMiddleParts (DebuggerPaneFrame & frame)
 
 void RegistersPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    const StopChanges                             & changes  = m_host.GetStopChanges();
+    const StopChanges                             & changes  = m_latest.GetStopChanges();
     uint32_t                                        changed  = m_look.GetTextColors().changed;
     std::vector<std::vector<DxuiListView::Cell>>    rows;
     bool                                            wasShown = HistoryBand::IsShown (m_band->GetStatus());
@@ -847,7 +848,7 @@ void RegistersPane::CommitWord (int row, Word typed)
 {
     if (GetEditWord (row).has_value() && *GetEditWord (row) != typed)
     {
-        m_host.RunAction (MemoryActions::GetSetRegister ("PC", typed, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetSetRegister ("PC", typed, m_latest.GetMode()));
     }
 }
 
@@ -876,7 +877,7 @@ void RegistersPane::CommitRegister (const std::string & name, Byte typed)
     }
 
     m_history.Record (name, *value, typed, m_pc, m_cycles);
-    m_host.RunAction (MemoryActions::GetSetRegister (name, typed, m_host.GetMode()));
+    m_host.RunAction (MemoryActions::GetSetRegister (name, typed, m_latest.GetMode()));
 }
 
 
@@ -1038,7 +1039,7 @@ bool RegistersPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
         return false;
     }
 
-    changed = m_host.GetStopChanges().GetChangedBits ("R:P");
+    changed = m_latest.GetStopChanges().GetChangedBits ("R:P");
 
     for (const FlagsDialog::Flag & flag : FlagsDialog::GetFlags())
     {
@@ -1096,7 +1097,7 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
     {
-        items.push_back ({ L"Reset trip count", [this] { m_host.RunAction (RunActions::GetResetCycles (m_host.GetMode())); } });
+        items.push_back ({ L"Reset trip count", [this] { m_host.RunAction (RunActions::GetResetCycles (m_latest.GetMode())); } });
     }
 
     if (name == DebuggerViewState::kLastBranchRegister && m_lastBranchFrom.has_value())
@@ -1189,7 +1190,7 @@ std::wstring RegistersPane::GetUndoText (bool redo) const
 
 void RegistersPane::Undo (bool redo)
 {
-    std::optional<DebuggerAction>  action = redo ? m_history.TryRedo (m_host.GetMode()) : m_history.TryUndo (m_host.GetMode());
+    std::optional<DebuggerAction>  action = redo ? m_history.TryRedo (m_latest.GetMode()) : m_history.TryUndo (m_latest.GetMode());
 
 
 
@@ -1211,6 +1212,7 @@ void RegistersPane::Undo (bool redo)
 
 StackPane::StackPane (const DebuggerPaneParts & parts) :
     ValueEditPane (parts, DebuggerLayout::kStack, L"Stack", ColorLegend::Pane::Stack),
+    m_latest (parts.latest),
     m_look (parts.look)
 {
 }
@@ -1277,7 +1279,7 @@ void StackPane::Configure()
 
 void StackPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    const StopChanges                             & changes = m_host.GetStopChanges();
+    const StopChanges                             & changes = m_latest.GetStopChanges();
     std::vector<std::vector<DxuiListView::Cell>>    rows;
 
 
@@ -1346,7 +1348,7 @@ void StackPane::CommitEdit (int row, Byte typed)
     value = m_stack[m_stack.size() - 1 - (size_t) row].value;
 
     m_history.Record (at, value, typed, m_pc, m_cycles);
-    m_host.RunAction (MemoryActions::GetEnterByte (at, typed, m_host.GetMode()));
+    m_host.RunAction (MemoryActions::GetEnterByte (at, typed, m_latest.GetMode()));
 }
 
 
@@ -1369,7 +1371,7 @@ void StackPane::PushByte()
 
     if (value.has_value())
     {
-        m_host.RunAction (MemoryActions::GetPushByte (*value, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetPushByte (*value, m_latest.GetMode()));
     }
 }
 
@@ -1408,8 +1410,8 @@ bool StackPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & item
     if (m_isPaused)
     {
         items.push_back ({ L"Push byte...", [this] { PushByte(); } });
-        items.push_back ({ L"Pop byte",     [this] { m_host.RunAction (MemoryActions::GetPopByte (m_host.GetMode())); } });
-        items.push_back ({ L"Pop word",     [this] { m_host.RunAction (MemoryActions::GetPopWord (m_host.GetMode())); } });
+        items.push_back ({ L"Pop byte",     [this] { m_host.RunAction (MemoryActions::GetPopByte (m_latest.GetMode())); } });
+        items.push_back ({ L"Pop word",     [this] { m_host.RunAction (MemoryActions::GetPopWord (m_latest.GetMode())); } });
     }
 
     AddUndoItems (items);
@@ -1488,7 +1490,7 @@ std::wstring StackPane::GetUndoText (bool redo) const
 
 void StackPane::Undo (bool redo)
 {
-    std::optional<DebuggerAction>  action = redo ? m_history.TryRedo (m_host.GetMode()) : m_history.TryUndo (m_host.GetMode());
+    std::optional<DebuggerAction>  action = redo ? m_history.TryRedo (m_latest.GetMode()) : m_history.TryUndo (m_latest.GetMode());
 
 
 

@@ -23,6 +23,7 @@ DisassemblyBranchArrows::DisassemblyBranchArrows (
     DisassemblyGroup     & group,
     SourceDocumentGroup  & sources) :
     m_host    (parts.host),
+    m_latest (parts.latest),
     m_look (parts.look),
     m_group   (group),
     m_sources (sources)
@@ -92,7 +93,7 @@ bool DisassemblyBranchArrows::GetBranchArrow (int view, BranchArrow::Input & inp
 
 bool DisassemblyBranchArrows::GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
 {
-    const DebuggerViewSnapshot   * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot   * snapshot = m_latest.Get();
     DxuiListView                 * list     = (view < DebuggerViewState::kMaxCodeViews) ? m_group.GetCodeList (view) : nullptr;
     DisassemblyCells::ArrowEnds    ends;
 
@@ -192,7 +193,7 @@ void DisassemblyBranchArrows::PaintBranchArrow (IDxuiPainter & painter, int view
 
 bool DisassemblyBranchArrows::ClickBranchArrow (POINT pointPx)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     BranchArrow::Input            input;
     Word                          goesTo   = 0;
     bool                          isTaken  = true;
@@ -282,7 +283,7 @@ void DisassemblyBranchArrows::ClickSourceArrow (SourcePane & document)
 
 bool DisassemblyBranchArrows::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
 {
-    const DebuggerViewSnapshot  * snapshot    = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot    = m_latest.Get();
     BranchArrow::Input            input;
     Word                          goesTo      = 0;
     bool                          isTaken     = true;

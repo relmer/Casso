@@ -27,6 +27,7 @@
 
 MemoryWindowPane::MemoryWindowPane (const DebuggerPaneParts & parts, MemoryWindowGroup & group, int id) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_group       (group),
     m_windowId    (id),
     m_id          (DebuggerLayout::GetMemoryPaneId (id)),
@@ -101,7 +102,7 @@ void MemoryWindowPane::CreateControls()
                 m_host.GetWindowHost()->SetDebuggerMemoryWindow (window, first);
             }
         },
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
+        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_latest.GetMode())); },
         [this] (const std::string & line)            { m_host.ShowPaneReply (GetId(), { line }, false); });
 
     m_view->SetVisible (m_isOpen);
@@ -292,6 +293,7 @@ bool MemoryWindowPane::OnGoToKey()
 
 MemoryWindowGroup::MemoryWindowGroup (const DebuggerPaneParts & parts) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_parts (parts),
     m_look (parts.look)
 {
@@ -1506,9 +1508,9 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     //  The word the byte and the one after it make, as a pointer: the window
     //  goes to where it points.
-    if (byte.has_value() && m_host.GetLatestSnapshot() != nullptr && m_host.GetLatestSnapshot()->memoryImage != nullptr)
+    if (byte.has_value() && m_latest.Get() != nullptr && m_latest.Get()->memoryImage != nullptr)
     {
-        std::optional<Word>  target = MemoryPane::GetWordAt (*m_host.GetLatestSnapshot()->memoryImage, *byte);
+        std::optional<Word>  target = MemoryPane::GetWordAt (*m_latest.Get()->memoryImage, *byte);
 
         if (target.has_value())
         {
@@ -1554,7 +1556,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value() && *byte < 0x100)
     {
-        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (WatchActions::GetAddZeroPagePointer (at, m_host.GetMode())); } });
+        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (WatchActions::GetAddZeroPagePointer (at, m_latest.GetMode())); } });
     }
 
     if (byte.has_value())
@@ -1660,7 +1662,7 @@ void MemoryWindowGroup::FillSelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseBytes (*typed, bytes))
     {
-        m_host.RunAction (MemoryActions::GetFillMemory (range->first, range->second, bytes, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetFillMemory (range->first, range->second, bytes, m_latest.GetMode()));
     }
 }
 
@@ -1697,7 +1699,7 @@ void MemoryWindowGroup::CopySelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, to))
     {
-        m_host.RunAction (MemoryActions::GetMoveMemory (to, range->first, range->second, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetMoveMemory (to, range->first, range->second, m_latest.GetMode()));
     }
 }
 
@@ -1738,6 +1740,6 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, other))
     {
         m_compare = Compare { window->GetWindowId(), m_compareSerial, true };
-        m_host.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_latest.GetMode()));
     }
 }

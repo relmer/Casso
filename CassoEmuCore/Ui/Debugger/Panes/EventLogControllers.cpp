@@ -1111,7 +1111,8 @@ IoLogController::IoLogController (const DebuggerPaneParts & parts, DebugLogKind 
     EventLogController (parts,
                         (kind == DebugLogKind::Video) ? DebuggerLayout::kVideoLog : DebuggerLayout::kSoundLog,
                         (kind == DebugLogKind::Video) ? L"Video log" : L"Sound log",
-                        kind)
+                        kind),
+    m_latest (parts.latest)
 {
 }
 
@@ -1264,7 +1265,7 @@ void IoLogController::SetBarEntries()
 
 void IoLogController::Clear()
 {
-    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), "CLEAR", m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), "CLEAR", m_latest.GetMode()));
 }
 
 
@@ -1300,7 +1301,7 @@ void IoLogController::Save()
     CHR (hr);
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_latest.GetMode()));
 
 Error:
     return;

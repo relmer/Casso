@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Ui/Debugger/DebuggerPaneLook.h"
+#include "Ui/Debugger/LatestSnapshot.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/IDebuggerWindowHost.h"
 #include "Debugger/Events/DebugLogDelta.h"
@@ -162,7 +163,7 @@ protected:
     bool     OnMappedCommand          (int commandId) override;
 
     //  ICommandBarHost.
-    const DebuggerViewSnapshot * GetCommandBarSnapshot () const override { return m_snapshot.get(); }
+    const DebuggerViewSnapshot * GetCommandBarSnapshot () const override { return m_latest.Get(); }
     bool                         IsReplayingHistory    () const override { return m_host != nullptr && m_host->IsReplayingHistory(); }
     bool                         HasSelectedCodeRow    () const override;
     bool                         RunMappedCommand      (int commandId) override { return OnMappedCommand (commandId); }
@@ -233,7 +234,7 @@ protected:
     std::wstring     GetPaneOfControl (const IDxuiControl * control) const;
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
-    void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
+    void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_latest.Set (std::move (snapshot)); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const override;
 
     //  The operand tip's view for the BASIC program's values, after the
@@ -330,7 +331,7 @@ protected:
     //  content.
     void             ApplyBreakpoints      ();
     void             KeepOpenViews         ();
-    void             SetSnapshotForTest    (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
+    void             SetSnapshotForTest    (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_latest.Set (std::move (snapshot)); }
     IDxuiControl   * GetPaneContentForTest (const std::wstring & pane) const { return GetPaneContent (pane); }
     IDebuggerPane  * FindPaneForTest       (const std::wstring & pane) const { return FindPane (pane); }
 
@@ -415,12 +416,13 @@ protected:
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
     //  m_look has the theme in force; m_emulatorTheme is the emulator's,
-    //  which a window on its own theme returns to. m_paneParts is what each
-    //  pane is built with.
+    //  which a window on its own theme returns to. m_latest has the snapshot
+    //  applied last. m_paneParts is what each pane is built with.
     DebuggerPaneLook       m_look;
+    LatestSnapshot         m_latest;
     const CassoTheme     * m_emulatorTheme = nullptr;
     IDebuggerWindowHost  * m_host          = nullptr;
-    DebuggerPaneParts      m_paneParts     { static_cast<IDebuggerPaneHost &> (*this), m_look };
+    DebuggerPaneParts      m_paneParts     { static_cast<IDebuggerPaneHost &> (*this), m_look, m_latest };
 
     //  Protected so a test can work each pane and group through its own
     //  class, as the window does.
@@ -482,10 +484,9 @@ private:
     void                                               PaintZoomPopup          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                                               ApplySnapshot           ();
     void                                               UpdateLiveTrace         ();
-    void                                               UpdateChanges           ();
     void                                               RunToCursor             (Word address);
     void                                               RunAction               (const DebuggerAction & action) override;
-    CommandMode                                        GetMode                 () const override;
+    CommandMode                                        GetMode                 () const override { return m_latest.GetMode(); }
     DebuggerKeyScheme                                  GetSavedKeyScheme       () const;
     bool                                               RouteBoxKey             (const DxuiKeyEvent & ev, bool & handled);
     void                                               UpdateTopLayer          ();
@@ -753,7 +754,6 @@ private:
     bool                                    m_placed             = false;
     std::string                             m_menuState;
     uint32_t                                m_goToSerial         = 0;
-    StopChanges                             m_stopChanges;
 
     POINT                                   m_lastPressPx        = {};
 
@@ -844,7 +844,6 @@ private:
 
     static std::vector<std::wstring>  GetReplyLines (const std::vector<std::string> & lines);
 
-    std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
 
     DxuiToolbar                                * m_commandBar             = nullptr;
     DxuiMenuBar                                * m_menuBar                = nullptr;
@@ -905,9 +904,7 @@ private:
     void                                    AddBookmarkItem      (Word address, PaneMenuItems & items) override;
     void                                    ShowSkipNotice       (const std::string & routine);
     void                                    GoLive               () override { GoLiveFromBand(); }
-    const StopChanges                     & GetStopChanges       () const override { return m_stopChanges; }
     POINT                                   GetLastPressPx       () const override { return m_lastPressPx; }
-    const DebuggerViewSnapshot            * GetLatestSnapshot    () const override { return m_snapshot.get(); }
     void                                    ActivatePaneTab      (const std::wstring & pane) override;
     bool                                    IsSameTabGroup       (const std::wstring & a, const std::wstring & b) const override;
     void                                    RelayoutDock         () override;

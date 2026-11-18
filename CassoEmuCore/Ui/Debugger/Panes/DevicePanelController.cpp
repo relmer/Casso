@@ -24,6 +24,7 @@
 
 DevicePanelController::DevicePanelController (const DebuggerPaneParts & parts, std::string panelId, std::wstring title) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_parts (parts),
     m_look (parts.look),
     m_panelId     (std::move (panelId)),
@@ -316,7 +317,7 @@ bool DevicePanelController::RouteBarMouse (const DxuiMouseEvent & ev)
 
 bool DevicePanelController::RequestOpen()
 {
-    m_host.RunAction (SessionActions::GetPanel (m_panelId, true, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetPanel (m_panelId, true, m_latest.GetMode()));
     return true;
 }
 
@@ -332,7 +333,7 @@ bool DevicePanelController::RequestOpen()
 
 bool DevicePanelController::RequestClose()
 {
-    m_host.RunAction (SessionActions::GetPanel (m_panelId, false, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetPanel (m_panelId, false, m_latest.GetMode()));
     return true;
 }
 

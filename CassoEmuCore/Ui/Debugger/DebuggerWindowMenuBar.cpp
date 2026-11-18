@@ -233,7 +233,7 @@ void DebuggerWindow::SetWindowMenus()
     add (edit, MakeKeyedMenuCommand ((int) DebuggerKeySchemes::Action::FindPrevious, L"Find previous"));
 
     //  View: every debug window, the shown ones checked.
-    view = ViewMenuRows::Build (m_panes, m_snapshot.get(),
+    view = ViewMenuRows::Build (m_panes, m_latest.Get(),
                                 [this] (const std::wstring & pane)
                                 {
                                     std::optional<DebuggerKeySchemes::Action>  action = DebuggerKeySchemes::GetActionOfPane (pane);
@@ -281,17 +281,17 @@ void DebuggerWindow::SetWindowMenus()
 
     row = DebuggerMenuCommand::Make (L"Step by source line", [this]
     {
-        if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
+        if (m_host != nullptr && m_latest.Get() != nullptr && m_latest.Get()->source.has_value())
         {
-            RunAction (RunActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
+            RunAction (RunActions::GetSourceStepping (!m_latest.Get()->source->stepBySource, m_latest.Get()->mode));
         }
     });
-    row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
-    row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource; };
+    row->isEnabled = [this] { return m_latest.Get() != nullptr && m_latest.Get()->source.has_value(); };
+    row->isChecked = [this] { return m_latest.Get() != nullptr && m_latest.Get()->source.has_value() && m_latest.Get()->source->stepBySource; };
     add (debug, row);
 
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
-    row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
+    row->isChecked = [this] { return m_latest.Get() != nullptr && m_latest.Get()->trace.isOn; };
     add (debug, row);
     add (debug, DebuggerMenuCommand::Make (L"Step filters...", [this] { EditStepFilters(); }));
 
@@ -396,9 +396,9 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
 
 
 
-    if (m_snapshot != nullptr && m_snapshot->source.has_value())
+    if (m_latest.Get() != nullptr && m_latest.Get()->source.has_value())
     {
-        debugFile = std::filesystem::path (m_snapshot->source->debugFilePath).filename().wstring();
+        debugFile = std::filesystem::path (m_latest.Get()->source->debugFilePath).filename().wstring();
     }
 
     for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
@@ -446,12 +446,12 @@ std::vector<DebuggerViewSnapshot::SymbolTableRow> DebuggerWindow::GetLoadedSymbo
 
 
 
-    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+    if (m_latest.Get() == nullptr || m_latest.Get()->symbols == nullptr)
     {
         return loaded;
     }
 
-    for (const DebuggerViewSnapshot::SymbolTableRow & table : m_snapshot->symbols->tables)
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : m_latest.Get()->symbols->tables)
     {
         if (SymbolsPane::IsUserTable (table.id) && !table.origins.empty())
         {
@@ -492,7 +492,7 @@ void DebuggerWindow::OpenOptions()
     current.reverse     = m_host->GetReverseOptions();
     current.disassembly = m_code->GetOptions();
 
-    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_look.GetTheme(), current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
+    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_look.GetTheme(), current, (m_latest.Get() != nullptr) ? m_latest.Get()->history : HistoryStatus());
 
     if (!chosen.has_value())
     {
@@ -504,7 +504,7 @@ void DebuggerWindow::OpenOptions()
     m_code->SetOptions (chosen->disassembly);
     m_host->SetDebuggerDisassemblyOptions (m_code->GetOptions().ToText());
 
-    for (view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
+    for (view = 0; view < DebuggerViewState::kMaxCodeViews && m_latest.Get() != nullptr; view++)
     {
         ApplyCodeView (view);
     }
@@ -1059,7 +1059,7 @@ Error:
 
 void DebuggerWindow::LoadBasicProgram (const std::wstring & path, const std::wstring & label)
 {
-    bool          isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
+    bool          isKnownEmpty = m_latest.Get() != nullptr && m_latest.Get()->basic.has_value() && (!m_latest.Get()->basic->hasProgram || m_latest.Get()->basic->lines.empty());
     std::wstring  name         = label.empty() ? std::filesystem::path (path).filename().wstring() : label;
 
 
@@ -1169,7 +1169,7 @@ void DebuggerWindow::PasteBasicProgram()
 
 void DebuggerWindow::ClearBasicProgram()
 {
-    bool  isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
+    bool  isKnownEmpty = m_latest.Get() != nullptr && m_latest.Get()->basic.has_value() && (!m_latest.Get()->basic->hasProgram || m_latest.Get()->basic->lines.empty());
 
 
 

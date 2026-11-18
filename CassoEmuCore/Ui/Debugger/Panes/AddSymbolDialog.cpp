@@ -18,7 +18,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddSymbolDialog::Run (IDebuggerPaneHost & host, Word address)
+void AddSymbolDialog::Run (IDebuggerPaneHost & host, CommandMode mode, Word address)
 {
     std::optional<std::wstring>  typed;
 
@@ -37,6 +37,6 @@ void AddSymbolDialog::Run (IDebuggerPaneHost & host, Word address)
 
     if (typed.has_value())
     {
-        host.RunAction (SymbolActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, host.GetMode()));
+        host.RunAction (SymbolActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, mode));
     }
 }

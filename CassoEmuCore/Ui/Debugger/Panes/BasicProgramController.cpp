@@ -23,6 +23,7 @@
 
 BasicProgramController::BasicProgramController (const DebuggerPaneParts & parts) :
     IDebuggerPane (parts),
+    m_latest (parts.latest),
     m_look (parts.look),
     m_bar         (parts, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
 {
@@ -434,9 +435,9 @@ bool BasicProgramController::Tick (int64_t nowMs)
 
 
     //  A new width wraps the listing again at once, with no snapshot to wait for.
-    if (m_isReading && UpdateWrap() && m_host.GetLatestSnapshot() != nullptr)
+    if (m_isReading && UpdateWrap() && m_latest.Get() != nullptr)
     {
-        ApplyRows (*m_host.GetLatestSnapshot());
+        ApplyRows (*m_latest.Get());
     }
 
     if (isWanted == m_isReading || host == nullptr)
@@ -489,7 +490,7 @@ void BasicProgramController::ToggleBreakpoint (Word line)
 
 
 
-    if (m_host.GetLatestSnapshot() == nullptr)
+    if (m_latest.Get() == nullptr)
     {
         return;
     }
@@ -497,8 +498,8 @@ void BasicProgramController::ToggleBreakpoint (Word line)
     definition.type    = BreakpointDefinition::Type::BasicLine;
     definition.address = std::to_string (line);
 
-    action = id.has_value() ? BreakpointActions::GetClearBreakpoint (*id, m_host.GetMode())
-                            : BreakpointActions::GetDefineBreakpoint (definition, m_host.GetMode());
+    action = id.has_value() ? BreakpointActions::GetClearBreakpoint (*id, m_latest.GetMode())
+                            : BreakpointActions::GetDefineBreakpoint (definition, m_latest.GetMode());
 
     m_host.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
 }
@@ -517,7 +518,7 @@ void BasicProgramController::ToggleBreakpoint (Word line)
 
 std::optional<int> BasicProgramController::FindBreakpoint (Word line) const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     std::optional<int>            id;
 
 
@@ -565,7 +566,7 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
     //  The line's breakpoint rows, as the disassembly's are.
     if (line.has_value())
     {
-        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+        const DebuggerViewSnapshot  * snapshot = m_latest.Get();
         std::optional<int>            id       = FindBreakpoint (*line);
         std::optional<bool>           enabled;
 
@@ -582,7 +583,7 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
                                      [this, bp = id.value_or (-1)] (bool on)
                                      {
                                          m_host.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions,
-                                                                                                 { BreakpointActions::GetEnableBreakpoint (bp, on, m_host.GetMode()) }, {} }));
+                                                                                                 { BreakpointActions::GetEnableBreakpoint (bp, on, m_latest.GetMode()) }, {} }));
                                      },
                                      [this, at = *line] { ToggleBreakpoint (at); });
     }
@@ -658,6 +659,6 @@ bool BasicProgramController::OnMappedAction (DebuggerKeySchemes::Action action, 
         return false;
     }
 
-    m_host.RunAction (RunActions::GetBasicStep (*verb, m_host.GetMode()));
+    m_host.RunAction (RunActions::GetBasicStep (*verb, m_latest.GetMode()));
     return true;
 }

@@ -173,6 +173,7 @@ private:
                                                          const std::vector<DisassemblyOptions::Row> & built);
 
     IDebuggerPaneHost                                                    & m_host;
+    const LatestSnapshot                                                 & m_latest;
     const DebuggerPaneParts                                              & m_parts;
     const DebuggerPaneLook                                               & m_look;
     DisassemblyGutter                                                    & m_gutter;

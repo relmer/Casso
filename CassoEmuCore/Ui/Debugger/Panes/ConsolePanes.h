@@ -176,6 +176,7 @@ private:
     void                 ShowHistoryList ();
 
     IDebuggerPaneHost                                          & m_host;
+    const LatestSnapshot                                       & m_latest;
     const DebuggerPaneLook                                     & m_look;
     ConsoleOutput                                              & m_output;
     DxuiTextInput                                              * m_box               = nullptr;
@@ -233,10 +234,11 @@ public:
     static std::wstring                     GetHelpCommand (CommandMode mode);
 
 private:
-    IDebuggerPaneHost                     & m_host;
-    PaneBarSlot                             m_bar;
-    std::unique_ptr<ToolbarLabelEntry>      m_label;
-    std::shared_ptr<DxuiCommand>            m_dialect;
+    IDebuggerPaneHost                   & m_host;
+    const LatestSnapshot                & m_latest;
+    PaneBarSlot                           m_bar;
+    std::unique_ptr<ToolbarLabelEntry>    m_label;
+    std::shared_ptr<DxuiCommand>          m_dialect;
 };
 
 

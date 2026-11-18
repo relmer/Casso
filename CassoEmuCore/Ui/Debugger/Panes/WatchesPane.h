@@ -126,6 +126,7 @@ private:
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
     void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
+    const LatestSnapshot          & m_latest;
     const DebuggerPaneLook        & m_look;
     WatchHistory                    m_history;
     std::shared_ptr<DxuiCommand>    m_deleteCommand;

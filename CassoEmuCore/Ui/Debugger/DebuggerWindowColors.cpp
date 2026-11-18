@@ -185,7 +185,7 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         m_memoryGroup->ApplyColors();
     }
 
-    if (m_snapshot != nullptr && m_code != nullptr && m_sources != nullptr)
+    if (m_latest.Get() != nullptr && m_code != nullptr && m_sources != nullptr)
     {
         m_code->Apply();
         m_sources->Apply();

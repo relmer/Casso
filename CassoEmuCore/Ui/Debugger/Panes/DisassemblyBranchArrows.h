@@ -6,6 +6,7 @@ class DisassemblyGroup;
 class IDebuggerPaneHost;
 struct DebuggerPaneParts;
 class DebuggerPaneLook;
+class LatestSnapshot;
 class IDxuiPainter;
 class SourceDocumentGroup;
 class SourcePane;
@@ -46,6 +47,7 @@ private:
     void  ClickSourceArrow  (SourcePane & document);
 
     IDebuggerPaneHost       & m_host;
+    const LatestSnapshot    & m_latest;
     const DebuggerPaneLook  & m_look;
     DisassemblyGroup        & m_group;
     SourceDocumentGroup     & m_sources;

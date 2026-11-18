@@ -138,6 +138,7 @@ private:
     //  other way.
     static std::string  GetFileOf (const DebuggerViewSnapshot::SymbolsState & symbols, const std::string & table);
 
+    const LatestSnapshot                                       & m_latest;
     Kind                                                         m_kind;
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
     std::vector<Row>                                             m_rows;
@@ -193,9 +194,10 @@ private:
     //  moves another one's number first.
     void  DeleteRows (const std::vector<int> & rows);
 
-    std::vector<DebuggerViewSnapshot::WatchLine>      m_bookmarks;
-    int                                               m_sort      = -1;
-    bool                                              m_isReverse = false;
+    const LatestSnapshot                          & m_latest;
+    std::vector<DebuggerViewSnapshot::WatchLine>    m_bookmarks;
+    int                                             m_sort      = -1;
+    bool                                            m_isReverse = false;
 };
 
 
@@ -246,6 +248,7 @@ private:
     void  DeleteRows (const std::vector<int> & rows);
     void  Rename     (const DataBlockEntry & block);
 
+    const LatestSnapshot         & m_latest;
     std::vector<DataBlockEntry>    m_blocks;
     ListValueFilters               m_filters;
     int                            m_sort      = -1;
