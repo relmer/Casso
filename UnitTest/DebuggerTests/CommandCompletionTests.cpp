@@ -31,7 +31,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.ExecuteConsoleLine (rig.controller.GetSession(), "nobp 0");
+            rig.view.GetCommands().ExecuteConsoleLine (rig.controller.GetSession(), "nobp 0");
             after = rig.view.Build (rig.controller.GetSession(), true);
 
             Assert::AreEqual (std::string ("bpc 0"), after.suggestion);

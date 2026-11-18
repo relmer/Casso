@@ -39,7 +39,7 @@ namespace DiskBreakpointPaneTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Do (BreakpointStep::Kind kind)
@@ -47,7 +47,7 @@ namespace DiskBreakpointPaneTests
             BreakpointStep  step;
 
             step.kind = kind;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Import (const std::string & script)
@@ -57,7 +57,7 @@ namespace DiskBreakpointPaneTests
             files.WriteAllText (L"C:\\Work\\import.txt", script);
             step.kind = BreakpointStep::Kind::Import;
             step.path = "C:\\Work\\import.txt";
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()

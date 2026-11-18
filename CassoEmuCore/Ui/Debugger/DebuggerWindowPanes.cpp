@@ -737,7 +737,7 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
 bool DebuggerWindow::TryGetBranchTip (POINT clientPx, DxuiTip & tip) const
 {
     tip = DxuiTip();
-    return m_code->TryGetBranchTip (clientPx, tip.anchor, tip.text);
+    return m_code->GetArrows().TryGetBranchTip (clientPx, tip.anchor, tip.text);
 }
 
 

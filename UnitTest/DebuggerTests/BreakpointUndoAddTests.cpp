@@ -34,7 +34,7 @@ namespace BreakpointUndoAddTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Undo()
@@ -42,7 +42,7 @@ namespace BreakpointUndoAddTests
             BreakpointStep  step;
 
             step.kind = BreakpointStep::Kind::Undo;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()

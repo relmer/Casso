@@ -54,7 +54,7 @@ namespace DebuggerTests
             scaler.SetDpi (dpi);
             options.Set (DisassemblyOptions::Option::Heat, true);
 
-            DebuggerWindow::MakeDense     (&list);
+            DensePaneList::MakeDense     (&list);
             DisassemblyCells::Configure   (list);
             DisassemblyCells::ShowColumns (list, options);
             list.SetPaneTextInset         (false);

@@ -153,7 +153,7 @@ void DebuggerWindow::UpdateProjectCaption (int64_t now)
     if (label != m_projectLabel)
     {
         m_projectLabel = label;
-        SetTitle (GetCaption (m_titlePrefix, m_projectLabel));
+        SetTitle (DebuggerWindowText::GetCaption (m_titlePrefix, m_projectLabel));
     }
 }
 
@@ -292,7 +292,7 @@ void DebuggerWindow::ConfigureWidgets()
 
     for (DxuiListView * list : GetLists())
     {
-        MakeDense (list);
+        DensePaneList::MakeDense (list);
     }
 
     //  Every list but the disassemblies is in the proportional face, as

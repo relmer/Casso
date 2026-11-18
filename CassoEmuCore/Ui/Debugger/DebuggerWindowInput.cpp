@@ -992,7 +992,7 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
 
     //  A click on a branch arrow goes to where it points, and the next back.
     if (m_floating->GetRoutingPane().empty() && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
-        m_code->ClickBranchArrow (ev.positionDip))
+        m_code->GetArrows().ClickBranchArrow (ev.positionDip))
     {
         return true;
     }
@@ -1872,7 +1872,7 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
 
     //  A code view's glyph margin and the lanes of its branch arrows are not
     //  text, though they lie among the code's cells.
-    if (m_code->IsOverArrowsOrGutter (clientPx))
+    if (m_code->GetArrows().IsOverArrowsOrGutter (clientPx))
     {
         return IDC_ARROW;
     }
@@ -1935,10 +1935,10 @@ bool DebuggerWindow::GoToAddressInPane()
 
 
         error = L"Type a hex address such as 0300, PC, or a symbol's name.";
-        return TryParseGoTo (typed, m_snapshot.get(), ignored);
+        return GoToAddressText::TryParseGoTo (typed, m_snapshot.get(), ignored);
     });
 
-    if (text.has_value() && TryParseGoTo (*text, m_snapshot.get(), address))
+    if (text.has_value() && GoToAddressText::TryParseGoTo (*text, m_snapshot.get(), address))
     {
         ShowCode (address);
     }

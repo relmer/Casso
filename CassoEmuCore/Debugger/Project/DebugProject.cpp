@@ -10,6 +10,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/BreakpointGroupHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -269,7 +270,7 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
     {
         if (index < created.size() && created[index] >= 0)
         {
-            (void) BreakpointHandlers::SetGroup (session, created[index], group);
+            (void) BreakpointGroupHandlers::SetGroup (session, created[index], group);
         }
     }
 

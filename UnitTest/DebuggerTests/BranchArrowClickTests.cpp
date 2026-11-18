@@ -200,8 +200,8 @@ namespace BranchArrowClickTests
 
 
 
-            hasPc  = window.GetCodeGroup().GetBranchArrow (view, pc, goesTo, isTaken, false);
-            hasDot = window.GetCodeGroup().GetBranchArrow (view, dotted, goesTo, isTaken, true);
+            hasPc  = window.GetCodeGroup().GetArrows().GetBranchArrow (view, pc, goesTo, isTaken, false);
+            hasDot = window.GetCodeGroup().GetArrows().GetBranchArrow (view, dotted, goesTo, isTaken, true);
 
             for (LONG y = bounds.top; y < bounds.bottom; y++)
             {
@@ -239,7 +239,7 @@ namespace BranchArrowClickTests
 
 
 
-            if (!window.GetCodeGroup().GetBranchArrow (DebuggerViewState::kMaxCodeViews, input, goesTo, isTaken))
+            if (!window.GetCodeGroup().GetArrows().GetBranchArrow (DebuggerViewState::kMaxCodeViews, input, goesTo, isTaken))
             {
                 return std::nullopt;
             }

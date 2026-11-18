@@ -129,8 +129,8 @@ namespace DebuggerViewStateTests
             r.pc = 0x0303;
             target.SetRegisters (r);
 
-            rig.view.SetCodeLines (20);
-            rig.view.CenterCodeOn (0x0300);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().CenterCodeOn (0x0300);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  What the switch does, never a byte: the byte does not exist
@@ -169,8 +169,8 @@ namespace DebuggerViewStateTests
             r.x  = 0x01;
             target.SetRegisters (r);
 
-            rig.view.SetCodeLines (20);
-            rig.view.CenterCodeOn (0x0300);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().CenterCodeOn (0x0300);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
@@ -217,8 +217,8 @@ namespace DebuggerViewStateTests
             r.p  = 0x20;
             target.SetRegisters (r);
 
-            rig.view.SetCodeLines (20);
-            rig.view.CenterCodeOn (0x0300);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().CenterCodeOn (0x0300);
             effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
 
             Assert::AreEqual (std::string ("A=00 Z=1; 4 cycles"), effect, L"paddle 1's timer has run out");
@@ -258,8 +258,8 @@ namespace DebuggerViewStateTests
             r.p  = 0x20;
             target.SetRegisters (r);
 
-            rig.view.SetCodeLines (20);
-            rig.view.CenterCodeOn (0x0300);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().CenterCodeOn (0x0300);
             effect = LineAt (rig.view.Build (rig.controller.GetSession()), 0x0300).effect;
 
             Assert::AreEqual (std::string ("A=00 Z=1; 4 cycles"), effect);
@@ -360,8 +360,8 @@ namespace DebuggerViewStateTests
             r.pc = 0x0300;
             r.p  = (Byte) (r.p | kZero);
             target.SetRegisters (r);
-            rig.view.SetCodeLines (20);
-            rig.view.CenterCodeOn (0x0300);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().CenterCodeOn (0x0300);
             snapshot = rig.view.Build (rig.controller.GetSession());
             effect   = pcLine (snapshot);
             Assert::IsTrue (effect.ends_with ("3 cycles"), TextEncoding::NarrowToWide (effect).c_str());
@@ -435,7 +435,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeLines (20);
 
             paused  = rig.view.Build (rig.controller.GetSession(), true);
             running = rig.view.Build (rig.controller.GetSession(), false);
@@ -747,7 +747,7 @@ namespace DebuggerViewStateTests
             r.pc = 0x0300;
             rig.controller.GetSession().GetTarget().SetRegisters (r);
             (void) rig.Run ("DB 0302:0304");
-            rig.view.SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeLines (20);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)

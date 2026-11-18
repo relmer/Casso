@@ -108,7 +108,7 @@ public:
     bool  HasOpcode        (Byte opcode) const;
 
     //  Puts a breakpoint in a group, or with an empty name in none, the name
-    //  written as given; BreakpointHandlers::SetGroup matches it to a group
+    //  written as given; BreakpointGroupHandlers::SetGroup matches it to a group
     //  first. A group's name matches without regard to case.
     bool         TrySetGroup (int id, const std::string & group);
     static bool  IsSameGroup (const std::string & left, const std::string & right);

@@ -137,14 +137,14 @@ namespace DebuggerViewStateTests
                 actions = WatchEdits::GetWatchEditActions (snapshot, std::nullopt, 0, 1, typed, CommandMode::AppleWin);
                 Assert::AreEqual ((size_t) 1, actions.size());
 
-                rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+                rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), actions[0]);
 
                 Assert::AreEqual ((int) first, (int) rig.machine.GetMemoryBus().ReadByte (0x0400), TextEncoding::NarrowToWide (typed).c_str());
                 Assert::AreEqual ((int) next, (int) rig.machine.GetMemoryBus().ReadByte (0x0401), TextEncoding::NarrowToWide (typed).c_str());
             }
 
             actions = WatchEdits::GetWatchEditActions (snapshot, std::nullopt, 0, 1, "5A", CommandMode::AppleWin);
-            rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), actions[0]);
 
             Assert::AreEqual ((int) 0x5A, (int) rig.machine.GetMemoryBus().ReadByte (0x0400));
             Assert::AreEqual ((int) next, (int) rig.machine.GetMemoryBus().ReadByte (0x0401));

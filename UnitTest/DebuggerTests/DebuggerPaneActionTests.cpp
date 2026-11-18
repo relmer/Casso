@@ -336,10 +336,10 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("300"),       aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (BreakpointDefinition::Type::UnwrittenRead, true), aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::VideoLine, false, false, "64:6B" }, aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::Beam, false, false, "10", "1A" }, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("300"),       aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (BreakpointDefinition::Type::UnwrittenRead, true), aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::VideoLine, false, false, "64:6B" }, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::Beam, false, false, "10", "1A" }, aw));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 4, snapshot.breakpoints.size());
@@ -359,7 +359,7 @@ public:
 
         for (BreakpointDefinition::Type off : { BreakpointDefinition::Type::UnwrittenRead, BreakpointDefinition::Type::VideoLine, BreakpointDefinition::Type::Beam })
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (off, false), aw));
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (off, false), aw));
         }
 
         Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).breakpoints.size(), L"an OFF form left its row");
@@ -377,7 +377,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::BasicLine, false, false, "0" }, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::BasicLine, false, false, "0" }, CommandMode::AppleWin));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 1, snapshot.breakpoints.size());
@@ -438,16 +438,16 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetFillMemory (0x6000, 0x6003, bytes, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetFillMemory (0x6000, 0x6003, bytes, aw));
         Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x6002), L"the pattern repeats");
         Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x6003));
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetMoveMemory (0x7000, 0x6000, 0x6003, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetMoveMemory (0x7000, 0x6000, 0x6003, aw));
         Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x7001), L"copied");
 
         rig.machine.GetMemoryBus().WriteByte (0x7002, 0x00);
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetCompareMemory (0x7000, 0x6000, 0x6003, aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetSearchMemory ("5A A5 5A", aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetCompareMemory (0x7000, 0x6000, 0x6003, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetSearchMemory ("5A A5 5A", aw));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
 
@@ -470,7 +470,7 @@ public:
 
 
         rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetLoadBinary ("C:\\Work\\prog.bin", "RAW", 0x0300, std::nullopt, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetLoadBinary ("C:\\Work\\prog.bin", "RAW", 0x0300, std::nullopt, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300));
         Assert::AreEqual ((Byte) 0x60, rig.machine.GetMemoryBus().ReadByte (0x0302));
@@ -486,7 +486,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, bytes, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, bytes, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0x12, rig.machine.GetMemoryBus().ReadByte (0x0400));
         Assert::AreEqual ((Byte) 0x34, rig.machine.GetMemoryBus().ReadByte (0x0401));

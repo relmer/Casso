@@ -149,7 +149,7 @@ namespace BreakpointNameTests
             BreakpointStep  step;
 
             step.actions = { std::move (action) };
-            view.ExecuteBreakpointStep (controller.GetSession(), step);
+            view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         void  Undo()
@@ -157,7 +157,7 @@ namespace BreakpointNameTests
             BreakpointStep  step;
 
             step.kind = BreakpointStep::Kind::Undo;
-            view.ExecuteBreakpointStep (controller.GetSession(), step);
+            view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::string  Name()

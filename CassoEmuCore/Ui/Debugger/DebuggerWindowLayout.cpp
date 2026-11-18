@@ -679,7 +679,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
     //  Under a slid-out pane, which lies over the disassembly and the source.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
     {
-        m_code->PaintBranchArrow (painter, view);
+        m_code->GetArrows().PaintBranchArrow (painter, view);
     }
 
     m_dockSite->PaintSlidUnder (painter, theme);

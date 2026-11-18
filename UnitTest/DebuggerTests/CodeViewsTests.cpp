@@ -72,8 +72,8 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20);
-            rig.view.CenterCodeOn (0x0800);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().CenterCodeOn (0x0800);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             for (int i = 0; i < (int) snapshot.code.size(); i++)
@@ -83,7 +83,7 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual (10, row, L"in the middle, never on an edge");
 
-            rig.view.CenterCodeOn (0x0002);
+            rig.view.GetCodeViews().CenterCodeOn (0x0002);
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::IsTrue (snapshot.code.front().address <= 0x0002, L"at the bottom of memory, as near the middle as it can be");
         }
@@ -102,9 +102,9 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20, 0);
-            rig.view.SetCodeLines (20, 1);
-            rig.view.OpenCodeView (1, 0x0800);
+            rig.view.GetCodeViews().SetCodeLines (20, 0);
+            rig.view.GetCodeViews().SetCodeLines (20, 1);
+            rig.view.GetCodeViews().OpenCodeView (1, 0x0800);
             first = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue   (first.codeOpen[1]);
@@ -112,7 +112,7 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (contains (first.codeViews[0], 0x0300), L"the first still shows the PC");
             Assert::AreEqual (0, first.followView);
 
-            rig.view.SetFollowView (1);
+            rig.view.GetCodeViews().SetFollowView (1);
             r.pc = 0x0900;
             rig.controller.GetSession().GetTarget().SetRegisters (r);
             moved = rig.view.Build (rig.controller.GetSession());
@@ -120,8 +120,8 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (contains (moved.codeViews[1], 0x0900), L"the view following the PC goes to it");
             Assert::AreEqual (first.codeViews[0].front().address, moved.codeViews[0].front().address, L"the view that gave it up stays put");
 
-            rig.view.CloseCodeView (1);
-            Assert::AreEqual (0, rig.view.GetFollowView(), L"closing the follower hands the PC back to the first");
+            rig.view.GetCodeViews().CloseCodeView (1);
+            Assert::AreEqual (0, rig.view.GetCodeViews().GetFollowView(), L"closing the follower hands the PC back to the first");
         }
 
 
@@ -149,19 +149,19 @@ namespace DebuggerViewStateTests
             bus.NoteFetch (0x2002);
             bus.NoteFetch (0x2003);
 
-            rig.view.SetCodeLines   (10);
-            rig.view.SetCodeAddress (0x2003);
+            rig.view.GetCodeViews().SetCodeLines   (10);
+            rig.view.GetCodeViews().SetCodeAddress (0x2003);
             shown = rig.view.Build (rig.controller.GetSession());
 
-            rig.view.ScrollCode (-1);
+            rig.view.GetCodeViews().ScrollCode (-1);
             shown = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((int) 0x2002, (int) shown.code[0].address, L"the fetched NOP, not the LDA's operand");
 
             rig.Run ("DB 2100:210F");
-            rig.view.SetCodeAddress (0x2110);
+            rig.view.GetCodeViews().SetCodeAddress (0x2110);
             shown = rig.view.Build (rig.controller.GetSession());
 
-            rig.view.ScrollCode (-1);
+            rig.view.GetCodeViews().ScrollCode (-1);
             shown = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((int) 0x2108, (int) shown.code[0].address, L"the range's second line of eight bytes");
         }
@@ -187,8 +187,8 @@ namespace DebuggerViewStateTests
             }
 
             rig.Run ("R PC 6004");
-            rig.view.SetCodeLines   (10);
-            rig.view.SetCodeAddress (0x6000);
+            rig.view.GetCodeViews().SetCodeLines   (10);
+            rig.view.GetCodeViews().SetCodeAddress (0x6000);
             shown = rig.view.Build (rig.controller.GetSession());
 
             for (const DebuggerViewSnapshot::CodeLine & line : shown.code)
@@ -213,20 +213,20 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeLines (20);
             first = rig.view.Build (rig.controller.GetSession());
 
-            rig.view.ScrollCode (3);
+            rig.view.GetCodeViews().ScrollCode (3);
             down = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual (first.code[3].address, down.code[0].address, L"three instructions down");
 
-            rig.view.ScrollCode (-3);
+            rig.view.GetCodeViews().ScrollCode (-3);
             up = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual (first.code[0].address, up.code[0].address, L"and back");
 
             for (int i = 0; i < 40; i++)
             {
-                rig.view.ScrollCode (-20);
+                rig.view.GetCodeViews().ScrollCode (-20);
                 up = rig.view.Build (rig.controller.GetSession());
             }
 
@@ -234,11 +234,11 @@ namespace DebuggerViewStateTests
 
             //  And down: from near the top of memory, the wheel alone reaches
             //  the line holding $FFFF, and goes no further.
-            rig.view.SetCodeAddress (0xFF00);
+            rig.view.GetCodeViews().SetCodeAddress (0xFF00);
 
             for (int i = 0; i < 40; i++)
             {
-                rig.view.ScrollCode (20);
+                rig.view.GetCodeViews().ScrollCode (20);
                 down = rig.view.Build (rig.controller.GetSession());
             }
 
@@ -246,10 +246,10 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue (lastHeld >= 0xFFFF, std::format (L"the last line, at ${:04X}, holds $FFFF", down.code.back().address).c_str());
             Assert::IsTrue (down.code[0].address >= 0xFF00, L"down past everything stops at the top of memory, without wrapping to $0000");
-            Assert::AreEqual ((size_t) rig.view.GetCodeLines(), down.code.size(), L"with every line of the pane filled");
+            Assert::AreEqual ((size_t) rig.view.GetCodeViews().GetCodeLines(), down.code.size(), L"with every line of the pane filled");
 
             //  A view taken straight to the vectors lists them too.
-            rig.view.CenterCodeOn (0xFFFC);
+            rig.view.GetCodeViews().CenterCodeOn (0xFFFC);
             down = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse (down.code.empty(), L"the lines around the reset vector");
@@ -266,9 +266,9 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeLines (20);
             (void) rig.view.Build (rig.controller.GetSession());
-            rig.view.ScrollCode (2);
+            rig.view.GetCodeViews().ScrollCode (2);
             scrolled = rig.view.Build (rig.controller.GetSession());
 
             r.pc = scrolled.code[5].address;
@@ -303,9 +303,9 @@ namespace DebuggerViewStateTests
 
             s_now = 1000;
             rig.view.SetClock ([] { return s_now; });
-            rig.view.SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeLines (20);
             (void) rig.view.Build (rig.controller.GetSession(), false);
-            rig.view.ScrollCode (40);
+            rig.view.GetCodeViews().ScrollCode (40);
             scrolled = rig.view.Build (rig.controller.GetSession(), false);
 
             r.pc = 0x0900;
@@ -348,8 +348,8 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20);
-            rig.view.SetCodeShown (6);
+            rig.view.GetCodeViews().SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeShown (6);
             before = rig.view.Build (rig.controller.GetSession());
 
             r.pc = before.code[10].address;
@@ -382,10 +382,10 @@ namespace DebuggerViewStateTests
 
             s_now = 1000;
             rig.view.SetClock ([] { return s_now; });
-            rig.view.SetCodeLines (20);
+            rig.view.GetCodeViews().SetCodeLines (20);
             before = rig.view.Build (rig.controller.GetSession(), false);
 
-            rig.view.HoldCode (true);
+            rig.view.GetCodeViews().HoldCode (true);
             r.pc = 0x0900;
             rig.controller.GetSession().GetTarget().SetRegisters (r);
             s_now += DebuggerViewState::kScrollHoldMs * 3;
@@ -393,7 +393,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (before.code[0].address, after.code[0].address, L"not moved while the menu is open");
             Assert::AreEqual (-1, GetPcIndex (after));
 
-            rig.view.HoldCode (false);
+            rig.view.GetCodeViews().HoldCode (false);
             s_now += DebuggerViewState::kScrollHoldMs - 1;
             after  = rig.view.Build (rig.controller.GetSession(), false);
             Assert::AreEqual (before.code[0].address, after.code[0].address, L"nor for the pause after it closes");
@@ -460,10 +460,10 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (30);
+            rig.view.GetCodeViews().SetCodeLines (30);
             Assert::AreEqual ((size_t) 30, rig.view.Build (rig.controller.GetSession()).code.size());
 
-            rig.view.SetCodeLines (8);
+            rig.view.GetCodeViews().SetCodeLines (8);
             Assert::AreEqual ((size_t) 8, rig.view.Build (rig.controller.GetSession()).code.size());
         }
 
@@ -476,7 +476,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeAddress (0x0302);
+            rig.view.GetCodeViews().SetCodeAddress (0x0302);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((Word) 0x0302, snapshot.code[0].address);

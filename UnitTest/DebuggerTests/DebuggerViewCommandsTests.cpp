@@ -59,7 +59,7 @@ namespace DebuggerViewStateTests
 
         static Reply RunInWindow (MachineRig & rig, const std::string & line, CommandMode mode = CommandMode::AppleWin)
         {
-            return rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
+            return rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), line, mode);
         }
 
 
@@ -71,12 +71,12 @@ namespace DebuggerViewStateTests
 
 
 
-            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(), "MODE MONITOR");
+            lines = rig.view.GetCommands().ExecuteConsoleLine (rig.controller.GetSession(), "MODE MONITOR");
 
             Assert::IsFalse  (lines.empty());
             Assert::AreEqual (std::string (">MODE MONITOR"), lines[0], L"typed in AppleWin mode");
 
-            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(), "/MODE APPLEWIN");
+            lines = rig.view.GetCommands().ExecuteConsoleLine (rig.controller.GetSession(), "/MODE APPLEWIN");
 
             Assert::IsFalse  (lines.empty());
             Assert::AreEqual (std::string ("*/MODE APPLEWIN"), lines[0], L"typed in Monitor mode");
@@ -116,22 +116,22 @@ namespace DebuggerViewStateTests
 
 
             Assert::IsTrue   (RunInWindow (rig, "V").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeAddress().value_or (0), L"V passes LDA #$41");
+            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"V passes LDA #$41");
 
             RunInWindow (rig, "v");
-            Assert::AreEqual ((Word) 0x0305, rig.view.GetCodeAddress().value_or (0), L"and STA $0400");
+            Assert::AreEqual ((Word) 0x0305, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"and STA $0400");
 
             RunInWindow (rig, "^");
-            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeAddress().value_or (0), L"^ goes back one instruction");
+            Assert::AreEqual ((Word) 0x0302, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"^ goes back one instruction");
 
             RunInWindow (rig, "PAGEDOWN256");
-            Assert::AreEqual ((Word) 0x0402, rig.view.GetCodeAddress().value_or (0), L"PAGEDOWN256");
+            Assert::AreEqual ((Word) 0x0402, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"PAGEDOWN256");
 
             RunInWindow (rig, "PAGEUP4K");
-            Assert::AreEqual ((Word) 0xF402, rig.view.GetCodeAddress().value_or (0), L"PAGEUP4K wraps");
+            Assert::AreEqual ((Word) 0xF402, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"PAGEUP4K wraps");
 
             RunInWindow (rig, ".");
-            Assert::IsFalse  (rig.view.GetCodeAddress().has_value(), L". follows the PC again");
+            Assert::IsFalse  (rig.view.GetCodeViews().GetCodeAddress().has_value(), L". follows the PC again");
         }
 
 
@@ -184,15 +184,15 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (DebuggerViewState::kCodeLines / 2, GetRowOf (rig.view.Build (session), 0x1235),
                               L"one past the pushed address, on the middle line");
 
-            rig.view.SetCodeAddress (0x0302);
+            rig.view.GetCodeViews().SetCodeAddress (0x0302);
             RunInWindow (rig, "->");
             Assert::AreEqual (DebuggerViewState::kCodeLines / 2, GetRowOf (rig.view.Build (session), 0x0400),
                               L"STA $0400's address, on the middle line");
 
-            rig.view.SetCodeAddress (0x0300);
+            rig.view.GetCodeViews().SetCodeAddress (0x0300);
             reply = RunInWindow (rig, "->");
             Assert::IsTrue   (reply.status == CommandStatus::Error, L"LDA #$41 has no address");
-            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeAddress().value_or (0), L"and the pane stays");
+            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"and the pane stays");
         }
 
 
@@ -214,12 +214,12 @@ namespace DebuggerViewStateTests
             cpu.InitForTest();
             target.instructionSet = cpu.GetInstructionSet();
             handlers.Attach (session);
-            view.SetCodeAddress (0x0300);
+            view.GetCodeViews().SetCodeAddress (0x0300);
 
-            reply = view.ExecuteWindowLine (session, "RET", CommandMode::AppleWin);
+            reply = view.GetCommands().ExecuteWindowLine (session, "RET", CommandMode::AppleWin);
 
             Assert::IsTrue   (reply.status == CommandStatus::Error, L"no return address");
-            Assert::AreEqual ((Word) 0x0300, view.GetCodeAddress().value_or (0), L"and the pane stays");
+            Assert::AreEqual ((Word) 0x0300, view.GetCodeViews().GetCodeAddress().value_or (0), L"and the pane stays");
         }
 
 
@@ -236,7 +236,7 @@ namespace DebuggerViewStateTests
             rig.machine.GetMemoryBus().WriteByte (0x0311, 0x12);
             rig.machine.GetMemoryBus().WriteByte (0x0312, 0x10);
 
-            rig.view.SetCodeAddress (0x0310);
+            rig.view.GetCodeViews().SetCodeAddress (0x0310);
             reply = RunInWindow (rig, "->");
             Assert::IsTrue   (reply.status == CommandStatus::Ok, L"BBR0 has a branch target");
             Assert::IsTrue   (GetRowOf (rig.view.Build (rig.controller.GetSession()), 0x0323) >= 0);
@@ -266,10 +266,10 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (snapshot.code[0].address != 0x0300, L"the PC is not on the top line");
 
             RunInWindow (rig, "V");
-            Assert::AreEqual (snapshot.code[1].address, rig.view.GetCodeAddress().value_or (0), L"V moves one line");
+            Assert::AreEqual (snapshot.code[1].address, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"V moves one line");
 
             RunInWindow (rig, "^");
-            Assert::AreEqual (snapshot.code[0].address, rig.view.GetCodeAddress().value_or (0), L"^ moves it back");
+            Assert::AreEqual (snapshot.code[0].address, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"^ moves it back");
         }
 
 
@@ -284,18 +284,18 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines   (kLines + 1);
-            rig.view.SetCodeAddress (0x0300);
+            rig.view.GetCodeViews().SetCodeLines   (kLines + 1);
+            rig.view.GetCodeViews().SetCodeAddress (0x0300);
             snapshot = rig.view.Build (session);
             Assert::AreEqual ((size_t) (kLines + 1), snapshot.code.size());
 
-            rig.view.SetCodeLines   (kLines);
-            rig.view.SetCodeAddress (0x0300);
+            rig.view.GetCodeViews().SetCodeLines   (kLines);
+            rig.view.GetCodeViews().SetCodeAddress (0x0300);
             RunInWindow (rig, "PAGEDN");
-            Assert::AreEqual (snapshot.code[kLines].address, rig.view.GetCodeAddress().value_or (0), L"PAGEDN");
+            Assert::AreEqual (snapshot.code[kLines].address, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"PAGEDN");
 
             RunInWindow (rig, "PAGEUP");
-            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeAddress().value_or (0), L"PAGEUP");
+            Assert::AreEqual ((Word) 0x0300, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"PAGEUP");
         }
 
 
@@ -310,16 +310,16 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeAddress (0xFFFE);
+            rig.view.GetCodeViews().SetCodeAddress (0xFFFE);
             RunInWindow (rig, "V");
             snapshot = rig.view.Build (session);
 
-            Assert::IsTrue   (rig.view.GetCodeAddress().value_or (0) > 0xFF00, L"no wrap to $0000");
+            Assert::IsTrue   (rig.view.GetCodeViews().GetCodeAddress().value_or (0) > 0xFF00, L"no wrap to $0000");
             Assert::AreEqual ((size_t) DebuggerViewState::kCodeLines, snapshot.code.size(), L"every line filled");
 
-            rig.view.SetCodeAddress (0x0000);
+            rig.view.GetCodeViews().SetCodeAddress (0x0000);
             RunInWindow (rig, "PAGEUP");
-            Assert::AreEqual ((Word) 0x0000, rig.view.GetCodeAddress().value_or (0xFFFF), L"no wrap below $0000");
+            Assert::AreEqual ((Word) 0x0000, rig.view.GetCodeViews().GetCodeAddress().value_or (0xFFFF), L"no wrap below $0000");
         }
 
 
@@ -331,22 +331,22 @@ namespace DebuggerViewStateTests
 
 
             Assert::IsTrue   (RunInWindow (rig, "MD1 1000").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x1000, rig.view.GetMemoryAddress());
+            Assert::AreEqual ((Word) 0x1000, rig.view.GetMemoryWindows().GetMemoryAddress());
 
             Assert::IsTrue   (RunInWindow (rig, "/MT1 $2000", CommandMode::Monitor).status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a / line in Monitor mode");
+            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryWindows().GetMemoryAddress(), L"a / line in Monitor mode");
 
             Assert::IsTrue   (RunInWindow (rig, "MD1 PC+2").status == CommandStatus::Ok, L"an expression");
-            Assert::AreEqual ((Word) (rig.controller.GetSession().GetTarget().GetRegisters().pc + 2), rig.view.GetMemoryAddress());
+            Assert::AreEqual ((Word) (rig.controller.GetSession().GetTarget().GetRegisters().pc + 2), rig.view.GetMemoryWindows().GetMemoryAddress());
 
             Assert::IsTrue   (RunInWindow (rig, "MD2 3000").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x3000, rig.view.GetMemoryWindowAddress (2).value_or (0), L"the 2 forms move the second window");
-            Assert::AreNotEqual ((Word) 0x3000, rig.view.GetMemoryAddress(), L"and leave the first");
+            Assert::AreEqual ((Word) 0x3000, rig.view.GetMemoryWindows().GetMemoryWindowAddress (2).value_or (0), L"the 2 forms move the second window");
+            Assert::AreNotEqual ((Word) 0x3000, rig.view.GetMemoryWindows().GetMemoryAddress(), L"and leave the first");
 
             Assert::IsTrue   (RunInWindow (rig, "MD1 2000").status == CommandStatus::Ok);
             Assert::IsTrue   (RunInWindow (rig, "MA1").status == CommandStatus::Error, L"no address");
             Assert::IsTrue   (RunInWindow (rig, "MA1 XYZ").status == CommandStatus::Error, L"not an expression");
-            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryAddress(), L"a bad address leaves the pane");
+            Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryWindows().GetMemoryAddress(), L"a bad address leaves the pane");
         }
 
 
@@ -357,13 +357,13 @@ namespace DebuggerViewStateTests
 
 
             Assert::IsTrue   (RunInWindow (rig, "MD1 300+10").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryAddress(), L"an expression");
+            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryWindows().GetMemoryAddress(), L"an expression");
 
             Assert::IsTrue   (RunInWindow (rig, "MA1 PC").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x0300, rig.view.GetMemoryAddress(), L"a register");
+            Assert::AreEqual ((Word) 0x0300, rig.view.GetMemoryWindows().GetMemoryAddress(), L"a register");
 
             Assert::IsTrue   (RunInWindow (rig, "MD1 300 + 10").status == CommandStatus::Ok);
-            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryAddress(), L"an expression with spaces, read whole");
+            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryWindows().GetMemoryAddress(), L"an expression with spaces, read whole");
         }
 
 
@@ -383,14 +383,14 @@ namespace DebuggerViewStateTests
             r.y = 0x03;
             session.GetTarget().SetRegisters (r);
 
-            rig.view.RequestGoTo (session, 1, "(basl),y");
+            rig.view.GetCommands().RequestGoTo (session, 1, "(basl),y");
             snapshot = rig.view.Build (session);
 
             Assert::IsTrue   (snapshot.goTo.has_value());
             Assert::IsTrue   (snapshot.goTo->address == std::optional<Word> (0x0503), L"the box: BASL is a ROM symbol, read in any case");
 
             Assert::IsTrue   (RunInWindow (rig, "MD1 (basl),y").status == CommandStatus::Ok, L"the console takes the same text");
-            Assert::AreEqual ((Word) 0x0503, rig.view.GetMemoryAddress());
+            Assert::AreEqual ((Word) 0x0503, rig.view.GetMemoryWindows().GetMemoryAddress());
         }
 
 
@@ -401,12 +401,12 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.ScrollCode (5);
+            rig.view.GetCodeViews().ScrollCode (5);
             Assert::IsTrue (RunInWindow (rig, "V").status == CommandStatus::Ok);
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((Word) 0x0302, snapshot.codeViews[0].front().address, L"a queued wheel scroll");
 
-            rig.view.CenterCodeOn (0x1000);
+            rig.view.GetCodeViews().CenterCodeOn (0x1000);
             RunInWindow (rig, "V");
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual ((Word) 0x0305, snapshot.codeViews[0].front().address, L"a queued navigation");
@@ -421,7 +421,7 @@ namespace DebuggerViewStateTests
 
 
             Assert::IsTrue   (rig.Run ("DB 1000:10FF").status == CommandStatus::Ok);
-            rig.view.SetCodeAddress (0x1000);
+            rig.view.GetCodeViews().SetCodeAddress (0x1000);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((size_t) DebuggerViewState::kCodeLines, snapshot.codeViews[0].size());
@@ -437,13 +437,13 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue   (rig.Run ("DB 1000:10FF").status == CommandStatus::Ok);
 
-            rig.view.SetCodeAddress (0x1010);
+            rig.view.GetCodeViews().SetCodeAddress (0x1010);
             RunInWindow (rig, "^");
-            Assert::AreEqual ((Word) 0x1008, rig.view.GetCodeAddress().value_or (0), L"one DB line back");
+            Assert::AreEqual ((Word) 0x1008, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"one DB line back");
 
-            rig.view.SetCodeAddress (0x1100);
+            rig.view.GetCodeViews().SetCodeAddress (0x1100);
             RunInWindow (rig, "^");
-            Assert::AreEqual ((Word) 0x10F8, rig.view.GetCodeAddress().value_or (0), L"onto the block's last line");
+            Assert::AreEqual ((Word) 0x10F8, rig.view.GetCodeViews().GetCodeAddress().value_or (0), L"onto the block's last line");
         }
 
 
@@ -469,8 +469,8 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (snapshot.goTo->serial != serial, L"a new Go to");
 
             serial = snapshot.goTo->serial;
-            rig.view.OpenMemoryWindow  (2, 0x1000);
-            rig.view.CloseMemoryWindow (2);
+            rig.view.GetMemoryWindows().OpenMemoryWindow  (2, 0x1000);
+            rig.view.GetMemoryWindows().CloseMemoryWindow (2);
             RunInWindow (rig, "DATA2");
             snapshot = rig.view.Build (session);
 
@@ -490,12 +490,12 @@ namespace DebuggerViewStateTests
 
             for (const char * line : { "MD2 2000", "MA2 2000", "MT2 2000", "M2 2000" })
             {
-                rig.view.CloseMemoryWindow (2);
-                rig.view.SetMemoryAddress (0x0000);
+                rig.view.GetMemoryWindows().CloseMemoryWindow (2);
+                rig.view.GetMemoryWindows().SetMemoryAddress (0x0000);
 
                 Assert::IsTrue   (RunInWindow (rig, line).status == CommandStatus::Ok);
-                Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryWindowAddress (2).value_or (0), L"the second window moves");
-                Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryAddress(), L"the first stays");
+                Assert::AreEqual ((Word) 0x2000, rig.view.GetMemoryWindows().GetMemoryWindowAddress (2).value_or (0), L"the second window moves");
+                Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryWindows().GetMemoryAddress(), L"the first stays");
             }
         }
 
@@ -513,14 +513,14 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20, 0);
-            other.SetCodeLines (20, 0);
+            rig.view.GetCodeViews().SetCodeLines (20, 0);
+            other.GetCodeViews().SetCodeLines (20, 0);
 
-            rig.view.ScrollCode (5);
+            rig.view.GetCodeViews().ScrollCode (5);
             RunInWindow (rig, ".");
             dot = rig.view.Build (rig.controller.GetSession());
 
-            other.ShowPcIn (0);
+            other.GetCodeViews().ShowPcIn (0);
             follow = other.Build (rig.controller.GetSession());
 
             Assert::IsFalse  (dot.code.empty());
@@ -552,7 +552,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20, 0);
+            rig.view.GetCodeViews().SetCodeLines (20, 0);
             rig.Run ("A 300");
             Assert::IsTrue   (rig.controller.GetSession().IsAssembling());
 
@@ -576,8 +576,8 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetCodeLines (20, 0);
-            rig.view.SetMemoryAddress (0x2000);
+            rig.view.GetCodeViews().SetCodeLines (20, 0);
+            rig.view.GetMemoryWindows().SetMemoryAddress (0x2000);
 
             reply = rig.Run ("D 1000");
             Assert::IsTrue   (std::holds_alternative<MemoryData> (reply.data));
@@ -640,16 +640,16 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), snapshot.showPane);
             Assert::AreEqual (serial + 1, snapshot.showPaneSerial);
 
-            Assert::IsFalse  (rig.view.IsCodeViewOpen (1));
+            Assert::IsFalse  (rig.view.GetCodeViews().IsCodeViewOpen (1));
             RunInWindow (rig, "code2");
             snapshot = rig.view.Build (session);
             Assert::AreEqual (DebuggerLayout::GetCodePaneId (1), snapshot.showPane);
-            Assert::IsTrue   (rig.view.IsCodeViewOpen (1), L"CODE2 opens the second disassembly");
+            Assert::IsTrue   (rig.view.GetCodeViews().IsCodeViewOpen (1), L"CODE2 opens the second disassembly");
 
             RunInWindow (rig, "DATA2");
             snapshot = rig.view.Build (session);
             Assert::AreEqual (DebuggerLayout::GetMemoryPaneId (2), snapshot.showPane);
-            Assert::IsTrue   (rig.view.GetMemoryWindowAddress (2).has_value(), L"DATA2 opens the second memory window");
+            Assert::IsTrue   (rig.view.GetMemoryWindows().GetMemoryWindowAddress (2).has_value(), L"DATA2 opens the second memory window");
 
             RunInWindow (rig, "DATA2");
             Assert::AreEqual (serial + 4, rig.view.Build (session).showPaneSerial, L"the same pane asked again is asked again");
@@ -671,8 +671,8 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (RunInWindow (rig, "HGR").status     == CommandStatus::NotAvailable, L"a screen view");
             Assert::IsTrue (RunInWindow (rig, "BW").status      == CommandStatus::NotAvailable, L"appearance");
 
-            Assert::IsFalse  (rig.view.GetCodeAddress().has_value());
-            Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryAddress());
+            Assert::IsFalse  (rig.view.GetCodeViews().GetCodeAddress().has_value());
+            Assert::AreEqual ((Word) 0x0000, rig.view.GetMemoryWindows().GetMemoryAddress());
         }
 
 
@@ -689,7 +689,7 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue   (rig.controller.GetSession().ExecuteLine ("V", CommandMode::AppleWin).status == CommandStatus::NotAvailable);
             Assert::IsTrue   (RunInWindow (rig, "V", CommandMode::Monitor).status != CommandStatus::Ok ||
-                              !rig.view.GetCodeAddress().has_value(), L"a Monitor line without / is the Monitor's");
+                              !rig.view.GetCodeViews().GetCodeAddress().has_value(), L"a Monitor line without / is the Monitor's");
             Assert::AreEqual (viaSession.text.size(), viaWindow.text.size());
             Assert::AreEqual (viaSession.text.front(), viaWindow.text.front());
         }

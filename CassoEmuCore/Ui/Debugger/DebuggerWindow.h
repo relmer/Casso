@@ -126,21 +126,12 @@ public:
     DebuggerWindow();
     ~DebuggerWindow() override;
 
-    //  The dense look every pane's list has, public so the Options sheet's
-    //  preview matches the disassembly views.
-    static void  MakeDense (DxuiListView * list) { DensePaneList::MakeDense (list); }
-
-    //  An Undo or Redo item and tip, with the edit: Undo change 2 bytes
-    //  at $0300", or the bare verb when there is nothing to say.
-    static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text) { return DebuggerWindowText::GetUndoLabel (redo, text); }
-
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host, bool activate);
     void     RenderFrame ();
 
     //  The caption: the label from `--title`, ahead of Debugger, as on the
     //  emulator's window, then the open project's label.
-    static std::wstring  GetCaption     (const std::wstring & titlePrefix, const std::wstring & projectLabel = {}) { return DebuggerWindowText::GetCaption (titlePrefix, projectLabel); }
-    void                 SetTitlePrefix (const std::wstring & titlePrefix) { m_titlePrefix = titlePrefix; SetTitle (GetCaption (m_titlePrefix, m_projectLabel)); }
+    void                 SetTitlePrefix (const std::wstring & titlePrefix) { m_titlePrefix = titlePrefix; SetTitle (DebuggerWindowText::GetCaption (m_titlePrefix, m_projectLabel)); }
 
     //  Detaches the host, for a shell tearing down before the window.
     void     DetachHost  () { m_host = nullptr; }
@@ -456,9 +447,6 @@ protected:
     bool     TryGetDefinitionAt      (POINT clientPx, Word & address) const;
     bool     TryGetMacroDefinitionAt (POINT clientPx, int & fileId, int & line) const;
     void     GoToDefinition          (Word address);
-
-    //  A go-to's address: hex, PC, or a symbol by name.
-    static bool  TryParseGoTo   (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress) { return GoToAddressText::TryParseGoTo (text, snapshot, outAddress); }
 
 private:
     static constexpr int    kPreferredWidthDip  = 1100;

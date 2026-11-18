@@ -196,7 +196,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.OpenMemoryWindow (2, 0x0300);
+            rig.view.GetMemoryWindows().OpenMemoryWindow (2, 0x0300);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((size_t) 2,     snapshot.memoryWindows.size());
@@ -204,7 +204,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((Byte) 0xA9,    *Window (snapshot, 2).bytes[0]);
             Assert::AreEqual ((Byte) 0x8D,    *Window (snapshot, 2).bytes[2]);
 
-            rig.view.CloseMemoryWindow (2);
+            rig.view.GetMemoryWindows().CloseMemoryWindow (2);
             Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).memoryWindows.size());
         }
 
@@ -215,11 +215,11 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.OpenMemoryWindow  (5, 0x0300);
-            rig.view.CloseMemoryWindow (1);
+            rig.view.GetMemoryWindows().OpenMemoryWindow  (5, 0x0300);
+            rig.view.GetMemoryWindows().CloseMemoryWindow (1);
 
-            Assert::IsFalse (rig.view.GetMemoryWindowAddress (5).has_value());
-            Assert::IsTrue  (rig.view.GetMemoryWindowAddress (1).has_value(), L"the first window cannot be closed");
+            Assert::IsFalse (rig.view.GetMemoryWindows().GetMemoryWindowAddress (5).has_value());
+            Assert::IsTrue  (rig.view.GetMemoryWindows().GetMemoryWindowAddress (1).has_value(), L"the first window cannot be closed");
         }
 
 
@@ -229,7 +229,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.OpenMemoryWindow (2, 0x0305);
+            rig.view.GetMemoryWindows().OpenMemoryWindow (2, 0x0305);
 
             Assert::AreEqual ((Word) 0x0300, Window (rig.view.Build (rig.controller.GetSession()), 2).first);
         }
@@ -246,7 +246,7 @@ namespace DebuggerViewStateTests
 
 
             target.InjectKey (0xC1);
-            rig.view.OpenMemoryWindow (2, 0xC000);
+            rig.view.GetMemoryWindows().OpenMemoryWindow (2, 0xC000);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue  (Window (snapshot, 2).bytes[0] == std::optional<Byte> (0xC1), L"the key, with its strobe bit");
@@ -262,8 +262,8 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetMemoryAddress (0x0300);
-            rig.view.OpenMemoryWindow (2, 0x0300);
+            rig.view.GetMemoryWindows().SetMemoryAddress (0x0300);
+            rig.view.GetMemoryWindows().OpenMemoryWindow (2, 0x0300);
             rig.Run ("PATCH 0300 5A");
             snapshot = rig.view.Build (rig.controller.GetSession());
 

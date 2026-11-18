@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
-#include "Debugger/Handlers/BreakpointGroupHandlers.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/WatchpointTable.h"
 
@@ -36,13 +35,6 @@ public:
     static void            ListAll  (DebugSession & session, BreakpointListData & list);
     static BreakpointInfo  MakeInfo (const Breakpoint & entry);
     static BreakpointInfo  MakeInfo (const Watchpoint & entry);
-
-    //  The breakpoint groups, in the order of the first breakpoint in each;
-    //  the group a name matches without regard to case, empty for none; and
-    //  a breakpoint or watchpoint put in a group, the name matched to one.
-    static std::vector<std::string>  GetGroups (DebugSession & session)                                   { return BreakpointGroupHandlers::GetGroups (session); }
-    static std::string               FindGroup (DebugSession & session, const std::string & group)         { return BreakpointGroupHandlers::FindGroup (session, group); }
-    static bool                      SetGroup  (DebugSession & session, int id, const std::string & group) { return BreakpointGroupHandlers::SetGroup (session, id, group); }
 
     // The command line that recreates an entry, and the script that
     // recreates the whole table, as BPSAVE writes them.

@@ -1714,9 +1714,9 @@ namespace EmulatorDebugWiringTests
             Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Run ("MODE GSSQUARED").status);
 
-            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(),
-                                                 DebuggerCommandLines::GetRunToCursorLine (0x0302),
-                                                 DebuggerCommandLines::kRunToCursorMode);
+            lines = rig.view.GetCommands().ExecuteConsoleLine (rig.controller.GetSession(),
+                                                               DebuggerCommandLines::GetRunToCursorLine (0x0302),
+                                                               DebuggerCommandLines::kRunToCursorMode);
             ControllerStepOutTests::RunFrames (rig, 50);
 
             Assert::AreEqual ((Word) 0x0302, target.GetRegisters().pc, L"stopped at the cursor");

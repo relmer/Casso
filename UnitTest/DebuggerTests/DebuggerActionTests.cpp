@@ -136,8 +136,8 @@ public:
 
         rig.Run ("MODE GSSQUARED");
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(),
-                                        Echoed (BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::GSSquared)));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(),
+                                                      Echoed (BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::GSSquared)));
         after = rig.view.Build (rig.controller.GetSession());
 
         Assert::IsFalse  (lines.empty());
@@ -159,10 +159,10 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
         set = rig.view.Build (rig.controller.GetSession());
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (set, 0x0300, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (set, 0x0300, CommandMode::AppleWin));
         cleared = rig.view.Build (rig.controller.GetSession());
 
         Assert::AreEqual ((size_t) 1, set.breakpoints.size());
@@ -179,9 +179,9 @@ public:
 
 
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), Echoed (SessionActions::GetPanel ("mmu", true, CommandMode::AppleWin)));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), Echoed (SessionActions::GetPanel ("mmu", true, CommandMode::AppleWin)));
 
-        Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
+        Assert::IsTrue   (rig.view.GetPanels().IsPanelOpen ("mmu"));
         Assert::AreEqual (std::string (">PANEL mmu"), lines[0]);
     }
 
@@ -193,7 +193,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPoke (0x0400, 0x5A, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPoke (0x0400, 0x5A, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x0400));
     }
@@ -226,17 +226,17 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, written, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, written, CommandMode::AppleWin));
         rig.machine.GetMemoryBus().WriteByte (0x0401, 0x33);
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
         lines = rig.view.Build (rig.controller.GetSession()).actionReply;
 
         Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0400), L"nothing was written");
         Assert::IsTrue   (std::ranges::any_of (lines, [] (const std::string & line) { return line.find ("$0401 has changed since the edit") != std::string::npos; }), L"the reply has the reason");
 
         rig.machine.GetMemoryBus().WriteByte (0x0401, 0xEA);
-        rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, replaced, CommandMode::AppleWin, written));
 
         Assert::AreEqual ((Byte) 0x11, rig.machine.GetMemoryBus().ReadByte (0x0400));
         Assert::AreEqual ((Byte) 0x22, rig.machine.GetMemoryBus().ReadByte (0x0401));
@@ -255,7 +255,7 @@ public:
 
         rig.Run ("MODE GSSQUARED");
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), Echoed (RunActions::GetRunToCursor (0x0305)));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), Echoed (RunActions::GetRunToCursor (0x0305)));
 
         Assert::AreEqual (std::string (">G 0305"), lines[0]);
     }
@@ -276,8 +276,8 @@ public:
 
 
 
-        set    = rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
-        failed = rig.view.ExecuteAction (rig.controller.GetSession(), WatchActions::GetClearWatch (7, CommandMode::AppleWin));
+        set    = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
+        failed = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), WatchActions::GetClearWatch (7, CommandMode::AppleWin));
 
         Assert::IsTrue (set.empty(),    L"a breakpoint set from a control printed lines");
         Assert::IsTrue (failed.empty(), L"a failed action printed its error in the console");
@@ -287,7 +287,7 @@ public:
 
         Assert::IsFalse (snapshot.actionReply.empty(), L"the error is in the snapshot");
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0310, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetToggleBreakpoint (none, 0x0310, CommandMode::AppleWin));
         snapshot = rig.view.Build (rig.controller.GetSession());
 
         Assert::AreNotEqual (serial, snapshot.actionReplySerial, L"a new action has a new serial");
@@ -307,7 +307,7 @@ public:
 
 
         failing.replyPane = L"Watches";
-        rig.view.ExecuteAction (rig.controller.GetSession(), failing);
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), failing);
         snapshot = rig.view.Build (rig.controller.GetSession());
 
         Assert::AreEqual (std::wstring (L"Watches"), snapshot.actionReplyPane);
@@ -316,7 +316,7 @@ public:
 
         failing.replyPane.clear();
         failing.isReplyBoxed = true;
-        rig.view.ExecuteAction (rig.controller.GetSession(), failing);
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), failing);
 
         Assert::IsTrue (rig.view.Build (rig.controller.GetSession()).isActionReplyBoxed);
     }
@@ -333,7 +333,7 @@ public:
 
 
         rig.machine.GetMemoryBus().WriteByte (0x6000, 0x5A);
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), MemoryActions::GetSearchMemory ("5A", CommandMode::AppleWin));
+        lines = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetSearchMemory ("5A", CommandMode::AppleWin));
 
         Assert::IsTrue  (lines.empty(), L"the search's matches went to the console");
         Assert::IsFalse (rig.view.Build (rig.controller.GetSession()).actionReply.empty(), L"the search's matches are missing");

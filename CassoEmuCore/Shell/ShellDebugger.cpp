@@ -853,7 +853,7 @@ void ShellDebugger::OpenDebugChannel()
 
 
 
-            lines = m_debugViewState.ExecuteConsoleLine (m_debugController->GetSession(), line, mode);
+            lines = m_debugViewState.GetCommands().ExecuteConsoleLine (m_debugController->GetSession(), line, mode);
         }
 
         DebuggerViewCommands::AddCommandGap (lines);
@@ -967,7 +967,7 @@ void ShellDebugger::RunDebugActions()
 
     for (const DebuggerAction & action : actions)
     {
-        std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugController->GetSession(), action);
+        std::vector<std::string>  shown = m_debugViewState.GetCommands().ExecuteAction (m_debugController->GetSession(), action);
 
         DebuggerViewCommands::AddCommandGap (shown);
         lines.insert (lines.end(), shown.begin(), shown.end());
@@ -1007,7 +1007,7 @@ void ShellDebugger::SetDebugFollowView (int view)
         return;
     }
 
-    m_debugViewState.SetFollowView (view);
+    m_debugViewState.GetCodeViews().SetFollowView (view);
     m_isDebugViewDirty = true;
 }
 
@@ -1034,7 +1034,7 @@ void ShellDebugger::CloseDebugCodeView (int view)
         return;
     }
 
-    m_debugViewState.CloseCodeView (view);
+    m_debugViewState.GetCodeViews().CloseCodeView (view);
     m_isDebugViewDirty = true;
 }
 
@@ -1062,7 +1062,7 @@ void ShellDebugger::OpenDebugCodeViewAt (int view, Word top)
         return;
     }
 
-    m_debugViewState.OpenCodeViewAt (view, top);
+    m_debugViewState.GetCodeViews().OpenCodeViewAt (view, top);
     m_isDebugViewDirty = true;
 }
 
@@ -1089,7 +1089,7 @@ void ShellDebugger::SetDebugCodeLines (int lines, int view)
         return;
     }
 
-    m_debugViewState.SetCodeLines (lines, view);
+    m_debugViewState.GetCodeViews().SetCodeLines (lines, view);
     m_isDebugViewDirty = true;
 }
 
@@ -1116,7 +1116,7 @@ void ShellDebugger::SetDebugCodeShown (int lines, int view)
         return;
     }
 
-    m_debugViewState.SetCodeShown (lines, view);
+    m_debugViewState.GetCodeViews().SetCodeShown (lines, view);
     m_isDebugViewDirty = true;
 }
 
@@ -1144,17 +1144,17 @@ void ShellDebugger::ShowDebugCode (int view, std::optional<Word> address)
         return;
     }
 
-    if (address.has_value() && !m_debugViewState.IsCodeViewOpen (view))
+    if (address.has_value() && !m_debugViewState.GetCodeViews().IsCodeViewOpen (view))
     {
-        m_debugViewState.OpenCodeView (view, *address);
+        m_debugViewState.GetCodeViews().OpenCodeView (view, *address);
     }
     else if (address.has_value())
     {
-        m_debugViewState.CenterCodeOn (*address, view);
+        m_debugViewState.GetCodeViews().CenterCodeOn (*address, view);
     }
     else
     {
-        m_debugViewState.ShowPcIn (view);
+        m_debugViewState.GetCodeViews().ShowPcIn (view);
     }
 
     m_isDebugViewDirty = true;
@@ -1187,15 +1187,15 @@ void ShellDebugger::SetDebugMemoryWindow (int id, std::optional<Word> address)
 
     if (id == kFirstWindow)
     {
-        m_debugViewState.SetMemoryAddress (*address);
+        m_debugViewState.GetMemoryWindows().SetMemoryAddress (*address);
     }
     else if (address.has_value())
     {
-        m_debugViewState.OpenMemoryWindow (id, *address);
+        m_debugViewState.GetMemoryWindows().OpenMemoryWindow (id, *address);
     }
     else
     {
-        m_debugViewState.CloseMemoryWindow (id);
+        m_debugViewState.GetMemoryWindows().CloseMemoryWindow (id);
     }
 
     m_isDebugViewDirty = true;
@@ -1217,7 +1217,7 @@ void ShellDebugger::ScrollDebugCode (int lines, int view)
 
 
 
-    m_debugViewState.ScrollCode (lines, view);
+    m_debugViewState.GetCodeViews().ScrollCode (lines, view);
     m_isDebugViewDirty = true;
 }
 
@@ -1237,7 +1237,7 @@ void ShellDebugger::HoldDebugCode (bool isHeld, int view)
 
 
 
-    m_debugViewState.HoldCode (isHeld, view);
+    m_debugViewState.GetCodeViews().HoldCode (isHeld, view);
     m_isDebugViewDirty = true;
 }
 
@@ -1257,7 +1257,7 @@ void ShellDebugger::SelectDebugCode (int view, Word address)
 
 
 
-    m_debugViewState.SelectCodeAt (address, view);
+    m_debugViewState.GetCodeViews().SelectCodeAt (address, view);
     m_isDebugViewDirty = true;
 }
 
@@ -1279,7 +1279,7 @@ void ShellDebugger::GoToDebugMemory (int window, const std::string & text)
 
     if (m_debugController != nullptr)
     {
-        m_debugViewState.RequestGoTo (m_debugController->GetSession(), window, text);
+        m_debugViewState.GetCommands().RequestGoTo (m_debugController->GetSession(), window, text);
         m_isDebugViewDirty = true;
     }
 }
@@ -1345,7 +1345,7 @@ void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 
 
 
-    m_debugViewState.SetHeatColumnsShown (shown);
+    m_debugViewState.GetHeatMap().SetHeatColumnsShown (shown);
     m_isDebugViewDirty = true;
 }
 
@@ -1385,7 +1385,7 @@ void ShellDebugger::SetDebugHeatMapShown (bool shown)
 
 
 
-    m_debugViewState.SetHeatMapShown (shown);
+    m_debugViewState.GetHeatMap().SetHeatMapShown (shown);
     m_isDebugViewDirty = true;
 }
 
@@ -1425,7 +1425,7 @@ void ShellDebugger::SetDebugHeatMapOptions (const HeatMapOptions & options)
 
 
 
-    m_debugViewState.SetHeatMapOptions (options);
+    m_debugViewState.GetHeatMap().SetHeatMapOptions (options);
     m_isDebugViewDirty = true;
 }
 
@@ -1492,7 +1492,7 @@ void ShellDebugger::SetDebugHeatMapHover (std::optional<Word> address)
 
 
 
-    m_debugViewState.SetHeatMapHover (address);
+    m_debugViewState.GetHeatMap().SetHeatMapHover (address);
     m_isDebugViewDirty = true;
 }
 
@@ -1545,7 +1545,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
         {
             std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
-            m_debugViewState.SelectCodeAt (plan.pc);
+            m_debugViewState.GetCodeViews().SelectCodeAt (plan.pc);
         }
 
         break;
@@ -1687,7 +1687,7 @@ void ShellDebugger::PublishDebuggerView()
     //  Anything the window did is shown at once, the heat map included.
     if (m_isDebugViewDirty)
     {
-        m_debugViewState.MarkHeatMapReadDue();
+        m_debugViewState.GetHeatMap().MarkHeatMapReadDue();
     }
 
     //  The heat map follows the machine through history.
@@ -2108,7 +2108,7 @@ void ShellDebugger::ServicePendingScript()
     {
         std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
 
-        lines = m_debugViewState.RunPendingScript (m_debugController->GetSession());
+        lines = m_debugViewState.GetCommands().RunPendingScript (m_debugController->GetSession());
     }
 
     if (!lines.empty())
@@ -2160,7 +2160,7 @@ void ShellDebugger::ServiceDebugger()
 
         //  A code view's find text is made once a pause has gone without a
         //  step for a moment; the views are built again then to make it.
-        m_isDebugViewDirty = m_isDebugViewDirty || m_debugViewState.IsFindTextDue (GetTickCount64());
+        m_isDebugViewDirty = m_isDebugViewDirty || m_debugViewState.GetCodeViews().IsFindTextDue (GetTickCount64());
         PublishDebuggerView();
     }
 

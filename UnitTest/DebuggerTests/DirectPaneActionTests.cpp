@@ -199,7 +199,7 @@ public:
         Assert::AreEqual ((size_t) 1, actions.size());
         Assert::AreEqual ((int) DebugVerb::EnterWords, (int) actions[0].command.verb, L"built directly, not parsed from text");
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), actions[0]);
 
         Assert::AreEqual ((Byte) 0xEF, Peek (rig, 0x0400));
         Assert::AreEqual ((Byte) 0xBE, Peek (rig, 0x0401));
@@ -229,7 +229,7 @@ public:
         Assert::AreEqual ((size_t) 1, actions.size());
         Assert::AreEqual ((int) DebugVerb::SetRegister, (int) actions[0].command.verb);
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), actions[0]);
         Assert::AreEqual ((Byte) 0x41, rig.controller.GetSession().GetTarget().GetRegisters().a);
 
         Assert::IsTrue (undo.has_value() && undo->actions.size() == 1 && undo->actions[0].command.verb == DebugVerb::SetRegister);
@@ -269,12 +269,12 @@ public:
 
         for (const DebuggerAction & action : WatchEdits::GetWatchEditActions (snapshot, std::nullopt, 0, 1, "42", CommandMode::AppleWin))
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), action);
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), action);
         }
 
         for (const DebuggerAction & action : WatchEdits::GetWatchEditActions (snapshot, std::nullopt, 1, 1, "99", CommandMode::AppleWin))
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), action);
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), action);
         }
 
         Assert::AreEqual ((Byte) 0x42, rig.controller.GetSession().GetTarget().GetRegisters().a);
@@ -296,7 +296,7 @@ public:
 
         for (const DebuggerAction & action : WatchEdits::GetWatchEditActions (snapshot, snapshot.watches[0].id, std::nullopt, 0, "0500", CommandMode::AppleWin))
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), action);
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), action);
         }
 
         snapshot = rig.view.Build (rig.controller.GetSession());
@@ -324,7 +324,7 @@ public:
 
         for (const DebuggerAction & action : *actions)
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), action);
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), action);
         }
 
         Assert::AreEqual ((Byte) 0x34, Peek (rig, 0x0400));
@@ -346,7 +346,7 @@ public:
         held             = Peek (rig, 0x0400);
         snapshot.watches = { { 3, 0x0400, "0000" } };
         actions          = WatchEdits::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "NOSUCHSYMBOL", CommandMode::AppleWin);
-        lines            = rig.view.ExecuteAction (rig.controller.GetSession(), actions.at (0));
+        lines            = rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), actions.at (0));
 
         Assert::AreEqual (held, Peek (rig, 0x0400));
         Assert::IsTrue   (lines.empty(), L"the console has no line of it");
@@ -369,11 +369,11 @@ public:
         rig.Run ("MODE GSSQUARED");
 
         step.actions = { BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::GSSquared) };
-        rig.view.ExecuteBreakpointStep (rig.controller.GetSession(), step);
+        rig.view.GetCommands().ExecuteBreakpointStep (rig.controller.GetSession(), step);
         Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).breakpoints.size());
 
         undo.kind = BreakpointStep::Kind::Undo;
-        lines     = rig.view.ExecuteBreakpointStep (rig.controller.GetSession(), undo);
+        lines     = rig.view.GetCommands().ExecuteBreakpointStep (rig.controller.GetSession(), undo);
 
         Assert::AreEqual ((size_t) 0, rig.view.Build (rig.controller.GetSession()).breakpoints.size());
         Assert::AreEqual ((size_t) 1, lines.size(), L"no command is echoed");

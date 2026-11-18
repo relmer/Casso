@@ -156,7 +156,7 @@ namespace DebuggerTests
 
             step.actions = BreakpointsPane::GetDialogActions (MakeResult ("A={A}", true), std::nullopt, BreakpointInfo {},
                                                               rig.controller.GetSession().GetNextId(), CommandMode::AppleWin);
-            lines = rig.view.ExecuteBreakpointStep (rig.controller.GetSession(), step);
+            lines = rig.view.GetCommands().ExecuteBreakpointStep (rig.controller.GetSession(), step);
 
             BreakpointHandlers::ListAll (rig.controller.GetSession(), list);
 

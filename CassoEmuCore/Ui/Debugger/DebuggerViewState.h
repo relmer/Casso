@@ -149,52 +149,6 @@ public:
     //  table it went into, a built-in table by its name and its count.
     static std::vector<std::string>  DescribeSymbolSources (const SymbolTable & symbols);
 
-    //  The window and the shell call these; each calls the part that implements it.
-    bool                 IsFindTextDue          (uint64_t nowMs) const                 { return m_codeViews.IsFindTextDue (nowMs); }
-    void                 SetFindTextIdle        (uint64_t ms)                          { m_codeViews.SetFindTextIdle (ms); }
-    void                 SetCodeAddress         (std::optional<Word> address, int view = 0) { m_codeViews.SetCodeAddress (address, view); }
-    void                 CenterCodeOn           (Word address, int view = 0)           { m_codeViews.CenterCodeOn (address, view); }
-    void                 SelectCodeAt           (Word address, int view = 0)           { m_codeViews.SelectCodeAt (address, view); }
-    void                 ScrollCode             (int lines, int view = 0)              { m_codeViews.ScrollCode (lines, view); }
-    void                 HoldCode               (bool isHeld, int view = 0)            { m_codeViews.HoldCode (isHeld, view); }
-    void                 ShowPcIn               (int view)                             { m_codeViews.ShowPcIn (view); }
-    void                 SetCodeLines           (int lines, int view = 0)              { m_codeViews.SetCodeLines (lines, view); }
-    void                 SetCodeShown           (int lines, int view = 0)              { m_codeViews.SetCodeShown (lines, view); }
-    int                  GetCodeLines           (int view = 0) const                   { return m_codeViews.GetCodeLines (view); }
-    std::optional<Word>  GetCodeAddress         (int view = 0) const                   { return m_codeViews.GetCodeAddress (view); }
-    void                 OpenCodeView           (int view, Word address)               { m_codeViews.OpenCodeView (view, address); }
-    void                 OpenCodeViewAt         (int view, Word top)                   { m_codeViews.OpenCodeViewAt (view, top); }
-    void                 CloseCodeView          (int view)                             { m_codeViews.CloseCodeView (view); }
-    bool                 IsCodeViewOpen         (int view) const                       { return m_codeViews.IsCodeViewOpen (view); }
-    void                 SetFollowView          (int view)                             { m_codeViews.SetFollowView (view); }
-    int                  GetFollowView          () const                               { return m_codeViews.GetFollowView(); }
-    void                 SetMemoryAddress       (Word address)                         { m_memoryWindows.SetMemoryAddress (address); }
-    Word                 GetMemoryAddress       () const                               { return m_memoryWindows.GetMemoryAddress(); }
-    void                 OpenMemoryWindow       (int id, Word address)                 { m_memoryWindows.OpenMemoryWindow (id, address); }
-    void                 CloseMemoryWindow      (int id)                               { m_memoryWindows.CloseMemoryWindow (id); }
-    std::optional<Word>  GetMemoryWindowAddress (int id) const                         { return m_memoryWindows.GetMemoryWindowAddress (id); }
-    void                 OpenPanel              (const std::string & id)               { m_panels.OpenPanel (id); }
-    void                 ClosePanel             (const std::string & id)               { m_panels.ClosePanel (id); }
-    bool                 IsPanelOpen            (const std::string & id) const         { return m_panels.IsPanelOpen (id); }
-
-    void                    SetHeatMapShown     (bool shown)                           { m_heatMap.SetHeatMapShown (shown); }
-    bool                    IsHeatMapShown      () const                               { return m_heatMap.IsHeatMapShown(); }
-    void                    SetHeatColumnsShown (bool shown)                           { m_heatMap.SetHeatColumnsShown (shown); }
-    bool                    IsHeatColumnsShown  () const                               { return m_heatMap.IsHeatColumnsShown(); }
-    void                    SetHeatMapOptions   (const HeatMapOptions & options)       { m_heatMap.SetHeatMapOptions (options); }
-    const HeatMapOptions &  GetHeatMapOptions   () const                               { return m_heatMap.GetHeatMapOptions(); }
-    void                    MarkHeatMapReadDue  ()                                     { m_heatMap.MarkHeatMapReadDue(); }
-    void                    SetHeatMapHover     (std::optional<Word> address)          { m_heatMap.SetHeatMapHover (address); }
-
-    Reply                     ExecuteWindowLine     (DebugSession & session, const std::string & line, CommandMode mode)                                    { return m_commands.ExecuteWindowLine (session, line, mode); }
-    std::vector<std::string>  ExecuteConsoleLine    (DebugSession & session, const std::string & line, std::optional<CommandMode> lineMode = std::nullopt) { return m_commands.ExecuteConsoleLine (session, line, lineMode); }
-    std::vector<std::string>  RunPendingScript      (DebugSession & session)                                                                                { return m_commands.RunPendingScript (session); }
-    std::vector<std::string>  ExecuteAction         (DebugSession & session, const DebuggerAction & action)                                                 { return m_commands.ExecuteAction (session, action); }
-    std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step, bool isEchoed = true)                             { return m_commands.ExecuteBreakpointStep (session, step, isEchoed); }
-    std::string               GetBreakpointUndoText () const                                                                                                { return m_commands.GetBreakpointUndoText(); }
-    void                      SetBreakpointUndoText (DebugSession & session, const std::string & text)                                                      { m_commands.SetBreakpointUndoText (session, text); }
-    void                      RequestGoTo           (DebugSession & session, int window, const std::string & text)                                          { m_commands.RequestGoTo (session, window, text); }
-
 private:
     void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;

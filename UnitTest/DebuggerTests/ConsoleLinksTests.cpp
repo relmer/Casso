@@ -179,7 +179,7 @@ namespace DebuggerTests
 
 
             rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0300 START\n");
-            lines = view.ExecuteConsoleLine (rig.session, "SYM LOAD prog.sym", std::nullopt);
+            lines = view.GetCommands().ExecuteConsoleLine (rig.session, "SYM LOAD prog.sym", std::nullopt);
 
             Assert::AreEqual ((size_t) 2, lines.size(), L"the command, then its reply");
             Assert::AreEqual (std::wstring (L"Loaded 1 symbols into user from prog.sym."), ConsoleLinks::Parse (lines[1], links));
@@ -199,7 +199,7 @@ namespace DebuggerTests
 
 
             rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0300 START\n");
-            lines = view.ExecuteConsoleLine (rig.session, "SYM LOAD C:\\Work\\prog.sym", std::nullopt);
+            lines = view.GetCommands().ExecuteConsoleLine (rig.session, "SYM LOAD C:\\Work\\prog.sym", std::nullopt);
 
             Assert::AreEqual (std::wstring (L"Loaded 1 symbols into user."), ConsoleLinks::Parse (lines.at (1), links));
             Assert::AreEqual ((size_t) 0, links.size());

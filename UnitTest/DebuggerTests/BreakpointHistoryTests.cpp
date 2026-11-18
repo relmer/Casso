@@ -36,7 +36,7 @@ namespace BreakpointHistoryTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Do (BreakpointStep::Kind kind, const std::string & path = std::string())
@@ -45,7 +45,7 @@ namespace BreakpointHistoryTests
 
             step.kind = kind;
             step.path = path;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()
@@ -444,15 +444,15 @@ namespace BreakpointHistoryTests
             first.Run ("BP 0300");
             first.Step ({ BreakpointActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
             first.Step ({ BreakpointActions::GetEnableBreakpoint (1, false, CommandMode::AppleWin) });
-            text = first.view.GetBreakpointUndoText();
+            text = first.view.GetCommands().GetBreakpointUndoText();
 
             second.Run ("BPMW 0400:04FF IF A=41");
             second.Run ("BP 0300");
             second.Run ("BPC 0");
             second.Run ("BPD 1");
-            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+            second.view.GetCommands().SetBreakpointUndoText (second.controller.GetSession(), text);
 
-            Assert::AreEqual (text, second.view.GetBreakpointUndoText());
+            Assert::AreEqual (text, second.view.GetCommands().GetBreakpointUndoText());
             Assert::AreEqual (2, second.controller.GetSession().GetNextId(), L"reading the text adds no id");
             Assert::AreEqual ((size_t) 1, second.List().size(), L"reading the text adds no breakpoint");
 
@@ -487,10 +487,10 @@ namespace BreakpointHistoryTests
 
             first.Run ("BRK ON");
             first.Step ({ BreakpointActions::GetEnableBreakpoint (0, false, CommandMode::AppleWin) });
-            text = first.view.GetBreakpointUndoText();
+            text = first.view.GetCommands().GetBreakpointUndoText();
 
             second.Run ("BRK ON IF X == 2");
-            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+            second.view.GetCommands().SetBreakpointUndoText (second.controller.GetSession(), text);
 
             Assert::AreEqual ((size_t) 1, second.List().size());
             Assert::AreEqual (std::string ("BRK ON IF X == 2"), BreakpointHandlers::MakeDefinition (second.List().at (0)), L"the condition set");
@@ -509,7 +509,7 @@ namespace BreakpointHistoryTests
 
             for (const char * text : { "", "nonsense", "2|1:0|1.4250.|", "2|1:0|1.ZZ:111:.|" })
             {
-                rig.view.SetBreakpointUndoText (rig.controller.GetSession(), text);
+                rig.view.GetCommands().SetBreakpointUndoText (rig.controller.GetSession(), text);
                 Assert::IsFalse (rig.CanUndo(), TextEncoding::NarrowToWide (text).c_str());
             }
         }

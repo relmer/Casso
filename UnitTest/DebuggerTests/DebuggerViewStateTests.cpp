@@ -103,7 +103,7 @@ namespace DebuggerViewStateTests
 
 
             rig.machine.RunCycles (5000);
-            rig.view.ExecuteAction (rig.controller.GetSession(), RunActions::GetResetCycles (CommandMode::AppleWin));
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), RunActions::GetResetCycles (CommandMode::AppleWin));
             rig.machine.RunCycles (100);
 
             snapshot = rig.view.Build (rig.controller.GetSession());
@@ -573,7 +573,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.SetMemoryAddress (0x0300);
+            rig.view.GetMemoryWindows().SetMemoryAddress (0x0300);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse  (snapshot.memory.empty());
@@ -581,7 +581,7 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (snapshot.memory[0].bytes.find ("A9 41 8D") == 0);
             Assert::AreEqual (std::string ("RAM"), snapshot.memory[0].region);
 
-            rig.view.SetMemoryAddress (0xF800);
+            rig.view.GetMemoryWindows().SetMemoryAddress (0xF800);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual (std::string ("ROM"), snapshot.memory[0].region);
@@ -913,10 +913,10 @@ namespace DebuggerViewStateTests
 
                 LoadDebugFile (rig);
 
-                rig.view.ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (true, mode));
+                rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (true, mode));
                 Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
-                rig.view.ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (false, mode));
+                rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (false, mode));
                 Assert::IsFalse  (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
                 reply = rig.Run (RunActions::GetSourceStepping (true, mode).echo, mode);

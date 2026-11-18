@@ -115,16 +115,8 @@ public:
     bool  ScrollCodeAtEdge   (WPARAM vk, IDxuiControl * focused);
     bool  SelectCodeViewEdge (WPARAM vk, IDxuiControl * focused);
 
-    //  The PC's branch arrow in a view, a view past the code views being a
-    //  source document's; drawn, clicked to go where it points and back, and
-    //  its tip.
+    //  The PC's branch arrow over the views and the source documents.
     DisassemblyBranchArrows  & GetArrows () { return m_arrows; }
-
-    bool  GetBranchArrow       (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom = false) const { return m_arrows.GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom); }
-    void  PaintBranchArrow     (IDxuiPainter & painter, int view)                                                                    { m_arrows.PaintBranchArrow (painter, view); }
-    bool  ClickBranchArrow     (POINT pointPx)                                                                                       { return m_arrows.ClickBranchArrow (pointPx); }
-    bool  TryGetBranchTip      (POINT clientPx, RECT & anchor, std::wstring & text) const                                            { return m_arrows.TryGetBranchTip (clientPx, anchor, text); }
-    bool  IsOverArrowsOrGutter (POINT clientPx) const                                                                                { return m_arrows.IsOverArrowsOrGutter (clientPx); }
 
     //  The code list under a point, and which view it is.
     DxuiListView  * FindCodeListAt (POINT clientPx, int & view) const;

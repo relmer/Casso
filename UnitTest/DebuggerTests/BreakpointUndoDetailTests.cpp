@@ -34,7 +34,7 @@ namespace BreakpointUndoDetailTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Do (BreakpointStep::Kind kind)
@@ -42,7 +42,7 @@ namespace BreakpointUndoDetailTests
             BreakpointStep  step;
 
             step.kind = kind;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()

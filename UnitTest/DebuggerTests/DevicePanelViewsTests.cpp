@@ -83,7 +83,7 @@ namespace DebuggerViewStateTests
 
             Reply Run (const std::string & line, CommandMode mode = CommandMode::AppleWin)
             {
-                return view.ExecuteWindowLine (session, line, mode);
+                return view.GetCommands().ExecuteWindowLine (session, line, mode);
             }
         };
 
@@ -146,7 +146,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.view.OpenPanel ("fake");
+            rig.view.GetPanels().OpenPanel ("fake");
             first              = rig.view.Build (rig.session);
             rig.provider.value = 0x01;
             second             = rig.view.Build (rig.session);
@@ -177,11 +177,11 @@ namespace DebuggerViewStateTests
 
                 reply = rig->Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), mode), mode);
                 Assert::IsTrue (reply.status == CommandStatus::Ok, L"the control opens the panel");
-                Assert::IsTrue (rig->view.IsPanelOpen ("fake"));
+                Assert::IsTrue (rig->view.GetPanels().IsPanelOpen ("fake"));
 
                 reply = rig->Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), mode), mode);
                 Assert::IsTrue  (reply.status == CommandStatus::Ok, L"the control closes the panel");
-                Assert::IsFalse (rig->view.IsPanelOpen ("fake"));
+                Assert::IsFalse (rig->view.GetPanels().IsPanelOpen ("fake"));
             }
 
             {
@@ -189,7 +189,7 @@ namespace DebuggerViewStateTests
                 Reply  reply = rig->Run ("!panel fake", CommandMode::WinDbg);
 
                 Assert::IsTrue (reply.status == CommandStatus::Ok, L"typed in WinDbg's words");
-                Assert::IsTrue (rig->view.IsPanelOpen ("fake"));
+                Assert::IsTrue (rig->view.GetPanels().IsPanelOpen ("fake"));
             }
         }
 
@@ -207,20 +207,20 @@ namespace DebuggerViewStateTests
 
             reply = rig.Run ("panel FAKE");
             Assert::IsTrue (reply.status == CommandStatus::Ok);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"by id, either case");
+            Assert::IsTrue (rig.view.GetPanels().IsPanelOpen ("fake"), L"by id, either case");
             Assert::IsTrue (Join (rig.Run ("PANEL").text).find ("(open)") != std::string::npos, L"PANEL alone lists");
 
             reply = rig.Run ("PANEL CLOSE Disk widget");
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"by a title that holds a space");
+            Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("fake"), L"by a title that holds a space");
 
             reply = rig.Run ("PANEL disk WIDGET");
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsTrue  (rig.view.IsPanelOpen ("fake"), L"by title, either case");
+            Assert::IsTrue  (rig.view.GetPanels().IsPanelOpen ("fake"), L"by title, either case");
             (void) rig.Run ("PANEL CLOSE fake");
 
             (void) rig.Run ("/PANEL fake", CommandMode::Monitor);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"as an AppleWin line from Monitor mode");
+            Assert::IsTrue (rig.view.GetPanels().IsPanelOpen ("fake"), L"as an AppleWin line from Monitor mode");
         }
 
 
@@ -235,19 +235,19 @@ namespace DebuggerViewStateTests
 
             reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), CommandMode::GSSquared), CommandMode::GSSquared);
             Assert::IsTrue (reply.status == CommandStatus::Ok);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"GSSquared");
+            Assert::IsTrue (rig.view.GetPanels().IsPanelOpen ("fake"), L"GSSquared");
 
             reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), CommandMode::GSSquared), CommandMode::GSSquared);
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"GSSquared close");
+            Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("fake"), L"GSSquared close");
 
             reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), CommandMode::WinDbg), CommandMode::WinDbg);
             Assert::IsTrue (reply.status == CommandStatus::Ok);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"WinDbg");
+            Assert::IsTrue (rig.view.GetPanels().IsPanelOpen ("fake"), L"WinDbg");
 
             reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), CommandMode::WinDbg), CommandMode::WinDbg);
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"WinDbg close");
+            Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("fake"), L"WinDbg close");
         }
 
 
@@ -261,14 +261,14 @@ namespace DebuggerViewStateTests
 
             reply = rig.Run ("debug \"fake\"", CommandMode::GSSquared);
             Assert::IsTrue (reply.status == CommandStatus::Ok);
-            Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"debug name opens");
+            Assert::IsTrue (rig.view.GetPanels().IsPanelOpen ("fake"), L"debug name opens");
 
             reply = rig.Run ("debug", CommandMode::GSSquared);
             Assert::IsTrue (Join (reply.text).find ("(open)") != std::string::npos, L"debug alone lists");
 
             reply = rig.Run ("nodebug fake", CommandMode::GSSquared);
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"nodebug name closes");
+            Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("fake"), L"nodebug name closes");
         }
 
 
@@ -281,7 +281,7 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue  (reply.status == CommandStatus::Error);
             Assert::IsTrue  (Join (reply.text).find ("PANEL LIST") != std::string::npos);
-            Assert::IsFalse (rig.view.IsPanelOpen ("mmu"));
+            Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("mmu"));
             Assert::IsTrue  (rig.Run ("PANEL CLOSE").status == CommandStatus::Error, L"CLOSE needs a name");
         }
 
@@ -295,7 +295,7 @@ namespace DebuggerViewStateTests
 
 
             Assert::IsTrue  (reply.status == CommandStatus::NotAvailable);
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+            Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("fake"));
         }
 
 
@@ -308,13 +308,13 @@ namespace DebuggerViewStateTests
 
 
 
-            rig->view.OpenPanel ("fake");
+            rig->view.GetPanels().OpenPanel ("fake");
             rig->target.diagnosticsProviders.clear();
             snapshot = rig->view.Build (rig->session);
 
             Assert::IsTrue  (snapshot.panels.empty());
             Assert::IsTrue  (snapshot.diagnostics.empty());
-            Assert::IsFalse (rig->view.IsPanelOpen ("fake"));
+            Assert::IsFalse (rig->view.GetPanels().IsPanelOpen ("fake"));
 
             rig->target.diagnosticsProviders = { &rig->provider };
             snapshot = rig->view.Build (rig->session);
@@ -334,11 +334,11 @@ namespace DebuggerViewStateTests
 
 
                 Assert::IsTrue  (reply.status == CommandStatus::Ok);
-                Assert::IsTrue  (rig.view.IsPanelOpen ("fake"));
+                Assert::IsTrue  (rig.view.GetPanels().IsPanelOpen ("fake"));
 
                 reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), mode), mode);
                 Assert::IsTrue  (reply.status == CommandStatus::Ok);
-                Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+                Assert::IsFalse (rig.view.GetPanels().IsPanelOpen ("fake"));
             }
         }
 
@@ -363,7 +363,7 @@ namespace DebuggerViewStateTests
 
             rig.files.WriteAllText (L"C:\\Work\\panes.txt", "PANEL mmu\nCODE\n");
 
-            reply    = rig.view.ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\panes.txt\"", CommandMode::AppleWin);
+            reply    = rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\panes.txt\"", CommandMode::AppleWin);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             for (const std::string & text : reply.text)
@@ -385,7 +385,7 @@ namespace DebuggerViewStateTests
 
             rig.files.WriteAllText (L"C:\\Work\\asm.txt", "A 300\nLDA #1\n");
 
-            (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\asm.txt\"", CommandMode::AppleWin);
+            (void) rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\asm.txt\"", CommandMode::AppleWin);
 
             Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the script's end ended the block");
         }
@@ -405,7 +405,7 @@ namespace DebuggerViewStateTests
 
             rig.files.WriteAllText (L"C:\\Work\\go.txt", "G\nR PC 6000\n");
 
-            (void) rig.view.ExecuteWindowLine (session, "RUN \"C:\\Work\\go.txt\"", CommandMode::AppleWin);
+            (void) rig.view.GetCommands().ExecuteWindowLine (session, "RUN \"C:\\Work\\go.txt\"", CommandMode::AppleWin);
 
             Assert::IsTrue   (session.GetRunState() != RunState::Paused, L"G left the machine running");
             Assert::IsTrue   (session.HasPendingScript(), L"the rest of the script is waiting");
@@ -415,7 +415,7 @@ namespace DebuggerViewStateTests
             stop.pc     = rig.machine.GetCpu()->GetPC();
             session.OnStopped (stop);
 
-            lines = rig.view.RunPendingScript (session);
+            lines = rig.view.GetCommands().RunPendingScript (session);
 
             Assert::IsFalse  (session.HasPendingScript(), L"the script was taken");
             Assert::AreEqual ((Word) 0x6000, rig.machine.GetCpu()->GetPC(), L"its next line ran");
@@ -437,7 +437,7 @@ namespace DebuggerViewStateTests
 
 
                 rig.controller.GetSession().ExecuteLine ("MODE " + CommandModeNames::GetUpperName (mode));
-                reply    = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
+                reply    = rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), line, mode);
                 snapshot = rig.view.Build (rig.controller.GetSession());
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (line).c_str());
@@ -454,7 +454,7 @@ namespace DebuggerViewStateTests
 
 
 
-            (void) rig.view.ExecuteWindowLine (rig.controller.GetSession(), "PANEL mmu", CommandMode::AppleWin);
+            (void) rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), "PANEL mmu", CommandMode::AppleWin);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((size_t) 1, snapshot.diagnostics.size());
@@ -475,13 +475,13 @@ namespace DebuggerViewStateTests
 
 
 
-                reply = rig.view.ExecuteWindowLine (session, DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", true), mode), mode);
+                reply = rig.view.GetCommands().ExecuteWindowLine (session, DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", true), mode), mode);
                 Assert::IsTrue   (reply.status == CommandStatus::Ok, L"PANEL mmu");
-                Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
+                Assert::IsTrue   (rig.view.GetPanels().IsPanelOpen ("mmu"));
 
-                reply = rig.view.ExecuteWindowLine (session, DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", false), mode), mode);
+                reply = rig.view.GetCommands().ExecuteWindowLine (session, DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", false), mode), mode);
                 Assert::IsTrue   (reply.status == CommandStatus::Ok, L"PANEL CLOSE mmu");
-                Assert::IsFalse  (rig.view.IsPanelOpen ("mmu"));
+                Assert::IsFalse  (rig.view.GetPanels().IsPanelOpen ("mmu"));
             }
         }
 
@@ -497,10 +497,10 @@ namespace DebuggerViewStateTests
 
 
 
-                reply = rig.view.ExecuteWindowLine (rig.controller.GetSession(), line, mode);
+                reply = rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), line, mode);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, TextEncoding::NarrowToWide (line).c_str());
-                Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
+                Assert::IsTrue   (rig.view.GetPanels().IsPanelOpen ("mmu"));
             }
         }
 
