@@ -491,6 +491,27 @@ void CassoLinkManager::EditConnection (const std::string & name)
         }
 
         return SUCCEEDED (result) && chosen;
+    },
+    [this] (HWND owner, std::wstring & inOutImage) -> bool
+    {
+        std::filesystem::path  picked;
+        bool                   chosen = false;
+        FileDialogSpec         spec;
+        HRESULT                result = S_OK;
+
+        spec.filters = { FileDialogFilter { L"ProDOS images (*.po, *.dsk, *.hdv, *.2mg)", L"*.po;*.dsk;*.hdv;*.2mg" },
+                         FileDialogFilter { L"All files (*.*)", L"*.*" } };
+        spec.title   = L"Choose a virtual drive's image";
+        spec.content = FileDialogContent::Images;
+
+        result = m_context.dialogs.PickFileToOpen (owner, spec, picked, chosen);
+
+        if (SUCCEEDED (result) && chosen)
+        {
+            inOutImage = picked.wstring();
+        }
+
+        return SUCCEEDED (result) && chosen;
     });
 
     if (!outcome.confirmed)
@@ -615,35 +636,63 @@ void CassoLinkManager::SearchComPorts (const std::string & name)
 
 void CassoLinkManager::BootstrapConnection (const std::string & name)
 {
-    HRESULT       hr      = S_OK;
-    std::wstring  steps;
-    int           answer  = IDCANCEL;
+    constexpr double     kUsPerSecond = 1000000.0;
+    HRESULT              hr           = S_OK;
+    std::wstring         steps;
+    int                  answer       = IDCANCEL;
+    std::vector<double>  halves;
+    std::string          command;
+    double               seconds      = 0.0;
 
 
 
-    steps  = L"On the Apple, at the prompt, type:\n\n"
-             L"1. **IN#2** on a //c, or IN# and the Super Serial Card's slot, then press Return\n"
-             L"2. **Ctrl+A 14B**, then press Return\n\n"
-             L"The loader is then typed into the Apple, which takes about 40 seconds.";
-    answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap the Apple",
-                             MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
-
-    if (answer != IDOK)
+    if (IsCassetteConnection (name))
     {
-        return;
+        hr = LinkAudioBootstrap::BuildCassetteLinkRecord (halves, command);
+        CHR (hr);
+
+        command.pop_back();
+
+        for (double half : halves)
+        {
+            seconds += half / kUsPerSecond;
+        }
+
+        steps  = std::format (L"Connect this PC's sound output to the cassette input of the ][+ or //e, and the Apple's cassette output "
+                              L"to this PC's sound input. Turn the volume up most of the way.\n\n"
+                              L"On the Apple, at the prompt, type:\n\n"
+                              L"1. **CALL -151**, then press Return\n"
+                              L"2. **{}**, then press Return\n\n"
+                              L"Then choose Send. The audio takes about {} seconds.", TextEncoding::NarrowToWide (command), (int) ceil (seconds));
+        answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Send the program",
+                                 MB_OKCANCEL | MB_ICONINFORMATION, { L"Send", L"Cancel" });
     }
+    else
+    {
+        steps  = L"On the Apple, at the prompt, type:\n\n"
+                 L"1. **IN#2** on a //c, or IN# and the Super Serial Card's slot, then press Return\n"
+                 L"2. **Ctrl+A 14B**, then press Return\n\n"
+                 L"The loader is then typed into the Apple, which takes about 40 seconds.";
+        answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap the Apple",
+                                 MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
+    }
+
+    BAIL_OUT_IF (answer != IDOK, S_OK);
 
     hr = m_context.app.links->Bootstrap (name, [] (const LinkOperation & operation) -> std::wstring
     {
         return FAILED (operation.result) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
     });
+    CHR (hr);
 
+    HandleConnectionChanged();
+
+Error:
     if (FAILED (hr))
     {
         m_context.window.ShowMessage (L"CassoLink could not be started.", MB_ICONERROR);
+        HandleConnectionChanged();
     }
-
-    HandleConnectionChanged();
 }
 
 
@@ -1032,6 +1081,54 @@ bool CassoLinkManager::IsSerialConnection (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::IsCassetteConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsCassetteConnection (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.app.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && settings.transport == LinkTransport::Cassette;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::CanMakeSosDisk
+//
+//  The SOS disk's program uses the Apple ///'s serial port through .RS232:
+//  a serial cable, or a Wi-Fi modem connection, which accepts MAME's serial
+//  socket too. The program doesn't dial, so the user dials a real modem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::CanMakeSosDisk (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.app.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && (settings.transport == LinkTransport::Serial || settings.transport == LinkTransport::WifiModem);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::CanBootstrapConnection
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1095,8 +1192,15 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
             m_context.menus.AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchComPorts (name); });
         }
 
+        //  An Apple on its cassette ports is started by the program sent as audio.
+        if (IsCassetteConnection (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Send the &program...", [this, name]() { BootstrapConnection (name); });
+            m_context.menus.AddMenuCommand (items, L"Save the program as a&udio...", [this, name]() { SaveCassetteBootstrap (name); });
+        }
+
         //  Only an Apple on a serial card can be started from here.
-        if (CanBootstrapConnection (name))
+        if (CanBootstrapConnection (name) && !IsCassetteConnection (name))
         {
             m_context.menus.AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapConnection (name); });
             m_context.menus.AddMenuCommand (items, L"Bootstrap from the c&assette input...", [this, name]() { PlayCassetteBootstrap (name); });
@@ -1106,7 +1210,22 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  A boot disk is built for its link: at its speed, a Wi-Fi modem's
         //  dialing this PC, and an Uthernet II's with the link's address for
         //  when no DHCP reply comes.
-        m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { m_context.linkDrives.SaveLinkDiskImage (name); });
+        if (!IsCassetteConnection (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { m_context.linkDrives.SaveLinkDiskImage (name); });
+        }
+
+        //  The ProDOS disk's driver talks to a 6551, so only a serial link
+        //  has its virtual drives.
+        if (IsSerialConnection (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Make CassoLink &ProDOS disk...", [this, name]() { m_context.linkDrives.SaveLinkProDosDisk (name); });
+        }
+
+        if (CanMakeSosDisk (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Make CassoLink S&OS disk...", [this, name]() { m_context.linkDrives.SaveLinkSosDisk (name); });
+        }
 
         if (saved)
         {
@@ -1119,16 +1238,27 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
     }
     else if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
     {
-        //  A drive's whole disk, read or written from its node.
-        std::wstring  title = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
+        //  A drive's whole disk, read or written from its node. A block device
+        //  has no raw capture, CassoLink disk or format here.
+        std::wstring  title   = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
+        bool          isBlock = TreeModel::TryParseLinkId (location.path, link, slot, drive) && drive >= CassoLinkBlockDevices::kFirstDrive;
 
         m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"Create &verified image from {}...", title).c_str(), [this, location]() { m_context.linkDrives.ReadDiskToImage (location, true); });
-        m_context.menus.AddMenuCommand (items, std::format (L"Ca&pture raw disk from {}...", title).c_str(), [this, location]() { m_context.linkDrives.CaptureRawDisk (location); });
+
+        if (!isBlock)
+        {
+            m_context.menus.AddMenuCommand (items, std::format (L"Ca&pture raw disk from {}...", title).c_str(), [this, location]() { m_context.linkDrives.CaptureRawDisk (location); });
+        }
+
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { m_context.linkDrives.WriteImageToDisk (location, true); });
-        m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.linkDrives.SaveLinkToDisk (location); });
-        m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { m_context.linkDrives.FormatAppleDisk (location); });
+
+        if (!isBlock)
+        {
+            m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.linkDrives.SaveLinkToDisk (location); });
+            m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { m_context.linkDrives.FormatAppleDisk (location); });
+        }
 
         //  As a Pascal image's menu has it, with its icon.
         if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.IsDrivePascal (TextEncoding::WideToNarrow (link), drive))

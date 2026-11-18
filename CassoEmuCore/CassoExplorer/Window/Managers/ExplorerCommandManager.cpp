@@ -67,26 +67,6 @@ ExplorerCommandManager::ExplorerCommandManager (ExplorerContext & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerCommandManager::InspectDiskImages
-//
-//  With no app, as in a test, no inspector is opened.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerCommandManager::InspectDiskImages (const std::vector<std::wstring> & paths)
-{
-    if (m_context.app.host != nullptr && m_context.theme != nullptr && !paths.empty())
-    {
-        m_context.app.host->InspectDiskImages (m_context.window.GetHwnd(), paths, *m_context.theme);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerCommandManager::CompareSelectedDiskImages
 //
 //  A is the focused image, which is the one the menu was opened on, and B is
@@ -1482,6 +1462,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
         }
 
         case CassoExplorerActions::Verb::ConvertToTapeAudio:
+        case CassoExplorerActions::Verb::ConvertToDiskAudio:
         case CassoExplorerActions::Verb::AddToA2retroNet:
             m_context.opener.RunFileVerb (verb);
             break;

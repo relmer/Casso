@@ -48,7 +48,9 @@ public:
     void          SaveCassetteBootstrap   (const std::string & name);
     void          ArmLinkFaults           ();
     bool          IsSerialConnection      (const std::string & name) const;
+    bool          IsCassetteConnection    (const std::string & name) const;
     bool          CanBootstrapConnection  (const std::string & name) const;
+    bool          CanMakeSosDisk          (const std::string & name) const;
     std::wstring  GetLatestActivity       () const;
     std::wstring  FormatActivity          (size_t lines) const;
 

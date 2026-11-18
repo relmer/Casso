@@ -800,17 +800,27 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 //
 //  FullSendPanel::DescribeStatus
 //
-//  A manifest row's status in words.
+//  A manifest row's status in words, with its boot result and file-system
+//  verdict after it. A raw capture or a likely copy-protected disk with no
+//  standard file system has no verdict after it, as its status implies it
+//  and the column is narrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 {
-    const wchar_t  * boot = row.boot == FullSendManifest::kBootBooted      ? L", boots"
-                          : row.boot == FullSendManifest::kBootDidNotBoot  ? L", did not boot"
-                          : row.boot == FullSendManifest::kBootNotBootable ? L", not bootable"
-                          : row.boot == FullSendManifest::kBootUnclear     ? L", boot unclear"
-                                                                           : L"";
+    bool             isProtected = row.status == FullSendManifest::kStatusRawCapture || row.status == FullSendManifest::kStatusProtected;
+    const wchar_t  * result      = row.boot == FullSendManifest::kBootBooted      ? L", boots"
+                                 : row.boot == FullSendManifest::kBootDidNotBoot  ? L", did not boot"
+                                 : row.boot == FullSendManifest::kBootNotBootable ? L", not bootable"
+                                 : row.boot == FullSendManifest::kBootUnclear     ? L", boot unclear"
+                                                                                  : L"";
+    const wchar_t  * check       = row.fsCheck == FullSendManifest::kCheckOk                     ? L", file system OK"
+                                 : row.fsCheck == FullSendManifest::kCheckSuspect                ? L", file system possible inconsistencies"
+                                 : row.fsCheck == FullSendManifest::kCheckBad                    ? L", file system bad"
+                                 : row.fsCheck == FullSendManifest::kCheckNone && !isProtected   ? L", no standard file system"
+                                                                                                 : L"";
+    std::wstring     boot        = std::wstring (result) + check;
 
 
 
@@ -1229,8 +1239,8 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
     float   lineH  = m_scaler.ToPxf (kLineDip);
     size_t  count  = m_view.snapshot.disks.size();
     float   number = width * 0.08f;
-    float   file   = width * 0.40f;
-    float   system = width * 0.16f;
+    float   file   = width * 0.32f;
+    float   system = width * 0.14f;
     float   took   = width * 0.08f;
     float   status = width - number - file - system - took;
 
@@ -1528,15 +1538,19 @@ void FullSendDialog::AddCommand (std::vector<DxuiPopupMenuItem> & items, const w
 //  FullSendDialog::MakeMenu
 //
 //  A disk's row has Open, Inspect disk image and, for a WOZ image, Disk
-//  properties, as the image's menu in the folder has them. The activity
-//  list has Copy, which copies every line of the session.
+//  properties, as the image's menu in the folder has them, then Repair disk
+//  image when the file system is bad or suspect and the inspector can
+//  repair it. The activity list has Copy, which copies every line of the
+//  session.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & file)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    std::filesystem::path           name = file;
+    std::filesystem::path           name     = file;
+    const FullSendDoneDisk        * disk     = nullptr;
+    bool                            isFaulty = false;
 
 
 
@@ -1556,7 +1570,34 @@ std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & fil
         AddCommand (items, L"&Disk properties", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Properties); } });
     }
 
+    for (const FullSendDoneDisk & each : m_view.snapshot.disks)
+    {
+        disk = (each.row.file == file) ? &each : disk;
+    }
+
+    isFaulty = disk != nullptr && IsRepairOffered (disk->row);
+
+    if (isFaulty && m_canRepair && m_canRepair (file))
+    {
+        AddCommand (items, L"&Repair disk image...", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Repair); } });
+    }
+
     return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::IsRepairOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDialog::IsRepairOffered (const FullSendRow & row)
+{
+    return !row.file.empty() && (row.fsCheck == FullSendManifest::kCheckBad || row.fsCheck == FullSendManifest::kCheckSuspect);
 }
 
 

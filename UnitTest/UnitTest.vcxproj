@@ -436,6 +436,9 @@
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerFixtureTests.cpp" />
+    <ClCompile Include="CassoLink\AdtProAudioCodecTests.cpp" />
+    <ClCompile Include="CassoLink\CassetteCodecTests.cpp" />
+    <ClCompile Include="CassoLink\DualCassetteByteStreamTests.cpp" />
     <ClCompile Include="CassoLink\InProcessByteStreamTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTests.cpp" />
@@ -477,6 +480,8 @@
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
     <ClCompile Include="CassoLink\KrunchProgramTests.cpp" />
     <ClCompile Include="CassoLink\ModuleProgramTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkBlockTransferTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkVirtualDrivesTests.cpp" />
     <ClCompile Include="CassoLink\CaptureProgramTests.cpp" />
     <ClCompile Include="CassoLink\ProgramDriveTests.cpp" />
     <ClCompile Include="CassoLink\ProgramKeyTests.cpp" />
@@ -499,7 +504,6 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
-    <ClCompile Include="CassoExplorer\NestedContainerTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
     <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />
@@ -957,9 +961,11 @@
     <ClInclude Include="EmuTests\PartitionCard.h" />
     <ClInclude Include="CassoLink\CassoLinkCaptures.h" />
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
+    <ClInclude Include="CassoLink\ScriptedCassetteAudio.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
+    <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />
     <ClInclude Include="CassoLink\SteppedByteStream.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />

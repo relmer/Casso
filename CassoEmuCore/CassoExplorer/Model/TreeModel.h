@@ -105,6 +105,14 @@ struct LinkTreeEntry
         bool          empty   = false;
         std::wstring  volume;
 
+        //  A block device or SmartPort unit: its unit and size, its drive the
+        //  session's number for it, from 3, and an Apple ///'s SOS device
+        //  name, as .D1.
+        bool          isBlockDevice = false;
+        int           unit          = 0;
+        uint32_t      blocks        = 0;
+        std::wstring  device;
+
         //  A ProDOS drive's top-level folders, once its catalog is read.
         std::vector<std::wstring>  folders;
     };
@@ -178,7 +186,24 @@ public:
     //  The shell's navigation roots and pinned folders, read again on each
     //  call: Explorer's sections below Casso's own root. Without the shell the
     //  tree has Casso, This PC and the Recycle Bin alone.
-    void  SetShellVerbs      (IShellItemVerbs * verbs) { m_shellVerbs = verbs; RefreshShellRoots(); }
+    void  SetShellVerbs      (IShellItemVerbs * verbs)
+    {
+        m_shellVerbs = verbs;
+
+        if (!std::exchange (m_hasPresetRoots, false))
+        {
+            RefreshShellRoots();
+        }
+    }
+
+    //  Navigation roots and pinned folders read ahead of time. The next
+    //  SetShellVerbs uses these instead of reading the shell again.
+    void  SetShellRoots      (std::vector<IShellItemVerbs::ShellFolderItem> navRoots, std::vector<IShellItemVerbs::ShellFolderItem> pinned)
+    {
+        m_navRoots       = std::move (navRoots);
+        m_pinned         = std::move (pinned);
+        m_hasPresetRoots = true;
+    }
 
     //  How the tree reads a shell folder: false while it is being read on a
     //  thread of its own, when the node shows nothing yet and asks again.
@@ -338,6 +363,9 @@ public:
     static std::wstring  GetLinkDriveLabel (int slot, int drive);
     static std::wstring  GetLinkDriveLabel (const LinkTreeEntry::Drive & drive);
 
+    //  A block device's: "Slot 5, Unit 1, 800K".
+    static std::wstring  GetBlockDeviceLabel (const LinkTreeEntry::Drive & drive);
+
     //  A drive of a link, by its id, as the tree labels it: its slot, its drive
     //  and its volume once known.
     std::wstring  GetLinkDriveTitle (const std::wstring & driveId) const;
@@ -412,6 +440,7 @@ private:
     HostFetch                                        m_hostFetch;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
+    bool                                             m_hasPresetRoots = false;
     NavPaneOptions                                   m_navOptions;
     bool                                             m_showCassoLink = true;
     bool                                             m_showStockDisks = false;

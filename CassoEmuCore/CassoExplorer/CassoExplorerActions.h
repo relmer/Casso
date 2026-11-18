@@ -70,6 +70,7 @@ public:
     Outcome  MakeShrinkItDisk       (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
     Outcome  TestImage              (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
     Outcome  MakeTapeRecording      (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
+    Outcome  MakeDiskRecording      (const std::wstring & imagePath, const std::wstring & target, std::string & outCommand, double & outSeconds) { return m_tapes.MakeDiskRecording (imagePath, target, outCommand, outSeconds); }
     Outcome  AddToA2retroNet        (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
     bool     CanAddToA2retroNet     (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
     Outcome  CreateA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.CreateConfig (root); }
@@ -260,7 +261,9 @@ public:
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkDiskImage  (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
+    Outcome  SaveLinkSosDisk    (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkSosDisk (usersDisk, imagePath, settings); }
 
     //  The cassette bootstrap for a link as a WAV file on the PC, to send into
     //  a ][+ or //e's cassette input from another device, or to insert in

@@ -32,6 +32,9 @@ struct CassoLinkClient
     bool                 hasProgramCrc = false;
     Word                 programCrc    = 0;
 
+    //  The SOS program's Ready, from an Apple ///.
+    bool                 isSos = false;
+
     //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
     std::wstring  GetModelName () const;
 

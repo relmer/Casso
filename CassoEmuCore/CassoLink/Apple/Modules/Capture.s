@@ -43,15 +43,18 @@
 ; is write-protected. The last packet is padded with zeros.
 ;
 ; The encoding begins with the revolution's length in bytes, low byte first,
-; 0 when findrev doesn't find one. Then each byte other than 0 is itself, and
-; 0 begins a token, until every byte is given:
+; 0 when findrev doesn't find one. Then the bytes' values, each with its top
+; bit set, so none is 0: each value is itself, and 0 begins a token, until
+; every byte is given:
 ;
-;   0 0      a 0
-;   0 n      n of 1 to 127: n + 2 bytes the same as those a revolution earlier
-;   0 $80+n  n of 0 to 127: the next byte, repeated n + 3 times
+;   0 n      n of 1 to 127: n + 2 values the same as those a revolution earlier
+;   0 $80+n  n of 0 to 127: the next value, repeated n + 3 times
 ;
-; A byte is the same only with its mark the same, so the PC has every byte
-; as the read stored it.
+; Then the marks, eight bytes' to a byte of the encoding, the first byte's in
+; the top bit: 1 for a byte stored with its top bit set, 0 for one stored with
+; it clear. A read at 8 cycles marks about one byte in four at random, so a
+; revolution's marks differ from the one before every few bytes, where its
+; values don't; the marks apart from the values let the copies run on.
 ; ---------------------------------------------------------------------------
 
 ; CMDCAPTURE and CMDCAPDATA are assigned ahead of this source by
@@ -76,7 +79,7 @@ CFMAX      = 20000              ; the bytes cpfind reads before giving up, about
 CAPPAGE1   = CAPBUF / 256 + 1   ; the page after CAPBUF's first
 
         .org $5000
-        .byte 'C', 'M', 1, 10   ; capture, version 10
+        .byte 'C', 'M', 1, 11   ; capture, version 11
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in
@@ -412,11 +415,12 @@ sta12:  sta CAPBUF,y            ; patched: the copy's page
 copy12end:
 
 ; encode: CAPBUF's bytes in the encoding above: at each byte, a copy of
-; the revolution before when the next 3 match it, else a repeat when the next
-; 3 are the same, else the byte as it is. Copies start only from the page
-; after the one with the first byte a revolution in, so the check costs a
-; BIT. Each byte of the encoding goes out as it is made, so the work overlaps
-; the chip's sending.
+; the revolution before when the next 3 values match it, else a repeat when
+; the next 3 values are the same, else the value as it is; then the marks
+; (emarks). Values are compared with the top bit shifted out, or set. Copies
+; start only from the page after the one with the first byte a revolution in,
+; so the check costs a BIT. Each byte of the encoding goes out as it is made,
+; so the work overlaps the chip's sending.
 encode: lda #0
         sta eopen
         sta eseq
@@ -449,7 +453,8 @@ ensrc:  lda #<CAPBUF
 enloop: bit evalid
         bpl enrun
         lda (esrc),y            ; a copy may start here
-        cmp (epred),y
+        eor (epred),y
+        asl a
         bne enrun
         sty eyy
         jsr tokcopy
@@ -457,31 +462,34 @@ enloop: bit evalid
         ldy eyy
 enrun:  sty eyy                 ; a repeat may start here; at a page's end
         lda (esrc),y            ; the check is skipped
+        ora #$80
         sta ebyte
         iny
         beq enlit
-        cmp (esrc),y
+        lda (esrc),y
+        ora #$80
+        cmp ebyte
         bne enlit
         iny
         beq enlit
-        cmp (esrc),y
+        lda (esrc),y
+        ora #$80
+        cmp ebyte
         bne enlit
         ldy eyy
         jsr tokrun
         bcs ennext
 enlit:  ldy eyy
-        lda ebyte               ; the byte as it is, a 0 as 0 0
-        bne enone
+        lda ebyte               ; the value as it is
         jsr emitb
-        lda #0
-enone:  jsr emitb
         iny
         bne enloop
         jsr newpage
-        beq enpad
+        beq envals
         jmp enloop
 ennext: lda eend
         beq enloop
+envals: jsr emarks
 enpad:  lda eopen               ; zeros to the end of the last packet
         beq endone
         lda #0
@@ -489,14 +497,15 @@ enpad:  lda eopen               ; zeros to the end of the last packet
         jmp enpad
 endone: rts
 
-; tokcopy: from esrc+eyy, a copy token when 3 or more bytes match those a
+; tokcopy: from esrc+eyy, a copy token when 3 or more values match those a
 ; revolution before, returning with C set and Y past them; else C clear.
 tokcopy: jsr setptrs
         ldy #0
 tcloop: cpy ecap
         beq tcend
         lda (etp),y
-        cmp (etq),y
+        eor (etq),y
+        asl a
         bne tcend
         iny
         bne tcloop
@@ -513,13 +522,14 @@ tcend:  cpy #3
 tcnone: clc
         rts
 
-; tokrun: from esrc+eyy, a repeat token when 3 or more bytes are ebyte,
+; tokrun: from esrc+eyy, a repeat token when 3 or more values are ebyte,
 ; returning with C set and Y past them; else C clear.
 tokrun: jsr setptrs
         ldy #1
 trloop: cpy ecap
         beq trend
         lda (etp),y
+        ora #$80
         cmp ebyte
         bne trend
         iny
@@ -596,6 +606,31 @@ newpage: inc esrc+1
         sta evalid
 npend:  lda esrc+1
         cmp #>CAPEND
+        rts
+
+; emarks: CAPBUF's marks, each byte's top bit shifted into ebyte, eight to a
+; byte of the encoding. A page is a whole number of eights, so a byte of
+; marks never spans two pages. emitb uses X, which is set again for each.
+emarks: lda #<CAPBUF
+        sta esrc
+        lda #>CAPBUF
+        sta esrc+1
+        ldy #0
+emloop: ldx #8
+embit:  lda (esrc),y
+        asl a
+        rol ebyte
+        iny
+        dex
+        bne embit
+        lda ebyte
+        jsr emitb
+        tya
+        bne emloop
+        inc esrc+1
+        lda esrc+1
+        cmp #>CAPEND
+        bne emloop
         rts
 
 ; findrev: in elen, the first length from LMIN to LMAX at which CAPBUF's

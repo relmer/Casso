@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/Location.h"
 
 class KrunchMapDialog;
+struct CassoLinkBlockDevice;
 struct ExplorerContext;
 
 
@@ -42,9 +43,19 @@ public:
     void  FormatAppleDisk         (const Location & location);
     void  KrunchAppleDisk         (const Location & location);
     void  SaveLinkDiskImage       (const std::string & name);
+    void  SaveLinkProDosDisk      (const std::string & name);
+    void  SaveLinkSosDisk         (const std::string & name);
 
 private:
-    void  OfferRawCapture (const Location & drive, const std::filesystem::path & image);
+    void  OfferRawCapture         (const Location & drive, const std::filesystem::path & image);
+
+    //  A block device's whole-device read and write, in
+    //  CassoLinkDriveManagerBlocks.cpp.
+    void  ReadBlockDeviceToImage  (const Location & drive, const std::wstring & link, int number, bool forceVerify);
+    void  WriteImageToBlockDevice (const Location & drive, const std::wstring & link, int number, bool forceVerify);
+    bool  TryGetBlockDevice       (const std::wstring & link, int number, CassoLinkBlockDevice & outDevice) const;
+    bool  AskToResume             (const std::wstring & title, const CassoLinkBlockDevice & device, const std::filesystem::path & image, bool isRead, bool & outResume);
+    void  SubmitBlockTransfer     (const std::wstring & link, int number, const std::filesystem::path & image, bool isRead, bool resume, bool forceVerify);
 
     ExplorerContext                   & m_context;
 

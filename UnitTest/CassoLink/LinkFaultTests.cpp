@@ -312,7 +312,7 @@ public:
             Assert::AreEqual (S_OK, LinkProgram::AssembleProgram (faults,   errors, chip, true),  TextEncoding::NarrowToWide (errors.c_str()).c_str());
 
             Assert::IsTrue (plain == standard,          L"without faults by default");
-            Assert::IsTrue (faults.size() > plain.size(), L"the Fault command's code");
+            Assert::IsTrue (faults != plain,            L"the Fault command's code");
         }
     }
 

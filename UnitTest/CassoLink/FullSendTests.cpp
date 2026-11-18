@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoLink/FullSend/FullSendBootResults.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
@@ -977,6 +978,53 @@ public:
 
         Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
         Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+    }
+
+    //  An image with a bad file system is a failed capture, even when it
+    //  boots. An image with no standard file system isn't.
+    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithABadFileSystem_HasTheFailureTone)
+    {
+        for (const char * check : { FullSendManifest::kCheckBad, FullSendManifest::kCheckNone })
+        {
+            Rig   rig;
+            bool  isBad = std::string (check) == FullSendManifest::kCheckBad;
+
+            rig.link.drives[0]  = Other (1);
+            rig.link.present[1] = false;
+            rig.link.bootTones  = true;
+            rig.link.onAwait    = [&rig, check] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted, std::string(), check); };
+
+            rig.Run();
+
+            Assert::AreEqual (isBad, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
+            Assert::AreEqual (isBad, std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+        }
+    }
+
+    //  The thread that booted an image writes its verdict to the manifest's
+    //  file. The session's manifest takes it too, so the session's next write
+    //  doesn't put back the row as it was before the boot.
+    TEST_METHOD (BootResults_SetTheFileSystemVerdictInTheSessionsManifest)
+    {
+        Rig                  rig;
+        FullSendManifest     manifest;
+        FullSendRow          row;
+        FullSendBootResults  boots (rig.status, manifest);
+
+        row.sequence = 1;
+        row.file     = "0001.dsk";
+        row.status   = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        rig.status.SetBoot ("0001.dsk", FullSendManifest::kBootBooted, std::string(), FullSendManifest::kCheckBad);
+        boots.Apply();
+
+        Assert::AreEqual (std::string (FullSendManifest::kBootBooted), manifest.GetRows()[0].boot);
+        Assert::AreEqual (std::string (FullSendManifest::kCheckBad),   manifest.GetRows()[0].fsCheck);
+        Assert::AreEqual (std::string (FullSendManifest::kCheckBad),   boots.GetLatestCheck());
+
+        boots.ClearLatest();
+        Assert::IsTrue (boots.GetLatestCheck().empty());
     }
 
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its

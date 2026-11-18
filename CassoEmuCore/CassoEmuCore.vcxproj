@@ -268,9 +268,14 @@
     <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostBlocks.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostModules.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostTextForm.cpp" />
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
+    <ClCompile Include="CassoLink\Host\CassoLinkVirtualDrives.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkProDosDisk.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkSosDisk.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
@@ -279,9 +284,13 @@
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkBlockDevices.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
@@ -306,6 +315,13 @@
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
+    <ClCompile Include="CassoLink\Audio\AdtProAudioByteStream.cpp" />
+    <ClCompile Include="CassoLink\Audio\AdtProAudioCodec.cpp" />
+    <ClCompile Include="CassoLink\Audio\CassetteByteStream.cpp" />
+    <ClCompile Include="CassoLink\Audio\CassetteCodec.cpp" />
+    <ClCompile Include="CassoLink\Audio\DiskAudioRecording.cpp" />
+    <ClCompile Include="CassoLink\Audio\DualCassetteByteStream.cpp" />
+    <ClCompile Include="CassoLink\Audio\WasapiCassetteAudio.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkFault.cpp" />
@@ -453,6 +469,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerInput.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerLayout.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManager.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManagerBlocks.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\FullSendWindowManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />
@@ -498,6 +515,7 @@
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\PickerShellRoots.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerScope.cpp" />
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
@@ -550,6 +568,7 @@
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModelImages.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionsProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionText.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkFullSendOptions.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkShimBuilder.cpp" />
@@ -921,6 +940,7 @@
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\OffsetBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\DosOrderBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\BlockBuffer.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CardVolumeEdit.cpp" />
     <ClCompile Include="Devices\Disk\BlockImage.cpp" />
@@ -1564,6 +1584,7 @@
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
+    <ClInclude Include="CassoExplorer\CassetteLevelMeter.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerLinkDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerProperties.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerRawDialog.h" />
@@ -1648,6 +1669,7 @@
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
     <ClInclude Include="CassoExplorer\Picker\ExplorerPickerHost.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerShellRoots.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerScope.h" />
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
@@ -1772,6 +1794,7 @@
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Devices\Disk\OffsetBlockStore.h" />
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
+    <ClInclude Include="Devices\Disk\DosOrderBlockStore.h" />
     <ClInclude Include="Devices\Disk\BlockBuffer.h" />
     <ClInclude Include="Devices\Disk\Partitions\CardVolumeEdit.h" />
     <ClInclude Include="Devices\Disk\BlockImage.h" />
@@ -1906,6 +1929,9 @@
     <ClInclude Include="CassoLink\CassoLinkHost.h" />
     <ClInclude Include="CassoLink\CassoLinkPacketText.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkAdtProServer.h" />
+    <ClInclude Include="CassoLink\Host\CassoLinkVirtualDrives.h" />
+    <ClInclude Include="CassoLink\CassoLinkProDosDisk.h" />
+    <ClInclude Include="CassoLink\CassoLinkSosDisk.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />
     <ClInclude Include="CassoLink\LinkedDisk.h" />
@@ -1915,7 +1941,11 @@
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkBlockDevices.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
     <ClInclude Include="DiskCheck\GivenNames.h" />
@@ -1943,6 +1973,14 @@
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />
     <ClInclude Include="CassoLink\RunningCassoRegistry.h" />
     <ClInclude Include="CassoLink\LinkAnnouncement.h" />
+    <ClInclude Include="CassoLink\Audio\AdtProAudioByteStream.h" />
+    <ClInclude Include="CassoLink\Audio\AdtProAudioCodec.h" />
+    <ClInclude Include="CassoLink\Audio\CassetteByteStream.h" />
+    <ClInclude Include="CassoLink\Audio\CassetteCodec.h" />
+    <ClInclude Include="CassoLink\Audio\DiskAudioRecording.h" />
+    <ClInclude Include="CassoLink\Audio\DualCassetteByteStream.h" />
+    <ClInclude Include="CassoLink\Audio\ICassetteAudio.h" />
+    <ClInclude Include="CassoLink\Audio\WasapiCassetteAudio.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />
     <ClInclude Include="CassoLink\LinkBootstrap.h" />
     <ClInclude Include="CassoLink\LinkFault.h" />
@@ -2354,7 +2392,11 @@
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
+    <None Include="CassoLink\Apple\Modules\Block.s" />
+    <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
+    <None Include="CassoLink\Apple\VirtualDrive.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
+    <None Include="CassoLink\Apple\SosInterp.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>

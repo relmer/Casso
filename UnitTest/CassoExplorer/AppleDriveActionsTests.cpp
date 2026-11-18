@@ -4,6 +4,7 @@
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/GuestSession.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -740,6 +741,85 @@ public:
         AssertSucceeded (rig.actions->SaveLinkDiskImage (L"C:\\Disks\\link.dsk", serial).hr);
 
         Assert::IsTrue (rig.io.files["C:\\Disks\\link.dsk"] == disk);
+    }
+
+
+
+    //  The CassoLink ProDOS disk made from a user's ProDOS disk has its
+    //  PRODOS and BASIC.SYSTEM, the installer and the STARTUP that runs it;
+    //  a ProDOS disk with neither is turned down with the reason. The user's
+    //  disk is made here, with small files in place of the two.
+    TEST_METHOD (SaveLinkProDosDisk_WritesADiskWithTheUsersProDos)
+    {
+        static constexpr Byte  kSystemType = 0xFF;
+
+        Rig                rig;
+        CassoLinkSettings  serial;
+        std::vector<Byte>  users (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  file;
+        Byte               fileType = 0;
+        Word               auxType  = 0;
+
+        AssertSucceeded (ProDosSkeleton::Write (users, "USERS"));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "PRODOS", kSystemType, 0x0000, std::vector<Byte> (3000, 0x4C)));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "BASIC.SYSTEM", kSystemType, 0x2000, std::vector<Byte> (10240, 0x60)));
+
+        rig.io.files["C:/Disks/Users.dsk"]  = users;
+        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { users.size(), 1 };
+
+        AssertSucceeded (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Users.dsk", L"C:/Disks/Link.dsk", serial).hr);
+
+        for (const char * name : { "PRODOS", "BASIC.SYSTEM", "CASSOLINK", "STARTUP" })
+        {
+            AssertSucceeded (ProDosReader::ExtractFile (rig.io.files["C:/Disks/Link.dsk"], name, file, fileType, auxType));
+        }
+
+        AssertSucceeded (ProDosSkeleton::Write (blank, "EMPTY"));
+        rig.io.files["C:/Disks/Empty.dsk"]  = blank;
+        rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
+
+        Assert::IsFalse (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial).Succeeded(), L"A disk without PRODOS is turned down");
+    }
+
+
+
+    //  The CassoLink SOS disk made from Apple's System Demo disk has its
+    //  SOS.KERNEL and SOS.DRIVER and the SOS.INTERP; a disk without SOS
+    //  and a speed above the Apple ///'s fail with the reason.
+    TEST_METHOD (SaveLinkSosDisk_WritesADiskWithTheUsersSos)
+    {
+        Rig                    rig;
+        CassoLinkSettings      serial;
+        std::vector<Byte>      blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>      file;
+        Byte                   fileType = 0;
+        Word                   auxType  = 0;
+        ActionsTypes::Outcome  outcome;
+
+        serial.baud = 9600;
+
+        rig.io.files["C:/Disks/Sos.dsk"]  = GuestSession::RequireSosDemoDisk();
+        rig.io.stamps["C:/Disks/Sos.dsk"] = FileStamp { rig.io.files["C:/Disks/Sos.dsk"].size(), 1 };
+
+        AssertSucceeded (rig.actions->SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link.dsk", serial).hr);
+
+        for (const char * name : { "SOS.KERNEL", "SOS.DRIVER", "SOS.INTERP" })
+        {
+            AssertSucceeded (ProDosReader::ExtractFile (rig.io.files["C:/Disks/Link.dsk"], name, file, fileType, auxType));
+        }
+
+        AssertSucceeded (ProDosSkeleton::Write (blank, "EMPTY"));
+        rig.io.files["C:/Disks/Empty.dsk"]  = blank;
+        rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
+
+        outcome = rig.actions->SaveLinkSosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial);
+        Assert::IsFalse (outcome.Succeeded());
+        Assert::IsTrue (outcome.message.find (L"SOS loader") != std::wstring::npos, outcome.message.c_str());
+
+        serial.baud = 115200;
+        outcome     = rig.actions->SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link3.dsk", serial);
+        Assert::IsTrue (outcome.message.find (L"19,200") != std::wstring::npos, outcome.message.c_str());
     }
 
 

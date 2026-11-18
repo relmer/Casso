@@ -241,6 +241,147 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::WriteNibbleTrack
+//
+//  The Apple requests the stream with an Acknowledge, and requests it again
+//  with a NAK when it arrived damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    CassoLinkPacket    packet;
+    std::vector<Byte>  payload (stream.begin(), stream.end());
+    std::vector<Byte>  request = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8) };
+    Word               crc     = CassoLinkCodec::ComputeCrc (stream);
+    bool               valid   = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
+
+
+
+    outStatus = {};
+    CBRAEx (valid, E_INVALIDARG);
+
+    payload.push_back ((Byte) (crc & 0xFF));
+    payload.push_back ((Byte) (crc >> 8));
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kWriteNibbleTrack, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == CassoLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        valid = packet.command == CassoLinkCodec::kAcknowledge && packet.payload.size() == 3;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        hr = SendPacket (CassoLinkCodec::kNibbleData, payload);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ReadThirteenTrack
+//
+//  A sector whose packet fails its CRC is left out of outFields, so the
+//  caller requests it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ReadThirteenTrack (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    CassoLinkPacket    packet;
+    std::vector<Byte>  request = { drive, track, (Byte) (requested & 0xFF), (Byte) (requested >> 8) };
+
+
+
+    outStatus    = {};
+    outUnwritten = 0;
+    outFields.assign (CassoLinkCodec::kThirteenSectors, std::vector<Byte>());
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kReadThirteenTrack, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        Byte  sector = 0;
+        bool  valid  = false;
+
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == CassoLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        valid = packet.command == CassoLinkCodec::kThirteenData && !packet.payload.empty();
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        sector = (Byte) (packet.payload[0] & ~CassoLinkCodec::kNoDataField);
+        valid  = sector < CassoLinkCodec::kThirteenSectors;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        if ((packet.payload[0] & CassoLinkCodec::kNoDataField) != 0)
+        {
+            valid = packet.payload.size() == 1;
+            CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+            outUnwritten = (Word) (outUnwritten | (1u << sector));
+        }
+        else
+        {
+            std::span<const Byte>  field;
+            Word                   crc = 0;
+
+            valid = packet.payload.size() == 1 + CassoLinkCodec::kThirteenField + 2;
+            CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+            field = std::span<const Byte> (packet.payload).subspan (1, CassoLinkCodec::kThirteenField);
+            crc   = (Word) (packet.payload[1 + CassoLinkCodec::kThirteenField] | (packet.payload[2 + CassoLinkCodec::kThirteenField] << 8));
+
+            if (CassoLinkCodec::ComputeCrc (field) == crc)
+            {
+                outFields[sector].assign (field.begin(), field.end());
+            }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::BuildCaptureModule
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,6 +389,21 @@ Error:
 HRESULT CassoLinkHost::BuildCaptureModule (std::vector<Byte> & outModule) const
 {
     return LinkProgram::BuildCaptureModule (outModule, m_programChip, m_faultProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::BuildThirteenSectorModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::BuildThirteenSectorModule (std::vector<Byte> & outModule) const
+{
+    return LinkProgram::BuildThirteenSectorModule (outModule, m_programChip, m_faultProgram);
 }
 
 

@@ -1042,6 +1042,11 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             entry.drives.push_back (row);
         }
 
+        if (entry.replying)
+        {
+            AddBlockDevices (**found, entry);
+        }
+
         if (entry.probing && entry.drives.empty())
         {
             entry.status = std::format (L"Reading the drives on {}...", entry.model.empty() ? std::wstring (L"the Apple") : entry.model);
@@ -1051,68 +1056,6 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
     }
 
     return entries;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::ProbeDrives
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::ProbeDrives()
-{
-    std::lock_guard<std::mutex>  lock (m_lock);
-
-
-
-    for (const std::unique_ptr<Link> & link : m_started)
-    {
-        LinkState  state     = link->session->GetState();
-        Byte       map       = link->session->GetDriveMap();
-        bool       connected = state == LinkState::Ready || state == LinkState::Busy;
-        bool       again     = connected && !link->connected;
-
-        link->connected = connected;
-
-        //  A link connected again drops the reads that finished before:
-        //  they may have failed with the line, and the Apple's disks may
-        //  have changed while it was gone. A drive read then has its volume
-        //  again, for its row and Write image's confirmation.
-        if (again)
-        {
-            std::erase_if (link->requests, [] (const auto & request)
-            {
-                LinkOperationState  done = request.second->state;
-
-                return done != LinkOperationState::Queued && done != LinkOperationState::Running;
-            });
-        }
-
-        //  Reads blocked while a Full Send ran are made again once it ends.
-        if (!link->session->IsFullSendRunning())
-        {
-            std::erase_if (link->requests, [] (const auto & request) { return request.second->isBlocked; });
-        }
-
-        if (!connected)
-        {
-            continue;
-        }
-
-        for (int drive = 1; drive <= CassoLinkSessionTypes::kDriveCount; drive++)
-        {
-            std::string  key = MakeKey (drive, std::string(), false);
-
-            if ((map & (1 << (drive - 1))) != 0 && link->requests.find (key) == link->requests.end())
-            {
-                link->requests[key] = link->session->Enumerate (drive, FilePath());
-            }
-        }
-    }
 }
 
 
@@ -1668,7 +1611,7 @@ void CassoLinkConnections::ApplyVerify (Link & link) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo)
+void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo, const std::string & fsCheck)
 {
     Activity  entry;
 
@@ -1686,7 +1629,7 @@ void CassoLinkConnections::NoteBoot (const std::string & link, const std::string
 
         if (found != m_started.end() && (*found)->session != nullptr)
         {
-            (*found)->session->NoteBoot (file, boot, text, renamedTo);
+            (*found)->session->NoteBoot (file, boot, text, renamedTo, fsCheck);
         }
 
         m_activity.push_back (std::move (entry));

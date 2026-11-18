@@ -4,6 +4,7 @@
 
 #include "DiskCheck/BootCheck.h"
 #include "DiskCheck/ThumbnailStore.h"
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
 
 class GivenNames;
 class IDiskFileIo;
@@ -37,11 +38,13 @@ public:
         std::string               renamedFrom;  // the file's name before, when the boot renamed it
         std::string               source;       // as given to Queue
         bool                      hasReport  = false;
-        bool                      isComplete = true;    // false for a Full Send image with unreadable sectors
+        bool                      isComplete = true;    // false for a Full Send image with unreadable sectors or a bad file system
         BootVerdict               verdict    = BootVerdict::Unclear;
         std::string               reason;
         std::string               machine;
         std::vector<std::string>  missing;      // each machine that couldn't be built, with why
+        std::string               fsCheck;      // the file-system verdict, as the manifest's column has it; empty when unchecked
+        std::string               fsFinding;    // the verdict's first finding, for Bad and Suspect
     };
 
     using DoneFn  = std::function<void (const Result &)>;
@@ -93,6 +96,9 @@ public:
     //  A result as a line for an activity list.
     static std::string  Describe (const Result & result);
 
+    //  A file-system verdict as the manifest's fscheck column has it.
+    static std::string  GetCheckName (FileSystemVerdict verdict);
+
 private:
     struct Item
     {
@@ -103,7 +109,9 @@ private:
 
     void  Run ();
 
-    static std::string  FindGivenName (IDiskFileIo & fileIo, GivenNames * given, const std::string & folder, const std::string & name);
+    static std::string  FindGivenName   (IDiskFileIo & fileIo, GivenNames * given, const std::string & folder, const std::string & name);
+    static std::string  DescribeCheck   (const Result & result);
+    static void         CheckFileSystem (const std::vector<Byte> & bytes, const std::wstring & path, Result & ioResult);
 
     static constexpr DWORD   s_kBusyPollMs    = 250;
     static constexpr size_t  s_kMaxTitleChars = 60;

@@ -173,12 +173,13 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     //  frame rather than crawling until the queue fills.
     params.paceFrames               = true;
 
-    //  A picker has a class no Casso Explorer launch is forwarded to, and it
-    //  stays over the window that opened it.
+    //  A Casso Explorer launch is never forwarded to a picker's class. A
+    //  modal picker stays in front of the window that opened it; any other
+    //  can go behind it, as a separate window.
     if (m_context.picker != nullptr)
     {
         params.classNameOverride = ExplorerPickerHost::kWindowClass;
-        params.ownerHwnd         = m_context.request.owner;
+        params.ownerHwnd         = m_context.request.isOwned ? m_context.request.owner : nullptr;
         params.initialSizeDip    = { ExplorerPickerHost::kDefaultWidthDip, ExplorerPickerHost::kDefaultHeightDip };
     }
 

@@ -28,7 +28,7 @@ TEST_CLASS (LinkBootstrapTests)
 {
 public:
 
-    //  The serial loader typed into the monitor from $3A50 and run; the shim
+    //  The serial loader typed into the monitor from $3950 and run; the shim
     //  is not typed.
     TEST_METHOD (Lines_TypeTheSerialLoaderIntoTheMonitor_AndRunIt)
     {
@@ -43,7 +43,7 @@ public:
 
         Assert::AreEqual (std::string ("\x18"),        lines[0], L"Ctrl-X cancels a partial line from stray bytes");
         Assert::AreEqual (std::string ("CALL -151\r"), lines[1]);
-        Assert::AreEqual (std::string ("3A50G\r"),     lines.back());
+        Assert::AreEqual (std::string ("3950G\r"),     lines.back());
 
         for (size_t i = 2; i + 1 < lines.size(); i++)
         {
@@ -103,7 +103,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildBootstrapImage (options, shim, start));
         AssertSucceeded (LinkAudioBootstrap::BuildAudio (options, audio, command));
-        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the finder and the shim, to the shim's end");
+        Assert::AreEqual (std::string ("39A0.4055R 39A0G\r"), command, L"the finder and the shim, to the shim's end");
         Assert::AreEqual (LinkAudioBootstrap::kSampleRate, audio.sampleRate);
 
         LinkAudioBootstrap::AppendRecord (shim, halves);

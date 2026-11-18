@@ -27,10 +27,11 @@ public:
     //  is not written.
     static HRESULT  NoteRename  (IDiskFileIo & fileIo, const std::string & folder, const std::string & oldName, const std::string & newName);
 
-    //  The boot result of a file in `folder`, written to its row, and the
-    //  row returned in outRow. A folder with no manifest, or no row for the
-    //  file, is left as it is, and outRow has no file.
-    static HRESULT  NoteBoot    (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, FullSendRow & outRow);
+    //  The boot result and file-system verdict of a file in `folder`,
+    //  written to its row, and the row returned in outRow as it was before.
+    //  A folder with no manifest, or no row for the file, is left as it is,
+    //  and outRow has no file.
+    static HRESULT  NoteBoot    (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, const std::string & fsCheck, FullSendRow & outRow);
 
     //  A raw capture in `folder` whose manifest row has it under oldName,
     //  renamed to newName in the folder and the manifest, and its reads

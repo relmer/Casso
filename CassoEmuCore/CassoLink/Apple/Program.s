@@ -8,7 +8,9 @@
 ;                   the PC is at work between an operation's requests,
 ;                   and the label and the motor stay.
 ;   Set speed       a 6551 control byte; ACK, then the new speed
-;   Read sectors    drive, track, count, sectors: Sector data for each
+;   Read sectors    drive, track, count, sectors: Sector data for each, or
+;                   Sector blank, its track, sector and value, for one whose
+;                   bytes are all one value
 ;   Write sectors   drive, track, count, sectors: for each, an Acknowledge
 ;                   with its number, ACK or NAK for another copy, and the
 ;                   host's Sector data, written and read back
@@ -90,6 +92,29 @@
 ; booted from the universal disk sends its announcement each second, so Casso
 ; Explorer finds it again. Set speed is acknowledged and
 ; changes nothing, and Exit disconnects the socket.
+;
+; The 6551 build also runs a card the shim found with the Pascal 1.1
+; firmware signature and no 6551: SHIMPAS is $80, and the byte routines call
+; the firmware through the shim, which stays resident. The card's switches
+; or firmware set its speed, so Set speed is acknowledged and changes
+; nothing.
+;
+; A IIgs's modem and printer ports are driven the same way, with SHIMPAS at
+; $C0: the shim's three jumps go to its 8530 routines rather than to the
+; firmware. Set speed sets the 8530 through the shim, and Load program
+; starts the shim at the speed set.
+;
+; On a IIgs the program runs at 1 MHz, as every wait here is counted in
+; cycles, from its start until CassoLink ends, when the IIgs's speed is put
+; back.
+;
+; The cassette build, for a ][+ or //e with no serial card, is loaded from
+; tape by the monitor and talks through the cassette ports in Casso's audio
+; encoding (R45). Its bytes to send go in TXBUF and are sent as one burst
+; before each wait for a byte, or once TXBUF is full; a burst received goes
+; into RXBUF whole, and the program reads it from there. Set speed is
+; acknowledged and changes nothing, Load program returns to the main loop, and
+; a Cancel is taken only when the program next waits for a byte.
 
         ifndef PROGVER
 PROGVER = 1
@@ -98,12 +123,17 @@ PROGVER = 1
 SHIMVER = 1
         endif
 
-; Ready's shim version: a W5100 build sets bit 7, so the host sends the
-; program built for the chip whatever the link it connected through.
+; Ready's shim version: a W5100 build sets bit 7 and a cassette build bit 6,
+; so the host sends the program built for the chip whatever the link it
+; connected through.
         ifdef W5100
 READYVER = SHIMVER + $80
         else
+        ifdef CASSETTE
+READYVER = SHIMVER + $40
+        else
 READYVER = SHIMVER
+        endif
         endif
 
 ; The 6551, through slotx: slot * 16, $20 for the //c's port 2.
@@ -144,6 +174,39 @@ IRSENT   = $18                  ; SEND_OK or TIMEOUT
 STUDP    = $22
 ANNREG   = $05                  ; socket 1's registers' page, for the announcements
 ANNTX    = $50                  ; and its transmit memory's page, for 4 KB
+        endif
+
+        ifdef CASSETTE
+; The cassette ports, and the buffers above the program's, where DOS would be.
+CASOUT   = $C020                ; any access toggles the output
+CASIN    = $C060                ; the input's level, in bit 7
+RXBUF    = $9600                ; a burst received, to $A7FF
+RXEND    = $A800
+TXBUF    = $A800                ; the bytes put, sent as a burst, to $B9FF
+TXEND    = $BA00
+; Casso's audio encoding, in cycles of the delay loops and rounds of the
+; edge loop (cedge, 14 cycles a round) at 1.0227 MHz. A bit is a full cycle,
+; 511 cycles for a 0 and 1,023 for a 1, a tone half 1,023, as
+; CassetteCodec has them in microseconds.
+TONES    = 64                   ; the tone's half cycles
+TONEX    = 200                  ; 5 * 200 + 22 cycles a tone half
+ZEROX    = 44                   ; 10 * 44 + 68 cycles a 0 cycle
+ONEX     = 95                   ; 10 * 95 + 69 cycles a 1 cycle
+CRPRE    = 5                    ; the rounds a cycle's code takes between edges
+CRTLO    = 55                   ; a tone half: 750 to 1,500 microseconds
+CRTHI    = 110
+CRMARK   = 46                   ; a half shorter than 625 microseconds ends the tone
+CRBIT    = 55                   ; a cycle of 750 microseconds or more is a 1
+CRCYC    = 110                  ; and one of 1,500 or more ends the burst
+CRSECOND = 285                  ; units of 256 rounds in a second
+        endif
+
+; The transports that send what they put when they next wait for a byte.
+        ifdef W5100
+BUFFERED = 1
+        endif
+        ifdef CASSETTE
+BUFFERED = 1
         endif
 
 ; The Disk II, through diskx: slot * 16, $60 for slot 6.
@@ -196,7 +259,7 @@ FLTUNREAD = 4
 FLTDATA   = 5
 FLTCRC    = 6
 
-SHIM      = $3B00
+SHIM      = $3A00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
@@ -205,7 +268,14 @@ SHIMPORT  = SHIM + $1E            ; a W5100 shim's TCP port, high byte first
 SHIMMAC   = SHIM + $18            ; a W5100 shim's MAC address
 SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
 SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
-ZPSAVE    = $3A00                 ; the zero page the shim found, below the shim
+SHIMPAS   = SHIM + $39            ; $80 when the card is run through its Pascal 1.1 firmware
+SHIMPSTAT = SHIM + $3A            ; the shim's calls of that firmware: status,
+SHIMPREAD = SHIM + $3D            ; read
+SHIMPWRITE = SHIM + $40           ; and write, X and Y changed
+SHIMGS    = SHIM + $43            ; a IIgs's speed register as found, plus 1; 0 until then
+SHIMSCC   = SHIM + $44            ; the shim's setting of a IIgs's port to the speed in A
+CYAREG    = $C036                 ; a IIgs's speed register: bit 7 for its fast speed
+ZPSAVE    = $3900                 ; the zero page the shim found, below the shim
 ACK       = $06
 NAK       = $15
 
@@ -323,6 +393,17 @@ wnum     = $2E                  ; and $2F: putword's value
 wdig     = $30                  ; putword: the digit
 wlead    = $31                  ; putword: nonzero once a digit is drawn
         endif
+        ifdef CASSETTE
+rxptr    = $24                  ; and $25: the next byte of RXBUF to read
+rxn      = $26                  ; and $27: bytes in RXBUF not yet read
+txn      = $28                  ; and $29: bytes in TXBUF
+cptr     = $2A                  ; and $2B: a burst's next byte
+clen     = $2C                  ; and $2D: a burst's bytes left
+cbyte    = $2E                  ; the byte being sent or received
+cbits    = $2F                  ; its bits left
+clast    = $30                  ; the input's level at its last edge, in bit 7
+wsavy    = $31                  ; getbt and putb: Y as it came
+        endif
 
         .org $0800
 
@@ -340,6 +421,15 @@ entry:  sei
         lda #$20
         sta slotx
 slotok:
+        ifdef CASSETTE
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta txn
+        sta txn+1
+        lda CASIN
+        sta clast
+        else
         ifdef W5100
         ora #<WZDATA            ; each write of the data is absolute, as an
         sta wzput+1             ; indexed store reads it first, which would
@@ -352,6 +442,7 @@ slotok:
         clc                     ; absolute for the same reason as putb's
         adc #1
         sta sdwait+1
+        endif
         endif
         lda #$60
         sta diskx
@@ -384,6 +475,9 @@ slotok:
         sta $03F3
         eor #$A5
         sta $03F4
+        ifndef CASSETTE
+        jsr gsslow
+        endif
         jsr probe
         jsr readid
         jsr drawscreen
@@ -557,6 +651,10 @@ xlprim:
         lda Q7L,x
         lda Q6L,x
         jsr motoroff
+        ifdef CASSETTE
+        jmp lvbasic             ; no shim saved the machine's state
+        else
+        jsr gsrestore
         ifdef W5100
         lda #CMDISCON           ; the PC's connection ended, then the socket
         jsr wzcmd               ; closed, after at most a few seconds
@@ -572,9 +670,13 @@ xlwait: jsr wzstat
 xlclose: lda #CMCLOSE
         jsr wzcmd
         else
+        bit SHIMPAS             ; a card run through its firmware has no DTR here
+        bmi xlnodtr
         ldx slotx
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
+xlnodtr:
+        endif
         endif
         lda SHIMSAVED          ; 1 once the shim saved them; an older shim
         cmp #1                  ; has code there, which is left alone
@@ -643,7 +745,7 @@ tmloop: jsr findsector
         bcs tmdone
         lda #$A5
         jsr putb
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush               ; sent at once, as the PC times its arrival
         endif
         dec revs
@@ -861,6 +963,9 @@ ggdone: rts
 ; speed the host sends the program at; and with the dial command marked as
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
+        ifdef CASSETTE
+doload: jmp main                ; the program came from the cassette input, with no shim
+        else
         ifdef W5100
 doload: jsr col40
         jsr flush
@@ -868,10 +973,16 @@ doload: jsr col40
         jmp SHIM
         else
 doload: jsr col40
-        ldx slotx
+        bit SHIMPAS             ; the firmware's card has no 6551 speed to set,
+        bpl dlacia              ; and a IIgs's port has its speed in the shim
+        bvs dlgs
+        jmp SHIM
+dlgs:   lda SHIMSPEED
+        jmp dlspeed
+dlacia: ldx slotx
         lda ACIACTL,x
         sta SHIMSPEED
-        and #$0F
+dlspeed: and #$0F
         ldx #0
 dlfind: cmp speeds,x
         beq dlfound
@@ -902,6 +1013,7 @@ dlgo:   lda SHIMDIAL            ; the dial command marked as dialed, which the
         ora #$80
         sta SHIMDIAL
 dlnone: jmp SHIM
+        endif
         endif
 ; domodule: Load module. With no payload, the module's id and version in
 ; reply, or 0 and 0 with none loaded. With an offset into the module and
@@ -1093,14 +1205,35 @@ cancel: jsr motoroff
 dospeed: lda #OPSPEED
         sta op
         jsr showop
+        ifndef BUFFERED
+        lda PKTBUF              ; 230,400 baud, rate 1, is for a IIgs's port
+        and #$0F                ; alone: for a 6551 or a card run through its
+        cmp #$01                ; firmware the program sends a NAK, and the
+        bne spdack              ; speed doesn't change
+        bit SHIMPAS
+        bvs spdack
+        lda #NAK
+        ldx #0
+        ldy #0
+        jsr sendack
+        jmp main
+spdack:
+        endif
         lda #ACK
         ldx #0
         ldy #0
         jsr sendack
-        ifdef W5100
-        jmp main                ; a W5100 has no speed to set
+        ifdef BUFFERED
+        jmp main                ; a W5100 or the cassette has no speed to set
         else
-        ldx slotx
+        bit SHIMPAS             ; nor a card run through its firmware, but a
+        bpl spdacia             ; IIgs's port does, once the ACK is sent
+        bvc spddone
+        lda PKTBUF
+        jsr SHIMSCC
+        jsr showconn
+spddone: jmp main
+spdacia: ldx slotx
 spdwait: lda ACIASTAT,x
         and #TDRE
         beq spdwait
@@ -1768,6 +1901,8 @@ statend:
 ; arrays of ready two-bit values, one per third of the sector; each byte is
 ; then one shift and one ORA, sent, and added to the EOR and the CRC, all
 ; inline, in less time than the 6551 takes to send a byte at 115,200 baud.
+; A sector whose bytes are all one value, as a disk's free space mostly is,
+; is sent as Sector blank instead, its value in place of its 256 bytes.
 sendsector: ldy #85
 ssaux:  lda (dst),y
         tax
@@ -1779,7 +1914,14 @@ ssaux:  lda (dst),y
         sta AUXA2,y
         dey
         bpl ssaux
-        ldy #0
+        ifdef FAULTS
+        lda fltact              ; a sector sent while a fault is armed goes whole
+        bne sdwhole
+        endif
+        jsr isfill
+        bcc sdwhole
+        jmp sendfill
+sdwhole: ldy #0
         sty crclo
         sty crchi
         ldx #0
@@ -1805,9 +1947,15 @@ sddata: lda (dstp),y             ; the byte: the value << 2 | its two bits
         asl a
 sdora:  ora AUXA0,x             ; the third's array, set before each pass
         sta sbyte
-        ifdef W5100
+        ifdef BUFFERED
         jsr putb
         else
+        bit SHIMPAS             ; through putb for a card run through its firmware
+        bpl sdacia
+        lda sbyte
+        jsr putb
+        jmp sdpdone
+sdacia:
         ifdef FAULTS
         lda fltact              ; through putb while a fault is armed
         beq sdwait
@@ -1824,6 +1972,7 @@ sdsta:  sta ACIADATA            ; set for the port at startup
 sdsent:
         endif
         endif
+sdpdone:
         eor peor
         sta peor
         lda sbyte
@@ -1858,6 +2007,56 @@ sddone:
 
 datahdr: .byte $C1, $04, $01, CMDDATA, $C1 ^ $04 ^ $01 ^ CMDDATA
 dataend:
+
+; isfill: the carry set when the sector's 256 bytes are all one value, which
+; is then in A. Its six-bit values at (dstp) are all the same, and so are the
+; two-bit values sendsector put in AUXA0 to AUXA2, one page for the 256
+; bytes. Each check ends at the first difference, so a sector of other data
+; costs a few compares.
+isfill: ldy #0
+        lda (dstp),y
+        sta fillv
+ifpri:  lda (dstp),y
+        cmp fillv
+        bne ifno
+        iny
+        bne ifpri
+        lda AUXA0
+ifaux:  cmp AUXA0,y
+        bne ifno
+        iny
+        bne ifaux
+        lda fillv
+        asl a
+        asl a
+        ora AUXA0
+        sec
+        rts
+ifno:   clc
+        rts
+
+; sendfill: Sector blank, the track, the sector and the value in A.
+sendfill: sta fillv
+        ldx #0
+sfhdr:  lda fillhdr,x
+        jsr putb
+        inx
+        cpx #fillend-fillhdr
+        bne sfhdr
+        lda #0
+        sta peor
+        lda track
+        jsr putpe
+        lda sector
+        jsr putpe
+        lda fillv
+        jsr putpe
+        lda peor
+        jmp putb
+
+fillhdr: .byte $C1, $03, $00, CMDBLANK, $C1 ^ $03 ^ $00 ^ CMDBLANK
+fillend:
+fillv:  .byte 0                 ; isfill and sendfill: the value
 
 ; getsector: the host's Sector data into SECBUF. The carry is set when it
 ; times out, is not Sector data, is for another sector or fails its CRC.
@@ -1908,21 +2107,24 @@ gscrc:  lda SECBUF,y
 gsfail: sec
         rts
 
-; A sector of zeros: its track and sector, then the payload's EOR, and SECBUF
-; filled with zeros here rather than sent.
+; A sector of one value: its track, sector and value, then the payload's
+; EOR, and SECBUF filled with the value here rather than sent.
 gsblank: jsr getbtq             ; track
         bcs gsfail
         jsr getbtq              ; sector
         bcs gsfail
         cmp sector
         bne gsfail
+        jsr getbtq              ; the value
+        bcs gsfail
+        sta fillv
         jsr getbtq              ; the payload's EOR
         bcs gsfail
-        lda #0
-        tay
-gszero: sta SECBUF,y
+        lda fillv
+        ldy #0
+gsfill: sta SECBUF,y
         iny
-        bne gszero
+        bne gsfill
         clc
         rts
 
@@ -2004,6 +2206,9 @@ gpfail: sec
 ; for only the packet's first byte, so any byte is taken as Cancel. A W5100
 ; takes the one byte the same way.
 pollcancel:
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         lda rxn
         ora rxn+1
@@ -2016,12 +2221,20 @@ pollcancel:
 pcany:  jsr getbtq
         jmp cancel
         else
-        ldx slotx
+        bit SHIMPAS
+        bpl pcacia
+        lda #1                  ; input ready
+        jsr SHIMPSTAT
+        bcc pcdone
+        jsr SHIMPREAD
+        jmp cancel
+pcacia: ldx slotx
         lda ACIASTAT,x
         and #RDRF
         beq pcdone
         lda ACIADATA,x
         jmp cancel
+        endif
         endif
 pcdone: rts
 
@@ -2077,6 +2290,310 @@ slfend: cpy #<progend
         sta readycrc+1
         rts
 
+        ifdef CASSETTE
+; getbt: a byte of the burst in RXBUF, or with none left, the bytes put sent
+; as a burst and the next burst received, waiting tmolen seconds for its tone.
+; The carry is set on a timeout or a damaged burst. X and Y are saved and
+; restored. getbtq waits a second for a burst, for a byte inside a packet
+; that came in more than one.
+getbt:  stx savex
+        sty wsavy
+        lda rxn
+        ora rxn+1
+        bne gbtake
+        jsr flush
+        lda tmolen
+gbrecv: jsr crecv
+        bcs gbnone
+gbtake: ldy #0
+        lda (rxptr),y
+        inc rxptr
+        bne gbcount
+        inc rxptr+1
+gbcount: pha
+        lda rxn
+        bne gbdec
+        dec rxn+1
+gbdec:  dec rxn
+        pla
+        ldx savex
+        ldy wsavy
+        clc
+        rts
+gbnone: ldx savex
+        ldy wsavy
+        sec
+        rts
+getbtq: stx savex
+        sty wsavy
+        lda rxn
+        ora rxn+1
+        bne gbtake
+        lda #1
+        bne gbrecv              ; always
+
+; putraw: A into TXBUF, sent with the next wait for a byte, or at once when
+; TXBUF is full. A, X and Y are saved and restored.
+putraw: stx savex
+        sty wsavy
+        pha
+        lda #<TXBUF
+        clc
+        adc txn
+        sta cptr
+        lda #>TXBUF
+        adc txn+1
+        sta cptr+1
+        pla
+        pha
+        ldy #0
+        sta (cptr),y
+        inc txn
+        bne txfull
+        inc txn+1
+txfull: lda txn+1
+        cmp #>(TXEND-TXBUF)
+        bcc txdone
+        jsr flush
+txdone: pla
+        ldx savex
+        ldy wsavy
+        rts
+
+; flush: TXBUF's bytes as a burst: the tone, a 0 as its mark, the count and
+; its complement, the bytes, and a 0 after them so the last bit ends at an
+; edge another follows. Every path from one toggle of the output to the next
+; is counted, so a cycle is the same length wherever it falls.
+flush:  lda txn
+        ora txn+1
+        bne flsend
+        rts
+flsend: ldy #TONES
+fltone: ldx #TONEX
+        jsr chalf
+        dey
+        bne fltone
+        clc
+        jsr cbit
+        lda txn
+        jsr csbyte
+        lda txn+1
+        jsr csbyte
+        lda txn
+        eor #$FF
+        jsr csbyte
+        lda txn+1
+        eor #$FF
+        jsr csbyte
+        lda #<TXBUF
+        sta cptr
+        lda #>TXBUF
+        sta cptr+1
+flbyte: ldy #0
+        lda (cptr),y
+        jsr csbyte
+        inc cptr
+        bne flcount
+        inc cptr+1
+flcount: lda txn
+        bne fldec
+        dec txn+1
+fldec:  dec txn
+        lda txn
+        ora txn+1
+        bne flbyte
+        clc
+        jmp cbit
+
+; csbyte: A's bits, most significant first.
+csbyte: sta cbyte
+        lda #8
+        sta cbits
+csbit:  asl cbyte
+        jsr cbit
+        dec cbits
+        bne csbit
+        rts
+
+; cbit: the bit in C as one cycle of two halves.
+cbit:   ldx #ZEROX
+        bcc cbgo
+        ldx #ONEX
+cbgo:   stx chx
+        jsr chalf
+        ldx chx
+        jsr chalf
+        rts
+
+; chalf: the output toggled, then X rounds of 5 cycles.
+chalf:  bit CASOUT
+chwait: dex
+        bne chwait
+        rts
+
+; crecv: a burst into RXBUF, rxptr at its start and rxn its count, waiting
+; A seconds for its tone. Once 16 halves of tone are counted, the wait lasts to
+; the burst's end, so a tone longer than the wait isn't cut off. The carry is
+; set on a timeout or a damaged burst.
+crecv:  tax
+        lda #0
+        sta climit
+        sta climit+1
+        sta tmo
+        sta tmo+1
+        sta tmo+2
+        sta ctones
+crsecs: lda climit
+        clc
+        adc #<CRSECOND
+        sta climit
+        lda climit+1
+        adc #>CRSECOND
+        sta climit+1
+        dex
+        bne crsecs
+        lda CASIN
+        sta clast
+crhunt: ldx #3
+        jsr cedge
+        php
+        txa
+        clc
+        adc tmo
+        sta tmo
+        bcc crclock
+        inc tmo+1
+        bne crclock
+        inc tmo+2
+crclock: lda ctones             ; no timeout once a tone is under way
+        cmp #16
+        bcs crlive
+        lda tmo+2              ; tmo+1 and tmo+2 against the limit
+        cmp climit+1
+        bcc crlive
+        bne crtime
+        lda tmo+1
+        cmp climit
+        bcs crtime
+crlive: plp
+        bcs crreset             ; no edge for 3.5 ms
+        cpx #CRTLO
+        bcc crshort
+        cpx #CRTHI
+        bcs crreset
+        inc ctones
+        bne crhunt
+        dec ctones
+        jmp crhunt
+crtime: plp
+        sec
+        rts
+crreset: lda #0
+        sta ctones
+        jmp crhunt
+crshort: cpx #CRMARK            ; the mark's first half, after enough tone
+        bcs crreset
+        lda ctones
+        cmp #16
+        bcc crreset
+        jsr cedge               ; and its second, counted on from the first
+        bcs crreset
+        cpx #CRBIT
+        bcs crreset
+        jsr crbyte              ; the count and its complement
+        bcs crbad
+        sta clen
+        jsr crbyte
+        bcs crbad
+        sta clen+1
+        jsr crbyte
+        bcs crbad
+        eor clen
+        cmp #$FF
+        bne crbad
+        jsr crbyte
+        bcs crbad
+        eor clen+1
+        cmp #$FF
+        bne crbad
+        lda #<RXBUF
+        sta cptr
+        sta rxptr
+        lda #>RXBUF
+        sta cptr+1
+        sta rxptr+1
+        lda clen
+        sta rxn
+        ora clen+1
+        beq crbad
+        lda clen+1
+        sta rxn+1
+        cmp #>(RXEND-RXBUF)
+        bcc crdata
+        bne crbad
+        lda clen
+        bne crbad
+crdata: jsr crbyte
+        bcs crbad
+        ldy #0
+        sta (cptr),y
+        inc cptr
+        bne crcount
+        inc cptr+1
+crcount: lda clen
+        bne crdec
+        dec clen+1
+crdec:  dec clen
+        lda clen
+        ora clen+1
+        bne crdata
+        clc
+        rts
+crbad:  lda #0
+        sta rxn
+        sta rxn+1
+        sec
+        rts
+
+; crbyte: a byte in A, each bit a full cycle counted from CRPRE rounds. The
+; carry is set for a cycle too long, or no edge.
+crbyte: lda #8
+        sta cbits
+crbit:  ldx #CRPRE
+        jsr cedge
+        bcs crbyfail
+        jsr cedge
+        bcs crbyfail
+        cpx #CRCYC
+        bcs crbyfail
+        cpx #CRBIT
+        rol cbyte
+        dec cbits
+        bne crbit
+        lda cbyte
+        clc
+crbyfail: rts
+
+; cedge: the input watched until its level changes, X counting the rounds of
+; 14 cycles. The carry is set when X counts to 255 first, about 3.5 ms.
+cedge:  inx
+        beq cewrap
+        lda CASIN
+        eor clast
+        bpl cedge
+        eor clast
+        sta clast
+        clc
+        rts
+cewrap: dex
+        sec
+        rts
+
+chx:    .byte 0                 ; cbit: the half's rounds
+ctones: .byte 0                 ; crecv: tone halves in a row
+climit: .word 0                 ; and its limit, in units of 256 rounds
+
+        else
         ifdef W5100
 ; getbt: a byte from the W5100, waiting tmolen seconds; the bytes put are
 ; sent first. The carry is set on a timeout, after which a socket that has
@@ -2388,6 +2905,8 @@ wzput:  sta WZDATA
 ; piece: a byte lost on the line then costs a tenth of a second before the
 ; NAK, not three. A USB serial adapter can hold bytes for 16 ms.
 getbt:  stx savex
+        bit SHIMPAS
+        bmi gbpas
         ldx slotx
         lda #0
         sta tmo
@@ -2395,6 +2914,8 @@ getbt:  stx savex
         lda tmolen
         bne gbset               ; always: tmolen is 1 or more
 getbtq: stx savex
+        bit SHIMPAS
+        bmi gbpasq
         ldx slotx
         lda #0
         sta tmo
@@ -2430,6 +2951,8 @@ gbgot:  lda ACIADATA,x
 ; without the limit the program would wait here forever, and never count
 ; the PC's silence or read the keyboard. tmo is free here: getbt sets it.
 putraw: stx savex
+        bit SHIMPAS
+        bmi pwpas
         ldx slotx
         pha
         lda #0
@@ -2456,6 +2979,100 @@ pbsta:  sta ACIADATA
         rts
 
 txstuck: .byte 0                ; a byte was dropped, and the 6551 hasn't sent since
+
+; gbpas and gbpasq: getbt and getbtq through the card's firmware, about
+; 10,000 status calls a second; pwpas, putraw through it. A status call takes
+; about 100 cycles, so a round of tmo and tmo+1 is counted from PASROUND.
+PASROUND = $10000 - 10000
+gbpas:  lda tmolen
+        bne gpset               ; always
+gbpasq: lda #1                  ; about a tenth of a second: 1,000 calls
+        sta tmo+2
+        lda #<($10000 - 1000)
+        sta tmo
+        lda #>($10000 - 1000)
+        sta tmo+1
+        bne gpwait              ; always
+gpset:  sta tmo+2
+gpround: lda #<PASROUND
+        sta tmo
+        lda #>PASROUND
+        sta tmo+1
+gpwait: sty pasavy
+        lda #1                  ; input ready
+        jsr SHIMPSTAT
+        ldy pasavy
+        bcs gpgot
+        inc tmo
+        bne gpwait
+        inc tmo+1
+        bne gpwait
+        dec tmo+2
+        bne gpround
+        ldx savex
+        sec
+        rts
+gpgot:  sty pasavy
+        jsr SHIMPREAD
+        ldy pasavy
+        ldx savex
+        clc
+        rts
+
+pwpas:  sty pasavy
+        pha
+pwwait: lda #0                  ; ready for output
+        jsr SHIMPSTAT
+        bcc pwwait
+        pla
+        pha
+        jsr SHIMPWRITE
+        pla
+        ldy pasavy
+        ldx savex
+        rts
+
+pasavy: .byte 0                 ; Y across a firmware call
+        endif
+        endif
+
+        ifndef CASSETTE
+; gsslow: a IIgs at 1 MHz. Its speed register as it was, plus 1, is stored in
+; the shim once, by the first program to start. Other machines have the
+; speaker at $C036, so it is touched only on a IIgs.
+gsslow: lda $FBB3
+        cmp #$06
+        bne gsno
+        lda $FBC0
+        cmp #$E0
+        bne gsno
+        sec
+        jsr $FE1F
+        bcs gsno
+        lda SHIMGS
+        bne gsset
+        lda CYAREG
+        and #$80
+        ora #1
+        sta SHIMGS
+gsset:  lda CYAREG
+        and #$7F
+        sta CYAREG
+gsno:   rts
+
+; gsrestore: the IIgs's speed as it was before gsslow; nothing on other
+; machines.
+gsrestore: lda SHIMGS
+        beq grdone
+        and #$80
+        sta tmp
+        lda CYAREG
+        and #$7F
+        ora tmp
+        sta CYAREG
+        lda #0
+        sta SHIMGS
+grdone: rts
         endif
 
 ; putb: a byte through the chip. In Debug builds, the fault armed for the
@@ -3834,6 +4451,9 @@ conndraw: lda #<conntext
         lda #>conntext
         sta ptr+1
         jsr puttext
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         lda slotx               ; the card and its slot, as UTHERNET II,
         lsr a                   ; SLOT 3; the port is in the address below
@@ -3842,7 +4462,39 @@ conndraw: lda #<conntext
         lsr a
         jmp putdec
         else
-        ldx #0                  ; what the 6551 is: a card or a //c's port,
+        bit SHIMPAS             ; a card run through its firmware: Pascal
+        bpl cdacia              ; firmware card, slot 3
+        bvs cdgs
+        lda #<connpas
+        sta ptr
+        lda #>connpas
+        sta ptr+1
+        jsr puttext
+        lda slotx
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        jmp putdec
+cdgs:   lda #<connport          ; a IIgs's port: Serial port 2, and its speed
+        sta ptr
+        lda #>connport
+        sta ptr+1
+        jsr puttext
+        lda slotx
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        jsr putdec
+        lda #<conncomma
+        sta ptr
+        lda #>conncomma
+        sta ptr+1
+        jsr puttext
+        lda SHIMSPEED
+        jmp cdspeed
+cdacia: ldx #0                  ; what the 6551 is: a card or a //c's port,
         lda $FBB3               ; by cable or through a Wi-Fi modem, as
         eor #$06                ; SSC, SLOT 2 or WI-FI MODEM, PORT 2. A //c
         ora $FBC0               ; has $06 at $FBB3 and $00 at $FBC0
@@ -3870,7 +4522,7 @@ scname: lda connnames,x
         jsr puttext
         ldx slotx
         lda ACIACTL,x
-        and #$0F
+cdspeed: and #$0F
         ldx #0
 scfind: cmp speeds,x
         beq scfound
@@ -3885,7 +4537,12 @@ scfound: lda speeds+1,x
         sta ptr+1
         jmp puttext
         endif
+        endif
 
+        ifdef CASSETTE
+conntext: .text "Cassette ports (audio)"
+        .byte 0
+        else
         ifdef W5100
 conntext: .text "Uthernet II, slot "
         .byte 0
@@ -3925,6 +4582,8 @@ pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
 conntext: .byte 0
+connpas: .text "Pascal firmware card, slot "
+        .byte 0
 connssc: .text "SSC, slot "
         .byte 0
 connsscm: .text "Wi-Fi, slot "
@@ -3940,6 +4599,7 @@ conncomma: .text ", "
 connnames: .byte <connssc, >connssc, <connsscm, >connsscm
         .byte <connport, >connport, <connportm, >connportm
         endif
+        endif
 
 
 ; showaddr: below the connection, where the link goes when it has an
@@ -3950,6 +4610,9 @@ connnames: .byte <connssc, >connssc, <connsscm, >connsscm
 ; first column. It is drawn after the connection, whose rows are cleared
 ; first.
 showaddr:
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         ldx #<ROW2
         lda #>ROW2
@@ -4020,6 +4683,7 @@ sacaps: jsr putch
         bne satext
 sadone: rts
         endif
+        endif
 
 pcend:  .byte 0                  ; the top row's column where the PC's blanks end
         ifdef W5100
@@ -4037,6 +4701,8 @@ s19200:  .text "19200"
          .byte 0
 s115200: .text "115200"
          .byte 0
+s230400: .text "230400"
+         .byte 0
 s4800:   .text "4800"
          .byte 0
 s2400:   .text "2400"
@@ -4050,6 +4716,7 @@ sother:  .text "Other"
 speeds: .byte $0E, <s9600, >s9600
         .byte $0F, <s19200, >s19200
         .byte $00, <s115200, >s115200
+        .byte $01, <s230400, >s230400
         .byte $0C, <s4800, >s4800
         .byte $0A, <s2400, >s2400
         .byte $08, <s1200, >s1200
@@ -4756,7 +5423,7 @@ wkhost: jsr pollcancel
         bne wkpoll
         lda #0
         jsr sendkey
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush
         endif
         jmp wksec
@@ -5676,7 +6343,7 @@ kpghdr: lda kproghdr,x
         jsr putpe
         lda peor
         jsr putb
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush               ; at once, as nothing is read until the krunch ends
         endif
         rts

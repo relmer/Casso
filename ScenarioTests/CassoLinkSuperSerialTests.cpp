@@ -17,6 +17,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Tape/ITapeAudioDecoder.h"
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Seams/InProcessByteStream.h"
@@ -74,6 +75,11 @@ public:
         // The //e's default card in slot 5 is taken out for this one.
         std::erase_if (config.slots, [] (const SlotConfig & slot) { return slot.slot == kSlot && slot.device != kpszSuperSerialCardDevice; });
 
+        if (s_emptySlot4)
+        {
+            std::erase_if (config.slots, [] (const SlotConfig & slot) { return slot.slot == kFirmwareSlot; });
+        }
+
         for (SlotConfig & slot : config.slots)
         {
             if (slot.device == kpszSuperSerialCardDevice)
@@ -84,13 +90,90 @@ public:
 
                 if (firmware)
                 {
-                    slot.firmwarePath   = RequireFirmwarePath().string();
+                    slot.firmwarePath   = s_firmwareOverride.empty() ? RequireFirmwarePath().string() : s_firmwareOverride.string();
                     slot.firmwareStatus = SlotFirmwareStatus::Present;
                     slot.switchesSw1    = kCommunicationsSw1;
                     slot.switchesSw2    = kShippedSw2;
                 }
             }
         }
+    }
+
+    //  A firmware file in place of Apple's, and slot 4 left empty, for the
+    //  Rig built next.
+    static inline std::filesystem::path  s_firmwareOverride;
+    static inline bool                   s_emptySlot4 = false;
+
+    //  A slot 4 card with the Pascal 1.1 signature, the ID byte given and no
+    //  6551: its entries drive slot 5's 6551, at $C0D8 to $C0DB. Its read
+    //  sets bit 7 of each byte, as Apple's does.
+    static constexpr int  kFirmwareSlot = 4;
+
+    static std::vector<Byte>  MakeFirmwareCardRom (Byte id = 0x32)
+    {
+        std::vector<Byte>  rom (0x100, 0xFF);
+        size_t             at  = 0x20;
+        auto               put = [&rom, &at] (std::initializer_list<Byte> code)
+        {
+            Byte  start = (Byte) at;
+
+            for (Byte b : code)
+            {
+                rom[at++] = b;
+            }
+
+            return start;
+        };
+
+
+
+        rom[0x05] = 0x38;
+        rom[0x07] = 0x18;
+        rom[0x0B] = 0x01;
+        rom[0x0C] = id;
+
+        //  init: 9,600 baud, 8 data bits, DTR on; a byte waiting is dropped.
+        rom[0x0D] = put ({ 0xA9, 0x1E, 0x8D, 0xDB, 0xC0, 0xA9, 0x0B, 0x8D, 0xDA, 0xC0, 0xAD, 0xD8, 0xC0, 0xA2, 0x00, 0x18, 0x60 });
+
+        //  read: until a byte arrives; bit 7 set.
+        rom[0x0E] = put ({ 0xAD, 0xD9, 0xC0, 0x29, 0x08, 0xF0, 0xF9, 0xAD, 0xD8, 0xC0, 0x09, 0x80, 0xA2, 0x00, 0x60 });
+
+        //  write: once the transmitter is empty.
+        rom[0x0F] = put ({ 0x48, 0xAD, 0xD9, 0xC0, 0x29, 0x10, 0xF0, 0xF9, 0x68, 0x8D, 0xD8, 0xC0, 0xA2, 0x00, 0x60 });
+
+        //  status: A of 0 for output ready, 1 for input ready; the carry set
+        //  when it is.
+        rom[0x10] = put ({ 0xC9, 0x00, 0xD0, 0x09, 0xAD, 0xD9, 0xC0, 0x29, 0x10, 0xF0, 0x0D, 0xD0, 0x07,
+                           0xAD, 0xD9, 0xC0, 0x29, 0x08, 0xF0, 0x04, 0xA2, 0x00, 0x38, 0x60, 0xA2, 0x00, 0x18, 0x60 });
+        return rom;
+    }
+
+    //  Apple's firmware with another serial card's ID byte at $Cn0C: the
+    //  Pascal 1.1 signature on a card with a 6551, as an SSC clone has.
+    static std::filesystem::path  MakeSscCloneFirmware()
+    {
+        std::filesystem::path  path = std::filesystem::temp_directory_path() / "CassoSscCloneCard.rom";
+        std::ifstream          in (RequireFirmwarePath(), std::ios::binary);
+        std::vector<char>      rom ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+        bool                   patched = false;
+
+
+
+        for (size_t page = 0; page + 0x100 <= rom.size() && !patched; page += 0x100)
+        {
+            if ((Byte) rom[page + 5] == 0x38 && (Byte) rom[page + 7] == 0x18 && (Byte) rom[page + 0x0B] == 0x01 && (Byte) rom[page + 0x0C] == 0x31)
+            {
+                rom[page + 0x0C] = (char) 0x32;
+                patched          = true;
+            }
+        }
+
+        Assert::IsTrue (patched, L"the firmware's slot page has the Pascal 1.1 signature");
+
+        std::ofstream  out (path, std::ios::binary);
+
+        out.write (rom.data(), (std::streamsize) rom.size());
+        return path;
     }
 
     static std::filesystem::path  RequireFirmwarePath()
@@ -302,7 +385,7 @@ public:
 
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("39A0.4055R 39A0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
@@ -390,6 +473,130 @@ public:
         AssertSucceeded (rig.host->PromptReady());
         Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the card");
         Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
+    }
+
+
+
+    //  230,400 baud is a IIgs's port's alone: a Super Serial Card sends a NAK
+    //  for it, its speed doesn't change, and a disk is read at that speed.
+    TEST_METHOD (ASuperSerialCard_SendsANakForIIgsSpeed_AndReadsADisk)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+        Byte               control = 0;
+        Rig                rig (true);
+
+
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        AssertSucceeded (rig.host->PromptReady());
+        Assert::IsTrue (LinkProgram::GetSpeedControl (LinkProgram::kIIgsBaud, control));
+        Assert::AreEqual (S_FALSE, rig.host->SetSpeed (control), L"a NAK for 230,400 baud");
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog at the card's speed");
+    }
+
+
+
+    //  An SSC clone in slot 5, with the Pascal 1.1 signature, another ID byte
+    //  and a 6551: the universal disk lists it as an SSC, and the shim drives
+    //  its 6551 directly.
+    TEST_METHOD (TheUniversalDisk_DrivesAnSscClonesChip)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+
+
+
+        s_firmwareOverride = MakeSscCloneFirmware();
+
+        Rig  rig (true);
+
+        s_firmwareOverride.clear();
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+
+        AssertSucceeded (rig.host->PromptReady());
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the clone's 6551");
+        Assert::AreEqual<Byte> (0x00, rig.machine.GetCpu()->ReadByte (0x3A39), L"the shim drives the 6551");
+    }
+
+
+
+    //  A card in slot 4 with the Pascal 1.1 signature and no 6551: the
+    //  universal disk lists it, the shim runs it through its firmware, and
+    //  the program reads a disk over it. The firmware's read sets bit 7 of
+    //  each byte, so the link's bytes go as characters.
+    TEST_METHOD (TheUniversalDisk_RunsAPascalFirmwareCard_ThroughItsFirmware)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+
+
+
+        s_emptySlot4 = true;
+
+        Rig  rig (false);
+
+        s_emptySlot4 = false;
+
+        rig.machine.GetMmu()->AttachSlotRom (kFirmwareSlot, MakeFirmwareCardRom());
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        Assert::IsTrue (JoinRows (rig.Screen()).find ("PASCAL FIRMWARE CARD, SLOT 4") != std::string::npos, TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+
+        AssertSucceeded (rig.host->PromptReady());
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog through the card's firmware");
+        Assert::AreEqual<Byte> (0x80, rig.machine.GetCpu()->ReadByte (0x3A39), L"the shim runs the card through its firmware");
+    }
+
+
+
+    //  A card in slot 4 with the Pascal 1.1 signature, the Super Serial
+    //  Card's ID byte and no 6551, as a IIgs's port has: on a //e, which has
+    //  no 8530, the universal disk lists it as a Pascal firmware card and the
+    //  shim runs it through its firmware.
+    TEST_METHOD (TheUniversalDisk_RunsACardWithTheSscsIdAndNo6551_ThroughItsFirmware)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+
+
+
+        s_emptySlot4 = true;
+
+        Rig  rig (false);
+
+        s_emptySlot4 = false;
+
+        rig.machine.GetMmu()->AttachSlotRom (kFirmwareSlot, MakeFirmwareCardRom (0x31));
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        Assert::IsTrue (JoinRows (rig.Screen()).find ("PASCAL FIRMWARE CARD, SLOT 4") != std::string::npos, TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+
+        AssertSucceeded (rig.host->PromptReady());
+        AssertSucceeded (rig.host->SetSpeed (0x1E));
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog through the card's firmware");
+        Assert::AreEqual<Byte> (0x80, rig.machine.GetCpu()->ReadByte (0x3A39), L"the shim runs the card through its firmware");
+        Assert::AreEqual<Byte> (0x00, rig.machine.GetCpu()->ReadByte (0x3A43), L"no IIgs speed kept on a //e");
     }
 
 

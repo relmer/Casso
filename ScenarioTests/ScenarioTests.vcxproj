@@ -179,6 +179,7 @@
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />
     <ClCompile Include="FileSystemVerdictTests.cpp" />
+    <ClCompile Include="FullSendFileSystemCheckTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
     <ClCompile Include="GuestVisibleBasicToolsTests.cpp" />
     <ClCompile Include="GuestVisibleBootTests.cpp" />
@@ -194,6 +195,14 @@
     <ClCompile Include="Dos32Tests.cpp" />
     <ClCompile Include="LargeVolumeTests.cpp" />
     <ClCompile Include="CollectionScaleTests.cpp" />
+    <ClCompile Include="CassoLinkBlockTests.cpp" />
+    <ClCompile Include="CassoLinkAppleIIITests.cpp" />
+    <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
+    <ClCompile Include="CassoLinkCassetteTests.cpp" />
+    <ClCompile Include="CassoLinkThirteenSectorTests.cpp" />
+    <ClCompile Include="NestedContainerTests.cpp" />
+    <ClCompile Include="StockDiskBootTests.cpp" />
+    <ClCompile Include="CassoLinkVirtualDriveTests.cpp" />
     <ClCompile Include="CassoLinkCaptureTests.cpp" />
     <ClCompile Include="CassoLinkHardwareTests.cpp" />
     <ClCompile Include="VisiCalcTests.cpp" />

@@ -7,9 +7,13 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "ProgramRig.h"
 
@@ -140,23 +144,199 @@ public:
     }
 
 
-    //  Each token: bytes as they are, a repeat, and a copy of a revolution
-    //  before, with the padding after the last ignored.
-    TEST_METHOD (Decode_TokensGiveTheBytes)
+    //  Each token: values as they are, a repeat, and a copy of a revolution
+    //  before, then the marks, with the padding after the last ignored. The
+    //  copy's values are the same, and its marks aren't.
+    TEST_METHOD (Decode_TokensGiveTheValues_AndTheMarksTheTopBits)
     {
-        const Byte         encoded[]  = { 3, 0, 0xD5, 0xAA, 0x96, 0x00, 0x81, 0x7F, 0x00, 0x02, 0x00, 0x00 };
-        const Byte         expected[] = { 0xD5, 0xAA, 0x96, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x00 };
+        const Byte         encoded[]  = { 3, 0, 0xD5, 0xAA, 0x96, 0x00, 0x81, 0xFF, 0x00, 0x02, 0xEF, 0x60, 0x00, 0x00 };
+        const Byte         expected[] = { 0xD5, 0xAA, 0x96, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF };
         std::vector<Byte>  bytes;
 
 
 
         Assert::IsTrue  (CaptureStream::Decode (encoded, std::size (expected), bytes));
         Assert::IsTrue  (bytes == std::vector<Byte> (std::begin (expected), std::end (expected)));
-        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, bytes), L"Too few bytes");
+        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, bytes), L"Too few values");
 
         const Byte         early[] = { 3, 0, 0x00, 0x01 };
 
-        Assert::IsFalse (CaptureStream::Decode (early, 3, bytes), L"A copy from before the first byte");
+        Assert::IsFalse (CaptureStream::Decode (early, 3, bytes), L"A copy from before the first value");
+
+        const Byte         noMarks[] = { 3, 0, 0xD5, 0xAA };
+
+        Assert::IsFalse (CaptureStream::Decode (noMarks, 2, bytes), L"No marks");
+    }
+
+
+    //  A 13-sector disk written over the link by Write nibble track, track by
+    //  track: the emulated drive's disk decodes to its sectors, and read
+    //  back over the link, it has them too.
+    TEST_METHOD (AThirteenSectorDisk_IsWrittenAndReadBack_OverTheLink)
+    {
+        ProgramRig          rig (LoadFixture());
+        std::vector<Byte>   module;
+        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize);
+        std::vector<Byte>   onDisk;
+        std::vector<Byte>   read;
+        SectorDecodeReport  diskReport;
+        SectorDecodeReport  readReport;
+        CassoLinkStatus     status;
+
+
+
+        for (size_t at = 0; at < sectors.size(); at++)
+        {
+            sectors[at] = (Byte) (at * 7 + at / 256);
+        }
+
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), onDisk, diskReport);
+        Assert::IsTrue (onDisk == sectors, L"The drive's disk has the sectors written");
+
+        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+        Assert::IsTrue (read == sectors, L"The sectors read back over the link");
+    }
+
+
+    //  A track with two sectors that have no data field, as on a track DOS
+    //  3.2's INIT formatted: the two are zeros in the read, and the track is
+    //  whole. The first two whole data fields in the stream are each self-sync
+    //  bytes of the same bits, as a longer track would overwrite its start.
+    TEST_METHOD (SectorsWithNoDataField_ReadAsZeros_OverTheLink)
+    {
+        static constexpr int     kTrack        = 5;
+        static constexpr size_t  kFieldNibbles = 3 + CassoLinkCodec::kThirteenField + 3;
+
+        ProgramRig          rig (LoadFixture());
+        std::vector<Byte>   module;
+        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize);
+        std::vector<Byte>   expected;
+        std::vector<Byte>   stream;
+        std::vector<Byte>   read;
+        DiskImage           image;
+        SectorDecodeReport  report;
+        CassoLinkStatus     status;
+        int                 blanked = 0;
+
+
+
+        for (size_t at = 0; at < sectors.size(); at++)
+        {
+            sectors[at] = (Byte) (at * 5 + at / 256 + 1);
+        }
+
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
+
+        AssertSucceeded (ThirteenSectorCodec::Nibblize (sectors, CassoLinkThirteenSector::kVolume, image));
+        CassoLinkThirteenSector::MakeStream (image, image.ResolveWholeTrack (kTrack), stream);
+
+        expected = sectors;
+
+        for (size_t at = 0; at + 9 < stream.size() && blanked < 2; at++)
+        {
+            Byte  sector = 0;
+            bool  erased = false;
+
+            if (stream[at] != 0xD5 || stream[at + 1] != 0xAA || stream[at + 2] != 0xB5)
+            {
+                continue;
+            }
+
+            sector = DiskFieldFormat::Decode44 (stream[at + 7], stream[at + 8]);
+
+            for (size_t data = at + 9; !erased && data + kFieldNibbles <= stream.size(); data++)
+            {
+                if (stream[data] == 0xD5 && stream[data + 1] == 0xAA && stream[data + 2] == 0xAD)
+                {
+                    stream.erase  (stream.begin() + (ptrdiff_t) data, stream.begin() + (ptrdiff_t) (data + kFieldNibbles));
+                    stream.insert (stream.begin() + (ptrdiff_t) data, kFieldNibbles * 8 / 10, (Byte) 0);
+                    erased = true;
+                }
+            }
+
+            if (!erased)
+            {
+                continue;
+            }
+
+            std::fill_n (expected.begin() + (ptrdiff_t) ((kTrack * ThirteenSectorCodec::kSectorsPerTrack + sector) * ThirteenSectorCodec::kSectorByteSize),
+                         ThirteenSectorCodec::kSectorByteSize, (Byte) 0);
+            blanked++;
+        }
+
+        Assert::AreEqual (2, blanked);
+
+        AssertSucceeded (rig.host->WriteNibbleTrack (1, (Byte) kTrack, stream, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, report, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+        Assert::IsTrue (read == expected, L"The sectors with no data field are zeros");
+        Assert::AreEqual ((int) TrackDecodeOutcome::Complete, (int) report.GetOutcome (kTrack));
+    }
+
+
+    //  The module fits below the loop's copies, which capbuild writes from
+    //  CAPCODE.
+    TEST_METHOD (TheCaptureModule_FitsBelowItsLoopsCopies)
+    {
+        static constexpr size_t  kRoom = 0x5470 - 0x5000;
+
+        std::vector<Byte>  module;
+        std::string        errors;
+        HRESULT            hr     = S_OK;
+
+
+
+        hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors);
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::IsTrue (module.size() <= kRoom, std::format (L"{} bytes", module.size()).c_str());
+    }
+
+
+    //  A whole track read at 8 cycles, whose revolutions mark different
+    //  bytes, as a read that finds each byte at another moment in each
+    //  revolution does: after the first revolution, the values are copies, so
+    //  the encoding is the first revolution, the marks and a few tokens.
+    TEST_METHOD (ARead_WhoseMarksDifferFromTheRevolutionBefore_IsSentAsCopies)
+    {
+        static constexpr size_t  kTokenBytes = 512;
+
+        ProgramRig         rig (LoadFixture());
+        std::vector<Byte>  module;
+        std::vector<Byte>  bytes;
+        CassoLinkStatus    status;
+        CaptureTiming      timing;
+        size_t             length   = 0;
+        size_t             differ   = 0;
+        size_t             limit    = 0;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+        Assert::IsTrue  (CaptureStream::FindRevolution (bytes, length), L"The read repeats");
+
+        for (size_t at = 0; at + length < bytes.size(); at++)
+        {
+            differ += (CaptureStream::IsSync (bytes[at]) != CaptureStream::IsSync (bytes[at + length])) ? 1 : 0;
+        }
+
+        limit = length + bytes.size() / 8 + kTokenBytes;
+
+        Logger::WriteMessage (std::format ("{} bytes stored, {} sent, revolution {}, {} marks differ from the revolution before\n", bytes.size(), timing.sentBytes, length, differ).c_str());
+
+        Assert::IsTrue (differ > 0, L"The revolutions mark different bytes");
+        Assert::IsTrue (timing.sentBytes <= limit, std::format (L"{} sent, at most {}", timing.sentBytes, limit).c_str());
     }
 
 

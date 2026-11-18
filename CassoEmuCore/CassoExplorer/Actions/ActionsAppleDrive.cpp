@@ -7,6 +7,9 @@
 #include "CassoExplorer/Model/CassoLinkConnectionText.h"
 #include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "CassoLink/LinkAudioBootstrap.h"
+#include "Devices/Tape/WavCodec.h"
+#include "CassoLink/CassoLinkProDosDisk.h"
+#include "CassoLink/CassoLinkSosDisk.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
@@ -1678,6 +1681,110 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveLinkDiskImage (const std::wstring &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::SaveLinkProDosDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io      = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string            source  = TextEncoding::WideToNarrow (usersDisk);
+    std::vector<Byte>      users;
+    std::vector<Byte>      disk;
+    HRESULT                hr      = io.ReadAllBytes (source, users);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = CassoLinkProDosDisk::Make (users, source, settings.baud, disk);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be made. The disk chosen must be a 140K ProDOS disk with PRODOS and BASIC.SYSTEM.");
+    }
+    else if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be saved.");
+    }
+    else
+    {
+        outcome.written++;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::SaveLinkSosDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkSosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io      = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string            source  = TextEncoding::WideToNarrow (usersDisk);
+    std::vector<Byte>      users;
+    std::vector<Byte>      disk;
+    std::string            reason;
+    HRESULT                hr      = io.ReadAllBytes (source, users);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = CassoLinkSosDisk::Make (users, source, settings.baud, disk, reason);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink SOS disk could not be made. The Apple ///'s serial port runs at 19,200 baud or slower; choose a slower speed for this connection.");
+    }
+    else if (FAILED (hr) && !reason.empty())
+    {
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"The CassoLink SOS disk could not be made: {}. Apple's System Demo disk has SOS.KERNEL, and a SOS.DRIVER with .RS232.",
+                                                              TextEncoding::NarrowToWide (reason)));
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink SOS disk could not be made. The disk chosen must be a 140K SOS disk with SOS.KERNEL and SOS.DRIVER.");
+    }
+    else if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink SOS disk could not be saved.");
+    }
+    else
+    {
+        outcome.written++;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::SaveCassetteBootstrap
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1686,9 +1793,26 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveCassetteBootstrap (const std::wstri
 {
     ActionsTypes::Outcome  outcome;
     std::vector<Byte>      wav;
-    HRESULT                hr      = LinkAudioBootstrap::BuildWav (CassoLinkShimBuilder::MakeShimOptions (CassoLinkShimBuilder::GetPcName(), settings), wav, outCommand);
+    TapeAudio              audio;
+    HRESULT                hr      = S_OK;
 
 
+
+    //  A cassette link's tape is the program itself; a serial link's is the
+    //  shim, which loads the program over the card.
+    if (settings.transport == LinkTransport::Cassette)
+    {
+        hr = LinkAudioBootstrap::BuildCassetteLinkAudio (audio, outCommand);
+
+        if (SUCCEEDED (hr))
+        {
+            WavCodec::Encode (audio, wav);
+        }
+    }
+    else
+    {
+        hr = LinkAudioBootstrap::BuildWav (CassoLinkShimBuilder::MakeShimOptions (CassoLinkShimBuilder::GetPcName(), settings), wav, outCommand);
+    }
 
     if (SUCCEEDED (hr))
     {

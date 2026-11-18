@@ -658,6 +658,45 @@ hardware.
 - Q: How is block mode laid out, now that it's built? -> A: A tree, then the list for the selected place with the current block's hex and fields under it, then the map of the whole volume, divided by splitters, under an address bar with the place's path, Back and Forward, the search and Go to (FR-298, FR-300). The levels Card, Volume, Files and File are what the list has at each place, and the Block level is the hex and fields under the list. HFS folders are in the tree; Pascal volumes have no directories.
 - Q: Is there a confirmation before the block inspector edits an image a running machine has mounted? -> A: The same as in the disk inspector, only for a disk in a drive of a running machine (owner: "BI would deal with mounted block devices exactly as DI does"). Casso Explorer has no machine and Casso has no block inspector, so no confirmation comes up today.
 
+### Session 2026-11-17
+
+- Q: How does a IIgs's serial port start, through its firmware or its
+  8530? -> A: Its 8530, from the shim (owner, 2026-11-18). Starting through
+  the firmware left the link at half speed until Set speed, at the Control
+  Panel's speed, which the PC had to find, and at that speed again after
+  Load program. The shim moved down a page to make room for the 8530
+  routines (R47 Update 3).
+- Q: Over what does the link run on an original Uthernet or a LANceGS? ->
+  A: UDP, as ADTPro's Ethernet client does, not TCP (owner, 2026-11-18).
+  The Apple side has ARP, IPv4, UDP, DHCP and the announcement, with no
+  TCP connection state; CassoLink's packets have CRCs and are sent again
+  after a NAK, so a datagram lost on the network is recovered as a byte
+  lost on a serial line is. ADTPro uses the ip65 library; CassoLink's stack
+  is written for Casso.
+- Q: Does Casso Explorer convert many files at once, as CiderPress II's
+  export does? -> A: Yes, in two parts (owner, 2026-11-18). Get and drag
+  out already convert each file by its kind, folders included, as
+  CiderPress II's `best` does. Convert to works on a multiple selection:
+  each file it applies to is converted beside itself, the others are
+  passed over, and one report lists both, with no prompt for each failure.
+  A "Get as" choice for a selection sets the options of each file kind in
+  it that has options, such as hi-res in color or black and white, and
+  stores them as the defaults. Whether to convert many disk images from one
+  format to another is open.
+- Q: Does the link buffer disks in auxiliary or expanded memory? -> A: No
+  (owner, 2026-11-18). At 115,200 baud the link, not the disk, sets the
+  speed of reads, writes, Full Send and raw capture, so more buffer changes
+  when a wait happens rather than how long a transfer takes; Krunch is left
+  as it is. The link sends less instead: a sector whose bytes are all one
+  value crosses as Sector blank, and a IIgs's port runs at 230,400 baud.
+- Q: Does the link wait on a Laser 128? -> A: No. No emulator found has
+  one and no published source has its ID bytes, so it is dropped from
+  Story 28, and the rest goes ahead without it (owner, 2026-11-18).
+
+- Q: Which audio encoding does Casso's cassette link use? -> A: An encoding designed in Casso, and ADTPro's audio client is served besides by ADTPro's encoding (owner, 2026-11-17: "go with option 2"). ADTPro's protocol document has nothing on its audio encoding, so that encoding comes from recordings of ADTPro 2.1.0's audio client and server, never from ADTPro's source (FR-096). Casso's encoding doesn't wait on that work, and an error in ADTPro's affects ADTPro's client alone.
+- Q: Is a failed track sent again whole, or only its failed sectors? -> A: Only its failed sectors (owner, 2026-11-17: "per-sector retries are fine"). A track is about 15 seconds of audio, so each sector has a CRC in the track's packet, and the reply lists those that failed.
+- Q: What does Casso's audio encoding have to tolerate? -> A: Each bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, as the monitor's tape format has, so an offset comparator, an inverted cable and resampling at 44.1 or 48 kHz don't change a bit; a turn starts with a tone and a mark that data can't contain; and the Apple's side is half duplex, sending what it has put when it next waits for a byte. The scenario tests run each direction through resampling, filtering, noise, inverted polarity, an offset threshold and jitter.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -1640,8 +1679,8 @@ each way and compare the images. Serve ADTPro's audio client the same way.
 1. **Given** the link started over cassette, **When** Read disk to image is
    chosen, **Then** each track is sent from the Apple's cassette output,
    and Casso Explorer decodes the PC's audio input into the image.
-2. **Given** a damaged stretch of audio, **When** a track's checksum fails,
-   **Then** that track is requested again, as a serial reply is.
+2. **Given** a damaged stretch of audio, **When** a sector's checksum fails,
+   **Then** that sector is requested again, as a serial reply is.
 3. **Given** an image on the PC, **When** Write image to disk is chosen,
    **Then** each track is played into the Apple's cassette input, written,
    and read back to verify.
@@ -1693,8 +1732,8 @@ user does.
 
 **Independent Test**: The owner doesn't have any of these, so each is tested in an
 emulator run as the link's target: the IIgs's ports in KEGS, GSplus or MAME,
-whichever connects over TCP; a IIgs with a Super Serial Card and a Laser 128
-in MAME, scripted; Pascal-firmware cards in Casso's Super Serial Card, used through its Pascal entry points; the original Uthernet in AppleWin; and the LANceGS in MAME, scripted.
+whichever connects over TCP; a IIgs with a Super Serial Card in MAME,
+scripted; Pascal-firmware cards in Casso's Super Serial Card, used through its Pascal entry points; the original Uthernet in AppleWin; and the LANceGS in MAME, scripted.
 On each, run Story 14's scenarios.
 
 **Acceptance Scenarios**:
@@ -1708,8 +1747,8 @@ On each, run Story 14's scenarios.
 3. **Given** an original Uthernet, or a LANceGS, **When** the link runs over
    it, **Then** transfers work as over an Uthernet II, and its announcement
    is listed.
-4. **Given** a IIgs with a Super Serial Card, or a compatible such as a
-   Laser 128, **When** the link runs, **Then** Story 14's scenarios work.
+4. **Given** a IIgs with a Super Serial Card, **When** the link runs,
+   **Then** Story 14's scenarios work.
 
 ---
 
@@ -3679,7 +3718,9 @@ as they arrive.
   MUST count as a failed capture for the failure sound, as a boot that failed
   does, and a disk row's menu MUST have Repair disk image when the inspector
   can repair it. A raw capture with no standard file system has the verdict
-  "No standard file system", which isn't a failure.
+  "No standard file system", which isn't a failure. The window's list leaves
+  that verdict out for a raw capture or a likely copy-protected disk, as the
+  status implies it and the column is narrow (2026-11-16).
 - **FR-291**: A disk that is write-protected when Full Send reads it MUST
   have a write-protected image: a WOZ with its INFO chunk's write-protect
   flag set, and a sector image with the file's read-only attribute, which
@@ -3787,8 +3828,9 @@ as they arrive.
   Apple's cassette input, write it and read it back to verify. The
   connection's settings MUST pick the audio input and output devices and
   draw the input level.
-- **FR-203**: Each track sent as audio MUST have a checksum, and a track that
-  fails MUST be sent again, up to five times, as FR-144 sets for serial.
+- **FR-203**: Each sector of a track sent as audio MUST have a checksum, and
+  the sectors that fail MUST be sent again, up to five times, as FR-144 sets
+  for serial.
 - **FR-204**: ADTPro's audio client MUST be served by its published
   protocol, by the rule the Assumptions set for ADTPro compatibility.
 
@@ -3818,9 +3860,8 @@ as they arrive.
   and status entry points.
 - **FR-210**: The link MUST run over an original Uthernet and a LANceGS as
   over an Uthernet II, with the same announcement.
-- **FR-211**: The link program MUST run on a IIgs with a Super Serial Card
-  and on compatibles whose serial and disk hardware match an Apple's, such
-  as the Laser 128. These and FR-208 to FR-210 MUST be tested in KEGS,
+- **FR-211**: The link program MUST run on a IIgs with a Super Serial Card.
+  This and FR-208 to FR-210 MUST be tested in KEGS,
   GSplus, MAME or AppleWin as Story 28 lists, MAME launched from a script.
 
 **Apple ///**
@@ -4569,7 +4610,7 @@ emulators run as targets of the link, never as sources of code:
 9. LANceGS and the original Uthernet, the Ethernet cards ADTPro supports
    besides the Uthernet II (S to M each).
 10. Tests on machines the link program may already run on: a IIgs with a
-    Super Serial Card, and compatibles such as the Laser 128 (S).
+    Super Serial Card (S).
 
 **4. File systems and layouts**
 

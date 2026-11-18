@@ -12,6 +12,10 @@
 #include "Universal.s.h"
 #include "SlotFinder.s.h"
 #include "Capture.s.h"
+#include "Block.s.h"
+#include "ThirteenSector.s.h"
+#include "VirtualDrive.s.h"
+#include "SosInterp.s.h"
 
 
 
@@ -25,15 +29,20 @@
 
 HRESULT LinkProgram::AssembleShim (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip)
 {
-    HRESULT  hr   = S_OK;
-    bool     fits = false;
+    HRESULT                                hr       = S_OK;
+    std::unordered_map<std::string, Word>  symbols;
+    size_t                                 resident = 0;
+    bool                                   fits     = false;
 
 
 
-    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors);
+    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors, false, &symbols);
     CHR (hr);
 
-    fits = outBytes.size() <= kShimLimit;
+    //  The resident code ends where the startup part begins, or with the
+    //  shim for a build with no startup part.
+    resident = symbols.contains ("startup") ? (size_t) (symbols["startup"] - kShimAddress) : outBytes.size();
+    fits     = outBytes.size() <= kShimLimit && kShimAddress + resident <= kShimResidentEnd;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -52,17 +61,22 @@ Error:
 
 HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults)
 {
-    HRESULT  hr   = S_OK;
-    bool     fits = false;
+    HRESULT      hr     = S_OK;
+    bool         sos    = chip == LinkChip::Sos;
+    std::string  source = sos ? GetSosInterpSource() : GetProgramSource();
+    Word         origin = sos ? kSosAddress : kProgramAddress;
+    bool         fits   = false;
 
 
 
-    hr = Assemble (GetProgramSource(), kProgramAddress, chip, outBytes, outErrors, faults);
+    hr = Assemble (source, origin, chip, outBytes, outErrors, faults);
     CHR (hr);
 
     //  The program ends below the shim's copy of the zero page, and the shim,
-    //  which it returns to.
-    fits = kProgramAddress + outBytes.size() <= kZeroPageSave;
+    //  which it returns to. The SOS build ends with room for its speed's byte
+    //  below its buffers.
+    fits = sos ? kSosAddress + outBytes.size() < kSosBufferBase
+               : kProgramAddress + outBytes.size() <= kZeroPageSave;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -278,7 +292,7 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     CHR (hr);
 
     payload.insert (payload.end(), shim.begin(), shim.end());
-    payload.resize (kUniversalW5100 - kUniversalAddress + kShimLimit, 0);
+    payload.resize (kUniversalW5100 - kUniversalAddress + (kShimResidentEnd - kShimAddress), 0);
 
     spec.loadAddress  = kUniversalAddress;
     spec.entryAddress = kUniversalAddress;
@@ -367,6 +381,270 @@ HRESULT LinkProgram::BuildCaptureModule (std::vector<Byte> & outModule, LinkChip
 
 
     return AssembleModule (GetCaptureModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetBlockModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetBlockModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kBlockModuleSource), sizeof (s_kBlockModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildBlockModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildBlockModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    HRESULT      hr = S_OK;
+    std::string  errors;
+
+
+
+    if (chip == LinkChip::Sos)
+    {
+        MakeSosBlockModule (outModule);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = AssembleModule (GetBlockModuleSource(), outModule, errors, chip, faults);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::MakeSosBlockModule
+//
+//  The SOS build has the block requests in it, so its block module is the
+//  header alone, with no requests: the id and version the SOS build reports
+//  as loaded, so the host never sends it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LinkProgram::MakeSosBlockModule (std::vector<Byte> & outModule)
+{
+    static constexpr Byte  kMagic[] = { 'C', 'M' };
+    Word                   crc      = 0;
+
+
+
+    outModule.assign (kModuleCrcStart + 1, 0);
+
+    outModule[0]                 = kMagic[0];
+    outModule[1]                 = kMagic[1];
+    outModule[2]                 = kBlockModuleId;
+    outModule[3]                 = kBlockModuleVersion;
+    outModule[kModuleLength - 2] = (Byte) (kProgramVersion & 0xFF);
+    outModule[kModuleLength - 1] = (Byte) (kProgramVersion >> 8);
+    outModule[kModuleLength]     = (Byte) outModule.size();
+
+    crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (outModule).subspan (kModuleCrcStart));
+
+    outModule[kModuleCrcOffset]     = (Byte) (crc & 0xFF);
+    outModule[kModuleCrcOffset + 1] = (Byte) (crc >> 8);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetThirteenSectorModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetThirteenSectorModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kThirteenSectorModuleSource), sizeof (s_kThirteenSectorModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildThirteenSectorModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildThirteenSectorModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetThirteenSectorModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetVirtualDriveSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetVirtualDriveSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kVirtualDriveSource), sizeof (s_kVirtualDriveSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetSosInterpSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetSosInterpSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kSosInterpSource), sizeof (s_kSosInterpSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildSosInterpreter
+//
+//  The header is the label "SOS NTRP", no optional header, the loading
+//  address and the code's length. The code is the SOS build, the control
+//  byte after it, and zeros over the buffers, so SOS loads it all and the
+//  memory is the interpreter's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildSosInterpreter (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors)
+{
+    static constexpr char  kLabel[]  = "SOS NTRP";
+    static constexpr Byte  kRateMask = 0x0F;
+    HRESULT                hr        = S_OK;
+    std::vector<Byte>      program;
+    Word                   length    = kSosEnd - kSosAddress;
+    bool                   rated     = (speedControl & kRateMask) != 0;
+
+
+
+    outFile.clear();
+    outErrors.clear();
+
+    CBREx (rated, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    hr = AssembleProgram (program, outErrors, LinkChip::Sos);
+    CHR (hr);
+
+    outFile.assign (kLabel, kLabel + sizeof (kLabel) - 1);
+    outFile.insert (outFile.end(), { 0, 0,
+                                     (Byte) (kSosAddress & 0xFF), (Byte) (kSosAddress >> 8),
+                                     (Byte) (length & 0xFF),      (Byte) (length >> 8) });
+    outFile.insert (outFile.end(), program.begin(), program.end());
+    outFile.push_back (speedControl);
+    outFile.resize (outFile.size() + length - program.size() - 1, 0);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildVirtualDrive
+//
+//  The driver is assembled a page apart, and a byte that differs is a high
+//  byte of one of its addresses, which the installer relocates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildVirtualDrive (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors)
+{
+    HRESULT                                 hr      = S_OK;
+    std::string                             source  = GetVirtualDriveSource();
+    std::vector<Byte>                       driver;
+    std::vector<Byte>                       raised;
+    std::vector<Byte>                       installer;
+    std::vector<Byte>                       relocations;
+    std::unordered_map<std::string, Word>   symbols;
+    bool                                    sized   = false;
+    bool                                    fits    = false;
+    bool                                    shifted = true;
+    Word                                    slot    = 0;
+
+
+
+    outFile.clear();
+    outErrors.clear();
+
+    hr = Assemble (std::format ("DRIVER = 1\nDRVORG = ${:04X}\n", kDriverAddress) + source, kDriverAddress, LinkChip::Acia, driver, outErrors, false, &symbols);
+    CHR (hr);
+
+    hr = Assemble (std::format ("DRIVER = 1\nDRVORG = ${:04X}\n", kDriverAddress + 0x100) + source, (Word) (kDriverAddress + 0x100), LinkChip::Acia, raised, outErrors);
+    CHR (hr);
+
+    sized = driver.size() == raised.size();
+    CBREx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    fits = driver.size() <= kDriverLimit && symbols.contains ("sltx");
+    outErrors = fits ? "" : std::format ("The driver is {} bytes, past its {}, or has no sltx.", driver.size(), kDriverLimit);
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (size_t at = 0; at < driver.size(); at++)
+    {
+        if (driver[at] != raised[at])
+        {
+            shifted = shifted && raised[at] == (Byte) (driver[at] + 1);
+            relocations.push_back ((Byte) (at & 0xFF));
+            relocations.push_back ((Byte) (at >> 8));
+        }
+    }
+
+    outErrors = shifted ? "" : "A byte of the driver assembled a page higher isn't one more.";
+    CBREx (shifted, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    slot = (Word) (symbols["sltx"] - kDriverAddress);
+
+    hr = Assemble (std::format ("DRVLEN = {}\nRELOCN = {}\nSLTXOFF = {}\nSPEED = ${:02X}\n", driver.size(), relocations.size() / 2, slot, speedControl) + source,
+                   kInstallerAddress, LinkChip::Acia, installer, outErrors);
+    CHR (hr);
+
+    outFile = installer;
+    outFile.insert (outFile.end(), driver.begin(), driver.end());
+    outFile.insert (outFile.end(), relocations.begin(), relocations.end());
+
+Error:
+    return hr;
 }
 
 
@@ -501,7 +779,8 @@ Error:
 //
 //  LinkProgram::GetSpeedControl
 //
-//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c.
+//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c. Rate 1,
+//  50 baud on a 6551, indicates 230,400 on a IIgs's port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -509,7 +788,7 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 {
     static constexpr std::pair<DWORD, Byte>  s_kRates[] =
     {
-        { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
+        { 230400, 0x01 }, { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
     };
     static constexpr Byte  kEightBitsOneStop = 0x10;
     bool                   found             = false;
@@ -561,12 +840,39 @@ std::string LinkProgram::GetCommandLines()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::GetChipLines
+//
+//  W5100, CASSETTE or ACIA for an Apple II build. The SOS build is given
+//  SOS, and the values it shares with the host: the Ready flag, the block
+//  module's id and version, and its addresses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetChipLines (LinkChip chip)
+{
+    switch (chip)
+    {
+        case LinkChip::W5100:     return "W5100 = 1\n";
+        case LinkChip::Cassette:  return "CASSETTE = 1\n";
+        case LinkChip::Sos:       return std::format ("SOS = 1\nSOSFLAG = ${:02X}\nBLKMODID = {}\nBLKMODVER = {}\nSOSORG = ${:04X}\nBUFBASE = ${:04X}\n",
+                                                      kSosReadyFlag, kBlockModuleId, kBlockModuleVersion, kSosAddress, kSosBufferBase);
+        default:                  return "ACIA = 1\n";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::Assemble
 //
 //  The source starts with its own .org; the result must begin at `origin`,
 //  so a source edited to load elsewhere fails here rather than on the Apple.
-//  A W5100 build is given W5100 ahead of the source, and its source selects
-//  the W5100's code with ifdef; a build with faults is given FAULTS the same way.
+//  Each build is given its chip's lines ahead of the source (GetChipLines),
+//  and the source selects each one's code with ifdef; a build with faults
+//  is given FAULTS the same way.
 //  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
@@ -577,7 +883,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     HRESULT          hr        = S_OK;
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
+    std::string      chipLine  = GetChipLines (chip);
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
     std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
     int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');

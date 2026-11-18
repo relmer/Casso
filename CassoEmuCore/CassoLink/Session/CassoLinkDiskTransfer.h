@@ -62,9 +62,14 @@ public:
     HRESULT  WriteWholeDisk     (LinkOperation & operation);
     HRESULT  CompareWrittenDisk (LinkOperation & operation, const std::vector<Byte> & sectors);
     HRESULT  ReadBootSector     (LinkOperation & operation);
-    HRESULT  ReadTrack          (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, bool autoVerify = false, std::vector<SectorMark> * marks = nullptr);
-    HRESULT  ReadVerifiedTrack  (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks);
-    HRESULT  TimeDriveForFormat (int drive, Byte & outGap);
+
+    //  A 13-sector disk to a .d13 image, and a 13-sector image to the disk,
+    //  through the 13-sector module (CassoLinkThirteenSector).
+    HRESULT  ReadThirteenSectorDisk  (LinkOperation & operation);
+    HRESULT  WriteThirteenSectorDisk (LinkOperation & operation, const std::vector<Byte> & sectors);
+    HRESULT  ReadTrack               (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, bool autoVerify = false, std::vector<SectorMark> * marks = nullptr);
+    HRESULT  ReadVerifiedTrack       (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks);
+    HRESULT  TimeDriveForFormat      (int drive, Byte & outGap);
 
     //  A turn's bits on the drive, for a WOZ built to its disk's layout, and
     //  a track's measure appended to ioMeasures: zeros for a track with no

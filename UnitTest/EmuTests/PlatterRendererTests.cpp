@@ -213,6 +213,33 @@ public:
 
 
 
+    //  Whether the device is on Microsoft's adapter, the Basic Render Driver
+    //  or WARP, by its vendor id.
+    static bool  IsSoftwareAdapter (ID3D11Device * device)
+    {
+        static constexpr UINT  kMicrosoftVendor = 0x1414;
+
+        ComPtr<IDXGIDevice>   dxgi;
+        ComPtr<IDXGIAdapter>  adapter;
+        DXGI_ADAPTER_DESC     desc   = {};
+        HRESULT               hr     = device->QueryInterface (IID_PPV_ARGS (&dxgi));
+
+
+
+        if (SUCCEEDED (hr))
+        {
+            hr = dxgi->GetAdapter (&adapter);
+        }
+
+        if (SUCCEEDED (hr))
+        {
+            hr = adapter->GetDesc (&desc);
+        }
+
+        return SUCCEEDED (hr) && desc.VendorId == kMicrosoftVendor;
+    }
+
+
     //  SC-004 on this machine's GPU: 160 rings of 51,200 cells each, none
     //  shared, drawn at 1400 pixels across from fit to 600x about a point on
     //  track 0 and back, timed by GPU timestamps.
@@ -242,7 +269,9 @@ public:
 
         created = D3D11CreateDevice (nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &device, nullptr, &context);
 
-        if (FAILED (created))
+        //  Microsoft's software adapter, which a CI runner has, draws on the
+        //  CPU, and its frame times measure nothing about a GPU.
+        if (FAILED (created) || IsSoftwareAdapter (device.Get()))
         {
             Logger::WriteMessage (L"No hardware device; SC-004 not measured");
             return;

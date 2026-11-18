@@ -29,27 +29,29 @@ FullSendBootResults::FullSendBootResults (FullSendStatus & status, FullSendManif
 //
 //  FullSendBootResults::Apply
 //
-//  Each boot result that arrived since the last call is set in the manifest
-//  in memory, for a write of it before the next reload. The thread that
-//  booted the image writes the result to the manifest's file. An image that
-//  did not boot is listed on the Apple at the next pause, by its number,
-//  with the offer to read its disk again the first time.
+//  Each boot result and file-system verdict that arrived since the last call
+//  is set in the manifest in memory, for a write of it before the next
+//  reload. The thread that booted the image writes them to the manifest's
+//  file. An image that did not boot is listed on the Apple at the next
+//  pause, by its number, with the offer to read its disk again the first
+//  time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FullSendBootResults::Apply()
 {
-    for (const std::pair<std::string, std::string> & boot : m_status.TakeBoots())
+    for (const FullSendBoot & boot : m_status.TakeBoots())
     {
         const std::vector<FullSendRow>  & rows  = m_manifest.GetRows();
-        auto                              found = std::find_if (rows.begin(), rows.end(), [&boot] (const FullSendRow & row) { return _stricmp (row.file.c_str(), boot.first.c_str()) == 0; });
+        auto                              found = std::find_if (rows.begin(), rows.end(), [&boot] (const FullSendRow & row) { return _stricmp (row.file.c_str(), boot.file.c_str()) == 0; });
 
-        m_manifest.SetBoot (boot.first, boot.second);
-        m_latest = boot.second;
+        m_manifest.SetBoot (boot.file, boot.boot, boot.fsCheck);
+        m_latest      = boot.boot;
+        m_latestCheck = boot.fsCheck;
 
-        if (boot.second == FullSendManifest::kBootDidNotBoot)
+        if (boot.boot == FullSendManifest::kBootDidNotBoot)
         {
-            std::string  image   = found != rows.end() ? std::format ("{:04}", found->sequence) : boot.first.substr (0, boot.first.find_last_of ('.'));
+            std::string  image   = found != rows.end() ? std::format ("{:04}", found->sequence) : boot.file.substr (0, boot.file.find_last_of ('.'));
             bool         isAgain = found != rows.end() && m_retried.contains (found->fingerprint);
 
             //  A disk is read again once. The image of one read again that

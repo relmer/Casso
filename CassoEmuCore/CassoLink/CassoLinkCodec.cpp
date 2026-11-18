@@ -113,11 +113,13 @@ Error:
 //
 //  CassoLinkCodec::EncodeSectorBlank
 //
+//  A sector whose bytes are all one value, sent as the value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkCodec::EncodeSectorBlank (Byte track, Byte sector, std::vector<Byte> & out)
+HRESULT CassoLinkCodec::EncodeSectorBlank (Byte track, Byte sector, Byte value, std::vector<Byte> & out)
 {
-    const Byte  payload[] = { track, sector };
+    const Byte  payload[] = { track, sector, value };
 
 
 
@@ -206,20 +208,34 @@ Error:
 //
 //  CassoLinkCodec::ParseSectorData
 //
+//  Sector data, or Sector blank for a sector whose bytes are all one value.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkCodec::ParseSectorData (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData)
 {
-    HRESULT                hr      = S_OK;
-    bool                   room    = outData.size() == kSectorSize;
-    bool                   shaped  = packet.command == kSectorData && packet.payload.size() == kSectorSize + 4;
-    bool                   crcOk   = false;
-    std::span<const Byte>  data;
-    Word                   crc     = 0;
+    static constexpr size_t  kBlankSize = 3;
+    HRESULT                  hr         = S_OK;
+    bool                     room       = outData.size() == kSectorSize;
+    bool                     blank      = packet.command == kSectorBlank && packet.payload.size() == kBlankSize;
+    bool                     shaped     = packet.command == kSectorData && packet.payload.size() == kSectorSize + 4;
+    bool                     crcOk      = false;
+    std::span<const Byte>    data;
+    Word                     crc        = 0;
 
 
 
     CBRAEx (room, E_INVALIDARG);
+
+    if (blank)
+    {
+        outTrack  = packet.payload[0];
+        outSector = packet.payload[1];
+        std::fill (outData.begin(), outData.end(), packet.payload[2]);
+    }
+
+    BAIL_OUT_IF (blank, S_OK);
+
     CBREx (shaped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     data  = std::span<const Byte> (packet.payload).subspan (2, kSectorSize);

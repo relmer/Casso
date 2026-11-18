@@ -61,6 +61,7 @@ bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::ve
 {
     size_t  at       = 2;
     size_t  distance = 0;
+    size_t  marks    = (count + s_kMarksPerByte - 1) / s_kMarksPerByte;
     bool    valid    = encoded.size() >= 2;
 
 
@@ -86,7 +87,7 @@ bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::ve
 
         if (valid && token == s_kEscape)
         {
-            outBytes.push_back (s_kEscape);
+            valid = false;
         }
         else if (valid && token < s_kRepeatToken)
         {
@@ -108,7 +109,16 @@ bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::ve
         }
     }
 
-    return valid && outBytes.size() == count;
+    valid = valid && outBytes.size() == count && at + marks <= encoded.size();
+
+    for (size_t each = 0; valid && each < count; each++)
+    {
+        bool  isMarked = ((encoded[at + each / s_kMarksPerByte] << (each % s_kMarksPerByte)) & s_kTopBit) == 0;
+
+        outBytes[each] = isMarked ? (Byte) (outBytes[each] & ~s_kTopBit) : outBytes[each];
+    }
+
+    return valid;
 }
 
 

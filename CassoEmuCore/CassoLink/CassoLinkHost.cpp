@@ -56,7 +56,7 @@ HRESULT CassoLinkHost::Fill (size_t count, DWORD timeoutMs, bool & outFilled)
         BAIL_OUT_IF (got == 0, S_OK);
 
         m_lastHeardMs = GetTickCount64();
-        m_adtProServer.m_buffer.insert (m_adtProServer.m_buffer.end(), chunk, chunk + got);
+        TakeReceived (std::span<const Byte> (chunk, got));
     }
 
     outFilled = true;
@@ -87,6 +87,7 @@ HRESULT CassoLinkHost::DiscardReceived()
 
 
     m_adtProServer.m_buffer.clear();
+    m_textNibble = -1;
 
     for (int read = 0; read < kDiscardReads && got > 0; read++)
     {
@@ -192,10 +193,24 @@ Error:
 HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 {
     std::lock_guard<std::mutex>  lock (m_sendLock);
+    std::vector<Byte>            text;
 
 
 
     m_lastPacketMs = GetTickCount64();
+
+    if (m_textForm)
+    {
+        text.reserve (bytes.size() * 2);
+
+        for (Byte b : bytes)
+        {
+            text.push_back ((Byte) (kTextHigh | (b >> 4)));
+            text.push_back ((Byte) (kTextLow  | (b & 0x0F)));
+        }
+
+        bytes = text;
+    }
 
     if (m_pcFault.IsArmed())
     {
@@ -428,7 +443,7 @@ HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const 
             break;
         }
 
-        isData = packet.command == CassoLinkCodec::kSectorData;
+        isData = packet.command == CassoLinkCodec::kSectorData || packet.command == CassoLinkCodec::kSectorBlank;
         CBREx (isData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         hr = CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, one);
@@ -874,14 +889,15 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
 
         //  Write sectors takes each sector as its nibbles, written as they
         //  arrive; Write track takes the bytes, formatted with the track.
-        //  A sector of zeros goes to Write track as its numbers alone.
+        //  A sector of one value goes to Write track as its numbers and the
+        //  value.
         if (command == CassoLinkCodec::kWriteSectors)
         {
             hr = CassoLinkCodec::EncodeSectorNibbles (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
         }
         else if (IsBlank (data.subspan (index * kSectorSize, kSectorSize)))
         {
-            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], encoded);
+            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], data[index * kSectorSize], encoded);
         }
         else
         {
@@ -952,6 +968,7 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     const Byte       request[] = { control };
     CassoLinkPacket  packet;
     bool             acked     = false;
+    bool             refused   = false;
 
 
 
@@ -964,8 +981,12 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     hr = ReadReply (packet);
     CHR (hr);
 
-    acked = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
-    CBREx (acked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    acked   = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
+    refused = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak;
+    CBREx (acked || refused, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  A NAK is a speed the interface doesn't have, and the speed is as it was.
+    hr = acked ? S_OK : S_FALSE;
 
 Error:
     return hr;
@@ -1278,8 +1299,20 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     }
 
     //  A program that fails again after it is loaded again points to the
-    //  Apple's memory, which another load would not fix.
+    //  Apple's memory, which another load would not fix. The cassette build
+    //  came from the cassette input, so its audio is sent again instead.
     CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
+    CBREx (intact || m_programChip != LinkChip::Cassette, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    //  The SOS build is SOS.INTERP on the CassoLink SOS disk, with no shim
+    //  to load another, so a disk from another version of Casso is made
+    //  again.
+    if (!intact && m_programChip == LinkChip::Sos && m_adtProServer.m_activity)
+    {
+        m_adtProServer.m_activity ("The CassoLink SOS disk doesn't match this version of Casso. Make the disk again from the connection's menu.");
+    }
+
+    CBREx (intact || m_programChip != LinkChip::Sos, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
 
     if (intact)
     {
@@ -1348,7 +1381,11 @@ Error:
 
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
-    LinkChip  chip = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0 ? LinkChip::W5100 : LinkChip::Acia;
+    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag | LinkProgram::kSosReadyFlag);
+    LinkChip  chip  = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
+                    : (packet.payload[2] & LinkProgram::kCassetteReadyFlag) != 0 ? LinkChip::Cassette
+                    : (packet.payload[2] & LinkProgram::kSosReadyFlag) != 0      ? LinkChip::Sos
+                                                                                 : LinkChip::Acia;
 
 
 
@@ -1358,11 +1395,12 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     }
 
     m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
-    m_client.shimVersion    = (Byte) (packet.payload[2] & ~LinkProgram::kW5100ReadyFlag);
+    m_client.shimVersion    = (Byte) (packet.payload[2] & ~flags);
     m_client.driveMap       = packet.payload[3];
     m_client.hasRomId       = packet.payload.size() >= 9;
     m_client.hasProgramCrc  = packet.payload.size() == 11;
     m_client.programCrc     = m_client.hasProgramCrc ? (Word) (packet.payload[9] | (packet.payload[10] << 8)) : (Word) 0;
+    m_client.isSos          = chip == LinkChip::Sos;
     m_hasClient             = true;
 
     if (m_client.hasRomId)

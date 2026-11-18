@@ -832,6 +832,23 @@ minimum version. Apple's System Demo disk stops at "SYSTEM FAILURE = ``"
 in MAME as downloaded, so it was left out of the boots; Casso reads it, with its
 12 entries a block, and writes to it (`SosTests`).
 
+## 18. The Apple /// client in MAME, 2026-11-17 (T603 to T606, SC-059)
+
+MAME 0.289's `apple3`, headless, with the CassoLink SOS disk made from Apple's System Demo disk in the built-in drive and a blank ProDOS disk in the external drive. Its serial port is on a TCP socket to a Wi-Fi modem connection at 9,600 baud. `CassoLinkAppleIIITests`, run with `CASSO_MAME_APPLE3` set, passed in 11 minutes 32 seconds:
+
+| Story 14 operation | Result |
+|---|---|
+| Connect | The root's model is Apple /// |
+| List the drives | `.D1` with CASSOLINK and `.D2` with EXTERNAL, 280 blocks each |
+| Browse | `.D1`'s catalog has SOS.KERNEL and SOS.INTERP |
+| Copy a file from the Apple | SOS.KERNEL is the disk's, byte for byte |
+| Copy a file to the Apple | A 3,000-byte file written to `.D2` and read back |
+| Rename, make a folder, delete | `.D2`'s catalog has the folder alone |
+| Read a disk to an image | `.D1`'s image is the link disk |
+| Write an image to a disk | An image written to `.D2` and read back is the same |
+
+Before this, a 140K block device's catalog was empty: the volume layer read its 280 blocks, which arrive in block order, as a DOS-order buffer. The SOS program's CRC in its Ready differed from the host's at first, since the CRC loop changes the operand of one of its instructions; a disk with that build would have failed to connect as another version. Apple's System Utilities disk has no .RS232 in its SOS.DRIVER, so on a disk made from it the Apple /// displays a message and the link doesn't connect.
+
 ## A2Pico cards (Story 41, SC-070)
 
 The owner has no A2Pico, so the card is checked against the A2retroNET

@@ -52,6 +52,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkAudioBootstrap::BuildCassetteLinkAudio
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkAudioBootstrap::BuildCassetteLinkAudio (TapeAudio & outAudio, std::string & outCommand)
+{
+    HRESULT              hr = S_OK;
+    std::vector<double>  halfCycles;
+
+
+
+    hr = BuildCassetteLinkRecord (halfCycles, outCommand);
+    CHR (hr);
+
+    Render (halfCycles, outAudio);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkAudioBootstrap::BuildCassetteLinkRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkAudioBootstrap::BuildCassetteLinkRecord (std::vector<double> & outHalfCyclesUs, std::string & outCommand)
+{
+    HRESULT            hr    = S_OK;
+    std::vector<Byte>  program;
+    std::string        errors;
+    Word               start = LinkProgram::kProgramAddress;
+
+
+
+    outCommand.clear();
+    outHalfCyclesUs.clear();
+
+    hr = LinkProgram::AssembleProgram (program, errors, LinkChip::Cassette);
+    CHR (hr);
+
+    AppendRecord (program, outHalfCyclesUs);
+
+    outCommand = std::format ("{:04X}.{:04X}R {:04X}G\r", start, start + program.size() - 1, start);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkAudioBootstrap::BuildWav
 //
 ////////////////////////////////////////////////////////////////////////////////

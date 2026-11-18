@@ -8,6 +8,7 @@
 #include "DiskCheck/BootTitle.h"
 #include "DiskCheck/GivenNames.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
@@ -337,13 +338,16 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         FullSendRow  row;
         bool         renamed  = false;
 
-        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, row);
+        CheckFileSystem (bytes, path, result);
+
+        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, result.fsCheck, row);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  An image with unreadable sectors is a failed capture, even when it
-        //  boots. The Apple's tone has the same rule. A raw capture has every
-        //  track, so the count from the sector read before it doesn't apply.
-        result.isComplete = row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture;
+        //  An image with unreadable sectors or a bad file system is a failed
+        //  capture, even when it boots. The Apple's tone has the same rule. A
+        //  raw capture has every track, so the count from the sector read
+        //  before it doesn't apply.
+        result.isComplete = (row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture) && result.fsCheck != FullSendManifest::kCheckBad;
 
         //  An image saved as a number is renamed with the user's earlier name
         //  for its disk, or its title once it boots, or with neither, a DOS
@@ -370,6 +374,67 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::CheckFileSystem
+//
+//  The disk inspector's file-system check of the bytes that were booted: a
+//  sector image's sectors, or the sectors a raw capture decodes to. An image
+//  the inspector can't load has no verdict.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::CheckFileSystem (const std::vector<Byte> & bytes, const std::wstring & path, Result & ioResult)
+{
+    HRESULT          hr      = S_OK;
+    DiskAnalysis     analysis;
+    std::wstring     reason;
+    const Finding  * finding = nullptr;
+
+
+
+    hr = FileSystemCheck::Analyze (bytes, TextEncoding::WideToUtf8 (path), analysis, reason);
+    CHR (hr);
+
+    finding            = FileSystemCheck::GetVerdictFinding (analysis);
+    ioResult.fsCheck   = GetCheckName (analysis.verdict);
+    ioResult.fsFinding = (finding != nullptr) ? TextEncoding::WideToNarrow (TextEncoding::Utf8ToWide (finding->detail)) : std::string();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::GetCheckName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerBootWorker::GetCheckName (FileSystemVerdict verdict)
+{
+    const char  * name = FullSendManifest::kCheckNone;
+
+
+
+    switch (verdict)
+    {
+        case FileSystemVerdict::Ok:      name = FullSendManifest::kCheckOk;      break;
+        case FileSystemVerdict::Suspect: name = FullSendManifest::kCheckSuspect; break;
+        case FileSystemVerdict::Bad:     name = FullSendManifest::kCheckBad;     break;
+        case FileSystemVerdict::None:    name = FullSendManifest::kCheckNone;    break;
+    }
+
+    return name;
 }
 
 
@@ -511,6 +576,45 @@ std::string ExplorerBootWorker::Describe (const Result & result)
         case BootVerdict::DidNotBoot:  text = std::format ("{} did not boot on the {}. {}", name, machine, result.reason);   break;
         case BootVerdict::NotBootable: text = std::format ("{} is not a bootable disk. {}", name, result.reason);           break;
         default:                       text = std::format ("It is unclear whether {} boots on the {}. {}", name, machine, result.reason); break;
+    }
+
+    return text + DescribeCheck (result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::DescribeCheck
+//
+//  The file-system verdict after the boot result, as the inspector writes
+//  it, with its first finding: " File system: Bad, ..." Empty for an image
+//  with no verdict.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerBootWorker::DescribeCheck (const Result & result)
+{
+    std::string  text;
+    std::string  end;
+
+
+
+    if (result.fsCheck == FullSendManifest::kCheckNone)
+    {
+        text = " No standard file system.";
+    }
+    else if (!result.fsCheck.empty())
+    {
+        text = result.fsCheck == FullSendManifest::kCheckOk      ? " File system: OK"
+             : result.fsCheck == FullSendManifest::kCheckSuspect ? " File system: Possible inconsistencies"
+                                                                 : " File system: Bad";
+
+        text += result.fsFinding.empty() ? std::string() : ", " + result.fsFinding;
+        end   = text.ends_with ('.') ? "" : ".";
+        text += end;
     }
 
     return text;

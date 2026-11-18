@@ -397,11 +397,13 @@ public:
         CassoLinkSettings   serial;
         CassoLinkSettings   server;
         CassoLinkSettings   emulated;
+        CassoLinkSettings   cassette;
 
         serial.transport         = LinkTransport::Serial;
         serial.port              = "COM3";
         serial.baud              = 19200;
         serial.hardwareHandshake = true;
+        serial.virtualDrives     = { L"C:\\Disks\\One.po", L"" };
         serial.name              = CassoLinkSettings::MakeName (serial);
 
         server.transport         = LinkTransport::AdtProServer;
@@ -413,7 +415,11 @@ public:
         emulated.transport = LinkTransport::Emulated;
         emulated.address   = "127.0.0.1:6502";
 
-        saved.links = { serial, server, emulated };
+        cassette.transport     = LinkTransport::Cassette;
+        cassette.cassetteAudio = { L"{0.0.0.00000000}.{out}", L"" };
+        cassette.name          = CassoLinkSettings::MakeName (cassette);
+
+        saved.links = { serial, server, emulated, cassette };
         saved.tabs  = { Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"COM3", 6, 1), "GAMES") };
 
         AssertSucceeded (saved.Save (kBase, fs));
@@ -421,9 +427,11 @@ public:
 
         server.name = "ADTPro server at 127.0.0.1:6502";
 
-        Assert::AreEqual ((size_t) 2, loaded.links.size());
+        Assert::AreEqual ((size_t) 3, loaded.links.size());
         Assert::IsTrue (loaded.links[0] == serial);
         Assert::IsTrue (loaded.links[1] == server, L"its folder, and the name made from its settings");
+        Assert::IsTrue (loaded.links[2] == cassette, L"its sound devices");
+        Assert::AreEqual (std::string ("Cassette ports (audio)"), loaded.links[2].name);
         Assert::IsTrue (loaded.tabs.size() == 1 && loaded.tabs[0] == saved.tabs[0], L"a tab on an Apple drive");
     }
 

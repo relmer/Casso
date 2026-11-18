@@ -28,6 +28,8 @@
 //  As a shim, it reports program version 0 and loads the program it is
 //  sent before answering as the program.
 //
+//  As an Apple /// (appleIII), its replies are the SOS program's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class FakeApple
@@ -41,6 +43,14 @@ public:
     //  As an Apple whose Ready went out before the line was open: silent
     //  until the host sends it something.
     std::atomic<bool>                 readySentEarly { false };
+
+    //  As the SOS program on an Apple ///: Ready with the SOS flag, no
+    //  drives and the SOS build's CRC; the block module reported as loaded,
+    //  and a chunk of one NAKed; the block device listed as SOS device 1,
+    //  unit 0, with its name, .D1; and Set speed NAKed for the external
+    //  clock's rate.
+    std::atomic<bool>                 appleIII       { false };
+    std::atomic<int>                  moduleChunks   { 0 };   // chunks of a module sent to the Apple ///
 
     //  As a boot disk still starting when the host prompts: that many of the
     //  first prompts are lost, and it stays silent through them.
@@ -102,6 +112,13 @@ public:
     std::atomic<int>                keyWaits        { 0 };
     std::atomic<bool>               quitPending     { false };
     std::atomic<bool>               fullSendPending { false };
+    //  A block device in slot 7, a SmartPort's unit 1, with blockDisk's
+    //  blocks when it has any; and the module the host loaded, by its
+    //  header's id and version.
+    std::vector<Byte>                 blockDisk;
+    std::atomic<int>                  blocksRead     { 0 };
+    std::atomic<int>                  blocksWritten  { 0 };
+
     //  Each Label's text, in the order received, and each history line's.
     std::vector<std::string>          labels;
     std::vector<std::string>          logs;
@@ -250,7 +267,7 @@ private:
     //  Applesoft's prompt, as the loader does.
     bool  RunLoader (std::stop_token stop, Line & line)
     {
-        static constexpr std::string_view  kRun = "3A50G\r";
+        static constexpr std::string_view  kRun = "3950G\r";
         Byte                               chunk[4096];
         size_t                             got  = 0;
         size_t                             need = 0;
@@ -366,7 +383,7 @@ private:
 
             if (!silent)
             {
-                SendPacket (line, CassoLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
+                SendPacket (line, CassoLinkCodec::kReady, appleIII ? MakeSosReady() : std::vector<Byte> { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
             }
 
             silent = false;
@@ -407,7 +424,7 @@ private:
                 //  is silent at the new speed.
                 case CassoLinkCodec::kSetSpeed:
                     speedSet = true;
-                    SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
+                    SendPacket (line, CassoLinkCodec::kAcknowledge, { (appleIII && (packet.payload.at (0) & 0x0F) == 0) ? CassoLinkCodec::kNak : CassoLinkCodec::kAck, 0, 0 });
                     break;
 
                 case CassoLinkCodec::kReadSectors:
@@ -490,10 +507,161 @@ private:
                     WaitForKey (stop, line);
                     break;
 
+                case CassoLinkCodec::kLoadModule:
+                    LoadModule (line, packet.payload);
+                    break;
+
+                case CassoLinkCodec::kListBlocks:
+                    ListBlocks (line);
+                    break;
+
+                case CassoLinkCodec::kReadBlocks:
+                    ReadBlocks (line, packet.payload);
+                    break;
+
+                case CassoLinkCodec::kWriteBlocks:
+                    WriteBlocks (stop, line, packet.payload);
+                    break;
+
                 default:
                     break;
             }
         }
+    }
+
+    //  The SOS program's Ready, with the CRC of the SOS build as the host
+    //  assembles it.
+    static std::vector<Byte>  MakeSosReady()
+    {
+        std::vector<Byte>  program;
+        std::string        errors;
+        Word               crc     = 0;
+
+        AssertSucceeded (LinkProgram::AssembleProgram (program, errors, LinkChip::Sos));
+
+        crc = CassoLinkCodec::ComputeCrc (program);
+
+        return { (Byte) (LinkProgram::kProgramVersion & 0xFF), (Byte) (LinkProgram::kProgramVersion >> 8), LinkProgram::kSosReadyFlag, 0,
+                 0, 0, 0, 0, 0, (Byte) (crc & 0xFF), (Byte) (crc >> 8) };
+    }
+
+    //  Load module: its id and version, a chunk at its offset, or the check.
+    void  LoadModule (Line & line, const std::vector<Byte> & payload)
+    {
+        std::lock_guard<std::mutex>  guard (lock);
+        size_t                       at    = payload.size() >= 2 ? (size_t) (payload[0] | (payload[1] << 8)) : 0;
+
+        if (appleIII)
+        {
+            bool  query = payload.empty() || (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF);
+
+            if (query)
+            {
+                SendPacket (line, CassoLinkCodec::kLoadModule, { LinkProgram::kBlockModuleId, LinkProgram::kBlockModuleVersion });
+            }
+            else
+            {
+                moduleChunks++;
+                SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kNak, payload[0], payload[1] });
+            }
+
+            return;
+        }
+
+        if (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF)
+        {
+            m_moduleId      = m_module.size() > 3 ? m_module[2] : 0;
+            m_moduleVersion = m_module.size() > 3 ? m_module[3] : 0;
+        }
+
+        if (payload.empty() || (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF))
+        {
+            SendPacket (line, CassoLinkCodec::kLoadModule, { m_moduleId, m_moduleVersion });
+            return;
+        }
+
+        m_module.resize (std::max (m_module.size(), at + payload.size() - 2));
+        std::copy (payload.begin() + 2, payload.end(), m_module.begin() + (ptrdiff_t) at);
+        SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, payload[0], payload[1] });
+    }
+
+    //  The block device, with block 2's volume name.
+    void  ListBlocks (Line & line)
+    {
+        std::lock_guard<std::mutex>  guard (lock);
+        std::vector<Byte>            reply  = { (Byte) (blockDisk.empty() ? 0 : 1) };
+        uint32_t                     blocks = (uint32_t) (blockDisk.size() / CassoLinkCodec::kBlockSize);
+
+        if (!blockDisk.empty() && appleIII)
+        {
+            static constexpr Byte  kDevice[16] = { 3, '.', 'D', '1' };
+
+            reply.insert (reply.end(), { 1, 0, 0, (Byte) blocks, (Byte) (blocks >> 8), 0, 0xFF, (Byte) (blockDisk[2 * 512 + 4] & 0x0F) });
+            reply.insert (reply.end(), blockDisk.begin() + 2 * 512 + 5, blockDisk.begin() + 2 * 512 + 20);
+            reply.insert (reply.end(), std::begin (kDevice), std::end (kDevice));
+        }
+        else if (!blockDisk.empty())
+        {
+            reply.insert (reply.end(), { 7, 1, 1, (Byte) blocks, (Byte) (blocks >> 8), (Byte) (blocks >> 16), 2, (Byte) (blockDisk[2 * 512 + 4] & 0x0F) });
+            reply.insert (reply.end(), blockDisk.begin() + 2 * 512 + 5, blockDisk.begin() + 2 * 512 + 20);
+        }
+
+        SendPacket (line, CassoLinkCodec::kBlockDevices, reply);
+    }
+
+    //  Each block in Block data, then the Status.
+    void  ReadBlocks (Line & line, const std::vector<Byte> & request)
+    {
+        uint32_t  first = (uint32_t) request.at (3) | ((uint32_t) request.at (4) << 8) | ((uint32_t) request.at (5) << 16);
+        Byte      count = request.at (6);
+
+        for (uint32_t block = first; block < first + count; block++)
+        {
+            std::vector<Byte>  payload = { (Byte) block, (Byte) (block >> 8), (Byte) (block >> 16) };
+            Word               crc     = 0;
+
+            {
+                std::lock_guard<std::mutex>  guard (lock);
+                auto                         at = blockDisk.begin() + (ptrdiff_t) (block * CassoLinkCodec::kBlockSize);
+
+                payload.insert (payload.end(), at, at + (ptrdiff_t) CassoLinkCodec::kBlockSize);
+                crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (payload).subspan (3));
+            }
+
+            payload.push_back ((Byte) (crc & 0xFF));
+            payload.push_back ((Byte) (crc >> 8));
+            SendPacket (line, CassoLinkCodec::kBlockData, payload);
+            blocksRead++;
+        }
+
+        SendPacket (line, CassoLinkCodec::kStatus, { 1, request.at (0), request.at (1), count, CassoLinkHost::kErrorNone });
+    }
+
+    //  Each block requested with an Acknowledge of its index, then the Status.
+    void  WriteBlocks (std::stop_token stop, Line & line, const std::vector<Byte> & request)
+    {
+        uint32_t         first = (uint32_t) request.at (3) | ((uint32_t) request.at (4) << 8) | ((uint32_t) request.at (5) << 16);
+        Byte             count = request.at (6);
+        CassoLinkPacket  packet;
+
+        for (Byte index = 0; index < count; index++)
+        {
+            SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, index, 0 });
+
+            if (!Receive (stop, line, packet, 3000) || packet.command != CassoLinkCodec::kBlockData || packet.payload.size() != 3 + CassoLinkCodec::kBlockSize + 2)
+            {
+                SendPacket (line, CassoLinkCodec::kStatus, { 2, request.at (0), request.at (1), index, CassoLinkHost::kErrorLink });
+                return;
+            }
+
+            std::lock_guard<std::mutex>  guard (lock);
+
+            std::copy (packet.payload.begin() + 3, packet.payload.begin() + 3 + (ptrdiff_t) CassoLinkCodec::kBlockSize,
+                       blockDisk.begin() + (ptrdiff_t) ((first + index) * CassoLinkCodec::kBlockSize));
+            blocksWritten++;
+        }
+
+        SendPacket (line, CassoLinkCodec::kStatus, { 2, request.at (0), request.at (1), count, CassoLinkHost::kErrorNone });
     }
 
     void  WaitForKey (std::stop_token stop, Line & line)
@@ -656,8 +824,18 @@ private:
                 std::lock_guard<std::mutex>  guard (lock);
                 auto                         at = drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical);
 
+                //  A sector of one value goes as Sector blank, as the program
+                //  sends it.
                 wire.clear();
-                CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+
+                if (std::all_of (at, at + 256, [at] (Byte b) { return b == *at; }))
+                {
+                    CassoLinkCodec::EncodeSectorBlank ((Byte) track, physical, *at, wire);
+                }
+                else
+                {
+                    CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+                }
             }
 
             Send (line, wire);
@@ -717,7 +895,7 @@ private:
             }
             else if (packet.command == CassoLinkCodec::kSectorBlank)
             {
-                std::fill (data.begin(), data.end(), (Byte) 0);
+                CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
                 blanksReceived++;
             }
             else
@@ -763,6 +941,9 @@ private:
 
     std::shared_ptr<InProcessByteStream>  m_end;
     std::jthread                          m_thread;
+    std::vector<Byte>                     m_module;
+    Byte                                  m_moduleId      = 0;
+    Byte                                  m_moduleVersion = 0;
 };
 
 

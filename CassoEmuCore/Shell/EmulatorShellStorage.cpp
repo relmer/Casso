@@ -1007,7 +1007,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
 
 
-        change->label    = L"&Change image...";
+        change->label    = L"&Change disk image...";
         change->dispatch = [this, drive] () { BrowseHardDisk (drive); };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (change));

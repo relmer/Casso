@@ -73,6 +73,7 @@ enum class LinkOperationKind
     FullSend,
     Krunch,
     CaptureDisk,
+    ListBlockDevices,
 };
 
 enum class LinkOperationState
@@ -120,6 +121,10 @@ struct LinkOperation
     std::string                      imagePath;
     std::string                      imagePrefix;
     bool                             blankUnreadable = false;
+
+    //  Read disk and Write disk of a block device: continue a transfer the
+    //  link cut short, from its record beside the image.
+    bool                             resume          = false;
 
     //  Full Send: the Copy-protected disks section's choices.
     FullSendProtectionChoices        protection;

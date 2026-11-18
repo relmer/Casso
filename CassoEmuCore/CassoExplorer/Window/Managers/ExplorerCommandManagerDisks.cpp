@@ -193,3 +193,41 @@ bool ExplorerCommandManager::CreateDiskForPicker (std::wstring & outPath)
 
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::InspectDiskImages
+//
+//  With no app, as in a test, no inspector is opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::InspectDiskImages (const std::vector<std::wstring> & paths)
+{
+    if (m_context.app.host != nullptr && m_context.theme != nullptr && !paths.empty())
+    {
+        m_context.app.host->InspectDiskImages (m_context.window.GetHwnd(), paths, *m_context.theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::RepairDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::RepairDiskImage (const std::wstring & path)
+{
+    if (m_context.app.host != nullptr && m_context.theme != nullptr)
+    {
+        m_context.app.host->RepairDiskImage (m_context.window.GetHwnd(), path, *m_context.theme);
+    }
+}
