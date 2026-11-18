@@ -244,12 +244,26 @@ void HfsBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
     ReadExtents (&mdb[kExtentsExtent], extents);
     ReadExtents (&mdb[kCatalogExtent], catalog);
 
-    MapTree (walker, extents, GetLong (&mdb[kExtentsSize]), outMap.extentsNodes);
-    MapTree (walker, catalog, GetLong (&mdb[kCatalogSize]), outMap.catalogNodes);
+    if (!MapTree (walker, extents, GetLong (&mdb[kExtentsSize]), outMap.extentsNodes))
+    {
+        outMap.isCatalogComplete = false;
+    }
 
     for (i = 0; i < outMap.extentsNodes.size(); i++)
     {
         MarkBlock (outMap, outMap.extentsNodes[i], SectorRole::CatalogOrDirectory, BlockStructure::HfsNode, kExtentsOwner, HfsVolume::kExtentsFileId, i);
+    }
+
+    ReadOverflow (walker, outMap.extentsNodes);
+
+    //  A catalog file of more than three extents continues in the extents
+    //  overflow file. When the extents don't cover the catalog's size, some
+    //  of its nodes can't be read.
+    AddOverflow (walker, HfsVolume::kCatalogFileId, kDataFork, catalog);
+
+    if (!MapTree (walker, catalog, GetLong (&mdb[kCatalogSize]), outMap.catalogNodes))
+    {
+        outMap.isCatalogComplete = false;
     }
 
     for (i = 0; i < outMap.catalogNodes.size(); i++)
@@ -257,8 +271,7 @@ void HfsBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
         MarkBlock (outMap, outMap.catalogNodes[i], SectorRole::CatalogOrDirectory, BlockStructure::HfsNode, kCatalogOwner, HfsVolume::kCatalogFileId, i);
     }
 
-    ReadOverflow (walker, outMap.extentsNodes);
-    ReadCatalog  (walker, outMap.catalogNodes);
+    ReadCatalog (walker, outMap.catalogNodes);
 
     for (const ForkRecord & fork : walker.forks)
     {
@@ -321,7 +334,7 @@ void HfsBlockLayout::CheckFree (Walker & walker, const Block & mdb, uint32_t bit
         mismatch.actual      = actual;
         mismatch.isFreeCount = true;
         mismatch.what        = L"the free block count";
-        mismatch.finding     = L"Expected a free block count of " + NumberFormat::FormatInteger (actual) + L", but found " + NumberFormat::FormatInteger (recorded);
+        mismatch.finding     = L"The free block count is " + NumberFormat::FormatInteger (recorded) + L", but " + NumberFormat::FormatInteger (actual) + L" blocks are free";
 
         walker.map.counts.push_back (std::move (mismatch));
     }
@@ -336,19 +349,22 @@ void HfsBlockLayout::CheckFree (Walker & walker, const Block & mdb, uint32_t bit
 //  HfsBlockLayout::MapTree
 //
 //  The block of each node of a B-tree file, in node order, from its extents.
+//  Returns false when the extents run off the volume or don't cover the
+//  tree's size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HfsBlockLayout::MapTree (
+bool HfsBlockLayout::MapTree (
     Walker                & walker,
     const vector<Extent>  & extents,
     uint32_t                treeBytes,
     vector<uint32_t>      & outNodes)
 {
-    uint32_t  nodes = std::min<uint32_t> (treeBytes / kBlockBytes, kMaxNodes);
-    uint32_t  block = 0;
-    uint32_t  i     = 0;
-    uint32_t  k     = 0;
+    uint32_t  nodes    = std::min<uint32_t> (treeBytes / kBlockBytes, kMaxNodes);
+    uint32_t  block    = 0;
+    uint32_t  i        = 0;
+    uint32_t  k        = 0;
+    bool      isOnDisk = true;
 
 
 
@@ -356,21 +372,22 @@ void HfsBlockLayout::MapTree (
 
     for (const Extent & extent : extents)
     {
-        for (i = 0; i < extent.count && outNodes.size() < nodes; i++)
+        for (i = 0; isOnDisk && i < extent.count && outNodes.size() < nodes; i++)
         {
-            for (k = 0; k < walker.map.blocksPerAllocation && outNodes.size() < nodes; k++)
+            for (k = 0; isOnDisk && k < walker.map.blocksPerAllocation && outNodes.size() < nodes; k++)
             {
-                block = walker.map.GetAllocationBlock (extent.start + i) + k;
+                block    = walker.map.GetAllocationBlock (extent.start + i) + k;
+                isOnDisk = block < walker.map.GetBlockCount();
 
-                if (block >= walker.map.GetBlockCount())
+                if (isOnDisk)
                 {
-                    return;
+                    outNodes.push_back (block);
                 }
-
-                outNodes.push_back (block);
             }
         }
     }
+
+    return outNodes.size() == nodes;
 }
 
 
@@ -512,6 +529,34 @@ void HfsBlockLayout::ReadOverflow (Walker & walker, const vector<uint32_t> & nod
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HfsBlockLayout::AddOverflow
+//
+//  Appends a fork's extents from the extents overflow file, in the order of
+//  the allocation blocks they continue from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsBlockLayout::AddOverflow (const Walker & walker, uint32_t fileId, Byte forkType, vector<Extent> & ioExtents)
+{
+    auto  found = walker.overflow.find ({ fileId, forkType });
+
+
+
+    if (found != walker.overflow.end())
+    {
+        for (const auto & run : found->second)
+        {
+            ioExtents.insert (ioExtents.end(), run.second.begin(), run.second.end());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HfsBlockLayout::ReadCatalog
 //
 //  Each directory's ID, parent and name, then each file's two forks. A
@@ -609,20 +654,13 @@ void HfsBlockLayout::ReadCatalog (Walker & walker, const vector<uint32_t> & node
         for (const auto & [forkType, first] : { std::pair<Byte, vector<Extent> *> (kDataFork, &file.data), std::pair<Byte, vector<Extent> *> (kResourceFork, &file.fork) })
         {
             ForkRecord  fork;
-            auto        found = walker.overflow.find ({ file.id, forkType });
 
             fork.fileId  = file.id;
             fork.fork    = forkType;
             fork.file    = index;
             fork.extents = *first;
 
-            if (found != walker.overflow.end())
-            {
-                for (const auto & run : found->second)
-                {
-                    fork.extents.insert (fork.extents.end(), run.second.begin(), run.second.end());
-                }
-            }
+            AddOverflow (walker, file.id, forkType, fork.extents);
 
             walker.forks.push_back (std::move (fork));
         }

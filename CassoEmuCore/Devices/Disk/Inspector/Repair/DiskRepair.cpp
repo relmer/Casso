@@ -763,9 +763,11 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
         bool  isBlocking = finding.kind == FindingKind::FileChainBroken || finding.kind == FindingKind::FileCrossLinked || finding.kind == FindingKind::PascalEntryOutOfRange ||
                             finding.kind == FindingKind::FileUsesStructure;
 
+        std::wstring  detail = TextEncoding::Utf8ToWide (finding.detail) + (finding.detail.ends_with ('.') ? L"" : L".");
+
         if (work.plan.reason.empty() && isBlocking)
         {
-            work.plan.reason = L"Repairing this would change a file's data: " + TextEncoding::Utf8ToWide (finding.detail) + (finding.detail.ends_with ('.') ? L"" : L".");
+            work.plan.reason = finding.kind == FindingKind::FileCrossLinked ? detail + L" " + kCrossLinkReason : L"Repairing this would change a file's data: " + detail;
         }
     }
 }

@@ -108,6 +108,9 @@ struct RepairPlan
 class DiskRepair
 {
 public:
+    //  The reason after a cross-link finding.
+    static constexpr LPCWSTR  kCrossLinkReason = L"Repair can't fix a cross-link without changing a file's data.";
+
     static RepairPlan  Plan  (const DiskAnalysis & analysis, const RepairOptions & options);
 
     //  The plan with only the changes whose keys are chosen. A change that

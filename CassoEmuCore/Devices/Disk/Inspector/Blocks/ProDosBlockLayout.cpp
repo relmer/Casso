@@ -263,6 +263,7 @@ void ProDosBlockLayout::WalkDirectory (
 void ProDosBlockLayout::AddCount (Walker & walker, uint32_t keyBlock, const std::wstring & prefix, int files, int active)
 {
     std::wstring  directory = prefix.empty() ? std::wstring() : prefix.substr (0, prefix.size() - 1);
+    std::wstring  entries   = NumberFormat::FormatInteger (active) + (active == 1 ? L" file" : L" files");
     BlockCount    count;
 
 
@@ -272,8 +273,8 @@ void ProDosBlockLayout::AddCount (Walker & walker, uint32_t keyBlock, const std:
     count.recorded = files;
     count.actual   = active;
     count.what     = directory.empty() ? std::wstring (L"the volume directory's file count") : L"the file count of " + directory;
-    count.finding  = directory.empty() ? L"Expected a volume directory file count of " + NumberFormat::FormatInteger (active) + L", but found " + NumberFormat::FormatInteger (files)
-                                       : directory + L": expected a directory file count of " + NumberFormat::FormatInteger (active) + L", but found " + NumberFormat::FormatInteger (files);
+    count.finding  = directory.empty() ? L"The volume directory's file count is " + NumberFormat::FormatInteger (files) + L", but it has " + entries
+                                       : directory + L": the file count is " + NumberFormat::FormatInteger (files) + L", but the directory has " + entries;
 
     walker.map.counts.push_back (std::move (count));
 }

@@ -252,8 +252,8 @@ void ProDosMapReader::CheckFileCount (Walk & walk, int keyBlock, const std::wstr
 
     if (files != active)
     {
-        walk.writer.AddFinding (FindingKind::ProDosFileCountDiffers, keyBlock, prefix.empty() ? std::format (L"Expected a volume directory file count of {}, but found {}", active, files)
-                                                                                              : std::format (L"{}: expected a directory file count of {}, but found {}", directory, active, files));
+        walk.writer.AddFinding (FindingKind::ProDosFileCountDiffers, keyBlock, prefix.empty() ? std::format (L"The volume directory's file count is {}, but it has {} file{}", files, active, active == 1 ? L"" : L"s")
+                                                                                              : std::format (L"{}: the file count is {}, but the directory has {} file{}", directory, files, active, active == 1 ? L"" : L"s"));
         walk.writer.AddCount ({ keyBlock, s_kFileCount, files, active, prefix.empty() ? std::wstring (L"the volume directory's file count") : L"the file count of " + directory });
     }
 }

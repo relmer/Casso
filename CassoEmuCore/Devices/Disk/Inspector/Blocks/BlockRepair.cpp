@@ -222,15 +222,24 @@ RepairPlan BlockRepair::Run (Work & work)
 
 void BlockRepair::CheckBlocking (Work & work)
 {
-    uint32_t  unit = 0;
+    uint32_t      unit = 0;
+    size_t        i    = 0;
+    std::wstring  names;
 
 
 
     for (unit = 0; work.plan.reason.empty() && unit < work.map.GetBlockCount(); unit++)
     {
+        const vector<int>  & owners = work.map.blocks[unit].owners;
+
         if (work.map.blocks[unit].role == SectorRole::CrossLinked)
         {
-            work.plan.reason = L"Repairing this would change a file's data: " + DescribeUnit (work, unit) + L" is in more than one file.";
+            for (i = 0; i < owners.size(); i++)
+            {
+                names += (i == 0 ? L"" : (i + 1 == owners.size() ? L" and " : L", ")) + work.map.files[(size_t) owners[i]];
+            }
+
+            work.plan.reason = L"Files " + names + L" are cross-linked at " + DescribeUnit (work, unit) + L". " + DiskRepair::kCrossLinkReason;
         }
     }
 
@@ -373,7 +382,6 @@ void BlockRepair::PlanHfsBitmap (Work & work)
     const BlockMap  & map         = work.map;
     uint32_t          bitmap      = GetBigWord (work, kKeyBlock, kHfsBitmap);
     uint32_t          allocations = GetBigWord (work, kKeyBlock, kHfsAllocations);
-    uint64_t          size        = GetBigLong (work, kKeyBlock, kHfsAllocationSize);
     uint32_t          bitmaps     = (allocations + kBitsPerBlock - 1) / kBitsPerBlock;
     Tally             tally       { vector<int> (map.files.size(), 0) };
     uint32_t          recorded    = GetBigWord (work, kKeyBlock, kHfsFreeBlocks);
@@ -388,24 +396,6 @@ void BlockRepair::PlanHfsBitmap (Work & work)
     std::wstring      problem;
 
 
-
-    //  A B-tree with more than three extents continues in the extents
-    //  overflow file, and the map doesn't have its other blocks.
-    for (const auto & [sizeAt, extentAt] : { std::pair<uint32_t, uint32_t> (kHfsExtentsSize, kHfsExtentsExtent), std::pair<uint32_t, uint32_t> (kHfsCatalogSize, kHfsCatalogExtent) })
-    {
-        uint64_t  covered = 0;
-
-        for (k = 0; k < kHfsExtents; k++)
-        {
-            covered += GetBigWord (work, kKeyBlock, extentAt + k * 4 + 2) * size;
-        }
-
-        if (covered < GetBigLong (work, kKeyBlock, sizeAt))
-        {
-            work.plan.reason = L"The catalog file or the extents overflow file has more than three extents, so its blocks aren't all known.";
-            return;
-        }
-    }
 
     if (bitmap <= kKeyBlock || allocations == 0 || bitmap + bitmaps > map.GetBlockCount())
     {
@@ -452,7 +442,7 @@ void BlockRepair::PlanHfsBitmap (Work & work)
         }
 
         AddChange (work, L"freecount", L"Set the free block count to " + NumberFormat::FormatInteger (free),
-                   problem.empty() ? L"The free block count is " + NumberFormat::FormatInteger (recorded) + L", and the repaired bitmap has " + NumberFormat::FormatInteger (free) + L" free"
+                   problem.empty() ? L"The free block count is " + NumberFormat::FormatInteger (recorded) + L", but " + NumberFormat::FormatInteger (free) + L" blocks are free in the repaired bitmap"
                                    : problem);
     }
 }

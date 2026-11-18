@@ -166,8 +166,10 @@ public:
             Analyze (fixture.damaged, fixture.isProDosOrder, analysis);
             plan = DiskRepair::Plan (analysis, {});
 
+            bool  isCrossLink = plan.reason.starts_with (L"Files ");
+
             Assert::IsFalse (plan.canRepair, fixture.name.c_str());
-            Assert::IsTrue  (plan.reason.find (L"Repairing this would change a file's data: ") != std::wstring::npos, plan.reason.c_str());
+            Assert::IsTrue  (isCrossLink ? plan.reason.ends_with (DiskRepair::kCrossLinkReason) : plan.reason.starts_with (L"Repairing this would change a file's data: "), plan.reason.c_str());
             Assert::IsTrue  (plan.changes.empty() && plan.sectors.empty());
         }
     }
@@ -242,7 +244,7 @@ public:
 
         Assert::IsTrue  (analysis.verdict == FileSystemVerdict::Bad);
         Assert::IsFalse (plan.canRepair);
-        Assert::IsTrue  (plan.reason.starts_with (L"Repairing this would change a file's data: "), plan.reason.c_str());
+        Assert::IsTrue  (plan.reason.starts_with (L"Files ") && plan.reason.ends_with (DiskRepair::kCrossLinkReason), plan.reason.c_str());
 
         //  An entry with user 40: Suspect, and no cross-link to give.
         Images::GetCpmSector (odd, 3, 0)[6 * 32] = 40;

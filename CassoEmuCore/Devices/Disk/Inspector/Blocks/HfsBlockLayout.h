@@ -121,10 +121,11 @@ private:
     static void          ReadBlock    (const BlockImage & image, uint32_t block, Block & outBlock);
     static void          ReadExtents  (const Byte * at, vector<Extent> & outExtents);
     static void          MarkBlock    (BlockMap & map, uint32_t block, SectorRole role, BlockStructure structure, int owner, uint32_t tree = 0, uint32_t node = 0);
-    static void          MapTree      (Walker & walker, const vector<Extent> & extents, uint32_t treeBytes, vector<uint32_t> & outNodes);
+    static bool          MapTree      (Walker & walker, const vector<Extent> & extents, uint32_t treeBytes, vector<uint32_t> & outNodes);
     static void          ReadLeaves   (Walker & walker, const vector<uint32_t> & nodes, const std::function<void (const Block &, uint32_t key, uint32_t data)> & visit);
     static void          ReadCatalog  (Walker & walker, const vector<uint32_t> & nodes);
     static void          ReadOverflow (Walker & walker, const vector<uint32_t> & nodes);
+    static void          AddOverflow  (const Walker & walker, uint32_t fileId, Byte forkType, vector<Extent> & ioExtents);
     static void          ClaimFork    (Walker & walker, const ForkRecord & fork);
     static void          CheckFree    (Walker & walker, const Block & mdb, uint32_t bitmap, uint32_t allocations);
     static std::wstring  GetPath      (const Walker & walker, uint32_t parent, const std::wstring & name);

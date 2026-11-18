@@ -65,15 +65,9 @@ private:
     static constexpr Byte      kFirstBit      = 0x80;
 
     //  HFS's master directory block.
-    static constexpr uint32_t  kHfsBitmap         = 14;
-    static constexpr uint32_t  kHfsAllocations    = 18;
-    static constexpr uint32_t  kHfsAllocationSize = 20;
-    static constexpr uint32_t  kHfsFreeBlocks     = 34;
-    static constexpr uint32_t  kHfsExtentsSize    = 130;
-    static constexpr uint32_t  kHfsExtentsExtent  = 134;
-    static constexpr uint32_t  kHfsCatalogSize    = 146;
-    static constexpr uint32_t  kHfsCatalogExtent  = 150;
-    static constexpr uint32_t  kHfsExtents        = 3;
+    static constexpr uint32_t  kHfsBitmap      = 14;
+    static constexpr uint32_t  kHfsAllocations = 18;
+    static constexpr uint32_t  kHfsFreeBlocks  = 34;
 
     //  DOS 3.3's VTOC.
     static constexpr int       kDosBootTracks = 3;
@@ -118,6 +112,5 @@ private:
     static Byte        & GetByte          (Work & work, uint32_t unit, uint32_t offset);
     static uint32_t      GetWord          (Work & work, uint32_t unit, uint32_t offset);
     static uint32_t      GetBigWord       (Work & work, uint32_t unit, uint32_t offset);
-    static uint32_t      GetBigLong       (Work & work, uint32_t unit, uint32_t offset) { return (GetBigWord (work, unit, offset) << 16) | GetBigWord (work, unit, offset + 2); }
     static bool          IsSkipped        (const Work & work, const std::wstring & key) { return work.options.skipped.contains (key); }
 };

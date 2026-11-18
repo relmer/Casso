@@ -179,7 +179,7 @@ void PascalBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
         mismatch.recorded = (int) recorded;
         mismatch.actual   = entries;
         mismatch.what     = L"the directory's file count";
-        mismatch.finding  = L"Expected a directory file count of " + NumberFormat::FormatInteger (entries) + L", but found " + NumberFormat::FormatInteger (recorded);
+        mismatch.finding  = L"The directory's file count is " + NumberFormat::FormatInteger (recorded) + L", but it has " + NumberFormat::FormatInteger (entries) + (entries == 1 ? L" file" : L" files");
 
         outMap.counts.push_back (std::move (mismatch));
     }

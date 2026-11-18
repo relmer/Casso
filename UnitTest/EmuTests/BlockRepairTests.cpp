@@ -9,6 +9,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
 #include "Devices/Disk/Inspector/Blocks/BlockRepair.h"
 #include "Devices/Disk/Inspector/Blocks/Dos33SectorLayout.h"
+#include "Machines/Apple2/Common/HfsBTree.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
@@ -226,7 +227,7 @@ public:
         map = BuildMap (buffer);
 
         Assert::AreEqual ((size_t) 1, map.counts.size());
-        Assert::AreEqual (std::wstring (L"GAMES: expected a directory file count of 2, but found 5"), map.counts[0].finding);
+        Assert::AreEqual (std::wstring (L"GAMES: the file count is 5, but the directory has 2 files"), map.counts[0].finding);
 
         plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
 
@@ -260,7 +261,7 @@ public:
         plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
 
         Assert::IsFalse (plan.canRepair);
-        Assert::IsTrue  (plan.reason.starts_with (L"Repairing this would change a file's data: block "), plan.reason.c_str());
+        Assert::IsTrue  (plan.reason.starts_with (L"Files ") && plan.reason.find (L" are cross-linked at block ") != std::wstring::npos, plan.reason.c_str());
         Assert::IsTrue  (plan.blocks.empty());
     }
 
@@ -326,7 +327,7 @@ public:
         {
             for (const BlockListRow & row : group.rows)
             {
-                isListed = isListed || (group.title == L"Findings" && row.cells[0] == L"Expected a volume directory file count of 2, but found 9");
+                isListed = isListed || (group.title == L"Findings" && row.cells[0] == L"The volume directory's file count is 9, but it has 2 files");
             }
         }
 
@@ -379,7 +380,7 @@ public:
         map = BuildMap (buffer);
 
         Assert::AreEqual ((size_t) 1, map.counts.size());
-        Assert::AreEqual (std::wstring (L"Expected a directory file count of 2, but found 3"), map.counts[0].finding);
+        Assert::AreEqual (std::wstring (L"The directory's file count is 3, but it has 2 files"), map.counts[0].finding);
 
         plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
 
@@ -481,6 +482,64 @@ public:
 
         Assert::AreEqual (free, (Word) ((buffer[at] << 8) | buffer[at + 1]));
         Assert::IsTrue   (BuildMap (buffer).counts.empty());
+    }
+
+
+    //  The extents overflow file rebuilt with one record: the catalog's
+    //  last allocation block as the extent that continues the first.
+    static void WriteCatalogOverflow (vector<Byte> & buffer, uint16_t start, uint16_t count, bool isListed)
+    {
+        constexpr Byte      kCatalogId  = 4;
+        size_t              mdb         = kKeyBlock * kBlockBytes;
+        uint32_t            bytes       = ((uint32_t) buffer[mdb + 130] << 24) | ((uint32_t) buffer[mdb + 131] << 16) | ((uint32_t) buffer[mdb + 132] << 8) | buffer[mdb + 133];
+        uint32_t            allocation  = ((uint32_t) buffer[mdb + 20] << 24) | ((uint32_t) buffer[mdb + 21] << 16) | ((uint32_t) buffer[mdb + 22] << 8) | buffer[mdb + 23];
+        uint32_t            first       = (uint32_t) ((buffer[mdb + 28] << 8) | buffer[mdb + 29]);
+        uint32_t            extents     = (uint32_t) ((buffer[mdb + 134] << 8) | buffer[mdb + 135]);
+        vector<Byte>        nodes;
+        HfsBTree::Record    record;
+
+
+
+        record.key  = { 7, 0, 0, 0, 0, kCatalogId, (Byte) ((count - 1) >> 8), (Byte) (count - 1) };
+        record.data = { (Byte) ((start + count - 1) >> 8), (Byte) (start + count - 1), 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        AssertSucceeded (HfsBTree::Build (HfsBTree::Kind::Extents, isListed ? vector<HfsBTree::Record> { record } : vector<HfsBTree::Record>(), bytes / kBlockBytes, nodes));
+
+        std::copy (nodes.begin(), nodes.end(), buffer.begin() + (ptrdiff_t) ((first * kBlockBytes) + (size_t) extents * allocation));
+    }
+
+
+    TEST_METHOD (Hfs_CatalogInTheOverflowFile_IsFollowed)
+    {
+        vector<Byte>  buffer  = MakeHfs();
+        size_t        catalog = kKeyBlock * kBlockBytes + 150;
+        uint16_t      start   = (uint16_t) ((buffer[catalog] << 8) | buffer[catalog + 1]);
+        uint16_t      count   = (uint16_t) ((buffer[catalog + 2] << 8) | buffer[catalog + 3]);
+        size_t        nodes   = BuildMap (buffer).catalogNodes.size();
+        BlockMap      map;
+        RepairPlan    plan;
+
+
+
+        Assert::IsTrue (count >= 2, L"the catalog has more than one allocation block");
+        Assert::IsTrue (buffer[catalog + 6] == 0 && buffer[catalog + 7] == 0, L"the catalog has one extent");
+
+        buffer[catalog + 2] = (Byte) ((count - 1) >> 8);
+        buffer[catalog + 3] = (Byte) (count - 1);
+        WriteCatalogOverflow (buffer, start, count, true);
+
+        map = BuildMap (buffer);
+
+        Assert::AreEqual (nodes, map.catalogNodes.size());
+        Assert::IsTrue   (BlockRepair::GetVerdict (map) == FileSystemVerdict::Ok);
+
+        WriteCatalogOverflow (buffer, start, count, false);
+
+        map  = BuildMap (buffer);
+        plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
+
+        Assert::IsFalse  (map.isCatalogComplete, L"the catalog's last allocation block isn't listed");
+        Assert::AreEqual (std::wstring (L"Some of the volume's directories can't be read."), plan.reason);
     }
 
 
