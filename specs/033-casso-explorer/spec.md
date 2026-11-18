@@ -660,6 +660,29 @@ hardware.
 
 ### Session 2026-11-17
 
+- Q: How does a IIgs's serial port start, through its firmware or its
+  8530? -> A: Its 8530, from the shim (owner, 2026-11-18). Starting through
+  the firmware left the link at half speed until Set speed, at the Control
+  Panel's speed, which the PC had to find, and at that speed again after
+  Load program. The shim moved down a page to make room for the 8530
+  routines (R47 Update 3).
+- Q: Over what does the link run on an original Uthernet or a LANceGS? ->
+  A: UDP, as ADTPro's Ethernet client does, not TCP (owner, 2026-11-18).
+  The Apple side has ARP, IPv4, UDP, DHCP and the announcement, with no
+  TCP connection state; CassoLink's packets have CRCs and are sent again
+  after a NAK, so a datagram lost on the network is recovered as a byte
+  lost on a serial line is. ADTPro uses the ip65 library; CassoLink's stack
+  is written for Casso.
+- Q: Does Casso Explorer convert many files at once, as CiderPress II's
+  export does? -> A: Yes, in two parts (owner, 2026-11-18). Get and drag
+  out already convert each file by its kind, folders included, as
+  CiderPress II's `best` does. Convert to works on a multiple selection:
+  each file it applies to is converted beside itself, the others are
+  passed over, and one report lists both, with no prompt for each failure.
+  A "Get as" choice for a selection sets the options of each file kind in
+  it that has options, such as hi-res in color or black and white, and
+  stores them as the defaults. Whether to convert many disk images from one
+  format to another is open.
 - Q: Does the link wait on a Laser 128? -> A: No. No emulator found has
   one and no published source has its ID bytes, so it is dropped from
   Story 28, and the rest goes ahead without it (owner, 2026-11-18).
