@@ -2458,3 +2458,5 @@ Master's new hardware on the default machines (the //e's UniDisk 3.5 card in slo
   - `Cpu`: `CpuTrace`, `CpuFetchObservers`, `CpuStepPrinter` and `CpuOperandInfo`. Header 417 to 241 lines, `.cpp` 1,667 to 1,087. After: //e 5.09 ns, //c 10.34 ns, every storage card 14.91 ns per cycle.
   - `AppleWinParser`: `AppleWinArguments`, `AppleWinArgumentForms`, `AppleWinMemoryParser`, `AppleWinRunParser`, `AppleWinViewParser` and `AppleWinShorthand`; the breakpoint forwarders are removed. Header 122 to 55 lines, `.cpp` 1,910 to 114.
   - The storage hardware: each read and its peek share one evaluation; `BlockDeviceMedia` reads through `FileBlockSource` or `MemoryBlockSource`, and `Sony35Drive` through `Sony35BlockDisk` or `Sony35WozDisk`; three state loads check their fields.
+  - The debugger pair: the UI and debug engine splits are merged and checked against rules 1 to 5; class-redesign-plan.md section 8 has the result. The code-edge and pane-layout forwarders are removed from `DebuggerWindow`, and `RouteWindowMouse` and `RenderFrame` are split into stages.
+  - Dxui: the Dxui split is merged.

@@ -521,7 +521,7 @@ rules, the interfaces between groups and the merge order; Dxui stays separate.
 6. **Record who has which files** in `CLAUDE.md` under "Who is where" while more
    than one session is writing.
 
-### 8. The debugger pair (to be designed)
+### 8. The debugger pair
 
 Files: `DebuggerViewState.cpp`, `DebuggerViewStateTests.cpp`,
 `DebuggerWindow.cpp`, `DebuggerWindowInput.cpp`, `DebuggerActions.cpp`,
@@ -597,6 +597,29 @@ Write the joint note with the method above: state tables for `DebugSession`,
 `ShellDebugger`, `DebuggerViewState` and `DebuggerWindow` first, since the other
 files hang off those four. Take from the two branches the classes that pass rules
 1 to 5 as they are, and redesign the rest.
+
+**As built, 2026-11-17.** Both branches are merged into `035-debugger`: the UI
+branch in `f455153db`, the engine branch in `a1e5e3daa`. Where the engine
+branch conflicted with sections 2 to 4, the branch side was taken, and its calls
+were rewritten to those sections' components and to the view state parts
+(`GetCodeViews()`, `GetMemoryWindows()`, `GetHeatMap()`, `GetCommands()`).
+
+- Rule 2: the new headers have no friends.
+- Rule 1: forwarders removed from `DebuggerWindow`:
+  - `ScrollCodeAtEdge` and `SelectCodeViewEdge`; callers use `DisassemblyGroup`.
+  - `GetPaneLayout` and `EditPaneLayout`; callers use `GetDockSite()`.
+  - The `kPane*Dip` aliases of `DensePaneList`'s constants.
+- The other one-call functions in the merged files implement an interface
+  (`IDebuggerPane`, `IDebugTarget`, `IDebuggerWindowHost`), so they stay.
+- `ControlTreeWalk`, `GoToAddressText`, `DebuggerWindowText` and
+  `DensePaneList` are taken as they are. Each has one job, and none forwards.
+- Rule 3: `IShellDebugContext` has seven methods. Three return the debug
+  controller, session and run driver, which `ShellDebugger` creates and resets
+  as the debugger opens and the machine changes, so a reference taken at
+  construction can't replace them. The other four call back into
+  `ShellDebugger`. It stays.
+- `DebuggerWindow::RouteWindowMouse` and `RenderFrame` are split into stages,
+  one function each, called in the order the original ran them.
 
 ### Dxui (separate)
 
