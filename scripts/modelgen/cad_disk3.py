@@ -1,19 +1,18 @@
 """Apple Disk /// (A3M0004), the Apple ///'s external drive, as a solid
 model. 160 x 229 x 99 mm (W x D x H), feet included. X right, Y back, Z
-up; the upper front face is at y = 0, and the block below the slot is
-proud of it.
+up; the front face is at y = 0.
 
 MODELED FROM PHOTOGRAPHS. Resources/Models/Disk3/README.md has the list of
 them and the measurements taken from each.
 
 The front is a beige face with chamfered vertical corners and a rounded
-top edge. The slot crosses it a little above half height. Below the slot a
-block projects forward of the face. The logo plate is at the block's left,
-and a dark finger recess with the busy lamp is in its middle. A latch is
-in a notch above the slot, and its handle tab covers the slot's middle
-third. The top has a shallow inset panel. A seam on the sides and the back
+top edge. The slot crosses it a little above half height, in a beveled
+channel. The logo plate is at the lower left, and a dark finger recess
+with the busy lamp is in its middle. A latch is in a notch above the slot,
+and its handle tab covers the slot's middle third. The top has a shallow inset panel. A seam on the sides and the back
 divides the cover from the base tray. The back has a recess for the
-drive's connector and its red label.
+drive's connector and its red label, and the bottom has the feet, the
+screws and the FCC label.
 
 The part name is the identity: `lever` is the latch the scene moves, `lamp`
 the busy lamp, `slot` the opening.
@@ -50,13 +49,14 @@ SLOT_W           = 137.8
 SLOT_X0          = (W - SLOT_W) * 0.5
 SLOT_Z0, SLOT_Z1 = 51.5, 56.0
 
-# The block below the slot, proud of the upper face.
-BLOCK_X0, BLOCK_X1 = 7.8, W - 7.8
-BLOCK_Z0, BLOCK_Z1 = 19.0, 50.8
-BLOCK_PROUD        = 2.5
-BLOCK_FRONT        = -BLOCK_PROUD
+# The face is one flat molding. The slot is set in a channel across it, and
+# the notch in a second channel, each with a 45-degree bevel round it,
+# from disk3-front-oc.jpg at 0.09 mm per pixel.
+CHANNEL_X0, CHANNEL_X1 = 8.1, W - 8.1
+CHANNEL_Z0, CHANNEL_Z1 = 49.3, 57.1
+CHANNEL_D              = 1.2
 
-# The notch, which runs down through the block as the finger recess.
+# The notch, which runs down below the slot as the finger recess.
 NOTCH_W          = 41.5
 NOTCH_X0         = (W - NOTCH_W) * 0.5
 NOTCH_Z0         = 22.8
@@ -76,7 +76,7 @@ LAMP_W, LAMP_H   = 5.0, 3.6
 LAMP_CX, LAMP_CZ = W * 0.5, 33.1
 LAMP_FRAME       = 1.2
 
-# The drive label at the upper left and the logo plate on the block.
+# The drive label at the upper left and the logo plate at the lower left.
 LABEL_X0, LABEL_X1 = 9.3, 25.1
 LABEL_Z0, LABEL_Z1 = 69.3, 85.6
 PLATE_X0, PLATE_X1 = 12.7, 45.8
@@ -90,8 +90,8 @@ PANEL_BACK    = 14.0
 PANEL_DEEP    = 0.8
 
 SEAM_Z        = FOOT_H + 25.0
-SEAM_GAP      = 0.6
-SEAM_DEEP     = 0.8
+SEAM_GAP      = 1.6
+SEAM_DEEP     = 2.0
 
 # The rear recess and the label in it, from disk3-rear-rr3483512.jpg at 0.1
 # mm per pixel. The label's contents are from disk3-rear-label-oc.jpg at
@@ -113,10 +113,29 @@ FONT_ARIAL       = r"C:\Windows\Fonts\arial.ttf"
 FONT_ARIAL_BOLD  = r"C:\Windows\Fonts\arialbd.ttf"
 FONT_COURIER     = r"C:\Windows\Fonts\cour.ttf"
 
-# Four square rubber feet, measured from the bottom photograph.
-FOOT_W   = 22.0
-FOOT_XS  = (25.9, 113.6)
-FOOT_YS  = (55.6, 179.6)
+# The bottom, from disk3-bottom-oc.jpg at 0.118 mm per pixel: four square
+# rubber feet, each in a shallow pocket, with their bottom edges beveled; the
+# four screws of the base tray; and the FCC label.
+FEET         = ((25.3, 46.8, 55.5, 77.6), (109.4, 131.5, 55.3, 77.4),
+                (26.5, 47.3, 177.0, 198.2), (108.8, 130.3, 178.2, 199.9))
+FOOT_POCKET  = 0.7
+FOOT_BEVEL   = 2.6
+SCREWS       = ((7.3, 58.6), (150.5, 57.9), (7.9, 139.3), (149.7, 140.5))
+SCREW_R      = 3.3
+
+FCC_X0, FCC_X1 = 33.5, 120.0
+FCC_Y0, FCC_Y1 = 100.0, 139.7
+FCC_LINES      = (
+    ("“THIS EQUIPMENT HAS NOT BEEN TESTED TO SHOW",      37.0, 114.3, 107.6),
+    ("COMPLIANCE WITH NEW FCC RULES (47 CFR PART 15)",        39.2, 114.3, 111.1),
+    ("DESIGNED TO LIMIT INTERFERENCE TO RADIO AND TV",        39.2, 114.3, 114.3),
+    ("RECEPTION. OPERATION OF THIS EQUIPMENT IN A RESI-",     39.2, 114.3, 117.6),
+    ("DENTIAL AREA IS LIKELY TO CAUSE UNACCEPTABLE",          39.2, 114.3, 120.8),
+    ("INTERFERENCE TO RADIO COMMUNICATION REQUIR-",           39.2, 114.3, 124.0),
+    ("ING THE OPERATOR TO TAKE WHATEVER STEPS ARE",           39.2, 114.3, 127.2),
+    ("NECESSARY TO CORRECT THE INTERFERENCE.”",          39.2, 102.9, 130.5),
+)
+FCC_CAP        = 2.1
 
 # The case and latch colors are the photographs' plastic, white-balanced
 # against each photograph's background: a lighter, warmer cream than the
@@ -126,7 +145,7 @@ LATCH    = (0.905, 0.860, 0.755)
 LABEL_RD = (0.860, 0.150, 0.165)
 BLUE     = (0.200, 0.420, 0.760)
 SLOT_DK  = (0.055, 0.055, 0.062)
-RECESS   = (0.160, 0.130, 0.110)
+RECESS   = (0.190, 0.145, 0.110)    # the chocolate brown of the recess, the logo plate and the Apple ///'s dark parts
 BLACK    = (0.070, 0.070, 0.075)
 WHITE    = (0.920, 0.920, 0.900)
 METAL    = (0.560, 0.565, 0.575)
@@ -154,11 +173,18 @@ case = case.faces(">Z").edges(cq.selectors.BoxSelector((-1.0, FRONT_CHAMFER + 0.
                                                        (W + 1.0, D + 1.0, TOP + 1.0))).chamfer(EDGE_C)
 case = case.faces("<Z").edges().chamfer(EDGE_C)
 
-# The block below the slot, with its bottom edge rounded into the face.
-block = box(BLOCK_X0, BLOCK_FRONT, BLOCK_Z0, BLOCK_X1, 1.0, BLOCK_Z1)
-block = block.edges("|Y").fillet(1.5)
-block = block.edges("<Y").fillet(0.8)
-case  = case.union(block)
+def bevel_pocket(x0, x1, z0, z1, depth):
+    """A pocket depth deep into the face, its walls at 45 degrees."""
+    outer = cq.Wire.makePolygon([cq.Vector(x0 - depth, -0.01, z0 - depth), cq.Vector(x1 + depth, -0.01, z0 - depth),
+                                 cq.Vector(x1 + depth, -0.01, z1 + depth), cq.Vector(x0 - depth, -0.01, z1 + depth)], close=True)
+    inner = cq.Wire.makePolygon([cq.Vector(x0, depth, z0), cq.Vector(x1, depth, z0),
+                                 cq.Vector(x1, depth, z1), cq.Vector(x0, depth, z1)], close=True)
+
+    return cq.Workplane("XY").add(cq.Solid.makeLoft([outer, inner], True))
+
+
+case = case.cut(bevel_pocket(CHANNEL_X0, CHANNEL_X1, CHANNEL_Z0, CHANNEL_Z1, CHANNEL_D))
+case = case.cut(bevel_pocket(NOTCH_X0, NOTCH_X0 + NOTCH_W, NOTCH_Z0, NOTCH_Z1, CHANNEL_D))
 
 # The top's inset panel.
 case = case.cut(box(PANEL_INSET_X, PANEL_FRONT, TOP - PANEL_DEEP,
@@ -179,6 +205,10 @@ case = case.cut(box(-5.0, FRONT_CHAMFER + 2.0, SEAM_Z - SEAM_GAP * 0.5,
 # The rear recess.
 case = case.cut(box(REAR_X0, D - REAR_DEEP, REAR_Z0, REAR_X1, D + 1.0, REAR_Z1))
 
+# The feet's pockets.
+for fx0, fx1, fy0, fy1 in FEET:
+    case = case.cut(box(fx0 - FOOT_POCKET, fy0 - FOOT_POCKET, FOOT_H - 0.01, fx1 + FOOT_POCKET, fy1 + FOOT_POCKET, FOOT_H + 1.0))
+
 m.add("case", case, CASE, angular=CORNER_ANG)
 
 # ----------------------------------------------------------- front furniture
@@ -192,9 +222,9 @@ LINING_T = 0.6
 
 m.add("recess",
       box(NOTCH_X0, NOTCH_D - 1.0, NOTCH_Z0, NOTCH_X0 + NOTCH_W, NOTCH_D, TAB_Z0)
-        .union(box(NOTCH_X0, BLOCK_FRONT + 0.5, NOTCH_Z0 - 1.0, NOTCH_X0 + NOTCH_W, NOTCH_D, NOTCH_Z0 + LINING_T))
-        .union(box(NOTCH_X0, BLOCK_FRONT + 0.5, NOTCH_Z0, NOTCH_X0 + LINING_T, NOTCH_D, TAB_Z0))
-        .union(box(NOTCH_X0 + NOTCH_W - LINING_T, BLOCK_FRONT + 0.5, NOTCH_Z0, NOTCH_X0 + NOTCH_W, NOTCH_D, TAB_Z0)),
+        .union(box(NOTCH_X0, CHANNEL_D + 0.3, NOTCH_Z0 - 1.0, NOTCH_X0 + NOTCH_W, NOTCH_D, NOTCH_Z0 + LINING_T))
+        .union(box(NOTCH_X0, CHANNEL_D + 0.3, NOTCH_Z0, NOTCH_X0 + LINING_T, NOTCH_D, TAB_Z0))
+        .union(box(NOTCH_X0 + NOTCH_W - LINING_T, CHANNEL_D + 0.3, NOTCH_Z0, NOTCH_X0 + NOTCH_W, NOTCH_D, TAB_Z0)),
       RECESS)
 
 # The latch: a plate flush with the face from the top of the notch to the
@@ -245,11 +275,11 @@ m.add("label_field",
 m.add("label_logotype", lettering("disk ///", FONT_ARIAL_BOLD, 9.8, 16.8, 82.75, -0.4), WHITE)
 m.add("label_word",     lettering("DRIVE",    FONT_ARIAL,      6.6, 17.15, 78.1, -0.55), BLACK)
 
-# The logo plate on the block, with the badge at its left.
+# The logo plate, with the badge at its left.
 m.add("logo_plate",
-      box(PLATE_X0, BLOCK_FRONT - 0.4, PLATE_Z0, PLATE_X1, BLOCK_FRONT + 0.5, PLATE_Z1).edges("|Y").fillet(2.0),
-      BLACK)
-badge(m, PLATE_X0 + 2.5, PLATE_Z0 + 2.0, PLATE_Z1 - PLATE_Z0 - 4.0, y=BLOCK_FRONT - 0.7)
+      box(PLATE_X0, -0.4, PLATE_Z0, PLATE_X1, 0.5, PLATE_Z1).edges("|Y").fillet(2.0),
+      RECESS)
+badge(m, PLATE_X0 + 2.5, PLATE_Z0 + 2.0, PLATE_Z1 - PLATE_Z0 - 4.0, y=-0.7)
 
 # ---------------------------------------------------------------------- back
 
@@ -389,11 +419,47 @@ back_silhouette(11.2, 25.6, 5.7, WHITE, "rear_mark")
 
 # --------------------------------------------------------------------- feet
 
-for fx in FOOT_XS:
-    for fy in FOOT_YS:
-        m.add(f"foot_{fx:.0f}_{fy:.0f}",
-              box(fx, fy, 0.0, fx + FOOT_W, fy + FOOT_W, FOOT_H + 0.5).edges("|Z").fillet(1.5),
-              RUBBER)
+for i, (fx0, fx1, fy0, fy1) in enumerate(FEET):
+    m.add(f"foot_{i}", box(fx0, fy0, 0.0, fx1, fy1, FOOT_H + 1.0).edges("<Z").chamfer(FOOT_BEVEL), RUBBER)
+
+DOWN = cq.Plane(origin=(0.0, 0.0, 0.0), xDir=(1.0, 0.0, 0.0), normal=(0.0, 0.0, -1.0))   # read from below
+
+for i, (sx, sy) in enumerate(SCREWS):
+    m.add(f"screw_{i}", cq.Workplane("XY").center(sx, sy).circle(SCREW_R).extrude(0.5).translate((0.0, 0.0, FOOT_H - 0.4)),
+          (0.120, 0.115, 0.110))
+    m.add(f"screw_slot_{i}",
+          box(sx - 2.2, sy - 0.3, FOOT_H - 0.45, sx + 2.2, sy + 0.3, FOOT_H)
+            .union(box(sx - 0.3, sy - 2.2, FOOT_H - 0.45, sx + 0.3, sy + 2.2, FOOT_H)),
+          (0.030, 0.030, 0.030))
+
+
+def bottom_text(text, font, x0, x1, y, cap, z0):
+    """	ext with capitals cap mm tall, stretched across x0 to x1 as the
+    label's justified lines are, centered on y, standing down from z0."""
+    probe = cq.Workplane(DOWN).text("H", 10.0, 0.1, fontPath=font)
+    size  = 10.0 * cap / probe.val().BoundingBox().ylen
+    wp    = cq.Workplane(DOWN).text(text, size, 0.1, fontPath=font, halign="center", valign="center")
+    bb    = wp.val().BoundingBox()
+    shape = wp.val().transformGeometry(cq.Matrix([[(x1 - x0) / bb.xlen, 0.0, 0.0, 0.0],
+                                                  [0.0, 1.0, 0.0, 0.0],
+                                                  [0.0, 0.0, 1.0, 0.0]]))
+    bb    = shape.BoundingBox()
+
+    return cq.Workplane("XY").add(shape.translate(cq.Vector((x0 + x1) * 0.5 - bb.center.x, y - bb.center.y, z0 - bb.zmax)))
+
+
+INK = (0.130, 0.130, 0.150)
+
+m.add("fcc_label", box(FCC_X0, FCC_Y0, FOOT_H - 0.1, FCC_X1, FCC_Y1, FOOT_H).edges("|Z").fillet(2.0), WHITE)
+m.add("fcc_border",
+      box(FCC_X0 + 1.8, FCC_Y0 + 1.8, FOOT_H - 0.2, FCC_X1 - 1.8, FCC_Y1 - 1.8, FOOT_H - 0.1).edges("|Z").fillet(3.0)
+        .cut(box(FCC_X0 + 2.15, FCC_Y0 + 2.15, FOOT_H - 0.5, FCC_X1 - 2.15, FCC_Y1 - 2.15, FOOT_H).edges("|Z").fillet(2.65)),
+      INK)
+
+for i, (text, x0, x1, y) in enumerate(FCC_LINES):
+    m.add(f"fcc_text_{i}", bottom_text(text, FONT_GOTHIC, x0, x1, y, FCC_CAP, FOOT_H - 0.1), INK)
+
+m.add("fcc_part", bottom_text("825-0207-A", FONT_GOTHIC, 104.1, 114.3, 133.4, 1.1, FOOT_H - 0.1), INK)
 
 
 if __name__ == "__main__":

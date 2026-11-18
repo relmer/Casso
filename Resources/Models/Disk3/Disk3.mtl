@@ -10,7 +10,7 @@ d 1
 
 newmtl recess
 Ka 0 0 0 
-Kd 0.16 0.13 0.11
+Kd 0.19 0.145 0.11
 d 1
 
 newmtl lever
@@ -50,7 +50,7 @@ d 1
 
 newmtl logo_plate
 Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.19 0.145 0.11
 d 1
 
 newmtl badge0
@@ -208,23 +208,118 @@ Ka 0 0 0
 Kd 0.92 0.92 0.9
 d 1
 
-newmtl foot_26_56
+newmtl foot_0
 Ka 0 0 0 
 Kd 0.18 0.176 0.17
 d 1
 
-newmtl foot_26_180
+newmtl foot_1
 Ka 0 0 0 
 Kd 0.18 0.176 0.17
 d 1
 
-newmtl foot_114_56
+newmtl foot_2
 Ka 0 0 0 
 Kd 0.18 0.176 0.17
 d 1
 
-newmtl foot_114_180
+newmtl foot_3
 Ka 0 0 0 
 Kd 0.18 0.176 0.17
+d 1
+
+newmtl screw_0
+Ka 0 0 0 
+Kd 0.12 0.115 0.11
+d 1
+
+newmtl screw_slot_0
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl screw_1
+Ka 0 0 0 
+Kd 0.12 0.115 0.11
+d 1
+
+newmtl screw_slot_1
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl screw_2
+Ka 0 0 0 
+Kd 0.12 0.115 0.11
+d 1
+
+newmtl screw_slot_2
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl screw_3
+Ka 0 0 0 
+Kd 0.12 0.115 0.11
+d 1
+
+newmtl screw_slot_3
+Ka 0 0 0 
+Kd 0.03 0.03 0.03
+d 1
+
+newmtl fcc_label
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl fcc_border
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_0
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_1
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_2
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_3
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_4
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_5
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_6
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_text_7
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
+d 1
+
+newmtl fcc_part
+Ka 0 0 0 
+Kd 0.13 0.13 0.15
 d 1
 
