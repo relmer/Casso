@@ -41,7 +41,7 @@ class ToolbarCheckEntry;
 class DisassemblyGroup : public ICodeViews
 {
 public:
-    DisassemblyGroup (IDebuggerPaneHost & host, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources);
+    DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources);
     ~DisassemblyGroup() override;
 
     DisassemblyGroup (const DisassemblyGroup &)             = delete;
@@ -172,29 +172,31 @@ private:
     void                             SelectAsked        (int view, const DebuggerViewSnapshot & snapshot, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
                                                          const std::vector<DisassemblyOptions::Row> & built);
 
-    IDebuggerPaneHost                                                   & m_host;
-    DisassemblyGutter                                                   & m_gutter;
-    CodeEditCommands                                                    & m_edits;
-    SourceDocumentGroup                                                 & m_sources;
-    std::array<DisassemblyViewPane *, DebuggerViewState::kMaxCodeViews>   m_views         = {};
-    DisassemblyOptions                                                    m_options;
-    std::vector<std::unique_ptr<ToolbarCheckEntry>>                       m_optionEntries;
-    int                                                                   m_active        = 0;
-    std::array<bool, DebuggerViewState::kMaxCodeViews>                    m_isOpen        = { true };
-    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>             m_fittedSymbols;
-    std::array<int, DebuggerViewState::kMaxCodeViews>                     m_linesSentTo   = {};
-    std::array<int, DebuggerViewState::kMaxCodeViews>                     m_shownSentTo   = {};
-    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_selected;
-    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_findSelect;
-    std::array<std::optional<bool>, DebuggerViewState::kMaxCodeViews>     m_edgeAfterScroll;     // true for the top row
-    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_edgeScrolledFrom;    // the first line when the key scrolled
-    std::optional<Word>                                                   m_navigatedTo;
-    int                                                                   m_navigatedView = 0;
-    ByteChanges                                                           m_changes;
-    DisassemblySourceText                                                 m_sourceText;
-    DisassemblySymbols                                                    m_symbols;
-    DisassemblyBranchArrows                                               m_arrows        { m_host, *this, m_sources };
-    std::string                                                           m_machine;
+    IDebuggerPaneHost                                                    & m_host;
+    const DebuggerPaneParts                                              & m_parts;
+    const DebuggerPaneLook                                               & m_look;
+    DisassemblyGutter                                                    & m_gutter;
+    CodeEditCommands                                                     & m_edits;
+    SourceDocumentGroup                                                  & m_sources;
+    std::array<DisassemblyViewPane *, DebuggerViewState::kMaxCodeViews>    m_views            = {};
+    DisassemblyOptions                                                     m_options;
+    std::vector<std::unique_ptr<ToolbarCheckEntry>>                        m_optionEntries;
+    int                                                                    m_active           = 0;
+    std::array<bool, DebuggerViewState::kMaxCodeViews>                     m_isOpen           = { true };
+    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>              m_fittedSymbols;
+    std::array<int, DebuggerViewState::kMaxCodeViews>                      m_linesSentTo      = {};
+    std::array<int, DebuggerViewState::kMaxCodeViews>                      m_shownSentTo      = {};
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_selected;
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_findSelect;
+    std::array<std::optional<bool>, DebuggerViewState::kMaxCodeViews>      m_edgeAfterScroll;   // true for the top row
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_edgeScrolledFrom;   // the first line when the key scrolled
+    std::optional<Word>                                                    m_navigatedTo;
+    int                                                                    m_navigatedView    = 0;
+    ByteChanges                                                            m_changes;
+    DisassemblySourceText                                                  m_sourceText;
+    DisassemblySymbols                                                     m_symbols;
+    DisassemblyBranchArrows                                                m_arrows           { m_parts, *this, m_sources };
+    std::string                                                            m_machine;
 
     //  The serial of the request each view last applied, so a rebuild of the
     //  view doesn't select the row again over the user's selection.

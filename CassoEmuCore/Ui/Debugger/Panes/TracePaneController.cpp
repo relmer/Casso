@@ -20,8 +20,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TracePaneController::TracePaneController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+TracePaneController::TracePaneController (const DebuggerPaneParts & parts) :
+    IDebuggerPane (parts),
+    m_look (parts.look)
 {
 }
 
@@ -188,8 +189,8 @@ std::vector<IDxuiControl *> TracePaneController::GetControls() const
 
 void TracePaneController::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_model->SetColors  (m_host.GetTextColors());
-    m_model->SetPcStyle (m_host.GetPcMarker (nullptr), m_host.GetTextColors().pcRow);
+    m_model->SetColors  (m_look.GetTextColors());
+    m_model->SetPcStyle (m_look.GetPcIcon (nullptr), m_look.GetTextColors().pcRow);
     m_model->Apply      (snapshot.trace);
 }
 

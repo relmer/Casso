@@ -23,7 +23,7 @@ class TracePane;
 class TracePaneController : public IDebuggerPane
 {
 public:
-    explicit TracePaneController (IDebuggerPaneHost & host);
+    explicit TracePaneController (const DebuggerPaneParts & parts);
     ~TracePaneController() override;
 
     DxuiListView                   * GetList           () const { return m_list; }
@@ -55,8 +55,9 @@ private:
     //  A trace key's action, from the key or a click on its hint.
     bool                             RunTraceAction    (int action);
 
-    DxuiListView                        * m_list = nullptr;
-    KeyHintLine                         * m_hint = nullptr;
+    const DebuggerPaneLook              & m_look;
+    DxuiListView                        * m_list  = nullptr;
+    KeyHintLine                         * m_hint  = nullptr;
     std::unique_ptr<TracePane>            m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
 };

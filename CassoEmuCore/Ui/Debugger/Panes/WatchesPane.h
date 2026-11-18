@@ -25,7 +25,7 @@
 class WatchesPane : public UndoListPane
 {
 public:
-    explicit WatchesPane (IDebuggerPaneHost & host);
+    explicit WatchesPane (const DebuggerPaneParts & parts);
     ~WatchesPane() override;
 
     //  The clock the wait after a Tab's add is timed by, the system's
@@ -126,13 +126,14 @@ private:
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
     void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
-    WatchHistory                   m_history;
-    std::shared_ptr<DxuiCommand>   m_deleteCommand;
-    DxuiEditableGrid             * m_grid                     = nullptr;
-    std::vector<int>               m_idsBeforeAdd;
-    bool                           m_isValueEditAfterAdd      = false;
-    ULONGLONG                      m_addedBy                  = 0;        // when the value edit after an add is dropped
-    std::string                    m_addedText;                           // an add whose undo step waits for a snapshot with its id
+    const DebuggerPaneLook        & m_look;
+    WatchHistory                    m_history;
+    std::shared_ptr<DxuiCommand>    m_deleteCommand;
+    DxuiEditableGrid              * m_grid                = nullptr;
+    std::vector<int>                m_idsBeforeAdd;
+    bool                            m_isValueEditAfterAdd = false;
+    ULONGLONG                       m_addedBy             = 0;   // when the value edit after an add is dropped
+    std::string                     m_addedText;   // an add whose undo step waits for a snapshot with its id
     Clock                          m_clock                    = [] { return GetTickCount64(); };
     std::vector<Row>               m_rows;
     Edit                           m_edit;

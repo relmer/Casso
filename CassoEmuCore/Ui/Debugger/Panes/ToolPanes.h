@@ -24,7 +24,7 @@ class DebuggerPaneFrame;
 class ToolListPane : public IDebuggerPane
 {
 public:
-    ToolListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title);
+    ToolListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title);
     ~ToolListPane() override;
 
     DxuiListView *               GetList        () const { return m_list; }
@@ -110,7 +110,7 @@ public:
         Address,
     };
 
-    SymbolsPane (IDebuggerPaneHost & host, Kind kind);
+    SymbolsPane (const DebuggerPaneParts & parts, Kind kind);
 
     void                 Configure         () override;
     void                 Apply             (const DebuggerViewSnapshot & snapshot) override;
@@ -163,7 +163,7 @@ private:
 class BookmarksPane : public ToolListPane
 {
 public:
-    explicit BookmarksPane (IDebuggerPaneHost & host);
+    explicit BookmarksPane (const DebuggerPaneParts & parts);
 
     void  Configure    () override;
     void  Apply        (const DebuggerViewSnapshot & snapshot) override;
@@ -215,7 +215,7 @@ private:
 class DataBlocksPane : public ToolListPane
 {
 public:
-    explicit DataBlocksPane (IDebuggerPaneHost & host);
+    explicit DataBlocksPane (const DebuggerPaneParts & parts);
 
     void  Configure    () override;
     void  Apply        (const DebuggerViewSnapshot & snapshot) override;

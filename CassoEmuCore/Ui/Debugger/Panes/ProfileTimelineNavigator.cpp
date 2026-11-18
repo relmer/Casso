@@ -16,8 +16,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfileTimelineNavigator::ProfileTimelineNavigator (IDebuggerPaneHost & host, IProfileNavigatorOwner & owner) :
-    m_host  (host),
+ProfileTimelineNavigator::ProfileTimelineNavigator (const DebuggerPaneParts & parts, IProfileNavigatorOwner & owner) :
+    m_host  (parts.host),
     m_owner (owner)
 {
 }

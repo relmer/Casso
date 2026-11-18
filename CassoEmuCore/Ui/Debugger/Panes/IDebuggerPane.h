@@ -4,11 +4,13 @@
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerPaneLook.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/IDebuggerWindowHost.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/StopChanges.h"
+#include "Ui/Debugger/Panes/DebuggerPaneParts.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/TextDialog.h"
@@ -158,19 +160,9 @@ public:
     virtual DxuiWindow           * GetPaneWindow    (const std::wstring & pane) = 0;
     virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
 
-    //  The theme in force, the text colors and the heat map's colors in it.
-    virtual const DxuiTheme          * GetTheme       () const = 0;
-    virtual DebuggerTextColors::Set    GetTextColors  () const = 0;
-    virtual HeatMapView::Palette       GetHeatPalette () const = 0;
-
     //  The rows a menu on a byte gets for its last write and read in a bank:
     //  show each in the disassembly, or go back to it.
     virtual void                   AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) = 0;
-
-    //  The breakpoints' color in the theme, and the code views' gutter mark
-    //  for one on or off.
-    virtual uint32_t                              GetBreakpointArgb () const = 0;
-    virtual std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled) = 0;
 
     //  Opens a source file's document at a line and brings it forward; and
     //  moves the BASIC program pane to a line.
@@ -182,23 +174,9 @@ public:
     virtual void                   SaveOpenViews    () = 0;
     virtual bool                   IsRestoringViews () const = 0;
 
-    //  The PC's arrow, over a gutter mark when the line has one.
-    virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker     (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
-
-    //  A bookmark's outline, over a line's dot when the line has one.
-    virtual std::shared_ptr<const DxuiIconImage>  GetBookmarkMark (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
-
     //  Whether the disassembly views' heat column is on, which the other
     //  listings match.
     virtual bool                   IsCodeHeatOn     () const = 0;
-
-    //  The PC marker's color in the theme.
-    virtual uint32_t               GetPcMarkerArgb  () const = 0;
-
-    //  The PC's marker on a tab, which the tabs' band and fills are behind;
-    //  and the gray breakpoint where a click would set one.
-    virtual uint32_t                              GetPcTabMarkArgb       () const { return GetPcMarkerArgb(); }
-    virtual std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () = 0;
 
     //  New rows in a disassembly view, which take down the operand tip over
     //  them when its cell changes.
@@ -353,7 +331,7 @@ public:
 class IDebuggerPane
 {
 public:
-    explicit  IDebuggerPane  (IDebuggerPaneHost & host) : m_host (host) {}
+    explicit  IDebuggerPane  (const DebuggerPaneParts & parts) : m_host (parts.host) {}
     virtual   ~IDebuggerPane () = default;
 
     IDebuggerPane (const IDebuggerPane &)             = delete;

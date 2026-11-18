@@ -23,7 +23,7 @@
 class ListValueFilters
 {
 public:
-    explicit ListValueFilters (IDebuggerPaneHost & host);
+    explicit ListValueFilters (const DebuggerPaneParts & parts);
 
     //  The list, the columns that filter, and the pane's call to build its
     //  rows again after a change.

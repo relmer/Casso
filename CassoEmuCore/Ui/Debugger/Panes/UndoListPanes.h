@@ -25,7 +25,7 @@ class UndoBarCommands;
 class UndoListPane : public IDebuggerPane
 {
 public:
-    UndoListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title, ColorLegend::Pane legend);
+    UndoListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend);
     ~UndoListPane() override;
 
     DxuiListView                   * GetList        () const { return m_list; }
@@ -90,7 +90,7 @@ protected:
 class ValueEditPane : public UndoListPane
 {
 public:
-    ValueEditPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title, ColorLegend::Pane legend);
+    ValueEditPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend);
     ~ValueEditPane() override;
 
     DxuiTextInput                  * GetEditor      () const { return m_editor; }
@@ -152,7 +152,7 @@ protected:
 class RegistersPane : public ValueEditPane
 {
 public:
-    explicit RegistersPane (IDebuggerPaneHost & host);
+    explicit RegistersPane (const DebuggerPaneParts & parts);
     ~RegistersPane() override;
 
     RegisterHistory              & GetHistory      () { return m_history; }
@@ -187,11 +187,12 @@ private:
     void                 CommitRegister       (const std::string & name, Byte typed);
     void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
-    RegisterHistory                                      m_history;
-    HistoryBand                                        * m_band = nullptr;
-    std::vector<DebuggerViewSnapshot::RegisterRow>       m_registers;
-    std::optional<Word>                                  m_lastBranchFrom;
-    std::optional<Word>                                  m_lastBranchTo;
+    const DebuggerPaneLook                          & m_look;
+    RegisterHistory                                   m_history;
+    HistoryBand                                     * m_band           = nullptr;
+    std::vector<DebuggerViewSnapshot::RegisterRow>    m_registers;
+    std::optional<Word>                               m_lastBranchFrom;
+    std::optional<Word>                               m_lastBranchTo;
 };
 
 
@@ -211,7 +212,7 @@ private:
 class StackPane : public ValueEditPane
 {
 public:
-    explicit StackPane (IDebuggerPaneHost & host);
+    explicit StackPane (const DebuggerPaneParts & parts);
     ~StackPane() override;
 
     StackHistory                 & GetHistory   () { return m_history; }
@@ -234,6 +235,7 @@ protected:
 private:
     void                           PushByte     ();
 
-    StackHistory                                         m_history;
-    std::vector<DebuggerViewSnapshot::StackLine>         m_stack;
+    const DebuggerPaneLook                        & m_look;
+    StackHistory                                    m_history;
+    std::vector<DebuggerViewSnapshot::StackLine>    m_stack;
 };

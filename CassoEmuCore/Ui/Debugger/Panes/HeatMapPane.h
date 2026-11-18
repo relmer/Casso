@@ -39,7 +39,7 @@ public:
         std::function<void ()>                       buildMenu;
     };
 
-    HeatMapPane (IDebuggerPaneHost & host, Ranges ranges);
+    HeatMapPane (const DebuggerPaneParts & parts, Ranges ranges);
     ~HeatMapPane() override;
 
     HeatMapView                        * GetView      () const { return m_view; }
@@ -120,10 +120,11 @@ private:
     void  SetBarEntries  (bool isCumulative);
     void  ApplyGoTo      (const DebuggerViewSnapshot & snapshot);
 
+    const DebuggerPaneLook                     & m_look;
     Ranges                                       m_ranges;
     PaneBarSlot                                  m_bar;
-    HeatMapView                                * m_view          = nullptr;
-    DxuiToolbar                                * m_viewBar       = nullptr;
+    HeatMapView                                * m_view           = nullptr;
+    DxuiToolbar                                * m_viewBar        = nullptr;
     std::unique_ptr<DebuggerPaneFrame>           m_frame;
     std::unique_ptr<HeatMapBarCommands>          m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_fadeCommands;
@@ -131,9 +132,9 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>    m_bankCommands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_ignoreCommands;
     std::vector<std::pair<Word, Word>>           m_ignoreSpans;
-    bool                                         m_isIgnoreSent  = false;
+    bool                                         m_isIgnoreSent   = false;
     std::vector<HeatMapOptions::Bank>            m_banks;
-    uint64_t                                     m_appliedSerial = 0;
+    uint64_t                                     m_appliedSerial  = 0;
 
     //  The address box, its entry on the bar, and the last Go to it acted on.
     DxuiTextInput                              * m_box           = nullptr;

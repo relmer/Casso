@@ -21,7 +21,7 @@
 class CodeEditCommands
 {
 public:
-    CodeEditCommands (IDebuggerPaneHost & host, const ICodeViews & views);
+    CodeEditCommands (const DebuggerPaneParts & parts, const ICodeViews & views);
 
     CodeEditCommands (const CodeEditCommands &)             = delete;
     CodeEditCommands & operator= (const CodeEditCommands &) = delete;

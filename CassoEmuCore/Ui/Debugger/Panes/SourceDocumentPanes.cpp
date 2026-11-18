@@ -26,12 +26,13 @@ namespace fs = std::filesystem;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceDocumentPane::SourceDocumentPane (IDebuggerPaneHost & host, SourceDocumentGroup & group, int slot) :
-    IDebuggerPane (host),
+SourceDocumentPane::SourceDocumentPane (const DebuggerPaneParts & parts, SourceDocumentGroup & group, int slot) :
+    IDebuggerPane (parts),
+    m_look (parts.look),
     m_group       (group),
     m_slot        (slot),
     m_id          (DebuggerLayout::GetSourcePaneId (slot)),
-    m_bar         (host, m_id, L"Source commands")
+    m_bar         (parts, m_id, L"Source commands")
 {
 }
 
@@ -377,20 +378,20 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
     //  The model puts the arrow beside the line's dot, so it takes the arrow
     //  alone, made again only when its color changes.
-    if (m_pcArrow == nullptr || m_pcArrowArgb != m_host.GetPcMarkerArgb())
+    if (m_pcArrow == nullptr || m_pcArrowArgb != m_look.GetPcMarkerArgb())
     {
-        m_pcArrowArgb = m_host.GetPcMarkerArgb();
+        m_pcArrowArgb = m_look.GetPcMarkerArgb();
         m_pcArrow     = GutterGlyph::MakeArrow (m_pcArrowArgb);
     }
 
-    m_model->SetStyle      ({ m_host.GetPcMarkerArgb(), m_host.GetTextColors().pcRow, m_host.GetBreakpointIcon (true), m_host.GetBreakpointIcon (false),
-                              m_host.GetTextColors().syntax, m_host.GetTextColors().result, m_host.GetTextColors().annotation, m_pcArrow,
-                              m_host.GetHoverBreakpointIcon() });
+    m_model->SetStyle      ({ m_look.GetPcMarkerArgb(), m_look.GetTextColors().pcRow, m_look.GetBreakpointIcon (true), m_look.GetBreakpointIcon (false),
+                              m_look.GetTextColors().syntax, m_look.GetTextColors().result, m_look.GetTextColors().annotation, m_pcArrow,
+                              m_look.GetHoverBreakpointIcon() });
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);
-    m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
+    m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_look.GetHeatPalette()) : std::nullopt);
 
-    m_model->SetBookmarkMark (m_host.GetBookmarkMark (nullptr));
+    m_model->SetBookmarkMark (m_look.GetBookmarkMark (nullptr));
 
     m_model->Apply (snapshot);
 
@@ -423,7 +424,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
     if (hasPc)
     {
-        mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcTabMarkArgb() };
+        mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_look.GetPcTabMarkArgb() };
     }
 
     //  The tab's tip is the file's full path, which differs for two files of
@@ -449,8 +450,9 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourceDocumentGroup::SourceDocumentGroup (IDebuggerPaneHost & host) :
-    m_host (host)
+SourceDocumentGroup::SourceDocumentGroup (const DebuggerPaneParts & parts) :
+    m_host (parts.host),
+    m_parts (parts)
 {
 }
 
@@ -486,7 +488,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> SourceDocumentGroup::CreateDocuments
 
     for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
     {
-        std::unique_ptr<SourceDocumentPane>  document = std::make_unique<SourceDocumentPane> (m_host, *this, slot);
+        std::unique_ptr<SourceDocumentPane>  document = std::make_unique<SourceDocumentPane> (m_parts, *this, slot);
 
         m_documents.push_back (document.get());
         documents.push_back (std::move (document));

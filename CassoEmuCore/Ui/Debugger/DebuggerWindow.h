@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Ui/Debugger/DebuggerPaneLook.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/IDebuggerWindowHost.h"
 #include "Debugger/Events/DebugLogDelta.h"
@@ -138,7 +139,7 @@ public:
     void     DetachHost  () { m_host = nullptr; }
 
     //  The theme in force, for a message box the host raises over the window.
-    const DxuiTheme *  GetThemeInForce () const { return m_theme; }
+    const DxuiTheme *  GetThemeInForce () const { return m_look.GetTheme(); }
 
     //  Writes the placement if the user put the window somewhere else, for a
     //  shell shutting down while the window is still open.
@@ -274,17 +275,16 @@ protected:
     bool                       IsHeatMapRecording   () const { return m_isHeatMapRecording; }
     void                       SyncHeatMapRecording ();
 
-    //  The heat map's colors in the theme in force, for the map and the heat
-    //  columns; and whether any heat column is on.
-    HeatMapView::Palette       GetHeatPalette       () const override;
+    //  Whether any heat column is on.
     bool                       IsAnyHeatColumnOn    () const;
 
     void                       ApplyHeatMap         ();
 
     //  Protected so a test can add a pane of its own ahead of OnCreate, as
-    //  CreatePanes adds the window's, over the window's pane host.
-    void                 AddPane            (std::unique_ptr<IDebuggerPane> pane) { m_panes.push_back (std::move (pane)); }
-    IDebuggerPaneHost  & GetPaneHostForTest () { return *this; }
+    //  CreatePanes adds the window's, over the window's pane parts.
+    void                       AddPane             (std::unique_ptr<IDebuggerPane> pane) { m_panes.push_back (std::move (pane)); }
+    IDebuggerPaneHost        & GetPaneHostForTest  () { return *this; }
+    const DebuggerPaneParts  & GetPanePartsForTest () const { return m_paneParts; }
 
     //  A question put to the user in a message box centered on owner, as
     //  DxuiMessageBox puts it, with its answer; a test answers it instead.
@@ -390,7 +390,7 @@ protected:
     void             FitHistoryField     (IDxuiTextRenderer & text);
 
     //  The legend's colors.
-    ColorLegend::Palette  GetColorPalette  () const override;
+    ColorLegend::Palette  GetColorPalette  () const override { return m_look.GetColorPalette(); }
 
     //  The screen and cell of the tip over a disassembly row's operand and
     //  result, as a test passes them to the OperandTipController.
@@ -414,14 +414,13 @@ protected:
 
     //  Set by Create; protected so a test can build the controls without a
     //  window, as OnCreate does, over a theme and host of its own.
-    //  m_theme is the one in force, m_emulatorTheme the emulator's, which a
-    //  window on its own theme still returns to.
-    const DxuiTheme      * m_theme         = nullptr;
+    //  m_look has the theme in force; m_emulatorTheme is the emulator's,
+    //  which a window on its own theme returns to. m_paneParts is what each
+    //  pane is built with.
+    DebuggerPaneLook       m_look;
     const CassoTheme     * m_emulatorTheme = nullptr;
     IDebuggerWindowHost  * m_host          = nullptr;
-
-    //  The text colors for m_theme, which GetTextColors reads every frame.
-    mutable DebuggerTextColors::Cache  m_textColors;
+    DebuggerPaneParts      m_paneParts     { static_cast<IDebuggerPaneHost &> (*this), m_look };
 
     //  Protected so a test can work each pane and group through its own
     //  class, as the window does.
@@ -666,7 +665,7 @@ private:
     DxuiHwndSource       * GetTipPopupHost      () override { return GetRoutedTooltip().GetPopupHost(); }
     IDxuiTextRenderer    * GetTipText           () override { return GetTextRenderer(); }
     const DxuiDpiScaler  & GetTipScaler         () const override { return m_scaler; }
-    const DxuiTheme      * GetTipTheme          () const override { return m_theme; }
+    const DxuiTheme      * GetTipTheme          () const override { return m_look.GetTheme(); }
     HWND                   GetTipOwner          () const override { return GetHwnd(); }
     bool                   IsTipBlocked         () const override;
     bool                   TryFindTipRow        (POINT clientPx, int & view, int & row) const override { return TryFindOperandTipRow (clientPx, view, row); }
@@ -698,21 +697,8 @@ private:
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.
     static RECT          GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }
 
-    //  The debugger's colors, from the active theme: a breakpoint's red, the
-    //  PC's arrow and row, the row another pane brought into view, a branch's
-    //  destination, the annotations' comment color, and the syntax colors.
-    bool                                  IsDarkTheme            () const override;
-    uint32_t                              GetBreakpointArgb      () const override;
-    std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon      (bool enabled) override;
-    std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () override;
-
-    //  The PC's arrow for the glyph margin, over `dot` when the line has one.
-    std::shared_ptr<const DxuiIconImage>  GetPcIcon           (const std::shared_ptr<const DxuiIconImage> & dot);
-    uint32_t                              GetPcMarkerArgb     () const override;
-    uint32_t                              GetPcTabMarkArgb    () const override;
-
-    //  Every text color the panes draw, in the theme in force.
-    DebuggerTextColors::Set  GetTextColors   () const override;
+    //  Whether the theme in force is dark, for the command bar's icons.
+    bool  IsDarkTheme () const override { return m_look.IsDark(); }
 
     //  The pointer's press, release or wheel over a find widget's plate.
     void                     RouteFindPlateMouse (const DxuiMouseEvent & ev);
@@ -858,29 +844,6 @@ private:
 
     static std::vector<std::wstring>  GetReplyLines (const std::vector<std::string> & lines);
 
-    std::shared_ptr<const DxuiIconImage>  m_breakpointIcons[2];
-    uint32_t                              m_breakpointIconArgb  = 0;
-    std::shared_ptr<const DxuiIconImage>  m_hoverBreakpointIcon;
-    uint32_t                              m_hoverBreakpointArgb = 0;
-
-    //  The PC's arrow, alone and over each dot it has been drawn over. Each is
-    //  kept with its dot, so a dot made later cannot take an old one's place
-    //  at the same address; all are made again when the arrow's color
-    //  changes.
-    struct PcIcon
-    {
-        std::shared_ptr<const DxuiIconImage>  dot;
-        std::shared_ptr<const DxuiIconImage>  icon;
-    };
-
-    std::vector<PcIcon>                   m_pcIcons;
-    uint32_t                              m_pcIconArgb          = 0;
-
-    //  The bookmark's outline alone and over each dot it has been drawn
-    //  over; all are made again when its color changes.
-    std::vector<PcIcon>                   m_bookmarkIcons;
-    uint32_t                              m_bookmarkIconArgb    = 0;
-
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
 
     DxuiToolbar                                * m_commandBar             = nullptr;
@@ -952,12 +915,12 @@ private:
     void                                    SyncHeatRecording    () override { SyncHeatMapRecording(); }
     void                                    MoveSharedControls   (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to) override;
     void                                    AddHeatAccessItems   (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) override;
-    const DxuiTheme                       * GetTheme             () const override { return m_theme; }
     void                                    OpenPane             (const std::wstring & pane, bool isFocused) override { ShowPane (pane, isFocused); }
     void                                    ShowMemoryAddress    (Word address) override;
     IHostDialogs                          * GetHostDialogs       () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
     void                                    UpdatePaneTooltip    (const std::wstring & pane, POINT clientPx) override;
     bool                                    IsPaneTooltipVisible (const std::wstring & pane) const override;
+    const DxuiTheme                       * GetTheme             () const override { return m_look.GetTheme(); }
     void                                    RepaintLater         () override { RequestPaint(); }
     HWND                                    GetOwnerHwnd         () const override { return GetRoutingHwnd(); }
     IDxuiTextRenderer                     * GetPaneTextRenderer  () override { return GetTextRenderer(); }
@@ -975,8 +938,6 @@ private:
     void                                    MarkPaneTab          (const std::wstring & pane) override;
     DxuiToolbar::Entry                      GetFindEntry         (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                                    SaveOpenViews        () override { KeepOpenViews(); }
-    std::shared_ptr<const DxuiIconImage>    GetPcMarker          (const std::shared_ptr<const DxuiIconImage> & dot) override { return GetPcIcon (dot); }
-    std::shared_ptr<const DxuiIconImage>    GetBookmarkMark      (const std::shared_ptr<const DxuiIconImage> & dot) override;
     bool                                    IsCodeHeatOn         () const override;
     bool                                    RunKeyAction         (DebuggerKeySchemes::Action action) override { return OnMappedCommand ((int) action); }
 

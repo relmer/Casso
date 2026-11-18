@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Ui/Debugger/Panes/DebuggerPaneParts.h"
+
 class IDebuggerPaneHost;
 struct DebuggerViewSnapshot;
 
@@ -21,7 +23,7 @@ struct DebuggerViewSnapshot;
 class DisassemblySourceText
 {
 public:
-    explicit DisassemblySourceText (IDebuggerPaneHost & host) : m_host (host) {}
+    explicit DisassemblySourceText (const DebuggerPaneParts & parts) : m_host (parts.host) {}
 
     //  A source line's text, as it is drawn in the source rows; false where
     //  the file isn't found.

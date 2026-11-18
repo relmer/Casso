@@ -22,8 +22,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DevicePanelController::DevicePanelController (IDebuggerPaneHost & host, std::string panelId, std::wstring title) :
-    IDebuggerPane (host),
+DevicePanelController::DevicePanelController (const DebuggerPaneParts & parts, std::string panelId, std::wstring title) :
+    IDebuggerPane (parts),
+    m_parts (parts),
+    m_look (parts.look),
     m_panelId     (std::move (panelId)),
     m_id          (DebuggerLayout::GetDiagnosticsPaneId (m_panelId)),
     m_title       (std::move (title))
@@ -81,7 +83,7 @@ void DevicePanelController::CreateControls()
 
 
 
-    m_bar = std::make_unique<PaneBarSlot> (m_host, GetId(), m_title + L" toolbar");
+    m_bar = std::make_unique<PaneBarSlot> (m_parts, GetId(), m_title + L" toolbar");
     m_bar->Create();
 
     m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters, board, m_bar->GetSlot());
@@ -474,7 +476,7 @@ void DevicePanelController::Apply (const DebuggerViewSnapshot & snapshot)
 {
     const DiagnosticsSnapshot   * mine    = nullptr;
     bool                          wasOpen = m_isOpen;
-    DebuggerTextColors::Set       colors  = m_host.GetTextColors();
+    DebuggerTextColors::Set       colors  = m_look.GetTextColors();
     MemoryMapBar::SourceColors    map     = {};
     SoundBoardView::Palette       board;
 
@@ -500,7 +502,7 @@ void DevicePanelController::Apply (const DebuggerViewSnapshot & snapshot)
         m_model->GetMap()->SetSourceColors (map);
 
         board.channels = { colors.mapMain, colors.mapRom, colors.mapIo };
-        board.voice    = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->Accent() : board.voice;
+        board.voice    = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->Accent() : board.voice;
         m_model->GetBoard()->SetPalette (board);
 
         if (m_model->Apply (*mine))

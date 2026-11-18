@@ -49,8 +49,9 @@ std::vector<DxuiButton *> FindWidget::GetButtons() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FindWidgetSet::FindWidgetSet (IDebuggerPaneHost & host, IFindWidgetHost & window) :
-    m_host   (host),
+FindWidgetSet::FindWidgetSet (const DebuggerPaneParts & parts, IFindWidgetHost & window) :
+    m_host   (parts.host),
+    m_look (parts.look),
     m_window (window)
 {
 }
@@ -866,7 +867,7 @@ void FindWidgetSet::Find (bool forward, const std::wstring & pane)
     RecordHistory();
 
     view = m_window.GetFindView (m_activePane);
-    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
+    view->SetFindColors (GetMatchArgb (m_look.GetPcMarkerArgb()), m_look.GetPcMarkerArgb());
 
     result               = view->SelectMatch (needle, m_active->matchCase, m_active->wholeWord, m_active->isRegex, forward, index, count);
     m_active->statusText = GetStatusText (result, index, count);
@@ -933,7 +934,7 @@ void FindWidgetSet::SearchAsTyped()
 
     //  The marks are the PC arrow's yellow, darkened for every match but the
     //  one the search is at.
-    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
+    view->SetFindColors (GetMatchArgb (m_look.GetPcMarkerArgb()), m_look.GetPcMarkerArgb());
 
     if (needle.empty())
     {

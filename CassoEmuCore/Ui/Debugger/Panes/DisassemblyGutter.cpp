@@ -17,8 +17,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyGutter::DisassemblyGutter (IDebuggerPaneHost & host, const ICodeViews & views, ApplyFn apply) :
-    m_host  (host),
+DisassemblyGutter::DisassemblyGutter (const DebuggerPaneParts & parts, const ICodeViews & views, ApplyFn apply) :
+    m_host  (parts.host),
     m_views (views),
     m_apply (std::move (apply))
 {

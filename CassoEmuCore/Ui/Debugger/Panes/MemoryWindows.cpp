@@ -25,8 +25,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MemoryWindowPane::MemoryWindowPane (IDebuggerPaneHost & host, MemoryWindowGroup & group, int id) :
-    IDebuggerPane (host),
+MemoryWindowPane::MemoryWindowPane (const DebuggerPaneParts & parts, MemoryWindowGroup & group, int id) :
+    IDebuggerPane (parts),
     m_group       (group),
     m_windowId    (id),
     m_id          (DebuggerLayout::GetMemoryPaneId (id)),
@@ -290,8 +290,10 @@ bool MemoryWindowPane::OnGoToKey()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MemoryWindowGroup::MemoryWindowGroup (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+MemoryWindowGroup::MemoryWindowGroup (const DebuggerPaneParts & parts) :
+    IDebuggerPane (parts),
+    m_parts (parts),
+    m_look (parts.look)
 {
 }
 
@@ -325,7 +327,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> MemoryWindowGroup::CreateWindows()
 
     for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
     {
-        std::unique_ptr<MemoryWindowPane>  window = std::make_unique<MemoryWindowPane> (m_host, *this, id);
+        std::unique_ptr<MemoryWindowPane>  window = std::make_unique<MemoryWindowPane> (m_parts, *this, id);
 
         m_windows[(size_t) (id - 1)] = window.get();
         windows.push_back (std::move (window));
@@ -470,8 +472,8 @@ void MemoryWindowGroup::ApplyColors()
 {
     for (MemoryWindowPane * window : m_windows)
     {
-        window->GetModel().SetTextColors  (m_host.GetTextColors());
-        window->GetModel().SetHeatPalette (m_host.GetHeatPalette());
+        window->GetModel().SetTextColors  (m_look.GetTextColors());
+        window->GetModel().SetHeatPalette (m_look.GetHeatPalette());
     }
 }
 
@@ -933,13 +935,13 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
         open[(size_t) (window.id - 1)] = true;
 
-        each->GetModel().SetTextColors (m_host.GetTextColors());
+        each->GetModel().SetTextColors (m_look.GetTextColors());
         each->GetModel().SetPaused     (snapshot.isPaused);
         each->GetModel().SetSlotCards  (snapshot.slotCards);
         each->GetModel().SetMachineId  (snapshot.machineId);
         each->GetModel().SetMemoryImage (snapshot.memoryImage);
         each->GetModel().SetSymbols    (snapshot.symbols == nullptr ? nullptr : std::shared_ptr<const std::vector<SymbolInfo>> (snapshot.symbols, &snapshot.symbols->symbols));
-        each->GetModel().SetHeat       (snapshot.heatColumns, m_host.GetHeatPalette());
+        each->GetModel().SetHeat       (snapshot.heatColumns, m_look.GetHeatPalette());
 
         //  Bytes are edited while the machine is stopped, as Visual Studio's
         //  memory window allows: a running machine would overwrite the edit,

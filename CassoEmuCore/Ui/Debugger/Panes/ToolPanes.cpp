@@ -52,8 +52,8 @@ static std::string FindSymbolName (const DebuggerViewSnapshot::SymbolsState * sy
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ToolListPane::ToolListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title) :
-    IDebuggerPane (host),
+ToolListPane::ToolListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title) :
+    IDebuggerPane (parts),
     m_id          (std::move (id)),
     m_title       (std::move (title))
 {
@@ -201,8 +201,8 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SymbolsPane::SymbolsPane (IDebuggerPaneHost & host, Kind kind) :
-    ToolListPane (host, (kind == Kind::User) ? DebuggerLayout::kSymbols : DebuggerLayout::kMachineSymbols,
+SymbolsPane::SymbolsPane (const DebuggerPaneParts & parts, Kind kind) :
+    ToolListPane (parts, (kind == Kind::User) ? DebuggerLayout::kSymbols : DebuggerLayout::kMachineSymbols,
                         (kind == Kind::User) ? L"User symbols" : L"Machine symbols"),
     m_kind       (kind)
 {
@@ -683,8 +683,8 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BookmarksPane::BookmarksPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kBookmarks, L"Bookmarks")
+BookmarksPane::BookmarksPane (const DebuggerPaneParts & parts) :
+    ToolListPane (parts, DebuggerLayout::kBookmarks, L"Bookmarks")
 {
 }
 
@@ -1004,9 +1004,9 @@ std::optional<Word> BookmarksPane::GetNext (const std::vector<DebuggerViewSnapsh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DataBlocksPane::DataBlocksPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges"),
-    m_filters    (host)
+DataBlocksPane::DataBlocksPane (const DebuggerPaneParts & parts) :
+    ToolListPane (parts, DebuggerLayout::kDataBlocks, L"Data ranges"),
+    m_filters    (parts)
 {
 }
 

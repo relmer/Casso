@@ -19,10 +19,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DisassemblyBranchArrows::DisassemblyBranchArrows (
-    IDebuggerPaneHost    & host,
+    const DebuggerPaneParts  & parts,
     DisassemblyGroup     & group,
     SourceDocumentGroup  & sources) :
-    m_host    (host),
+    m_host    (parts.host),
+    m_look (parts.look),
     m_group   (group),
     m_sources (sources)
 {
@@ -154,7 +155,7 @@ bool DisassemblyBranchArrows::GetOneBranchArrow (int view, BranchArrow::Input & 
 
 void DisassemblyBranchArrows::PaintBranchArrow (IDxuiPainter & painter, int view)
 {
-    const DxuiTheme     * theme   = m_host.GetTheme();
+    const DxuiTheme     * theme   = m_look.GetTheme();
     BranchArrow::Input    input;
     Word                  goesTo  = 0;
     bool                  isTaken = true;
@@ -167,7 +168,7 @@ void DisassemblyBranchArrows::PaintBranchArrow (IDxuiPainter & painter, int view
 
         if (GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
         {
-            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, m_host.GetPcMarkerArgb(), (theme != nullptr) ? theme->ForegroundDisabled() : 0xFF808080,
+            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, m_look.GetPcMarkerArgb(), (theme != nullptr) ? theme->ForegroundDisabled() : 0xFF808080,
                                                 isBranchedFrom);
         }
     }

@@ -17,8 +17,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CallStackController::CallStackController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+CallStackController::CallStackController (const DebuggerPaneParts & parts) :
+    IDebuggerPane (parts),
+    m_look (parts.look)
 {
 }
 
@@ -143,7 +144,7 @@ IDxuiControl * CallStackController::GetContent() const
 
 void CallStackController::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_model->SetColors (m_host.GetTextColors());
+    m_model->SetColors (m_look.GetTextColors());
     m_model->Apply     (snapshot.callStack, BasicWatches::IsStoppedInProgram (snapshot.basic) ? snapshot.basic->frames : std::vector<BasicFrame>());
 }
 

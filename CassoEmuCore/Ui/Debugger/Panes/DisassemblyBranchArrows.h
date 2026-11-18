@@ -4,6 +4,8 @@
 
 class DisassemblyGroup;
 class IDebuggerPaneHost;
+struct DebuggerPaneParts;
+class DebuggerPaneLook;
 class IDxuiPainter;
 class SourceDocumentGroup;
 class SourcePane;
@@ -25,7 +27,7 @@ class SourcePane;
 class DisassemblyBranchArrows
 {
 public:
-    DisassemblyBranchArrows (IDebuggerPaneHost & host, DisassemblyGroup & group, SourceDocumentGroup & sources);
+    DisassemblyBranchArrows (const DebuggerPaneParts & parts, DisassemblyGroup & group, SourceDocumentGroup & sources);
 
     //  The arrow in a view, a view past the code views being a source
     //  document's; drawn, clicked, and its tip.
@@ -43,8 +45,9 @@ private:
     bool  GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
     void  ClickSourceArrow  (SourcePane & document);
 
-    IDebuggerPaneHost    & m_host;
-    DisassemblyGroup     & m_group;
-    SourceDocumentGroup  & m_sources;
-    bool                   m_isArrowAtTarget = false;
+    IDebuggerPaneHost       & m_host;
+    const DebuggerPaneLook  & m_look;
+    DisassemblyGroup        & m_group;
+    SourceDocumentGroup     & m_sources;
+    bool                      m_isArrowAtTarget = false;
 };

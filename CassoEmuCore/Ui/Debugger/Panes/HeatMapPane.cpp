@@ -41,10 +41,11 @@ static constexpr HeatMapView::PickAction  s_kAccessRows[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HeatMapPane::HeatMapPane (IDebuggerPaneHost & host, Ranges ranges) :
-    IDebuggerPane (host),
+HeatMapPane::HeatMapPane (const DebuggerPaneParts & parts, Ranges ranges) :
+    IDebuggerPane (parts),
+    m_look (parts.look),
     m_ranges      (std::move (ranges)),
-    m_bar         (host, DebuggerLayout::kHeatMap, L"Heat map commands")
+    m_bar         (parts, DebuggerLayout::kHeatMap, L"Heat map commands")
 {
 }
 
@@ -1209,7 +1210,7 @@ bool HeatMapPane::Tick (int64_t nowMs)
 
 void HeatMapPane::ApplyPalette()
 {
-    m_view->SetPalette (m_host.GetHeatPalette());
+    m_view->SetPalette (m_look.GetHeatPalette());
 }
 
 
@@ -1249,7 +1250,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_banks = state.banks;
 
-    m_view->SetPalette      (m_host.GetHeatPalette());
+    m_view->SetPalette      (m_look.GetHeatPalette());
     m_view->SetTop          (state.top);
     m_view->SetShownBank    (state.bank, state.hasAux);
     m_view->SetSymbols      (snapshot.heatMapSymbols);
@@ -1259,7 +1260,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetRebuilding   (state.isRebuilding);
     m_view->SetSlotCards    (snapshot.slotCards);
     m_view->SetMachineId    (snapshot.machineId);
-    m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_host.GetTextColors()));
+    m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_look.GetTextColors()));
 
     //  The machine reads its map only now and then while it runs, and the
     //  snapshots between have the same reading, whose cells are already

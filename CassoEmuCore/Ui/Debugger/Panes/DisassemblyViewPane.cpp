@@ -26,12 +26,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyViewPane::DisassemblyViewPane (IDebuggerPaneHost & host, DisassemblyGroup & group, int view) :
-    IDebuggerPane (host),
+DisassemblyViewPane::DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view) :
+    IDebuggerPane (parts),
     m_group       (group),
     m_view        (view),
     m_id          (DebuggerLayout::GetCodePaneId (view)),
-    m_bar         (host, m_id, L"Disassembly options")
+    m_bar         (parts, m_id, L"Disassembly options")
 {
 }
 

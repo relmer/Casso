@@ -27,12 +27,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-UndoListPane::UndoListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title, ColorLegend::Pane legend) :
-    IDebuggerPane (host),
+UndoListPane::UndoListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend) :
+    IDebuggerPane (parts),
     m_id          (id),
     m_title       (std::move (title)),
     m_legend      (legend),
-    m_bar         (host, std::move (id), L"Undo commands")
+    m_bar         (parts, std::move (id), L"Undo commands")
 {
 }
 
@@ -222,8 +222,8 @@ bool UndoListPane::IsPressRightOf (int row, size_t column) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ValueEditPane::ValueEditPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title, ColorLegend::Pane legend) :
-    UndoListPane (host, std::move (id), std::move (title), legend)
+ValueEditPane::ValueEditPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend) :
+    UndoListPane (parts, std::move (id), std::move (title), legend)
 {
 }
 
@@ -505,8 +505,9 @@ bool ValueEditPane::RouteListKey (const DxuiKeyEvent &)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RegistersPane::RegistersPane (IDebuggerPaneHost & host) :
-    ValueEditPane (host, DebuggerLayout::kRegisters, L"Registers", ColorLegend::Pane::Registers)
+RegistersPane::RegistersPane (const DebuggerPaneParts & parts) :
+    ValueEditPane (parts, DebuggerLayout::kRegisters, L"Registers", ColorLegend::Pane::Registers),
+    m_look (parts.look)
 {
 }
 
@@ -625,7 +626,7 @@ void RegistersPane::AddMiddleParts (DebuggerPaneFrame & frame)
 void RegistersPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     const StopChanges                             & changes  = m_host.GetStopChanges();
-    uint32_t                                        changed  = m_host.GetTextColors().changed;
+    uint32_t                                        changed  = m_look.GetTextColors().changed;
     std::vector<std::vector<DxuiListView::Cell>>    rows;
     bool                                            wasShown = HistoryBand::IsShown (m_band->GetStatus());
 
@@ -723,7 +724,7 @@ void RegistersPane::AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Ce
     static constexpr int  kFlagCount = 8;
     int                   start      = (int) flags.text.size() - kFlagCount;
     int                   at         = 0;
-    uint32_t              changed    = m_host.GetTextColors().changed;
+    uint32_t              changed    = m_look.GetTextColors().changed;
 
 
 
@@ -921,7 +922,7 @@ void RegistersPane::EditRegister (int row, bool onFlags)
         return;
     }
 
-    if (value.has_value() && FlagsDialog::Ask (m_host.GetOwnerHwnd(), m_host.GetTheme(), *value, p))
+    if (value.has_value() && FlagsDialog::Ask (m_host.GetOwnerHwnd(), m_look.GetTheme(), *value, p))
     {
         CommitRegister ("P", p);
     }
@@ -1041,7 +1042,7 @@ bool RegistersPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 
     for (const FlagsDialog::Flag & flag : FlagsDialog::GetFlags())
     {
-        tip.lineColors.push_back ((changed & flag.bit) != 0 ? m_host.GetTextColors().changed : 0);
+        tip.lineColors.push_back ((changed & flag.bit) != 0 ? m_look.GetTextColors().changed : 0);
     }
 
     OffsetRect (&cell, bounds.left, bounds.top);
@@ -1208,8 +1209,9 @@ void RegistersPane::Undo (bool redo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-StackPane::StackPane (IDebuggerPaneHost & host) :
-    ValueEditPane (host, DebuggerLayout::kStack, L"Stack", ColorLegend::Pane::Stack)
+StackPane::StackPane (const DebuggerPaneParts & parts) :
+    ValueEditPane (parts, DebuggerLayout::kStack, L"Stack", ColorLegend::Pane::Stack),
+    m_look (parts.look)
 {
 }
 
@@ -1290,7 +1292,7 @@ void StackPane::Apply (const DebuggerViewSnapshot & snapshot)
 
         if (changes.IsChanged (std::format ("S:{:04X}", it->address)))
         {
-            value.argb = m_host.GetTextColors().changed;
+            value.argb = m_look.GetTextColors().changed;
             value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
         }
 

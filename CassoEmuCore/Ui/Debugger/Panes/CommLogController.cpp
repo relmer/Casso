@@ -27,8 +27,8 @@ static constexpr int  s_kCommLane    = 30;     // plus the lane
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommLogController::CommLogController (IDebuggerPaneHost & host, DebugLogKind kind) :
-    EventLogController (host,
+CommLogController::CommLogController (const DebuggerPaneParts & parts, DebugLogKind kind) :
+    EventLogController (parts,
                         (kind == DebugLogKind::Network) ? DebuggerLayout::kNetworkLog : DebuggerLayout::kSerialLog,
                         (kind == DebugLogKind::Network) ? L"Network log" : L"Serial log",
                         kind)

@@ -31,7 +31,7 @@ namespace DisassemblyLabelFitTests
 
 
 
-            m_theme = &theme;
+            m_look.SetTheme (&theme);
             m_host  = &host;
 
             scaler.SetDpi (96);

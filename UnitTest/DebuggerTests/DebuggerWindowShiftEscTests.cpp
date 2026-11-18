@@ -77,7 +77,7 @@ namespace DebuggerShiftEscTests
     public:
         ShiftEscWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            m_theme = &theme;
+            m_look.SetTheme (&theme);
             m_host  = &host;
         }
 

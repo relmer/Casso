@@ -36,10 +36,10 @@ static constexpr int  s_kProfilePeriod = 5;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfilerPane::ProfilerPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kProfiler, L"Profiler"),
-    m_bar        (host, DebuggerLayout::kProfiler, L"Profiler commands"),
-    m_navigator  (host, *this)
+ProfilerPane::ProfilerPane (const DebuggerPaneParts & parts) :
+    ToolListPane (parts, DebuggerLayout::kProfiler, L"Profiler"),
+    m_bar        (parts, DebuggerLayout::kProfiler, L"Profiler commands"),
+    m_navigator  (parts, *this)
 {
 }
 

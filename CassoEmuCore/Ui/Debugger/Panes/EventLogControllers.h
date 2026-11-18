@@ -27,7 +27,7 @@ class IoLogPane;
 class EventLogController : public IDebuggerPane
 {
 public:
-    EventLogController (IDebuggerPaneHost & host, std::wstring id, std::wstring title, DebugLogKind kind);
+    EventLogController (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, DebugLogKind kind);
     ~EventLogController() override;
 
     DxuiToolbar                * GetBar             () const { return m_bar.GetBar(); }
@@ -124,7 +124,7 @@ protected:
 class DiskLogController : public EventLogController
 {
 public:
-    explicit DiskLogController (IDebuggerPaneHost & host);
+    explicit DiskLogController (const DebuggerPaneParts & parts);
     ~DiskLogController() override;
 
     DiskLogPane                     & GetModel         () const { return *m_model; }
@@ -150,6 +150,7 @@ private:
 
     void  SetBarEntries ();
 
+    const DebuggerPaneLook        & m_look;
     std::unique_ptr<DiskLogPane>    m_model;
     DxuiLabel                     * m_error = nullptr;
 };
@@ -170,7 +171,7 @@ private:
 class InputLogController : public EventLogController
 {
 public:
-    explicit InputLogController (IDebuggerPaneHost & host);
+    explicit InputLogController (const DebuggerPaneParts & parts);
     ~InputLogController() override;
 
     InputLogPane                & GetModel       () const { return *m_model; }
@@ -215,7 +216,7 @@ private:
 class IoLogController : public EventLogController
 {
 public:
-    IoLogController (IDebuggerPaneHost & host, DebugLogKind kind);
+    IoLogController (const DebuggerPaneParts & parts, DebugLogKind kind);
     ~IoLogController() override;
 
     IoLogPane                   & GetModel       () const { return *m_model; }

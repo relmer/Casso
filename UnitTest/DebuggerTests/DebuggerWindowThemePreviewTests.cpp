@@ -81,7 +81,7 @@ namespace DebuggerThemePreviewTests
     public:
         PreviewWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            m_theme         = &theme;
+            m_look.SetTheme         (&theme);
             m_emulatorTheme = &theme;
             m_host          = &host;
         }

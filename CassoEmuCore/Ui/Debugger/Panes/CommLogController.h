@@ -30,7 +30,7 @@ public:
     static constexpr uint64_t  kMinSpan     = 500;
     static constexpr uint64_t  kMaxSpan     = 20'000'000;
 
-    CommLogController (IDebuggerPaneHost & host, DebugLogKind kind);
+    CommLogController (const DebuggerPaneParts & parts, DebugLogKind kind);
     ~CommLogController() override;
 
     CommLogPane                 & GetModel       () const { return *m_model; }

@@ -25,7 +25,7 @@ class SourcePane;
 class SourceDocumentPane : public IDebuggerPane
 {
 public:
-    SourceDocumentPane (IDebuggerPaneHost & host, SourceDocumentGroup & group, int slot);
+    SourceDocumentPane (const DebuggerPaneParts & parts, SourceDocumentGroup & group, int slot);
     ~SourceDocumentPane() override;
 
     SourcePane         & GetModel      () const { return *m_model; }
@@ -70,6 +70,7 @@ public:
     void         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
+    const DebuggerPaneLook              & m_look;
     SourceDocumentGroup                 & m_group;
     int                                   m_slot          = 0;
     std::wstring                          m_id;
@@ -107,7 +108,7 @@ private:
 class SourceDocumentGroup
 {
 public:
-    explicit SourceDocumentGroup (IDebuggerPaneHost & host);
+    explicit SourceDocumentGroup (const DebuggerPaneParts & parts);
     ~SourceDocumentGroup();
 
     SourceDocumentGroup (const SourceDocumentGroup &)             = delete;
@@ -184,6 +185,7 @@ private:
     void                             TakeOverLoose  (const std::wstring & path, int fileId);
 
     IDebuggerPaneHost                    & m_host;
+    const DebuggerPaneParts              & m_parts;
     std::vector<SourceDocumentPane *>      m_documents;
     SourceDocuments                        m_files;
     std::vector<SourceDocuments::Saved>    m_saved;

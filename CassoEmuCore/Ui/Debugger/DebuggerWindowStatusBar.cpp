@@ -187,7 +187,7 @@ void DebuggerWindow::SyncReplayDialog (const ReplayProgress & progress)
 {
     if (m_replayDialog == nullptr && ReplayProgressDialog::IsDue (progress) && GetHwnd() != nullptr)
     {
-        m_replayDialog = ReplayProgressDialog::Open (GetHwnd(), m_theme,
+        m_replayDialog = ReplayProgressDialog::Open (GetHwnd(), m_look.GetTheme(),
                                                      [this] { return (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress(); },
                                                      [this] { (void) TryStopReplay(); });
 

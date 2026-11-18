@@ -39,12 +39,12 @@ static constexpr float  s_kSeverityTint = 0.25f;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EventLogController::EventLogController (IDebuggerPaneHost & host, std::wstring id, std::wstring title, DebugLogKind kind) :
-    IDebuggerPane (host),
+EventLogController::EventLogController (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, DebugLogKind kind) :
+    IDebuggerPane (parts),
     m_id          (id),
     m_title       (std::move (title)),
     m_kind        (kind),
-    m_bar         (host, std::move (id), L"Event log commands")
+    m_bar         (parts, std::move (id), L"Event log commands")
 {
 }
 
@@ -596,8 +596,9 @@ bool EventLogController::AddColumnMenuItems (DxuiListView * list, std::vector<st
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskLogController::DiskLogController (IDebuggerPaneHost & host) :
-    EventLogController (host, DebuggerLayout::kDiskLog, L"Disk II log", DebugLogKind::Disk)
+DiskLogController::DiskLogController (const DebuggerPaneParts & parts) :
+    EventLogController (parts, DebuggerLayout::kDiskLog, L"Disk II log", DebugLogKind::Disk),
+    m_look (parts.look)
 {
 }
 
@@ -802,7 +803,7 @@ bool DiskLogController::AddMenuItems (DxuiListView * list, int row, PaneMenuItem
 
 void DiskLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible)
 {
-    const DxuiTheme  * theme   = m_host.GetTheme();
+    const DxuiTheme  * theme   = m_look.GetTheme();
     std::wstring       invalid;
 
 
@@ -867,8 +868,8 @@ IEventLogFilter * DiskLogController::GetColumnFilters() const { return m_model.g
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-InputLogController::InputLogController (IDebuggerPaneHost & host) :
-    EventLogController (host, DebuggerLayout::kInputLog, L"Input log", DebugLogKind::Input)
+InputLogController::InputLogController (const DebuggerPaneParts & parts) :
+    EventLogController (parts, DebuggerLayout::kInputLog, L"Input log", DebugLogKind::Input)
 {
 }
 
@@ -1106,8 +1107,8 @@ IEventLogFilter * InputLogController::GetColumnFilters() const { return m_model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-IoLogController::IoLogController (IDebuggerPaneHost & host, DebugLogKind kind) :
-    EventLogController (host,
+IoLogController::IoLogController (const DebuggerPaneParts & parts, DebugLogKind kind) :
+    EventLogController (parts,
                         (kind == DebugLogKind::Video) ? DebuggerLayout::kVideoLog : DebuggerLayout::kSoundLog,
                         (kind == DebugLogKind::Video) ? L"Video log" : L"Sound log",
                         kind)

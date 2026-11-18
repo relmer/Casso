@@ -21,10 +21,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HeatRangesPane::HeatRangesPane (IDebuggerPaneHost & host, HeatMapPane & heatMap) :
-    IDebuggerPane (host),
+HeatRangesPane::HeatRangesPane (const DebuggerPaneParts & parts, HeatMapPane & heatMap) :
+    IDebuggerPane (parts),
+    m_look (parts.look),
     m_heatMap     (heatMap),
-    m_bar         (host, DebuggerLayout::kHeatRanges, L"Heat map range commands")
+    m_bar         (parts, DebuggerLayout::kHeatRanges, L"Heat map range commands")
 {
 }
 
@@ -1033,7 +1034,7 @@ void HeatRangesPane::ApplyRows()
     constexpr size_t                                kColumns  = 6;
     const HeatMapRangeSet                         * set       = GetEditedSet();
     const HeatMapSymbols                          & symbols   = GetSymbols();
-    uint32_t                                        error     = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
+    uint32_t                                        error     = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ErrorForeground() : 0;
     std::wstring                                    separator = L"  ";
     std::vector<DxuiEditableGrid::GridRow>          rows;
 

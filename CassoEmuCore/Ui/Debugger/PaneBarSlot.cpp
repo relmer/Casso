@@ -15,8 +15,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PaneBarSlot::PaneBarSlot (IDebuggerPaneHost & host, std::wstring pane, std::wstring accessibleName) :
-    m_host (host),
+PaneBarSlot::PaneBarSlot (const DebuggerPaneParts & parts, std::wstring pane, std::wstring accessibleName) :
+    m_host (parts.host),
     m_pane (std::move (pane)),
     m_slot (std::make_unique<DebuggerPaneFrame> (std::move (accessibleName)))
 {

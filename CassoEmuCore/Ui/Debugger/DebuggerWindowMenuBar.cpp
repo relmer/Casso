@@ -492,7 +492,7 @@ void DebuggerWindow::OpenOptions()
     current.reverse     = m_host->GetReverseOptions();
     current.disassembly = m_code->GetOptions();
 
-    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
+    chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_look.GetTheme(), current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
 
     if (!chosen.has_value())
     {
@@ -1236,7 +1236,7 @@ Error:
 std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
                                                            TextDialog::CheckFn check)
 {
-    return TextDialog::RunModal (GetRoutingHwnd(), m_theme, title, label, placeholder, std::move (check));
+    return TextDialog::RunModal (GetRoutingHwnd(), m_look.GetTheme(), title, label, placeholder, std::move (check));
 }
 
 
@@ -1251,7 +1251,7 @@ std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & 
 
 std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label, const std::wstring & description)
 {
-    return ByteDialog::RunModal (GetRoutingHwnd(), m_theme, title, label, description);
+    return ByteDialog::RunModal (GetRoutingHwnd(), m_look.GetTheme(), title, label, description);
 }
 
 
@@ -1266,7 +1266,7 @@ std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, c
 
 std::optional<MemoryFileDialog::Fields> DebuggerWindow::RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial)
 {
-    return MemoryFileDialog::RunModal (GetRoutingHwnd(), m_theme, path, isSave, initial);
+    return MemoryFileDialog::RunModal (GetRoutingHwnd(), m_look.GetTheme(), path, isSave, initial);
 }
 
 

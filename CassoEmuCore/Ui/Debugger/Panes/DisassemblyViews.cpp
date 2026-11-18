@@ -44,15 +44,17 @@ DisassemblyViewPane::~DisassemblyViewPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyGroup::DisassemblyGroup (IDebuggerPaneHost & host, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources) :
-    m_host       (host),
+DisassemblyGroup::DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources) :
+    m_host       (parts.host),
+    m_parts (parts),
+    m_look (parts.look),
     m_gutter     (gutter),
     m_edits      (edits),
     m_sources    (sources),
-    m_sourceText (host),
-    m_symbols    (host, *this)
+    m_sourceText (parts),
+    m_symbols    (parts, *this)
 {
-    IDebuggerWindowHost  * windowHost = host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = parts.host.GetWindowHost();
 
 
 
@@ -89,7 +91,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> DisassemblyGroup::CreateViews()
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
-        std::unique_ptr<DisassemblyViewPane>  pane = std::make_unique<DisassemblyViewPane> (m_host, *this, view);
+        std::unique_ptr<DisassemblyViewPane>  pane = std::make_unique<DisassemblyViewPane> (m_parts, *this, view);
 
         m_views[(size_t) view] = pane.get();
         views.push_back (std::move (pane));
@@ -496,7 +498,7 @@ void DisassemblyGroup::Apply()
         //  the two read as one sign.
         if (follows)
         {
-            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcTabMarkArgb() };
+            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_look.GetPcTabMarkArgb() };
         }
 
         m_host.SetPaneTabMark (DebuggerLayout::GetCodePaneId (view), mark, follows ? L"This disassembly follows the PC" : L"");
@@ -613,13 +615,13 @@ void DisassemblyGroup::ApplyView (int view)
 
 DisassemblyGroup::RowContext DisassemblyGroup::MakeRowContext (int view)
 {
-    RowContext    context     { m_host.GetLatestSnapshot(), m_host.GetTheme(), GetCodeList (view), GetCodeLines (view) };
+    RowContext    context     { m_host.GetLatestSnapshot(), m_look.GetTheme(), GetCodeList (view), GetCodeLines (view) };
     std::wstring  text;
     int           pcSourceRow = -1;
 
 
 
-    context.textColors = m_host.GetTextColors();
+    context.textColors = m_look.GetTextColors();
     context.source     = m_options.IsOn (DisassemblyOptions::Option::Source) && IsOptionEnabled (DisassemblyOptions::Option::Source);
     context.numbers    = m_options.IsOn (DisassemblyOptions::Option::LineNumbers) && IsOptionEnabled (DisassemblyOptions::Option::LineNumbers);
 
@@ -627,7 +629,7 @@ DisassemblyGroup::RowContext DisassemblyGroup::MakeRowContext (int view)
 
     if (m_options.IsOn (DisassemblyOptions::Option::Heat))
     {
-        context.heatPalette = m_host.GetHeatPalette();
+        context.heatPalette = m_look.GetHeatPalette();
     }
 
     for (const DebuggerViewSnapshot::CodeLine & line : context.lines)
@@ -936,12 +938,12 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
     //  the pointer.
     if (line.hasBreakpoint)
     {
-        gutter.icon = m_host.GetBreakpointIcon (line.isEnabled);
+        gutter.icon = m_look.GetBreakpointIcon (line.isEnabled);
         gutter.tip  = ColorLegend::GetText (line.isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
     }
     else if (row == m_gutter.GetHoverRow (view) && DisassemblyOptions::CanTakeBreakpoint (line))
     {
-        gutter.icon = m_host.GetHoverBreakpointIcon();
+        gutter.icon = m_look.GetHoverBreakpointIcon();
         gutter.tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
     }
 
@@ -950,25 +952,25 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
     if (m_host.GetLatestSnapshot() != nullptr &&
         std::ranges::any_of (m_host.GetLatestSnapshot()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
     {
-        gutter.icon = m_host.GetBookmarkMark (gutter.icon);
+        gutter.icon = m_look.GetBookmarkMark (gutter.icon);
         gutter.tip  = ColorLegend::JoinLines ({ gutter.tip, L"Bookmark" });
     }
 
     if (isMarked)
     {
-        gutter.icon = m_host.GetPcMarker (gutter.icon);
+        gutter.icon = m_look.GetPcIcon (gutter.icon);
         gutter.tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), gutter.tip });
-        fill        = m_host.GetTextColors().pcRow;
+        fill        = m_look.GetTextColors().pcRow;
         rowTip      = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
     }
     else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line.address)
     {
-        fill   = m_host.GetTextColors().navigatedRow;
+        fill   = m_look.GetTextColors().navigatedRow;
         rowTip = ColorLegend::GetText (ColorLegend::Meaning::NavigatedRow);
     }
     else if (target.has_value() && *target == line.address)
     {
-        fill   = m_host.GetTextColors().targetRow;
+        fill   = m_look.GetTextColors().targetRow;
         rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
     }
 }

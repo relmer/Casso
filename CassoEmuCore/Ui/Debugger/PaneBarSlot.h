@@ -25,7 +25,7 @@ class PaneBarSlot
 public:
     using PressFn = std::function<void()>;
 
-    PaneBarSlot (IDebuggerPaneHost & host, std::wstring pane, std::wstring accessibleName);
+    PaneBarSlot (const DebuggerPaneParts & parts, std::wstring pane, std::wstring accessibleName);
     ~PaneBarSlot();
 
     PaneBarSlot (const PaneBarSlot &)             = delete;

@@ -28,7 +28,7 @@ class HistoryBand;
 class DisassemblyViewPane : public IDebuggerPane
 {
 public:
-    DisassemblyViewPane (IDebuggerPaneHost & host, DisassemblyGroup & group, int view);
+    DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view);
     ~DisassemblyViewPane() override;
 
     DxuiListView                   * GetList        () const { return m_list; }

@@ -92,7 +92,7 @@ static std::wstring Widen (const std::string & text)
 DebuggerWindow::DebuggerWindow() :
     m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this))),
     m_tips        (std::make_unique<TooltipCoordinator> (static_cast<ITooltipSources &> (*this))),
-    m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
+    m_gutter      (std::make_unique<DisassemblyGutter> (m_paneParts, static_cast<const ICodeViews &> (*this),
                                                         [this] (int view) { ApplyCodeView (view); })),
     m_floating    (std::make_unique<FloatingPanes> (static_cast<IFloatingPanesHost &> (*this))),
     m_colorKeys   (std::make_unique<PaneColorKeys> (static_cast<IColorKeysHost &> (*this)))
@@ -176,7 +176,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
 
     BAIL_OUT_IF (IsCreated(), S_OK);
 
-    m_theme         = theme;
+    m_look.SetTheme (theme);
     m_emulatorTheme = theme;
     m_host          = host;
     m_hInstance = hInstance;
@@ -324,7 +324,7 @@ void DebuggerWindow::ConfigureWidgets()
     (void) m_finds->Activate (DebuggerLayout::kConsole);
 
     m_focusMgr.Attach   (this);
-    m_focusMgr.SetTheme (m_theme);
+    m_focusMgr.SetTheme (m_look.GetTheme());
     m_focusMgr.Rebuild();
     m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
 
@@ -367,7 +367,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetTextRenderer (GetTextRenderer());
     m_commandBar->SetPopupHost    (GetPopupHost());
     m_tooltip.SetPopupHost        (GetPopupHost());
-    m_tooltip.SetTheme            (*m_theme);
+    m_tooltip.SetTheme            (*m_look.GetTheme());
     m_tooltip.SetMonospace        (false);
     m_tooltip.ApplyVisualStudioLook();
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
@@ -1826,11 +1826,11 @@ void DebuggerWindow::ConfigureCommandBarHost()
     {
         std::unique_ptr<DxuiTooltip>  tip = std::make_unique<DxuiTooltip>();
 
-        window.SetTheme  (m_theme);
+        window.SetTheme  (m_look.GetTheme());
         window.SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
 
         tip->SetPopupHost (window.GetPopupHost());
-        tip->SetTheme     (*m_theme);
+        tip->SetTheme     (*m_look.GetTheme());
         tip->SetDpi       (DxuiDisplay::Get().GetDpiForWindow (window.GetHwnd()));
         tip->SetMonospace (false);
         tip->ApplyVisualStudioLook();

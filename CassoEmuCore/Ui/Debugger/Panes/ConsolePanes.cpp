@@ -25,8 +25,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ConsoleOutput::ConsoleOutput (IDebuggerPaneHost & host) :
-    m_host (host)
+ConsoleOutput::ConsoleOutput (const DebuggerPaneParts & parts) :
+    m_host (parts.host)
 {
 }
 
@@ -703,8 +703,9 @@ bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandLine::CommandLine (IDebuggerPaneHost & host, ConsoleOutput & output) :
-    m_host   (host),
+CommandLine::CommandLine (const DebuggerPaneParts & parts, ConsoleOutput & output) :
+    m_host   (parts.host),
+    m_look (parts.look),
     m_output (output)
 {
 }
@@ -1028,7 +1029,7 @@ void CommandLine::ShowHistoryList()
     static constexpr int              s_kShownRows   = 10;
     static constexpr int              s_kRightGapDip = 24;   // between the list's right edge and the console's
     const std::vector<std::wstring> & lines          = m_history.GetLines();
-    const DxuiTheme                 * theme          = m_host.GetTheme();
+    const DxuiTheme                 * theme          = m_look.GetTheme();
     const DxuiDpiScaler             & scaler         = m_host.GetPaneScaler();
     DxuiTextView                    * view           = m_output.GetView();
     PaneMenuItems                     items;
@@ -1113,9 +1114,9 @@ void CommandLine::SaveHistory()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ConsoleModeBar::ConsoleModeBar (IDebuggerPaneHost & host) :
-    m_host (host),
-    m_bar  (host, DebuggerLayout::kConsole, L"Console commands")
+ConsoleModeBar::ConsoleModeBar (const DebuggerPaneParts & parts) :
+    m_host (parts.host),
+    m_bar  (parts, DebuggerLayout::kConsole, L"Console commands")
 {
 }
 
@@ -1321,11 +1322,11 @@ std::wstring ConsoleModeBar::GetHelpCommand (CommandMode mode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ConsolePane::ConsolePane (IDebuggerPaneHost & host) :
-    IDebuggerPane  (host),
-    m_output       (host),
-    m_commandLine  (host, m_output),
-    m_modeBar      (host)
+ConsolePane::ConsolePane (const DebuggerPaneParts & parts) :
+    IDebuggerPane  (parts),
+    m_output       (parts),
+    m_commandLine  (parts, m_output),
+    m_modeBar      (parts)
 {
 }
 

@@ -21,9 +21,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BasicProgramController::BasicProgramController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host),
-    m_bar         (host, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
+BasicProgramController::BasicProgramController (const DebuggerPaneParts & parts) :
+    IDebuggerPane (parts),
+    m_look (parts.look),
+    m_bar         (parts, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
 {
 }
 
@@ -326,21 +327,21 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
         return;
     }
 
-    style.pcIcon           = m_host.GetPcMarker (nullptr);
-    style.enabledIcon      = m_host.GetBreakpointIcon (true);
-    style.disabledIcon     = m_host.GetBreakpointIcon (false);
-    style.pcOnEnabledIcon  = m_host.GetPcMarker (style.enabledIcon);
-    style.pcOnDisabledIcon = m_host.GetPcMarker (style.disabledIcon);
-    style.hoverIcon        = m_host.GetHoverBreakpointIcon();
+    style.pcIcon           = m_look.GetPcIcon (nullptr);
+    style.enabledIcon      = m_look.GetBreakpointIcon (true);
+    style.disabledIcon     = m_look.GetBreakpointIcon (false);
+    style.pcOnEnabledIcon  = m_look.GetPcIcon (style.enabledIcon);
+    style.pcOnDisabledIcon = m_look.GetPcIcon (style.disabledIcon);
+    style.hoverIcon        = m_look.GetHoverBreakpointIcon();
     style.hoverRow         = m_model->GetStyle().hoverRow;
-    style.pcRowArgb        = m_host.GetTextColors().pcRow;
-    style.textArgb         = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->Foreground() : 0;
-    style.syntax           = m_host.GetTextColors().syntax;
+    style.pcRowArgb        = m_look.GetTextColors().pcRow;
+    style.textArgb         = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->Foreground() : 0;
+    style.syntax           = m_look.GetTextColors().syntax;
 
     (void) UpdateWrap();
 
     m_model->SetStyle (style);
-    m_model->SetHeat  (snapshot.heatColumns, m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
+    m_model->SetHeat  (snapshot.heatColumns, m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_look.GetHeatPalette()) : std::nullopt);
     m_model->Apply    (basic, snapshot.breakpoints);
 
     if (m_pendingLine.has_value() && basic.has_value() && basic->hasProgram)

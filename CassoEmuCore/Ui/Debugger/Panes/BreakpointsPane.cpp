@@ -23,10 +23,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BreakpointsPane::BreakpointsPane (IDebuggerPaneHost & host) :
-    IDebuggerPane (host),
-    m_bar         (host, DebuggerLayout::kBreakpoints, L"Breakpoint commands"),
-    m_filters     (host)
+BreakpointsPane::BreakpointsPane (const DebuggerPaneParts & parts) :
+    IDebuggerPane (parts),
+    m_look (parts.look),
+    m_bar         (parts, DebuggerLayout::kBreakpoints, L"Breakpoint commands"),
+    m_filters     (parts)
 {
 }
 
@@ -117,7 +118,7 @@ void BreakpointsPane::Configure()
 
     handlers.dispatch  = [this] (int id) { RunBarEntry (id); };
     handlers.isEnabled = [this] (int id) { return IsBarEntryEnabled (id); };
-    handlers.crossArgb = [this]          { return m_host.GetBreakpointArgb(); };
+    handlers.crossArgb = [this]          { return m_look.GetBreakpointArgb(); };
     handlers.getTip    = [this] (int id)
     {
         const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
@@ -962,7 +963,7 @@ void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 
 
 
-    result = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
+    result = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_look.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
                                        GetSourceFiles (snapshot));
 
     //  The dialog is modal, so the latest snapshot is read again for the id
@@ -1004,7 +1005,7 @@ void BreakpointsPane::EditInDialog (const DebuggerViewSnapshot::BreakpointLine &
         place = BreakpointDialog::SourcePlace { SourcePathList::Utf8ToWide (file), line };
     }
 
-    result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId), GetSourceFiles (snapshot), place);
+    result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_look.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId), GetSourceFiles (snapshot), place);
     snapshot = m_host.GetLatestSnapshot();
 
     if (result.has_value())
@@ -1515,7 +1516,7 @@ void BreakpointsPane::ApplyRows()
     std::vector<DxuiListView::Group>                groups;
     int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
     int                                             rowId    = GetIdOfRow (m_list->GetSelectedRow());
-    const DxuiTheme                               * theme    = m_host.GetTheme();
+    const DxuiTheme                               * theme    = m_look.GetTheme();
 
 
 
@@ -1575,7 +1576,7 @@ void BreakpointsPane::ApplyRows()
         }
 
         row[(size_t) BreakpointColumns::Column::Name].check = DxuiListView::Cell::GetCheck (bp.enabled, bp.isAbsent);
-        row[(size_t) BreakpointColumns::Column::Name].icon            = m_host.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
+        row[(size_t) BreakpointColumns::Column::Name].icon            = m_look.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
         rows.push_back (std::move (row));
     }
 

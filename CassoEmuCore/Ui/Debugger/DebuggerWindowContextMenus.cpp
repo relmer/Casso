@@ -688,7 +688,7 @@ void DebuggerWindow::ShowSkipNotice (const std::string & routine)
 
 int DebuggerWindow::ShowCheckMessageBox (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type, const std::wstring & checkLabel, bool & ioChecked)
 {
-    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type, checkLabel, ioChecked);
+    return DxuiMessageBox (owner, m_look.GetTheme(), text.c_str(), caption, type, checkLabel, ioChecked);
 }
 
 

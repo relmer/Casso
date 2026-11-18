@@ -26,7 +26,7 @@ public:
 
     //  `apply` builds a view's rows again, with the hover and the drag the
     //  gutter has now.
-    DisassemblyGutter (IDebuggerPaneHost & host, const ICodeViews & views, ApplyFn apply);
+    DisassemblyGutter (const DebuggerPaneParts & parts, const ICodeViews & views, ApplyFn apply);
 
     DisassemblyGutter (const DisassemblyGutter &)             = delete;
     DisassemblyGutter & operator= (const DisassemblyGutter &) = delete;

@@ -14,8 +14,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ListValueFilters::ListValueFilters (IDebuggerPaneHost & host) :
-    m_host (host)
+ListValueFilters::ListValueFilters (const DebuggerPaneParts & parts) :
+    m_host (parts.host)
 {
 }
 

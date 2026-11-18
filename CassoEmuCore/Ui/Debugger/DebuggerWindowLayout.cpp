@@ -1463,7 +1463,7 @@ void DebuggerWindow::ShowFocusAccent()
 
 
 
-    if (m_dockSite == nullptr || m_theme == nullptr)
+    if (m_dockSite == nullptr || m_look.GetTheme() == nullptr)
     {
         return;
     }
@@ -1471,7 +1471,7 @@ void DebuggerWindow::ShowFocusAccent()
     focused = GetPaneOfFocus();
     m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? focused : std::wstring());
 
-    m_floating->SetFocusedLooks (m_accentOwner.GetFocusedFloat(), *m_theme);
+    m_floating->SetFocusedLooks (m_accentOwner.GetFocusedFloat(), *m_look.GetTheme());
 
     if (!m_isOpeningFocusDue && !m_openingFocus.IsPending() && !focused.empty() && focused != m_savedFocusPane)
     {

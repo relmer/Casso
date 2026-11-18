@@ -123,7 +123,7 @@ void DebuggerWindow::EditProjectSettings()
         return;
     }
 
-    commands = ProjectSettingsDialog::RunModal (GetHwnd(), m_theme, project);
+    commands = ProjectSettingsDialog::RunModal (GetHwnd(), m_look.GetTheme(), project);
 
     if (commands.has_value())
     {

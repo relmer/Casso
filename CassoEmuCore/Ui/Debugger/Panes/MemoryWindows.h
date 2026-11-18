@@ -24,7 +24,7 @@ class MemoryWindowGroup;
 class MemoryWindowPane : public IDebuggerPane
 {
 public:
-    MemoryWindowPane (IDebuggerPaneHost & host, MemoryWindowGroup & group, int id);
+    MemoryWindowPane (const DebuggerPaneParts & parts, MemoryWindowGroup & group, int id);
     ~MemoryWindowPane() override;
 
     int                              GetWindowId  () const { return m_windowId; }
@@ -84,7 +84,7 @@ private:
 class MemoryWindowGroup : public IDebuggerPane
 {
 public:
-    explicit MemoryWindowGroup (IDebuggerPaneHost & host);
+    explicit MemoryWindowGroup (const DebuggerPaneParts & parts);
     ~MemoryWindowGroup() override;
 
     //  Creates the windows, for the window to add to its pane list after the
@@ -163,15 +163,17 @@ private:
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
 
-    std::array<MemoryWindowPane *, DebuggerViewState::kMaxMemoryWindows>  m_windows   = {};
-    DxuiToolbar                                                         * m_bar       = nullptr;
-    DxuiTextInput                                                       * m_box       = nullptr;
-    std::unique_ptr<MemoryBarCommands>                                    m_commands;
-    std::unique_ptr<MemoryAddressEntry>                                   m_addressEntry;
-    std::vector<std::wstring>                                             m_history;
-    MemoryWindowPane                                                    * m_active    = nullptr;
-    std::wstring                                                          m_barPane;
-    DxuiWindow                                                          * m_barHost   = nullptr;
+    const DebuggerPaneParts                                               & m_parts;
+    const DebuggerPaneLook                                                & m_look;
+    std::array<MemoryWindowPane *, DebuggerViewState::kMaxMemoryWindows>    m_windows      = {};
+    DxuiToolbar                                                           * m_bar          = nullptr;
+    DxuiTextInput                                                         * m_box          = nullptr;
+    std::unique_ptr<MemoryBarCommands>                                      m_commands;
+    std::unique_ptr<MemoryAddressEntry>                                     m_addressEntry;
+    std::vector<std::wstring>                                               m_history;
+    MemoryWindowPane                                                      * m_active       = nullptr;
+    std::wstring                                                            m_barPane;
+    DxuiWindow                                                            * m_barHost      = nullptr;
     //  From the last snapshot: whether the machine is stopped, and the
     //  serial of the comparison the machine sent last.
     bool               m_isPaused      = false;

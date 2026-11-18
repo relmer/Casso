@@ -125,7 +125,7 @@ struct FindWidget
 class FindWidgetSet
 {
 public:
-    FindWidgetSet (IDebuggerPaneHost & host, IFindWidgetHost & window);
+    FindWidgetSet (const DebuggerPaneParts & parts, IFindWidgetHost & window);
 
     FindWidgetSet (const FindWidgetSet &)             = delete;
     FindWidgetSet & operator= (const FindWidgetSet &) = delete;
@@ -231,11 +231,12 @@ private:
 
     //  The find box's hint: where the text is looked for in the pane.
 
-    IDebuggerPaneHost                     & m_host;
-    IFindWidgetHost                       & m_window;
-    std::map<std::wstring, FindWidget>      m_widgets;
-    std::map<std::wstring, Saved>           m_saved;
-    std::wstring                            m_activePane;
-    FindWidget                            * m_active     = nullptr;
-    bool                                    m_isKeyClick = false;
+    IDebuggerPaneHost                   & m_host;
+    const DebuggerPaneLook              & m_look;
+    IFindWidgetHost                     & m_window;
+    std::map<std::wstring, FindWidget>    m_widgets;
+    std::map<std::wstring, Saved>         m_saved;
+    std::wstring                          m_activePane;
+    FindWidget                          * m_active     = nullptr;
+    bool                                  m_isKeyClick = false;
 };

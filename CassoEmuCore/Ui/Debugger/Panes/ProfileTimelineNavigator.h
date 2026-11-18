@@ -6,6 +6,7 @@
 
 class FlameGraphView;
 class IDebuggerPaneHost;
+struct DebuggerPaneParts;
 class ProfileTimeline;
 struct DxuiMouseEvent;
 
@@ -60,7 +61,7 @@ public:
         std::optional<ProfileData>  byAddress;
     };
 
-    ProfileTimelineNavigator (IDebuggerPaneHost & host, IProfileNavigatorOwner & owner);
+    ProfileTimelineNavigator (const DebuggerPaneParts & parts, IProfileNavigatorOwner & owner);
 
     void  SetControls (ProfileTimeline * timeline, FlameGraphView * flameGraph);
 

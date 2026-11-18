@@ -53,7 +53,7 @@ public:
     //  5 seconds, for an empty or unknown one.
     static size_t                       GetPeriodIndex (const std::string & argument);
 
-    explicit ProfilerPane (IDebuggerPaneHost & host);
+    explicit ProfilerPane (const DebuggerPaneParts & parts);
     ~ProfilerPane() override;
 
     ProfileRows::View  GetView () const { return m_view; }

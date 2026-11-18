@@ -29,7 +29,7 @@ class ToolbarLabelEntry;
 class ConsoleOutput
 {
 public:
-    ConsoleOutput (IDebuggerPaneHost & host);
+    ConsoleOutput (const DebuggerPaneParts & parts);
 
     ConsoleOutput (const ConsoleOutput &)             = delete;
     ConsoleOutput & operator= (const ConsoleOutput &) = delete;
@@ -130,7 +130,7 @@ private:
 class CommandLine
 {
 public:
-    CommandLine (IDebuggerPaneHost & host, ConsoleOutput & output);
+    CommandLine (const DebuggerPaneParts & parts, ConsoleOutput & output);
 
     CommandLine (const CommandLine &)             = delete;
     CommandLine & operator= (const CommandLine &) = delete;
@@ -176,12 +176,13 @@ private:
     void                 ShowHistoryList ();
 
     IDebuggerPaneHost                                          & m_host;
+    const DebuggerPaneLook                                     & m_look;
     ConsoleOutput                                              & m_output;
-    DxuiTextInput                                              * m_box                = nullptr;
+    DxuiTextInput                                              * m_box               = nullptr;
     ConsoleHistory                                               m_history;
     CommandCompletion                                            m_completion;
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_completionSymbols;
-    uint32_t                                                     m_offeredSuggestion  = 0;
+    uint32_t                                                     m_offeredSuggestion = 0;
 };
 
 
@@ -205,7 +206,7 @@ public:
 
     static constexpr int  kDialectEntry = 1;
 
-    explicit ConsoleModeBar (IDebuggerPaneHost & host);
+    explicit ConsoleModeBar (const DebuggerPaneParts & parts);
     ~ConsoleModeBar();
 
     ConsoleModeBar (const ConsoleModeBar &)             = delete;
@@ -253,7 +254,7 @@ private:
 class ConsolePane : public IDebuggerPane
 {
 public:
-    explicit ConsolePane (IDebuggerPaneHost & host);
+    explicit ConsolePane (const DebuggerPaneParts & parts);
     ~ConsolePane() override;
 
     ConsoleOutput                  & GetOutput      () { return m_output; }

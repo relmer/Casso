@@ -23,8 +23,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CodeEditCommands::CodeEditCommands (IDebuggerPaneHost & host, const ICodeViews & views) :
-    m_host  (host),
+CodeEditCommands::CodeEditCommands (const DebuggerPaneParts & parts, const ICodeViews & views) :
+    m_host  (parts.host),
     m_views (views)
 {
 }

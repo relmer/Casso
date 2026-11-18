@@ -27,7 +27,7 @@ class DebuggerPaneFrame;
 class BasicProgramController : public IDebuggerPane
 {
 public:
-    explicit BasicProgramController (IDebuggerPaneHost & host);
+    explicit BasicProgramController (const DebuggerPaneParts & parts);
     ~BasicProgramController() override;
 
     DxuiListView                   * GetList        () const { return m_list; }
@@ -71,14 +71,15 @@ private:
 
     std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
 
+    const DebuggerPaneLook              & m_look;
     PaneBarSlot                           m_bar;
-    DxuiListView                        * m_list      = nullptr;
+    DxuiListView                        * m_list          = nullptr;
     std::unique_ptr<BasicProgramPane>     m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
     std::optional<Word>                   m_shownLine;
     std::optional<Word>                   m_pendingLine;
     std::optional<std::set<int>>          m_breakpointIds;
-    bool                                  m_isReading = false;
-    bool                                  m_wasPaused = false;
-    bool                                  m_isStop    = false;
+    bool                                  m_isReading     = false;
+    bool                                  m_wasPaused     = false;
+    bool                                  m_isStop        = false;
 };

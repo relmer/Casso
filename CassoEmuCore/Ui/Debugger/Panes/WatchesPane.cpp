@@ -23,8 +23,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WatchesPane::WatchesPane (IDebuggerPaneHost & host) :
-    UndoListPane (host, DebuggerLayout::kWatches, L"Watches", ColorLegend::Pane::Watch)
+WatchesPane::WatchesPane (const DebuggerPaneParts & parts) :
+    UndoListPane (parts, DebuggerLayout::kWatches, L"Watches", ColorLegend::Pane::Watch),
+    m_look (parts.look)
 {
 }
 
@@ -330,7 +331,7 @@ void WatchesPane::EditAddedValue (const DebuggerViewSnapshot & snapshot)
 void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 {
     const StopChanges                             & changes     = m_host.GetStopChanges();
-    uint32_t                                        changed     = m_host.GetTextColors().changed;
+    uint32_t                                        changed     = m_look.GetTextColors().changed;
     std::vector<DxuiEditableGrid::GridRow>          rows;
     bool                                            isInProgram = BasicWatches::IsStoppedInProgram (snapshot.basic);
     bool                                            isInBasic   = isInProgram && IsInRom (snapshot.pc);
@@ -399,7 +400,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             //  pane draws them in.
             if (line.key.starts_with ("M:"))
             {
-                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_host.GetTextColors());
+                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_look.GetTextColors());
             }
 
             if (changes.IsChanged ("A:" + line.key))
@@ -440,7 +441,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         if (watch.enabled && watch.basicName.empty())
         {
-            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_host.GetTextColors());
+            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_look.GetTextColors());
         }
 
         if (changes.IsChanged (std::format ("W:{}", watch.id)))
@@ -453,7 +454,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         if (!watch.error.empty())
         {
             value.text = TextEncoding::NarrowToWide (watch.error);
-            value.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
+            value.argb = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ErrorForeground() : 0;
         }
 
         value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
@@ -548,7 +549,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 std::vector<DxuiListView::Cell> WatchesPane::MakeHeading (const std::wstring & title) const
 {
     constexpr float     kTint = 0.35f;
-    const DxuiTheme   * theme = m_host.GetTheme();
+    const DxuiTheme   * theme = m_look.GetTheme();
     DxuiListView::Cell  label = { title };
     DxuiListView::Cell  blank = { L"" };
     uint32_t            fill  = DxuiColor::Mix (theme->ContentBackground(), theme->HoverBackground(), kTint);
@@ -582,7 +583,7 @@ DxuiListView::Cell WatchesPane::MakeIdCell (const std::wstring & text) const
 
 
 
-    cell.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ForegroundMuted() : 0;
+    cell.argb = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ForegroundMuted() : 0;
     return cell;
 }
 
@@ -923,7 +924,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
 
 void WatchesPane::SetError (const std::wstring & text)
 {
-    uint32_t  error = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
+    uint32_t  error = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ErrorForeground() : 0;
 
 
 
