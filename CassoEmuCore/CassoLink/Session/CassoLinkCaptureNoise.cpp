@@ -143,11 +143,13 @@ void CassoLinkCapture::MarkRandom (const Position & position, const std::vector<
 //  poll is a fixed number of cycles after the catch, so the zero bits after
 //  a byte move the moment its next byte is caught by a known amount, and a
 //  count that fits one byte's marks better can fit the bytes after it worse.
-//  So the counts are the sequence for the whole stream that fits the most
-//  revolutions' marks in all: the s_kBeamWidth best sequences so far are
-//  followed, and one with the same moments as a better one is dropped. A
-//  byte other than a sync byte has at most s_kMaxZeros. -1 for a byte that
-//  fits too few revolutions.
+//  So the counts are the sequence for the whole stream that the marks make
+//  likeliest: each revolution's moments are equally likely, a count is as
+//  likely as the share of them that fit the byte's mark, a mark none fits is
+//  s_kMissOdds, and a byte other than a sync byte has at most s_kMaxZeros.
+//  The s_kBeamWidth likeliest sequences so far are followed, and one with
+//  the same moments as a likelier one is dropped. -1 for a byte that fits
+//  too few revolutions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,7 +158,7 @@ void CassoLinkCapture::TimeZeros (const Position & position, const std::vector<B
     struct Hypothesis
     {
         std::vector<uint8_t>  phases;
-        int                   score;
+        double                score;
         size_t                node;
     };
 
@@ -166,6 +168,7 @@ void CassoLinkCapture::TimeZeros (const Position & position, const std::vector<B
     std::vector<std::pair<size_t, int>>  trail;
     std::vector<int>                     chosen (length, 0);
     size_t                               placed  = length;
+    double                               miss    = std::log (s_kMissOdds);
     auto                                 delay   = [&] (const Alignment & alignment) { return s_kWaitCycles[(alignment.read < position.delays.size() && position.delays[alignment.read] == 1) ? 1 : 0]; };
     auto                                 limit   = [&] (size_t at) { return (int) ((bytes[at] | 0x80) == s_kSyncByte ? s_kMaxSyncZeros : s_kMaxZeros); };
     auto                                 marked  = [&] (const Alignment & alignment, size_t at) { return CaptureStream::IsSync (position.reads[alignment.read][(size_t) alignment.map[at]]); };
@@ -216,6 +219,29 @@ void CassoLinkCapture::TimeZeros (const Position & position, const std::vector<B
 
         return count;
     };
+    auto                                 weigh   = [&] (size_t at, int zeros, const std::vector<uint8_t> & from) -> double
+    {
+        double  sum = 0.0;
+
+        for (size_t each = 0; each < alignments.size(); each++)
+        {
+            const Alignment  & alignment = alignments[each];
+            int                possible  = 0;
+            int                fitting   = 0;
+
+            for (int phase = 0; alignment.map[at] >= 0 && phase < s_kPollCycles; phase++)
+            {
+                bool  known = (from[each] & (1 << phase)) != 0;
+
+                possible += known ? 1 : 0;
+                fitting  += (known && fits (phase, zeros, delay (alignment), marked (alignment, at))) ? 1 : 0;
+            }
+
+            sum += possible == 0 ? 0.0 : fitting == 0 ? miss : std::log ((double) fitting / (double) possible);
+        }
+
+        return sum;
+    };
     auto                                 advance = [&] (size_t at, int zeros, const std::vector<uint8_t> & from) -> std::vector<uint8_t>
     {
         std::vector<uint8_t>  to (alignments.size(), s_kAllPhases);
@@ -235,7 +261,7 @@ void CassoLinkCapture::TimeZeros (const Position & position, const std::vector<B
 
 
     outZeros.assign (length, -1);
-    beam.push_back ({ phases, 0, SIZE_MAX });
+    beam.push_back ({ phases, 0.0, SIZE_MAX });
 
     for (size_t at = 0; at < length; at++)
     {
@@ -247,7 +273,7 @@ void CassoLinkCapture::TimeZeros (const Position & position, const std::vector<B
             for (int zeros = 0; zeros <= limit (at); zeros++)
             {
                 trail.push_back ({ hypothesis.node, zeros });
-                grown.push_back ({ advance (at, zeros, hypothesis.phases), hypothesis.score + count (at, zeros, hypothesis.phases), trail.size() - 1 });
+                grown.push_back ({ advance (at, zeros, hypothesis.phases), hypothesis.score + weigh (at, zeros, hypothesis.phases), trail.size() - 1 });
             }
         }
 

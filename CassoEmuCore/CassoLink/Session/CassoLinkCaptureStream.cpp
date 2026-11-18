@@ -56,11 +56,12 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 //  whose reads don't align so, or don't repeat, is aligned as one with a
 //  stretch the drive reads as noise (AlignNoisy) when every read aligns
 //  that way. A read with no revolution that aligns makes the stream
-//  unstable. With tolerant, a track aligned as noisy is one even when a read
-//  doesn't align, if at least s_kWeakReads do: a track with no sync bytes is
-//  framed anew after each stretch of noise, so a pass can frame the bytes at
-//  the revolution's start otherwise than the first read did, and such a
-//  track is read again. False when the first read doesn't repeat.
+//  unstable. With tolerant, and for a track read more than kWholeReads
+//  times, as one with a quiet baseline is, a track aligned as noisy is one
+//  even when a read doesn't align, if most do: a track with no sync bytes
+//  is framed anew after each stretch of noise, so a pass can frame the
+//  bytes at the revolution's start otherwise than the first read did, and
+//  such a track is read again. False when the first read doesn't repeat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,13 +77,13 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     Stream                  noisyStream;
     std::vector<Alignment>  noisyAlignments;
     bool                    noisyUnstable = false;
+    std::set<size_t>        aligned;
+    int                     weakReads     = s_kWeakReads;
 
 
 
     if (!hasStream || outUnstable)
     {
-        std::set<size_t>  aligned;
-
         noisy = AlignNoisy (position, noisyStream, noisyAlignments, noisyUnstable);
 
         for (const Alignment & alignment : noisyAlignments)
@@ -90,7 +91,8 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
             aligned.insert (alignment.read);
         }
 
-        noisy = noisy && (!noisyUnstable || (tolerant && aligned.size() >= s_kWeakReads));
+        tolerant = tolerant || position.reads.size() > kWholeReads;
+        noisy    = noisy && (!noisyUnstable || (tolerant && aligned.size() * 2 > position.reads.size()));
     }
 
     if (noisy)
@@ -144,9 +146,13 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
         }
     }
 
+    //  The first read's revolution never differs from itself, so with two
+    //  reads aligned, one that differs is enough.
+    weakReads = (noisy && aligned.size() == 2) ? 1 : weakReads;
+
     for (size_t at = 0; at < length; at++)
     {
-        outStream.weak[at] = differing[at] >= s_kWeakReads && (size_t) differs[at] * 2 >= alignments.size();
+        outStream.weak[at] = differing[at] >= weakReads && (size_t) differs[at] * 2 >= alignments.size();
     }
 
     //  A //c's IWM reads a write splice otherwise on each pass, so a stretch
@@ -1164,13 +1170,18 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 
     //  With a quiet baseline, a run of FF that fewer than half its reads at
     //  8 and at 12 cycles mark is a protection's data, not sync bytes, and
-    //  each of its bytes is counted from the byte's marks.
+    //  each of its bytes is counted from the byte's marks. So is a run
+    //  shorter than s_kShortestRun on a track read kWholeReads times, as a
+    //  4-and-4 track's $FF is two FF bytes; its bytes have no zero bits. A
+    //  longer one there is unsure, as sync bytes caught at the same moment on
+    //  every pass are marked as seldom, and only more reads separate the two.
     while (at < length)
     {
         size_t  end        = at;
         int     runSet[2]  = {};
         int     runRead[2] = {};
         bool    isData     = false;
+        bool    dataLike   = false;
 
         while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end] && !weak[end])
         {
@@ -1183,7 +1194,10 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
             end++;
         }
 
-        isData = quiet && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
+        isData   = (quiet || (base[0] <= s_kQuietBase && end - at < s_kShortestRun)) && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
+        dataLike = !fine && base[0] <= s_kQuietBase && end - at >= s_kShortestRun && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
+
+        outUnsure += dataLike ? end - at : 0;
 
         if (end - at >= shortest && !isData)
         {
@@ -1227,8 +1241,8 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 
     //  A byte no read marks has no zero bits after it, whatever the moments
     //  of its catches allow. On a track read kWholeReads times, a byte its
-    //  reads mark more often than the baseline would is unsure: it has zero
-    //  bits after it, and more reads can count them.
+    //  reads at 8 or at 12 cycles mark more often than the baseline would is
+    //  unsure: it has zero bits after it, and more reads can count them.
     for (size_t each = 0; each < length; each++)
     {
         bool  alone  = !pooled[each] && !values[each];
@@ -1238,7 +1252,7 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
 
         outZeros[each] = (alone && quiet) ? CountByteZeros (marks, each, single) : outZeros[each];
         outZeros[each] = known ? (uint8_t) timed[each] : outZeros[each];
-        unsure         = !fine && alone && base[0] <= s_kQuietBase && IsMarkedOften (marks.set[0][each], marks.read[0][each], base[0]);
+        unsure         = !fine && alone && base[0] <= s_kQuietBase && (IsMarkedOften (marks.set[0][each], marks.read[0][each], base[0]) || IsMarkedOften (marks.set[1][each], marks.read[1][each], base[1]));
 
         outUnsure     += unsure ? 1 : 0;
         outUnsureData += (unsure && inData[each]) ? 1 : 0;
@@ -1693,7 +1707,10 @@ bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte
 //  formatter, but a //c's IWM marks a byte followed by one zero bit and one
 //  followed by two nearly alike, so a few tracks of each capture come out
 //  with the other count, and each such sync byte moves every byte after it
-//  on its track by a bit. The bits are made again.
+//  on its track by a bit. The bits are made again. A track read again with a
+//  quiet baseline, whose zero bits are timed (TimeZeros), is skipped:
+//  its marks measure each sync byte, and a protected disk can have tracks
+//  with each count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1707,6 +1724,11 @@ void CassoLinkCapture::UniteSyncZeros (std::map<int, Stream> & ioStreams)
     for (const auto & [position, stream] : ioStreams)
     {
         size_t  counts[3] = {};
+
+        if (!stream.timed.empty())
+        {
+            continue;
+        }
 
         for (size_t at = 0; at < stream.bytes.size(); at++)
         {
@@ -1725,6 +1747,11 @@ void CassoLinkCapture::UniteSyncZeros (std::map<int, Stream> & ioStreams)
 
     for (auto & [position, stream] : ioStreams)
     {
+        if (!stream.timed.empty())
+        {
+            continue;
+        }
+
         for (size_t at = 0; at < stream.bytes.size(); at++)
         {
             bool  sync = (stream.bytes[at] | 0x80) == s_kSyncByte && !stream.weak[at] && stream.zeros[at] >= 1 && stream.zeros[at] <= 2;

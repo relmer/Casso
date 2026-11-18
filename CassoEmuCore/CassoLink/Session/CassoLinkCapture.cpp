@@ -91,20 +91,12 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); });
         CHR (hr);
 
-        //  A track with bytes whose zero bits its reads don't settle, as a
-        //  protection's timing bytes can be, is read again: on a standard
-        //  track, bytes in its data fields, as the bytes after a field's
-        //  epilog are often followed by zero bits. So is a track aligned as
-        //  noisy, read with a quiet baseline, even with a read that doesn't
-        //  align.
-        hr = Analyze (run, [&] () { Stream mine; bool shaky = false; unsure = MakeStream (read, mine, shaky, true) && ((mine.noisy && mine.quiet) || (isStandard ? mine.unsureData : mine.unsure) >= s_kUnsureBytes); });
+        hr = Analyze (run, [&] () { unsure = IsUnsure (read, isStandard); });
         CHR (hr);
 
         if (unsure)
         {
-            run.planned += s_kTimingReads;
-
-            hr = ReadMore (run, s_kTimingReads, read);
+            hr = ReadUnsure (run, isStandard, read);
             CHR (hr);
         }
 
@@ -155,11 +147,24 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
         if (separate)
         {
+            bool  unsure     = false;
+            bool  isStandard = false;
+
+
+
             run.planned += kWholeReads;
 
             hr = ReadPosition (run, position, kWholeReads, read);
             CHR (hr);
 
+            hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); unsure = IsUnsure (read, isStandard); });
+            CHR (hr);
+
+            if (unsure)
+            {
+                hr = ReadUnsure (run, isStandard, read);
+                CHR (hr);
+            }
         }
 
         positions.push_back (std::move (read));
@@ -705,6 +710,115 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
     }
 
     return hasStream && addressed == (thirteen ? 13 : 16);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsUnsure
+//
+//  Whether a position has zero bits its reads don't settle, so it is read
+//  again: bytes whose zero bits the reads don't settle, as a protection's
+//  timing bytes or a run of FF that is data can be; on a standard track,
+//  only bytes in its data fields count, as the bytes after a field's epilog
+//  are often followed by zero bits. So is a track aligned as noisy, read
+//  with a quiet baseline, even with a read that doesn't align, and a track
+//  whose reads don't align but whose first read repeats in part: a track
+//  with stretches the drive reads as noise can frame most reads otherwise
+//  than the first, and more reads align it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsUnsure (const Position & position, bool isStandard)
+{
+    Stream  stream;
+    bool    unstable = false;
+    size_t  start    = 0;
+    size_t  length   = 0;
+
+
+
+    if (!MakeStream (position, stream, unstable, true))
+    {
+        return !position.reads.empty() && FindNoisyStart (position.reads[0], start, length);
+    }
+
+    return (stream.noisy && stream.quiet) || (isStandard ? stream.unsureData : stream.unsure) >= s_kUnsureBytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsTimed
+//
+//  Whether a position's zero bits are timed (TimeZeros), or its reads don't
+//  align though its first read repeats in part, so a timing awaits reads
+//  that align.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsTimed (const Position & position)
+{
+    Stream  stream;
+    bool    unstable = false;
+    size_t  start    = 0;
+    size_t  length   = 0;
+
+
+
+    if (!MakeStream (position, stream, unstable, true))
+    {
+        return !position.reads.empty() && FindNoisyStart (position.reads[0], start, length);
+    }
+
+    return !stream.timed.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ReadUnsure
+//
+//  s_kTimingReads more reads of an unsure position, and s_kTimingReads more
+//  for a track other than a standard one whose zero bits are then timed
+//  (IsTimed): with fewer reads, a timing can fit every read and be wrong.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadUnsure (Run & run, bool isStandard, Position & ioPosition)
+{
+    HRESULT  hr    = S_OK;
+    bool     timed = false;
+
+
+
+    run.planned += s_kTimingReads;
+
+    hr = ReadMore (run, s_kTimingReads, ioPosition);
+    CHR (hr);
+
+    hr = Analyze (run, [&] () { timed = !isStandard && IsTimed (ioPosition); });
+    CHR (hr);
+
+    if (timed)
+    {
+        run.planned += s_kTimingReads;
+
+        hr = ReadMore (run, s_kTimingReads, ioPosition);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
 }
 
 
