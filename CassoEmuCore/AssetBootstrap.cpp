@@ -128,6 +128,17 @@ static constexpr RomSpec s_kRomCatalog[] =
     // machine's assets are self-contained, and one name for two different
     // parts is what hid the //e's wrong character ROM.
     { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c character generator + MouseText" },
+    // AppleWin does not emulate the Apple ///. Its 4K ROM comes from the
+    // same mirror, and the Plus has the same part. The character set is in
+    // RAM, so neither machine has a character generator ROM.
+    { "Apple3",           "Apple3.rom",            "",                           "Machines/Apple3",            4096, "Apple /// ROM",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/ROM%20Images/Apple%20III%20ROM.bin",
+      "apple2.org.za" },
+    { "Apple3Plus",       "Apple3.rom",            "",                           "Machines/Apple3Plus",        4096, "Apple /// ROM",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/ROM%20Images/Apple%20III%20ROM.bin",
+      "apple2.org.za" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ boot ROM (13-sector)"              },
     // Apple's Super Serial Card firmware, 341-0065-A, from the same mirror as

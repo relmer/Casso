@@ -156,4 +156,10 @@ public:
     // operation can express -- the operation is identical on both cores and only
     // the timing differs. Defaults false; set only by the CMOS retiming pass.
     bool                                   crossingAPageCostsACycle = false;
+
+    // An indirect instruction whose data access the CPU passes to
+    // ResolveExtendedIndirect once the pointer is read: the Apple ///'s
+    // extended addressing, where a byte beside the pointer selects the bank
+    // of the access. Defaults false; set only by the Apple /// core.
+    bool                                   isExtendedIndirect = false;
 };

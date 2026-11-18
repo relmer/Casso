@@ -138,6 +138,7 @@ protected:
     void         PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
     void         PrintOperandBytes             (Word initialPC, Byte opcode);
     static bool  ReadsTarget                   (const Microcode & microcode);
+    Byte         GetIndirectPointerHigh        (const Microcode & microcode, const OperandInfo & operandInfo) const;
     void         FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
     void         FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
     void         FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
@@ -161,6 +162,16 @@ protected:
     void FetchOperandJumpIndirectCmos  (Cpu::OperandInfo & operandInfo);
 
     void ExecuteInstruction            (const Microcode & microcode, const OperandInfo & operandInfo);
+
+    // Called for an instruction flagged isExtendedIndirect, after the pointer
+    // is read and before the data access: the zero page offset of the
+    // pointer's high byte and the address the pointer and index produced. A
+    // derived core that redirects the access sets m_isExtendedAccess, and
+    // StepOne calls EndExtendedAccess once the instruction completes.
+    virtual void ResolveExtendedIndirect (Byte pointerHigh, Word effectiveAddress) { (void) pointerHigh; (void) effectiveAddress; }
+    virtual void EndExtendedAccess       ()                                        {}
+
+    bool  m_isExtendedAccess = false;
 
     // Stack operations
     void PushByte (Byte value);

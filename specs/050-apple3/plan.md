@@ -59,7 +59,7 @@ dialect in the debugger, three new 3D models and a new desk arrangement
 | I. Code Quality | Pass | New code follows `.github/copilot-instructions.md`: EHM, formatting, verb-first function names, no anonymous namespaces |
 | II. Testing Discipline | Pass | Each device is unit-tested with synthetic inputs; SOS boots are scenario tests; a test that cannot find its disk or ROM fails |
 | III. User Experience Consistency | Pass | The Apple /// uses the existing machine list, settings pages, drive widgets and debugger panes; new strings are in `contracts/ui-strings.md` for approval |
-| IV. Performance Requirements | Pass | The Apple II CPU cores get no new member and no new test; the two new addressing modes are cases only `Cpu6502Apple3` executes (research R4) |
+| IV. Performance Requirements | Pass | The Apple II cores gain one flag test per indirect instruction and one per instruction, each always false for them; only `Cpu6502Apple3` sets the flag (research R4). Measured by SC-011 |
 | V. Simplicity & Maintainability | Pass, see Complexity Tracking | The debugger address migration is large and is justified below |
 | VI. Thin Executable, Testable Core | Pass | Everything is in `CassoEmuCore` and `CassoCore`; `Casso` gets resource lines for the new models and machine files only |
 
@@ -90,7 +90,7 @@ specs/050-apple3/
 
 ```text
 CassoCore/
-├── GlobalAddressingModes.h, Cpu.cpp    two new addressing modes and their fetch cases
+├── Microcode.h, Cpu.cpp                an extended-indirect flag and its two virtual hooks
 └── Disassembler.h, .cpp                machine helper: resolved access, inline calls
 
 CassoEmuCore/

@@ -189,23 +189,40 @@ a 6502 with machine-specific address decoding around it.
 derived from `MemoryBusCpu` as `Cpu65C02` is. It is the existing NMOS 6502
 with two differences:
 
-1. Its constructor changes the addressing mode of the affected opcodes in its
-   instruction table to two new `GlobalAddressingMode` values, the extended forms of
-   zero-page indirect Y and zero-page X indirect (Apple's rule covers both).
-   The shared fetch switch in `Cpu.cpp` gets a case for each. This is how `Cpu65C02` adds its modes, and `Microcode.h` already
-   documents that a mode added to the shared enum costs the other cores
-   nothing at run time.
-2. The new mode's fetch function computes the effective address as the
-   ordinary mode does, then calls `Apple3Mmu` to resolve it against the
-   extension byte. For `$80-$8E` the MMU maps the one page the access touches
-   from the bank pair for the rest of the instruction; for `$8F` from bank 0
-   with the RAM under the VIA registers visible; otherwise it does nothing.
-   `Cpu6502Apple3::Step` restores the mapping after the instruction. The
-   instruction's read or write then goes through the normal bus path, so
-   watch pages, data breakpoints, the heat map and the trace observe it.
+1. Its constructor sets an `isExtendedIndirect` flag on every `(zp,X)` and
+   `(zp),Y` entry of its instruction table (Apple's rule covers both forms).
+   The addressing modes are left as they are, so the disassembler, the
+   assemblers, the effective-address code and the debugger, which all switch
+   on the mode, are untouched.
+2. For a flagged instruction, `Cpu::FetchOperand` calls the virtual
+   `ResolveExtendedIndirect` once the pointer is read, and `Cpu6502Apple3`
+   passes it to `Apple3Mmu`. For `$80-$8E` the MMU maps the one page the
+   access touches from the bank pair; for `$8F` from the system bank and
+   bank 0 with the RAM under the VIAs and the I/O space; otherwise it does
+   nothing. `Cpu::StepOne` calls `EndExtendedAccess` when the instruction
+   completes, which restores the page. The mapping is restored in `StepOne`
+   rather than in `Step` because every emulator host calls `StepOne`
+   directly. The read or write goes through the normal bus path, so watch
+   pages, data breakpoints, the heat map and the trace observe it.
 
-`CpuFactory` creates it for the CPU type the Apple /// machines return.
-`Cpu.h` and the Apple II cores get no new member and no new test.
+The Apple /// builder creates it, since its constructor takes the memory
+map. The Apple II cores test the flag once per indirect instruction and a
+`bool` member once per instruction; both are always false for them.
+
+**Validation, 2026-11-17** (T015): with the flag and the hooks in place,
+the Dormann functional test and the Harte vectors pass. The NMOS core ran
+full depth, 10,000 vectors per opcode from
+`%LOCALAPPDATA%\Casso\HarteTests\6502`; the 65C02 ran the checked-in
+200-vector set. `scripts/GenerateHarteTests.py` writes to `UnitTest/<cpu>/`
+by default, which the test runner never reads, so a full set has to be
+moved to the cache folder before it runs. The per-instruction timing
+comparison has not been run yet.
+
+**The plan's earlier choice, replaced before it was built**: two new
+`GlobalAddressingMode` values. They require a new case wherever code switches
+on the addressing mode (the disassembler, the assemblers, the
+effective-address code and the debugger), and the line assembler cannot
+find the Apple /// table's indirect instructions under them.
 
 **Rationale**: it follows the hardware (a remap for one access, outside the
 chip) and the code base's precedent for a CPU variant. The Apple II cores
@@ -215,8 +232,8 @@ results cannot change. The 6502 itself is not duplicated.
 **Alternatives not taken**:
 
 - A null-tested extension pointer in the shared indirect fetch (this plan's
-  first draft). It works, but it adds a member and a test to every machine's
-  CPU for one machine's benefit.
+  first draft). It works, but it puts a pointer to an Apple /// interface in
+  every machine's CPU.
 - A wholly separate Apple /// CPU class. It would duplicate the 6502 and its
   validation.
 - Doing it all in the bus, as the hardware does, by watching opcode fetches.

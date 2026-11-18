@@ -283,7 +283,10 @@ boot) when the device is built.
 | Flash rate | about 2 per second | |
 | Extension byte | Read in the same cycle as the zero page pointer byte, from the S-bank at the pointer byte's address XOR `$0C00`, with no added cycle. It applies to accesses at `$0100` and above until the next opcode fetch | SVC 2.10 ("the sister fetched data byte"); SRM 2.1.2 |
 | `$8F` | `$0000-$1FFF` and `$A000-$FFFF` are the S-bank, `$2000-$9FFF` is bank 0, and `$FFD0-$FFEF` is the RAM under the VIAs | SRM 2.1.2; J82 |
-| Absent bank | The bank number wraps modulo the number of banks installed | not confirmed elsewhere |
+| Absent bank | RAM is physical 32K banks with the system bank last. A bank number wraps modulo the physical bank count, and a number that lands on the system bank selects bank 2. An extended address adds to the bank's start and wraps at the end of RAM, so `$82` with an address of `$8000` or above on 128K is the system bank | not confirmed elsewhere |
+| VIA decode | The VIAs are at `$FFD0-$FFEF` whatever environment bit 6 is; only the Apple II lockout removes them | SVC 2.30 (I/O decode covers `$C000-$CFFF` only) |
+| `$C500-$C7FF` | always RAM; with I/O on, `$C000-$C4FF` and `$C800-$CFFF` are the I/O space and slot ROMs | DDW p. 22 lists slots 1 to 4 only |
+| Under the ROM | A write to `$F000-$FFFF` with the ROM selected goes to the RAM beneath, unless write-protected. `$FFC0-$FFCF` reads the RAM even with the ROM selected | |
 | Zero page in the banked region | A zero page register value of `$20-$9F` selects a page of the current bank, and `$A0` and above a page of the S-bank | SVC 2.10 |
 | Keyboard reset | Control with Reset is a CPU reset; Reset alone is an NMI; both only while environment bit 4 is set | SVC 8.5, 8.8 |
 | Beeper | `$C040-$C04D`. `$C04E/F` is a character RAM enable that software does not rely on | SVC 10.3 |

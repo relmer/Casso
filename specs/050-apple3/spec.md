@@ -74,7 +74,7 @@ documents.
 - Q: Can the user choose color or a monochrome style on the Monitor ///? → A: Yes, as on the other monitors. Green is the default (FR-021).
 - Q: Is memory beyond 256K offered? → A: No. The Apple /// has 128K or 256K and the Apple /// Plus has 256K.
 - Q: Is the Silentype printer in scope? → A: No.
-- Q: Is the Apple /// CPU a new CPU or a change to the existing 6502? → A: A variant of the existing NMOS 6502, as the 65C02 is: two added addressing modes, the extended forms of `(zp),Y` and `(zp,X)`, that only the Apple /// variant executes (FR-007).
+- Q: Is the Apple /// CPU a new CPU or a change to the existing 6502? → A: A variant of the existing NMOS 6502, as the 65C02 is: the extended forms of `(zp),Y` and `(zp,X)`, which only the Apple /// variant executes (FR-007).
 - Q: Can existing Apple /// emulators be consulted? → A: Yes, to confirm an assumption or settle a point Apple's documents do not cover. Facts only, no code copied.
 
 ## User Scenarios & Testing *(mandatory)*

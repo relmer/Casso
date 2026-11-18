@@ -68,6 +68,9 @@ $mirrorRoot    = 'https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Pro
 $apple2cRomUrl = "$mirrorRoot/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin"
 $apple2eVidUrl = "$mirrorRoot/Apple%20IIe/ROM%20Images/Apple%20IIe%20Video%20ROM%20-%20342-0133-A%20-%20US%201982.bin"
 
+#  The Apple ///'s 4K ROM, from the same mirror. AppleWin has no Apple ///.
+$apple3RomUrl  = 'https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/ROM%20Images/Apple%20III%20ROM.bin'
+
 #  One row per file Casso wants on disk. The same upstream file can appear
 #  more than once under different destinations: the ][ and ][+ share a
 #  character generator, the //e, Enhanced //e and //c share the MouseText one,
@@ -83,6 +86,8 @@ $romFiles = @(
     @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2eEnhanced_Video.rom'; Subdir = 'Machines/Apple2eEnhanced'; Size = 4096; Desc = 'Apple //e Enhanced Character Generator + MouseText (342-0265-A)' },
     @{ Url = $apple2cRomUrl;                            Dest = 'Apple2c.rom';          Subdir = 'Machines/Apple2c';         Size = 32768; Desc = 'Apple //c ROM 4 (341-0445-B, memory expansion)' },
     @{ Url = "$appleWinUrl/Apple2e_Enhanced_Video.rom"; Dest = 'Apple2c_Video.rom';    Subdir = 'Machines/Apple2c';         Size = 4096;  Desc = 'Apple //c Character Generator + MouseText' },
+    @{ Url = $apple3RomUrl;                             Dest = 'Apple3.rom';           Subdir = 'Machines/Apple3';          Size = 4096;  Desc = 'Apple /// ROM' },
+    @{ Url = $apple3RomUrl;                             Dest = 'Apple3.rom';           Subdir = 'Machines/Apple3Plus';      Size = 4096;  Desc = 'Apple /// ROM' },
     @{ Url = "$appleWinUrl/DISK2.rom";                  Dest = 'Disk2.rom';            Subdir = 'Devices/DiskII';           Size = 256;   Desc = 'Disk ][ Boot ROM (slot 6)' },
     @{ Url = "$appleWinUrl/DISK2-13sector.rom";         Dest = 'Disk2_13Sector.rom';   Subdir = 'Devices/DiskII';           Size = 256;   Desc = 'Disk ][ Boot ROM (13-sector)' }
 )

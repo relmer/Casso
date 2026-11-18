@@ -14,6 +14,10 @@
     `Disks/ThirdParty/`, for the scenario case that runs Kermit. It is not
     Apple's, but it contains ProDOS, so it is not committed either.
 
+    The Apple /// cases boot four of Apple's SOS disks, fetched into
+    `Disks/Apple/` as `apple3-*.dsk`: Business BASIC, System Utilities, the
+    Confidence Test and the Apple II Emulation disk.
+
     LOOKS BEFORE IT FETCHES, in the two places the tests themselves read, so
     a machine that already has an image never touches the network:
 
@@ -106,7 +110,41 @@ $assets = @(
        UrlPath   = '/images/communications/kermit_protocol.dsk'
        Size      = 143360
        Sha1      = '9928F056472E0F46F4652BB4C7FED9B52545572A'
-       Desc      = 'Kermit-65 3.87 for ProDOS' }
+       Desc      = 'Kermit-65 3.87 for ProDOS' },
+
+    #  Apple /// boot disks for the Apple /// scenario cases, from the same
+    #  mirror. The emulator never downloads them, so they have no cache name.
+    @{ RepoName  = 'apple3-business-basic.dsk'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/apple3/programming/basic/Apple3BusBasic1.23.dsk'
+       Size      = 143360
+       Sha1      = '5D6933EA8F6D14E1D029F5CF071DF4301D8B40A0'
+       Desc      = 'Apple /// Business BASIC 1.23' },
+
+    @{ RepoName  = 'apple3-system-utilities.dsk'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/apple3/system/Apple3SOS1.3SysUtils.dsk'
+       Size      = 143360
+       Sha1      = '450D2CB602692FAE61202914F512769F91454539'
+       Desc      = 'Apple /// System Utilities for SOS 1.3' },
+
+    @{ RepoName  = 'apple3-confidence-test.dsk'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/apple3/system/Apple3Confidence.dsk'
+       Size      = 143360
+       Sha1      = '8BE26F2EC7F0B8425DC4F0C44A48DCDA105F8C9A'
+       Desc      = 'Apple /// Confidence Test' },
+
+    @{ RepoName  = 'apple3-apple2-emulation.dsk'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/apple3/system/Apple3Apple%5D%5Bemulation.dsk'
+       Size      = 143360
+       Sha1      = '7D3495D6795B85776CBC22A90DD3D41801EE58DC'
+       Desc      = 'Apple /// Apple II Emulation' }
 )
 
 #

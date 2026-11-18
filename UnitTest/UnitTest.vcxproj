@@ -1143,6 +1143,7 @@
     <ClCompile Include="Dxui\DxuiKeyChordSequenceTests.cpp" />
     <ClCompile Include="EmuTests\ReversePowerCycleReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseHostTests.cpp" /><ClCompile Include="EmuTests\DivergenceGateTests.cpp" /><ClCompile Include="EmuTests\HeldInputReadTests.cpp" /><ClCompile Include="DebuggerTests\HistoryGuardTests.cpp" /><ClCompile Include="EmuTests\ReplayStopTests.cpp" /><ClCompile Include="EmuTests\HistoryTraceTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebugAddressTests.cpp" />
     <ClCompile Include="EmuTests\ReverseDebuggerEditTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
     <ClCompile Include="EmuTests\ReverseSerialTests.cpp" />
@@ -1181,6 +1182,9 @@
     <ClCompile Include="NetworkTests\VirtualNetworkTests.cpp" />
     <ClCompile Include="NetworkTests\PortForwarderTests.cpp" />
     <ClCompile Include="EmuTests\UthernetGuestTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3MmuTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3ExtendedAddressingTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3SystemViasTests.cpp" />
     <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
@@ -1256,6 +1260,7 @@
     <ClInclude Include="EmuTests\FixtureRomSource.h" />
     <ClInclude Include="EmuTests\FluxTestImages.h" />
     <ClInclude Include="EmuTests\InspectorTrackBuilder.h" />
+    <ClInclude Include="Apple3Tests\Apple3TestFixture.h" />
     <ClInclude Include="NetworkTests\FakeHostSocket.h" />
     <ClInclude Include="NetworkTests\FakeHostNetwork.h" />
     <ClInclude Include="NetworkTests\W5100Driver.h" />

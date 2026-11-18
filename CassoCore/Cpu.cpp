@@ -669,6 +669,12 @@ void Cpu::StepOne()
 
     ExecuteInstruction (microcode, operandInfo);
 
+    if (m_isExtendedAccess)
+    {
+        m_isExtendedAccess = false;
+        EndExtendedAccess();
+    }
+
     // A taken branch or a jump to the very next instruction leaves PC where it
     // would have been anyway, so PC alone does not tell a transfer apart.
     bool isJump =
@@ -935,6 +941,34 @@ bool Cpu::ReadsTarget (const Microcode & microcode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetIndirectPointerHigh
+//
+//  The zero page offset of the high byte of an indirect instruction's
+//  pointer: the operand byte for (zp),Y, the operand byte plus X for
+//  (zp,X), each followed by one, wrapping within the page as the 6502 does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Cpu::GetIndirectPointerHigh (const Microcode & microcode, const OperandInfo & operandInfo) const
+{
+    Byte  pointer = (Byte) operandInfo.location;
+
+
+
+    if (microcode.globalAddressingMode == GlobalAddressingMode::ZeroPageXIndirect)
+    {
+        pointer = (Byte) (pointer + X);
+    }
+
+    return (Byte) (pointer + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FetchOperand
 //
 //  Resolves the addressing mode into operandInfo -- the effective address, and
@@ -995,6 +1029,11 @@ void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
             std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
             ASSERT (false);
             break;
+        }
+
+        if (microcode.isExtendedIndirect)
+        {
+            ResolveExtendedIndirect (GetIndirectPointerHigh (microcode, operandInfo), operandInfo.effectiveAddress);
         }
 
         if (ReadsTarget (microcode))
