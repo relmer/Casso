@@ -2,9 +2,12 @@
 
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/SymbolActions.h"
 
+#include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Debugger/DebuggerFilePicker.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DroppedFiles.h"
@@ -1042,7 +1045,7 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
 
         m_activeSlot = slot;
         m_host.FocusControl  (view);
-        m_host.NoteViewFocus (true);
+        FollowFocus();
 
         //  A press on the glyph margin sets or clears a breakpoint, as the
         //  disassembly's gutter does, and selects nothing.
@@ -1277,7 +1280,7 @@ void SourceDocumentGroup::LoadSymbolsFor (int slot)
 
 
 
-    m_host.OpenSymbolFile (found != m_looseFiles.end() ? found->second : std::wstring());
+    OpenSymbolFile (found != m_looseFiles.end() ? found->second : std::wstring());
 }
 
 
@@ -1288,11 +1291,90 @@ void SourceDocumentGroup::LoadSymbolsFor (int slot)
 //
 //  SourceDocumentGroup::BrowseForSource
 //
+//  A source file the user picks, opened as a file dropped on the window is,
+//  for a debug file's source that wasn't found.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentGroup::BrowseForSource()
 {
-    m_host.BrowseForSource();
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    spec.filters = { { L"Source files", L"*.s;*.a65;*.asm;*.inc;*.a;*.src;*.txt" }, { L"All files", L"*.*" } };
+
+    hr = DebuggerFilePicker::PickToOpen (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "source", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    m_host.OpenFiles ({ chosen.wstring() });
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::OpenSymbolFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::OpenSymbolFile (const std::wstring & thenShow)
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    BAIL_OUT_IF (m_host.GetWindowHost() == nullptr, S_OK);
+
+    spec.filters = { { L"Debug and symbol files", L"*.dbg;*.sym" }, { L"All files", L"*.*" } };
+
+    hr = DebuggerFilePicker::PickToOpen (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "symbols", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    m_host.RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
+    m_pendingLoose = thenShow;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::FollowFocus
+//
+//  Steps follow a source document with the focus by source line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::FollowFocus()
+{
+    std::optional<DebuggerAction>  action = RunActions::GetSteppingToFollow (m_latest.Get(), true);
+
+
+
+    if (action.has_value())
+    {
+        m_host.RunAction (*action);
+    }
 }
 
 

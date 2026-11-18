@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/WatchesPane.h"
 #include "Ui/Debugger/WatchEdits.h"
 #include "Ui/Debugger/WatchActions.h"
+#include "Ui/Debugger/ByteDialog.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -1287,7 +1288,7 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     }
 
-    items.push_back ({ L"Add pointer watch...", [this] { m_host.AddZeroPagePointer(); } });
+    items.push_back ({ L"Add pointer watch...", [this] { AddZeroPagePointer(); } });
     AddUndoItems (items);
     return true;
 }
@@ -1358,5 +1359,28 @@ void WatchesPane::Undo (bool redo)
     for (const DebuggerAction & action : *actions)
     {
         m_host.RunAction (action);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::AddZeroPagePointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::AddZeroPagePointer()
+{
+    std::optional<Byte>  address = ByteDialog::RunModal (m_host.GetOwnerHwnd(), m_look.GetTheme(), L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText,
+                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_latest.Get() != nullptr) ? m_latest.Get()->memoryImage.get() : nullptr); });
+
+
+
+    if (address.has_value())
+    {
+        m_host.RunAction (WatchActions::GetAddZeroPagePointer (*address, m_latest.GetMode()));
     }
 }

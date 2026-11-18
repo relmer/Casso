@@ -11,6 +11,8 @@
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebuggerFilePicker.h"
+#include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "resource.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/ToolbarLabelEntry.h"
@@ -201,7 +203,7 @@ void DebuggerWindow::SetWindowMenus()
 
     //  File: what the window reads and writes.
     add (file, DebuggerMenuCommand::Make (L"Open source file...", [this] { OpenSourceFile(); }));
-    add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", [this] { OpenSymbolFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", [this] { m_sources->OpenSymbolFile(); }));
     AddUnloadSymbolsRow (file);
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", [this] { m_breakpointsPane->Import(); }));
@@ -214,9 +216,9 @@ void DebuggerWindow::SetWindowMenus()
     row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
     add (file, row);
     add (file, DebuggerMenuCommand::Make (L"Save memory to file...", [this] { SaveMemoryToFile(); }));
-    add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", [this] { OpenBasicProgram(); }));
-    add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", [this] { SaveBasicProgram(); }));
-    add (file, DebuggerMenuCommand::Make (L"Clear BASIC program...", [this] { ClearBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", [this] { m_basicProgram->LoadPicked(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", [this] { m_basicProgram->Save(); }));
+    add (file, DebuggerMenuCommand::Make (L"Clear BASIC program...", [this] { m_basicProgram->Clear(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Open project...", [this] { OpenProject(); }));
     add (file, DebuggerMenuCommand::Make (L"Save project as...", [this] { SaveProjectAs(); }));
@@ -804,43 +806,6 @@ void DebuggerWindow::ResetPaneLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::PickFileToOpen
-//
-//  The picker opens in the folder of the file picked last for this kind,
-//  saved with the window's state, rather than in the folder of whatever
-//  file Casso opened last.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DebuggerWindow::PickFileToOpen (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked)
-{
-    HRESULT      hr  = S_OK;
-    std::string  key = "folder." + kind;
-
-
-
-    CBRAEx (m_host != nullptr, E_UNEXPECTED);
-
-    spec.initialFolder = SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState (key));
-
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
-    CHR (hr);
-
-    if (picked)
-    {
-        m_host->SetDebuggerWindowState (key, SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::OpenSourceFile
 //
 //  A source file the user picks, opened as a dropped source is: matched
@@ -861,86 +826,12 @@ void DebuggerWindow::OpenSourceFile()
 
     spec.filters = { { L"Source files", L"*.s;*.asm;*.a65;*.inc;*.a;*.src;*.mac;*.65s;*.s65" }, { L"All files", L"*.*" } };
 
-    hr = PickFileToOpen ("source", spec, chosen, picked);
+    hr = DebuggerFilePicker::PickToOpen (m_host, GetHwnd(), "source", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
     m_sources->OpenSourcePath (chosen.wstring());
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::BrowseForSource
-//
-//  The file picked is taken as one dropped on the window, which matches it
-//  against the debug file's sources.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::BrowseForSource()
-{
-    HRESULT                hr     = S_OK;
-    FileDialogSpec         spec;
-    std::filesystem::path  chosen;
-    bool                   picked = false;
-
-
-
-    spec.filters = { { L"Source files", L"*.s;*.a65;*.asm;*.inc;*.a;*.src;*.txt" }, { L"All files", L"*.*" } };
-
-    hr = PickFileToOpen ("source", spec, chosen, picked);
-    CHR (hr);
-
-    BAIL_OUT_IF (!picked, S_OK);
-
-    (void) OnFilesDropped ({ chosen.wstring() });
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OpenSymbolFile
-//
-//  SYM LOAD of a debug or symbol file the user picks, in AppleWin's words
-//  whatever the console's dialect. A source given is matched against it once
-//  it loads.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
-{
-    HRESULT                hr     = S_OK;
-    FileDialogSpec         spec;
-    std::filesystem::path  chosen;
-    bool                   picked = false;
-
-
-
-    BAIL_OUT_IF (m_host == nullptr, S_OK);
-
-    spec.filters = { { L"Debug and symbol files", L"*.dbg;*.sym" }, { L"All files", L"*.*" } };
-
-    hr = PickFileToOpen ("symbols", spec, chosen, picked);
-    CHR (hr);
-
-    BAIL_OUT_IF (!picked, S_OK);
-
-    RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
-    m_sources->SetPendingLoose (thenShow);
 
 Error:
     return;
@@ -976,7 +867,7 @@ void DebuggerWindow::LoadFileIntoMemory()
 
     spec.filters = { { L"Binary and hex files", L"*.bin;*.b;*.obj;*.hex;*.ihx;*.s19;*.srec;*.as" }, { L"All files", L"*.*" } };
 
-    hr = PickFileToOpen ("load", spec, chosen, picked);
+    hr = DebuggerFilePicker::PickToOpen (m_host, GetHwnd(), "load", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -1039,185 +930,6 @@ void DebuggerWindow::SaveMemoryToFile()
     {
         RunAction (action);
     }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::LoadBasicProgram
-//
-//  With no BASIC pane open the snapshot has no program to look at, so the
-//  message box opens then too.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::LoadBasicProgram (const std::wstring & path, const std::wstring & label)
-{
-    bool          isKnownEmpty = m_latest.Get() != nullptr && m_latest.Get()->basic.has_value() && (!m_latest.Get()->basic->hasProgram || m_latest.Get()->basic->lines.empty());
-    std::wstring  name         = label.empty() ? std::filesystem::path (path).filename().wstring() : label;
-
-
-
-    if (!isKnownEmpty &&
-        ShowMessageBox (GetHwnd(), std::format (L"Replace the BASIC program in memory with {}?", name), L"Load BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
-    {
-        return;
-    }
-
-    RunAction (SessionActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
-    ShowPane  (DebuggerLayout::kBasicProgram);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OpenBasicProgram
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OpenBasicProgram()
-{
-    HRESULT                hr     = S_OK;
-    FileDialogSpec         spec;
-    std::filesystem::path  chosen;
-    bool                   picked = false;
-
-
-
-    spec.filters = { { L"Applesoft listings", L"*.bas" }, { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
-
-    hr = PickFileToOpen ("basic", spec, chosen, picked);
-    CHR (hr);
-
-    BAIL_OUT_IF (!picked, S_OK);
-
-    LoadBasicProgram (chosen.wstring());
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PasteBasicProgram
-//
-//  The clipboard's text is written to a listing in the temporary folder and
-//  loaded from there as a dropped or opened listing is, after the same
-//  question when it would replace a program.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PasteBasicProgram()
-{
-    std::wstring           text;
-    std::filesystem::path  path;
-    std::error_code        error;
-    std::ofstream          file;
-
-
-
-    if (!DxuiClipboard::GetText (GetHwnd(), text) || text.find_first_not_of (L" \t\r\n") == std::wstring::npos)
-    {
-        return;
-    }
-
-    path = std::filesystem::temp_directory_path (error) / L"Casso pasted listing.bas";
-
-    if (error)
-    {
-        return;
-    }
-
-    file.open (path, std::ios::binary | std::ios::trunc);
-    file << TextEncoding::WideToNarrow (text);
-    file.close();
-
-    if (file.fail())
-    {
-        return;
-    }
-
-    LoadBasicProgram (path.wstring(), L"the pasted listing");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ClearBasicProgram
-//
-//  The user confirms first, as for a load over the program, unless the
-//  program is known to be empty. BASIC breakpoints aren't removed, so the
-//  same program loaded again has them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ClearBasicProgram()
-{
-    bool  isKnownEmpty = m_latest.Get() != nullptr && m_latest.Get()->basic.has_value() && (!m_latest.Get()->basic->hasProgram || m_latest.Get()->basic->lines.empty());
-
-
-
-    if (!isKnownEmpty &&
-        ShowMessageBox (GetHwnd(), L"Clear the BASIC program in memory?", L"Clear BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
-    {
-        return;
-    }
-
-    RunAction (SessionActions::GetClearBasic (GetMode()));
-    ShowPane  (DebuggerLayout::kBasicProgram);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SaveBasicProgram
-//
-//  In the folder of the listing loaded or saved last.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SaveBasicProgram()
-{
-    HRESULT                hr     = S_OK;
-    FileDialogSpec         spec;
-    std::filesystem::path  chosen;
-    bool                   picked = false;
-
-
-
-    BAIL_OUT_IF (m_host == nullptr, S_OK);
-
-    spec.filters          = { { L"Applesoft listings", L"*.bas" }, { L"All files", L"*.*" } };
-    spec.defaultExtension = L"bas";
-    spec.defaultFileName  = L"program.bas";
-    spec.initialFolder    = SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("folder.basic"));
-
-    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
-    CHR (hr);
-
-    BAIL_OUT_IF (!picked, S_OK);
-
-    m_host->SetDebuggerWindowState ("folder.basic", SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
-    RunAction (SessionActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
 
 Error:
     return;

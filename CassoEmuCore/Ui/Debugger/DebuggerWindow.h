@@ -337,7 +337,6 @@ protected:
 
     //  Protected so a test can open the pointer watch dialog as Add pointer
     //  watch... does.
-    void                                               AddZeroPagePointer     () override;
 
     //  Protected so a test can work the registers, stack and watch panes'
     //  Undo and Redo bars as a click does.
@@ -533,10 +532,7 @@ private:
     void                          ResetPaneLayout      ();
     void                          OpenSourceFile       ();
     void                          OpenOptions          ();
-    void                          OpenSymbolFile       (const std::wstring & thenShow = std::wstring()) override;
-    void                          BrowseForSource      () override;
     void                          LoadFileIntoMemory   () override;
-    HRESULT                       PickFileToOpen       (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked);
 
     //  The window's state a debug project saves with no setting of its own:
     //  the console history, each pane's find history and options, and the
@@ -557,11 +553,6 @@ private:
 
     //  A listing replaces the program in memory, after a question when there
     //  may be one there, and the BASIC program pane comes forward.
-    void                LoadBasicProgram    (const std::wstring & path, const std::wstring & label = {});
-    void                OpenBasicProgram    () override;
-    void                SaveBasicProgram    () override;
-    void                ClearBasicProgram   () override;
-    void                PasteBasicProgram   () override;
     DxuiToolbar::Entry  MakeFindEntry       (const std::wstring & pane);
     bool                RouteSourceBarMouse (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool                IsDocumentPane      (const std::wstring & pane) const;
@@ -642,7 +633,7 @@ private:
     DxuiTipService                                     & GetRoutedTips      () override;
     DxuiTooltip                                        & GetRoutedTooltip   () { return GetRoutedTips().GetTooltip(); }
     void                                                 ClipPaneControls   ();
-    void                                                 NoteViewFocus      (bool isSource) override;
+    void                                                 NoteViewFocus      (bool isSource);
     void                                                 NoteTabFocus       (POINT pointDip);
     int                                                  GetSourceSlotOf    (const std::wstring & pane) const;
     bool                                                 IsRestoringViews   () const override;
@@ -917,6 +908,7 @@ private:
     IHostDialogs                          * GetHostDialogs       () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
     void                                    UpdatePaneTooltip    (const std::wstring & pane, POINT clientPx) override;
     bool                                    IsPaneTooltipVisible (const std::wstring & pane) const override;
+    void                                    OpenFiles            (const std::vector<std::wstring> & paths) override { (void) OnFilesDropped (paths); }
     const DxuiTheme                       * GetTheme             () const override { return m_look.GetTheme(); }
     void                                    RepaintLater         () override { RequestPaint(); }
     HWND                                    GetOwnerHwnd         () const override { return GetRoutingHwnd(); }

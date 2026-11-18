@@ -492,31 +492,6 @@ DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::AddZeroPagePointer
-//
-//  ZP of a zero-page address typed in a dialog, run directly.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddZeroPagePointer()
-{
-    std::optional<Byte>  address = ByteDialog::RunModal (GetRoutingHwnd(), m_look.GetTheme(), L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText,
-                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_latest.Get() != nullptr) ? m_latest.Get()->memoryImage.get() : nullptr); });
-
-
-
-    if (address.has_value())
-    {
-        RunAction (WatchActions::GetAddZeroPagePointer (*address, GetMode()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::ApplyBreakpoints
 //
 ////////////////////////////////////////////////////////////////////////////////

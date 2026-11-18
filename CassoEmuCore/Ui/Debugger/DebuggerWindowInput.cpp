@@ -149,33 +149,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::NoteViewFocus
-//
-//  Steps follow the view: the source pane steps by source line, the
-//  disassembly by instruction, in the words of the session's mode. Sent only
-//  when it changes, so a click does not fill the console.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::NoteViewFocus (bool isSource)
-{
-    if (m_host == nullptr || m_latest.Get() == nullptr || !m_latest.Get()->source.has_value())
-    {
-        return;
-    }
-
-    if (m_latest.Get()->source->stepBySource != isSource)
-    {
-        RunAction (RunActions::GetSourceStepping (isSource, m_latest.Get()->mode));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::NoteTabFocus
 //
 //  A press on a pane's tab counts as a press inside that pane: the pane takes
@@ -238,6 +211,28 @@ void DebuggerWindow::NoteTabFocus (POINT pointDip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::NoteViewFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NoteViewFocus (bool isSource)
+{
+    std::optional<DebuggerAction>  action = RunActions::GetSteppingToFollow (m_latest.Get(), isSource);
+
+
+
+    if (action.has_value())
+    {
+        RunAction (*action);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnFilesDropped
 //
 //  A debug or symbol file loads as SYM LOAD would, and a source opens as File
@@ -272,7 +267,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (kind == DroppedFiles::Kind::Basic)
         {
-            LoadBasicProgram (path);
+            m_basicProgram->Load (path);
             continue;
         }
 
@@ -284,7 +279,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (opening == DroppedFiles::Opening::Basic)
         {
-            LoadBasicProgram (path);
+            m_basicProgram->Load (path);
             continue;
         }
 

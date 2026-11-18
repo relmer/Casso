@@ -157,8 +157,9 @@ public:
     std::string                      FormatOpen     (const std::function<std::string (int fileId)> & nameOf);
     void                             SetSaved       (std::vector<SourceDocuments::Saved> saved) { m_saved = std::move (saved); }
 
-    //  A source to match against the debug file once it loads.
-    void                             SetPendingLoose (const std::wstring & path) { m_pendingLoose = path; }
+    //  SYM LOAD of a file the user picks, a source given then matched against
+    //  it once it loads.
+    void                             OpenSymbolFile  (const std::wstring & thenShow = std::wstring());
 
     //  A source file the user opens; a file with no debug file record; a
     //  dropped source matched against the loaded debug file; and a loose
@@ -168,6 +169,7 @@ public:
     void                             ShowDropped    (const std::wstring & path);
     void                             LoadSymbolsFor (int slot);
     void                             BrowseForSource();
+    void                             FollowFocus    ();
     bool                             IsLoose        (int slot) const;
 
     //  One choice for every document: the body's file comes forward, or the

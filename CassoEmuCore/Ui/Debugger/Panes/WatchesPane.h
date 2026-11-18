@@ -63,6 +63,10 @@ protected:
     DxuiListView *                 CreateList     () override;
 
 private:
+    //  The dialog for a zero-page pointer to watch, as Add pointer watch...
+    //  opens it.
+    void  AddZeroPagePointer ();
+
     //  What each row is, since the list mixes headings, automatic watches and
     //  the user's own: an automatic row has its index into the snapshot and a
     //  manual one its watch id. A BASIC variable listed under its heading or

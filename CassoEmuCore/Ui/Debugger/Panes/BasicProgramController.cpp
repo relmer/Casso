@@ -3,13 +3,17 @@
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/CodeMargins.h"
+#include "Ui/Debugger/DebuggerFilePicker.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Debugger/Source/SourcePathList.h"
 
 
 
@@ -92,7 +96,7 @@ void BasicProgramController::Configure()
 {
     m_model->Configure (CodeMargins::kGlyphDip);
     m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
-    m_list->SetOnPaste     ([this] { m_host.PasteBasicProgram(); });
+    m_list->SetOnPaste     ([this] { Paste(); });
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries (MakeBarEntries());
@@ -108,7 +112,7 @@ void BasicProgramController::Configure()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries() const
+std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries()
 {
     struct Row
     {
@@ -120,9 +124,9 @@ std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries() const
 
     std::vector<Row>                 rows    =
     {
-        { L"Load",  s_kpszMdl2OpenFile, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
-        { L"Save",  s_kpszMdl2Save,     L"Save the program in memory to a file as a listing",              [this] { m_host.SaveBasicProgram(); } },
-        { L"Clear", s_kpszMdl2Delete,   L"Clear the program in memory, as NEW does",                       [this] { m_host.ClearBasicProgram(); } },
+        { L"Load",  s_kpszMdl2OpenFile, L"Load an Applesoft listing from a file as the program in memory", [this] { LoadPicked(); } },
+        { L"Save",  s_kpszMdl2Save,     L"Save the program in memory to a file as a listing",              [this] { Save(); } },
+        { L"Clear", s_kpszMdl2Delete,   L"Clear the program in memory, as NEW does",                       [this] { Clear(); } },
     };
     std::vector<DxuiToolbar::Entry>  entries;
 
@@ -561,7 +565,7 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
     }
 
     items.push_back ({ L"Copy",  [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
-    items.push_back ({ L"Paste", [this] { m_host.PasteBasicProgram(); } });
+    items.push_back ({ L"Paste", [this] { Paste(); } });
 
     //  The line's breakpoint rows, as the disassembly's are.
     if (line.has_value())
@@ -589,9 +593,9 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
     }
 
     items.push_back (PaneMenu::MakeSeparator());
-    items.push_back ({ L"Load BASIC program...", [this] { m_host.OpenBasicProgram(); } });
-    items.push_back ({ L"Save BASIC program...", [this] { m_host.SaveBasicProgram(); } });
-    items.push_back ({ L"Clear BASIC program...", [this] { m_host.ClearBasicProgram(); } });
+    items.push_back ({ L"Load BASIC program...", [this] { LoadPicked(); } });
+    items.push_back ({ L"Save BASIC program...", [this] { Save(); } });
+    items.push_back ({ L"Clear BASIC program...", [this] { Clear(); } });
 
     return true;
 }
@@ -661,4 +665,176 @@ bool BasicProgramController::OnMappedAction (DebuggerKeySchemes::Action action, 
 
     m_host.RunAction (RunActions::GetBasicStep (*verb, m_latest.GetMode()));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::LoadPicked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramController::LoadPicked()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    spec.filters = { { L"Applesoft listings", L"*.bas" }, { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
+
+    hr = DebuggerFilePicker::PickToOpen (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "basic", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    Load (chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::Load
+//
+//  A program in memory is replaced only once the user confirms; with a
+//  known empty one, the question is skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramController::Load (const std::wstring & path, const std::wstring & label)
+{
+    const DebuggerViewSnapshot  * snapshot     = m_latest.Get();
+    bool                          isKnownEmpty = snapshot != nullptr && snapshot->basic.has_value() && (!snapshot->basic->hasProgram || snapshot->basic->lines.empty());
+    std::wstring                  name         = label.empty() ? std::filesystem::path (path).filename().wstring() : label;
+
+
+
+    if (!isKnownEmpty &&
+        m_host.ShowMessageBox (m_host.GetOwnerHwnd(), std::format (L"Replace the BASIC program in memory with {}?", name), L"Load BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    m_host.RunAction (SessionActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), m_latest.GetMode()));
+    m_host.OpenPane  (DebuggerLayout::kBasicProgram, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::Paste
+//
+//  The clipboard's text, written to a file in the temporary folder and loaded
+//  from there, as a listing the user picks is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramController::Paste()
+{
+    std::wstring           text;
+    std::filesystem::path  path;
+    std::error_code        error;
+    std::ofstream          file;
+
+
+
+    if (!DxuiClipboard::GetText (m_host.GetOwnerHwnd(), text) || text.find_first_not_of (L" \t\r\n") == std::wstring::npos)
+    {
+        return;
+    }
+
+    path = std::filesystem::temp_directory_path (error) / L"Casso pasted listing.bas";
+
+    if (error)
+    {
+        return;
+    }
+
+    file.open (path, std::ios::binary | std::ios::trunc);
+    file << TextEncoding::WideToNarrow (text);
+    file.close();
+
+    if (file.fail())
+    {
+        return;
+    }
+
+    Load (path.wstring(), L"the pasted listing");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramController::Save()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    BAIL_OUT_IF (m_host.GetWindowHost() == nullptr, S_OK);
+
+    spec.filters          = { { L"Applesoft listings", L"*.bas" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"bas";
+    spec.defaultFileName  = L"program.bas";
+
+    hr = DebuggerFilePicker::PickToSave (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "basic", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    m_host.RunAction (SessionActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), m_latest.GetMode()));
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::Clear
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramController::Clear()
+{
+    const DebuggerViewSnapshot  * snapshot     = m_latest.Get();
+    bool                          isKnownEmpty = snapshot != nullptr && snapshot->basic.has_value() && (!snapshot->basic->hasProgram || snapshot->basic->lines.empty());
+
+
+
+    if (!isKnownEmpty &&
+        m_host.ShowMessageBox (m_host.GetOwnerHwnd(), L"Clear the BASIC program in memory?", L"Clear BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    m_host.RunAction (SessionActions::GetClearBasic (m_latest.GetMode()));
+    m_host.OpenPane  (DebuggerLayout::kBasicProgram, true);
 }

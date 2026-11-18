@@ -40,6 +40,16 @@ public:
     //  pane has the program.
     void                             ShowLine       (Word line, bool isFocused);
 
+    //  An Applesoft listing the user picks, a file's or the clipboard's,
+    //  loaded as the program in memory once the user confirms; the program
+    //  saved to a file the user picks; and the program cleared, as NEW clears
+    //  it, once the user confirms.
+    void                             LoadPicked     ();
+    void                             Load           (const std::wstring & path, const std::wstring & label = {});
+    void                             Paste          ();
+    void                             Save           ();
+    void                             Clear          ();
+
     const std::wstring            & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"BASIC program"; }
     void                           CreateControls   () override;
@@ -69,7 +79,7 @@ private:
     void                ToggleBreakpoint (Word line);
     std::optional<int>  FindBreakpoint   (Word line) const;
 
-    std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
+    std::vector<DxuiToolbar::Entry>      MakeBarEntries ();
 
     const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;

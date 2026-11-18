@@ -114,13 +114,6 @@ public:
     //  the last one used to one.
     virtual void                   GoToCode         (std::optional<Word> address) = 0;
 
-    //  An Applesoft listing the user picks, loaded as the program in memory,
-    //  the program saved to a file the user picks, and the program cleared,
-    //  as NEW clears it, once the user confirms.
-    virtual void  OpenBasicProgram  () = 0;
-    virtual void  SaveBasicProgram  () = 0;
-    virtual void  ClearBasicProgram () = 0;
-    virtual void  PasteBasicProgram () = 0;
     virtual void  ShowMemoryAddress (Word address) = 0;
     virtual void  GoToMemory        (Word address) = 0;
 
@@ -183,17 +176,8 @@ public:
     virtual void                   SetPaneTitle     (const std::wstring & pane, const std::wstring & title) = 0;
     virtual void                   SetPaneTabMark   (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) = 0;
 
-    //  SYM LOAD of a file the user picks, a source given then matched against
-    //  it once it loads.
-    virtual void                   OpenSymbolFile   (const std::wstring & thenShow) = 0;
-
-    //  A source file the user picks, opened as a file dropped on the window
-    //  is, for a debug file's source that wasn't found.
-    virtual void                   BrowseForSource  () {}
-
-    //  Sets the steps to follow a view, by source line for a source document
-    //  and by instruction for the disassembly.
-    virtual void                   NoteViewFocus    (bool isSource) = 0;
+    //  Opens files as files dropped on the window are opened.
+    virtual void                   OpenFiles        (const std::vector<std::wstring> & paths) = 0;
 
     //  Builds the window's menus again, after what they list changes.
     virtual void  UpdateWindowMenus () = 0;
@@ -239,10 +223,6 @@ public:
     //  The part of a bar's slot its toolbar is laid out in, short of the
     //  pane's info button.
     virtual RECT                   GetBarStrip      (const std::wstring & pane, const RECT & slot) = 0;
-
-    //  Opens the dialog for a zero-page pointer to watch, as Add zero-page
-    //  pointer... does.
-    virtual void                   AddZeroPagePointer () = 0;
 
     //  Moves the keyboard focus to a control, as a press on it does.
     virtual void                   FocusControl     (IDxuiControl * control) = 0;
