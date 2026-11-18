@@ -102,9 +102,9 @@ Every user story depends on this phase.
 
 - [x] T032 [P] Correct the `env` comment at `.github/workflows/ci.yml:220`: the release job fails an unsigned release at line 447.
 - [x] T033 [P] Document the data folder rules in `docs/testing.md`, the launch guidance in `.github/copilot-instructions.md` (Workspace Hygiene), and `CLAUDE.md` Hazards: where a developer build's data lives, that test launches don't require a prefs backup, and that a new worktree gets its ROMs from `scripts/FetchRoms.ps1`.
-- [ ] T034 Measure `PathResolver::GetDataFolder` per research.md R4 on Debug and Release, on a signed zip copy and on an unsigned build, and add the numbers to `specs/051-dev-data-folder/validation.md`. If Release is over 50 ms, report it to the owner before changing anything.
+- [x] T034 Measure `PathResolver::GetDataFolder` per research.md R4 on Debug and Release, on a signed zip copy and on an unsigned build, and add the numbers to `specs/051-dev-data-folder/validation.md`. If Release is over 50 ms, report it to the owner before changing anything.
 - [ ] T035 Add a CHANGELOG entry under `[Unreleased]`, `### Changed`: developer builds store their settings in the checkout, and an older release starts over files a newer release wrote. Get the owner's approval of the text before pushing.
-- [ ] T036 Run quickstart checks 1 to 4 and record the results in `specs/051-dev-data-folder/validation.md`.
+- [x] T036 Run quickstart checks 1 to 4 and record the results in `specs/051-dev-data-folder/validation.md`.
 - [ ] T037 Run `scripts/CheckStyle.ps1 -Mode Tree` and `scripts/RunMergeGate.ps1` before merging to master.
 
 ---
