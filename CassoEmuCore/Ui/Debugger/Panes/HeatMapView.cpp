@@ -355,6 +355,7 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HeatMapView::OnKey
