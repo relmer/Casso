@@ -1253,6 +1253,8 @@
     <ClCompile Include="EmuTests\FixtureRomSource.cpp" />
     <ClCompile Include="EmuTests\MachineHostLifecycleTests.cpp" />
     <ClCompile Include="EmuTests\MachineHostStateTests.cpp" />
+    <ClCompile Include="EmuTests\MachineRunCostTests.cpp" />
+    <ClCompile Include="EmuTests\MachineStateGoldenTests.cpp" />
     <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeBudgetChangeTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
