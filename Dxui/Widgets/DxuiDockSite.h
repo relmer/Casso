@@ -9,6 +9,7 @@
 #include "Widgets/DxuiDockGaps.h"
 #include "Widgets/DxuiDockMenus.h"
 #include "Widgets/DxuiDockMorph.h"
+#include "Widgets/DxuiDockPanes.h"
 #include "Widgets/DxuiDockQuery.h"
 #include "Widgets/DxuiTabGroup.h"
 #include "Widgets/IDxuiDockDragHost.h"
@@ -198,10 +199,10 @@ public:
     std::wstring  GetTitleButtonTipAt (POINT pointDip, RECT & button) const { return m_query.GetTitleButtonTipAt (pointDip, button); }
 
     //  The pane whose control holds `content`, or empty.
-    std::wstring  GetPaneOf (const IDxuiControl * content) const;
+    std::wstring  GetPaneOf (const IDxuiControl * content) const { return m_panes.GetPaneOf (content); }
 
     //  A pane's control, or null for a pane the site does not have.
-    IDxuiControl * GetPaneContent (const std::wstring & pane) const;
+    IDxuiControl * GetPaneContent (const std::wstring & pane) const { return m_panes.GetContent (pane); }
 
     //  The pane on screen at a point, or the pane of the tab at the point;
     //  empty off every pane.
@@ -342,23 +343,12 @@ public:
     const std::wstring &  GetHoveredEdgeTab () const { return m_edges.GetHoveredTab(); }
 
 private:
-    struct Pane
-    {
-        std::wstring                 title;
-        IDxuiControl               * content       = nullptr;
-        bool                         indicator     = false;
-        DxuiTabGroup::LeadingMark    leadMark;
-        std::wstring                 tip;
-        int                          titleExtraDip = 0;
-    };
-
     void          Arrange        ();
     RECT          GetDockedArea  () const { return m_edges.GetDockedArea(); }
     RECT          GetPaneArea    () const;
     int           HitTestEdgeTab (POINT pointDip) const { return m_edges.HitTest (pointDip); }
     void          NotifyChanged  ();
     int           HitTestSash    (POINT pointDip) const { return m_gaps.HitTestSash (pointDip, m_scaler); }
-    std::wstring  GetTitle       (const std::wstring & pane) const;
 
     void            WireGroup         (DxuiTabGroup * group);
     bool            TearOff           (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
@@ -397,21 +387,21 @@ private:
     RECT                            GetEdgesBounds       () const override                          { return m_boundsDip; }
     const DxuiDpiScaler           & GetEdgesScaler       () const override                          { return m_scaler; }
     bool                            IsEdgePaneShown      (const std::wstring & pane) const override { return !m_shown || m_shown (pane); }
-    std::wstring                    GetEdgePaneTitle     (const std::wstring & pane) const override { return GetTitle (pane); }
-    bool                            HasEdgePaneIndicator (const std::wstring & pane) const override;
+    std::wstring                    GetEdgePaneTitle     (const std::wstring & pane) const override { return m_panes.GetTitle (pane); }
+    bool                            HasEdgePaneIndicator (const std::wstring & pane) const override { return m_panes.HasIndicator (pane); }
 
     //  IDxuiDockQueryHost: the site, for its lookups.
     const Groups                  & GetQueryGroups      () const override                              { return m_groups; }
     std::wstring                    GetQueryPaneOf      (const IDxuiControl * content) const override  { return GetPaneOf (content); }
     IDxuiControl                  * GetQueryPaneContent (const std::wstring & pane) const override     { return GetPaneContent (pane); }
-    std::wstring                    GetQueryPaneTip     (const std::wstring & pane) const override;
+    std::wstring                    GetQueryPaneTip     (const std::wstring & pane) const override     { return m_panes.GetTip (pane); }
     bool                            IsQueryFloatingSite () const override                              { return IsFloatingSite(); }
     bool                            IsQueryAutoHidden   (const std::wstring & pane) const override     { return m_layout.IsAutoHidden (pane); }
 
     //  IDxuiDockMenuHost: the site, for its menus.
     DxuiPaneLayout                          & EditMenuLayout        () override                                     { return m_layout; }
     std::vector<std::wstring>                 GetActivePanes        () const override;
-    std::wstring                              GetMenuPaneTitle      (const std::wstring & pane) const override      { return GetTitle (pane); }
+    std::wstring                              GetMenuPaneTitle      (const std::wstring & pane) const override      { return m_panes.GetTitle (pane); }
     RECT                                      GetMenuDockedArea     () const override                               { return GetDockedArea(); }
     std::vector<DxuiPaneLayout::GroupRect>    ArrangeForMenu        () const override                               { return m_layout.Arrange (GetDockedArea(), m_shown, m_minSize); }
     const PaneTestFn                        & GetMenuDocumentFn     () const override                               { return m_isDocument; }
@@ -433,7 +423,7 @@ private:
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;
     DxuiPaneLayout::MinSizeFn                     m_minSize;
-    std::map<std::wstring, Pane>                  m_panes;
+    DxuiDockPanes                                 m_panes;
     std::vector<std::unique_ptr<DxuiTabGroup>>    m_groups;
 
     //  Groups a layout no longer needs, kept until the next event: the one

@@ -61,7 +61,7 @@ void DxuiDockSite::SetNewTab (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::N
 
 void DxuiDockSite::AddPane (const std::wstring & pane, const std::wstring & title, IDxuiControl * content)
 {
-    m_panes[pane] = Pane { title, content };
+    m_panes.Add (pane, title, content);
 }
 
 
@@ -76,23 +76,21 @@ void DxuiDockSite::AddPane (const std::wstring & pane, const std::wstring & titl
 
 void DxuiDockSite::SetTitle (const std::wstring & pane, const std::wstring & title)
 {
-    auto  found = m_panes.find (pane);
+    IDxuiControl  * content = m_panes.GetContent (pane);
 
 
 
-    if (found == m_panes.end())
+    if (!m_panes.SetTitle (pane, title))
     {
         return;
     }
 
-    found->second.title = title;
-
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        group->SetTitle (found->second.content, title);
+        group->SetTitle (content, title);
     }
 
-    m_slidGroup.SetTitle (found->second.content, title);
+    m_slidGroup.SetTitle (content, title);
 
     //  A hidden pane's edge tab is as long as its title.
     if (m_layout.IsAutoHidden (pane))
@@ -176,7 +174,7 @@ void DxuiDockSite::Arrange()
     long                                      margin  = m_scaler.ToPx (m_gaps.GetMarginDip());
     long                                      gap     = m_scaler.ToPx (m_gaps.GetGapDip());
     DxuiPaneLayout::MinSizeFn                 minSize = GetMinSizeWithGap();
-    auto                                      slid    = m_panes.end();
+    const DxuiDockPane                      * slid    = nullptr;
 
 
 
@@ -226,9 +224,9 @@ void DxuiDockSite::Arrange()
         //  may go on to drag it.
         for (const std::wstring & pane : groups[i].panes)
         {
-            auto  found = m_panes.find (pane);
+            const DxuiDockPane  * found = m_panes.Find (pane);
 
-            if (found == m_panes.end() || found->second.content == nullptr)
+            if (found == nullptr || found->content == nullptr)
             {
                 continue;
             }
@@ -238,19 +236,20 @@ void DxuiDockSite::Arrange()
             focused   = focused || pane == m_focusedPane;
             carried   = carried || (!m_carriedPane.empty() && pane == m_carriedPane);
 
-            tabs.push_back ({ found->second.title, found->second.content });
-            placed.insert (found->second.content);
+            tabs.push_back ({ found->title, found->content });
+            placed.insert (found->content);
         }
 
         group->ReplaceTabs (tabs, active);
 
         for (size_t t = 0; t < tabs.size(); t++)
         {
-            Pane  & entry = m_panes.find (GetPaneOf (tabs[t].second))->second;
+            std::wstring          name  = m_panes.GetPaneOf (tabs[t].second);
+            const DxuiDockPane  & entry = *m_panes.Find (name);
 
             //  The tab in front has no mark, which is for a change out of
             //  sight; a pane moved to another group takes its mark with it.
-            entry.indicator = entry.indicator && (int) t != active;
+            m_panes.SetIndicator (name, entry.indicator && (int) t != active);
 
             group->SetLeadingMark (tabs[t].second, entry.leadMark);
             group->SetTabTip      (tabs[t].second, entry.tip);
@@ -273,7 +272,7 @@ void DxuiDockSite::Arrange()
     }
 
     //  A floating pane's controls are in another window, which shows them.
-    for (const auto & pane : m_panes)
+    for (const auto & pane : m_panes.GetAll())
     {
         if (pane.second.content != nullptr && !placed.contains (pane.second.content) && !m_layout.IsFloating (pane.first))
         {
@@ -281,18 +280,18 @@ void DxuiDockSite::Arrange()
         }
     }
 
-    slid = m_edges.GetSlidPane().empty() ? m_panes.end() : m_panes.find (m_edges.GetSlidPane());
+    slid = m_edges.GetSlidPane().empty() ? nullptr : m_panes.Find (m_edges.GetSlidPane());
 
     while (m_slidGroup.GetTabCount() > 0)
     {
         m_slidGroup.RemoveTab (m_slidGroup.GetContent (0));
     }
 
-    m_slidGroup.SetVisible (slid != m_panes.end() && slid->second.content != nullptr);
+    m_slidGroup.SetVisible (slid != nullptr && slid->content != nullptr);
 
     if (m_slidGroup.IsVisible())
     {
-        m_slidGroup.AddTab         (slid->second.title, slid->second.content);
+        m_slidGroup.AddTab         (slid->title, slid->content);
         m_slidGroup.SetFocusedLook (m_edges.GetSlidPane() == m_focusedPane);
         m_slidGroup.Layout         (m_edges.GetSlidRect(), m_scaler);
     }
@@ -685,7 +684,7 @@ UINT DxuiDockSite::GetWindowCorners (const RECT & group) const
 
 void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
 {
-    auto  found = m_panes.find (pane);
+    IDxuiControl  * content = m_panes.GetContent (pane);
 
 
 
@@ -698,7 +697,7 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
 
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        group->SetFocusedLook (found != m_panes.end() && group->IndexOf (found->second.content) >= 0);
+        group->SetFocusedLook (content != nullptr && group->IndexOf (content) >= 0);
     }
 
     if (!m_edges.GetSlidPane().empty() && m_edges.GetSlidPane() != pane)
@@ -724,16 +723,12 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
 
 void DxuiDockSite::SlideOut (const std::wstring & pane)
 {
-    auto  found = m_panes.find (pane);
-
-
-
-    if (!m_layout.IsAutoHidden (pane) || found == m_panes.end())
+    if (!m_layout.IsAutoHidden (pane) || m_panes.Find (pane) == nullptr)
     {
         return;
     }
 
-    found->second.indicator = false;
+    m_panes.SetIndicator (pane, false);
     m_edges.SetSlidPane (pane);
     Arrange();
 }
@@ -857,23 +852,21 @@ void DxuiDockSite::ActivatePane (const std::wstring & pane)
 
 void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
 {
-    auto  found = m_panes.find (pane);
+    IDxuiControl  * content = m_panes.GetContent (pane);
 
 
 
-    if (found == m_panes.end())
+    if (!m_panes.SetIndicator (pane, on))
     {
         return;
     }
 
-    found->second.indicator = on;
-
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        group->SetIndicator (found->second.content, on);
+        group->SetIndicator (content, on);
     }
 
-    m_slidGroup.SetIndicator (found->second.content, on);
+    m_slidGroup.SetIndicator (content, on);
 }
 
 
@@ -888,23 +881,21 @@ void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
 
 void DxuiDockSite::SetLeadingMark (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark)
 {
-    auto  found = m_panes.find (pane);
+    IDxuiControl  * content = m_panes.GetContent (pane);
 
 
 
-    if (found == m_panes.end() || found->second.leadMark == mark)
+    if (!m_panes.SetLeadingMark (pane, mark))
     {
         return;
     }
 
-    found->second.leadMark = mark;
-
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        group->SetLeadingMark (found->second.content, mark);
+        group->SetLeadingMark (content, mark);
     }
 
-    m_slidGroup.SetLeadingMark (found->second.content, mark);
+    m_slidGroup.SetLeadingMark (content, mark);
 
     Relayout();
 }
@@ -921,14 +912,7 @@ void DxuiDockSite::SetLeadingMark (const std::wstring & pane, const DxuiTabGroup
 
 void DxuiDockSite::SetTabTip (const std::wstring & pane, const std::wstring & tip)
 {
-    auto  found = m_panes.find (pane);
-
-
-
-    if (found != m_panes.end())
-    {
-        found->second.tip = tip;
-    }
+    (void) m_panes.SetTabTip (pane, tip);
 }
 
 
@@ -946,23 +930,21 @@ void DxuiDockSite::SetTabTip (const std::wstring & pane, const std::wstring & ti
 
 void DxuiDockSite::SetTitleExtra (const std::wstring & pane, int widthDip)
 {
-    auto  found = m_panes.find (pane);
+    IDxuiControl  * content = m_panes.GetContent (pane);
 
 
 
-    if (found == m_panes.end() || found->second.titleExtraDip == widthDip)
+    if (!m_panes.SetTitleExtra (pane, widthDip))
     {
         return;
     }
 
-    found->second.titleExtraDip = widthDip;
-
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
-        group->SetTitleExtra (found->second.content, widthDip);
+        group->SetTitleExtra (content, widthDip);
     }
 
-    m_slidGroup.SetTitleExtra (found->second.content, widthDip);
+    m_slidGroup.SetTitleExtra (content, widthDip);
 }
 
 
@@ -1042,48 +1024,6 @@ bool DxuiDockSite::TryGetTip (POINT pointPx, DxuiTip & tip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::GetPaneOf
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiDockSite::GetPaneOf (const IDxuiControl * content) const
-{
-    for (const auto & pane : m_panes)
-    {
-        if (content != nullptr && pane.second.content == content)
-        {
-            return pane.first;
-        }
-    }
-
-    return std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetPaneContent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-IDxuiControl * DxuiDockSite::GetPaneContent (const std::wstring & pane) const
-{
-    auto  it = m_panes.find (pane);
-
-
-
-    return (it != m_panes.end()) ? it->second.content : nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockSite::GetPaneAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1105,25 +1045,6 @@ std::wstring DxuiDockSite::GetPaneAt (POINT pointDip) const
     }
 
     return m_query.GetGroupPaneAt (pointDip);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetTitle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiDockSite::GetTitle (const std::wstring & pane) const
-{
-    auto  found = m_panes.find (pane);
-
-
-
-    return (found != m_panes.end()) ? found->second.title : pane;
 }
 
 
@@ -1677,46 +1598,6 @@ void DxuiDockSite::RequestDragFloat (const std::wstring & pane, POINT pointDip)
     {
         m_onFloat (pane, pointDip);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::HasEdgePaneIndicator
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::HasEdgePaneIndicator (const std::wstring & pane) const
-{
-    auto  found = m_panes.find (pane);
-
-
-
-    return found != m_panes.end() && found->second.indicator;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetQueryPaneTip
-//
-//  A pane's tab tip, empty for a pane the site does not have.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiDockSite::GetQueryPaneTip (const std::wstring & pane) const
-{
-    auto  found = m_panes.find (pane);
-
-
-
-    return (found != m_panes.end()) ? found->second.tip : std::wstring();
 }
 
 

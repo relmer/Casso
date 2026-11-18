@@ -202,6 +202,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiNoticeStack.h"
 #include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiOrbitControl.h"
+#include "Widgets/DxuiDockPanes.h"
 #include "Widgets/DxuiDockSite.h"
 #include "Widgets/DxuiMarquee.h"
 #include "Widgets/DxuiPaneFrame.h"

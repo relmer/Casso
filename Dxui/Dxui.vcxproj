@@ -279,6 +279,7 @@
     <ClCompile Include="Widgets\DxuiDockGaps.cpp" />
     <ClCompile Include="Widgets\DxuiDockMenus.cpp" />
     <ClCompile Include="Widgets\DxuiDockMorph.cpp" />
+    <ClCompile Include="Widgets\DxuiDockPanes.cpp" />
     <ClCompile Include="Widgets\DxuiDockQuery.cpp" />
     <ClCompile Include="Window\DxuiCaptionDragTracker.cpp" />
     <ClCompile Include="Window\DxuiDockedWindow.cpp" />
@@ -486,6 +487,7 @@
     <ClInclude Include="Widgets\DxuiDockGaps.h" />
     <ClInclude Include="Widgets\DxuiDockMenus.h" />
     <ClInclude Include="Widgets\DxuiDockMorph.h" />
+    <ClInclude Include="Widgets\DxuiDockPanes.h" />
     <ClInclude Include="Widgets\DxuiDockQuery.h" />
     <ClInclude Include="Widgets\IDxuiDockDragHost.h" />
     <ClInclude Include="Widgets\IDxuiDockEdgesHost.h" />
