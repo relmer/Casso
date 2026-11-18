@@ -596,11 +596,11 @@ public:
         Bake (DriveObj(),    drive);
         Bake (RecorderObj(), recorder);
 
-        AssertSucceeded (scene->LoadModels (DeskDeviceKind::Monitor2, monitor, drive, recorder));
+        AssertSucceeded (scene->LoadModels (DeskDeviceKind::Monitor2, monitor, DeskDeviceKind::DiskII, drive, recorder));
         Assert::IsTrue (scene->HasRecorder());
         Assert::IsTrue (scene->Metrics().hasRecorder);
 
-        AssertSucceeded (scene->LoadModels (DeskDeviceKind::Monitor2, monitor, drive));
+        AssertSucceeded (scene->LoadModels (DeskDeviceKind::Monitor2, monitor, DeskDeviceKind::DiskII, drive));
         Assert::IsFalse (scene->HasRecorder());
         Assert::IsFalse (scene->Metrics().hasRecorder);
 

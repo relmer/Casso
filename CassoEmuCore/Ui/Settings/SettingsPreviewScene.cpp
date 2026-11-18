@@ -99,7 +99,7 @@ void SettingsPreviewScene::Render (ID3D11RenderTargetView * rtv, int widthPx, in
 
     // The machine can change under a staged pick, and the desk wears what the
     // machine wore.
-    if (m_sheet.m_emuShell != nullptr && m_sheet.m_emuShell->GetDisks().HasDiskIicDrives() != m_previewSceneIsC)
+    if (m_sheet.m_emuShell != nullptr && m_sheet.m_emuShell->GetDisks().GetFloppyModel() != m_previewFloppy)
     {
         hr = LoadModels();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -166,15 +166,13 @@ void SettingsPreviewScene::Render (ID3D11RenderTargetView * rtv, int widthPx, in
 //
 //  LoadPreviewSceneModels
 //
-//  The same pairing rule the shell uses: the //c gets its platinum monitor
-//  over matching drives, everything else the beige Monitor II over Disk IIs.
+//  The models the shell loaded for the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPreviewScene::LoadModels()
 {
-    HRESULT  hr  = S_OK;
-    bool     isC = (m_sheet.m_emuShell != nullptr) && m_sheet.m_emuShell->GetDisks().HasDiskIicDrives();
+    HRESULT  hr = S_OK;
 
 
 
@@ -193,7 +191,7 @@ HRESULT SettingsPreviewScene::LoadModels()
     CHRA (hr);
 
     m_previewScene.SetPowerLampOn (true);
-    m_previewSceneIsC = isC;
+    m_previewFloppy = m_sheet.m_emuShell->GetDisks().GetFloppyModel();
 
 Error:
     return hr;

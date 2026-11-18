@@ -203,17 +203,35 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     // asked about its name. The drives still follow the machine, because a
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
-    HRESULT                    hr          = S_OK;
-    bool                       isC         = m_shell.m_disks->HasDiskIicDrives();
-    const MonitorSpec &        monitor     = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
-    std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
-    std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
-                                                                                   : IDR_MODEL_DISKII_MESH);
-    std::span<const uint8_t>  recorderMesh;
-    bool                      haveMeshes   = false;
-    bool                      haveTape     = false;
+    HRESULT                    hr           = S_OK;
+    DeskDriveModel             floppy       = m_shell.m_disks->GetFloppyModel();
+    bool                       isC          = floppy == DeskDriveModel::Disk2c;
+    const MonitorSpec &        monitor      = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
+    std::span<const uint8_t>   monitorMesh  = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
+    std::span<const uint8_t>   driveMesh;
+    DeskDeviceKind             driveKind    = DeskDeviceKind::DiskII;
+    std::span<const uint8_t>   recorderMesh;
+    bool                       haveMeshes   = false;
+    bool                       haveTape     = false;
 
 
+
+    switch (floppy)
+    {
+        case DeskDriveModel::Disk2c:
+            driveKind = DeskDeviceKind::Disk2c;
+            driveMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_DISK2C_MESH);
+            break;
+
+        case DeskDriveModel::Disk3:
+            driveKind = DeskDeviceKind::Disk3;
+            driveMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_DISK3_MESH);
+            break;
+
+        default:
+            driveMesh = PrinterPanel::LoadBinaryResource (IDR_MODEL_DISKII_MESH);
+            break;
+    }
 
     haveMeshes = !monitorMesh.empty() && !driveMesh.empty();
     CBRA (haveMeshes);
@@ -227,10 +245,11 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
         CBRA (haveTape);
     }
 
-    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh, recorderMesh);
+    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveKind, driveMesh, recorderMesh);
     CHRA (hr);
 
     m_deskSceneMachineIsC = isC;
+    m_deskSceneFloppy     = floppy;
 
     // The plan is made from the monitor's width, so after the models load.
     PlanDrives();
@@ -1153,7 +1172,7 @@ int ShellDeskScene::DeskSceneDriveCount() const
 
     for (const DeskDrivePlacement & placed : m_drivePlan)
     {
-        bool  isDiskII = placed.drive.model == DeskDriveModel::DiskII || placed.drive.model == DeskDriveModel::Disk2c;
+        bool  isDiskII = DeskDrivePlan::IsDiskII (placed.drive.model);
 
 
 
@@ -5430,7 +5449,7 @@ void ShellDeskScene::PlanDrives()
     monitor = hi[0] - lo[0];
 
     m_plannedDiskIiCount = CountDiskIiDrives();
-    drives               = DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives());
+    drives               = DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->GetFloppyModel());
     m_plannedDrives      = drives;
 
     // A compact theme's drive band has the Disk II widgets or the drive bar.
@@ -5502,7 +5521,7 @@ void ShellDeskScene::ReplanIfDrivesChanged()
 
     if (m_deskSceneReady &&
         (diskIiCount != m_plannedDiskIiCount ||
-         DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), diskIiCount, m_shell.m_disks->HasDiskIicDrives()) != m_plannedDrives))
+         DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), diskIiCount, m_shell.m_disks->GetFloppyModel()) != m_plannedDrives))
     {
         PlanDrives();
     }
@@ -5825,6 +5844,7 @@ std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
         case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5 drive";                                break;
         case DeskDriveModel::HardDisk20SC:  title = std::format (L"Hard Disk 20SC, SCSI ID {}", drive.drive); break;
         case DeskDriveModel::ProFile:       title = L"ProFile";                                           break;
+        case DeskDriveModel::Disk3:         title = drive.builtIn ? L"Built-in drive" : std::format (L"Disk ///, drive {}", drive.drive + 1); break;
     }
 
     return title;
@@ -5842,7 +5862,7 @@ std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
 
 DeskDrive ShellDeskScene::GetDiskIiDrive (int drive) const
 {
-    DeskDrive  out = { m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, drive };
+    DeskDrive  out = { m_deskSceneFloppy, 6, drive };
 
 
 
@@ -6016,7 +6036,7 @@ bool ShellDeskScene::AreDiskIiStacked() const
 
     for (const DeskDrivePlacement & placement : m_drivePlan)
     {
-        bool  isDiskIi = placement.drive.model == DeskDriveModel::DiskII || placement.drive.model == DeskDriveModel::Disk2c;
+        bool  isDiskIi = DeskDrivePlan::IsDiskII (placement.drive.model);
 
         stacked = stacked || (isDiskIi && (placement.spot == DeskDriveSpot::LeftStack || placement.spot == DeskDriveSpot::RightStack));
     }

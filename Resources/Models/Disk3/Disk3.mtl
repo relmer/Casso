@@ -1,0 +1,110 @@
+newmtl case
+Ka 0 0 0 
+Kd 0.905 0.84 0.7
+d 1
+
+newmtl slot
+Ka 0 0 0 
+Kd 0.055 0.055 0.062
+d 1
+
+newmtl recess
+Ka 0 0 0 
+Kd 0.16 0.13 0.11
+d 1
+
+newmtl lever
+Ka 0 0 0 
+Kd 0.905 0.86 0.755
+d 1
+
+newmtl lamp_frame
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl lamp
+Ka 0 0 0 
+Kd 0.9 0.12 0.1
+d 1
+
+newmtl label
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl label_field
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl logo_plate
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl badge0
+Ka 0 0 0 
+Kd 0.380392 0.733333 0.27451
+d 1
+
+newmtl badge1
+Ka 0 0 0 
+Kd 0.992157 0.721569 0.152941
+d 1
+
+newmtl badge2
+Ka 0 0 0 
+Kd 0.960784 0.509804 0.121569
+d 1
+
+newmtl badge3
+Ka 0 0 0 
+Kd 0.878431 0.227451 0.243137
+d 1
+
+newmtl badge4
+Ka 0 0 0 
+Kd 0.588235 0.239216 0.592157
+d 1
+
+newmtl badge5
+Ka 0 0 0 
+Kd 0 0.615686 0.862745
+d 1
+
+newmtl rear_plate
+Ka 0 0 0 
+Kd 0.56 0.565 0.575
+d 1
+
+newmtl rear_label
+Ka 0 0 0 
+Kd 0.78 0.11 0.12
+d 1
+
+newmtl rear_header
+Ka 0 0 0 
+Kd 0.2 0.33 0.62
+d 1
+
+newmtl foot_26_56
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl foot_26_180
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl foot_114_56
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+
+newmtl foot_114_180
+Ka 0 0 0 
+Kd 0.18 0.176 0.17
+d 1
+

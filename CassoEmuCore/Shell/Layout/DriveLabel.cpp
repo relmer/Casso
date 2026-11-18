@@ -32,9 +32,10 @@ std::wstring DriveLabel::GetTitle (const DeskDrive & drive, bool numbered)
         case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5";                                                                 break;
         case DeskDriveModel::HardDisk20SC:  title = std::format (L"HD20SC - ID {}", drive.drive);                                    break;
         case DeskDriveModel::ProFile:       title = L"ProFile";                                                                      break;
+        case DeskDriveModel::Disk3:         title = drive.builtIn ? L"Drive 1 - Built-in" : std::format (L"Drive {} - Disk ///", drive.drive + 1); break;
     }
 
-    if (numbered && drive.model != DeskDriveModel::DiskII && drive.model != DeskDriveModel::Disk2c && drive.model != DeskDriveModel::HardDisk20SC)
+    if (numbered && !DeskDrivePlan::IsDiskII (drive.model) && drive.model != DeskDriveModel::HardDisk20SC)
     {
         title += (drive.drive < 2) ? std::format (L" - S{},D{}", slot, drive.drive + 1) : std::format (L" - unit {}", drive.drive + 1);
     }
@@ -120,6 +121,7 @@ std::wstring DriveLabel::GetDetail (DeskDriveModel model, uint32_t diskBlocks, u
     {
         case DeskDriveModel::DiskII:
         case DeskDriveModel::Disk2c:
+        case DeskDriveModel::Disk3:
             detail = L"5.25\" (140K)";
             break;
 

@@ -175,7 +175,7 @@ void ShellChrome::HideDriveBar()
 void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 {
     std::array<DriveWidget, DiskImageStore::kDriveCount>  & widgets = m_shell.m_disks->GetDriveChrome();
-    DeskDriveModel                                          model   = m_shell.m_scene->IsMachineC() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+    DeskDriveModel                                          model   = m_shell.m_scene->GetFloppyModel();
 
 
 
@@ -232,7 +232,7 @@ void ShellChrome::PlaceDriveBarWidgets()
             {
                 const DeskDrive  & drive = fan.GetDrive (c, i);
 
-                if ((drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c) &&
+                if (DeskDrivePlan::IsDiskII (drive.model) &&
                     drive.drive == w && fan.IsSlotShown (c, i) &&
                     (i == 0 || fan.GetSlotRect (c, i).bottom <= fan.GetRowTop()))
                 {
@@ -344,7 +344,7 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
     {
         const DeskDrive  & drive = fan.GetDrive (c, entry);
 
-        if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+        if (DeskDrivePlan::IsDiskII (drive.model))
         {
             m_shell.m_disks->Eject (6, drive.drive);
             m_shell.m_disks->BrowseForDisk (drive.drive);
@@ -448,7 +448,7 @@ bool ShellChrome::SyncDriveBarViews()
 
 
 
-            view.diskII = drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c;
+            view.diskII = DeskDrivePlan::IsDiskII (drive.model);
             view.title  = DriveLabel::GetTitle  (drive, kinds[drive.model] > 1);
             view.detail = DriveLabel::GetDetail (drive.model, m_shell.m_scene->GetDriveDiskBlocks (drive), m_shell.m_scene->GetDriveCapacityBlocks (drive));
 

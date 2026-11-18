@@ -137,6 +137,7 @@ public:
             { DeskDriveModel::Apple35Plus,  ReceivingDriveKind::Apple35   },
             { DeskDriveModel::HardDisk20SC, ReceivingDriveKind::HardDisk  },
             { DeskDriveModel::ProFile,      ReceivingDriveKind::HardDisk  },
+            { DeskDriveModel::Disk3,        ReceivingDriveKind::Floppy525 },
         };
 
         static_assert (std::size (kRows) == (size_t) DeskDriveModel::Count, "a desk drive model has no row here");

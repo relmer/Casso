@@ -229,7 +229,7 @@ void ShellDrivePickers::OpenForDiskII (int drive)
 
 
 
-    deskDrive.model   = m_shell.m_disks->HasDiskIicDrives() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+    deskDrive.model   = m_shell.m_disks->GetFloppyModel();
     deskDrive.slot    = DriveDropRule::kDiskIiSlot;
     deskDrive.drive   = drive;
     deskDrive.builtIn = m_shell.m_disks->MachineHasBuiltInDrive() && drive == 0;

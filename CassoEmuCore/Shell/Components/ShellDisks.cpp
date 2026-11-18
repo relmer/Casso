@@ -1787,6 +1787,34 @@ bool ShellDisks::HasDiskIicDrives() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::GetFloppyModel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeskDriveModel ShellDisks::GetFloppyModel() const
+{
+    DeskDriveModel  model = DeskDriveModel::DiskII;
+
+
+
+    if (HasDiskIicDrives())
+    {
+        model = DeskDriveModel::Disk2c;
+    }
+    else if (GetApple3DriveCount() > 0)
+    {
+        model = DeskDriveModel::Disk3;
+    }
+
+    return model;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::ComposeDriveInfoTooltip
 //
 //  Every presentation's info icon shows the same words, all from the drive's

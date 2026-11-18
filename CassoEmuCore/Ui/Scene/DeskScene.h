@@ -41,8 +41,9 @@ public:
     bool     IsInitialized () const { return m_renderer.IsInitialized(); }
     bool     HasModels     () const { return m_modelsLoaded; }
 
-    // Parses both device models from OBJ/MTL text (embedded resources,
-    // decoded by the shell).
+    // Parses the monitor and drive models from OBJ/MTL text (embedded
+    // resources, decoded by the shell). `driveKind` is the machine's
+    // 5.25-inch drive.
     // `monitorKind` selects which monitor is being loaded, which decides
     // where its brand stamp lands -- the //c wears it on the chin, the
     // Monitor II on its divided right strip.
@@ -50,6 +51,7 @@ public:
     // as for a machine with no cassette jacks.
     HRESULT  LoadModels (DeskDeviceKind             monitorKind,
                          std::span<const uint8_t>   monitorMesh,
+                         DeskDeviceKind             driveKind,
                          std::span<const uint8_t>   driveMesh,
                          std::span<const uint8_t>   recorderMesh = {});
 

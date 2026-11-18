@@ -102,8 +102,11 @@ FOOT_W   = 22.0
 FOOT_XS  = (25.9, 113.6)
 FOOT_YS  = (55.6, 179.6)
 
-CASE     = (0.835, 0.780, 0.650)
-LATCH    = (0.880, 0.845, 0.760)
+# The case and latch colors are the photographs' plastic, white-balanced
+# against each photograph's background: a lighter, warmer cream than the
+# Disk II's beige, with a latch a little paler and grayer than the case.
+CASE     = (0.905, 0.840, 0.700)
+LATCH    = (0.905, 0.860, 0.755)
 SLOT_DK  = (0.055, 0.055, 0.062)
 RECESS   = (0.160, 0.130, 0.110)
 BLACK    = (0.070, 0.070, 0.075)

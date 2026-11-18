@@ -57,6 +57,7 @@ enum class DeskDeviceKind
     Disk2c,        // the platinum 5.25 that pairs with the //c
     CassetteRecorder,  // the Panasonic RQ-309DS beside the stack: no lamp, door or glass
     HardDisk20SC,      // the Apple Hard Disk 20SC beside the stack: a lamp, no door or glass
+    Disk3,             // the Apple ///'s Disk ///, in the Apple ///'s cream
 };
 
 
@@ -87,7 +88,7 @@ inline bool IsMonitorKind (DeskDeviceKind kind)
 //
 inline bool IsDriveKind (DeskDeviceKind kind)
 {
-    return kind == DeskDeviceKind::DiskII || kind == DeskDeviceKind::Disk2c;
+    return kind == DeskDeviceKind::DiskII || kind == DeskDeviceKind::Disk2c || kind == DeskDeviceKind::Disk3;
 }
 
 
@@ -271,6 +272,15 @@ public:
     static constexpr float  kDiskIiDoorPoleY   = 20.826f;
     static constexpr float  kDiskIiDoorPoleZ   = 60.828f;
     static constexpr float  kDiskIiDoorOpenRad = 1.3631f;
+
+    // The Disk ///'s latch is a flap in a notch above the slot, like the
+    // Disk II's door, and lifts out of it the same way. Solved as the Disk
+    // II's is: open, the tab's bottom edge (z 46.4, 3 mm proud) has risen to
+    // the notch's top at z 83, so the pole is on the line halfway between,
+    // at the back of the notch (cad_disk3.py).
+    static constexpr float  kDisk3DoorPoleY    = 14.0f;
+    static constexpr float  kDisk3DoorPoleZ    = 64.7f;
+    static constexpr float  kDisk3DoorOpenRad  = 1.644f;
 
     // THE //c's LATCH DOES NOT TURN AT ALL. It travels: in toward the rear of
     // the drive, then straight up. No tilt, no pivot, no arc.

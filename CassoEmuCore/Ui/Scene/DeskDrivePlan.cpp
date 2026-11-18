@@ -46,6 +46,7 @@ ReceivingDriveKind DeskDrivePlan::GetReceivingKind (DeskDriveModel model)
         case DeskDriveModel::Apple35Plus:   return ReceivingDriveKind::Apple35;
         case DeskDriveModel::HardDisk20SC:  return ReceivingDriveKind::HardDisk;
         case DeskDriveModel::ProFile:       return ReceivingDriveKind::HardDisk;
+        case DeskDriveModel::Disk3:         return ReceivingDriveKind::Floppy525;
     }
 
     return ReceivingDriveKind::Floppy525;
@@ -78,6 +79,7 @@ float DeskDrivePlan::GetCaseWidthMm (DeskDriveModel model)
         case DeskDriveModel::Apple35Plus:  width = 121.0f; break;
         case DeskDriveModel::HardDisk20SC: width = 245.0f; break;
         case DeskDriveModel::ProFile:      width = 439.0f; break;
+        case DeskDriveModel::Disk3:        width = 159.9f; break;
     }
 
     return width;
@@ -210,7 +212,7 @@ bool DeskDrivePlan::HasDiskIiPairUnderMonitor (const std::vector<DeskDrivePlacem
 
 bool DeskDrivePlan::IsDiskII (DeskDriveModel model)
 {
-    return model == DeskDriveModel::DiskII || model == DeskDriveModel::Disk2c;
+    return model == DeskDriveModel::DiskII || model == DeskDriveModel::Disk2c || model == DeskDriveModel::Disk3;
 }
 
 
@@ -303,11 +305,13 @@ const char * DeskDrivePlan::FormatPlace (DeskClassPlace place)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DeskDrive> DeskDrivePlan::Collect (const MachineConfig & config, int diskIiCount, bool isC)
+std::vector<DeskDrive> DeskDrivePlan::Collect (const MachineConfig & config, int diskIiCount, DeskDriveModel floppyModel)
 {
     std::vector<DeskDrive>  out;
     int                     chainFirst = 0;
     bool                    hasInner35 = false;
+    bool                    isC        = floppyModel == DeskDriveModel::Disk2c;
+    bool                    hasBuiltIn = false;
 
 
 
@@ -316,11 +320,14 @@ std::vector<DeskDrive> DeskDrivePlan::Collect (const MachineConfig & config, int
         hasInner35 = hasInner35 || (port.name == "internal" && port.device == kpszApple35DriveDevice);
     }
 
-    // The //c's drive 1 is built in; the //c Plus's built-in drive is its
-    // 3.5-inch drive, so both of its 5.25-inch drives are on the port.
+    // The //c's and the Apple ///'s drive 1 is built in; the //c Plus's
+    // built-in drive is its 3.5-inch drive, so both of its 5.25-inch drives
+    // are on the port.
+    hasBuiltIn = (isC && !hasInner35) || floppyModel == DeskDriveModel::Disk3;
+
     for (int i = 0; i < diskIiCount; i++)
     {
-        out.push_back ({ isC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, i, isC && i == 0 && !hasInner35, hasInner35 });
+        out.push_back ({ floppyModel, 6, i, hasBuiltIn && i == 0, hasInner35 });
     }
 
     if (hasInner35)

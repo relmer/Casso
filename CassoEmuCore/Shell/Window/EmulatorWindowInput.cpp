@@ -1072,7 +1072,7 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
     {
         const DeskDrive  & drive = fan.GetDrive (c, entry);
 
-        return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+        return DeskDrivePlan::IsDiskII (drive.model)
                ? drive.drive
                : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
     }

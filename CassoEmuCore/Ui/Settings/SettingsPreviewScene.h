@@ -41,5 +41,5 @@ private:
     DeskScene        m_previewScene;
     bool             m_previewSceneReady = false;
     bool             m_previewSceneTried = false;
-    bool             m_previewSceneIsC   = false;
+    DeskDriveModel   m_previewFloppy     = DeskDriveModel::DiskII;
 };

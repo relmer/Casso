@@ -12,6 +12,7 @@
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
+#include "Ui/Scene/DeskDrivePlan.h"
 
 
 
@@ -165,6 +166,10 @@ public:
     // card, which decides the drive the desk scene draws.
     bool  MachineHasBuiltInDrive () const;
     bool  HasDiskIicDrives       () const;
+
+    // The model of the machine's 5.25-inch drives: the Disk II, the //c
+    // family's drive or the Apple ///'s.
+    DeskDriveModel  GetFloppyModel () const;
 
     // On the Apple ///, the built-in drive and the external drives plugged
     // in; 0 on every other machine.

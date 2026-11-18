@@ -997,7 +997,7 @@ void EmulatorShell::ShowFloppyContextMenu (const DeskDrive & drive, int x, int y
 {
     const EmulatorCommands          & commands = m_chrome->GetMainMenu().GetCommands();
     std::vector<DxuiPopupMenuItem>    items;
-    bool                              isDiskIi = (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c);
+    bool                              isDiskIi = DeskDrivePlan::IsDiskII (drive.model);
     int                               menu     = isDiskIi ? m_disks->GetMenuIndex (drive.drive) : -1;
     bool                              isFirst  = (menu == 0);
     std::string                       device;
@@ -1097,7 +1097,7 @@ void EmulatorShell::FindPortDrive (const DeskDrive & drive, std::string & outDev
     outDevice.clear();
     outNth = -1;
 
-    if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+    if (DeskDrivePlan::IsDiskII (drive.model))
     {
         outDevice = kpszDiskIicDevice;
         outNth    = (drive.drive == DiskPortChainRule::CountDrives (m_machine.GetConfig(), kpszDiskIicDevice) - 1) ? drive.drive : -1;
@@ -1148,7 +1148,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
         return;
     }
 
-    if (ShellDeskScene::IsFloppy35 (drive) || drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+    if (ShellDeskScene::IsFloppy35 (drive) || DeskDrivePlan::IsDiskII (drive.model))
     {
         ShowFloppyContextMenu (drive, x, y);
         return;

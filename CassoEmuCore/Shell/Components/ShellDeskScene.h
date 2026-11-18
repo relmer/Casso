@@ -64,9 +64,11 @@ public:
     // The fullscreen strip's rect while it is up, empty while it is down.
     const RECT &  GetStripRectPx () const { return m_stripRectPx; }
 
-    // Whether the scene came up, and whether the loaded models are the //c's.
-    bool  IsReady    () const { return m_deskSceneReady; }
-    bool  IsMachineC () const { return m_deskSceneMachineIsC; }
+    // Whether the scene came up, whether the loaded models are the //c's,
+    // and the model of the loaded 5.25-inch drive.
+    bool            IsReady        () const { return m_deskSceneReady; }
+    bool            IsMachineC     () const { return m_deskSceneMachineIsC; }
+    DeskDriveModel  GetFloppyModel () const { return m_deskSceneFloppy; }
 
     // Whether the fullscreen strip, summoned by its hotkey in Mouse mode, has
     // the guest mouse turned off.
@@ -592,8 +594,10 @@ private:
     bool                       m_deskSceneFailed = false;
 
     // Which machine family the loaded models belong to, so a switch that
-    // does not cross the //c boundary skips the reload.
+    // does not cross the //c boundary skips the reload, and the model of the
+    // loaded 5.25-inch drive.
     bool                             m_deskSceneMachineIsC = false;
+    DeskDriveModel                   m_deskSceneFloppy     = DeskDriveModel::DiskII;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_plannedDiskIiCount  = -1;
     std::vector<DeskDrive>           m_plannedDrives;

@@ -237,7 +237,7 @@ public:
         liron.ports[0].device = kpszUniDisk35Device;
         config.slots = { scsi, liron };
 
-        auto  drives = DeskDrivePlan::Collect (config, 1, true);
+        auto  drives = DeskDrivePlan::Collect (config, 1, DeskDriveModel::Disk2c);
 
         Assert::AreEqual ((size_t) 5, drives.size());
         Assert::IsTrue (drives[0].model == M::Disk2c);
@@ -247,6 +247,25 @@ public:
         Assert::AreEqual (1, drives[2].drive, L"after the built-in drive");
         Assert::AreEqual (2, drives[3].drive);
         Assert::AreEqual (6, drives[4].drive);
+    }
+
+
+    //  The Apple ///'s drive 1 is its built-in drive and the rest are Disk
+    //  /// drives, and a pair of them goes under the monitor.
+    TEST_METHOD (Collect_Apple3_Drive1IsBuiltIn)
+    {
+        MachineConfig  config;
+        auto           drives = DeskDrivePlan::Collect (config, 2, DeskDriveModel::Disk3);
+        auto           plan   = DeskDrivePlan::Place (drives, DeskClassPlace::Auto, DeskClassPlace::Auto, 400.0f);
+
+
+
+        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::IsTrue  (drives[0].model == M::Disk3);
+        Assert::IsTrue  (drives[0].builtIn);
+        Assert::IsFalse (drives[1].builtIn);
+        Assert::IsFalse (drives[1].onPort);
+        Assert::IsTrue  (DeskDrivePlan::HasDiskIiPairUnderMonitor (plan));
     }
 
 
@@ -270,7 +289,7 @@ public:
         disk.chain[2].device = kpszUniDisk35Device;
         config.ports  = { internal, disk };
 
-        auto  drives = DeskDrivePlan::Collect (config, 0, true);
+        auto  drives = DeskDrivePlan::Collect (config, 0, DeskDriveModel::Disk2c);
 
         Assert::AreEqual ((size_t) 4, drives.size());
         Assert::IsTrue   (drives[0].model == M::Apple35Plus);
@@ -293,7 +312,7 @@ public:
     TEST_METHOD (Collect_TheCsFirstDriveIsBuiltIn)
     {
         MachineConfig  config;
-        auto           drives = DeskDrivePlan::Collect (config, 2, true);
+        auto           drives = DeskDrivePlan::Collect (config, 2, DeskDriveModel::Disk2c);
 
 
 

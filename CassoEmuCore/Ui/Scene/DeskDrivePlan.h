@@ -19,6 +19,7 @@ enum class DeskDriveModel
     Apple35Plus,     // the //c Plus's built-in drive, in its colors
     HardDisk20SC,
     ProFile,
+    Disk3,           // the Apple ///'s drives: its built-in drive and the Disk /// drives
 
     //  Not a model. It bounds a sweep over the models, so the test of each
     //  model's images fails to compile when a model is added. Keep it last.
@@ -134,11 +135,10 @@ public:
     static DeskClassPlace  ParsePlace     (const std::string & text);
     static const char *    FormatPlace    (DeskClassPlace place);
 
-    //  The machine's drives: `diskIiCount` Disk II drives in slot 6 (the
-    //  //c family's 5.25-inch drives when `isC`), the //c Plus's built-in
-    //  drive and the //c disk port's chain, and the drives on the enabled
-    //  storage cards' ports.
-    static std::vector<DeskDrive>  Collect (const MachineConfig & config, int diskIiCount, bool isC);
+    //  The machine's drives: `diskIiCount` 5.25-inch drives of `floppyModel`
+    //  in slot 6, the //c Plus's built-in drive and the //c disk port's
+    //  chain, and the drives on the enabled storage cards' ports.
+    static std::vector<DeskDrive>  Collect (const MachineConfig & config, int diskIiCount, DeskDriveModel floppyModel);
 
     static std::vector<DeskDrivePlacement>  Place (const std::vector<DeskDrive> & drives,
                                                    DeskClassPlace                 floppies,

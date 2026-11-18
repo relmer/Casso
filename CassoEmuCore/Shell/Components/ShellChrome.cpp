@@ -1089,13 +1089,15 @@ void ShellChrome::ReflowChromeForMachineChange()
     }
 
     // The desk wears what the machine wore, so crossing the //c boundary
-    // swaps both models. Reloading rebuilds every cached mesh, so the
+    // swaps both models, and a change of drive model swaps the drives.
+    // Reloading rebuilds every cached mesh, so the
     // scene's own state is pushed again right after. Switching to or from a
     // machine with cassette jacks adds or removes the recorder, which is a
     // reload too. Attaching or detaching the recorder is not: its model stays
     // loaded while the machine has the jacks, and is only shown or hidden.
     if (m_shell.m_scene->IsReady() &&
         (m_shell.MachineHasCaseSwitches() != m_shell.m_scene->IsMachineC() ||
+         m_shell.m_disks->GetFloppyModel() != m_shell.m_scene->GetFloppyModel() ||
          m_shell.m_tapeDeck->MachineHasCassettePort() != m_shell.m_scene->GetScene().IsRecorderLoaded()))
     {
         HRESULT  hrModels = m_shell.m_scene->LoadDeskSceneModelsForMachine();

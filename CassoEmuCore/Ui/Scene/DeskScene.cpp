@@ -66,12 +66,11 @@ void DeskScene::Shutdown()
 
 HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
                                std::span<const uint8_t>   monitorMesh,
+                               DeskDeviceKind             driveKind,
                                std::span<const uint8_t>   driveMesh,
                                std::span<const uint8_t>   recorderMesh)
 {
-    DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
-                                ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
-    HRESULT         hr        = S_OK;
+    HRESULT  hr = S_OK;
 
 
 
@@ -94,9 +93,8 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
     m_hasExtraModel.fill (false);
     m_extraModels.fill (DeskSceneModel {});
 
-    // The drive that comes with the monitor. They are never mixed -- the //c
-    // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
-    // them here beats making every caller say it twice and disagree once.
+    // The machine's 5.25-inch drive: the //c's platinum drive, the Apple
+    // ///'s Disk /// or the Disk II.
     hr = m_drive.Load (driveKind, driveMesh);
     CHRA (hr);
 
@@ -1950,7 +1948,7 @@ void DeskScene::SetDrivePlan (const std::vector<DeskDrivePlacement> & plan)
 
     for (const DeskDrivePlacement & placed : plan)
     {
-        bool  isDiskII = placed.drive.model == DeskDriveModel::DiskII || placed.drive.model == DeskDriveModel::Disk2c;
+        bool  isDiskII = DeskDrivePlan::IsDiskII (placed.drive.model);
 
 
 

@@ -29,6 +29,8 @@ public:
         Assert::AreEqual (std::wstring (L"Drive 1 - Built-in"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk2c,       6, 0, true }, false));
         Assert::AreEqual (std::wstring (L"Disk IIc - S6,D1"),     DriveLabel::GetTitle ({ DeskDriveModel::Disk2c,       6, 0, false, true }, false), L"the //c Plus's drive 1 is on its port");
         Assert::AreEqual (std::wstring (L"Drive 2 - Disk IIc"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk2c,       6, 1 }, false));
+        Assert::AreEqual (std::wstring (L"Drive 1 - Built-in"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk3,        6, 0, true }, false), L"the Apple ///'s drive 1");
+        Assert::AreEqual (std::wstring (L"Drive 3 - Disk ///"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk3,        6, 2 }, true), L"a Disk /// isn't given a ProDOS slot");
         Assert::AreEqual (std::wstring (L"UniDisk 3.5"),          DriveLabel::GetTitle ({ DeskDriveModel::UniDisk35,    5, 0 }, false));
         Assert::AreEqual (std::wstring (L"UniDisk 3.5 - S5,D2"),  DriveLabel::GetTitle ({ DeskDriveModel::UniDisk35,    5, 1 }, true));
         Assert::AreEqual (std::wstring (L"Built-in 3.5 - S5,D1"), DriveLabel::GetTitle ({ DeskDriveModel::Apple35Plus,  0, 0 }, true), L"the //c port is slot 5 to ProDOS");

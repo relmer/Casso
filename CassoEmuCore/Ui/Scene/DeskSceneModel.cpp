@@ -245,6 +245,15 @@ static constexpr float   s_kDisk2cNotchMax[3] = { 100.0f,  3.0f, 46.0f };
 static constexpr float   s_kDisk2cBodyMin[3]  = {   0.0f, -8.0f,  0.0f };
 static constexpr float   s_kDisk2cBodyMax[3]  = { 152.0f, 216.0f, 46.0f };
 
+// The Disk ///'s, from cad_disk3.py: the slot band across the latch's tab,
+// the notch from the finger recess's floor to the latch's top, and the case.
+static constexpr float   s_kDisk3EjectMin[3]  = {  11.0f, -6.0f, 46.4f };
+static constexpr float   s_kDisk3EjectMax[3]  = { 148.9f,  3.0f, 61.2f };
+static constexpr float   s_kDisk3NotchMin[3]  = {  59.2f, -6.0f, 22.8f };
+static constexpr float   s_kDisk3NotchMax[3]  = { 100.7f,  3.0f, 83.4f };
+static constexpr float   s_kDisk3BodyMin[3]   = {   0.0f, -6.0f,  0.0f };
+static constexpr float   s_kDisk3BodyMax[3]   = { 159.9f, 229.0f, 98.9f };
+
 // Write-protect padlock stamp on the drive faceplate (model mm), top-right
 // like the 2D widget's badge. Flat proud quads in the brand-stamp style; each
 // layer floats a hair nearer the viewer than the one it sits on, so depth
@@ -971,6 +980,16 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
         BuildInUseStamp();
 
         BuildWordmarkStamp();
+    }
+
+    // The Disk ///'s face is modeled whole: its label, logo plate, lamp and
+    // latch are all in the mesh.
+    if (kind == DeskDeviceKind::Disk3)
+    {
+        m_doorMotion  = DeskDoorMotion::Cantilever;
+        m_doorPivotY  = kDisk3DoorPoleY;
+        m_doorPivotZ  = kDisk3DoorPoleZ;
+        m_doorOpenRad = kDisk3DoorOpenRad;
     }
 
     {
@@ -2640,6 +2659,11 @@ void DeskSceneModel::AddRegionBoxes()
         memcpy (box.boxMin, s_kDisk2cEjectMin, sizeof (box.boxMin));
         memcpy (box.boxMax, s_kDisk2cEjectMax, sizeof (box.boxMax));
     }
+    else if (m_kind == DeskDeviceKind::Disk3)
+    {
+        memcpy (box.boxMin, s_kDisk3EjectMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk3EjectMax, sizeof (box.boxMax));
+    }
     else
     {
         memcpy (box.boxMin, s_kDiskIiEjectMin, sizeof (box.boxMin));
@@ -2658,6 +2682,11 @@ void DeskSceneModel::AddRegionBoxes()
     {
         memcpy (box.boxMin, s_kDisk2cNotchMin, sizeof (box.boxMin));
         memcpy (box.boxMax, s_kDisk2cNotchMax, sizeof (box.boxMax));
+    }
+    else if (m_kind == DeskDeviceKind::Disk3)
+    {
+        memcpy (box.boxMin, s_kDisk3NotchMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk3NotchMax, sizeof (box.boxMax));
     }
     else
     {
@@ -2697,6 +2726,11 @@ void DeskSceneModel::AddRegionBoxes()
     {
         memcpy (box.boxMin, s_kDisk2cBodyMin, sizeof (box.boxMin));
         memcpy (box.boxMax, s_kDisk2cBodyMax, sizeof (box.boxMax));
+    }
+    else if (m_kind == DeskDeviceKind::Disk3)
+    {
+        memcpy (box.boxMin, s_kDisk3BodyMin, sizeof (box.boxMin));
+        memcpy (box.boxMax, s_kDisk3BodyMax, sizeof (box.boxMax));
     }
     else
     {
