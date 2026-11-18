@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/CallStackController.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -182,7 +183,7 @@ bool CallStackController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     if (!frame.basicLine.has_value())
     {
         items.push_back ({ L"Show call site", [this, at = frame.address] { m_host.GoToCode (at); } });
-        m_host.AddBookmarkItem (frame.address, items);
+        PaneMenuRows::AddBookmark (m_latest, m_host, frame.address, items);
     }
 
     if (frame.routineAddress.has_value())

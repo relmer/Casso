@@ -3,6 +3,7 @@
 class DebuggerPaneLook;
 class IDebuggerPaneHost;
 class LatestSnapshot;
+class SymbolComments;
 
 
 
@@ -24,4 +25,5 @@ struct DebuggerPaneParts
     IDebuggerPaneHost       & host;
     const DebuggerPaneLook  & look;
     const LatestSnapshot    & latest;
+    SymbolComments          & symbolComments;
 };

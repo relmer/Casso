@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DisassemblySymbols.h"
+#include "Ui/Debugger/SymbolComments.h"
 
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Core/TextEncoding.h"
@@ -78,7 +79,7 @@ bool DisassemblySymbols::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::ws
     }
 
     text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
-    SourceLineText::AppendSymbolDetails (text, name, address, false, *m_latest.Get(), m_host.GetSymbolComment (address, name));
+    SourceLineText::AppendSymbolDetails (text, name, address, false, *m_latest.Get(), m_symbolComments.GetComment (m_latest.Get(), m_host.GetWindowHost(), address, name));
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
@@ -114,7 +115,7 @@ bool DisassemblySymbols::TryGetSourceSymbolTip (const DxuiListView & list, POINT
         return false;
     }
 
-    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_host.GetSymbolComment (found->address, found->name));
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_symbolComments.GetComment (m_latest.Get(), m_host.GetWindowHost(), found->address, found->name));
     anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }

@@ -4,6 +4,8 @@
 #include "Debugger/Source/SourceService.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
+class IDebuggerWindowHost;
+
 
 
 
@@ -31,6 +33,10 @@ public:
 
     //  The comment for the label at an address, empty with none.
     std::string  GetComment (Word address, const std::string & name, const FindFn & find);
+
+    //  The same for the snapshot's source, found through the debugger's host;
+    //  empty with no snapshot, source or host.
+    std::string  GetComment (const DebuggerViewSnapshot * snapshot, IDebuggerWindowHost * host, Word address, const std::string & name);
 
     //  A source line's comment, trimmed; empty with none.
     static std::string  GetLineComment (const std::string & line);

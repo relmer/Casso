@@ -44,8 +44,9 @@ DisassemblyViewPane::~DisassemblyViewPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyGroup::DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources) :
+DisassemblyGroup::DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources, MemoryWindowGroup & memory) :
     m_host       (parts.host),
+    m_memory (memory),
     m_latest (parts.latest),
     m_parts (parts),
     m_look (parts.look),
@@ -92,7 +93,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> DisassemblyGroup::CreateViews()
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
-        std::unique_ptr<DisassemblyViewPane>  pane = std::make_unique<DisassemblyViewPane> (m_parts, *this, view);
+        std::unique_ptr<DisassemblyViewPane>  pane = std::make_unique<DisassemblyViewPane> (m_parts, *this, view, m_memory);
 
         m_views[(size_t) view] = pane.get();
         views.push_back (std::move (pane));

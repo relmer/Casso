@@ -4,6 +4,8 @@
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/WatchHistory.h"
 
+class MemoryWindowGroup;
+
 
 
 
@@ -25,7 +27,7 @@
 class WatchesPane : public UndoListPane
 {
 public:
-    explicit WatchesPane (const DebuggerPaneParts & parts);
+    explicit WatchesPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~WatchesPane() override;
 
     //  The clock the wait after a Tab's add is timed by, the system's
@@ -130,6 +132,7 @@ private:
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
     void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
+    MemoryWindowGroup             & m_memory;
     const LatestSnapshot          & m_latest;
     const DebuggerPaneLook        & m_look;
     WatchHistory                    m_history;

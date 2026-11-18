@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/WatchesPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/WatchEdits.h"
 #include "Ui/Debugger/WatchActions.h"
 #include "Ui/Debugger/ByteDialog.h"
@@ -24,8 +25,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WatchesPane::WatchesPane (const DebuggerPaneParts & parts) :
+WatchesPane::WatchesPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
     UndoListPane (parts, DebuggerLayout::kWatches, L"Watches", ColorLegend::Pane::Watch),
+    m_memory (memory),
     m_latest (parts.latest),
     m_look (parts.look)
 {
@@ -1267,7 +1269,7 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         {
             const DebuggerViewSnapshot::WatchLine  watch = *found;
 
-            m_host.AddShowInMemoryItems (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
+            m_memory.AddShowInItems (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
             items.push_back ({ L"Remove", [this, id = watch.id] { RemoveFromMenu ({ RowKind::Manual, id }); } });
         }
     }
@@ -1280,7 +1282,7 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
     {
         std::string  hex = snapshot->autoWatches[(size_t) what.index].key.substr (2);
 
-        m_host.AddShowInMemoryItems (L"$" + TextEncoding::NarrowToWide (hex), hex, items);
+        m_memory.AddShowInItems (L"$" + TextEncoding::NarrowToWide (hex), hex, items);
     }
 
     if (what.kind != RowKind::Heading && what.kind != RowKind::BasicHeading)

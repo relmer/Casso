@@ -781,7 +781,7 @@ bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document,
         return false;
     }
 
-    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_latest.Get(), GetSymbolComment (found->address, found->name));
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_latest.Get(), m_symbolComments.GetComment (m_latest.Get(), m_host, found->address, found->name));
 
     tip             = DxuiTip();
     tip.anchor      = anchor;

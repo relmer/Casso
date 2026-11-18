@@ -53,10 +53,10 @@ void DebuggerWindow::CreatePanes()
         [this] { m_heatRangesPane->SetMenus(); },
     });
     std::unique_ptr<HeatRangesPane>          ranges   = std::make_unique<HeatRangesPane>         (parts, *heatMap);
-    std::unique_ptr<MemoryWindowGroup>       memory   = std::make_unique<MemoryWindowGroup>      (parts);
-    std::unique_ptr<RegistersPane>           regs     = std::make_unique<RegistersPane>          (parts);
-    std::unique_ptr<StackPane>               stack    = std::make_unique<StackPane>              (parts);
-    std::unique_ptr<WatchesPane>             watches  = std::make_unique<WatchesPane>            (parts);
+    std::unique_ptr<MemoryWindowGroup>       memory   = std::make_unique<MemoryWindowGroup>      (parts, *heatMap);
+    std::unique_ptr<RegistersPane>           regs     = std::make_unique<RegistersPane>          (parts, *memory);
+    std::unique_ptr<StackPane>               stack    = std::make_unique<StackPane>              (parts, *memory);
+    std::unique_ptr<WatchesPane>             watches  = std::make_unique<WatchesPane>            (parts, *memory);
     std::unique_ptr<BreakpointsPane>         bps      = std::make_unique<BreakpointsPane>        (parts);
     std::unique_ptr<TracePaneController>     trace    = std::make_unique<TracePaneController>    (parts);
     std::unique_ptr<BasicProgramController>  basic    = std::make_unique<BasicProgramController> (parts);
@@ -66,7 +66,7 @@ void DebuggerWindow::CreatePanes()
     m_codeEdits = std::make_unique<CodeEditCommands> (parts, static_cast<const ICodeViews &> (*this));
     m_finds     = std::make_unique<FindWidgetSet> (parts, static_cast<IFindWidgetHost &> (*this));
     m_sources   = std::make_unique<SourceDocumentGroup> (parts);
-    m_code      = std::make_unique<DisassemblyGroup> (parts, *m_gutter, *m_codeEdits, *m_sources);
+    m_code      = std::make_unique<DisassemblyGroup> (parts, *m_gutter, *m_codeEdits, *m_sources, *memory);
 
     for (std::unique_ptr<IDebuggerPane> & view : m_code->CreateViews())
     {
@@ -390,36 +390,6 @@ void DebuggerWindow::MoveSharedControls (const std::vector<IDxuiControl *> & con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::AddHeatAccessItems
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items)
-{
-    m_heatMapPane->AddAccessItems (address, bank, items);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GoToMemory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::GoToMemory (Word address)
-{
-    m_memoryGroup->GetActive()->GetModel().GoTo (address);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::NoteListReleased
 //
 //  A press on a list ended, the list having had it, for the pane whose list
@@ -502,6 +472,21 @@ void DebuggerWindow::ApplyBreakpoints()
     {
         m_breakpointsPane->Apply (*m_latest.Get());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowMemoryAddress
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowMemoryAddress (Word address)
+{
+    m_memoryGroup->ShowAddress (address);
 }
 
 
@@ -910,31 +895,6 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
     }
 
     DxuiContextMenu::ShowAboveAtWidth (*GetMenuHost(), anchorPx, std::move (menu), look);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetSymbolComment
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerWindow::GetSymbolComment (Word address, const std::string & name)
-{
-    if (m_latest.Get() == nullptr || !m_latest.Get()->source.has_value() || m_host == nullptr)
-    {
-        return {};
-    }
-
-    m_symbolComments.SetSource (*m_latest.Get()->source);
-
-    return m_symbolComments.GetComment (address, name, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
-    {
-        return m_host->FindDebuggerSource (record, path, key);
-    });
 }
 
 

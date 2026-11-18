@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/TracePaneController.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
@@ -386,7 +387,7 @@ bool TracePaneController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
     if (pc.has_value())
     {
-        m_host.AddBookmarkItem (*pc, items);
+        PaneMenuRows::AddBookmark (m_latest, m_host, *pc, items);
     }
 
     items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });

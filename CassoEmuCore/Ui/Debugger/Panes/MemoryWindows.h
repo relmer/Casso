@@ -5,6 +5,7 @@
 class MemoryAddressEntry;
 class MemoryBarCommands;
 class MemoryPane;
+class HeatMapPane;
 class MemoryWindowGroup;
 
 
@@ -85,12 +86,18 @@ private:
 class MemoryWindowGroup : public IDebuggerPane
 {
 public:
-    explicit MemoryWindowGroup (const DebuggerPaneParts & parts);
+    explicit MemoryWindowGroup (const DebuggerPaneParts & parts, HeatMapPane & heatMap);
     ~MemoryWindowGroup() override;
 
     //  Creates the windows, for the window to add to its pane list after the
     //  group.
     std::vector<std::unique_ptr<IDebuggerPane>>  CreateWindows ();
+
+    //  Moves the window in front, or the first one in view, to an address and
+    //  brings that window forward; and adds a menu's rows that move each open
+    //  window to an address or a Go to text.
+    void  ShowAddress     (Word address);
+    void  AddShowInItems  (const std::wstring & what, const std::string & goTo, PaneMenuItems & items);
 
     DxuiToolbar                        * GetBar          () const { return m_bar; }
     DxuiTextInput                      * GetBox          () const { return m_box; }
@@ -164,6 +171,7 @@ private:
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
 
+    HeatMapPane                                                           & m_heatMap;
     const LatestSnapshot                                                  & m_latest;
     const DebuggerPaneParts                                               & m_parts;
     const DebuggerPaneLook                                                & m_look;

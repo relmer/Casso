@@ -104,6 +104,7 @@ private:
     void  Save           ();
     void  SortBy         (int column);
 
+    SymbolComments                             & m_symbolComments;
     const LatestSnapshot                       & m_latest;
     PaneBarSlot                                  m_bar;
     ProfileTimeline                            * m_timeline        = nullptr;

@@ -6,6 +6,7 @@
 #include "Ui/Debugger/StackHistory.h"
 
 class HistoryBand;
+class MemoryWindowGroup;
 class UndoBarCommands;
 
 
@@ -152,7 +153,7 @@ protected:
 class RegistersPane : public ValueEditPane
 {
 public:
-    explicit RegistersPane (const DebuggerPaneParts & parts);
+    explicit RegistersPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~RegistersPane() override;
 
     RegisterHistory              & GetHistory      () { return m_history; }
@@ -187,6 +188,7 @@ private:
     void                 CommitRegister       (const std::string & name, Byte typed);
     void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
+    MemoryWindowGroup                               & m_memory;
     const LatestSnapshot                            & m_latest;
     const DebuggerPaneLook                          & m_look;
     RegisterHistory                                   m_history;
@@ -213,7 +215,7 @@ private:
 class StackPane : public ValueEditPane
 {
 public:
-    explicit StackPane (const DebuggerPaneParts & parts);
+    explicit StackPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~StackPane() override;
 
     StackHistory                 & GetHistory   () { return m_history; }
@@ -236,6 +238,7 @@ protected:
 private:
     void                           PushByte     ();
 
+    MemoryWindowGroup                             & m_memory;
     const LatestSnapshot                          & m_latest;
     const DebuggerPaneLook                        & m_look;
     StackHistory                                    m_history;

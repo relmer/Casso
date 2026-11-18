@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/SymbolComments.h"
+#include "Ui/Debugger/IDebuggerWindowHost.h"
 #include "Debugger/SymbolTable.h"
 
 
@@ -300,4 +301,29 @@ std::string SymbolComments::GetLineComment (const std::string & line)
     }
 
     return line.substr (first, line.find_last_not_of (" \t") - first + 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolComments::GetComment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SymbolComments::GetComment (const DebuggerViewSnapshot * snapshot, IDebuggerWindowHost * host, Word address, const std::string & name)
+{
+    if (snapshot == nullptr || !snapshot->source.has_value() || host == nullptr)
+    {
+        return {};
+    }
+
+    SetSource (*snapshot->source);
+
+    return GetComment (address, name, [host] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
+    {
+        return host->FindDebuggerSource (record, path, key);
+    });
 }

@@ -619,33 +619,6 @@ void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMe
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::AddBookmarkItem
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddBookmarkItem (Word address, PaneMenuItems & items)
-{
-    auto  found = (m_latest.Get() == nullptr) ? std::vector<DebuggerViewSnapshot::WatchLine>::const_iterator()
-                                          : std::ranges::find_if (m_latest.Get()->bookmarks, [address] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == address; });
-
-
-
-    if (m_latest.Get() != nullptr && found != m_latest.Get()->bookmarks.end())
-    {
-        items.push_back ({ L"Remove bookmark", [this, id = found->id] { RunAction (WatchActions::GetClearBookmark (id, GetMode())); } });
-    }
-    else
-    {
-        items.push_back ({ L"Add bookmark", [this, address] { RunAction (WatchActions::GetAddBookmark (address, GetMode())); } });
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::ShowSkipNotice
 //
 //  How to take a routine out of the step filter again, until the notice's
@@ -861,35 +834,6 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
     if (GetMenuHost() != nullptr)
     {
         DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::AddShowInMemory
-//
-//  "Show <what> in Memory N" for every memory pane open, each resolving the
-//  same Go to text in its own pane.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddShowInMemory (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
-{
-    for (MemoryWindowPane * window : m_memoryGroup->GetOpenWindows())
-    {
-        int  id = window->GetWindowId();
-
-        items.push_back ({ std::format (L"Show {} in Memory {}", what, id), [this, id, goTo]
-        {
-            if (m_host != nullptr)
-            {
-                m_host->GoToDebuggerMemory (id, goTo);
-            }
-        } });
     }
 }
 

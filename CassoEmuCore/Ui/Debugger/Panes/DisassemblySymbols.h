@@ -27,7 +27,7 @@ struct DiagnosticsIoRegister;
 class DisassemblySymbols
 {
 public:
-    DisassemblySymbols (const DebuggerPaneParts & parts, const DisassemblyGroup & group) : m_host (parts.host), m_latest (parts.latest), m_group (group) {}
+    DisassemblySymbols (const DebuggerPaneParts & parts, const DisassemblyGroup & group) : m_host (parts.host), m_symbolComments (parts.symbolComments), m_latest (parts.latest), m_group (group) {}
 
     bool  TryGetSymbolTip       (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool  TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const;
@@ -47,6 +47,7 @@ public:
 
 private:
     IDebuggerPaneHost       & m_host;
+    SymbolComments          & m_symbolComments;
     const LatestSnapshot    & m_latest;
     const DisassemblyGroup  & m_group;
 };

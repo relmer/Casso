@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/WatchActions.h"
 
@@ -291,8 +293,9 @@ bool MemoryWindowPane::OnGoToKey()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MemoryWindowGroup::MemoryWindowGroup (const DebuggerPaneParts & parts) :
+MemoryWindowGroup::MemoryWindowGroup (const DebuggerPaneParts & parts, HeatMapPane & heatMap) :
     IDebuggerPane (parts),
+    m_heatMap (heatMap),
     m_latest (parts.latest),
     m_parts (parts),
     m_look (parts.look)
@@ -1520,7 +1523,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value())
     {
-        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, access);
+        m_heatMap.AddAccessItems (*byte, HeatMapOptions::Bank::Cpu, access);
 
         for (auto & [label, action] : access)
         {
@@ -1561,7 +1564,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value())
     {
-        m_host.AddBookmarkItem (*byte, items);
+        PaneMenuRows::AddBookmark (m_latest, m_host, *byte, items);
     }
 }
 
@@ -1741,5 +1744,82 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
     {
         m_compare = Compare { window->GetWindowId(), m_compareSerial, true };
         m_host.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_latest.GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::ShowAddress
+//
+//  A cell clicked on the heat map: the memory window last used goes to its
+//  address if it is in view, or else the first that is. With none in view
+//  the window last used goes there and its tab comes forward, which puts the
+//  heat map behind it when they share a group, as they do by default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::ShowAddress (Word address)
+{
+    MemoryWindowPane  * pane = GetActive();
+
+
+
+    if (!pane->GetView()->IsVisible())
+    {
+        for (MemoryWindowPane * open : GetOpenWindows())
+        {
+            if (open->GetView()->IsVisible())
+            {
+                pane = open;
+                break;
+            }
+        }
+    }
+
+    pane->GetModel().GoTo (address);
+
+    if (!pane->GetView()->IsVisible())
+    {
+        m_host.ActivatePaneTab (pane->GetId());
+        m_host.SyncHeatRecording();
+    }
+
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::AddShowInItems
+//
+//  "Show <what> in Memory N" for every memory pane open, each resolving the
+//  same Go to text in its own pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::AddShowInItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items)
+{
+    for (MemoryWindowPane * window : GetOpenWindows())
+    {
+        int  id = window->GetWindowId();
+
+        items.push_back ({ std::format (L"Show {} in Memory {}", what, id), [this, id, goTo]
+        {
+            IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+
+
+
+            if (windowHost != nullptr)
+            {
+                windowHost->GoToDebuggerMemory (id, goTo);
+            }
+        } });
     }
 }

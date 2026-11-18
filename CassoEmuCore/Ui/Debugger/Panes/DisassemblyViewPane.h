@@ -10,6 +10,7 @@ class DebuggerPaneFrame;
 class DisassemblyGroup;
 class DxuiInfoBanner;
 class HistoryBand;
+class MemoryWindowGroup;
 
 
 
@@ -28,7 +29,7 @@ class HistoryBand;
 class DisassemblyViewPane : public IDebuggerPane
 {
 public:
-    DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view);
+    DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view, MemoryWindowGroup & memory);
     ~DisassemblyViewPane() override;
 
     DxuiListView                   * GetList        () const { return m_list; }
@@ -83,6 +84,7 @@ private:
     std::optional<Word>                                                 GetFindStart (bool isTop) const;
     void                                                                SelectFound  (Word address);
 
+    MemoryWindowGroup                           & m_memory;
     const LatestSnapshot                        & m_latest;
     DisassemblyGroup                            & m_group;
     int                                           m_view          = 0;

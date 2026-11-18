@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/RunActions.h"
 
@@ -505,8 +507,9 @@ bool ValueEditPane::RouteListKey (const DxuiKeyEvent &)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RegistersPane::RegistersPane (const DebuggerPaneParts & parts) :
+RegistersPane::RegistersPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
     ValueEditPane (parts, DebuggerLayout::kRegisters, L"Registers", ColorLegend::Pane::Registers),
+    m_memory (memory),
     m_latest (parts.latest),
     m_look (parts.look)
 {
@@ -1092,7 +1095,7 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (!DebuggerViewState::IsReadOnlyRegister (name))
     {
-        m_host.AddShowInMemoryItems (TextEncoding::NarrowToWide (name), name, items);
+        m_memory.AddShowInItems (TextEncoding::NarrowToWide (name), name, items);
     }
 
     if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
@@ -1210,8 +1213,9 @@ void RegistersPane::Undo (bool redo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-StackPane::StackPane (const DebuggerPaneParts & parts) :
+StackPane::StackPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
     ValueEditPane (parts, DebuggerLayout::kStack, L"Stack", ColorLegend::Pane::Stack),
+    m_memory (memory),
     m_latest (parts.latest),
     m_look (parts.look)
 {
@@ -1260,7 +1264,7 @@ void StackPane::Configure()
             return;
         }
 
-        m_host.GoToMemory (m_stack[m_stack.size() - 1 - (size_t) row].address);
+        m_memory.GetActive()->GetModel().GoTo (m_stack[m_stack.size() - 1 - (size_t) row].address);
     });
 
     m_list->SetColumns ({ { L"Stack", 0, false, DxuiTextHAlign::Left },
@@ -1398,7 +1402,7 @@ bool StackPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & item
     {
         Word  at = m_stack[m_stack.size() - 1 - (size_t) row].address;
 
-        m_host.AddShowInMemoryItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
+        m_memory.AddShowInItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
         items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
 
         if (m_isPaused)

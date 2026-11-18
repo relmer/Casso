@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ProfilerPane.h"
+#include "Ui/Debugger/SymbolComments.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
@@ -38,6 +40,7 @@ static constexpr int  s_kProfilePeriod = 5;
 
 ProfilerPane::ProfilerPane (const DebuggerPaneParts & parts) :
     ToolListPane (parts, DebuggerLayout::kProfiler, L"Profiler"),
+    m_symbolComments (parts.symbolComments),
     m_latest (parts.latest),
     m_bar        (parts, DebuggerLayout::kProfiler, L"Profiler commands"),
     m_navigator  (parts, *this)
@@ -868,7 +871,7 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & i
     if (address.has_value())
     {
         items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_host, m_latest.GetMode(), at); } });
-        m_host.AddBookmarkItem (*address, items);
+        PaneMenuRows::AddBookmark (m_latest, m_host, *address, items);
     }
 
     items.push_back ({ m_isOn ? L"Stop profiling" : L"Start profiling", [this, on = m_isOn] { RunProfile (on ? "OFF" : "ON"); } });
@@ -923,7 +926,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 std::string ProfilerPane::GetTipHeadWithComment (const ProfileRoutineEntry & routine) const
 {
     std::string  head    = routine.GetTipHead();
-    std::string  comment = (routine.kind != RoutineKind::Top && !routine.symbol.empty()) ? m_host.GetSymbolComment (routine.address, routine.symbol) : std::string();
+    std::string  comment = (routine.kind != RoutineKind::Top && !routine.symbol.empty()) ? m_symbolComments.GetComment (m_latest.Get(), m_host.GetWindowHost(), routine.address, routine.symbol) : std::string();
 
 
 

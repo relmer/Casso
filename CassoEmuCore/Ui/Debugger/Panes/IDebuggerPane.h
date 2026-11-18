@@ -115,14 +115,6 @@ public:
     virtual void                   GoToCode         (std::optional<Word> address) = 0;
 
     virtual void  ShowMemoryAddress (Word address) = 0;
-    virtual void  GoToMemory        (Word address) = 0;
-
-    //  The rows a menu gets to show an address or a Go to text in each open
-    //  memory window.
-    virtual void                   AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) = 0;
-
-    //  Add bookmark for a code address, or Remove bookmark when it has one.
-    virtual void                   AddBookmarkItem      (Word address, PaneMenuItems & items) = 0;
 
     //  A routine's Never step into this routine row: checked while the step
     //  filter has it, a click then taking it out; otherwise a click adds it
@@ -148,10 +140,6 @@ public:
     //  moved to. And the scaler panes are laid out with.
     virtual DxuiWindow           * GetPaneWindow    (const std::wstring & pane) = 0;
     virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
-
-    //  The rows a menu on a byte gets for its last write and read in a bank:
-    //  show each in the disassembly, or go back to it.
-    virtual void                   AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) = 0;
 
     //  Opens a source file's document at a line and brings it forward; and
     //  moves the BASIC program pane to a line.
@@ -185,10 +173,6 @@ public:
     //  A list of rows over a control, at exactly its width, rising from its
     //  top edge in the look given.
     virtual void                   ShowListAbove    (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) = 0;
-
-    //  The comment on the defining line of the label at an address, from its
-    //  source file (SymbolComments); empty with none.
-    virtual std::string            GetSymbolComment (Word address, const std::string & name) = 0;
 
     //  Marks a pane's tab for new output while the pane is out of sight.
     virtual void                   MarkPaneTab      (const std::wstring & pane) = 0;

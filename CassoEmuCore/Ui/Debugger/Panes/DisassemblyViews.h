@@ -14,6 +14,7 @@
 
 class CodeEditCommands;
 class DisassemblyGutter;
+class MemoryWindowGroup;
 class SourceDocumentGroup;
 class SourcePane;
 class ToolbarCheckEntry;
@@ -41,7 +42,7 @@ class ToolbarCheckEntry;
 class DisassemblyGroup : public ICodeViews
 {
 public:
-    DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources);
+    DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources, MemoryWindowGroup & memory);
     ~DisassemblyGroup() override;
 
     DisassemblyGroup (const DisassemblyGroup &)             = delete;
@@ -173,6 +174,7 @@ private:
                                                          const std::vector<DisassemblyOptions::Row> & built);
 
     IDebuggerPaneHost                                                    & m_host;
+    MemoryWindowGroup                                                    & m_memory;
     const LatestSnapshot                                                 & m_latest;
     const DebuggerPaneParts                                              & m_parts;
     const DebuggerPaneLook                                               & m_look;

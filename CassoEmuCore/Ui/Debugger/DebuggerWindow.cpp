@@ -1374,51 +1374,6 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ShowMemoryAddress
-//
-//  A cell clicked on the heat map: the memory window last used goes to its
-//  address if it is in view, or else the first that is. With none in view
-//  the window last used goes there and its tab comes forward, which puts the
-//  heat map behind it when they share a group, as they do by default.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowMemoryAddress (Word address)
-{
-    MemoryWindowPane  * pane = m_memoryGroup->GetActive();
-
-
-
-    if (!pane->GetView()->IsVisible())
-    {
-        for (MemoryWindowPane * open : m_memoryGroup->GetOpenWindows())
-        {
-            if (open->GetView()->IsVisible())
-            {
-                pane = open;
-                break;
-            }
-        }
-    }
-
-    pane->GetModel().GoTo (address);
-
-    if (!pane->GetView()->IsVisible())
-    {
-        m_dockSite->ActivatePane (pane->GetId());
-        m_dockSite->Relayout();
-        SyncHeatMapRecording();
-    }
-
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::SyncHeatMapRecording
 //
 //  The machine records for the heat map only while its pane is open and on

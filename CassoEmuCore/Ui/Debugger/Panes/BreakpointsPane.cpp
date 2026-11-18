@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/BreakpointActions.h"
 
 #include "Core/TextEncoding.h"
@@ -631,7 +632,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
 
     if (BreakpointColumns::HasAddress (bp.info))
     {
-        m_host.AddBookmarkItem (bp.address, items);
+        PaneMenuRows::AddBookmark (m_latest, m_host, bp.address, items);
     }
 
     return true;

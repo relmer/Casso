@@ -421,7 +421,7 @@ protected:
     LatestSnapshot         m_latest;
     const CassoTheme     * m_emulatorTheme = nullptr;
     IDebuggerWindowHost  * m_host          = nullptr;
-    DebuggerPaneParts      m_paneParts     { static_cast<IDebuggerPaneHost &> (*this), m_look, m_latest };
+    DebuggerPaneParts      m_paneParts     { static_cast<IDebuggerPaneHost &> (*this), m_look, m_latest, m_symbolComments };
 
     //  Protected so a test can work each pane and group through its own
     //  class, as the window does.
@@ -587,7 +587,6 @@ private:
     void                                         ShowEditMenu           (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);
     std::vector<std::shared_ptr<DxuiCommand>>    GetConsoleMenuCommands ();
     void                                         AddListMenuItems       (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    void                                         AddShowInMemory        (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     bool                                         RouteDockKey           (const DxuiKeyEvent & ev);
     void                                         ApplySavedPlacement    ();
 
@@ -889,10 +888,7 @@ private:
     IDxuiControl                          * GetFocusedControl    () const override { return GetFocused(); }
     void                                    FocusDefault         () override { m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox()); }
     void                                    HideTooltip          () override { GetRoutedTooltip().HideImmediate(); }
-    void                                    GoToMemory           (Word address) override;
-    void                                    AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) override { AddShowInMemory (what, goTo, items); }
     void                                    AddSkipItem          (const std::string & name, Word address, PaneMenuItems & items) override;
-    void                                    AddBookmarkItem      (Word address, PaneMenuItems & items) override;
     void                                    ShowSkipNotice       (const std::string & routine);
     void                                    GoLive               () override { GoLiveFromBand(); }
     POINT                                   GetLastPressPx       () const override { return m_lastPressPx; }
@@ -902,7 +898,6 @@ private:
     void                                    RelayoutWindow       () override { LayoutWidgets(); }
     void                                    SyncHeatRecording    () override { SyncHeatMapRecording(); }
     void                                    MoveSharedControls   (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to) override;
-    void                                    AddHeatAccessItems   (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) override;
     void                                    OpenPane             (const std::wstring & pane, bool isFocused) override { ShowPane (pane, isFocused); }
     void                                    ShowMemoryAddress    (Word address) override;
     IHostDialogs                          * GetHostDialogs       () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
@@ -923,7 +918,6 @@ private:
     void                                    SetPaneTabMark       (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) override;
     void                                    UpdateWindowMenus    () override { SetWindowMenus(); }
     void                                    ShowListAbove        (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) override;
-    std::string                             GetSymbolComment     (Word address, const std::string & name) override;
     void                                    MarkPaneTab          (const std::wstring & pane) override;
     DxuiToolbar::Entry                      GetFindEntry         (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                                    SaveOpenViews        () override { KeepOpenViews(); }

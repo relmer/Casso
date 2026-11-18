@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DisassemblyViewPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/ColorLegend.h"
@@ -26,8 +27,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyViewPane::DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view) :
+DisassemblyViewPane::DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view, MemoryWindowGroup & memory) :
     IDebuggerPane (parts),
+    m_memory (memory),
     m_latest (parts.latest),
     m_group       (group),
     m_view        (view),
@@ -588,11 +590,11 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
     if (column >= (int) DisassemblyCells::kInstructionColumn && !line.memoryOperand.empty())
     {
-        m_host.AddShowInMemoryItems (TextEncoding::NarrowToWide (line.shownOperand), line.memoryOperand, items);
+        m_memory.AddShowInItems (TextEncoding::NarrowToWide (line.shownOperand), line.memoryOperand, items);
     }
     else
     {
-        m_host.AddShowInMemoryItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
+        m_memory.AddShowInItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
     }
 
     items.push_back (PaneMenu::MakeSeparator());
