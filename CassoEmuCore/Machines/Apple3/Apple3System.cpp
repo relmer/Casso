@@ -199,6 +199,7 @@ void Apple3System::PowerOn (Prng & prng)
 {
     m_mmu.PowerCycle (prng);
     m_characterSet.PowerOn (prng);
+    m_disk.PowerOn (prng);
 
     Reset();
 }
@@ -217,6 +218,7 @@ void Apple3System::Reset()
 {
     m_vias.Reset();
     m_acia.Reset();
+    m_disk.Reset();
     m_keyboard.Reset();
 }
 

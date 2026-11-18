@@ -101,7 +101,7 @@ public:
     using IdentityReader = std::function<ImageIdentity (const string &)>;
 
     static constexpr int   kSlotCount  = 8;
-    static constexpr int   kDriveCount = 2;
+    static constexpr int   kDriveCount = 4;     // the Apple ///'s; an Apple II uses two
 
     DiskImageStore ();
 

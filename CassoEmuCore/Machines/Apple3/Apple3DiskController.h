@@ -5,6 +5,8 @@
 #include "Core/IMachineState.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
+class Prng;
+
 
 
 
@@ -21,6 +23,12 @@
 //  select line, and $C0D1 and $C0D0 the second. The second line alone
 //  selects .D2, the first alone .D3, and both .D4.
 //
+//  The Disk II logic has two drives: the built-in drive and one external
+//  drive. The external drives share the second, and the one the select
+//  lines choose is swapped into it with its head position and rotation, so
+//  each drive's place is restored when it is connected again. A drive past the
+//  number plugged in reads as an empty drive.
+//
 //  The drive turns at the same speed as on an Apple II, so the Disk II
 //  logic counts one cycle per 14 master clock periods, whatever the CPU's
 //  speed.
@@ -36,15 +44,20 @@ public:
     static constexpr Word      kLastRegister    = 0xC0EF;
     static constexpr int       kDiskIiSlot      = 6;
     static constexpr uint32_t  kMasterPerCycle  = 14;
+    static constexpr int       kMaxExternal     = 3;
+    static constexpr int       kDriveCount      = 1 + kMaxExternal;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', '3', 'D', 'K');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
     Apple3DiskController();
 
     Byte     Read                 (Word address);
     void     Write                (Word address, Byte value);
     bool     IsControllerAddress  (Word address) const;
+
+    void     PowerOn              (Prng & prng);
+    void     Reset                ();
 
     //  Brings the Disk II logic to a time base's master clock count.
     void     SyncToMasterClocks   (uint64_t masterClocks);
@@ -56,6 +69,17 @@ public:
     //  The external drive the two lines select, 2 to 4, or 0 for none.
     int      GetSelectedExternal  () const;
 
+    //  How many external drives are plugged in, 0 to 3.
+    void     SetExternalDriveCount (int count);
+    int      GetExternalDriveCount () const { return m_externalCount; }
+
+    //  The disk in drive 0 (the built-in drive) to 3 (.D4), or null for an
+    //  empty drive.
+    void     SetDisk              (int drive, DiskImage * disk);
+
+    //  The external drive on the Disk II logic's second drive, 0 to 2.
+    int      GetConnectedExternal () const { return m_connected; }
+
     Disk2Controller        & GetDiskII ()       { return *m_diskII; }
     const Disk2Controller  & GetDiskII () const { return *m_diskII; }
 
@@ -63,12 +87,24 @@ public:
     HRESULT  LoadState            (StateReader & reader) override;
 
 private:
-    void     HandleSelect         (Word address);
+    //  A disconnected external drive's head, disk and rotation.
+    struct External
+    {
+        DiskImage          * disk         = nullptr;
+        int                  quarterTrack = 0;
+        std::vector<Byte>    engineState;
+    };
 
-    std::unique_ptr<Disk2Controller>  m_diskII;
-    uint64_t                          m_diskCycles         = 0;
-    uint64_t                          m_lastMasterClocks   = 0;
-    bool                              m_isInternalSelected = false;
-    bool                              m_isExternal1        = false;
-    bool                              m_isExternal2        = false;
+    void     HandleSelect         (Word address);
+    void     ConnectExternal      (int index);
+
+    std::unique_ptr<Disk2Controller>     m_diskII;
+    uint64_t                             m_diskCycles         = 0;
+    uint64_t                             m_lastMasterClocks   = 0;
+    bool                                 m_isInternalSelected = false;
+    bool                                 m_isExternal1        = false;
+    bool                                 m_isExternal2        = false;
+    std::array<External, kMaxExternal>   m_externals;
+    int                                  m_connected          = 0;
+    int                                  m_externalCount      = 1;
 };

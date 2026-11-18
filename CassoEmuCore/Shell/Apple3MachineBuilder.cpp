@@ -67,6 +67,7 @@ HRESULT Apple3MachineBuilder::Build (const MachineConfig & config)
     CHR (hr);
 
     m_host.GetApple3()->PowerOn (*m_host.GetPrng());
+    m_host.GetStorage().BindDiskDrives();
     m_host.GetCpu()->InitForEmulation (*m_host.GetPrng());
 
     m_host.AttachDevices();
@@ -132,6 +133,8 @@ HRESULT Apple3MachineBuilder::CreateSystem (const MachineConfig & config)
 
     hr = system.Initialize (m_host.GetInterruptController(), (size_t) config.memoryK * s_kBytesPerK, rom);
     CHR (hr);
+
+    system.GetDiskController().SetExternalDriveCount (config.externalDrives);
 
     m_host.GetRefs().keyboard = &system.GetKeyboard();
 

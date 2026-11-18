@@ -18,6 +18,11 @@ static constexpr Word  s_kInternalOff  = 0xC0D5;
 static constexpr int   s_kDriveD2      = 2;
 static constexpr int   s_kDriveD3      = 3;
 static constexpr int   s_kDriveD4      = 4;
+static constexpr int   s_kInternal     = 0;
+static constexpr int   s_kExternalLine = 1;
+
+static constexpr uint16_t  s_kFirstWithExternals = 2;
+static constexpr uint32_t  s_kMaxEngineBytes      = 0x10000;
 
 
 
@@ -35,6 +40,51 @@ Apple3DiskController::Apple3DiskController()
     : m_diskII (std::make_unique<Disk2Controller> (kDiskIiSlot))
 {
     m_diskII->GetClock().SetSource (&m_diskCycles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PowerOn
+//
+//  The Disk II logic's power cycle points both drives at their empty disks;
+//  the caller binds the mounted disks again afterward. The external drives'
+//  heads and rotation are cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3DiskController::PowerOn (Prng & prng)
+{
+    m_diskII->PowerCycle (prng);
+
+    for (External & external : m_externals)
+    {
+        external.quarterTrack = 0;
+        external.engineState.clear();
+    }
+
+    m_connected          = 0;
+    m_isInternalSelected = false;
+    m_isExternal1        = false;
+    m_isExternal2        = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3DiskController::Reset()
+{
+    m_diskII->SoftReset();
 }
 
 
@@ -132,6 +182,118 @@ void Apple3DiskController::HandleSelect (Word address)
     case s_kInternalOff:  m_isInternalSelected = false; break;
     default:                                            break;
     }
+
+    if (GetSelectedExternal() >= s_kDriveD2)
+    {
+        ConnectExternal (GetSelectedExternal() - s_kDriveD2);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetExternalDriveCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3DiskController::SetExternalDriveCount (int count)
+{
+    m_externalCount = std::clamp (count, 0, kMaxExternal);
+
+    m_diskII->GetDrive (s_kExternalLine).SetExternalDisk ((m_connected < m_externalCount) ? m_externals[(size_t) m_connected].disk : nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDisk
+//
+//  An external drive's disk goes to the Disk II logic only while that drive
+//  is connected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3DiskController::SetDisk (int drive, DiskImage * disk)
+{
+    int  index = drive - 1;
+
+
+
+    if (drive == s_kInternal)
+    {
+        m_diskII->GetDrive (s_kInternal).SetExternalDisk (disk);
+    }
+    else if (index >= 0 && index < kMaxExternal)
+    {
+        m_externals[(size_t) index].disk = disk;
+
+        if (index == m_connected && index < m_externalCount)
+        {
+            m_diskII->GetDrive (s_kExternalLine).SetExternalDisk (disk);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConnectExternal
+//
+//  Stores the connected drive's head and rotation, and puts the chosen
+//  drive's back. A drive never connected starts at track 0 with the
+//  rotation reset. The motor stays as the lines have it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3DiskController::ConnectExternal (int index)
+{
+    Disk2Drive   & drive  = m_diskII->GetDrive (s_kExternalLine);
+    External     & before = m_externals[(size_t) m_connected];
+    External     & after  = m_externals[(size_t) index];
+    StateWriter    writer;
+
+
+
+    if (index == m_connected)
+    {
+        return;
+    }
+
+    before.quarterTrack = drive.GetQuarterTrack();
+    drive.GetEngine().SaveState (writer);
+    before.engineState = writer.GetBytes();
+
+    drive.SetExternalDisk (index < m_externalCount ? after.disk : nullptr);
+    drive.SetQuarterTrack (after.quarterTrack);
+
+    if (after.engineState.empty())
+    {
+        drive.GetEngine().Reset();
+        drive.GetEngine().SetDiskImage (drive.GetDisk());
+    }
+    else
+    {
+        StateReader  reader (after.engineState);
+        HRESULT      hr = drive.GetEngine().LoadState (reader);
+
+
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        drive.GetEngine().SetDiskImage (drive.GetDisk());
+    }
+
+    drive.GetEngine().SetMotorOn (m_diskII->GetLines().IsMotorOn());
+
+    m_connected = index;
 }
 
 
@@ -222,6 +384,14 @@ HRESULT Apple3DiskController::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_isExternal2);
     writer.WriteUInt64 (m_diskCycles);
     writer.WriteUInt64 (m_lastMasterClocks);
+    writer.WriteByte   ((Byte) m_connected);
+
+    for (const External & external : m_externals)
+    {
+        writer.WriteUInt32 ((uint32_t) external.quarterTrack);
+        writer.WriteUInt32 ((uint32_t) external.engineState.size());
+        writer.WriteBytes  (external.engineState.data(), external.engineState.size());
+    }
 
     hr = m_diskII->SaveState (writer);
     CHR (hr);
@@ -245,8 +415,11 @@ Error:
 
 HRESULT Apple3DiskController::LoadState (StateReader & reader)
 {
-    HRESULT   hr      = S_OK;
-    uint16_t  version = 0;
+    HRESULT   hr           = S_OK;
+    uint16_t  version      = 0;
+    Byte      connected    = 0;
+    uint32_t  quarterTrack = 0;
+    uint32_t  engineBytes  = 0;
 
 
 
@@ -258,6 +431,24 @@ HRESULT Apple3DiskController::LoadState (StateReader & reader)
     reader.ReadBool   (m_isExternal2);
     reader.ReadUInt64 (m_diskCycles);
     reader.ReadUInt64 (m_lastMasterClocks);
+
+    if (version >= s_kFirstWithExternals)
+    {
+        reader.ReadByte (connected);
+        CBREx (connected < kMaxExternal, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+        m_connected = connected;
+
+        for (External & external : m_externals)
+        {
+            reader.ReadUInt32 (quarterTrack);
+            reader.ReadUInt32 (engineBytes);
+            CBREx (engineBytes <= s_kMaxEngineBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+            external.quarterTrack = (int) quarterTrack;
+            external.engineState.resize (engineBytes);
+            reader.ReadBytes (external.engineState.data(), engineBytes);
+        }
+    }
 
     hr = m_diskII->LoadState (reader);
     CHR (hr);

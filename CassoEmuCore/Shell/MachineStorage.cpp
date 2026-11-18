@@ -20,6 +20,7 @@
 #include "Shell/DiskManager.h"
 #include "Shell/MachineParts.h"
 #include "Shell/StorageCardWiring.h"
+#include "Machines/Apple3/Apple3System.h"
 
 
 
@@ -341,7 +342,8 @@ Error:
 //  MachineStorage::ConnectDiskToController
 //
 //  A null image, on an eject, selects the drive's empty disk. Only slot 6
-//  has a controller in the machine's references.
+//  has a controller in the machine's references. The disk store has four
+//  drives for the Apple ///; an Apple II's controller takes the first two.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,7 +358,17 @@ void MachineStorage::ConnectDiskToController (int slot, int drive)
         return;
     }
 
-    controller->SetExternalDisk (drive, m_diskStore.GetImage (slot, drive));
+    //  The Apple ///'s four drives share its floppy controller's two.
+    if (m_parts.apple3 != nullptr)
+    {
+        m_parts.apple3->GetDiskController().SetDisk (drive, m_diskStore.GetImage (slot, drive));
+        return;
+    }
+
+    if (drive < Disk2Controller::kDriveCount)
+    {
+        controller->SetExternalDisk (drive, m_diskStore.GetImage (slot, drive));
+    }
 }
 
 

@@ -229,4 +229,111 @@ public:
         Assert::IsTrue   (loaded->IsInternalSelected());
         Assert::AreEqual (3, loaded->GetSelectedExternal());
     }
+
+    //  Three external drives, each with a separate disk.
+    struct FourDrives
+    {
+        std::unique_ptr<Apple3DiskController>   controller = std::make_unique<Apple3DiskController>();
+        std::array<DiskImage, 3>                disks;
+
+        FourDrives()
+        {
+            controller->SetExternalDriveCount (3);
+
+            for (int i = 0; i < 3; i++)
+            {
+                controller->SetDisk (i + 1, &disks[(size_t) i]);
+            }
+        }
+
+        DiskImage * GetConnectedDisk() { return controller->GetDiskII().GetDrive (1).GetDisk(); }
+    };
+
+
+    static void Select (Apple3DiskController & controller, int drive)
+    {
+        controller.Read (drive == 3 || drive == 4 ? 0xC0D3 : 0xC0D2);
+        controller.Read (drive == 2 || drive == 4 ? 0xC0D1 : 0xC0D0);
+    }
+
+
+    TEST_METHOD (FourDrives_EachExternalDriveIsConnectedWhenSelected)
+    {
+        auto  rig = std::make_unique<FourDrives>();
+
+
+
+        for (int drive = 2; drive <= 4; drive++)
+        {
+            Select (*rig->controller, drive);
+
+            Assert::AreEqual (drive - 2, rig->controller->GetConnectedExternal());
+            Assert::IsTrue   (rig->GetConnectedDisk() == &rig->disks[(size_t) (drive - 2)]);
+        }
+    }
+
+
+    TEST_METHOD (FourDrives_EachDriveKeepsItsHead)
+    {
+        auto  rig = std::make_unique<FourDrives>();
+
+
+
+        Select (*rig->controller, 2);
+        rig->controller->GetDiskII().GetDrive (1).SetQuarterTrack (20);
+
+        Select (*rig->controller, 3);
+        Assert::AreEqual (0, rig->controller->GetDiskII().GetDrive (1).GetQuarterTrack());
+        rig->controller->GetDiskII().GetDrive (1).SetQuarterTrack (8);
+
+        Select (*rig->controller, 2);
+        Assert::AreEqual (20, rig->controller->GetDiskII().GetDrive (1).GetQuarterTrack());
+
+        Select (*rig->controller, 3);
+        Assert::AreEqual (8, rig->controller->GetDiskII().GetDrive (1).GetQuarterTrack());
+    }
+
+
+    TEST_METHOD (UnpluggedDrive_HasNoDisk)
+    {
+        auto  rig = std::make_unique<FourDrives>();
+
+
+
+        rig->controller->SetExternalDriveCount (1);
+        Select (*rig->controller, 3);
+
+        Assert::IsFalse (rig->GetConnectedDisk() == &rig->disks[1]);
+    }
+
+
+    TEST_METHOD (WriteProtect_IsTheConnectedDrives)
+    {
+        auto  rig = std::make_unique<FourDrives>();
+
+
+
+        rig->disks[1].SetWriteProtected (true);
+
+        Select (*rig->controller, 2);
+        rig->controller->Read (kSelectExt);
+        rig->controller->Read (kQ7Off);
+        Assert::AreEqual ((Byte) 0x00, (Byte) (rig->controller->Read (kQ6On) & 0x80));
+
+        Select (*rig->controller, 3);
+        Assert::AreEqual ((Byte) 0x80, (Byte) (rig->controller->Read (kQ6On) & 0x80));
+    }
+
+
+    TEST_METHOD (InternalMotorSelect_IsIndependentOfTheExternalLines)
+    {
+        auto  rig = std::make_unique<FourDrives>();
+
+
+
+        rig->controller->Read (0xC0D4);
+        Select (*rig->controller, 4);
+
+        Assert::IsTrue (rig->controller->IsInternalSelected());
+    }
 };

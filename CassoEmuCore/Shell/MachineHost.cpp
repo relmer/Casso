@@ -455,9 +455,12 @@ void MachineHost::PowerCycle()
         m_parts.videoTiming->PowerCycle (*m_parts.prng);
     }
 
+    // The Apple ///'s floppy controller isn't on the bus, so its power cycle
+    // comes here and the mounted disks are bound to it again.
     if (m_parts.apple3 != nullptr)
     {
         m_parts.apple3->PowerOn (*m_parts.prng);
+        m_storage.BindDiskDrives();
     }
 
     if (m_parts.cpu != nullptr)

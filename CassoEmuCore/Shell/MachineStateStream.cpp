@@ -136,7 +136,7 @@ HRESULT MachineStateStream::LoadStateSeating (StateReader & reader, bool isOverM
 
     CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    hr = CheckStateHeader (reader, isOverMounted, savedParts);
+    hr = CheckStateHeader (reader, version, isOverMounted, savedParts);
     CHR (hr);
 
     // After the header, which put the saved disks back in their bays.
@@ -202,7 +202,7 @@ HRESULT MachineStateStream::LoadStateForPicture (StateReader & reader)
 
     CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    hr = ReadPictureHeader (reader, savedParts);
+    hr = ReadPictureHeader (reader, version, savedParts);
     CHR (hr);
 
     m_parts.GetStateParts (m_stateParts);
@@ -290,10 +290,7 @@ HRESULT MachineStateStream::ReadSavedMedia (
     reader.ReadUInt64 (romIdentity);
     reader.ReadUInt64 (hardware);
 
-    for (uint64_t & mediaId : outIds)
-    {
-        reader.ReadUInt64 (mediaId);
-    }
+    ReadMediaIds (reader, version, outIds);
 
     hr = reader.GetResult();
     CHR (hr);
@@ -319,6 +316,7 @@ Error:
 
 HRESULT MachineStateStream::ReadPictureHeader (
     StateReader  & reader,
+    uint16_t       version,
     uint32_t     & outParts) const
 {
     HRESULT       hr          = S_OK;
@@ -327,11 +325,10 @@ HRESULT MachineStateStream::ReadPictureHeader (
     Word          ch          = 0;
     uint64_t      romIdentity = 0;
     uint64_t      hardware    = 0;
-    uint64_t      mediaId     = 0;
+    MediaIds      mediaIds    = {};
     bool          hasPrng     = false;
     uint64_t      prngState   = 0;
     uint32_t      i           = 0;
-    size_t        bayCount    = (size_t) DiskImageStore::kSlotCount * DiskImageStore::kDriveCount;
     size_t        ownLength   = m_name.size();
     uint64_t      ownRom      = m_parts.GetRomIdentity();
 
@@ -351,10 +348,7 @@ HRESULT MachineStateStream::ReadPictureHeader (
     reader.ReadUInt64 (romIdentity);
     reader.ReadUInt64 (hardware);
 
-    for (i = 0; i < bayCount; i++)
-    {
-        reader.ReadUInt64 (mediaId);
-    }
+    ReadMediaIds (reader, version, mediaIds);
 
     reader.ReadUInt32 (outParts);
     reader.ReadBool   (hasPrng);
@@ -506,6 +500,39 @@ void MachineStateStream::WriteStateHeader (StateWriter & writer, size_t partCoun
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineStateStream::ReadMediaIds
+//
+//  A state before version 4 saved two drives per slot; their ids go to the
+//  first two of each slot's four.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineStateStream::ReadMediaIds (StateReader & reader, uint16_t version, MediaIds & outIds)
+{
+    constexpr int  kOldDriveCount = 2;
+    int            drives         = (version >= kFourDriveVersion) ? DiskImageStore::kDriveCount : kOldDriveCount;
+    int            slot           = 0;
+    int            drive          = 0;
+
+
+
+    outIds.fill (0);
+
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < drives; drive++)
+        {
+            reader.ReadUInt64 (outIds[(size_t) (slot * DiskImageStore::kDriveCount + drive)]);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineStateStream::CheckStateHeader
 //
 //  Fails with ERROR_INVALID_DATA unless the state was saved by a machine of
@@ -518,6 +545,7 @@ void MachineStateStream::WriteStateHeader (StateWriter & writer, size_t partCoun
 
 HRESULT MachineStateStream::CheckStateHeader (
     StateReader  & reader,
+    uint16_t       version,
     bool           isOverMounted,
     uint32_t     & outParts)
 {
@@ -554,10 +582,7 @@ HRESULT MachineStateStream::CheckStateHeader (
     reader.ReadUInt64 (romIdentity);
     reader.ReadUInt64 (hardware);
 
-    for (uint64_t & mediaId : mediaIds)
-    {
-        reader.ReadUInt64 (mediaId);
-    }
+    ReadMediaIds (reader, version, mediaIds);
 
     reader.ReadUInt32 (savedParts);
     reader.ReadBool   (hasPrng);

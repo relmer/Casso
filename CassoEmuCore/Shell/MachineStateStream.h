@@ -59,7 +59,8 @@ public:
     using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
 
     static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('M', 'A', 'C', 'H');
-    static constexpr uint16_t  kStateVersion       = 3;
+    static constexpr uint16_t  kStateVersion       = 4;
+    static constexpr uint16_t  kFourDriveVersion   = 4;   // the first with four drives per slot; before it, two
     static constexpr uint16_t  kOldestStateVersion = 3;   // a state before version 3 has no hardware identity, so it isn't known to match
 
     MachineStateStream (IMachineStateParts & parts, DiskImageStore & disks, const MachineConfig & config, const std::wstring & name);
@@ -103,8 +104,11 @@ public:
 private:
     void            WriteStateHeader  (StateWriter & writer, size_t partCount) const;
     HRESULT         LoadStateSeating  (StateReader & reader, bool isOverMounted);
-    HRESULT         CheckStateHeader  (StateReader & reader, bool isOverMounted, uint32_t & outParts);
-    HRESULT         ReadPictureHeader (StateReader & reader, uint32_t & outParts) const;
+    HRESULT         CheckStateHeader  (StateReader & reader, uint16_t version, bool isOverMounted, uint32_t & outParts);
+    HRESULT         ReadPictureHeader (StateReader & reader, uint16_t version, uint32_t & outParts) const;
+
+    //  The saved bays' media ids, four per slot from version 4 and two before.
+    static void     ReadMediaIds      (StateReader & reader, uint16_t version, MediaIds & outIds);
     static HRESULT  GetPartTag        (const IMachineState & part, uint32_t & outTag);
     bool            CanSeatMedia      (const MediaIds & mediaIds) const;
     bool            AreBaysAsSaved    (const MediaIds & mediaIds) const;
