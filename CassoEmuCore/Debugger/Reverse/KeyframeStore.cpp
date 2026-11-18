@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Core/StateHash.h"
 #include "Core/StateWriter.h"
 #include "Shell/MachineHost.h"
 #include "Core/IWorkQueue.h"
@@ -194,7 +193,7 @@ void KeyframeStore::Clear()
     m_first = 0;
     m_count = 0;
 
-    m_latestWhole.clear();
+    m_codec.ClearLatest();
 
     m_arenaEnd     = 0;
     m_storedBytes  = 0;
@@ -227,9 +226,7 @@ void KeyframeStore::Release()
     m_arena.reset();
     m_arenaBytes = 0;
 
-    m_latestWhole = std::vector<Byte>();
-    m_scratch     = std::vector<Byte>();
-    m_olderWhole  = std::vector<Byte>();
+    m_codec.Release();
 
     for (Job & job : m_jobs)
     {
@@ -468,9 +465,7 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
     m_arenaBytes = arenaBytes;
     m_entries.resize (slotCount);
 
-    m_latestWhole.reserve (stateRoom);
-    m_scratch.reserve     (stateRoom);
-    m_olderWhole.reserve  (stateRoom);
+    m_codec.Reserve (stateRoom);
 
     for (Job & job : m_jobs)
     {
@@ -714,7 +709,7 @@ size_t KeyframeStore::GetReservedBytes() const
 
 
 
-    bytes += m_latestWhole.capacity() + m_scratch.capacity() + m_olderWhole.capacity();
+    bytes += m_codec.GetBufferBytes();
 
     for (const Job & job : m_jobs)
     {
@@ -905,7 +900,9 @@ uint64_t KeyframeStore::ReadWallClock()
 //
 //  RunJob
 //
-//  The work function a queue runs.
+//  The work function a queue runs: the codec packs the job's state. The
+//  queue runs one job at a time and in order, and the codec's buffers are
+//  touched by nothing the caller's thread reads while a job is in flight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -915,58 +912,8 @@ void KeyframeStore::RunJob (void * context)
 
 
 
-    job->store->Pack (*job);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Pack
-//
-//  The work: the checksum of the state, then the state packed whole, which
-//  becomes the newest whole snapshot, or its XOR against that snapshot
-//  packed. Runs on the queue, one job at a time and in order, and touches
-//  nothing the caller's thread reads while a job is in flight.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void KeyframeStore::Pack (Job & job)
-{
-    HRESULT  hr         = S_OK;
-    bool     isSameSize = false;
-
-
-
-    job.checksum = ComputeChecksum (job.state.data(), job.state.size());
-
-    if (job.isWhole)
-    {
-        hr = m_compressor.Compress (job.state.data(), job.state.size(), job.packed);
-        CHR (hr);
-
-        // The job's buffer becomes the newest whole snapshot, and the old
-        // one's buffer goes back to the job, so neither is copied.
-        m_latestWhole.swap (job.state);
-    }
-    else
-    {
-        isSameSize = job.state.size() == m_latestWhole.size();
-        CBRA (isSameSize);
-
-        m_scratch.resize (job.state.size());
-
-        XorBytes (job.state.data(), m_latestWhole.data(), m_scratch.data(), job.state.size());
-
-        hr = m_compressor.Compress (m_scratch.data(), m_scratch.size(), job.packed);
-        CHR (hr);
-    }
-
-Error:
-    job.hr = hr;
-    job.isDone.store (true, std::memory_order_release);
+    job->hr = job->store->m_codec.Pack (job->state, job->isWhole, job->packed, job->checksum);
+    job->isDone.store (true, std::memory_order_release);
 }
 
 
@@ -1272,7 +1219,7 @@ HRESULT KeyframeStore::Restore (
     bool           isNewest   = false;
     const Entry  * entry      = nullptr;
     const Entry  * whole      = nullptr;
-    const Byte   * base       = nullptr;
+    bool           isSameSize = false;
 
 
 
@@ -1287,27 +1234,14 @@ HRESULT KeyframeStore::Restore (
     whole      = &GetEntry (groupStart);
     isNewest   = groupStart == FindGroupStart (count - 1);
 
-    if (!isNewest)
-    {
-        hr = m_compressor.Decompress (m_arena.get() + whole->offset, GetPackedBytes (whole->info), whole->info.stateBytes, m_olderWhole);
-        CHR (hr);
-    }
+    isSameSize = entry->info.isWhole || entry->info.stateBytes == whole->info.stateBytes;
+    CBRA (isSameSize);
 
-    base = isNewest ? m_latestWhole.data() : m_olderWhole.data();
-
-    if (entry->info.isWhole)
-    {
-        outState.assign (base, base + entry->info.stateBytes);
-    }
-    else
-    {
-        CBRA (entry->info.stateBytes == whole->info.stateBytes);
-
-        hr = m_compressor.Decompress (m_arena.get() + entry->offset, GetPackedBytes (entry->info), entry->info.stateBytes, outState);
-        CHR (hr);
-
-        XorBytes (outState.data(), base, outState.data(), outState.size());
-    }
+    hr = m_codec.Unpack ({ m_arena.get() + whole->offset, GetPackedBytes (whole->info), whole->info.stateBytes, true },
+                         { m_arena.get() + entry->offset, GetPackedBytes (entry->info), entry->info.stateBytes, entry->info.isWhole },
+                         isNewest,
+                         outState);
+    CHR (hr);
 
 Error:
     return hr;
@@ -1691,7 +1625,7 @@ Error:
 //
 //  ReloadLatestWhole
 //
-//  Unpacks the newest group's whole snapshot into m_latestWhole after a
+//  Unpacks the newest group's whole snapshot into the codec after a
 //  truncation, and recounts that group.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1710,7 +1644,7 @@ HRESULT KeyframeStore::ReloadLatestWhole()
     groupStart = FindGroupStart (count - 1);
     whole      = &GetEntry (groupStart);
 
-    hr = m_compressor.Decompress (m_arena.get() + whole->offset, GetPackedBytes (whole->info), whole->info.stateBytes, m_latestWhole);
+    hr = m_codec.ReloadLatest ({ m_arena.get() + whole->offset, GetPackedBytes (whole->info), whole->info.stateBytes, true });
     CHR (hr);
 
     m_groupLength = count - groupStart;
@@ -1957,68 +1891,6 @@ void KeyframeStore::ScheduleAfter (uint64_t cycle)
 KeyframeStore::ArenaPtr KeyframeStore::AllocateArena (size_t bytes)
 {
     return ArenaPtr (static_cast<Byte *> (VirtualAlloc (nullptr, (std::max) (bytes, (size_t) 1), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ComputeChecksum
-//
-//  StateHash over the whole state. It detects a replay that diverged, not
-//  tampering.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t KeyframeStore::ComputeChecksum (
-    const Byte  * data,
-    size_t        size)
-{
-    return StateHash::Hash (data, size);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  XorBytes
-//
-//  out = a XOR b over count bytes, eight at a time; out may be a. Through
-//  raw pointers and words, so the loop does not reload a vector's pointers
-//  after every byte it stores.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void KeyframeStore::XorBytes (
-    const Byte  * a,
-    const Byte  * b,
-    Byte        * out,
-    size_t        count)
-{
-    uint64_t  wordA = 0;
-    uint64_t  wordB = 0;
-    size_t    i     = 0;
-
-
-
-    for (i = 0; i + sizeof (wordA) <= count; i += sizeof (wordA))
-    {
-        memcpy (&wordA, a + i, sizeof (wordA));
-        memcpy (&wordB, b + i, sizeof (wordB));
-
-        wordA ^= wordB;
-
-        memcpy (out + i, &wordA, sizeof (wordA));
-    }
-
-    for (; i < count; i++)
-    {
-        out[i] = static_cast<Byte> (a[i] ^ b[i]);
-    }
 }
 
 

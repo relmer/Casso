@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Debugger/Reverse/SnapshotCompressor.h"
+#include "Debugger/Reverse/KeyframeCodec.h"
 
 class MachineHost;
 class StateWriter;
@@ -248,8 +248,8 @@ public:
     const KeyframeSettings  & GetSettings     () const { return m_settings; }
     uint64_t                  GetNextDueCycle () const { return m_nextDueCycle; }
 
-    static uint64_t  ComputeChecksum (const Byte * data, size_t size);
-    static void      XorBytes        (const Byte * a, const Byte * b, Byte * out, size_t count);
+    static uint64_t  ComputeChecksum (const Byte * data, size_t size)                       { return KeyframeCodec::ComputeChecksum (data, size); }
+    static void      XorBytes        (const Byte * a, const Byte * b, Byte * out, size_t count) { KeyframeCodec::XorBytes (a, b, out, count); }
 
 private:
     //  Each table slot is charged this much of the budget, which sets how
@@ -317,7 +317,6 @@ private:
     const Job      & GetPendingJob      (size_t pendingIndex) const;
     static size_t    GetPackedBytes     (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }
     bool             TryFindRoom        (size_t size, size_t & outOffset) const;
-    void             Pack               (Job & job);
     HRESULT          ReloadLatestWhole  ();
     HRESULT          DropNewerThan      (bool isByPosition, uint64_t limit);
     size_t           FindGroupStart     (size_t index) const;
@@ -355,8 +354,5 @@ private:
     std::vector<std::pair<const void *, DropListener>>  m_dropListeners;
 
     // Used by the work, so touched by the caller's thread only while none is in flight.
-    std::vector<Byte>              m_latestWhole;          // unpacked copy of the newest whole snapshot
-    std::vector<Byte>              m_scratch;
-    std::vector<Byte>              m_olderWhole;           // an older group's whole snapshot, unpacked by Restore
-    SnapshotCompressor             m_compressor;
+    KeyframeCodec                  m_codec;
 };

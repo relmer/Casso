@@ -369,6 +369,8 @@
     <ClCompile Include="Debugger\Reverse\InputJournal.cpp" />
     <ClCompile Include="Debugger\TraceController.cpp" />
     <ClCompile Include="Debugger\TraceLookahead.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryTimeline.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframeCodec.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
     <ClCompile Include="Debugger\Reverse\StateDiff.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeUnpacker.cpp" />
@@ -1899,6 +1901,8 @@
     <ClInclude Include="Debugger\Reverse\IReverseStopTest.h" />
     <ClInclude Include="Debugger\TraceController.h" />
     <ClInclude Include="Debugger\TraceLookahead.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryTimeline.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframeCodec.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeStore.h" />
     <ClInclude Include="Debugger\Reverse\StateDiff.h" />
     <ClInclude Include="Debugger\Reverse\KeyframeUnpacker.h" />

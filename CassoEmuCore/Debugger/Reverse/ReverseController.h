@@ -6,6 +6,7 @@
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/CallerLink.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
+#include "Debugger/Reverse/HistoryTimeline.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
@@ -170,8 +171,8 @@ public:
     uint64_t  GetLiveEndPosition    () const;
     uint64_t  GetRecordedEnd        () const;
     uint64_t  GetLiveEndCycle       () const;
-    uint64_t  GetWallTimeAt         (uint64_t cycle) const;
-    uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const;
+    uint64_t  GetWallTimeAt         (uint64_t cycle) const                    { return m_timeline.GetWallTimeAt (cycle); }
+    uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const { return m_timeline.GetWallTimeAtPosition (position, cycle); }
     size_t    GetTableBuildCount    () const { return m_tableBuilds; }
     bool      HasStepTable          () const { return m_hasSteps; }
 
@@ -191,14 +192,7 @@ public:
 private:
     friend class ReverseStepSearch;
 
-    //  The positions one keyframe's replay covers: from the keyframe to the
-    //  next one, or to where recording paused, or to the end of history.
-    struct Stretch
-    {
-        size_t    keyframe = 0;
-        uint64_t  start    = 0;
-        uint64_t  end      = 0;
-    };
+    using Stretch = HistoryTimeline::Stretch;
 
     HRESULT   Seek               (const ReplayTarget & target, bool isByCycle, IReverseStopTest * stopTest, ReplayReport & report, ReverseResult & result);
     HRESULT   RestoreAtOrBefore  (uint64_t position, uint64_t cycle, bool isByCycle, Stretch & outStretch);
@@ -221,15 +215,16 @@ private:
     HRESULT   UseWorkQueue       ();
     void      FillResult         (ReverseResult & result) const;
 
-    bool      TryFindStretch     (uint64_t position, Stretch & outStretch) const;
-    uint64_t  GetSegmentEnd      (size_t keyframe) const;
-    bool      TryGetSummary      (size_t keyframe, StretchSummary & outSummary) const;
+    bool      TryFindStretch     (uint64_t position, Stretch & outStretch) const      { return m_timeline.TryFindStretch (position, GetRecordedEnd(), outStretch); }
+    uint64_t  GetSegmentEnd      (size_t keyframe) const                              { return m_timeline.GetSegmentEnd (keyframe, GetRecordedEnd()); }
+    bool      TryGetSummary      (size_t keyframe, StretchSummary & outSummary) const { return m_timeline.TryGetSummary (keyframe, outSummary); }
     void      NoteActivity       (bool isFirst);
 
     MachineHost                         & m_machine;
     std::unique_ptr<ReverseStepSearch>    m_search;   // where step back over and step back out land
     ThreadPoolWorkQueue                   m_workQueue;   // before the store, which waits on it as it goes
     KeyframeStore                         m_keyframes;
+    HistoryTimeline                       m_timeline          { m_keyframes };
     Replayer                              m_replayer;
     StateWriter                           m_writer;   // kept so its section and segment lists keep their capacity
     StateWriter                           m_hostWriter;   // the host input state taken with every capture
