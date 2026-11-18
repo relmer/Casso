@@ -45,7 +45,7 @@
 //  first sector is 0 and its length is two tracks. That length selects the
 //  layout. A T file ends at its first $00.
 //
-//  The layout is from CiderPress II's RDOS notes, under its Apache license.
+//  The layout is from CiderPress II's RDOS notes.
 //
 //  Addressing for the integrity pass is one unit per sector of the buffer,
 //  track * 16 + DOS logical sector, or track * 13 + sector in Rdos32.

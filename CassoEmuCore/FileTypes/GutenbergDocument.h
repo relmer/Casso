@@ -20,8 +20,7 @@
 //  set, whose glyph depends on the font the document was written for, so it
 //  is removed and a note is added.
 //
-//  The character ranges are from CiderPress II's Gutenberg notes, under its
-//  Apache license.
+//  The character ranges are from CiderPress II's Gutenberg notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

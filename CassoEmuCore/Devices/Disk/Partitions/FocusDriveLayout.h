@@ -15,8 +15,7 @@
 //  A Parsons Engineering FocusDrive: a signature and a partition map in block
 //  0, and the partition names in blocks 1 and 2.
 //
-//  The map's fields are from CiderPress II's FocusDrive notes, under its
-//  Apache license.
+//  The map's fields are from CiderPress II's FocusDrive notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

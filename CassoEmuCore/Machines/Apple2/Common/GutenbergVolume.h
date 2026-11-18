@@ -49,8 +49,8 @@
 //  The map was worked out from disks Gutenberg, Jr. formatted and wrote in
 //  Casso.
 //
-//  The rest of the layout is from CiderPress II's Gutenberg notes, under its Apache
-//  license, which credit David Schmidt's reverse engineering.
+//  The rest of the layout is from CiderPress II's Gutenberg notes, which
+//  credit David Schmidt's reverse engineering.
 //
 //  Addressing for the integrity pass is one unit per sector, track * 16 +
 //  sector.

@@ -25,9 +25,8 @@ class Microcode;
 //  each procedure, each the distance back from the pointer to the
 //  procedure's attribute table. A table with a procedure number of 0 is a
 //  6502 procedure, and its code ends at the lowest of four relocation
-//  tables. The dictionary layout is from CiderPress II's notes, under its
-//  Apache license, and the rest from the Apple Pascal Operating System
-//  Reference Manual.
+//  tables. The dictionary layout is from CiderPress II's notes, and the
+//  rest from the Apple Pascal Operating System Reference Manual.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
