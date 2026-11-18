@@ -94,6 +94,12 @@ public:
 
 `Decode` takes a `DecodeOptions`: the record length that replaces the one found (FR-160), the character set text is read in (FR-173), a spreadsheet's values or formulas, a hi-res screen in black and white, and how a double hi-res screen is drawn (`DoubleHiResForm`). Simple color is each four dots one of the sixteen colors, as Casso draws the screen; windowed color is each dot the color of the four dots that end at it. Auto draws a double hi-res screen as the preview chooses its form.
 
+An Applesoft or Integer BASIC program's listing has two options on a copy
+(`BasicListingOutput`): an Applesoft listing's control characters as the
+bytes, not a caret and a letter (`basicRawControls`), and the listing as
+`NAME.Applesoft BASIC.rtf` or `NAME.Integer BASIC.rtf`, its line numbers,
+keywords, strings and remarks each in a color (`basicColor`).
+
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`
 writes RTF, CSV, text or PNG by the `DecodedFile`'s kind.

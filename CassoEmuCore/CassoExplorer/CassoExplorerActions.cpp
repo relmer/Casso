@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
+#include "CassoExplorer/Model/BasicListingOutput.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
@@ -1414,6 +1415,11 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
         formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
                                                                                 : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
         hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
+
+        if (converted)
+        {
+            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)));
+        }
     }
 
     count = m_copier.CountCollisions (hostFolder, hostNames);

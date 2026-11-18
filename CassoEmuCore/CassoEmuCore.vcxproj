@@ -522,6 +522,7 @@
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
+    <ClCompile Include="CassoExplorer\Model\BasicListingOutput.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesDialog.cpp" />
     <ClCompile Include="CassoExplorer\WozPropertiesDialog.cpp" />
@@ -1678,6 +1679,7 @@
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
+    <ClInclude Include="CassoExplorer\Model\BasicListingOutput.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />
     <ClInclude Include="CassoExplorer\AppleFilePropertiesDialog.h" />
     <ClInclude Include="CassoExplorer\WozPropertiesDialog.h" />

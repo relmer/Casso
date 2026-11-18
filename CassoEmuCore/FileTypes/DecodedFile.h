@@ -92,11 +92,13 @@ enum class DoubleHiResForm { Auto, BlackAndWhite, SimpleColor, WindowedColor };
 
 struct DecodeOptions
 {
-    size_t           recordLength = 0;
-    Charset          charset      = Charset::Default;
-    bool             formulas     = false;                    // a spreadsheet's formulas as typed, not their values
-    bool             hiResMono    = false;                    // a hi-res picture's dots in black and white
-    DoubleHiResForm  doubleHiRes  = DoubleHiResForm::Auto;
+    size_t           recordLength     = 0;
+    Charset          charset          = Charset::Default;
+    bool             formulas         = false;                    // a spreadsheet's formulas as typed, not their values
+    bool             hiResMono        = false;                    // a hi-res picture's dots in black and white
+    DoubleHiResForm  doubleHiRes      = DoubleHiResForm::Auto;
+    bool             basicColor       = false;                    // a BASIC listing as RTF, its keywords, strings and remarks colored
+    bool             basicRawControls = false;                    // an Applesoft listing's control characters as the bytes, not ^D
 };
 
 
@@ -116,7 +118,7 @@ struct DecodeOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class RunColor { Text, Good, Bad, Muted };
+enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment };
 
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/CopyOutConversion.h"
+#include "CassoExplorer/Model/BasicListingOutput.h"
 #include "Core/TextEncoding.h"
 #include "FileTypes/TextCharset.h"
 
@@ -53,10 +54,11 @@ FileFormat CopyOutConversion::Find (
 bool CopyOutConversion::Applies (FileFormat format, DiskOperations::Encoding encoding, const DecodeOptions & options)
 {
     bool  inCharset = encoding == DiskOperations::Encoding::Text && TextCharset::Resolve (options.charset, false) != Charset::AppleText;
+    bool  listing   = encoding == DiskOperations::Encoding::Basic && BasicListingOutput::Applies (options);
 
 
 
-    return format != FileFormat::None || inCharset;
+    return format != FileFormat::None || inCharset || listing;
 }
 
 
@@ -98,12 +100,24 @@ DiskOperations::Result CopyOutConversion::Get (
     if (decodes)
     {
         result  = operations.Read (image, catalogPath, payload, entry.catalogIndex);
-        decodes = format != FileFormat::None || payload.textForm == PayloadTextForm::AppleHighAscii;
+        decodes = format != FileFormat::None || payload.textForm == PayloadTextForm::AppleHighAscii || encoding == DiskOperations::Encoding::Basic;
     }
 
     if (!decodes)
     {
         result = operations.Get (image, catalogPath, encoding, "", entry.catalogIndex);
+    }
+    else if (result.Succeeded() && format == FileFormat::None && encoding == DiskOperations::Encoding::Basic)
+    {
+        hr = BasicListingOutput::Write (payload.bytes, BasicListingOutput::IsInteger (entry.type, kind), options, result.payload, error);
+
+        if (FAILED (hr))
+        {
+            outDecodeFailure = TextEncoding::NarrowToWide (std::format ("Unable to copy {}: ", entry.name)) + error;
+            result.hr        = hr;
+            result.message   = TextEncoding::WideToNarrow (outDecodeFailure);
+            result.payload.clear();
+        }
     }
     else if (result.Succeeded())
     {

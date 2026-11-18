@@ -19,7 +19,8 @@
 void RtfWriter::Write (const std::vector<Paragraph> & paragraphs, std::vector<Byte> & outBytes)
 {
     std::string  rtf = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Courier New;}}"
-                       "{\\colortbl ;\\red0\\green128\\blue0;\\red192\\green0\\blue0;\\red128\\green128\\blue128;}\r\n";
+                       "{\\colortbl ;\\red0\\green128\\blue0;\\red192\\green0\\blue0;\\red128\\green128\\blue128;"
+                       "\\red0\\green0\\blue192;\\red128\\green64\\blue0;\\red0\\green128\\blue0;}\r\n";
 
 
 

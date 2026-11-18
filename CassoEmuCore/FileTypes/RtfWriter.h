@@ -12,7 +12,7 @@
 //
 //  RtfWriter
 //
-//  A document as RTF 1.5, with only bold, italic, underline, three colors,
+//  A document as RTF 1.5, with only bold, italic, underline, the colors of RunColor,
 //  the four alignments, tabs, PNG pictures and paragraph ends. A character outside ASCII is a \u escape of its
 //  UTF-16 unit, with ? for readers without Unicode.
 //
