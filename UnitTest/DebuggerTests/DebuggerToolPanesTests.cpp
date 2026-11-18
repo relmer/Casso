@@ -533,10 +533,10 @@ namespace DebuggerToolPanesTests
 
 
 
-            cells = ProfilerPane::GetCells (std::nullopt, ProfilerPane::View::Opcodes, false);
+            cells = ProfileRows::GetCells (std::nullopt, ProfileRows::View::Opcodes, false);
             Assert::AreEqual ((size_t) 1, cells.size());
             Assert::IsTrue   (cells[0][0].text.starts_with (L"Choose a period"), L"how to build one");
-            Assert::IsTrue   (ProfilerPane::GetCells (std::nullopt, ProfilerPane::View::Opcodes, true)[0][0].text.starts_with (L"Pause"), L"pause to read it, while on");
+            Assert::IsTrue   (ProfileRows::GetCells (std::nullopt, ProfileRows::View::Opcodes, true)[0][0].text.starts_with (L"Pause"), L"pause to read it, while on");
 
             profile.isOn         = true;
             profile.instructions = 10;
@@ -546,13 +546,13 @@ namespace DebuggerToolPanesTests
 
             //  The totals are a line of their own, with the span the cycles
             //  cover, and an opcode with no operand has a blank mode.
-            cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Opcodes, true);
+            cells = ProfileRows::GetCells (profile, ProfileRows::View::Opcodes, true);
             Assert::AreEqual ((size_t) 2, cells.size());
             Assert::AreEqual (std::wstring (L"LDA"), cells[0][0].text);
             Assert::AreEqual (std::wstring(), cells[1][1].text);
-            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, ProfilerPane::View::Addresses, true)[0][0].text);
-            Assert::IsTrue   (ProfilerPane::GetTotalsText (profile).starts_with (L"2.0 s of running: 10 instructions"), ProfilerPane::GetTotalsText (profile).c_str());
-            Assert::AreEqual (std::wstring(), ProfilerPane::GetTotalsText (std::nullopt));
+            Assert::AreEqual (std::wstring (L"$0300"), ProfileRows::GetCells (profile, ProfileRows::View::Addresses, true)[0][0].text);
+            Assert::IsTrue   (ProfileRows::GetTotalsText (profile).starts_with (L"2.0 s of running: 10 instructions"), ProfileRows::GetTotalsText (profile).c_str());
+            Assert::AreEqual (std::wstring(), ProfileRows::GetTotalsText (std::nullopt));
 
             cells = DataBlocksPane::GetCells ({ { "TABLE", 0x0800, 0x080F, DataBlockKind::Words } });
             Assert::AreEqual (std::wstring (L"$0800-$080F"), cells[0][1].text);
@@ -697,7 +697,7 @@ namespace DebuggerToolPanesTests
 
             Assert::IsNotNull (period.get());
             Assert::IsNotNull (view.get(), L"the pane opens on Routines");
-            Assert::IsTrue    (window.GetProfilerPane().GetView() == ProfilerPane::View::Routines);
+            Assert::IsTrue    (window.GetProfilerPane().GetView() == ProfileRows::View::Routines);
 
             window.GetProfilerPane().ShowPeriod (1);
             Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE HISTORY 10" });
@@ -712,7 +712,7 @@ namespace DebuggerToolPanesTests
             window.TakeSnapshot (snapshot);
             Assert::IsFalse (window.GetProfilerPane().IsBuilding(), L"the progress bar outlasted the build");
 
-            window.GetProfilerPane().SetView (ProfilerPane::View::Tree);
+            window.GetProfilerPane().SetView (ProfileRows::View::Tree);
             Assert::AreEqual (std::wstring (L"Call tree"), view->labelText());
         }
 
@@ -771,20 +771,20 @@ namespace DebuggerToolPanesTests
             ev.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
             ev.wheelDelta  = 1.0f;
             Assert::IsTrue  (pane.RouteEarlyMouse (ev), L"the wheel over the timeline, not the text size");
-            Assert::IsTrue  (pane.GetZoom().GetState().view.has_value(), L"zoomed in");
+            Assert::IsTrue  (pane.GetNavigator().GetZoom().GetState().view.has_value(), L"zoomed in");
             Assert::IsTrue  (host.commands.empty(), L"no build while the wheel turns");
             Assert::IsFalse (pane.Tick ((int64_t) GetTickCount64() + 1000));
 
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"the view's profile, once the wheel stopped");
             command = host.commands[0];
             Assert::IsTrue (sscanf_s (command.c_str(), "PROFILE HISTORY CYCLES %llu %llu", &from, &to) == 2, TextEncoding::NarrowToWide (command).c_str());
-            Assert::IsTrue (CycleRange (from, to) == CycleRange (pane.GetZoom().GetState().view->first, pane.GetZoom().GetState().view->second));
+            Assert::IsTrue (CycleRange (from, to) == CycleRange (pane.GetNavigator().GetZoom().GetState().view->first, pane.GetNavigator().GetZoom().GetState().view->second));
 
             snapshot                        = std::make_shared<DebuggerViewSnapshot> (*snapshot);
             snapshot->profile->historyRange = CycleRange (from, to);
             snapshot->profile->historyBuild = 2;
             window.TakeSnapshot (snapshot);
-            Assert::IsTrue (pane.GetProfile()->historyRange == CycleRange (from, to), L"the zoomed view's profile is the list's");
+            Assert::IsTrue (pane.GetNavigator().GetLists().byOpcode->historyRange == CycleRange (from, to), L"the zoomed view's profile is the list's");
 
             //  A drag selects frames.
             ev             = DxuiMouseEvent();
@@ -797,29 +797,29 @@ namespace DebuggerToolPanesTests
             Assert::IsTrue (pane.RouteContentMouse (ev));
             ev.kind = DxuiMouseEventKind::Up;
             Assert::IsTrue (pane.RouteContentMouse (ev));
-            Assert::IsTrue (pane.GetZoom().GetState().selection.has_value(), L"the drag's frames are selected");
+            Assert::IsTrue (pane.GetNavigator().GetZoom().GetState().selection.has_value(), L"the drag's frames are selected");
             Assert::AreEqual ((size_t) 2, host.commands.size(), L"the selection's profile is built");
 
             snapshot                        = std::make_shared<DebuggerViewSnapshot> (*snapshot);
-            snapshot->profile->historyRange = CycleRange (pane.GetZoom().GetState().selection->first, pane.GetZoom().GetState().selection->second);
+            snapshot->profile->historyRange = CycleRange (pane.GetNavigator().GetZoom().GetState().selection->first, pane.GetNavigator().GetZoom().GetState().selection->second);
             snapshot->profile->historyBuild = 3;
             window.TakeSnapshot (snapshot);
-            Assert::IsTrue (pane.GetProfile()->historyRange == snapshot->profile->historyRange, L"the selection's profile is the list's");
+            Assert::IsTrue (pane.GetNavigator().GetLists().byOpcode->historyRange == snapshot->profile->historyRange, L"the selection's profile is the list's");
 
             //  A move back or forward doesn't start a build.
-            Assert::IsTrue (pane.GoBack());
-            Assert::IsFalse (pane.GetZoom().GetState().selection.has_value());
-            Assert::IsTrue (pane.GetProfile()->historyRange == CycleRange (from, to), L"the view's profile, as it was built");
-            Assert::IsTrue (pane.GoBack());
-            Assert::IsTrue (pane.GetProfile()->historyRange == CycleRange (0, 600 * kFrame), L"the whole profile");
-            Assert::IsTrue (pane.GoForward() && pane.GoForward());
-            Assert::IsTrue (pane.GetZoom().GetState().selection.has_value());
+            Assert::IsTrue (pane.GetNavigator().GoBack());
+            Assert::IsFalse (pane.GetNavigator().GetZoom().GetState().selection.has_value());
+            Assert::IsTrue (pane.GetNavigator().GetLists().byOpcode->historyRange == CycleRange (from, to), L"the view's profile, as it was built");
+            Assert::IsTrue (pane.GetNavigator().GoBack());
+            Assert::IsTrue (pane.GetNavigator().GetLists().byOpcode->historyRange == CycleRange (0, 600 * kFrame), L"the whole profile");
+            Assert::IsTrue (pane.GetNavigator().GoForward() && pane.GetNavigator().GoForward());
+            Assert::IsTrue (pane.GetNavigator().GetZoom().GetState().selection.has_value());
             Assert::AreEqual ((size_t) 2, host.commands.size(), L"no build to move back and forward");
 
             //  The selection's build, in the next snapshot, is taken once.
             snapshot = std::make_shared<DebuggerViewSnapshot> (*snapshot);
             window.TakeSnapshot (snapshot);
-            Assert::IsTrue (pane.GetZoom().CanGoBack(), L"the stack is the same after the same build again");
+            Assert::IsTrue (pane.GetNavigator().GetZoom().CanGoBack(), L"the stack is the same after the same build again");
         }
 
 
@@ -871,15 +871,15 @@ namespace DebuggerToolPanesTests
             wheel.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
 
             Assert::IsTrue   (window.OnMouse (wheel));
-            Assert::IsTrue   (pane.GetZoom().GetState().view.has_value(), L"over the list, the timeline zoomed in");
+            Assert::IsTrue   (pane.GetNavigator().GetZoom().GetState().view.has_value(), L"over the list, the timeline zoomed in");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
 
             window.FocusControl (list);
             Assert::IsTrue   (window.OnKey (zero));
-            Assert::IsFalse  (pane.GetZoom().GetState().view.has_value(), L"Ctrl+0 zooms back out to the whole profile");
+            Assert::IsFalse  (pane.GetNavigator().GetZoom().GetState().view.has_value(), L"Ctrl+0 zooms back out to the whole profile");
 
             Assert::IsTrue   (window.OnKey (plus));
-            Assert::IsTrue   (pane.GetZoom().GetState().view.has_value(), L"Ctrl+Plus zoomed the timeline in");
+            Assert::IsTrue   (pane.GetNavigator().GetZoom().GetState().view.has_value(), L"Ctrl+Plus zoomed the timeline in");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and not the text");
         }
 
@@ -936,9 +936,9 @@ namespace DebuggerToolPanesTests
 
 
 
-            for (view = 0; view < ProfilerPane::kViewCount; view++)
+            for (view = 0; view < ProfileRows::kViewCount; view++)
             {
-                labels.push_back (ProfilerPane::GetViewLabel ((ProfilerPane::View) view));
+                labels.push_back (ProfileRows::GetViewLabel ((ProfileRows::View) view));
             }
 
             Assert::IsTrue (labels == std::vector<std::wstring> { L"Routines", L"Call tree", L"Flame graph", L"Addresses", L"Opcodes" });
@@ -973,7 +973,7 @@ namespace DebuggerToolPanesTests
 
 
 
-            cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Routines, true);
+            cells = ProfileRows::GetCells (profile, ProfileRows::View::Routines, true);
             Assert::AreEqual ((size_t) 4, cells.size());
             Assert::AreEqual (std::wstring (L"PLOT"),  cells[0][0].text);
             Assert::AreEqual (std::wstring (L"40.0%"), cells[0][2].text);
@@ -982,17 +982,17 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual (FlameGraphView::GetRoutineColor (0), cells[0][0].swatch, L"PLOT's swatch is its timeline color");
             Assert::AreEqual (FlameGraphView::GetRoutineColor (2), cells[2][0].swatch, L"and Top level's");
 
-            cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Tree, true);
+            cells = ProfileRows::GetCells (profile, ProfileRows::View::Tree, true);
             Assert::AreEqual (std::wstring (L"Top level"),  cells[0][0].text);
             Assert::AreEqual (std::wstring (L"    PLOT"),   cells[2][0].text, L"two levels in");
             Assert::AreEqual (std::wstring (L"70.0%"),      cells[1][3].text);
             Assert::AreEqual (FlameGraphView::GetRoutineColor (2), cells[0][0].swatch, L"each node in its routine's color");
             Assert::AreEqual (FlameGraphView::GetRoutineColor (0), cells[2][0].swatch);
 
-            Assert::AreEqual ((Word) 0x6000, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 0).value_or (0));
-            Assert::AreEqual ((Word) 0x6200, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 1).value_or (0));
-            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 0).has_value(), L"Top level has no code to go to");
-            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 9).has_value(), L"past the last row");
+            Assert::AreEqual ((Word) 0x6000, ProfileRows::GetRowAddress (profile, ProfileRows::View::Routines, 0).value_or (0));
+            Assert::AreEqual ((Word) 0x6200, ProfileRows::GetRowAddress (profile, ProfileRows::View::Tree, 1).value_or (0));
+            Assert::IsFalse  (ProfileRows::GetRowAddress (profile, ProfileRows::View::Tree, 0).has_value(), L"Top level has no code to go to");
+            Assert::IsFalse  (ProfileRows::GetRowAddress (profile, ProfileRows::View::Routines, 9).has_value(), L"past the last row");
         }
 
 
@@ -1004,23 +1004,23 @@ namespace DebuggerToolPanesTests
         //  ways, by number or by name.
         TEST_METHOD (TheProfilerListSortsByAnyColumn)
         {
-            using View = ProfilerPane::View;
+            using View = ProfileRows::View;
 
             ProfileData  profile = MakeRoutineProfile();
-            auto         sort    = ProfilerPane::GetDefaultSort (View::Routines);
+            auto         sort    = ProfileRows::GetDefaultSort (View::Routines);
 
 
 
             Assert::AreEqual (1, sort.column, L"Self");
             Assert::IsTrue   (sort.descending);
-            Assert::AreEqual (2, ProfilerPane::GetDefaultSort (View::Tree).column, L"the call tree by Total");
-            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 3, true)  == std::vector<size_t> { 2, 3, 0, 1 }, L"Top level, DRAW, PLOT, FILL");
-            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, true)  == std::vector<size_t> { 0, 2, 1, 3 }, L"by self");
-            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, false) == std::vector<size_t> { 3, 1, 2, 0 }, L"by self, least first");
-            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 0, false) == std::vector<size_t> { 3, 1, 0, 2 }, L"by name, ignoring case");
+            Assert::AreEqual (2, ProfileRows::GetDefaultSort (View::Tree).column, L"the call tree by Total");
+            Assert::IsTrue   (ProfileRows::GetOrder (profile, View::Routines, 3, true)  == std::vector<size_t> { 2, 3, 0, 1 }, L"Top level, DRAW, PLOT, FILL");
+            Assert::IsTrue   (ProfileRows::GetOrder (profile, View::Routines, 1, true)  == std::vector<size_t> { 0, 2, 1, 3 }, L"by self");
+            Assert::IsTrue   (ProfileRows::GetOrder (profile, View::Routines, 1, false) == std::vector<size_t> { 3, 1, 2, 0 }, L"by self, least first");
+            Assert::IsTrue   (ProfileRows::GetOrder (profile, View::Routines, 0, false) == std::vector<size_t> { 3, 1, 0, 2 }, L"by name, ignoring case");
 
-            Assert::AreEqual (3, ProfilerPane::GetDefaultSort (View::Opcodes).column,   L"Cycles");
-            Assert::AreEqual (2, ProfilerPane::GetDefaultSort (View::Addresses).column, L"Cycles");
+            Assert::AreEqual (3, ProfileRows::GetDefaultSort (View::Opcodes).column,   L"Cycles");
+            Assert::AreEqual (2, ProfileRows::GetDefaultSort (View::Addresses).column, L"Cycles");
         }
 
 
@@ -1028,14 +1028,14 @@ namespace DebuggerToolPanesTests
         //  every routine stays under its caller.
         TEST_METHOD (TheCallTreeSortsCalleesUnderTheirCaller)
         {
-            using View = ProfilerPane::View;
+            using View = ProfileRows::View;
 
             ProfileData  profile = MakeRoutineProfile();
 
 
 
-            Assert::IsTrue (ProfilerPane::GetOrder (profile, View::Tree, 2, true)  == std::vector<size_t> { 0, 1, 2, 3 }, L"by total: PLOT before FILL");
-            Assert::IsTrue (ProfilerPane::GetOrder (profile, View::Tree, 1, false) == std::vector<size_t> { 0, 1, 3, 2 }, L"by self, least first: FILL before PLOT, both under DRAW");
+            Assert::IsTrue (ProfileRows::GetOrder (profile, View::Tree, 2, true)  == std::vector<size_t> { 0, 1, 2, 3 }, L"by total: PLOT before FILL");
+            Assert::IsTrue (ProfileRows::GetOrder (profile, View::Tree, 1, false) == std::vector<size_t> { 0, 1, 3, 2 }, L"by self, least first: FILL before PLOT, both under DRAW");
         }
 
 

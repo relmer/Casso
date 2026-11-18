@@ -39,6 +39,9 @@ public:
     IDxuiFindTarget            * GetFindView    () const override { return m_list; }
     DebuggerPaneFrame          * GetFindFrame   () const override { return m_frame.get(); }
 
+    //  One muted cell across the row.
+    static std::vector<DxuiListView::Cell>  MakeNote (const std::wstring & text);
+
 protected:
     //  Copy, for the rows selected in the list.
     void                         AddCopyItem    (PaneMenuItems & items);
@@ -46,9 +49,6 @@ protected:
     //  The path the user picks to save to; empty when the user backs out or
     //  the window has no file pickers.
     std::wstring                 PickSaveFile   (const wchar_t * filterName, const wchar_t * filter, const wchar_t * extension, const std::wstring & fileName);
-
-    //  One muted cell across the row.
-    static std::vector<DxuiListView::Cell>  MakeNote (const std::wstring & text);
 
     //  Scrolls to a row added since the last call.
     void                         ShowNewListRow ();
