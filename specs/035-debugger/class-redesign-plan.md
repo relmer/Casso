@@ -429,8 +429,27 @@ Existing work, not merged, for reference and for the parts that pass the rules:
     It edits nothing under `Dxui/`.
   - These ratings are that session's. The overseer checks each class against
     rules 1 to 5 before taking it.
-- `refs/heads/claude/035-split-debug-engine-080423`. Its report rates
-  `CallRecordKeeper` and others as sound and some boundaries as weaker.
+- `refs/heads/claude/035-split-debug-engine-080423`, stopped 2026-11-18 at
+  `1927160e4`, based on `276f8eb7e`, worktree clean. From the branch itself:
+  - All six of its files are under the limit.
+  - New classes:
+    - from `DebugSession`: `CallRecordKeeper`, `DebugStopMonitor`,
+      `BeamBreakMonitor`, `DebugLineInterpreter`, `DebugProgramFiles`,
+      `DebugHostFiles`, `DebugProjectMerge`, `HistoryDivergence`
+    - from `ShellDebugger`: `ShellDebugView`, `DebugViewModel`,
+      `DebugWindowMailbox`, `ShellDebugProject`, `ShellHistory`, with
+      `IShellDebugContext`
+    - from `HeatMapView`: `HeatMapGrid`, `HeatMapCells`, `HeatMapCellText`,
+      `HeatMapBands`, `HeatMapSections`, `HeatMapFrame`, `HeatMapPainter`,
+      `HeatMapPicker`, `HeatMapControls`, `HeatMapTips`
+    - from `SoundBoardView`: `SoundVoiceCard`, `SoundBoardInk`
+    - tests: `OperandTipWindowTests`, `HeatChannelHistoryTests`,
+      `HeatHistoryChecks.h`
+  - Its session rated `CallRecordKeeper` and others as sound and some boundaries
+    as weaker. The full ratings, its build and test results and its list of
+    files outside the group are in that session's last report, not here: read
+    the report, or check each class against rules 1 to 5.
+  - It edits `ShellDebugger.cpp`, which the UI branch also edits for renames.
 - `specs/044-debugger-window-refactor/` has an earlier plan for `DebuggerWindow`
   (pane interface, host interface, pane list). Use it.
 
