@@ -195,12 +195,19 @@ case = case.cut(box(PANEL_INSET_X, PANEL_FRONT, TOP - PANEL_DEEP,
 case = case.cut(box(SLOT_X0, -5.0, SLOT_Z0, W - SLOT_X0, 20.0, SLOT_Z1))
 case = case.cut(box(NOTCH_X0, -5.0, NOTCH_Z0, NOTCH_X0 + NOTCH_W, NOTCH_D, NOTCH_Z1))
 
-# The seam between the cover and the base tray: a groove on the sides and the
-# back, stopping at the front corners.
-case = case.cut(box(-5.0, FRONT_CHAMFER + 2.0, SEAM_Z - SEAM_GAP * 0.5,
+# The seam between the cover and the base tray: a groove along the sides and
+# the back that turns down each side behind the front corners and runs
+# across the bottom behind the face's chin, so it goes all the way round.
+SEAM_Y = FRONT_CHAMFER + 2.0
+
+case = case.cut(box(-5.0, SEAM_Y, SEAM_Z - SEAM_GAP * 0.5,
                     W + 5.0, D + 5.0, SEAM_Z + SEAM_GAP * 0.5)
                   .cut(box(SEAM_DEEP, 0.0, SEAM_Z - 2.0,
                            W - SEAM_DEEP, D - SEAM_DEEP, SEAM_Z + 2.0)))
+case = case.cut(box(-5.0, SEAM_Y - SEAM_GAP * 0.5, -5.0,
+                    W + 5.0, SEAM_Y + SEAM_GAP * 0.5, SEAM_Z + SEAM_GAP * 0.5)
+                  .cut(box(SEAM_DEEP, SEAM_Y - 2.0, FOOT_H + SEAM_DEEP,
+                           W - SEAM_DEEP, SEAM_Y + 2.0, TOP)))
 
 # The rear recess.
 case = case.cut(box(REAR_X0, D - REAR_DEEP, REAR_Z0, REAR_X1, D + 1.0, REAR_Z1))
@@ -312,12 +319,51 @@ def label_text(text, font, u0, u1, v, y0):
 
 m.add("rear_plate", box(REAR_X0, D - REAR_DEEP, REAR_Z0, REAR_X1, YP, REAR_Z1), METAL)
 
-# The connector above the label: the blue header in its opening, the
-# plate's screw, and the black socket at the right.
-m.add("rear_opening",   recess_box(1.0, 0.3, 44.5, 9.0, YP, YP + 0.05), BLACK)
-m.add("rear_header",    recess_box(1.6, 0.9, 43.9, 8.4, YP, YP + 1.5), BLUE)
-m.add("rear_header_in", recess_box(4.0, 2.4, 41.5, 6.9, YP, YP + 1.55), BLACK)
-m.add("rear_socket",    recess_box(83.5, 0.5, 90.0, 9.0, YP, YP + 2.0), BLACK)
+# The two connectors above the label, each a 26-position shrouded header on
+# a 2.54 mm pitch in the 3M 2500 series' dimensions: a body 40.34 by 8.6 mm,
+# a 33.0 by 6.35 mm cavity with a 4.5 mm key slot in the middle of its top
+# wall, and two rows of 13 square 0.64 mm pins, each set 2.54 mm apart. The
+# blue one is 20.1 mm from the left edge as seen from behind, and the black
+# one the same distance from the right. Between them is the plate's screw.
+HDR_L, HDR_H         = 40.34, 8.6
+HDR_CAV_L, HDR_CAV_H = 33.0, 6.35
+HDR_KEY              = 4.5
+HDR_PROUD            = 3.0
+HDR_CAV_D            = 2.6
+HDR_PIN              = 0.64
+HDR_PITCH            = 2.54
+HDR_PIN_DOWN         = 0.8
+HDR_EDGE             = 20.1
+HDR_Z                = REAR_Z1 - 4.65
+GOLD                 = (0.780, 0.640, 0.300)
+
+
+def header(cx, rgb, name):
+    x0, x1 = cx - HDR_L * 0.5, cx + HDR_L * 0.5
+    z0, z1 = HDR_Z - HDR_H * 0.5, HDR_Z + HDR_H * 0.5
+    front  = YP + HDR_PROUD
+    shell  = (box(x0, YP, z0, x1, front, z1)
+                .cut(box(cx - HDR_CAV_L * 0.5, front - HDR_CAV_D, HDR_Z - HDR_CAV_H * 0.5,
+                         cx + HDR_CAV_L * 0.5, front + 1.0, HDR_Z + HDR_CAV_H * 0.5))
+                .cut(box(cx - HDR_KEY * 0.5, front - HDR_CAV_D, HDR_Z, cx + HDR_KEY * 0.5, front + 1.0, z1 + 1.0)))
+    pins   = None
+
+    m.add(f"{name}_opening", box(x0 - 0.6, YP, z0 - 0.6, x1 + 0.6, YP + 0.05, z1 + 0.6), BLACK)
+    m.add(name, shell, rgb)
+
+    for row in (-0.5, 0.5):
+        for i in range(13):
+            px  = cx + (i - 6) * HDR_PITCH
+            pz  = HDR_Z + row * HDR_PITCH
+            pin = box(px - HDR_PIN * 0.5, front - HDR_CAV_D - 0.1, pz - HDR_PIN * 0.5,
+                      px + HDR_PIN * 0.5, front - HDR_PIN_DOWN, pz + HDR_PIN * 0.5)
+            pins = pin if pins is None else pins.union(pin)
+
+    m.add(f"{name}_pins", pins, GOLD)
+
+
+header(W - HDR_EDGE - HDR_L * 0.5, BLUE,  "rear_header")
+header(HDR_EDGE + HDR_L * 0.5,     BLACK, "rear_header_right")
 m.add("rear_screw",
       back_place(cq.Workplane("XZ").center(REAR_X1 - 62.5, REAR_Z1 - 4.0).circle(3.6).extrude(1.0), YP),
       (0.700, 0.705, 0.715))
