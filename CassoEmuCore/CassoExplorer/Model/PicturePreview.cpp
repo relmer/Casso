@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleLoResMode.h"
+#include "Machines/Apple2/Common/NtscColorTable.h"
 #include "Video/MonochromeTint.h"
 
 
@@ -96,9 +97,15 @@ HRESULT PicturePreview::Render (
     outHeight = kHeight;
     outBgra.assign ((size_t) kWidth * kHeight, 0xFF000000u);
 
-    if (mode == Mode::DoubleHiResMono)
+    if (mode == Mode::DoubleHiResMono || mode == Mode::DoubleHiResWindowed)
     {
         RenderMonochrome (bytes, address, outBgra);
+
+        if (mode == Mode::DoubleHiResWindowed && !mono)
+        {
+            RenderWindowed (outBgra);
+        }
+
         Tint (outBgra, monitor, customArgb);
         return S_OK;
     }
@@ -388,6 +395,53 @@ void PicturePreview::RenderMonochrome (std::span<const Byte> bytes, Word address
                     outBgra[(size_t) (y * 2 + 1) * kWidth + (size_t) x] = argb;
                 }
             }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PicturePreview::RenderWindowed
+//
+//  The monochrome dots recolored: each dot is the color of the four dots
+//  that end at it, the window sliding one dot at a time. A dot's bit in the
+//  color number is set by its place in the color clock, which runs a dot
+//  ahead of the byte boundary: the first dot of a four-dot cell is bit 1,
+//  the second bit 2, the third bit 3 and the fourth bit 0, as
+//  AppleDoubleHiResMode reads a cell. Dots before the left edge are dark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PicturePreview::RenderWindowed (std::vector<uint32_t> & ioBgra)
+{
+    for (int y = 0; y < kHeight; y += 2)
+    {
+        uint32_t  * row   = ioBgra.data() + (size_t) y * kWidth;
+        int         index = 0;
+        bool        lit[kWidth] = {};
+
+
+
+        for (int x = 0; x < kWidth; x++)
+        {
+            lit[x] = row[x] != 0xFF000000u;
+        }
+
+        for (int x = 0; x < kWidth; x++)
+        {
+            index = 0;
+
+            for (int dot = (std::max) (0, x - 3); dot <= x; dot++)
+            {
+                index |= lit[dot] ? (1 << ((dot + 1) & 3)) : 0;
+            }
+
+            row[x]          = kAppleColors[index];
+            row[x + kWidth] = kAppleColors[index];
         }
     }
 }

@@ -1156,7 +1156,7 @@ PicturePreview::Monitor BrowserPreviewer::ChooseMonitor (PicturePreview::Monitor
 
 
 
-    if (mode == PicturePreview::Mode::DoubleHiRes)
+    if (mode == PicturePreview::Mode::DoubleHiRes || mode == PicturePreview::Mode::DoubleHiResWindowed)
     {
         monitor = PicturePreview::Monitor::Color;
     }
@@ -1180,8 +1180,7 @@ PicturePreview::Monitor BrowserPreviewer::ChooseMonitor (PicturePreview::Monitor
 
 bool BrowserPreviewer::CanTogglePictureColor() const
 {
-    return m_preview.kind == PreviewContent::Kind::Picture
-        && (m_preview.pictureChosen == PicturePreview::Mode::DoubleHiRes || m_preview.pictureChosen == PicturePreview::Mode::DoubleHiResMono);
+    return m_preview.kind == PreviewContent::Kind::Picture && PicturePreview::IsDoubleHiRes (m_preview.pictureChosen);
 }
 
 
@@ -1207,8 +1206,8 @@ bool BrowserPreviewer::TogglePictureColor()
         return false;
     }
 
-    m_preview.pictureMode = (m_preview.pictureMode == PicturePreview::Mode::DoubleHiRes) ? PicturePreview::Mode::DoubleHiResMono
-                                                                                         : PicturePreview::Mode::DoubleHiRes;
+    m_preview.pictureMode = (m_preview.pictureMode != PicturePreview::Mode::DoubleHiResMono) ? PicturePreview::Mode::DoubleHiResMono
+                                                                                             : PicturePreview::Mode::DoubleHiRes;
 
     hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
                                  m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);

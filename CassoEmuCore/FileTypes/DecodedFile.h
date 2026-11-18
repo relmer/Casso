@@ -24,7 +24,8 @@ enum class FileFormat
     SuperHiRes3200, DreamGrafix, SuperHiRes3201, IigsAnimation,
     Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
-    IigsFont, WizardryScenario, InfocomStory,
+    IigsFont, WizardryScenario, InfocomStory, HiResScreen,
+    DoubleHiResScreen, LoResScreen, MacPaint,
 };
 
 
@@ -63,6 +64,24 @@ enum class SheetForm { None, Values, Formulas };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DoubleHiResForm
+//
+//  How a double hi-res picture is drawn. Auto is black and white for a
+//  picture whose name ends .A2FM or whose dots are drawn as black and white,
+//  and simple color otherwise. Simple color
+//  is each four dots one of the sixteen colors, as Casso draws the screen;
+//  windowed color is each dot the color of the four dots that end at it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DoubleHiResForm { Auto, BlackAndWhite, SimpleColor, WindowedColor };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeOptions
 //
 //  Chosen in a file's preview while its tab is open: the record length
@@ -73,9 +92,11 @@ enum class SheetForm { None, Values, Formulas };
 
 struct DecodeOptions
 {
-    size_t   recordLength = 0;
-    Charset  charset      = Charset::Default;
-    bool     formulas     = false;      // a spreadsheet's formulas as typed, not their values
+    size_t           recordLength = 0;
+    Charset          charset      = Charset::Default;
+    bool             formulas     = false;                    // a spreadsheet's formulas as typed, not their values
+    bool             hiResMono    = false;                    // a hi-res picture's dots in black and white
+    DoubleHiResForm  doubleHiRes  = DoubleHiResForm::Auto;
 };
 
 

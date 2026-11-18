@@ -37,6 +37,10 @@ its decoder is written. The table is the test list for
 | 3201 | BIN, name ending `.3201`, starting `APP` $00 or `NRL` $00 | none | picture | `NAME.3200 Color.png` | no | SuperHiRes |
 | IIgs animation | $C2/$0000 | none | picture, first frame | `NAME.Animation.png` | no | PaintworksAnim |
 | LZ4FH | $08/$8066 | none | picture | `NAME.LZ4FH.png` | no | HiRes, fhpack |
+| Hi-res screen | BIN at $2000 or $4000, 8,192 or 8,184 bytes; $08 with aux below $4000, 8,184 to 8,192 bytes; $08/$4000, packed with PackBytes | B, the same addresses and sizes | picture, in color or black and white | `NAME.Hi-Res.png` | no | HiRes |
+| Double hi-res screen | BIN at $2000, 16,384 bytes; $08 with aux below $4000, 16,368 to 16,384 bytes; $08/$4001, packed with PackBytes | B, the same address and size | picture, in black and white, simple color or windowed color | `NAME.Double Hi-Res.png` | no | DoubleHiRes |
+| Lo-res screen | BIN at $400 or $800, 1,024 bytes | B, the same | picture | `NAME.Lo-Res.png` | no | none |
+| MacPaint | a name ending `.PNTG` or `.MAC`, or a MacBinary header with Finder type PNTG; a 512-byte header with version 0 or 2, then 720 rows packed with PackBits | the same | picture, 576 by 720 | `NAME.MacPaint.png` | no | MacPaint |
 | Print Shop graphic | generic types, by size and load address | B at $4800, $5800, $6800 or $7800, 572 or 576 bytes | picture | `NAME.Print Shop.png` | no | PrintShop |
 | Print Shop GS clip art | $F8/$C323 color, $F8/$C313 monochrome | none | picture | `NAME.Print Shop.png` | no | PrintShop |
 | Applesoft shape table | BIN ($06): a shape count, then offsets inside the file, each shape ending in $00 | B, the same check | sheet | `NAME.Shape table.png` | no | ShapeTable |
@@ -74,7 +78,8 @@ enum class FileFormat { None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
                         SuperHiRes3200, DreamGrafix, SuperHiRes3201, IigsAnimation,
                         Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
                         IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
-                        IigsFont, WizardryScenario, InfocomStory };
+                        IigsFont, WizardryScenario, InfocomStory, HiResScreen,
+                        DoubleHiResScreen, LoResScreen, MacPaint };
 
 class FileFormatTable
 {
@@ -87,7 +92,7 @@ public:
 };
 ```
 
-`Decode` takes a `DecodeOptions`: the record length that replaces the one found (FR-160) and the character set text is read in (FR-173).
+`Decode` takes a `DecodeOptions`: the record length that replaces the one found (FR-160), the character set text is read in (FR-173), a spreadsheet's values or formulas, a hi-res screen in black and white, and how a double hi-res screen is drawn (`DoubleHiResForm`). Simple color is each four dots one of the sixteen colors, as Casso draws the screen; windowed color is each dot the color of the four dots that end at it. Auto draws a double hi-res screen as the preview chooses its form.
 
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`

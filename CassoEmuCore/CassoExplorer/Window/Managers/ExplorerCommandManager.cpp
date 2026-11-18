@@ -547,7 +547,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kThemeDarkModern:   return m_context.prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
         case CassoExplorerCommands::kThemeRetroTerminal: return m_context.prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
         case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
-        case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreview().charset == Charset::AppleText;
         case CassoExplorerCommands::kCharsetMacOsRoman: return m_context.browser.GetPreview().charset == Charset::MacOsRoman;
         case CassoExplorerCommands::kCharsetIso8859:    return m_context.browser.GetPreview().charset == Charset::Iso8859_1;

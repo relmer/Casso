@@ -22,6 +22,7 @@
 #include "Ui/Debugger/SourceSyntax.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/HiResFormats.h"
+#include "FileTypes/ScreenPicture.h"
 #include "FileTypes/TextCharset.h"
 
 
@@ -822,25 +823,38 @@ HRESULT PreviewDecoder::Render (
     uint32_t                 customArgb,
     const DecodeOptions    & options)
 {
-    HRESULT            hr     = S_OK;
-    FileFormat         format = FileFormatTable::Identify (entry, kind, payload.bytes);
-    DecodedFile        decoded;
-    std::wstring       error;
-    std::vector<Byte>  page;
+    HRESULT               hr      = S_OK;
+    FileFormat            format  = FileFormatTable::Identify (entry, kind, payload.bytes);
+    FileFacts             facts   = FileFacts::From (entry, kind);
+    DecodedFile           decoded;
+    std::wstring          error;
+    std::vector<Byte>     page;
+    Word                  address = s_kHiResPage;
+    PicturePreview::Mode  mode    = PicturePreview::Mode::HiRes;
+    bool                  screen  = format == FileFormat::Lz4fh || format == FileFormat::HiResScreen
+                                 || format == FileFormat::DoubleHiResScreen || format == FileFormat::LoResScreen;
 
 
 
-    //  An LZ4FH picture unpacks to a hi-res page, drawn by the Display
-    //  page's monitor as any other hi-res picture.
-    if (format == FileFormat::Lz4fh)
+    //  A saved screen, an LZ4FH picture unpacked to a hi-res page among them,
+    //  is drawn by the Display page's monitor as Casso draws the screen.
+    if (screen)
     {
         outContent = PreviewContent();
 
-        hr = Lz4fh::Unpack (payload.bytes, page);
+        if (format == FileFormat::Lz4fh)
+        {
+            hr = Lz4fh::Unpack (payload.bytes, page);
+        }
+        else
+        {
+            hr   = ScreenPicture::Unpack (format, payload.bytes, facts, page, address, error);
+            mode = ScreenPicture::ChooseMode (format, facts, page, options);
+        }
 
         if (SUCCEEDED (hr))
         {
-            hr = PicturePreview::Render (PicturePreview::Mode::HiRes, page, s_kHiResPage, bus,
+            hr = PicturePreview::Render (mode, page, address, bus,
                                          outContent.bgra, outContent.width, outContent.height, monitor, customArgb);
         }
 
@@ -848,17 +862,15 @@ HRESULT PreviewDecoder::Render (
         {
             outContent.kind          = PreviewContent::Kind::Picture;
             outContent.bytes         = page;
-            outContent.origin        = s_kHiResPage;
-            outContent.pictureMode   = PicturePreview::Mode::HiRes;
-            outContent.pictureChosen = PicturePreview::Mode::HiRes;
+            outContent.origin        = address;
+            outContent.pictureMode   = mode;
+            outContent.pictureChosen = mode;
             return S_OK;
         }
     }
 
-    if (format != FileFormat::None)
+    if (format != FileFormat::None && !screen)
     {
-        FileFacts  facts = FileFacts::From (entry, kind);
-
         facts.resourceFork = payload.resourceFork;
         hr                 = FileFormatTable::Decode (format, payload.bytes, facts, options, decoded, error);
 

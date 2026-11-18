@@ -7,6 +7,7 @@
 #include "FileTypes/HiResFormats.h"
 #include "FileTypes/IigsFormats.h"
 #include "FileTypes/LisaSource.h"
+#include "FileTypes/MacPaintPicture.h"
 #include "FileTypes/MagicWindowDocument.h"
 #include "FileTypes/MerlinSource.h"
 #include "FileTypes/OmfFile.h"
@@ -14,6 +15,7 @@
 #include "FileTypes/PascalText.h"
 #include "FileTypes/RandomText.h"
 #include "FileTypes/ScAssemblerSource.h"
+#include "FileTypes/ScreenPicture.h"
 #include "FileTypes/SuperHiRes.h"
 #include "FileTypes/TeachDocument.h"
 #include "FileTypes/VisiCalcSheet.h"
@@ -64,6 +66,10 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::DreamGrafix,        &SuperHiRes3200::MatchesDreamGrafix, &SuperHiRes3200::DecodeDreamGrafix, nullptr, L".3200 Color.png",   true },
         Row { FileFormat::SuperHiRes3201,     &SuperHiRes3200::Matches3201,        &SuperHiRes3200::Decode3201,        nullptr, L".3200 Color.png",   true },
         Row { FileFormat::Lz4fh,              &Lz4fh::Matches,                     &Lz4fh::Decode,                     nullptr, L".LZ4FH.png",        false },
+        Row { FileFormat::HiResScreen,        &ScreenPicture::MatchesHiRes,        &ScreenPicture::DecodeHiRes,        nullptr, L".Hi-Res.png",        false },
+        Row { FileFormat::DoubleHiResScreen,  &ScreenPicture::MatchesDoubleHiRes,  &ScreenPicture::DecodeDoubleHiRes,  nullptr, L".Double Hi-Res.png", false },
+        Row { FileFormat::LoResScreen,        &ScreenPicture::MatchesLoRes,        &ScreenPicture::DecodeLoRes,        nullptr, L".Lo-Res.png",        false },
+        Row { FileFormat::MacPaint,           &MacPaintPicture::Matches,           &MacPaintPicture::Decode,           nullptr, L".MacPaint.png",      false },
         Row { FileFormat::PrintShopGsClipArt, &PrintShopGraphic::MatchesGs,        &PrintShopGraphic::Decode,          nullptr, L".Print Shop.png",   true },
         Row { FileFormat::PrintShopGraphic,   &PrintShopGraphic::Matches,          &PrintShopGraphic::Decode,          nullptr, L".Print Shop.png",   false },
         Row { FileFormat::PrintShopFont,      &PrintShopFont::Matches,             &PrintShopFont::Decode,             nullptr, L".Font.png",         false },
