@@ -29,6 +29,8 @@ Sentence case throughout. **Status** is `proposed` until approved.
 | Disk menu access keys | On the Apple ///, the drive 3 rows (shared with the //c Plus) use the drive 1 rows' keys W, l, d and m | open question |
 | Command line help | --disk3: Insert this image into drive 3, on an Apple /// with that drive. --disk4: the same for drive 4. | approved 2026-11-18 |
 | Drive tips | Built-in drive | approved 2026-11-18 |
+| Desk drive tips | Built-in drive; Disk ///, drive 2 (3, 4) | approved 2026-11-18 |
+| Drive bar titles | Drive 1 - Built-in; Drive 2 - Disk /// (3, 4) | approved 2026-11-18 |
 
 ## Messages
 
