@@ -23,7 +23,7 @@
 class ListValueFilters
 {
 public:
-    explicit ListValueFilters (IDebuggerPaneHost & host);
+    explicit ListValueFilters (const DebuggerPaneParts & parts);
 
     //  The list, the columns that filter, and the pane's call to build its
     //  rows again after a change.
@@ -52,7 +52,8 @@ public:
 private:
     void  ShowMenu (size_t column, RECT chevronPx);
 
-    IDebuggerPaneHost                          & m_host;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneLayout                                & m_paneLayout;
     DxuiListView                               * m_list = nullptr;
     std::vector<size_t>                          m_columns;
     std::map<size_t, std::set<std::wstring>>     m_present;

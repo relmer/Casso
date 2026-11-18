@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/TracePaneController.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
@@ -20,8 +21,16 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TracePaneController::TracePaneController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+TracePaneController::TracePaneController (const DebuggerPaneParts & parts) :
+    m_windowHost (parts.windowHost),
+    m_paneWindow (parts.window),
+    m_paneDialogs (parts.dialogs),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_paneCommands (parts.commands),
+    m_latest (parts.latest),
+    m_look (parts.look)
 {
 }
 
@@ -71,7 +80,7 @@ const std::wstring & TracePaneController::GetId() const
 
 void TracePaneController::CreateControls()
 {
-    DxuiPanel  & parent = m_host.GetControlParent();
+    DxuiPanel  & parent = m_paneWindow;
 
 
 
@@ -80,7 +89,7 @@ void TracePaneController::CreateControls()
 
     m_model = std::make_unique<TracePane> (m_list, [this] (std::optional<uint64_t> first)
     {
-        IDebuggerWindowHost  * host = m_host.GetWindowHost();
+        IDebuggerWindowHost  * host = m_windowHost;
 
         if (host != nullptr)
         {
@@ -188,8 +197,8 @@ std::vector<IDxuiControl *> TracePaneController::GetControls() const
 
 void TracePaneController::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_model->SetColors  (m_host.GetTextColors());
-    m_model->SetPcStyle (m_host.GetPcMarker (nullptr), m_host.GetPcRowArgb());
+    m_model->SetColors  (m_look.GetTextColors());
+    m_model->SetPcStyle (m_look.GetPcIcon (nullptr), m_look.GetTextColors().pcRow);
     m_model->Apply      (snapshot.trace);
 }
 
@@ -229,7 +238,7 @@ bool TracePaneController::Tick (int64_t nowMs)
 
 bool TracePaneController::RouteContentMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_host.IsRoutable (m_hint))
+    if (!m_paneRouting.IsRoutable (m_hint))
     {
         return false;
     }
@@ -239,7 +248,7 @@ bool TracePaneController::RouteContentMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Move:
         if (m_hint->OnMouse (ev))
         {
-            m_host.Repaint();
+            m_paneLayout.Repaint();
         }
 
         return false;
@@ -247,8 +256,8 @@ bool TracePaneController::RouteContentMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left && m_hint->IsVisible() && m_hint->OnMouse (ev))
         {
-            m_host.FocusControl (m_list);
-            m_host.Repaint();
+            m_paneFocus.FocusControl (m_list);
+            m_paneLayout.Repaint();
             return true;
         }
 
@@ -257,7 +266,7 @@ bool TracePaneController::RouteContentMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Up:
         if (m_hint->OnMouse (ev))
         {
-            m_host.Repaint();
+            m_paneLayout.Repaint();
             return true;
         }
 
@@ -309,12 +318,12 @@ bool TracePaneController::RunTraceAction (int action)
 
     switch ((TracePane::KeyAction) action)
     {
-    case TracePane::KeyAction::StepInto:    return m_host.RunKeyAction (Action::StepInto);
-    case TracePane::KeyAction::StepOver:    return m_host.RunKeyAction (Action::StepOver);
-    case TracePane::KeyAction::StepOut:     return m_host.RunKeyAction (Action::StepOut);
-    case TracePane::KeyAction::Run:         return m_host.RunKeyAction (Action::Run);
-    case TracePane::KeyAction::ToggleTrace: m_host.RunCommandBarEntry (DebuggerCommands::kTrace); return true;
-    case TracePane::KeyAction::ToggleBytes: m_model->ToggleBytes(); m_host.Repaint();             return true;
+    case TracePane::KeyAction::StepInto:    return m_paneCommands.RunKeyAction (Action::StepInto);
+    case TracePane::KeyAction::StepOver:    return m_paneCommands.RunKeyAction (Action::StepOver);
+    case TracePane::KeyAction::StepOut:     return m_paneCommands.RunKeyAction (Action::StepOut);
+    case TracePane::KeyAction::Run:         return m_paneCommands.RunKeyAction (Action::Run);
+    case TracePane::KeyAction::ToggleTrace: m_paneCommands.RunCommandBarEntry (DebuggerCommands::kTrace); return true;
+    case TracePane::KeyAction::ToggleBytes: m_model->ToggleBytes(); m_paneLayout.Repaint();             return true;
     case TracePane::KeyAction::Save:        Save();                                               return true;
     default:                                                                                      return false;
     }
@@ -335,7 +344,7 @@ bool TracePaneController::RunTraceAction (int action)
 void TracePaneController::Save()
 {
     HRESULT                hr      = S_OK;
-    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    IHostDialogs         * dialogs = m_paneDialogs.GetHostDialogs();
     FileDialogSpec         spec;
     std::filesystem::path  chosen;
     bool                   picked  = false;
@@ -348,12 +357,12 @@ void TracePaneController::Save()
     spec.defaultExtension = L"txt";
     spec.defaultFileName  = L"trace.txt";
 
-    hr = dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    hr = dialogs->PickFileToSave (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (SessionActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
 
 Error:
     return;
@@ -384,9 +393,9 @@ bool TracePaneController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
     if (pc.has_value())
     {
-        m_host.AddBookmarkItem (*pc, items);
+        PaneMenuRows::AddBookmark (m_latest, m_paneCommands, *pc, items);
     }
 
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     return true;
 }

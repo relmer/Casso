@@ -5,6 +5,7 @@
 class MemoryAddressEntry;
 class MemoryBarCommands;
 class MemoryPane;
+class HeatMapPane;
 class MemoryWindowGroup;
 
 
@@ -24,7 +25,7 @@ class MemoryWindowGroup;
 class MemoryWindowPane : public IDebuggerPane
 {
 public:
-    MemoryWindowPane (IDebuggerPaneHost & host, MemoryWindowGroup & group, int id);
+    MemoryWindowPane (const DebuggerPaneParts & parts, MemoryWindowGroup & group, int id);
     ~MemoryWindowPane() override;
 
     int                              GetWindowId  () const { return m_windowId; }
@@ -52,14 +53,20 @@ public:
     bool                             OnGoToKey           () override;
 
 private:
+    IDebuggerWindowHost * const         & m_windowHost;
+    DxuiWindow                          & m_paneWindow;
+    IPaneReplies                        & m_paneReplies;
+    IPaneRouting                        & m_paneRouting;
+    IPaneCommands                       & m_paneCommands;
+    const LatestSnapshot                & m_latest;
     MemoryWindowGroup                   & m_group;
-    int                                   m_windowId = 0;
+    int                                   m_windowId     = 0;
     std::wstring                          m_id;
-    DxuiHexView                         * m_view     = nullptr;
+    DxuiHexView                         * m_view         = nullptr;
     std::unique_ptr<MemoryPane>           m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_slot;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
-    bool                                  m_isOpen   = false;
+    bool                                  m_isOpen       = false;
 };
 
 
@@ -84,12 +91,18 @@ private:
 class MemoryWindowGroup : public IDebuggerPane
 {
 public:
-    explicit MemoryWindowGroup (IDebuggerPaneHost & host);
+    explicit MemoryWindowGroup (const DebuggerPaneParts & parts, HeatMapPane & heatMap);
     ~MemoryWindowGroup() override;
 
     //  Creates the windows, for the window to add to its pane list after the
     //  group.
     std::vector<std::unique_ptr<IDebuggerPane>>  CreateWindows ();
+
+    //  Moves the window in front, or the first one in view, to an address and
+    //  brings that window forward; and adds a menu's rows that move each open
+    //  window to an address or a Go to text.
+    void  ShowAddress     (Word address);
+    void  AddShowInItems  (const std::wstring & what, const std::string & goTo, PaneMenuItems & items);
 
     DxuiToolbar                        * GetBar          () const { return m_bar; }
     DxuiTextInput                      * GetBox          () const { return m_box; }
@@ -114,7 +127,7 @@ public:
 
     //  A window's menu on its bytes.
     void                                 AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items);
-    void                                 FocusAddressBox    () { m_host.FocusControl (m_box); }
+    void                                 FocusAddressBox    () { m_paneFocus.FocusControl (m_box); }
 
     //  A DxuiHexView menu as the pane menu's rows, a submenu's under its label.
     static void                          AppendViewItems (const std::vector<DxuiPopupMenuItem> & from, const std::wstring & submenu, PaneMenuItems & items);
@@ -163,15 +176,33 @@ private:
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
 
-    std::array<MemoryWindowPane *, DebuggerViewState::kMaxMemoryWindows>  m_windows   = {};
-    DxuiToolbar                                                         * m_bar       = nullptr;
-    DxuiTextInput                                                       * m_box       = nullptr;
-    std::unique_ptr<MemoryBarCommands>                                    m_commands;
-    std::unique_ptr<MemoryAddressEntry>                                   m_addressEntry;
-    std::vector<std::wstring>                                             m_history;
-    MemoryWindowPane                                                    * m_active    = nullptr;
-    std::wstring                                                          m_barPane;
-    DxuiWindow                                                          * m_barHost   = nullptr;
+    IDebuggerWindowHost * const                                           & m_windowHost;
+    const DxuiDpiScaler                                                   & m_paneScaler;
+    DxuiWindow                                                            & m_paneWindow;
+    IPaneReplies                                                          & m_paneReplies;
+    IPaneDialogs                                                          & m_paneDialogs;
+    IPaneViews                                                            & m_paneViews;
+    IPaneLayout                                                           & m_paneLayout;
+    IPaneTips                                                             & m_paneTips;
+    IPaneBars                                                             & m_paneBars;
+    IPaneRouting                                                          & m_paneRouting;
+    IPaneFocus                                                            & m_paneFocus;
+    IPaneTabs                                                             & m_paneTabs;
+    IPanePlaces                                                           & m_panePlaces;
+    IPaneCommands                                                         & m_paneCommands;
+    HeatMapPane                                                           & m_heatMap;
+    const LatestSnapshot                                                  & m_latest;
+    const DebuggerPaneParts                                               & m_parts;
+    const DebuggerPaneLook                                                & m_look;
+    std::array<MemoryWindowPane *, DebuggerViewState::kMaxMemoryWindows>    m_windows      = {};
+    DxuiToolbar                                                           * m_bar          = nullptr;
+    DxuiTextInput                                                         * m_box          = nullptr;
+    std::unique_ptr<MemoryBarCommands>                                      m_commands;
+    std::unique_ptr<MemoryAddressEntry>                                     m_addressEntry;
+    std::vector<std::wstring>                                               m_history;
+    MemoryWindowPane                                                      * m_active       = nullptr;
+    std::wstring                                                            m_barPane;
+    DxuiWindow                                                            * m_barHost      = nullptr;
     //  From the last snapshot: whether the machine is stopped, and the
     //  serial of the comparison the machine sent last.
     bool               m_isPaused      = false;

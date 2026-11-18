@@ -15,8 +15,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PaneBarSlot::PaneBarSlot (IDebuggerPaneHost & host, std::wstring pane, std::wstring accessibleName) :
-    m_host (host),
+PaneBarSlot::PaneBarSlot (const DebuggerPaneParts & parts, std::wstring pane, std::wstring accessibleName) :
+    m_paneScaler (parts.scaler),
+    m_paneWindow (parts.window),
+    m_paneBars (parts.bars),
+    m_paneRouting (parts.routing),
+    m_paneTips (parts.tips),
     m_pane (std::move (pane)),
     m_slot (std::make_unique<DebuggerPaneFrame> (std::move (accessibleName)))
 {
@@ -46,7 +50,7 @@ PaneBarSlot::~PaneBarSlot() = default;
 
 void PaneBarSlot::Create()
 {
-    m_bar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
+    m_bar = m_paneWindow.CreateChild<DxuiToolbar>();
 }
 
 
@@ -61,8 +65,8 @@ void PaneBarSlot::Create()
 
 void PaneBarSlot::Configure()
 {
-    m_bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
-    m_bar->SetPopupHost     (m_host.GetPanePopupHost());
+    m_bar->SetTextRenderer  (m_paneWindow.GetTextRenderer());
+    m_bar->SetPopupHost     (m_paneWindow.GetPopupHost());
     m_bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
     m_bar->SetCompact       (true);
     m_bar->SetPaneTextInset (true);
@@ -119,13 +123,13 @@ void PaneBarSlot::Place()
         return;
     }
 
-    host = m_host.GetPaneWindow (m_pane);
+    host = m_paneBars.GetPaneWindow (m_pane);
     slot = m_slot->GetBounds();
 
     m_bar->SetTextRenderer   (host->GetTextRenderer());
     m_bar->SetPopupHost      (host->GetPopupHost());
     m_bar->SetHostClientRect (host->GetBounds());
-    m_bar->Layout            (m_host.GetBarStrip (m_pane, slot), m_host.GetPaneScaler());
+    m_bar->Layout            (m_paneBars.GetBarStrip (m_pane, slot), m_paneScaler);
 
     host->SetChildClip (m_bar, slot);
 }
@@ -143,7 +147,7 @@ void PaneBarSlot::Place()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PaneBarSlot::RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstring & pane, DxuiToolbar * bar, const DxuiMouseEvent & ev, const PressFn & press)
+bool PaneBarSlot::RouteToolbarMouse (IPaneRouting & routing, IPaneTips & tips, const std::wstring & pane, DxuiToolbar * bar, const DxuiMouseEvent & ev, const PressFn & press)
 {
     int   x    = ev.positionDip.x;
     int   y    = ev.positionDip.y;
@@ -152,7 +156,7 @@ bool PaneBarSlot::RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstrin
 
 
 
-    if (bar == nullptr || !host.IsBarRouted (pane))
+    if (bar == nullptr || !routing.IsBarRouted (pane))
     {
         return false;
     }
@@ -174,7 +178,7 @@ bool PaneBarSlot::RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstrin
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        host.UpdateTooltip (ev.positionDip);
+        tips.UpdateTooltip (ev.positionDip);
         return bar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:

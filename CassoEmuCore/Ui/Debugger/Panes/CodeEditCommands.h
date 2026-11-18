@@ -21,7 +21,7 @@
 class CodeEditCommands
 {
 public:
-    CodeEditCommands (IDebuggerPaneHost & host, const ICodeViews & views);
+    CodeEditCommands (const DebuggerPaneParts & parts, const ICodeViews & views);
 
     CodeEditCommands (const CodeEditCommands &)             = delete;
     CodeEditCommands & operator= (const CodeEditCommands &) = delete;
@@ -59,10 +59,14 @@ private:
         std::wstring       text;
     };
 
-    IDebuggerPaneHost    & m_host;
-    const ICodeViews     & m_views;
-    std::vector<Edit>      m_undo;
-    std::vector<Edit>      m_redo;
+    IPaneReplies          & m_paneReplies;
+    IPaneDialogs          & m_paneDialogs;
+    IPaneRouting          & m_paneRouting;
+    IPaneCommands         & m_paneCommands;
+    const LatestSnapshot  & m_latest;
+    const ICodeViews      & m_views;
+    std::vector<Edit>       m_undo;
+    std::vector<Edit>       m_redo;
 
     //  Where Start stopwatch here was chosen, until Stop stopwatch here.
     std::optional<Word>    m_stopwatchStart;

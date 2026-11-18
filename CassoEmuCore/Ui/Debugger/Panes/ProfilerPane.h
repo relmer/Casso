@@ -53,7 +53,7 @@ public:
     //  5 seconds, for an empty or unknown one.
     static size_t                       GetPeriodIndex (const std::string & argument);
 
-    explicit ProfilerPane (IDebuggerPaneHost & host);
+    explicit ProfilerPane (const DebuggerPaneParts & parts);
     ~ProfilerPane() override;
 
     ProfileRows::View  GetView () const { return m_view; }
@@ -104,6 +104,15 @@ private:
     void  Save           ();
     void  SortBy         (int column);
 
+    IDebuggerWindowHost * const                & m_windowHost;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneDialogs                               & m_paneDialogs;
+    IPaneLayout                                & m_paneLayout;
+    IPaneRouting                               & m_paneRouting;
+    IPaneNavigator                             & m_paneNavigator;
+    IPaneCommands                              & m_paneCommands;
+    SymbolComments                             & m_symbolComments;
+    const LatestSnapshot                       & m_latest;
     PaneBarSlot                                  m_bar;
     ProfileTimeline                            * m_timeline        = nullptr;
     ProfileProgress                            * m_progress        = nullptr;
@@ -113,14 +122,14 @@ private:
     bool                                         m_isPeriodRead    = false;
     bool                                         m_isBuilding      = false;
     bool                                         m_isPaused        = false;
-    std::optional<uint64_t>                      m_stopCycle;        // where the machine is stopped, with history
-    std::optional<uint64_t>                      m_builtCycle;       // the stop the last profile was requested at
+    std::optional<uint64_t>                      m_stopCycle;   // where the machine is stopped, with history
+    std::optional<uint64_t>                      m_builtCycle;   // the stop the last profile was requested at
     FlameGraphView                             * m_flameGraph      = nullptr;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
     ProfileRows::View                            m_view            = ProfileRows::View::Routines;
     ProfileRows::Sorts                           m_sorts           = ProfileRows::GetDefaultSorts();
-    std::vector<size_t>                          m_order;            // the list's rows as indexes in the profile's entries
-    std::optional<size_t>                        m_selectedRoutine;  // the flame graph's selection, an index in the profile's routines
+    std::vector<size_t>                          m_order;   // the list's rows as indexes in the profile's entries
+    std::optional<size_t>                        m_selectedRoutine;   // the flame graph's selection, an index in the profile's routines
     bool                                         m_isOn            = false;
     ProfileTimelineNavigator                     m_navigator;
 };

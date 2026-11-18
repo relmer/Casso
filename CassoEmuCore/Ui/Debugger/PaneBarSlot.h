@@ -25,7 +25,7 @@ class PaneBarSlot
 public:
     using PressFn = std::function<void()>;
 
-    PaneBarSlot (IDebuggerPaneHost & host, std::wstring pane, std::wstring accessibleName);
+    PaneBarSlot (const DebuggerPaneParts & parts, std::wstring pane, std::wstring accessibleName);
     ~PaneBarSlot();
 
     PaneBarSlot (const PaneBarSlot &)             = delete;
@@ -47,16 +47,20 @@ public:
     static int           GetHeightPx (int widthDip, const DxuiDpiScaler & scaler);
 
     void                 Place       ();
-    bool                 RouteMouse  (const DxuiMouseEvent & ev) { return RouteToolbarMouse (m_host, m_pane, m_bar, ev, m_press); }
+    bool                 RouteMouse  (const DxuiMouseEvent & ev) { return RouteToolbarMouse (m_paneRouting, m_paneTips, m_pane, m_bar, ev, m_press); }
 
     //  The same for any toolbar of a pane, such as one laid out outside the
     //  slot.
-    static bool            RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstring & pane, DxuiToolbar * bar, const DxuiMouseEvent & ev, const PressFn & press);
+    static bool            RouteToolbarMouse (IPaneRouting & routing, IPaneTips & tips, const std::wstring & pane, DxuiToolbar * bar, const DxuiMouseEvent & ev, const PressFn & press);
 
 private:
-    IDebuggerPaneHost                   & m_host;
+    const DxuiDpiScaler                 & m_paneScaler;
+    DxuiWindow                          & m_paneWindow;
+    IPaneBars                           & m_paneBars;
+    IPaneRouting                        & m_paneRouting;
+    IPaneTips                           & m_paneTips;
     std::wstring                          m_pane;
     std::unique_ptr<DebuggerPaneFrame>    m_slot;
-    DxuiToolbar                         * m_bar = nullptr;
+    DxuiToolbar                         * m_bar         = nullptr;
     PressFn                               m_press;
 };

@@ -25,8 +25,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ConsoleOutput::ConsoleOutput (IDebuggerPaneHost & host) :
-    m_host (host)
+ConsoleOutput::ConsoleOutput (const DebuggerPaneParts & parts) :
+    m_windowHost (parts.windowHost),
+    m_paneWindow (parts.window),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_paneTabs (parts.tabs)
 {
 }
 
@@ -42,7 +47,7 @@ ConsoleOutput::ConsoleOutput (IDebuggerPaneHost & host) :
 
 void ConsoleOutput::Create()
 {
-    m_view = m_host.GetControlParent().CreateChild<DxuiTextView>();
+    m_view = m_paneWindow.CreateChild<DxuiTextView>();
 }
 
 
@@ -57,7 +62,7 @@ void ConsoleOutput::Create()
 
 void ConsoleOutput::Configure()
 {
-    m_view->SetOwnerWindow   (m_host.GetOwnerHwnd());
+    m_view->SetOwnerWindow   (m_paneRouting.GetOwnerHwnd());
     m_view->SetFollowEnd     (true);
     m_view->SetLineSpacing   (kLineSpacing);
     m_view->SetPaneTextInset (true);
@@ -139,7 +144,7 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
 
     if (!m_view->IsVisible())
     {
-        m_host.MarkPaneTab (DebuggerLayout::kConsole);
+        m_paneTabs.MarkPaneTab (DebuggerLayout::kConsole);
     }
 }
 
@@ -423,7 +428,7 @@ void ConsoleOutput::RestoreSaved (const std::string & text, bool keepCurrent)
 
 void ConsoleOutput::SaveIfChanged (int64_t nowMs)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -460,7 +465,7 @@ bool ConsoleOutput::TryGetTimeTip (POINT point, RECT & anchor, std::wstring & te
 
 
 
-    if (m_view == nullptr || !m_view->IsVisible() || !m_host.IsRoutable (m_view) || !DxuiDockSite::Contains (m_view->GetBounds(), point))
+    if (m_view == nullptr || !m_view->IsVisible() || !m_paneRouting.IsRoutable (m_view) || !DxuiDockSite::Contains (m_view->GetBounds(), point))
     {
         return false;
     }
@@ -510,7 +515,7 @@ bool ConsoleOutput::TryGetLinkTip (POINT point, RECT & anchor, std::wstring & te
 
 
 
-    if (m_view == nullptr || !m_view->IsVisible() || !m_host.IsRoutable (m_view) || !m_view->TryGetLinkAt (point, row, span, part))
+    if (m_view == nullptr || !m_view->IsVisible() || !m_paneRouting.IsRoutable (m_view) || !m_view->TryGetLinkAt (point, row, span, part))
     {
         return false;
     }
@@ -558,7 +563,7 @@ std::wstring ConsoleOutput::GetLinkPath (int row, int span) const
 
 void ConsoleOutput::OpenLink (int row, int span)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
     std::wstring           path = GetLinkPath (row, span);
 
 
@@ -657,13 +662,13 @@ void ConsoleOutput::ScrollToEnd()
 
 bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 {
-    bool  isRoutable = m_view->IsVisible() && m_host.IsRoutable (m_view);
+    bool  isRoutable = m_view->IsVisible() && m_paneRouting.IsRoutable (m_view);
 
 
 
     if (ev.kind == DxuiMouseEventKind::Move && m_view->SetHoverPoint (isRoutable ? ev.positionDip : POINT { -1, -1 }))
     {
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 
     if (!isRoutable)
@@ -686,7 +691,7 @@ bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 
     if (ev.kind == DxuiMouseEventKind::Down)
     {
-        m_host.FocusControl (keys);
+        m_paneFocus.FocusControl (keys);
     }
 
     (void) m_view->OnMouse (ev);
@@ -703,8 +708,17 @@ bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandLine::CommandLine (IDebuggerPaneHost & host, ConsoleOutput & output) :
-    m_host   (host),
+CommandLine::CommandLine (const DebuggerPaneParts & parts, ConsoleOutput & output) :
+    m_windowHost (parts.windowHost),
+    m_paneScaler (parts.scaler),
+    m_paneWindow (parts.window),
+    m_paneReplies (parts.replies),
+    m_paneDialogs (parts.dialogs),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_latest (parts.latest),
+    m_look (parts.look),
     m_output (output)
 {
 }
@@ -721,7 +735,7 @@ CommandLine::CommandLine (IDebuggerPaneHost & host, ConsoleOutput & output) :
 
 void CommandLine::Create()
 {
-    m_box = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+    m_box = m_paneWindow.CreateChild<DxuiTextInput>();
 }
 
 
@@ -736,8 +750,8 @@ void CommandLine::Create()
 
 void CommandLine::Configure()
 {
-    m_box->SetHwnd         (m_host.GetOwnerHwnd());
-    m_box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_box->SetHwnd         (m_paneRouting.GetOwnerHwnd());
+    m_box->SetTextRenderer (m_paneWindow.GetTextRenderer());
     m_box->SetMaxLength    (256);
     m_box->SetPrompt       (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
     m_box->SetPlaceholder  (L"Command (Enter to run, HELP for help)");
@@ -805,9 +819,9 @@ void CommandLine::Apply (const DebuggerViewSnapshot & snapshot)
 void CommandLine::Submit()
 {
     HRESULT                       hr       = S_OK;
-    IDebuggerWindowHost         * host     = m_host.GetWindowHost();
-    IHostDialogs                * dialogs  = m_host.GetHostDialogs();
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    IDebuggerWindowHost         * host     = m_windowHost;
+    IHostDialogs                * dialogs  = m_paneDialogs.GetHostDialogs();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     std::wstring                  typed    = m_box->GetText();
     std::string                   line     = TextEncoding::WideToNarrow (typed);
     std::optional<DebugVerb>      fileVerb;
@@ -827,8 +841,8 @@ void CommandLine::Submit()
     {
         spec.filters = { { L"All files", L"*.*" } };
 
-        hr = (*fileVerb == DebugVerb::ReadFile) ? dialogs->PickFileToOpen (m_host.GetOwnerHwnd(), spec, chosen, picked)
-                                                : dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+        hr = (*fileVerb == DebugVerb::ReadFile) ? dialogs->PickFileToOpen (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked)
+                                                : dialogs->PickFileToSave (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked);
         CHR (hr);
 
         BAIL_OUT_IF (!picked, S_OK);
@@ -954,7 +968,7 @@ bool CommandLine::RouteCompletionKey (const DxuiKeyEvent & ev)
     }
 
     RefreshGhost();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -981,7 +995,7 @@ bool CommandLine::Recall (bool older)
 
     m_box->SetText (*recalled);
     m_box->SetSelection (recalled->size(), recalled->size());
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -1028,8 +1042,8 @@ void CommandLine::ShowHistoryList()
     static constexpr int              s_kShownRows   = 10;
     static constexpr int              s_kRightGapDip = 24;   // between the list's right edge and the console's
     const std::vector<std::wstring> & lines          = m_history.GetLines();
-    const DxuiTheme                 * theme          = m_host.GetTheme();
-    const DxuiDpiScaler             & scaler         = m_host.GetPaneScaler();
+    const DxuiTheme                 * theme          = m_look.GetTheme();
+    const DxuiDpiScaler             & scaler         = m_paneScaler;
     DxuiTextView                    * view           = m_output.GetView();
     PaneMenuItems                     items;
     RECT                              box            = m_box->GetBounds();
@@ -1054,9 +1068,9 @@ void CommandLine::ShowHistoryList()
         {
             m_box->SetText (line);
             m_box->SetSelection (line.size(), line.size());
-            m_host.FocusControl (m_box);
+            m_paneFocus.FocusControl (m_box);
             RefreshGhost();
-            m_host.Repaint();
+            m_paneLayout.Repaint();
         } });
     }
 
@@ -1072,7 +1086,7 @@ void CommandLine::ShowHistoryList()
     //  prompt, so the list's edge is apart from the console's beneath it.
     look.labelLeftAtPx = box.left + m_box->GetTypedTextLeftPx();
 
-    m_host.ShowListAbove (items, RECT { pane.left, box.top, pane.right - scaler.ToPx (s_kRightGapDip), box.bottom }, look);
+    m_paneReplies.ShowListAbove (items, RECT { pane.left, box.top, pane.right - scaler.ToPx (s_kRightGapDip), box.bottom }, look);
 }
 
 
@@ -1087,7 +1101,7 @@ void CommandLine::ShowHistoryList()
 
 void CommandLine::SaveHistory()
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
     std::wstring           text;
 
 
@@ -1113,9 +1127,11 @@ void CommandLine::SaveHistory()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ConsoleModeBar::ConsoleModeBar (IDebuggerPaneHost & host) :
-    m_host (host),
-    m_bar  (host, DebuggerLayout::kConsole, L"Console commands")
+ConsoleModeBar::ConsoleModeBar (const DebuggerPaneParts & parts) :
+    m_paneBars     (parts.bars),
+    m_paneCommands (parts.commands),
+    m_latest       (parts.latest),
+    m_bar          (parts, DebuggerLayout::kConsole, L"Console commands")
 {
 }
 
@@ -1164,7 +1180,7 @@ void ConsoleModeBar::Configure()
     dialect.pinned        = true;
 
     m_bar.Configure();
-    m_bar.GetBar()->SetEntries ({ label, dialect, m_host.GetFindEntry (DebuggerLayout::kConsole) });
+    m_bar.GetBar()->SetEntries ({ label, dialect, m_paneBars.GetFindEntry (DebuggerLayout::kConsole) });
     m_bar.SetOnPress ([this] { SetMenus(); });
 
     SetMenus();
@@ -1215,7 +1231,7 @@ const std::vector<ConsoleModeBar::ModeChoice> & ConsoleModeBar::GetModeChoices()
 
 void ConsoleModeBar::SetMenus()
 {
-    const DebuggerViewSnapshot      * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot      * snapshot = m_latest.Get();
     std::vector<DxuiPopupMenuItem>    modes;
     std::wstring                      before   = m_dialect->label;
 
@@ -1233,12 +1249,12 @@ void ConsoleModeBar::SetMenus()
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (label, current, [this, target]
         {
-            DebuggerAction  action = SessionActions::GetSetMode (target, m_host.GetMode());
+            DebuggerAction  action = SessionActions::GetSetMode (target, m_latest.GetMode());
 
 
 
             action.quiet = true;
-            m_host.RunAction (action);
+            m_paneCommands.RunAction (action);
         })));
     }
 
@@ -1321,11 +1337,10 @@ std::wstring ConsoleModeBar::GetHelpCommand (CommandMode mode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ConsolePane::ConsolePane (IDebuggerPaneHost & host) :
-    IDebuggerPane  (host),
-    m_output       (host),
-    m_commandLine  (host, m_output),
-    m_modeBar      (host)
+ConsolePane::ConsolePane (const DebuggerPaneParts & parts) :
+    m_output      (parts),
+    m_commandLine (parts, m_output),
+    m_modeBar     (parts)
 {
 }
 

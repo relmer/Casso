@@ -664,7 +664,143 @@ above counts as doing too much. Each is split along its state.
     `FillRunRequest`.
 - `DebuggerWindow`: not split here. Its weight is `IDebuggerPaneHost`, the
   host every pane calls, far past rule 3's size. That is the seam to
-  redesign, and the redesign touches every pane.
+  redesign, and the redesign touches every pane. Section 10 has the design.
+
+### 10. IDebuggerPaneHost (design, 2026-11-18)
+
+`IDebuggerPaneHost` has the calls every pane makes to `DebuggerWindow`, and
+the window is its only implementation. Smaller interfaces implemented by the
+window would leave every line of code where it is, so each group of calls goes
+to the object whose state it reads or writes. Where that object is the window's
+dock, focus or routing state, the group becomes an interface of four methods
+or fewer.
+
+Measured with a script over `Ui/Debugger` and `UnitTest/DebuggerTests`: every
+call of each method and the files it is in.
+
+**No caller, removed from the interface.** `AppendConsole`, `GetRegisterByte`,
+`IsTooltipVisible` and `ShowPopupMenu`: the window and tests call them on the
+window itself.
+
+**Forwarders, removed.** Callers use what the body uses.
+
+| Method | Replacement |
+|---|---|
+| `GetPaneRowDip` | `DensePaneList::kRowDip` |
+| `GetListColumnAt` | `DensePaneList::GetColumnAt`, static, moved from the window |
+| `GetHostDialogs` | `IDebuggerWindowHost::GetHostDialogs` |
+| `ShowPcCode` | `IPaneNavigator::ShowCode (std::nullopt)` |
+| `OpenEventLog` | `IPanePlaces::Show` of `DebuggerLayout::GetLogPane (kind)` |
+| `RaisePane`, `OpenPane` | `IPanePlaces::Show (pane, focus)` |
+| `GetPcRowArgb`, `GetNavigatedRowArgb`, `GetTargetRowArgb`, `GetSyntaxColors`, `GetResultArgb` | `DebuggerPaneLook::GetTextColors()` and its field |
+| `AddHeatAccessItems` | `HeatMapPane::AddAccessItems` |
+| `IsCodeHeatOn` | the code views' `DisassemblyOptions` |
+
+**Moved into the pane that calls them.** The menu bar calls the pane.
+
+| Method | New place |
+|---|---|
+| `OpenBasicProgram`, `SaveBasicProgram`, `ClearBasicProgram`, `PasteBasicProgram` | `BasicProgramController` |
+| `OpenSymbolFile`, `BrowseForSource`, `NoteViewFocus` | `SourceDocumentGroup` |
+| `AddZeroPagePointer` | `WatchesPane` |
+| `ShowMemoryAddress`, `AddShowInMemoryItems` | `MemoryWindowGroup` |
+| `AddBookmarkItem`, `AddSkipItem` | `PaneMenuRows`, static, from the snapshot and `IPaneCommands` |
+| `GetSymbolComment` | `SymbolComments`, given the snapshot and the window host |
+
+**State the panes read, as concrete classes the window owns.**
+
+| Class | State | Methods |
+|---|---|---|
+| `DebuggerPaneLook` | the theme in force, the text color cache, the breakpoint, hover, PC and bookmark icon caches (all now in `DebuggerWindow`) | `SetTheme`, `GetTheme`, `GetTextColors`, `GetHeatPalette`, `GetColorPalette`, `IsDark`, `GetBreakpointArgb`, `GetBreakpointIcon`, `GetHoverBreakpointIcon`, `GetPcIcon`, `GetBookmarkMark`, `GetPcMarkerArgb`, `GetPcTabMarkArgb` |
+| `LatestSnapshot` | the snapshot last applied and the stop changes | `Get`, `GetStopChanges`, `GetMode`, `Set` |
+
+The icon caches are `mutable`, so panes take `const DebuggerPaneLook &`. The
+window's `ApplyTheme` calls `SetTheme`, and its snapshot path calls
+`LatestSnapshot::Set`.
+
+**The window's surface.** `GetControlParent`, `GetPaneTextRenderer`,
+`GetPanePopupHost`, `Repaint` and `RepaintLater` are `DxuiWindow` calls, and
+`GetPaneScaler` returns the window's scaler. Panes take `DxuiWindow &` and
+`const DxuiDpiScaler &`.
+
+**Interfaces the window implements.** Each covers one part of the window's
+state.
+
+| Interface | Methods | State |
+|---|---|---|
+| `IPaneCommands` | `RunAction`, `RunKeyAction`, `RunCommandBarEntry` | the focused pane and the dialog flag, for an action's reply |
+| `IPaneNavigator` | `ShowCode`, `ShowMemory`, `OpenSource`, `ShowBasicLine` | the code, memory, source and BASIC groups |
+| `IPanePlaces` | `Show`, `IsOpen`, `IsSameTabGroup`, `MoveSharedControls` | the closed panes, the pending pane, the dock and the floating windows |
+| `IPaneTabs` | `SetTitle`, `SetMark`, `MarkNew`, `Activate` | the dock site's tabs |
+| `IPaneFocus` | `SetFocus`, `GetFocused`, `FocusDefault`, `GetFocusPane` | the focus manager |
+| `IPaneRouting` | `IsRoutable`, `IsBarRouted`, `GetLastPressPx`, `GetOwnerHwnd` | the event being routed |
+| `IPaneBars` | `GetWindowOf`, `GetBarStrip`, `GetFindEntry` | the floating windows, the info buttons, the find widgets |
+| `IPaneTips` | `Update`, `IsVisible`, `Hide`, `CheckOperandTip` | the tip coordinator and the operand tips |
+| `IPaneLayout` | `RelayoutDock`, `RelayoutWindow`, `UpdateWindowMenus`, `SaveOpenViews`, `IsRestoringViews`, `SyncHeatRecording` | the layout, the menus, the open views |
+| `IPaneDialogs` | `ShowMessageBox` (two forms), `RunTextDialog`, `RunByteDialog`, `ShowReply`, `ShowListAbove` | none: the dialogs are modal; tests replace them |
+
+`IPaneLayout` and `IPaneDialogs` are over four methods. Each method is a
+request to redo one thing, with no state shared between them, so a split
+would separate calls that panes make together.
+
+**How panes get them.** `DebuggerPaneParts` is a struct of references to all
+of the above and the `IDebuggerWindowHost *`. Every pane and controller
+constructor takes `const DebuggerPaneParts &`, so `CreatePanes` stays one line
+per pane, and stores only the references it uses. `IDebuggerPane` has no
+host member. A test builds a `DebuggerPaneParts` from the window, or from fakes
+for the parts the class under test uses.
+
+**Order.** Each step builds and passes the debugger tests.
+
+1. Remove the methods with no caller and the forwarders above.
+2. Add `DebuggerPaneParts` with the host in it, change every constructor, and
+   move the look into `DebuggerPaneLook`.
+3. `LatestSnapshot`.
+4. Move the BASIC, source, watch, memory and symbol calls into their panes,
+   and add `PaneMenuRows`.
+5. The window's surface, then each interface in the table's order.
+6. Remove `IDebuggerPaneHost` and `GetPaneHostForTest`.
+
+**As built, 2026-11-18.** `IDebuggerPaneHost` and `GetPaneHostForTest` are
+gone, and `IDebuggerPane` has no host member. Where the build differs from the
+tables above:
+
+- The interfaces are in `Panes/PaneHostInterfaces.h` and keep the host's
+  method names. `IPaneViews` (open views and heat settings) and
+  `IPaneReplies` (`ShowPaneReply`, `ShowListAbove`, `AddSkipItem`) are split
+  out of the planned layout and dialog interfaces. `IPaneNavigator` also has
+  `GoLive`; `IPaneLayout` also has `Repaint` and `RepaintLater`; `IPaneTips`
+  also has `CheckOperandTip`; `IPaneDialogs` also has `GetHostDialogs`. Each
+  of those four is one call past rule 3's limit, a call the same panes make
+  with the others.
+- `DebuggerPaneParts` has the window as `DxuiWindow &`, its scaler, and
+  `windowHost`, a reference to the window's host pointer, which is set after
+  the panes are built.
+- `OpenEventLog` is replaced by `IPanePlaces::OpenPane` with the log pane's
+  `DebuggerLayout` id.
+- `NoteViewFocus` is replaced by `RunActions::GetSteppingToFollow`, static, which
+  the window and `SourceDocumentGroup` both call.
+- `BrowseForSource` is in `SourceDocumentGroup`, and opens the file it picks
+  through `IPaneCommands::OpenFiles`.
+- The file pickers that start in the last folder of a kind are
+  `DebuggerFilePicker`, static, used by the window and the panes.
+- `PaneMenuRows` has only the bookmark row. `AddSkipItem` stays on the window
+  (`IPaneReplies`), since its notice uses the window's checkbox dialog, which
+  tests override.
+- `MemoryWindowGroup` takes `HeatMapPane &` for a byte's heat rows. The panes
+  built after it (registers, stack, watches and the disassembly views) take
+  `MemoryWindowGroup &` for the "Show ... in Memory" rows; the heat map,
+  built before it, calls it through `IPaneNavigator::ShowMemoryAddress`.
+- `GetSymbolComment` is `SymbolComments::GetComment`, with the cache in the
+  parts.
+- `IsCodeHeatOn` stays on the window (`IPaneViews`), since its callers are
+  built before the disassembly views that own the option.
+
+Out of scope here: `IFloatingPanesHost`, which is also far past rule 3, and the
+other interfaces `DebuggerWindow` implements (`ICodeViews`, `IOperandTipHost`,
+`IFindWidgetHost`, `ITooltipSources`, `ICommandBarHost`,
+`IPaneContentMouseHost`, `IColorKeysHost`). Each gets the same review
+afterward.
 
 ### Dxui (separate)
 

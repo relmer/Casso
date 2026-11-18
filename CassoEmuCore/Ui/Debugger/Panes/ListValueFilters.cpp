@@ -14,8 +14,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ListValueFilters::ListValueFilters (IDebuggerPaneHost & host) :
-    m_host (host)
+ListValueFilters::ListValueFilters (const DebuggerPaneParts & parts) :
+    m_paneWindow (parts.window),
+    m_paneLayout (parts.layout)
 {
 }
 
@@ -252,7 +253,7 @@ void ListValueFilters::ShowMenu (size_t column, RECT chevronPx)
 
 
 
-    if (m_host.GetPanePopupHost() == nullptr || std::ranges::find (m_columns, column) == m_columns.end())
+    if (m_paneWindow.GetPopupHost() == nullptr || std::ranges::find (m_columns, column) == m_columns.end())
     {
         return;
     }
@@ -272,7 +273,7 @@ void ListValueFilters::ShowMenu (size_t column, RECT chevronPx)
             Toggle (column, value);
             ShowState();
             m_onChanged();
-            m_host.Repaint();
+            m_paneLayout.Repaint();
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
@@ -287,13 +288,13 @@ void ListValueFilters::ShowMenu (size_t column, RECT chevronPx)
             Clear (column);
             ShowState();
             m_onChanged();
-            m_host.Repaint();
+            m_paneLayout.Repaint();
         }));
         items.push_back (DxuiPopupMenuItem::ForCommand (m_commands.back()));
     }
 
     if (!items.empty())
     {
-        DxuiContextMenu::ShowUnder (*m_host.GetPanePopupHost(), chevronPx, std::move (items));
+        DxuiContextMenu::ShowUnder (*m_paneWindow.GetPopupHost(), chevronPx, std::move (items));
     }
 }

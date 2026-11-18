@@ -4,6 +4,8 @@
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/WatchHistory.h"
 
+class MemoryWindowGroup;
+
 
 
 
@@ -25,7 +27,7 @@
 class WatchesPane : public UndoListPane
 {
 public:
-    explicit WatchesPane (IDebuggerPaneHost & host);
+    explicit WatchesPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~WatchesPane() override;
 
     //  The clock the wait after a Tab's add is timed by, the system's
@@ -63,6 +65,10 @@ protected:
     DxuiListView *                 CreateList     () override;
 
 private:
+    //  The dialog for a zero-page pointer to watch, as Add pointer watch...
+    //  opens it.
+    void  AddZeroPagePointer ();
+
     //  What each row is, since the list mixes headings, automatic watches and
     //  the user's own: an automatic row has its index into the snapshot and a
     //  manual one its watch id. A BASIC variable listed under its heading or
@@ -126,13 +132,21 @@ private:
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
     void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
-    WatchHistory                   m_history;
-    std::shared_ptr<DxuiCommand>   m_deleteCommand;
-    DxuiEditableGrid             * m_grid                     = nullptr;
-    std::vector<int>               m_idsBeforeAdd;
-    bool                           m_isValueEditAfterAdd      = false;
-    ULONGLONG                      m_addedBy                  = 0;        // when the value edit after an add is dropped
-    std::string                    m_addedText;                           // an add whose undo step waits for a snapshot with its id
+    DxuiWindow                    & m_paneWindow;
+    IPaneLayout                   & m_paneLayout;
+    IPaneRouting                  & m_paneRouting;
+    IPaneFocus                    & m_paneFocus;
+    IPaneCommands                 & m_paneCommands;
+    MemoryWindowGroup             & m_memory;
+    const LatestSnapshot          & m_latest;
+    const DebuggerPaneLook        & m_look;
+    WatchHistory                    m_history;
+    std::shared_ptr<DxuiCommand>    m_deleteCommand;
+    DxuiEditableGrid              * m_grid                = nullptr;
+    std::vector<int>                m_idsBeforeAdd;
+    bool                            m_isValueEditAfterAdd = false;
+    ULONGLONG                       m_addedBy             = 0;   // when the value edit after an add is dropped
+    std::string                     m_addedText;   // an add whose undo step waits for a snapshot with its id
     Clock                          m_clock                    = [] { return GetTickCount64(); };
     std::vector<Row>               m_rows;
     Edit                           m_edit;

@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerActions.h"
 
+struct DebuggerViewSnapshot;
 struct StepFilterEntry;
 
 
@@ -45,6 +46,10 @@ public:
     static DebuggerAction  GetCallSubroutine (Word address, CommandMode mode);
     static DebuggerAction  GetRemoveSkip     (const StepFilterEntry & entry, CommandMode mode);
 
-    //  SRC ON or OFF: stepping by source line or by instruction.
-    static DebuggerAction  GetSourceStepping   (bool isSource, CommandMode mode);
+    //  SRC ON or OFF: stepping by source line or by instruction; and the one
+    //  that makes steps follow the view focused, a source document or the
+    //  disassembly, none where steps follow it already or the snapshot has
+    //  no source.
+    static DebuggerAction                 GetSourceStepping   (bool isSource, CommandMode mode);
+    static std::optional<DebuggerAction>  GetSteppingToFollow (const DebuggerViewSnapshot * snapshot, bool isSource);
 };

@@ -25,7 +25,7 @@ class PaneBarSlot;
 class DevicePanelController : public IDebuggerPane
 {
 public:
-    DevicePanelController (IDebuggerPaneHost & host, std::string panelId, std::wstring title);
+    DevicePanelController (const DebuggerPaneParts & parts, std::string panelId, std::wstring title);
     ~DevicePanelController() override;
 
     const std::wstring               & GetId           () const override;
@@ -63,13 +63,24 @@ private:
     void  SetDriveBarEntries ();
     void  SetDrives          (DiskHeadView::DriveChoice choice);
 
-    std::string                                m_panelId;
-    std::wstring                               m_id;
-    std::wstring                               m_title;
-    std::unique_ptr<DiagnosticsPane>           m_model;
-    std::unique_ptr<PaneBarSlot>               m_bar;
-    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
-    bool                                       m_isOpen         = false;
-    std::wstring                               m_boardTipText;
-    RECT                                       m_boardTipAnchor = {};
+    IDebuggerWindowHost * const                & m_windowHost;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneViews                                 & m_paneViews;
+    IPaneLayout                                & m_paneLayout;
+    IPaneRouting                               & m_paneRouting;
+    IPaneTabs                                  & m_paneTabs;
+    IPanePlaces                                & m_panePlaces;
+    IPaneCommands                              & m_paneCommands;
+    const LatestSnapshot                       & m_latest;
+    const DebuggerPaneParts                    & m_parts;
+    const DebuggerPaneLook                     & m_look;
+    std::string                                  m_panelId;
+    std::wstring                                 m_id;
+    std::wstring                                 m_title;
+    std::unique_ptr<DiagnosticsPane>             m_model;
+    std::unique_ptr<PaneBarSlot>                 m_bar;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
+    bool                                         m_isOpen         = false;
+    std::wstring                                 m_boardTipText;
+    RECT                                         m_boardTipAnchor = {};
 };

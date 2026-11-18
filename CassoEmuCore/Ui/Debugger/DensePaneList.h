@@ -25,4 +25,7 @@ public:
     static constexpr int    kPadDip    = 4;
 
     static void  MakeDense (DxuiListView * list);
+
+    //  The column of a list at a point, counted from the list's pane lead.
+    static int   GetColumnAt (const DxuiListView * list, int xPx);
 };

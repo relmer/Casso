@@ -118,7 +118,7 @@ namespace DebuggerWindowThemeTests
 
         ThemeWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            m_theme         = &theme;
+            m_look.SetTheme         (&theme);
             m_emulatorTheme = &theme;
             m_host          = &host;
 
@@ -135,9 +135,9 @@ namespace DebuggerWindowThemeTests
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetSourceGroup;
-        using DebuggerWindow::GetPaneHostForTest;
+        using DebuggerWindow::GetPanePartsForTest;
 
-        const DxuiTheme *  GetTheme() const { return m_theme; }
+        const DxuiTheme *  GetTheme() const { return m_look.GetTheme(); }
 
         std::shared_ptr<DxuiCommand>  FindRow (const std::wstring & label) const
         {
@@ -379,7 +379,7 @@ namespace DebuggerWindowThemeTests
             {
                 window.ApplyTheme (choice.name);
 
-                mark  = window.GetPaneHostForTest().GetPcTabMarkArgb();
+                mark  = window.GetPanePartsForTest().look.GetPcTabMarkArgb();
                 ratio = DxuiColor::ComputeContrastRatio (mark, window.GetTheme()->PaneBand());
 
                 Assert::IsTrue (ratio >= kGlyphContrast, (std::wstring (choice.label) + L": " + std::to_wstring (ratio)).c_str());
@@ -410,17 +410,17 @@ namespace DebuggerWindowThemeTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
             view   = window.GetSourceGroup().GetDocument (0).GetView();
-            before = window.GetPaneHostForTest().GetPcRowArgb();
+            before = window.GetPanePartsForTest().look.GetTextColors().pcRow;
 
             Assert::AreEqual (before, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background, L"the code view's PC row");
             Assert::AreEqual (before, view->GetRows()[1].background, L"the document's PC line");
 
             window.ApplyTheme ("SystemLight");
 
-            Assert::AreNotEqual (before, window.GetPaneHostForTest().GetPcRowArgb(), L"the light theme's PC row differs");
-            Assert::AreEqual    (window.GetPaneHostForTest().GetPcRowArgb(), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background,
+            Assert::AreNotEqual (before, window.GetPanePartsForTest().look.GetTextColors().pcRow, L"the light theme's PC row differs");
+            Assert::AreEqual    (window.GetPanePartsForTest().look.GetTextColors().pcRow, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background,
                                  L"the code view's PC row in the new theme's color");
-            Assert::AreEqual    (window.GetPaneHostForTest().GetPcRowArgb(), view->GetRows()[1].background, L"the document's PC line in it too");
+            Assert::AreEqual    (window.GetPanePartsForTest().look.GetTextColors().pcRow, view->GetRows()[1].background, L"the document's PC line in it too");
         }
     };
 }

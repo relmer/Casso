@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/BreakpointActions.h"
 
 #include "Core/TextEncoding.h"
@@ -23,10 +24,21 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BreakpointsPane::BreakpointsPane (IDebuggerPaneHost & host) :
-    IDebuggerPane (host),
-    m_bar         (host, DebuggerLayout::kBreakpoints, L"Breakpoint commands"),
-    m_filters     (host)
+BreakpointsPane::BreakpointsPane (const DebuggerPaneParts & parts) :
+    m_paneScaler    (parts.scaler),
+    m_paneWindow    (parts.window),
+    m_paneDialogs   (parts.dialogs),
+    m_paneViews     (parts.views),
+    m_paneLayout    (parts.layout),
+    m_paneBars      (parts.bars),
+    m_paneRouting   (parts.routing),
+    m_paneFocus     (parts.focus),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands  (parts.commands),
+    m_latest        (parts.latest),
+    m_look          (parts.look),
+    m_bar           (parts, DebuggerLayout::kBreakpoints, L"Breakpoint commands"),
+    m_filters       (parts)
 {
 }
 
@@ -73,7 +85,7 @@ const std::wstring & BreakpointsPane::GetId() const
 
 void BreakpointsPane::CreateControls()
 {
-    m_list = m_host.GetControlParent().CreateChild<DxuiListView>();
+    m_list = m_paneWindow.CreateChild<DxuiListView>();
     m_bar.Create();
 }
 
@@ -91,7 +103,7 @@ void BreakpointsPane::CreateControls()
 
 void BreakpointsPane::CreateOverlays()
 {
-    m_nameEditor = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+    m_nameEditor = m_paneWindow.CreateChild<DxuiTextInput>();
 }
 
 
@@ -117,10 +129,10 @@ void BreakpointsPane::Configure()
 
     handlers.dispatch  = [this] (int id) { RunBarEntry (id); };
     handlers.isEnabled = [this] (int id) { return IsBarEntryEnabled (id); };
-    handlers.crossArgb = [this]          { return m_host.GetBreakpointArgb(); };
+    handlers.crossArgb = [this]          { return m_look.GetBreakpointArgb(); };
     handlers.getTip    = [this] (int id)
     {
-        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+        const DebuggerViewSnapshot  * snapshot = m_latest.Get();
         bool                          isRedo   = id == BreakpointBarCommands::kRedo;
         std::wstring                  text     = (snapshot == nullptr) ? std::wstring() : isRedo ? snapshot->redoBreakpointsText : snapshot->undoBreakpointsText;
 
@@ -141,7 +153,7 @@ void BreakpointsPane::Configure()
 
     m_nameEditor->SetVisible   (false);
     m_nameEditor->SetOverText  (true);
-    m_nameEditor->SetHwnd      (m_host.GetOwnerHwnd());
+    m_nameEditor->SetHwnd      (m_paneRouting.GetOwnerHwnd());
     m_nameEditor->SetMaxLength (64);
 
     m_list->SetActivateOnDoubleClick (true);
@@ -157,17 +169,17 @@ void BreakpointsPane::Configure()
     m_list->SetOnActivateRow ([this] (int row)
     {
         const DebuggerViewSnapshot::BreakpointLine  * bp       = GetBreakpointOfRow (row);
-        const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+        const DebuggerViewSnapshot                  * snapshot = m_latest.Get();
         int                                           fileId   = -1;
         int                                           line     = 0;
 
         if (bp != nullptr && snapshot != nullptr && BreakpointColumns::TryGetSourcePlace (*snapshot, *bp, fileId, line))
         {
-            m_host.OpenSource (fileId, line);
+            m_paneNavigator.OpenSource (fileId, line);
         }
         else if (bp != nullptr && (BreakpointColumns::HasAddress (bp->info) || BreakpointColumns::HasRoutine (bp->info)))
         {
-            m_host.GoToCode (bp->address);
+            m_paneNavigator.GoToCode (bp->address);
         }
     });
 
@@ -183,7 +195,7 @@ void BreakpointsPane::Configure()
         }
         else if (bp != nullptr && bp->id >= 0)
         {
-            RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp->id, checked, m_host.GetMode()) }, {} });
+            RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp->id, checked, m_latest.GetMode()) }, {} });
         }
     });
 
@@ -377,8 +389,8 @@ void BreakpointsPane::AddHeadingItems (const std::string & group, PaneMenuItems 
 
     items.push_back ({ L"Delete group and its breakpoints", [this, group]
     {
-        DxuiWindow  * window = m_host.GetPaneWindow (DebuggerLayout::kBreakpoints);
-        int           answer = m_host.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_host.GetOwnerHwnd(),
+        DxuiWindow  * window = m_paneBars.GetPaneWindow (DebuggerLayout::kBreakpoints);
+        int           answer = m_paneDialogs.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_paneRouting.GetOwnerHwnd(),
                                                       std::format (L"Delete group \"{}\" and its breakpoints?", TextEncoding::NarrowToWide (group)), L"Delete breakpoint group",
                                                       MB_ICONWARNING, { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
 
@@ -403,7 +415,7 @@ void BreakpointsPane::AddHeadingItems (const std::string & group, PaneMenuItems 
 
 void BreakpointsPane::RunGroupAction (const std::string & arguments)
 {
-    RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetGroupBreakpoints (arguments, m_host.GetMode()) }, {} });
+    RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetGroupBreakpoints (arguments, m_latest.GetMode()) }, {} });
 }
 
 
@@ -420,7 +432,7 @@ void BreakpointsPane::RunGroupAction (const std::string & arguments)
 
 std::optional<std::string> BreakpointsPane::AskGroupName (const std::wstring & title, const std::wstring & placeholder)
 {
-    std::optional<std::wstring>  typed = m_host.RunTextDialog (title, L"Name", placeholder, [] (const std::wstring & text, std::wstring & error)
+    std::optional<std::wstring>  typed = m_paneDialogs.RunTextDialog (title, L"Name", placeholder, [] (const std::wstring & text, std::wstring & error)
     {
         error = L"Type a name with no quotes in it.";
         return text.find_first_not_of (L" \t") != std::wstring::npos && text.find (L'"') == std::wstring::npos;
@@ -563,12 +575,12 @@ bool BreakpointsPane::AddColumnMenuItems (DxuiListView * list, std::vector<std::
 
 bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
-    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                  * snapshot = m_latest.Get();
     const DebuggerViewSnapshot::BreakpointLine  * found    = GetBreakpointOfRow (row);
     DebuggerViewSnapshot::BreakpointLine          bp;
     int                                           fileId   = -1;
     int                                           line     = 0;
-    POINT                                         press    = m_host.GetLastPressPx();
+    POINT                                         press    = m_paneRouting.GetLastPressPx();
     int                                           heading  = (row < 0) ? m_list->HitTestGroupHeader (press.x - m_list->GetBounds().left, press.y - m_list->GetBounds().top) : -1;
 
 
@@ -599,12 +611,12 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
 
     if (BreakpointColumns::TryGetSourcePlace (*snapshot, bp, fileId, line))
     {
-        items.push_back ({ L"Go to source code", [this, fileId, line] { m_host.OpenSource (fileId, line); } });
+        items.push_back ({ L"Go to source code", [this, fileId, line] { m_paneNavigator.OpenSource (fileId, line); } });
     }
 
     if (BreakpointColumns::HasAddress (bp.info))
     {
-        items.push_back ({ L"Go to disassembly", [this, bp] { m_host.GoToCode (bp.address); } });
+        items.push_back ({ L"Go to disassembly", [this, bp] { m_paneNavigator.GoToCode (bp.address); } });
     }
 
     items.push_back ({ L"", {} });
@@ -624,12 +636,12 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
         items.push_back ({ L"Rename", [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
         AddGroupItems (GetSelected(), items);
         items.push_back ({ L"", {} });
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_latest.GetMode()) }, {} }); } });
     }
 
     if (BreakpointColumns::HasAddress (bp.info))
     {
-        m_host.AddBookmarkItem (bp.address, items);
+        PaneMenuRows::AddBookmark (m_latest, m_paneCommands, bp.address, items);
     }
 
     return true;
@@ -650,7 +662,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
 
 bool BreakpointsPane::IsBarEntryEnabled (int id) const
 {
-    const DebuggerViewSnapshot                         * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                         * snapshot = m_latest.Get();
     std::vector<DebuggerViewSnapshot::BreakpointLine>    selected = GetSelected();
     bool                                                 any      = snapshot != nullptr && !snapshot->breakpoints.empty();
     bool                                                 one      = selected.size() == 1;
@@ -689,9 +701,9 @@ bool BreakpointsPane::IsBarEntryEnabled (int id) const
 
 void BreakpointsPane::RunBarEntry (int id)
 {
-    const DebuggerViewSnapshot                         * snapshot   = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                         * snapshot   = m_latest.Get();
     std::vector<DebuggerViewSnapshot::BreakpointLine>    selected   = GetSelected();
-    CommandMode                                          mode       = m_host.GetMode();
+    CommandMode                                          mode       = m_latest.GetMode();
     BreakpointStep                                       step;
     int                                                  fileId     = -1;
     int                                                  line       = 0;
@@ -733,13 +745,13 @@ void BreakpointsPane::RunBarEntry (int id)
     case BreakpointBarCommands::kGoToSource:
         if (snapshot != nullptr && BreakpointColumns::TryGetSourcePlace (*snapshot, selected[0], fileId, line))
         {
-            m_host.OpenSource (fileId, line);
+            m_paneNavigator.OpenSource (fileId, line);
         }
 
         break;
 
     case BreakpointBarCommands::kGoToCode:
-        m_host.GoToCode (selected[0].address);
+        m_paneNavigator.GoToCode (selected[0].address);
         break;
 
     default:
@@ -763,12 +775,12 @@ void BreakpointsPane::RunBarEntry (int id)
 
 bool BreakpointsPane::ConfirmDeleteAll()
 {
-    DxuiWindow  * window = m_host.GetPaneWindow (DebuggerLayout::kBreakpoints);
+    DxuiWindow  * window = m_paneBars.GetPaneWindow (DebuggerLayout::kBreakpoints);
     int           answer = IDCANCEL;
 
 
 
-    answer = m_host.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_host.GetOwnerHwnd(), L"Delete all breakpoints?", L"Delete all breakpoints",
+    answer = m_paneDialogs.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_paneRouting.GetOwnerHwnd(), L"Delete all breakpoints?", L"Delete all breakpoints",
                                     MB_ICONWARNING, { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
 
     return answer == IDYES;
@@ -884,7 +896,7 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
 {
     using Type = BreakpointDialog::Type;
 
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     BreakpointKind                kind     = (type == Type::Brk)           ? BreakpointKind::Brk
                                            : (type == Type::Interrupt)     ? BreakpointKind::Interrupt
                                            : (type == Type::UnwrittenRead) ? BreakpointKind::UnwrittenRead
@@ -914,7 +926,7 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
 
     return DebuggerMenuCommand::Make (label, isOn, [this, type, isOn]
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, !isOn), m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, !isOn), m_latest.GetMode()) }, {} });
     });
 }
 
@@ -938,8 +950,8 @@ DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::Brea
 
 
 
-    return (bp.id >= 0) ? BreakpointActions::GetClearBreakpoint (bp.id, m_host.GetMode())
-                        : BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, false), m_host.GetMode());
+    return (bp.id >= 0) ? BreakpointActions::GetClearBreakpoint (bp.id, m_latest.GetMode())
+                        : BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, false), m_latest.GetMode());
 }
 
 
@@ -957,21 +969,21 @@ DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::Brea
 
 void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 {
-    const DebuggerViewSnapshot               * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot               * snapshot = m_latest.Get();
     std::optional<BreakpointDialog::Result>    result;
 
 
 
-    result = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
+    result = BreakpointDialog::RunNew (m_paneRouting.GetOwnerHwnd(), m_look.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
                                        GetSourceFiles (snapshot));
 
     //  The dialog is modal, so the latest snapshot is read again for the id
     //  the new breakpoint takes.
-    snapshot = m_host.GetLatestSnapshot();
+    snapshot = m_latest.Get();
 
     if (result.has_value())
     {
-        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, std::nullopt, BreakpointInfo {}, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
+        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, std::nullopt, BreakpointInfo {}, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_latest.GetMode()), {} });
     }
 }
 
@@ -991,7 +1003,7 @@ void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 void BreakpointsPane::EditInDialog (const DebuggerViewSnapshot::BreakpointLine & bp)
 {
     std::optional<int>                            editedId = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
-    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                  * snapshot = m_latest.Get();
     std::optional<BreakpointDialog::SourcePlace>  place;
     std::optional<BreakpointDialog::Result>       result;
     std::string                                   file;
@@ -1004,12 +1016,12 @@ void BreakpointsPane::EditInDialog (const DebuggerViewSnapshot::BreakpointLine &
         place = BreakpointDialog::SourcePlace { SourcePathList::Utf8ToWide (file), line };
     }
 
-    result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId), GetSourceFiles (snapshot), place);
-    snapshot = m_host.GetLatestSnapshot();
+    result   = BreakpointDialog::RunModal (m_paneRouting.GetOwnerHwnd(), m_look.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId), GetSourceFiles (snapshot), place);
+    snapshot = m_latest.Get();
 
     if (result.has_value())
     {
-        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, editedId, bp.info, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
+        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, editedId, bp.info, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_latest.GetMode()), {} });
     }
 }
 
@@ -1074,7 +1086,7 @@ BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> e
 {
     return [this, editedId] (const BreakpointDefinition & definition)
     {
-        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+        const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
 
@@ -1094,7 +1106,7 @@ BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> e
 
 void BreakpointsPane::RunStep (BreakpointStep step)
 {
-    m_host.RunAction (BreakpointActions::GetBreakpointStep (std::move (step)));
+    m_paneCommands.RunAction (BreakpointActions::GetBreakpointStep (std::move (step)));
 }
 
 
@@ -1157,7 +1169,7 @@ std::vector<DebuggerViewSnapshot::BreakpointLine> BreakpointsPane::GetSelected()
 void BreakpointsPane::Export()
 {
     HRESULT                hr      = S_OK;
-    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    IHostDialogs         * dialogs = m_paneDialogs.GetHostDialogs();
     FileDialogSpec         spec;
     std::filesystem::path  chosen;
     bool                   picked  = false;
@@ -1170,12 +1182,12 @@ void BreakpointsPane::Export()
     spec.defaultExtension = L"txt";
     spec.defaultFileName  = L"Breakpoints.txt";
 
-    hr = dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    hr = dialogs->PickFileToSave (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (BreakpointActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_paneCommands.RunAction (BreakpointActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
 
 Error:
     return;
@@ -1197,7 +1209,7 @@ Error:
 void BreakpointsPane::Import()
 {
     HRESULT                hr      = S_OK;
-    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    IHostDialogs         * dialogs = m_paneDialogs.GetHostDialogs();
     FileDialogSpec         spec;
     std::filesystem::path  chosen;
     bool                   picked  = false;
@@ -1208,7 +1220,7 @@ void BreakpointsPane::Import()
 
     spec.filters = { { L"Breakpoint files", L"*.txt" }, { L"All files", L"*.*" } };
 
-    hr = dialogs->PickFileToOpen (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    hr = dialogs->PickFileToOpen (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -1246,20 +1258,20 @@ void BreakpointsPane::BeginNameEdit (int row)
         return;
     }
 
-    text = TextEncoding::NarrowToWide (BreakpointColumns::GetCells (*m_host.GetLatestSnapshot(), *bp)[(size_t) BreakpointColumns::Column::Name]);
+    text = TextEncoding::NarrowToWide (BreakpointColumns::GetCells (*m_latest.Get(), *bp)[(size_t) BreakpointColumns::Column::Name]);
 
     OffsetRect (&cell, list.left, list.top);
 
     m_nameEdit = NameEdit { row, bp->id, text };
 
-    m_nameEditor->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_nameEditor->SetTextRenderer (m_paneWindow.GetTextRenderer());
     m_nameEditor->SetFont         (DxuiTheme::kMonoFace, m_list->GetFontSizeDip());
     m_nameEditor->SetText         (text);
-    m_nameEditor->Layout          (cell, m_host.GetPaneScaler());
+    m_nameEditor->Layout          (cell, m_paneScaler);
     m_nameEditor->SetVisible      (true);
-    m_host.FocusControl           (m_nameEditor);
+    m_paneFocus.FocusControl (m_nameEditor);
     m_nameEditor->SelectAll();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1294,12 +1306,12 @@ void BreakpointsPane::EndNameEdit (bool commit)
 
     m_nameEdit = NameEdit {};
     m_nameEditor->SetVisible (false);
-    m_host.FocusControl      (m_list);
-    m_host.Repaint();
+    m_paneFocus.FocusControl (m_list);
+    m_paneLayout.Repaint();
 
     if (isNew)
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetNameBreakpoint (id, typed, m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetNameBreakpoint (id, typed, m_latest.GetMode()) }, {} });
     }
 }
 
@@ -1326,7 +1338,7 @@ bool BreakpointsPane::RouteEditMouse (const DxuiMouseEvent & ev)
     if (DxuiDockSite::Contains (m_nameEditor->GetBounds(), ev.positionDip))
     {
         m_nameEditor->OnMouse (ev);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
         return true;
     }
 
@@ -1365,7 +1377,7 @@ bool BreakpointsPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focu
             m_nameEditor->OnKey (ev);
         }
 
-        m_host.RepaintLater();
+        m_paneLayout.RepaintLater();
         return true;
     }
 
@@ -1507,7 +1519,7 @@ void BreakpointsPane::FilterOrder (const std::vector<BreakpointColumns::Cells> &
 
 void BreakpointsPane::ApplyRows()
 {
-    const DebuggerViewSnapshot                    * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                    * snapshot = m_latest.Get();
     std::vector<std::vector<DxuiListView::Cell>>    rows;
     std::vector<BreakpointColumns::Cells>           allCells;
     std::vector<int>                                selectedIds;
@@ -1515,7 +1527,7 @@ void BreakpointsPane::ApplyRows()
     std::vector<DxuiListView::Group>                groups;
     int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
     int                                             rowId    = GetIdOfRow (m_list->GetSelectedRow());
-    const DxuiTheme                               * theme    = m_host.GetTheme();
+    const DxuiTheme                               * theme    = m_look.GetTheme();
 
 
 
@@ -1575,7 +1587,7 @@ void BreakpointsPane::ApplyRows()
         }
 
         row[(size_t) BreakpointColumns::Column::Name].check = DxuiListView::Cell::GetCheck (bp.enabled, bp.isAbsent);
-        row[(size_t) BreakpointColumns::Column::Name].icon            = m_host.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
+        row[(size_t) BreakpointColumns::Column::Name].icon            = m_look.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
         rows.push_back (std::move (row));
     }
 
@@ -1655,7 +1667,7 @@ int BreakpointsPane::GetRowOfId (int id) const
 
 const DebuggerViewSnapshot::BreakpointLine * BreakpointsPane::GetBreakpointOfRow (int row) const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
 
@@ -1702,9 +1714,9 @@ void BreakpointsPane::ToggleColumn (BreakpointColumns::Column column)
     SetColumns();
     ApplyRows();
 
-    if (m_host.GetLatestSnapshot() != nullptr)
+    if (m_latest.Get() != nullptr)
     {
-        m_host.SaveOpenViews();
+        m_paneViews.SaveOpenViews();
     }
 }
 

@@ -86,7 +86,7 @@ namespace DebuggerViewMenuTests
     public:
         ViewMenuWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            m_theme = &theme;
+            m_look.SetTheme (&theme);
             m_host  = &host;
         }
 

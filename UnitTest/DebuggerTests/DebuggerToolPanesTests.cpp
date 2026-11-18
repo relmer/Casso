@@ -112,7 +112,7 @@ namespace DebuggerToolPanesTests
     public:
         ToolWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            m_theme = &theme;
+            m_look.SetTheme (&theme);
             m_host  = &host;
         }
 
@@ -123,7 +123,7 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::OnMappedCommand;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetProfilerPane;
-        using DebuggerWindow::GetPaneHostForTest;
+        using DebuggerWindow::GetPanePartsForTest;
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::OnKey;
@@ -359,7 +359,7 @@ namespace DebuggerToolPanesTests
             CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost          host;
             ToolWindow                 window (theme, host);
-            ListValueFilters           filters (window.GetPaneHostForTest());
+            ListValueFilters           filters (window.GetPanePartsForTest());
             std::vector<std::wstring>  values;
 
 
@@ -1506,7 +1506,7 @@ namespace DebuggerToolPanesTests
             CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost   host;
             ToolWindow          window (theme, host);
-            InputLogController  log    (window.GetPaneHostForTest());
+            InputLogController  log    (window.GetPanePartsForTest());
             IEventLogFilter   * model  = nullptr;
 
 
@@ -1551,8 +1551,8 @@ namespace DebuggerToolPanesTests
             CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost                          host;
             ToolWindow                                 window (theme, host);
-            IoLogController                            sound  (window.GetPaneHostForTest(), DebugLogKind::Sound);
-            IoLogController                            video  (window.GetPaneHostForTest(), DebugLogKind::Video);
+            IoLogController                            sound  (window.GetPanePartsForTest(), DebugLogKind::Sound);
+            IoLogController                            video  (window.GetPanePartsForTest(), DebugLogKind::Video);
             std::vector<std::shared_ptr<DxuiCommand>>  commands;
 
 
@@ -1590,7 +1590,7 @@ namespace DebuggerToolPanesTests
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost  host;
             ToolWindow         window   (theme, host);
-            CommLogController  serial   (window.GetPaneHostForTest(), DebugLogKind::Serial);
+            CommLogController  serial   (window.GetPanePartsForTest(), DebugLogKind::Serial);
             DebugLogDeltas     deltas;
             IoLogDelta         delta;
             int                height   = 0;
@@ -1640,7 +1640,7 @@ namespace DebuggerToolPanesTests
             CassoTheme            theme    = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost     host;
             ToolWindow            window   (theme, host);
-            CommLogController     serial   (window.GetPaneHostForTest(), DebugLogKind::Serial);
+            CommLogController     serial   (window.GetPanePartsForTest(), DebugLogKind::Serial);
             DebugLogDeltas        deltas;
             IoLogDelta            delta;
             DebuggerViewSnapshot  snapshot;
@@ -1687,7 +1687,7 @@ namespace DebuggerToolPanesTests
             CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost      host;
             ToolWindow             window (theme, host);
-            DevicePanelController  panel  (window.GetPaneHostForTest(), "mmu", L"MMU");
+            DevicePanelController  panel  (window.GetPanePartsForTest(), "mmu", L"MMU");
 
 
 
@@ -1717,7 +1717,7 @@ namespace DebuggerToolPanesTests
 
             for (const char * id : { "serial-card", "serial-port-1" })
             {
-                DevicePanelController  panel (window.GetPaneHostForTest(), id, L"Serial");
+                DevicePanelController  panel (window.GetPanePartsForTest(), id, L"Serial");
 
                 items.clear();
                 panel.AddContentMenuItems ({}, items);
@@ -1727,7 +1727,7 @@ namespace DebuggerToolPanesTests
             }
 
             {
-                DevicePanelController  panel (window.GetPaneHostForTest(), "uthernet", L"Uthernet II");
+                DevicePanelController  panel (window.GetPanePartsForTest(), "uthernet", L"Uthernet II");
 
                 items.clear();
                 panel.AddContentMenuItems ({}, items);
@@ -1745,7 +1745,7 @@ namespace DebuggerToolPanesTests
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost  host;
             ToolWindow         window   (theme, host);
-            CommLogController  network  (window.GetPaneHostForTest(), DebugLogKind::Network);
+            CommLogController  network  (window.GetPanePartsForTest(), DebugLogKind::Network);
             DebugLogDeltas     deltas;
             IoLogDelta         delta;
             IoLogRow           sent;
@@ -1779,8 +1779,8 @@ namespace DebuggerToolPanesTests
             CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost     host;
             ToolWindow            window  (theme, host);
-            SymbolsPane           symbols (window.GetPaneHostForTest(), SymbolsPane::Kind::Machine);
-            BookmarksPane         other   (window.GetPaneHostForTest());
+            SymbolsPane           symbols (window.GetPanePartsForTest(), SymbolsPane::Kind::Machine);
+            BookmarksPane         other   (window.GetPanePartsForTest());
             DebuggerViewSnapshot  snapshot;
             PaneMenuItems         items;
 
@@ -1814,7 +1814,7 @@ namespace DebuggerToolPanesTests
             CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost     host;
             ToolWindow            window  (theme, host);
-            SymbolsPane           symbols (window.GetPaneHostForTest(), SymbolsPane::Kind::User);
+            SymbolsPane           symbols (window.GetPanePartsForTest(), SymbolsPane::Kind::User);
             DebuggerViewSnapshot  snapshot;
             PaneMenuItems         items;
             auto                  state   = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());

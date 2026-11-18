@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerViewSnapshot.h"
 
 #include "Debugger/Reply.h"
 
@@ -206,6 +207,30 @@ DebuggerAction RunActions::GetSourceStepping (bool isSource, CommandMode mode)
 
     action.command.count = isSource ? 1 : 0;
     return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunActions::GetSteppingToFollow
+//
+//  Steps follow the view: the source pane steps by source line, the
+//  disassembly by instruction, in the words of the session's mode. None when
+//  steps follow the view already, so a click doesn't fill the console.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerAction> RunActions::GetSteppingToFollow (const DebuggerViewSnapshot * snapshot, bool isSource)
+{
+    if (snapshot == nullptr || !snapshot->source.has_value() || snapshot->source->stepBySource == isSource)
+    {
+        return std::nullopt;
+    }
+
+    return GetSourceStepping (isSource, snapshot->mode);
 }
 
 

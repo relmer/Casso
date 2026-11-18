@@ -27,11 +27,16 @@ static constexpr int  s_kCommLane    = 30;     // plus the lane
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommLogController::CommLogController (IDebuggerPaneHost & host, DebugLogKind kind) :
-    EventLogController (host,
+CommLogController::CommLogController (const DebuggerPaneParts & parts, DebugLogKind kind) :
+    EventLogController (parts,
                         (kind == DebugLogKind::Network) ? DebuggerLayout::kNetworkLog : DebuggerLayout::kSerialLog,
                         (kind == DebugLogKind::Network) ? L"Network log" : L"Serial log",
-                        kind)
+                        kind),
+    m_paneWindow (parts.window),
+    m_paneLayout (parts.layout),
+    m_paneBars (parts.bars),
+    m_paneRouting (parts.routing),
+    m_panePlaces (parts.places)
 {
 }
 
@@ -61,7 +66,7 @@ void CommLogController::CreateControls()
 {
     CreateListAndBar();
 
-    m_graph = m_host.GetControlParent().CreateChild<CommSignalGraph>();
+    m_graph = m_paneWindow.CreateChild<CommSignalGraph>();
     m_graph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_model = std::make_unique<CommLogPane> (m_list, [this] (const DebugLogRequest & request)
     {
@@ -170,7 +175,7 @@ void CommLogController::SetBarEntries()
     command->dispatch = [this] { Zoom (false); };
     entries.back().iconOnly = true;
 
-    entries.push_back (m_host.GetFindEntry (m_id));
+    entries.push_back (m_paneBars.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -191,7 +196,7 @@ void CommLogController::Zoom (bool isIn)
     m_graphedCount = SIZE_MAX;
 
     UpdateGraph();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -212,7 +217,7 @@ bool CommLogController::ZoomContent (float notches, std::optional<POINT> clientP
 {
     (void) clientPx;
 
-    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->IsVisible())
+    if (m_graph == nullptr || !m_paneRouting.IsRoutable (m_graph) || !m_graph->IsVisible())
     {
         return false;
     }
@@ -233,7 +238,7 @@ bool CommLogController::ZoomContent (float notches, std::optional<POINT> clientP
 
 bool CommLogController::ResetContentZoom()
 {
-    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->IsVisible())
+    if (m_graph == nullptr || !m_paneRouting.IsRoutable (m_graph) || !m_graph->IsVisible())
     {
         return false;
     }
@@ -242,7 +247,7 @@ bool CommLogController::ResetContentZoom()
     m_graphedCount = SIZE_MAX;
 
     UpdateGraph();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -265,8 +270,8 @@ void CommLogController::ShowLane (size_t lane, bool isShown)
 
     UpdateGraph();
     SaveOptions();
-    m_host.RelayoutDock();
-    m_host.Repaint();
+    m_paneLayout.RelayoutDock();
+    m_paneLayout.Repaint();
 }
 
 
@@ -286,7 +291,7 @@ void CommLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWi
         m_model->Apply (delta);
     }
 
-    m_model->SetShown       (isWindowVisible && m_host.IsPaneOpen (m_id));
+    m_model->SetShown       (isWindowVisible && m_panePlaces.IsPaneOpen (m_id));
     m_model->SetShownBefore (m_shownBefore);
     m_model->Refresh();
     m_model->FollowScroll();
@@ -395,7 +400,7 @@ void CommLogController::UpdateGraph()
 
 bool CommLogController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
-    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->TryGetTipAt (clientPx, tip.text))
+    if (m_graph == nullptr || !m_paneRouting.IsRoutable (m_graph) || !m_graph->TryGetTipAt (clientPx, tip.text))
     {
         return false;
     }

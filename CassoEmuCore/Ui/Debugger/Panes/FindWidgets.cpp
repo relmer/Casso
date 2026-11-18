@@ -49,8 +49,14 @@ std::vector<DxuiButton *> FindWidget::GetButtons() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FindWidgetSet::FindWidgetSet (IDebuggerPaneHost & host, IFindWidgetHost & window) :
-    m_host   (host),
+FindWidgetSet::FindWidgetSet (const DebuggerPaneParts & parts, IFindWidgetHost & window) :
+    m_windowHost (parts.windowHost),
+    m_paneScaler (parts.scaler),
+    m_paneWindow (parts.window),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_look (parts.look),
     m_window (window)
 {
 }
@@ -95,7 +101,7 @@ FindWidget & FindWidgetSet::Activate (const std::wstring & pane)
 
 void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
 {
-    DxuiPanel  & parent = m_host.GetControlParent();
+    DxuiPanel  & parent = m_paneWindow;
 
 
 
@@ -136,7 +142,7 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
         button->SetGlyphFont (L"Segoe MDL2 Assets", DxuiToolbar::kCompactIconDip);
     }
 
-    widget.box->SetHwnd        (m_host.GetOwnerHwnd());
+    widget.box->SetHwnd        (m_paneRouting.GetOwnerHwnd());
     widget.box->SetMaxLength   (256);
     widget.box->SetPlaceholder (s_kPlaceholder);
 
@@ -473,7 +479,7 @@ void FindWidgetSet::Place()
 void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
 {
     constexpr int           kButtonDip = 24;
-    const DxuiDpiScaler   & scaler     = m_host.GetPaneScaler();
+    const DxuiDpiScaler   & scaler     = m_paneScaler;
     auto                    px         = [&scaler] (int dip) { return scaler.ToPx (dip); };
     IDxuiFindTarget       * view       = m_window.GetFindView (pane);
     bool                    shown      = widget.isOpen && view != nullptr && view->IsFindVisible();
@@ -533,7 +539,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
 
     //  The box measures its text to place the caret under a click and to drag
     //  a selection, which requires the window's renderer, made after the box.
-    widget.box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    widget.box->SetTextRenderer (m_paneWindow.GetTextRenderer());
     widget.box->SetRightInsetPx ((float) (button * 3));
 
     widget.box->Layout         (RECT { x, top, boxRight, bottom }, scaler);
@@ -611,7 +617,7 @@ void FindWidgetSet::Open (const std::wstring & pane)
 
     //  A floating pane has its own focus.
     m_window.FocusInPane (pane, widget.box);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -653,7 +659,7 @@ void FindWidgetSet::Close()
     Place();
 
     m_window.FocusInPane (m_activePane, (m_activePane == DebuggerLayout::kConsole) ? m_window.GetCommandLine() : view->GetFindControl());
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -674,7 +680,7 @@ void FindWidgetSet::RefocusBox()
 {
     if (!m_isKeyClick)
     {
-        m_host.FocusControl (m_active->box);
+        m_paneFocus.FocusControl (m_active->box);
     }
 }
 
@@ -809,7 +815,7 @@ bool FindWidgetSet::StepHistory (int step)
     m_active->box->SetText ((at == count) ? std::wstring() : history[(size_t) at]);
     m_active->box->SelectAll();
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -866,7 +872,7 @@ void FindWidgetSet::Find (bool forward, const std::wstring & pane)
     RecordHistory();
 
     view = m_window.GetFindView (m_activePane);
-    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
+    view->SetFindColors (GetMatchArgb (m_look.GetPcMarkerArgb()), m_look.GetPcMarkerArgb());
 
     result               = view->SelectMatch (needle, m_active->matchCase, m_active->wholeWord, m_active->isRegex, forward, index, count);
     m_active->statusText = GetStatusText (result, index, count);
@@ -879,7 +885,7 @@ void FindWidgetSet::Find (bool forward, const std::wstring & pane)
         view->ClearFindHighlights();
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -933,7 +939,7 @@ void FindWidgetSet::SearchAsTyped()
 
     //  The marks are the PC arrow's yellow, darkened for every match but the
     //  one the search is at.
-    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
+    view->SetFindColors (GetMatchArgb (m_look.GetPcMarkerArgb()), m_look.GetPcMarkerArgb());
 
     if (needle.empty())
     {
@@ -947,7 +953,7 @@ void FindWidgetSet::SearchAsTyped()
     }
 
     m_active->status->SetText (m_active->statusText);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -975,7 +981,7 @@ void FindWidgetSet::RefindAfterOptionChange()
     m_active->statusText.clear();
     m_active->status->SetText (m_active->statusText);
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1144,7 +1150,7 @@ void FindWidgetSet::OnMouseMove (const DxuiMouseEvent & ev, bool isLeftDown)
 
     for (const auto & [pane, widget] : m_widgets)
     {
-        if (widget.box == nullptr || !m_host.IsRoutable (widget.box))
+        if (widget.box == nullptr || !m_paneRouting.IsRoutable (widget.box))
         {
             continue;
         }
@@ -1174,7 +1180,7 @@ bool FindWidgetSet::IsOverPlate (POINT clientPx) const
     {
         const FindWidgetPlate  * plate = entry.second.plate;
 
-        return plate != nullptr && m_host.IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), clientPx);
+        return plate != nullptr && m_paneRouting.IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), clientPx);
     });
 }
 
@@ -1195,7 +1201,7 @@ LPCWSTR FindWidgetSet::GetCursor (POINT clientPx) const
 {
     for (const auto & [pane, widget] : m_widgets)
     {
-        if (widget.plate == nullptr || !m_host.IsRoutable (widget.plate) || !widget.plate->IsVisible() || !DxuiDockSite::Contains (widget.plate->GetBounds(), clientPx))
+        if (widget.plate == nullptr || !m_paneRouting.IsRoutable (widget.plate) || !widget.plate->IsVisible() || !DxuiDockSite::Contains (widget.plate->GetBounds(), clientPx))
         {
             continue;
         }
@@ -1288,7 +1294,7 @@ bool FindWidgetSet::Overlaps (POINT clientPx, const RECT & rect) const
         RECT  both  = {};
         RECT  plate = (widget.plate != nullptr) ? widget.plate->GetBounds() : RECT {};
 
-        if (widget.plate != nullptr && m_host.IsRoutable (widget.plate) && widget.plate->IsVisible() &&
+        if (widget.plate != nullptr && m_paneRouting.IsRoutable (widget.plate) && widget.plate->IsVisible() &&
             (DxuiDockSite::Contains (plate, clientPx) || IntersectRect (&both, &plate, &rect) != FALSE))
         {
             return true;
@@ -1418,7 +1424,7 @@ void FindWidgetSet::LoadSaved (const std::wstring & text)
 void FindWidgetSet::Save()
 {
     std::map<std::wstring, Saved>  all  = m_saved;
-    IDebuggerWindowHost          * host = m_host.GetWindowHost();
+    IDebuggerWindowHost          * host = m_windowHost;
     std::wstring                   text;
 
 

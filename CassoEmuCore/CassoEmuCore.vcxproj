@@ -374,6 +374,10 @@
     <ClCompile Include="Ui\Debugger\OpenViewsKeeper.cpp" />
     <ClCompile Include="Ui\Debugger\TextZoomLevels.cpp" />
     <ClCompile Include="Ui\Debugger\DensePaneList.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerPaneLook.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerFilePicker.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\PaneMenuRows.cpp" />
+    <ClCompile Include="Ui\Debugger\LatestSnapshot.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowText.cpp" />
     <ClCompile Include="Ui\Debugger\GoToAddressText.cpp" />
     <ClCompile Include="Ui\Debugger\ControlTreeWalk.cpp" />
@@ -2031,6 +2035,12 @@
     <ClInclude Include="Ui\Debugger\OpenViewsKeeper.h" />
     <ClInclude Include="Ui\Debugger\TextZoomLevels.h" />
     <ClInclude Include="Ui\Debugger\DensePaneList.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerPaneLook.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerFilePicker.h" />
+    <ClInclude Include="Ui\Debugger\LatestSnapshot.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneParts.h" />
+    <ClInclude Include="Ui\Debugger\Panes\PaneHostInterfaces.h" />
+    <ClInclude Include="Ui\Debugger\Panes\PaneMenuRows.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindowText.h" />
     <ClInclude Include="Ui\Debugger\GoToAddressText.h" />
     <ClInclude Include="Ui\Debugger\ControlTreeWalk.h" />

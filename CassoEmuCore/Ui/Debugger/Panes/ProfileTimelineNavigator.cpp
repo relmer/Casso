@@ -16,8 +16,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfileTimelineNavigator::ProfileTimelineNavigator (IDebuggerPaneHost & host, IProfileNavigatorOwner & owner) :
-    m_host  (host),
+ProfileTimelineNavigator::ProfileTimelineNavigator (const DebuggerPaneParts & parts, IProfileNavigatorOwner & owner) :
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
     m_owner (owner)
 {
 }
@@ -366,7 +367,7 @@ void ProfileTimelineNavigator::ApplyState (bool isFlameZoomSet)
     }
 
     m_owner.Refresh();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -495,7 +496,7 @@ bool ProfileTimelineNavigator::ZoomAt (const DxuiMouseEvent & ev)
     }
 
     m_zoomDueMs = now + kZoomSettleMs;
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -521,7 +522,7 @@ bool ProfileTimelineNavigator::ZoomContent (float notches, std::optional<POINT> 
 
 
 
-    if (m_timeline == nullptr || !m_host.IsRoutable (m_timeline) || !m_timeline->IsVisible())
+    if (m_timeline == nullptr || !m_paneRouting.IsRoutable (m_timeline) || !m_timeline->IsVisible())
     {
         return false;
     }
@@ -555,7 +556,7 @@ bool ProfileTimelineNavigator::ResetContentZoom()
 
 
 
-    if (m_timeline == nullptr || !m_host.IsRoutable (m_timeline) || !m_timeline->IsVisible())
+    if (m_timeline == nullptr || !m_paneRouting.IsRoutable (m_timeline) || !m_timeline->IsVisible())
     {
         return false;
     }
@@ -566,7 +567,7 @@ bool ProfileTimelineNavigator::ResetContentZoom()
 
         m_zoomDueMs.reset();
         PushState (state);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 
     return true;
@@ -584,7 +585,7 @@ bool ProfileTimelineNavigator::ResetContentZoom()
 
 bool ProfileTimelineNavigator::IsOverTimeline (POINT positionDip) const
 {
-    return m_host.IsRoutable (m_timeline) && m_timeline->IsVisible() && DxuiDockSite::Contains (m_timeline->GetBounds(), positionDip);
+    return m_paneRouting.IsRoutable (m_timeline) && m_timeline->IsVisible() && DxuiDockSite::Contains (m_timeline->GetBounds(), positionDip);
 }
 
 
@@ -626,7 +627,7 @@ bool ProfileTimelineNavigator::RouteDrag (const DxuiMouseEvent & ev)
         {
             m_dragRange = ProfileZoom::GetFramesBetween (m_timeline->GetCycleAt (*m_dragFromX), m_timeline->GetCycleAt (ev.positionDip.x), *m_wholeRange);
             m_timeline->SetSelection (m_dragRange);
-            m_host.Repaint();
+            m_paneLayout.Repaint();
         }
 
         return true;

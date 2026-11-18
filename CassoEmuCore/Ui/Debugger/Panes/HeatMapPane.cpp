@@ -41,10 +41,20 @@ static constexpr HeatMapView::PickAction  s_kAccessRows[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HeatMapPane::HeatMapPane (IDebuggerPaneHost & host, Ranges ranges) :
-    IDebuggerPane (host),
-    m_ranges      (std::move (ranges)),
-    m_bar         (host, DebuggerLayout::kHeatMap, L"Heat map commands")
+HeatMapPane::HeatMapPane (const DebuggerPaneParts & parts, Ranges ranges) :
+    m_windowHost    (parts.windowHost),
+    m_paneScaler    (parts.scaler),
+    m_paneWindow    (parts.window),
+    m_paneReplies   (parts.replies),
+    m_paneLayout    (parts.layout),
+    m_paneTips      (parts.tips),
+    m_paneBars      (parts.bars),
+    m_paneRouting   (parts.routing),
+    m_paneFocus     (parts.focus),
+    m_paneNavigator (parts.navigator),
+    m_look          (parts.look),
+    m_ranges        (std::move (ranges)),
+    m_bar           (parts, DebuggerLayout::kHeatMap, L"Heat map commands")
 {
 }
 
@@ -93,11 +103,11 @@ const std::wstring & HeatMapPane::GetId() const
 
 void HeatMapPane::CreateControls()
 {
-    m_view    = m_host.GetControlParent().CreateChild<HeatMapView>();
+    m_view    = m_paneWindow.CreateChild<HeatMapView>();
     m_view->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_bar.Create();
-    m_viewBar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
-    m_box     = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+    m_viewBar = m_paneWindow.CreateChild<DxuiToolbar>();
+    m_box     = m_paneWindow.CreateChild<DxuiTextInput>();
 }
 
 
@@ -115,7 +125,7 @@ void HeatMapPane::CreateControls()
 
 void HeatMapPane::Configure()
 {
-    IDebuggerWindowHost         * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost         * windowHost = m_windowHost;
     HeatMapOptions                options    = HeatMapOptions::FromText ((windowHost != nullptr) ? windowHost->GetDebuggerHeatMapOptions() : std::string());
     HeatMapBarCommands::Handlers  handlers;
 
@@ -126,7 +136,7 @@ void HeatMapPane::Configure()
     m_view->SetOnOptionsChanged ([this]
     {
         SaveOptions (m_view->GetOptions());
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     });
 
     handlers.dispatch  = [this] (int id) { RunBarEntry (id); };
@@ -138,7 +148,7 @@ void HeatMapPane::Configure()
 
     m_bar.Configure();
     m_bar.SetOnPress ([this] { SetBarMenus(); });
-    m_box->SetHwnd        (m_host.GetOwnerHwnd());
+    m_box->SetHwnd        (m_paneRouting.GetOwnerHwnd());
     m_box->SetMaxLength   (256);
     m_box->SetPlaceholder (L"Address: 0300, PC");
     m_box->SetVisible     (false);
@@ -150,9 +160,9 @@ void HeatMapPane::Configure()
 
     //  The set of ranges and the bank, beside the map's tabs, as tall as
     //  their row.
-    m_viewBar->SetTextRenderer (m_host.GetPaneTextRenderer());
-    m_box->SetTextRenderer     (m_host.GetPaneTextRenderer());
-    m_viewBar->SetPopupHost    (m_host.GetPanePopupHost());
+    m_viewBar->SetTextRenderer (m_paneWindow.GetTextRenderer());
+    m_box->SetTextRenderer     (m_paneWindow.GetTextRenderer());
+    m_viewBar->SetPopupHost    (m_paneWindow.GetPopupHost());
     m_viewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_viewBar->SetCompact      (true);
     m_viewBar->SetBandDp       (HeatMapGrid::kBarDip);
@@ -163,7 +173,7 @@ void HeatMapPane::Configure()
 
     SetBarMenus();
 
-    m_view->SetOnPickAddress ([this] (Word address) { m_host.ShowMemoryAddress (address); });
+    m_view->SetOnPickAddress ([this] (Word address) { m_paneNavigator.ShowMemoryAddress (address); });
 
     m_view->SetOnPickAccess ([this] (Word address, HeatMapView::PickAction action)
     {
@@ -281,7 +291,7 @@ std::optional<PaneColorKeySpec> HeatMapPane::GetColorKey() const
 
 void HeatMapPane::SaveOptions (const HeatMapOptions & options)
 {
-    IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = m_windowHost;
 
 
 
@@ -306,7 +316,7 @@ void HeatMapPane::SaveOptions (const HeatMapOptions & options)
 
 void HeatMapPane::SendHover (std::optional<Word> address)
 {
-    IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = m_windowHost;
 
 
 
@@ -331,7 +341,7 @@ void HeatMapPane::SendHover (std::optional<Word> address)
 
 void HeatMapPane::OnProjectSwitched()
 {
-    IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = m_windowHost;
 
 
 
@@ -372,7 +382,7 @@ void HeatMapPane::SetOptions (const HeatMapOptions & options)
     SaveOptions (options);
     SendIgnore();
     SetBarMenus();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -547,7 +557,7 @@ void HeatMapPane::SetIgnoreMenu()
 
 void HeatMapPane::SendIgnore()
 {
-    IDebuggerWindowHost                 * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost                 * windowHost = m_windowHost;
     std::vector<std::pair<Word, Word>>    spans;
 
 
@@ -673,13 +683,13 @@ void HeatMapPane::PlaceBar()
         return;
     }
 
-    host = m_host.GetPaneWindow (GetId());
+    host = m_paneBars.GetPaneWindow (GetId());
 
     m_viewBar->SetTextRenderer   (host->GetTextRenderer());
     m_box->SetTextRenderer       (host->GetTextRenderer());
     m_viewBar->SetPopupHost      (host->GetPopupHost());
     m_viewBar->SetHostClientRect (host->GetBounds());
-    m_viewBar->Layout            (row, m_host.GetPaneScaler());
+    m_viewBar->Layout            (row, m_paneScaler);
 
     host->SetChildClip (m_viewBar, row);
 
@@ -714,7 +724,7 @@ bool HeatMapPane::RouteBarMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    return PaneBarSlot::RouteToolbarMouse (m_host, GetId(), m_viewBar, ev, [this] { SetBarMenus(); }) || m_bar.RouteMouse (ev);
+    return PaneBarSlot::RouteToolbarMouse (m_paneRouting, m_paneTips, GetId(), m_viewBar, ev, [this] { SetBarMenus(); }) || m_bar.RouteMouse (ev);
 }
 
 
@@ -823,7 +833,7 @@ std::wstring HeatMapPane::GetBarLabel (int id) const
 void HeatMapPane::RunBarEntry (int id)
 {
     HeatMapOptions         options    = m_view->GetOptions();
-    IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = m_windowHost;
 
 
 
@@ -851,7 +861,7 @@ void HeatMapPane::RunBarEntry (int id)
         break;
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -876,7 +886,7 @@ bool HeatMapPane::ZoomContent (float notches, std::optional<POINT> clientPx)
 
 
 
-    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
+    if (!m_paneRouting.IsRoutable (m_view) || !m_view->IsVisible())
     {
         return false;
     }
@@ -896,7 +906,7 @@ bool HeatMapPane::ZoomContent (float notches, std::optional<POINT> clientPx)
 
     map = m_view->GetMapRect();
     m_view->ZoomAt ({ (map.left + map.right) / 2, (map.top + map.bottom) / 2 }, notches);
-    m_host.RepaintLater();
+    m_paneLayout.RepaintLater();
     return true;
 }
 
@@ -914,7 +924,7 @@ bool HeatMapPane::ZoomContent (float notches, std::optional<POINT> clientPx)
 
 bool HeatMapPane::ResetContentZoom()
 {
-    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
+    if (!m_paneRouting.IsRoutable (m_view) || !m_view->IsVisible())
     {
         return false;
     }
@@ -922,7 +932,7 @@ bool HeatMapPane::ResetContentZoom()
     m_zoomedAtMs = (int64_t) GetTickCount64();
 
     m_view->ResetZoom();
-    m_host.RepaintLater();
+    m_paneLayout.RepaintLater();
     return true;
 }
 
@@ -945,7 +955,7 @@ bool HeatMapPane::ResetContentZoom()
 bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 {
     DxuiMouseEvent  leave  = ev;
-    bool            isOver = m_host.IsRoutable (m_view) && m_view->IsVisible() &&
+    bool            isOver = m_paneRouting.IsRoutable (m_view) && m_view->IsVisible() &&
                              DxuiDockSite::Contains (m_view->GetBounds(), ev.positionDip);
     bool            isUsed = false;
 
@@ -969,7 +979,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
     //  pane, so the pane takes the accent.
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
-        m_host.FocusControl (m_view);
+        m_paneFocus.FocusControl (m_view);
     }
 
     //  Painted once the messages waiting are handled, so a wheel spun hard
@@ -977,7 +987,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
     //  each notch while the rest wait.
     if (ev.kind == DxuiMouseEventKind::Move || isUsed)
     {
-        m_host.RepaintLater();
+        m_paneLayout.RepaintLater();
     }
 
     return isUsed;
@@ -1000,7 +1010,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
 bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
-    bool  isShown = m_host.IsRoutable (m_view) && m_view->IsVisible();
+    bool  isShown = m_paneRouting.IsRoutable (m_view) && m_view->IsVisible();
 
 
 
@@ -1050,7 +1060,7 @@ void HeatMapPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
 
 
-    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
+    if (!m_paneRouting.IsRoutable (m_view) || !m_view->IsVisible())
     {
         return;
     }
@@ -1079,7 +1089,7 @@ void HeatMapPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
 void HeatMapPane::RequestAccess (Word address, HeatMapView::PickAction action, HeatMapOptions::Bank bank)
 {
-    IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = m_windowHost;
     HeatAccessRequest      request;
 
 
@@ -1209,7 +1219,7 @@ bool HeatMapPane::Tick (int64_t nowMs)
 
 void HeatMapPane::ApplyPalette()
 {
-    m_view->SetPalette (m_host.GetHeatPalette());
+    m_view->SetPalette (m_look.GetHeatPalette());
 }
 
 
@@ -1249,7 +1259,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_banks = state.banks;
 
-    m_view->SetPalette      (m_host.GetHeatPalette());
+    m_view->SetPalette      (m_look.GetHeatPalette());
     m_view->SetTop          (state.top);
     m_view->SetShownBank    (state.bank, state.hasAux);
     m_view->SetSymbols      (snapshot.heatMapSymbols);
@@ -1259,7 +1269,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetRebuilding   (state.isRebuilding);
     m_view->SetSlotCards    (snapshot.slotCards);
     m_view->SetMachineId    (snapshot.machineId);
-    m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_host.GetTextColors()));
+    m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_look.GetTextColors()));
 
     //  The machine reads its map only now and then while it runs, and the
     //  snapshots between have the same reading, whose cells are already
@@ -1288,9 +1298,9 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     //  come in, without waiting for the mouse to move, in place of the
     //  ellipses. The tip is drawn in the window the pane is in, so a
     //  floating pane's tip is drawn in its floating window.
-    if (isNewHover && m_tipAt.has_value() && m_host.IsPaneTooltipVisible (GetId()))
+    if (isNewHover && m_tipAt.has_value() && m_paneTips.IsPaneTooltipVisible (GetId()))
     {
-        m_host.UpdatePaneTooltip (GetId(), *m_tipAt);
+        m_paneTips.UpdatePaneTooltip (GetId(), *m_tipAt);
     }
 }
 
@@ -1355,11 +1365,11 @@ bool HeatMapPane::SubmitTextBox (DxuiTextInput * box)
     {
         m_view->ShowAddress (address);
         m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
-    else if (m_host.GetWindowHost() != nullptr)
+    else if (m_windowHost != nullptr)
     {
-        m_host.GetWindowHost()->GoToDebuggerMemory (DebuggerViewState::kHeatMapGoTo, SourcePathList::WideToUtf8 (text));
+        m_windowHost->GoToDebuggerMemory (DebuggerViewState::kHeatMapGoTo, SourcePathList::WideToUtf8 (text));
     }
 
     return true;
@@ -1401,5 +1411,5 @@ void HeatMapPane::ApplyGoTo (const DebuggerViewSnapshot & snapshot)
 
     reason = std::format (L"\"{}\" is not an address. {}", TextEncoding::NarrowToWide (snapshot.goTo->text), TextEncoding::NarrowToWide (snapshot.goTo->error));
     m_addressEntry->SetTooltips (reason, reason);
-    m_host.ShowPaneReply (GetId(), { std::format ("\"{}\" is not an address.", snapshot.goTo->text), snapshot.goTo->error }, true);
+    m_paneReplies.ShowPaneReply (GetId(), { std::format ("\"{}\" is not an address.", snapshot.goTo->text), snapshot.goTo->error }, true);
 }

@@ -52,8 +52,10 @@ static std::string FindSymbolName (const DebuggerViewSnapshot::SymbolsState * sy
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ToolListPane::ToolListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title) :
-    IDebuggerPane (host),
+ToolListPane::ToolListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title) :
+    m_paneWindow  (parts.window),
+    m_paneDialogs (parts.dialogs),
+    m_paneRouting (parts.routing),
     m_id          (std::move (id)),
     m_title       (std::move (title))
 {
@@ -83,7 +85,7 @@ ToolListPane::~ToolListPane() = default;
 
 void ToolListPane::CreateControls()
 {
-    m_list = m_host.GetControlParent().CreateChild<DxuiListView>();
+    m_list = m_paneWindow.CreateChild<DxuiListView>();
 }
 
 
@@ -155,7 +157,7 @@ std::vector<DxuiListView::Cell> ToolListPane::MakeNote (const std::wstring & tex
 
 void ToolListPane::AddCopyItem (PaneMenuItems & items)
 {
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
 }
 
 
@@ -171,7 +173,7 @@ void ToolListPane::AddCopyItem (PaneMenuItems & items)
 std::wstring ToolListPane::PickSaveFile (const wchar_t * filterName, const wchar_t * filter, const wchar_t * extension, const std::wstring & fileName)
 {
     HRESULT                hr      = S_OK;
-    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    IHostDialogs         * dialogs = m_paneDialogs.GetHostDialogs();
     FileDialogSpec         spec;
     std::filesystem::path  chosen;
     bool                   picked  = false;
@@ -184,7 +186,7 @@ std::wstring ToolListPane::PickSaveFile (const wchar_t * filterName, const wchar
     spec.defaultExtension = extension;
     spec.defaultFileName  = fileName;
 
-    hr = dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    hr = dialogs->PickFileToSave (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked);
     CHR (hr);
 
 Error:
@@ -201,9 +203,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SymbolsPane::SymbolsPane (IDebuggerPaneHost & host, Kind kind) :
-    ToolListPane (host, (kind == Kind::User) ? DebuggerLayout::kSymbols : DebuggerLayout::kMachineSymbols,
+SymbolsPane::SymbolsPane (const DebuggerPaneParts & parts, Kind kind) :
+    ToolListPane (parts, (kind == Kind::User) ? DebuggerLayout::kSymbols : DebuggerLayout::kMachineSymbols,
                         (kind == Kind::User) ? L"User symbols" : L"Machine symbols"),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands (parts.commands),
+    m_latest (parts.latest),
     m_kind       (kind)
 {
 }
@@ -238,7 +245,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && !each->isHeading)
         {
-            m_host.GoToCode (each->address);
+            m_paneNavigator.GoToCode (each->address);
         }
         else if (each != nullptr && !isMouse)
         {
@@ -255,7 +262,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && each->isHeading)
         {
-            m_host.RunAction (SymbolActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
+            m_paneCommands.RunAction (SymbolActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_latest.GetMode()));
         }
     });
 }
@@ -398,7 +405,7 @@ void SymbolsPane::ToggleTable (const std::string & table)
     }
 
     RebuildRows();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -425,7 +432,7 @@ bool SymbolsPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
 
     if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left ||
-        !m_list->IsVisible() || !m_host.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
+        !m_list->IsVisible() || !m_paneRouting.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
     {
         return false;
     }
@@ -481,10 +488,10 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
 
     if (each != nullptr && !each->isHeading)
     {
-        items.push_back ({ L"Go to",  [this, at = each->address] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Go to",  [this, at = each->address] { m_paneNavigator.GoToCode (at); } });
         items.push_back ({ L"Remove", [this, table = each->table, name = each->name]
         {
-            m_host.RunAction (SymbolActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
+            m_paneCommands.RunAction (SymbolActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_latest.GetMode()));
         } });
     }
 
@@ -494,7 +501,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         std::string  file  = (m_symbols != nullptr) ? GetFileOf (*m_symbols, each->table) : std::string();
         std::wstring label = file.empty() ? std::wstring (L"Clear table") : L"Unload " + TextEncoding::NarrowToWide (file);
 
-        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (SymbolActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
+        items.push_back ({ label,            [this, table = each->table] { m_paneCommands.RunAction (SymbolActions::GetClearSymbols (SymbolTable::ToUpper (table), m_latest.GetMode())); } });
         items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
     }
 
@@ -520,7 +527,7 @@ void SymbolsPane::SaveTable (const std::string & table)
 
     if (!path.empty())
     {
-        m_host.RunAction (SymbolActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
+        m_paneCommands.RunAction (SymbolActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_latest.GetMode()));
     }
 }
 
@@ -683,8 +690,12 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BookmarksPane::BookmarksPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kBookmarks, L"Bookmarks")
+BookmarksPane::BookmarksPane (const DebuggerPaneParts & parts) :
+    ToolListPane (parts, DebuggerLayout::kBookmarks, L"Bookmarks"),
+    m_paneLayout (parts.layout),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands (parts.commands),
+    m_latest (parts.latest)
 {
 }
 
@@ -716,7 +727,7 @@ void BookmarksPane::Configure()
 
         if (bookmark.has_value())
         {
-            m_host.GoToCode (bookmark->address);
+            m_paneNavigator.GoToCode (bookmark->address);
         }
     });
 }
@@ -754,7 +765,7 @@ void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void BookmarksPane::SortBy (int column)
 {
-    const DebuggerViewSnapshot                      * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                      * snapshot = m_latest.Get();
     std::optional<DebuggerViewSnapshot::WatchLine>    selected = GetBookmark (m_list->GetSelectedRow());
 
 
@@ -778,7 +789,7 @@ void BookmarksPane::SortBy (int column)
         }
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -856,7 +867,7 @@ bool BookmarksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (bookmark.has_value())
     {
-        items.push_back ({ L"Go to",  [this, at = bookmark->address] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Go to",  [this, at = bookmark->address] { m_paneNavigator.GoToCode (at); } });
         items.push_back ({ L"Delete", [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
 
@@ -915,7 +926,7 @@ void BookmarksPane::DeleteRows (const std::vector<int> & rows)
 
     for (int id : ids)
     {
-        m_host.RunAction (WatchActions::GetClearBookmark (id, m_host.GetMode()));
+        m_paneCommands.RunAction (WatchActions::GetClearBookmark (id, m_latest.GetMode()));
     }
 }
 
@@ -1004,9 +1015,14 @@ std::optional<Word> BookmarksPane::GetNext (const std::vector<DebuggerViewSnapsh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DataBlocksPane::DataBlocksPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges"),
-    m_filters    (host)
+DataBlocksPane::DataBlocksPane (const DebuggerPaneParts & parts) :
+    ToolListPane    (parts, DebuggerLayout::kDataBlocks, L"Data ranges"),
+    m_paneDialogs   (parts.dialogs),
+    m_paneLayout    (parts.layout),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands  (parts.commands),
+    m_latest        (parts.latest),
+    m_filters       (parts)
 {
 }
 
@@ -1032,9 +1048,9 @@ void DataBlocksPane::Configure()
 
     m_filters.Attach (m_list, { kKindColumn }, [this]
     {
-        if (m_host.GetLatestSnapshot() != nullptr)
+        if (m_latest.Get() != nullptr)
         {
-            Apply (*m_host.GetLatestSnapshot());
+            Apply (*m_latest.Get());
         }
     });
 
@@ -1046,7 +1062,7 @@ void DataBlocksPane::Configure()
 
         if (block.has_value())
         {
-            m_host.GoToCode (block->first);
+            m_paneNavigator.GoToCode (block->first);
         }
     });
 }
@@ -1105,7 +1121,7 @@ void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void DataBlocksPane::SortBy (int column)
 {
-    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot     * snapshot = m_latest.Get();
     std::optional<DataBlockEntry>    selected = GetBlock (m_list->GetSelectedRow());
 
 
@@ -1129,7 +1145,7 @@ void DataBlocksPane::SortBy (int column)
         }
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1225,7 +1241,7 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 
     if (block.has_value())
     {
-        items.push_back ({ L"Go to",     [this, at = block->first] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Go to",     [this, at = block->first] { m_paneNavigator.GoToCode (at); } });
         items.push_back ({ L"Rename...", [this, renamed = *block] { Rename (renamed); } });
         items.push_back ({ L"Delete",    [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
@@ -1287,7 +1303,7 @@ bool DataBlocksPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
 
 void DataBlocksPane::Rename (const DataBlockEntry & block)
 {
-    std::optional<std::wstring>  typed = m_host.RunTextDialog (L"Rename data range", L"Name", TextEncoding::NarrowToWide (block.name), [] (const std::wstring & text, std::wstring & error)
+    std::optional<std::wstring>  typed = m_paneDialogs.RunTextDialog (L"Rename data range", L"Name", TextEncoding::NarrowToWide (block.name), [] (const std::wstring & text, std::wstring & error)
     {
         error = L"Type a name of letters, digits, _ and ., starting with a letter.";
         return !text.empty() && iswalpha (text[0]) && std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
@@ -1297,7 +1313,7 @@ void DataBlocksPane::Rename (const DataBlockEntry & block)
 
     if (typed.has_value() && TextEncoding::WideToNarrow (*typed) != block.name)
     {
-        m_host.RunAction (SymbolActions::GetMarkData (GetDirective (block), block.first, block.last, m_host.GetMode(), TextEncoding::WideToNarrow (*typed)));
+        m_paneCommands.RunAction (SymbolActions::GetMarkData (GetDirective (block), block.first, block.last, m_latest.GetMode(), TextEncoding::WideToNarrow (*typed)));
     }
 }
 
@@ -1359,7 +1375,7 @@ void DataBlocksPane::DeleteRows (const std::vector<int> & rows)
 
     for (const DataBlockEntry & block : blocks)
     {
-        m_host.RunAction (SymbolActions::GetClearData (block.first, block.last, m_host.GetMode()));
+        m_paneCommands.RunAction (SymbolActions::GetClearData (block.first, block.last, m_latest.GetMode()));
     }
 }
 

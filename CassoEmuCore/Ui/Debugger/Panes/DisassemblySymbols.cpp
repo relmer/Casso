@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DisassemblySymbols.h"
+#include "Ui/Debugger/SymbolComments.h"
 
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Core/TextEncoding.h"
@@ -8,6 +9,7 @@
 #include "Debugger/SymbolDescriptions.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DensePaneList.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/HistoryBand.h"
@@ -46,14 +48,14 @@ bool DisassemblySymbols::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::ws
 
     list = m_group.FindCodeListAt (clientPx, view);
 
-    if (m_host.GetLatestSnapshot() == nullptr || list == nullptr)
+    if (m_latest.Get() == nullptr || list == nullptr)
     {
         return false;
     }
 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    column = m_host.GetListColumnAt (list, clientPx.x - bounds.left);
+    column = DensePaneList::GetColumnAt (list, clientPx.x - bounds.left);
     index  = m_group.GetCodeLineOfRow (view, row);
 
     if (index < 0)
@@ -73,11 +75,11 @@ bool DisassemblySymbols::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::ws
     if (name.empty())
     {
         OffsetRect (&anchor, bounds.left, bounds.top);
-        return column == (int) DisassemblyCells::kInstructionColumn && TryGetIoRegisterTip (m_host.GetLatestSnapshot()->ioRegisters, address, text);
+        return column == (int) DisassemblyCells::kInstructionColumn && TryGetIoRegisterTip (m_latest.Get()->ioRegisters, address, text);
     }
 
     text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
-    SourceLineText::AppendSymbolDetails (text, name, address, false, *m_host.GetLatestSnapshot(), m_host.GetSymbolComment (address, name));
+    SourceLineText::AppendSymbolDetails (text, name, address, false, *m_latest.Get(), m_symbolComments.GetComment (m_latest.Get(), m_windowHost, address, name));
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
@@ -97,7 +99,7 @@ bool DisassemblySymbols::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::ws
 
 bool DisassemblySymbols::TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     RECT                          bounds   = list.GetBounds();
     int                           row      = -1;
     size_t                        column   = 0;
@@ -113,7 +115,7 @@ bool DisassemblySymbols::TryGetSourceSymbolTip (const DxuiListView & list, POINT
         return false;
     }
 
-    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_host.GetSymbolComment (found->address, found->name));
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_symbolComments.GetComment (m_latest.Get(), m_windowHost, found->address, found->name));
     anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }
@@ -133,7 +135,7 @@ bool DisassemblySymbols::TryGetSourceSymbolTip (const DxuiListView & list, POINT
 
 bool DisassemblySymbols::TryGetSymbolAt (POINT clientPx, std::string & name, Word & address) const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     DxuiListView                * list     = nullptr;
     const SymbolInfo            * found    = nullptr;
     RECT                          bounds   = {};
@@ -161,7 +163,7 @@ bool DisassemblySymbols::TryGetSymbolAt (POINT clientPx, std::string & name, Wor
 
     if (index >= 0)
     {
-        GetLineSymbol (m_group.GetCodeLines (view)[(size_t) index], m_host.GetListColumnAt (list, clientPx.x - bounds.left), name, address);
+        GetLineSymbol (m_group.GetCodeLines (view)[(size_t) index], DensePaneList::GetColumnAt (list, clientPx.x - bounds.left), name, address);
         return !name.empty();
     }
 
@@ -196,7 +198,7 @@ bool DisassemblySymbols::TryGetSymbolAt (POINT clientPx, std::string & name, Wor
 
 bool DisassemblySymbols::TryGetOperandSymbol (int view, int row, std::wstring & text) const
 {
-    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot     * snapshot = m_latest.Get();
     DxuiListView                   * list     = (view >= 0 && view < DebuggerViewState::kMaxCodeViews) ? m_group.GetCodeList (view) : nullptr;
     int                              index    = (list != nullptr) ? m_group.GetCodeLineOfRow (view, row) : -1;
     std::string                      name;
@@ -244,7 +246,7 @@ bool DisassemblySymbols::TryGetOperandSymbol (int view, int row, std::wstring & 
 
 bool DisassemblySymbols::IsOperandSymbolAt (POINT clientPx) const
 {
-    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot     * snapshot = m_latest.Get();
     int                              view     = -1;
     DxuiListView                   * list     = m_group.FindCodeListAt (clientPx, view);
     RECT                             bounds   = {};
@@ -265,7 +267,7 @@ bool DisassemblySymbols::IsOperandSymbolAt (POINT clientPx) const
 
     if (m_group.GetCodeLineOfRow (view, row) >= 0)
     {
-        return m_host.GetListColumnAt (list, clientPx.x - bounds.left) == (int) DisassemblyCells::kInstructionColumn;
+        return DensePaneList::GetColumnAt (list, clientPx.x - bounds.left) == (int) DisassemblyCells::kInstructionColumn;
     }
 
     return snapshot->symbols != nullptr && m_group.TryGetSourceParts (view, row, parts) &&

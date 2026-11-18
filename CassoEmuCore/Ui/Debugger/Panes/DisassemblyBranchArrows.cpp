@@ -19,10 +19,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DisassemblyBranchArrows::DisassemblyBranchArrows (
-    IDebuggerPaneHost    & host,
+    const DebuggerPaneParts  & parts,
     DisassemblyGroup     & group,
     SourceDocumentGroup  & sources) :
-    m_host    (host),
+    m_paneRouting (parts.routing),
+    m_paneNavigator (parts.navigator),
+    m_latest (parts.latest),
+    m_look (parts.look),
     m_group   (group),
     m_sources (sources)
 {
@@ -91,7 +94,7 @@ bool DisassemblyBranchArrows::GetBranchArrow (int view, BranchArrow::Input & inp
 
 bool DisassemblyBranchArrows::GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
 {
-    const DebuggerViewSnapshot   * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot   * snapshot = m_latest.Get();
     DxuiListView                 * list     = (view < DebuggerViewState::kMaxCodeViews) ? m_group.GetCodeList (view) : nullptr;
     DisassemblyCells::ArrowEnds    ends;
 
@@ -106,10 +109,10 @@ bool DisassemblyBranchArrows::GetOneBranchArrow (int view, BranchArrow::Input & 
     {
         const SourceDocumentPane & document = m_sources.GetDocument (view - DebuggerViewState::kMaxCodeViews);
 
-        return !isBranchedFrom && document.IsShown() && m_host.IsRoutable (document.GetView()) && document.GetModel().GetBranchArrow (input, goesTo, isTaken);
+        return !isBranchedFrom && document.IsShown() && m_paneRouting.IsRoutable (document.GetView()) && document.GetModel().GetBranchArrow (input, goesTo, isTaken);
     }
 
-    if (list == nullptr || !m_group.IsOpen (view) || !list->IsVisible() || !m_host.IsRoutable (list))
+    if (list == nullptr || !m_group.IsOpen (view) || !list->IsVisible() || !m_paneRouting.IsRoutable (list))
     {
         return false;
     }
@@ -154,7 +157,7 @@ bool DisassemblyBranchArrows::GetOneBranchArrow (int view, BranchArrow::Input & 
 
 void DisassemblyBranchArrows::PaintBranchArrow (IDxuiPainter & painter, int view)
 {
-    const DxuiTheme     * theme   = m_host.GetTheme();
+    const DxuiTheme     * theme   = m_look.GetTheme();
     BranchArrow::Input    input;
     Word                  goesTo  = 0;
     bool                  isTaken = true;
@@ -167,7 +170,7 @@ void DisassemblyBranchArrows::PaintBranchArrow (IDxuiPainter & painter, int view
 
         if (GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
         {
-            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, m_host.GetPcMarkerArgb(), (theme != nullptr) ? theme->ForegroundDisabled() : 0xFF808080,
+            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, m_look.GetPcMarkerArgb(), (theme != nullptr) ? theme->ForegroundDisabled() : 0xFF808080,
                                                 isBranchedFrom);
         }
     }
@@ -191,7 +194,7 @@ void DisassemblyBranchArrows::PaintBranchArrow (IDxuiPainter & painter, int view
 
 bool DisassemblyBranchArrows::ClickBranchArrow (POINT pointPx)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     BranchArrow::Input            input;
     Word                          goesTo   = 0;
     bool                          isTaken  = true;
@@ -222,11 +225,11 @@ bool DisassemblyBranchArrows::ClickBranchArrow (POINT pointPx)
 
             if (m_isArrowAtTarget)
             {
-                m_host.ShowPcCode();
+                m_paneNavigator.GoToCode (std::nullopt);
             }
             else
             {
-                m_host.GoToCode ((isBranchedFrom && snapshot != nullptr && snapshot->branchedFrom.has_value()) ? *snapshot->branchedFrom : goesTo);
+                m_paneNavigator.GoToCode ((isBranchedFrom && snapshot != nullptr && snapshot->branchedFrom.has_value()) ? *snapshot->branchedFrom : goesTo);
             }
 
             m_isArrowAtTarget = !m_isArrowAtTarget;
@@ -281,7 +284,7 @@ void DisassemblyBranchArrows::ClickSourceArrow (SourcePane & document)
 
 bool DisassemblyBranchArrows::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
 {
-    const DebuggerViewSnapshot  * snapshot    = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot    = m_latest.Get();
     BranchArrow::Input            input;
     Word                          goesTo      = 0;
     bool                          isTaken     = true;
@@ -356,7 +359,7 @@ bool DisassemblyBranchArrows::IsOverArrowsOrGutter (POINT clientPx) const
     {
         const SourceDocumentPane  & document = m_sources.GetDocument (slot);
 
-        if (document.IsShown() && document.GetView()->IsVisible() && m_host.IsRoutable (document.GetView()) &&
+        if (document.IsShown() && document.GetView()->IsVisible() && m_paneRouting.IsRoutable (document.GetView()) &&
             (document.GetView()->IsInGutter (clientPx) || document.GetModel().IsOverArrowLanes (clientPx)))
         {
             return true;

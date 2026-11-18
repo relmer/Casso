@@ -25,7 +25,7 @@ class SourcePane;
 class SourceDocumentPane : public IDebuggerPane
 {
 public:
-    SourceDocumentPane (IDebuggerPaneHost & host, SourceDocumentGroup & group, int slot);
+    SourceDocumentPane (const DebuggerPaneParts & parts, SourceDocumentGroup & group, int slot);
     ~SourceDocumentPane() override;
 
     SourcePane         & GetModel      () const { return *m_model; }
@@ -70,6 +70,16 @@ public:
     void         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
+    IDebuggerWindowHost * const         & m_windowHost;
+    DxuiWindow                          & m_paneWindow;
+    IPaneViews                          & m_paneViews;
+    IPaneBars                           & m_paneBars;
+    IPaneRouting                        & m_paneRouting;
+    IPaneTabs                           & m_paneTabs;
+    IPaneNavigator                      & m_paneNavigator;
+    IPaneCommands                       & m_paneCommands;
+    const LatestSnapshot                & m_latest;
+    const DebuggerPaneLook              & m_look;
     SourceDocumentGroup                 & m_group;
     int                                   m_slot          = 0;
     std::wstring                          m_id;
@@ -107,7 +117,7 @@ private:
 class SourceDocumentGroup
 {
 public:
-    explicit SourceDocumentGroup (IDebuggerPaneHost & host);
+    explicit SourceDocumentGroup (const DebuggerPaneParts & parts);
     ~SourceDocumentGroup();
 
     SourceDocumentGroup (const SourceDocumentGroup &)             = delete;
@@ -155,8 +165,9 @@ public:
     std::string                      FormatOpen     (const std::function<std::string (int fileId)> & nameOf);
     void                             SetSaved       (std::vector<SourceDocuments::Saved> saved) { m_saved = std::move (saved); }
 
-    //  A source to match against the debug file once it loads.
-    void                             SetPendingLoose (const std::wstring & path) { m_pendingLoose = path; }
+    //  SYM LOAD of a file the user picks, a source given then matched against
+    //  it once it loads.
+    void                             OpenSymbolFile  (const std::wstring & thenShow = std::wstring());
 
     //  A source file the user opens; a file with no debug file record; a
     //  dropped source matched against the loaded debug file; and a loose
@@ -166,6 +177,7 @@ public:
     void                             ShowDropped    (const std::wstring & path);
     void                             LoadSymbolsFor (int slot);
     void                             BrowseForSource();
+    void                             FollowFocus    ();
     bool                             IsLoose        (int slot) const;
 
     //  One choice for every document: the body's file comes forward, or the
@@ -183,7 +195,16 @@ private:
     //  The document of a file open on its own, given to the record it matched.
     void                             TakeOverLoose  (const std::wstring & path, int fileId);
 
-    IDebuggerPaneHost                    & m_host;
+    IDebuggerWindowHost * const          & m_windowHost;
+    IPaneViews                           & m_paneViews;
+    IPaneLayout                          & m_paneLayout;
+    IPaneRouting                         & m_paneRouting;
+    IPaneFocus                           & m_paneFocus;
+    IPaneTabs                            & m_paneTabs;
+    IPanePlaces                          & m_panePlaces;
+    IPaneCommands                        & m_paneCommands;
+    const LatestSnapshot                 & m_latest;
+    const DebuggerPaneParts              & m_parts;
     std::vector<SourceDocumentPane *>      m_documents;
     SourceDocuments                        m_files;
     std::vector<SourceDocuments::Saved>    m_saved;

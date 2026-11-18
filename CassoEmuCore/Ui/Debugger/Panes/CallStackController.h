@@ -23,7 +23,7 @@ class DebuggerPaneFrame;
 class CallStackController : public IDebuggerPane
 {
 public:
-    explicit CallStackController (IDebuggerPaneHost & host);
+    explicit CallStackController (const DebuggerPaneParts & parts);
     ~CallStackController() override;
 
     DxuiListView                   * GetList         () const { return m_list; }
@@ -47,8 +47,15 @@ public:
     bool                           AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
-    DxuiListView                        * m_list   = nullptr;
-    DxuiButton                          * m_button = nullptr;
+    DxuiWindow                          & m_paneWindow;
+    IPaneReplies                        & m_paneReplies;
+    IPaneRouting                        & m_paneRouting;
+    IPaneNavigator                      & m_paneNavigator;
+    IPaneCommands                       & m_paneCommands;
+    const LatestSnapshot                & m_latest;
+    const DebuggerPaneLook              & m_look;
+    DxuiListView                        * m_list          = nullptr;
+    DxuiButton                          * m_button        = nullptr;
     std::unique_ptr<CallStackPane>        m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
 };

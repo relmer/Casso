@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -92,7 +93,7 @@ namespace DebuggerCodeMenuTests
     public:
         MenuWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            m_theme = &theme;
+            m_look.SetTheme (&theme);
             m_host  = &host;
         }
 
@@ -102,7 +103,7 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeEdits;
-        using DebuggerWindow::GetPaneHostForTest;
+        using DebuggerWindow::GetPanePartsForTest;
         using DebuggerWindow::GetCodeGroup;
         using DebuggerWindow::OnMouse;
 
@@ -365,12 +366,12 @@ namespace DebuggerCodeMenuTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            window.GetPaneHostForTest().AddBookmarkItem (0x0302, items);
+            PaneMenuRows::AddBookmark (window.GetPanePartsForTest().latest, window.GetPanePartsForTest().commands, 0x0302, items);
             Run (items, L"Add bookmark");
             Assert::AreEqual (std::string ("BMA 0302"), host.commands.back());
 
             items.clear();
-            window.GetPaneHostForTest().AddBookmarkItem (0x0305, items);
+            PaneMenuRows::AddBookmark (window.GetPanePartsForTest().latest, window.GetPanePartsForTest().commands, 0x0305, items);
             Assert::IsTrue (Has (items, L"Remove bookmark"), L"$0305 has a bookmark");
         }
 

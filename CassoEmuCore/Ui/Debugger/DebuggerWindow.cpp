@@ -92,7 +92,7 @@ static std::wstring Widen (const std::string & text)
 DebuggerWindow::DebuggerWindow() :
     m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this))),
     m_tips        (std::make_unique<TooltipCoordinator> (static_cast<ITooltipSources &> (*this))),
-    m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
+    m_gutter      (std::make_unique<DisassemblyGutter> (m_paneParts, static_cast<const ICodeViews &> (*this),
                                                         [this] (int view) { ApplyCodeView (view); })),
     m_floating    (std::make_unique<FloatingPanes> (static_cast<IFloatingPanesHost &> (*this))),
     m_colorKeys   (std::make_unique<PaneColorKeys> (static_cast<IColorKeysHost &> (*this)))
@@ -176,7 +176,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
 
     BAIL_OUT_IF (IsCreated(), S_OK);
 
-    m_theme         = theme;
+    m_look.SetTheme (theme);
     m_emulatorTheme = theme;
     m_host          = host;
     m_hInstance = hInstance;
@@ -324,7 +324,7 @@ void DebuggerWindow::ConfigureWidgets()
     (void) m_finds->Activate (DebuggerLayout::kConsole);
 
     m_focusMgr.Attach   (this);
-    m_focusMgr.SetTheme (m_theme);
+    m_focusMgr.SetTheme (m_look.GetTheme());
     m_focusMgr.Rebuild();
     m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
 
@@ -367,7 +367,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetTextRenderer (GetTextRenderer());
     m_commandBar->SetPopupHost    (GetPopupHost());
     m_tooltip.SetPopupHost        (GetPopupHost());
-    m_tooltip.SetTheme            (*m_theme);
+    m_tooltip.SetTheme            (*m_look.GetTheme());
     m_tooltip.SetMonospace        (false);
     m_tooltip.ApplyVisualStudioLook();
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
@@ -406,14 +406,14 @@ std::string DebuggerWindow::GetMenuState() const
 
 
 
-    if (m_snapshot == nullptr)
+    if (m_latest.Get() == nullptr)
     {
         return state;
     }
 
-    state = CommandModeNames::GetName (m_snapshot->mode);
+    state = CommandModeNames::GetName (m_latest.Get()->mode);
 
-    for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
+    for (const DebuggerViewSnapshot::PanelInfo & panel : m_latest.Get()->panels)
     {
         state += std::format ("|{}={}", panel.id, panel.open ? 1 : 0);
     }
@@ -588,9 +588,9 @@ void DebuggerWindow::ApplyTextSizes()
 
 void DebuggerWindow::ApplyUndoHistories()
 {
-    if (m_snapshot->machine != m_machine)
+    if (m_latest.Get()->machine != m_machine)
     {
-        m_machine = m_snapshot->machine;
+        m_machine = m_latest.Get()->machine;
 
         if (!m_isHistoryRestored)
         {
@@ -675,24 +675,6 @@ void DebuggerWindow::RunAction (const DebuggerAction & action)
     }
 
     m_host->RunDebuggerAction (placed);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetMode
-//
-//  The session's mode as the last snapshot gave it, which an action's echo
-//  is written in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-CommandMode DebuggerWindow::GetMode() const
-{
-    return (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
 }
 
 
@@ -1362,16 +1344,16 @@ void DebuggerWindow::RequestPaint()
 
 void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
 {
-    m_snapshot = std::move (snapshot);
+    m_latest.Set (std::move (snapshot));
     ApplySnapshot();
-    m_code->ApplyHistory (m_snapshot->history);
+    m_code->ApplyHistory (m_latest.Get()->history);
 
     PlaceLateFocus();
 
     //  At a stop, focus moves from the console to the disassembly unless the
     //  console received the last input; at a stop in a running BASIC program,
     //  to the program pane, where the steps are BASIC's.
-    if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && IsCommandPane (GetPaneOfFocus()) && !GetStopFocusPane().empty())
+    if (m_stopFocus.OnSnapshot (m_latest.Get()->isPaused) && IsCommandPane (GetPaneOfFocus()) && !GetStopFocusPane().empty())
     {
         FocusPane (GetStopFocusPane());
     }
@@ -1384,51 +1366,6 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
         SetWindowMenus();
         m_consolePane->GetModeBar().SetMenus();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ShowMemoryAddress
-//
-//  A cell clicked on the heat map: the memory window last used goes to its
-//  address if it is in view, or else the first that is. With none in view
-//  the window last used goes there and its tab comes forward, which puts the
-//  heat map behind it when they share a group, as they do by default.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowMemoryAddress (Word address)
-{
-    MemoryWindowPane  * pane = m_memoryGroup->GetActive();
-
-
-
-    if (!pane->GetView()->IsVisible())
-    {
-        for (MemoryWindowPane * open : m_memoryGroup->GetOpenWindows())
-        {
-            if (open->GetView()->IsVisible())
-            {
-                pane = open;
-                break;
-            }
-        }
-    }
-
-    pane->GetModel().GoTo (address);
-
-    if (!pane->GetView()->IsVisible())
-    {
-        m_dockSite->ActivatePane (pane->GetId());
-        m_dockSite->Relayout();
-        SyncHeatMapRecording();
-    }
-
-    Invalidate();
 }
 
 
@@ -1521,11 +1458,11 @@ void DebuggerWindow::ApplySnapshot()
 
     rows.clear();
 
-    UpdateChanges();
+    m_latest.UpdateStopChanges();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        pane->Apply (*m_snapshot);
+        pane->Apply (*m_latest.Get());
     }
 
 
@@ -1539,16 +1476,16 @@ void DebuggerWindow::ApplySnapshot()
     //  keys stay where they were, so the next command can be typed; CONSOLE
     //  alone brings them to its command line.
     //  A CODE typed before the window opened is not brought forward again.
-    if (m_snapshot->showPaneSerial != m_shownPaneSerial && restoring)
+    if (m_latest.Get()->showPaneSerial != m_shownPaneSerial && restoring)
     {
-        m_shownPaneSerial = m_snapshot->showPaneSerial;
+        m_shownPaneSerial = m_latest.Get()->showPaneSerial;
     }
 
-    if (m_snapshot->showPaneSerial != m_shownPaneSerial)
+    if (m_latest.Get()->showPaneSerial != m_shownPaneSerial)
     {
-        m_shownPaneSerial = m_snapshot->showPaneSerial;
-        m_dockSite->ActivatePane (m_snapshot->showPane);
-        shown = FindPane (m_snapshot->showPane);
+        m_shownPaneSerial = m_latest.Get()->showPaneSerial;
+        m_dockSite->ActivatePane (m_latest.Get()->showPane);
+        shown = FindPane (m_latest.Get()->showPane);
 
         if (shown != nullptr && shown->GetMainControl() != nullptr && IsRoutable (shown->GetMainControl()))
         {
@@ -1582,7 +1519,7 @@ void DebuggerWindow::UpdateLiveTrace()
 
 
 
-    if (m_snapshot == nullptr || m_host == nullptr || !m_snapshot->history.isRecording)
+    if (m_latest.Get() == nullptr || m_host == nullptr || !m_latest.Get()->history.isRecording)
     {
         m_liveTraceRequest.reset();
         return;
@@ -1595,18 +1532,18 @@ void DebuggerWindow::UpdateLiveTrace()
 
     isWanted = isShown && m_host->GetEmulatorSpeed() == SpeedMode::Authentic;
 
-    if (m_liveTraceRequest == m_snapshot->trace.isOn)
+    if (m_liveTraceRequest == m_latest.Get()->trace.isOn)
     {
         m_liveTraceRequest.reset();
     }
 
-    if (isWanted == m_snapshot->trace.isOn || m_liveTraceRequest == isWanted)
+    if (isWanted == m_latest.Get()->trace.isOn || m_liveTraceRequest == isWanted)
     {
         return;
     }
 
     m_liveTraceRequest = isWanted;
-    action             = SessionActions::GetTraceToggle (m_snapshot->trace.isOn, GetMode());
+    action             = SessionActions::GetTraceToggle (m_latest.Get()->trace.isOn, GetMode());
     action.quiet       = true;
     RunAction (action);
 }
@@ -1632,9 +1569,9 @@ void DebuggerWindow::KeepOpenViews()
     {
         std::string  name;
 
-        if (m_snapshot->source.has_value())
+        if (m_latest.Get()->source.has_value())
         {
-            for (const DebugSourceFile & record : m_snapshot->source->files)
+            for (const DebugSourceFile & record : m_latest.Get()->source->files)
             {
                 name = (record.id == fileId) ? record.name : name;
             }
@@ -1651,7 +1588,7 @@ void DebuggerWindow::KeepOpenViews()
     }
 
     //  The source documents open, each at the line at its top (FR-113).
-    text  = OpenViewsText::FormatOpenViews (*m_snapshot);
+    text  = OpenViewsText::FormatOpenViews (*m_latest.Get());
     text += m_sources->FormatOpen (nameOf);
     text += BreakpointColumns::FormatShown (m_breakpointsPane->GetShown());
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
@@ -1726,45 +1663,6 @@ void DebuggerWindow::KeepOpenViews()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::UpdateChanges
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::UpdateChanges()
-{
-    StopChanges::Values  values;
-
-
-
-    for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
-    {
-        values["R:" + reg.name] = reg.value;
-    }
-
-    for (const DebuggerViewSnapshot::WatchLine & watch : m_snapshot->watches)
-    {
-        values[std::format ("W:{}", watch.id)] = watch.value;
-    }
-
-    for (const DebuggerViewSnapshot::AutoWatchLine & line : m_snapshot->autoWatches)
-    {
-        values["A:" + line.key] = line.value;
-    }
-
-    for (const auto & entry : m_snapshot->stack)
-    {
-        values[std::format ("S:{:04X}", entry.address)] = std::format ("{:02X}", entry.value);
-    }
-
-    m_stopChanges.Update (m_snapshot->isPaused, m_snapshot->cycles, std::move (values));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::IsRestoringViews
 //
 //  True from the window's first snapshot until the views it reopens have
@@ -1791,33 +1689,6 @@ bool DebuggerWindow::IsRestoringViews() const
 void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 {
     m_consolePane->GetOutput().Append (lines);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetRegisterByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) const
-{
-    Word  value = 0;
-
-
-
-    for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
-    {
-        if (reg.name == name && !DebuggerViewState::IsReadOnlyRegister (name) && TextDialog::TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
-        {
-            return (Byte) value;
-        }
-    }
-
-    return std::nullopt;
 }
 
 
@@ -1853,11 +1724,11 @@ void DebuggerWindow::ConfigureCommandBarHost()
     {
         std::unique_ptr<DxuiTooltip>  tip = std::make_unique<DxuiTooltip>();
 
-        window.SetTheme  (m_theme);
+        window.SetTheme  (m_look.GetTheme());
         window.SetKeyMap (&DebuggerKeySchemes::GetMap (m_keyScheme));
 
         tip->SetPopupHost (window.GetPopupHost());
-        tip->SetTheme     (*m_theme);
+        tip->SetTheme     (*m_look.GetTheme());
         tip->SetDpi       (DxuiDisplay::Get().GetDpiForWindow (window.GetHwnd()));
         tip->SetMonospace (false);
         tip->ApplyVisualStudioLook();

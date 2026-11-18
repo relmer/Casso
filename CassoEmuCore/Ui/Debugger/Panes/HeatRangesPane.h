@@ -28,7 +28,7 @@ class HeatMapRangeBarCommands;
 class HeatRangesPane : public IDebuggerPane
 {
 public:
-    HeatRangesPane (IDebuggerPaneHost & host, HeatMapPane & heatMap);
+    HeatRangesPane (const DebuggerPaneParts & parts, HeatMapPane & heatMap);
     ~HeatRangesPane() override;
 
     const HeatMapRangeSets  & GetSets          () const { return m_sets; }
@@ -106,6 +106,16 @@ private:
     const HeatMapRangeSet  * GetEditedSet     () const;
     std::optional<size_t>    GetSelectedRange () const;
 
+    IDebuggerWindowHost * const                & m_windowHost;
+    const DxuiDpiScaler                        & m_paneScaler;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneDialogs                               & m_paneDialogs;
+    IPaneLayout                                & m_paneLayout;
+    IPaneBars                                  & m_paneBars;
+    IPaneRouting                               & m_paneRouting;
+    IPaneFocus                                 & m_paneFocus;
+    IPanePlaces                                & m_panePlaces;
+    const DebuggerPaneLook                     & m_look;
     HeatMapPane                                & m_heatMap;
     PaneBarSlot                                  m_bar;
     HeatMapRangeSets                             m_sets;

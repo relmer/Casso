@@ -26,7 +26,7 @@ public:
 
     //  `apply` builds a view's rows again, with the hover and the drag the
     //  gutter has now.
-    DisassemblyGutter (IDebuggerPaneHost & host, const ICodeViews & views, ApplyFn apply);
+    DisassemblyGutter (const DebuggerPaneParts & parts, const ICodeViews & views, ApplyFn apply);
 
     DisassemblyGutter (const DisassemblyGutter &)             = delete;
     DisassemblyGutter & operator= (const DisassemblyGutter &) = delete;
@@ -51,12 +51,15 @@ public:
     void                 SetNextStatement (Word address);
 
 private:
-    IDebuggerPaneHost    & m_host;
-    const ICodeViews     & m_views;
-    ApplyFn                m_apply;
-    int                    m_hoverView   = -1;
-    int                    m_hoverRow    = -1;
-    int                    m_dragView    = -1;
-    int                    m_dragRow     = -1;
-    int                    m_dragOverRow = -1;
+    IPaneLayout           & m_paneLayout;
+    IPaneRouting          & m_paneRouting;
+    IPaneCommands         & m_paneCommands;
+    const LatestSnapshot  & m_latest;
+    const ICodeViews      & m_views;
+    ApplyFn                 m_apply;
+    int                     m_hoverView    = -1;
+    int                     m_hoverRow     = -1;
+    int                     m_dragView     = -1;
+    int                     m_dragRow      = -1;
+    int                     m_dragOverRow  = -1;
 };

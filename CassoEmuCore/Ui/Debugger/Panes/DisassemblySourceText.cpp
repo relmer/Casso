@@ -24,8 +24,8 @@
 
 bool DisassemblySourceText::TryGet (int fileId, int line, std::wstring & text)
 {
-    const DebuggerViewSnapshot               * snapshot = m_host.GetLatestSnapshot();
-    IDebuggerWindowHost                      * host     = m_host.GetWindowHost();
+    const DebuggerViewSnapshot               * snapshot = m_latest.Get();
+    IDebuggerWindowHost                      * host     = m_windowHost;
     const DebuggerViewSnapshot::SourceState  * source   = nullptr;
     std::wstring                               key;
     SourceLookup                               lookup;

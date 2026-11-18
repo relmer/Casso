@@ -44,29 +44,29 @@
 
 void DebuggerWindow::CreatePanes()
 {
-    IDebuggerPaneHost                      & host     = *this;
-    std::unique_ptr<ProfilerPane>            profiler = std::make_unique<ProfilerPane>           (host);
-    std::unique_ptr<HeatMapPane>             heatMap  = std::make_unique<HeatMapPane>            (host, HeatMapPane::Ranges
+    const DebuggerPaneParts                & parts    = m_paneParts;
+    std::unique_ptr<ProfilerPane>            profiler = std::make_unique<ProfilerPane>           (parts);
+    std::unique_ptr<HeatMapPane>             heatMap  = std::make_unique<HeatMapPane>            (parts, HeatMapPane::Ranges
     {
         [this] () -> const HeatMapRangeSets & { return m_heatRangesPane->GetSets(); },
         [this] () -> const HeatMapSymbols &   { return m_heatRangesPane->GetSymbols(); },
         [this] { m_heatRangesPane->SetMenus(); },
     });
-    std::unique_ptr<HeatRangesPane>          ranges   = std::make_unique<HeatRangesPane>         (host, *heatMap);
-    std::unique_ptr<MemoryWindowGroup>       memory   = std::make_unique<MemoryWindowGroup>      (host);
-    std::unique_ptr<RegistersPane>           regs     = std::make_unique<RegistersPane>          (host);
-    std::unique_ptr<StackPane>               stack    = std::make_unique<StackPane>              (host);
-    std::unique_ptr<WatchesPane>             watches  = std::make_unique<WatchesPane>            (host);
-    std::unique_ptr<BreakpointsPane>         bps      = std::make_unique<BreakpointsPane>        (host);
-    std::unique_ptr<TracePaneController>     trace    = std::make_unique<TracePaneController>    (host);
-    std::unique_ptr<BasicProgramController>  basic    = std::make_unique<BasicProgramController> (host);
+    std::unique_ptr<HeatRangesPane>          ranges   = std::make_unique<HeatRangesPane>         (parts, *heatMap);
+    std::unique_ptr<MemoryWindowGroup>       memory   = std::make_unique<MemoryWindowGroup>      (parts, *heatMap);
+    std::unique_ptr<RegistersPane>           regs     = std::make_unique<RegistersPane>          (parts, *memory);
+    std::unique_ptr<StackPane>               stack    = std::make_unique<StackPane>              (parts, *memory);
+    std::unique_ptr<WatchesPane>             watches  = std::make_unique<WatchesPane>            (parts, *memory);
+    std::unique_ptr<BreakpointsPane>         bps      = std::make_unique<BreakpointsPane>        (parts);
+    std::unique_ptr<TracePaneController>     trace    = std::make_unique<TracePaneController>    (parts);
+    std::unique_ptr<BasicProgramController>  basic    = std::make_unique<BasicProgramController> (parts);
 
 
 
-    m_codeEdits = std::make_unique<CodeEditCommands> (host, static_cast<const ICodeViews &> (*this));
-    m_finds     = std::make_unique<FindWidgetSet> (host, static_cast<IFindWidgetHost &> (*this));
-    m_sources   = std::make_unique<SourceDocumentGroup> (host);
-    m_code      = std::make_unique<DisassemblyGroup> (host, *m_gutter, *m_codeEdits, *m_sources);
+    m_codeEdits = std::make_unique<CodeEditCommands> (parts, static_cast<const ICodeViews &> (*this));
+    m_finds     = std::make_unique<FindWidgetSet> (parts, static_cast<IFindWidgetHost &> (*this));
+    m_sources   = std::make_unique<SourceDocumentGroup> (parts);
+    m_code      = std::make_unique<DisassemblyGroup> (parts, *m_gutter, *m_codeEdits, *m_sources, *memory);
 
     for (std::unique_ptr<IDebuggerPane> & view : m_code->CreateViews())
     {
@@ -79,7 +79,7 @@ void DebuggerWindow::CreatePanes()
     }
 
     {
-        std::unique_ptr<ConsolePane>  console = std::make_unique<ConsolePane> (host);
+        std::unique_ptr<ConsolePane>  console = std::make_unique<ConsolePane> (parts);
 
         m_consolePane = console.get();
         m_panes.push_back (std::move (console));
@@ -100,18 +100,18 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::move (watches));
     m_panes.push_back (std::move (stack));
     m_panes.push_back (std::move (bps));
-    m_panes.push_back (std::make_unique<CallStackController> (host));
+    m_panes.push_back (std::make_unique<CallStackController> (parts));
     m_panes.push_back (std::move (trace));
     m_panes.push_back (std::move (basic));
 
     m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::move (ranges));
-    m_panes.push_back (std::make_unique<DiskLogController>  (host));
-    m_panes.push_back (std::make_unique<InputLogController> (host));
-    m_panes.push_back (std::make_unique<IoLogController>    (host, DebugLogKind::Video));
-    m_panes.push_back (std::make_unique<IoLogController>    (host, DebugLogKind::Sound));
-    m_panes.push_back (std::make_unique<CommLogController>  (host, DebugLogKind::Serial));
-    m_panes.push_back (std::make_unique<CommLogController>  (host, DebugLogKind::Network));
+    m_panes.push_back (std::make_unique<DiskLogController>  (parts));
+    m_panes.push_back (std::make_unique<InputLogController> (parts));
+    m_panes.push_back (std::make_unique<IoLogController>    (parts, DebugLogKind::Video));
+    m_panes.push_back (std::make_unique<IoLogController>    (parts, DebugLogKind::Sound));
+    m_panes.push_back (std::make_unique<CommLogController>  (parts, DebugLogKind::Serial));
+    m_panes.push_back (std::make_unique<CommLogController>  (parts, DebugLogKind::Network));
     m_panes.push_back (std::move (memory));
 
     for (std::unique_ptr<IDebuggerPane> & window : m_memoryGroup->CreateWindows())
@@ -119,17 +119,17 @@ void DebuggerWindow::CreatePanes()
         m_panes.push_back (std::move (window));
     }
 
-    m_panes.push_back (std::make_unique<SymbolsPane>    (host, SymbolsPane::Kind::User));
-    m_panes.push_back (std::make_unique<SymbolsPane>    (host, SymbolsPane::Kind::Machine));
-    m_panes.push_back (std::make_unique<BookmarksPane>  (host));
+    m_panes.push_back (std::make_unique<SymbolsPane>    (parts, SymbolsPane::Kind::User));
+    m_panes.push_back (std::make_unique<SymbolsPane>    (parts, SymbolsPane::Kind::Machine));
+    m_panes.push_back (std::make_unique<BookmarksPane>  (parts));
     m_panes.push_back (std::move (profiler));
-    m_panes.push_back (std::make_unique<DataBlocksPane> (host));
+    m_panes.push_back (std::make_unique<DataBlocksPane> (parts));
 
     //  Every device panel the window can place; each shows while its device
     //  is present and its panel open.
     for (const DebuggerLayout::DiagnosticsPanel & panel : DebuggerLayout::GetDiagnosticsPanels())
     {
-        m_panes.push_back (std::make_unique<DevicePanelController> (host, panel.id, panel.title));
+        m_panes.push_back (std::make_unique<DevicePanelController> (parts, panel.id, panel.title));
     }
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -390,36 +390,6 @@ void DebuggerWindow::MoveSharedControls (const std::vector<IDxuiControl *> & con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::AddHeatAccessItems
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items)
-{
-    m_heatMapPane->AddAccessItems (address, bank, items);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GoToMemory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::GoToMemory (Word address)
-{
-    m_memoryGroup->GetActive()->GetModel().GoTo (address);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::NoteListReleased
 //
 //  A press on a list ended, the list having had it, for the pane whose list
@@ -492,22 +462,15 @@ DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::AddZeroPagePointer
-//
-//  ZP of a zero-page address typed in a dialog, run directly.
+//  DebuggerWindow::ApplyBreakpoints
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::AddZeroPagePointer()
+void DebuggerWindow::ApplyBreakpoints()
 {
-    std::optional<Byte>  address = ByteDialog::RunModal (GetRoutingHwnd(), m_theme, L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText,
-                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_snapshot != nullptr) ? m_snapshot->memoryImage.get() : nullptr); });
-
-
-
-    if (address.has_value())
+    if (m_latest.Get() != nullptr)
     {
-        RunAction (WatchActions::GetAddZeroPagePointer (*address, GetMode()));
+        m_breakpointsPane->Apply (*m_latest.Get());
     }
 }
 
@@ -517,16 +480,13 @@ void DebuggerWindow::AddZeroPagePointer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ApplyBreakpoints
+//  DebuggerWindow::ShowMemoryAddress
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ApplyBreakpoints()
+void DebuggerWindow::ShowMemoryAddress (Word address)
 {
-    if (m_snapshot != nullptr)
-    {
-        m_breakpointsPane->Apply (*m_snapshot);
-    }
+    m_memoryGroup->ShowAddress (address);
 }
 
 
@@ -697,7 +657,7 @@ bool DebuggerWindow::IsCodeHeatOn() const
 
 void DebuggerWindow::ShowNextStatement()
 {
-    bool  isBySource = m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource;
+    bool  isBySource = m_latest.Get() != nullptr && m_latest.Get()->source.has_value() && m_latest.Get()->source->stepBySource;
 
 
 
@@ -915,34 +875,6 @@ std::wstring DebuggerWindow::GetModeLabel (const wchar_t * mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ShowPopupMenu
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
-{
-    std::vector<DxuiPopupMenuItem>  menu;
-
-
-
-    m_menuCommands.clear();
-    SetWindowMenus();
-
-    for (const auto & [label, action] : items)
-    {
-        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::ShowListAbove
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -963,31 +895,6 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
     }
 
     DxuiContextMenu::ShowAboveAtWidth (*GetMenuHost(), anchorPx, std::move (menu), look);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetSymbolComment
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebuggerWindow::GetSymbolComment (Word address, const std::string & name)
-{
-    if (m_snapshot == nullptr || !m_snapshot->source.has_value() || m_host == nullptr)
-    {
-        return {};
-    }
-
-    m_symbolComments.SetSource (*m_snapshot->source);
-
-    return m_symbolComments.GetComment (address, name, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
-    {
-        return m_host->FindDebuggerSource (record, path, key);
-    });
 }
 
 
@@ -1020,8 +927,8 @@ void DebuggerWindow::MarkPaneTab (const std::wstring & pane)
 
 void DebuggerWindow::ApplyHeatMap()
 {
-    m_heatMapPane->Apply    (*m_snapshot);
-    m_heatRangesPane->Apply (*m_snapshot);
+    m_heatMapPane->Apply    (*m_latest.Get());
+    m_heatRangesPane->Apply (*m_latest.Get());
 }
 
 
@@ -1037,7 +944,7 @@ void DebuggerWindow::ApplyHeatMap()
 std::optional<std::vector<std::wstring>> DebuggerWindow::RunStepFiltersDialog (const std::vector<std::wstring> & filters,
                                                                                std::function<bool (const std::wstring &, std::wstring &)> check)
 {
-    return StepFiltersDialog::RunModal (GetHwnd(), m_theme, filters, std::move (check));
+    return StepFiltersDialog::RunModal (GetHwnd(), m_look.GetTheme(), filters, std::move (check));
 }
 
 
@@ -1065,12 +972,12 @@ void DebuggerWindow::EditStepFilters()
 
 
 
-        if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+        if (m_latest.Get() == nullptr || m_latest.Get()->symbols == nullptr)
         {
             return std::nullopt;
         }
 
-        for (const SymbolInfo & symbol : m_snapshot->symbols->symbols)
+        for (const SymbolInfo & symbol : m_latest.Get()->symbols->symbols)
         {
             if (_stricmp (symbol.name.c_str(), narrow.c_str()) == 0)
             {
@@ -1083,12 +990,12 @@ void DebuggerWindow::EditStepFilters()
 
 
 
-    if (m_snapshot == nullptr)
+    if (m_latest.Get() == nullptr)
     {
         return;
     }
 
-    for (const StepFilterEntry & entry : m_snapshot->stepFilters)
+    for (const StepFilterEntry & entry : m_latest.Get()->stepFilters)
     {
         before.push_back (TextEncoding::NarrowToWide (RunActions::GetRemoveSkip (entry, GetMode()).command.text));
     }
@@ -1108,11 +1015,11 @@ void DebuggerWindow::EditStepFilters()
         return;
     }
 
-    for (size_t i = 0; i < m_snapshot->stepFilters.size(); i++)
+    for (size_t i = 0; i < m_latest.Get()->stepFilters.size(); i++)
     {
         if (std::ranges::find (*after, before[i]) == after->end())
         {
-            actions.push_back (RunActions::GetRemoveSkip (m_snapshot->stepFilters[i], GetMode()));
+            actions.push_back (RunActions::GetRemoveSkip (m_latest.Get()->stepFilters[i], GetMode()));
         }
     }
 
@@ -1181,7 +1088,7 @@ Word DebuggerWindow::GetCursorAddress() const
         return GetCodeLines (m_code->GetActive())[(size_t) line].address;
     }
 
-    return (m_snapshot != nullptr) ? m_snapshot->pc : 0;
+    return (m_latest.Get() != nullptr) ? m_latest.Get()->pc : 0;
 }
 
 
@@ -1200,11 +1107,11 @@ Word DebuggerWindow::GetCursorAddress() const
 void DebuggerWindow::ToggleBookmarkAtCursor()
 {
     Word  at       = GetCursorAddress();
-    auto  bookmark = std::ranges::find_if (m_snapshot->bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
+    auto  bookmark = std::ranges::find_if (m_latest.Get()->bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
 
 
 
-    RunAction (bookmark != m_snapshot->bookmarks.end() ? WatchActions::GetClearBookmark (bookmark->id, GetMode())
+    RunAction (bookmark != m_latest.Get()->bookmarks.end() ? WatchActions::GetClearBookmark (bookmark->id, GetMode())
                                                        : WatchActions::GetAddBookmark (at, GetMode()));
 }
 
@@ -1223,7 +1130,7 @@ void DebuggerWindow::ToggleBookmarkAtCursor()
 
 void DebuggerWindow::GoToBookmark (bool isBackward)
 {
-    std::optional<Word>  next = BookmarksPane::GetNext (m_snapshot->bookmarks, GetCursorAddress(), isBackward);
+    std::optional<Word>  next = BookmarksPane::GetNext (m_latest.Get()->bookmarks, GetCursorAddress(), isBackward);
 
 
 
@@ -1249,7 +1156,7 @@ int DebuggerWindow::ShowMessageBox (
     const wchar_t        * caption,
     UINT                   type)
 {
-    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type);
+    return DxuiMessageBox (owner, m_look.GetTheme(), text.c_str(), caption, type);
 }
 
 
@@ -1270,5 +1177,5 @@ int DebuggerWindow::ShowMessageBox (
     const std::vector<DxuiMessageBoxButton>  & buttons,
     int                                        defaultId)
 {
-    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type, buttons, defaultId);
+    return DxuiMessageBox (owner, m_look.GetTheme(), text.c_str(), caption, type, buttons, defaultId);
 }

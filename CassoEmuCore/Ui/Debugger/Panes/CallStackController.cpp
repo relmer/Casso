@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/CallStackController.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -17,8 +18,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CallStackController::CallStackController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+CallStackController::CallStackController (const DebuggerPaneParts & parts) :
+    m_paneWindow (parts.window),
+    m_paneReplies (parts.replies),
+    m_paneRouting (parts.routing),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands (parts.commands),
+    m_latest (parts.latest),
+    m_look (parts.look)
 {
 }
 
@@ -65,7 +72,7 @@ const std::wstring & CallStackController::GetId() const
 
 void CallStackController::CreateControls()
 {
-    DxuiPanel  & parent = m_host.GetControlParent();
+    DxuiPanel  & parent = m_paneWindow;
 
 
 
@@ -74,9 +81,9 @@ void CallStackController::CreateControls()
 
     m_model = std::make_unique<CallStackPane> (
         m_list, m_button,
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
-        [this] (Word address)                        { m_host.GoToCode (address); },
-        [this] (Word line)                           { m_host.ShowBasicLine (line); });
+        [this] (const DebuggerActionBuilder & build) { m_paneCommands.RunAction (build (m_latest.GetMode())); },
+        [this] (Word address)                        { m_paneNavigator.GoToCode (address); },
+        [this] (Word line)                           { m_paneNavigator.ShowBasicLine (line); });
 }
 
 
@@ -143,7 +150,7 @@ IDxuiControl * CallStackController::GetContent() const
 
 void CallStackController::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_model->SetColors (m_host.GetTextColors());
+    m_model->SetColors (m_look.GetTextColors());
     m_model->Apply     (snapshot.callStack, BasicWatches::IsStoppedInProgram (snapshot.basic) ? snapshot.basic->frames : std::vector<BasicFrame>());
 }
 
@@ -179,15 +186,15 @@ bool CallStackController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
     if (!frame.basicLine.has_value())
     {
-        items.push_back ({ L"Show call site", [this, at = frame.address] { m_host.GoToCode (at); } });
-        m_host.AddBookmarkItem (frame.address, items);
+        items.push_back ({ L"Show call site", [this, at = frame.address] { m_paneNavigator.GoToCode (at); } });
+        PaneMenuRows::AddBookmark (m_latest, m_paneCommands, frame.address, items);
     }
 
     if (frame.routineAddress.has_value())
     {
-        m_host.AddSkipItem (frame.routineSymbol, *frame.routineAddress, items);
+        m_paneReplies.AddSkipItem (frame.routineSymbol, *frame.routineAddress, items);
     }
 
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     return true;
 }

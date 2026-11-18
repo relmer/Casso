@@ -17,8 +17,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyGutter::DisassemblyGutter (IDebuggerPaneHost & host, const ICodeViews & views, ApplyFn apply) :
-    m_host  (host),
+DisassemblyGutter::DisassemblyGutter (const DebuggerPaneParts & parts, const ICodeViews & views, ApplyFn apply) :
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneCommands (parts.commands),
+    m_latest (parts.latest),
     m_views (views),
     m_apply (std::move (apply))
 {
@@ -39,7 +42,7 @@ DisassemblyGutter::DisassemblyGutter (IDebuggerPaneHost & host, const ICodeViews
 
 bool DisassemblyGutter::Click (const DxuiMouseEvent & ev)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     int                           row      = -1;
     RECT                          bounds;
     int                           lx       = 0;
@@ -61,7 +64,7 @@ bool DisassemblyGutter::Click (const DxuiMouseEvent & ev)
         lx     = ev.positionDip.x - bounds.left;
         ly     = ev.positionDip.y - bounds.top;
 
-        if (!m_host.IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || ev.positionDip.x >= bounds.right || ev.positionDip.y >= bounds.bottom)
+        if (!m_paneRouting.IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || ev.positionDip.x >= bounds.right || ev.positionDip.y >= bounds.bottom)
         {
             continue;
         }
@@ -86,7 +89,7 @@ bool DisassemblyGutter::Click (const DxuiMouseEvent & ev)
 
         if (line >= 0)
         {
-            m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_host.GetMode()));
+            m_paneCommands.RunAction (BreakpointActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_latest.GetMode()));
             return true;
         }
 
@@ -117,7 +120,7 @@ void DisassemblyGutter::Drag (POINT atDip)
 
 
 
-    if (m_dragView < 0 || m_host.GetLatestSnapshot() == nullptr)
+    if (m_dragView < 0 || m_latest.Get() == nullptr)
     {
         return;
     }
@@ -138,7 +141,7 @@ void DisassemblyGutter::Drag (POINT atDip)
 
     m_dragOverRow = row;
     m_apply (m_dragView);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -158,7 +161,7 @@ void DisassemblyGutter::Drag (POINT atDip)
 
 bool DisassemblyGutter::Drop (const DxuiMouseEvent & ev)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     int                           view     = m_dragView;
     int                           from     = m_dragRow;
     DxuiListView                * list     = nullptr;
@@ -194,7 +197,7 @@ bool DisassemblyGutter::Drop (const DxuiMouseEvent & ev)
 
     if (row == from)
     {
-        m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_host.GetMode()));
+        m_paneCommands.RunAction (BreakpointActions::GetToggleBreakpoint (*snapshot, m_views.GetCodeLines (view)[(size_t) line].address, m_latest.GetMode()));
     }
     else if (DisassemblyOptions::CanTakeBreakpoint (m_views.GetCodeLines (view)[(size_t) line]))
     {
@@ -216,7 +219,7 @@ bool DisassemblyGutter::Drop (const DxuiMouseEvent & ev)
 
 void DisassemblyGutter::SetNextStatement (Word address)
 {
-    m_host.RunAction (MemoryActions::GetSetRegister ("PC", std::format ("{:04X}", address), m_host.GetMode()));
+    m_paneCommands.RunAction (MemoryActions::GetSetRegister ("PC", std::format ("{:04X}", address), m_latest.GetMode()));
 }
 
 
@@ -250,7 +253,7 @@ void DisassemblyGutter::Hover (POINT atDip)
         lx     = atDip.x - bounds.left;
         ly     = atDip.y - bounds.top;
 
-        if (!m_host.IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || atDip.x >= bounds.right || atDip.y >= bounds.bottom ||
+        if (!m_paneRouting.IsRoutable (list) || !list->IsVisible() || lx < 0 || ly < 0 || atDip.x >= bounds.right || atDip.y >= bounds.bottom ||
             lx + list->GetLeftPx() >= list->GetColumnEffectiveWidthPx (0))
         {
             continue;
@@ -270,11 +273,11 @@ void DisassemblyGutter::Hover (POINT atDip)
 
     for (int each : { was, view })
     {
-        if (each >= 0 && m_host.GetLatestSnapshot() != nullptr)
+        if (each >= 0 && m_latest.Get() != nullptr)
         {
             m_apply (each);
         }
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }

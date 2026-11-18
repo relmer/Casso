@@ -30,7 +30,7 @@ class BreakpointsPane : public IDebuggerPane
 public:
     using Shown = std::array<bool, BreakpointColumns::kCount>;
 
-    explicit BreakpointsPane (IDebuggerPaneHost & host);
+    explicit BreakpointsPane (const DebuggerPaneParts & parts);
     ~BreakpointsPane() override;
 
     DxuiListView                   * GetList        () const { return m_list; }
@@ -141,17 +141,29 @@ private:
     int                                                GetRowOfId       (int id) const;
     std::vector<std::wstring>                          GetRowKeys       () const;
 
-    PaneBarSlot                              m_bar;
-    DxuiListView                           * m_list       = nullptr;
-    DxuiTextInput                          * m_nameEditor = nullptr;
-    NameEdit                                 m_nameEdit;
-    std::unique_ptr<DebuggerPaneFrame>       m_frame;
-    std::unique_ptr<BreakpointBarCommands>   m_commands;
-    Shown                                    m_shown      = BreakpointColumns::GetDefaultShown();
-    ListValueFilters                         m_filters;
-    std::vector<size_t>                      m_order;
-    std::vector<int>                         m_rowIds;          // each row's breakpoint id, as the rows were last set
-    std::vector<std::string>                 m_groupNames;      // each heading's group, as the rows were last set
-    int                                      m_sort       = -1;
-    bool                                     m_isReverse  = false;
+    const DxuiDpiScaler                     & m_paneScaler;
+    DxuiWindow                              & m_paneWindow;
+    IPaneDialogs                            & m_paneDialogs;
+    IPaneViews                              & m_paneViews;
+    IPaneLayout                             & m_paneLayout;
+    IPaneBars                               & m_paneBars;
+    IPaneRouting                            & m_paneRouting;
+    IPaneFocus                              & m_paneFocus;
+    IPaneNavigator                          & m_paneNavigator;
+    IPaneCommands                           & m_paneCommands;
+    const LatestSnapshot                    & m_latest;
+    const DebuggerPaneLook                  & m_look;
+    PaneBarSlot                               m_bar;
+    DxuiListView                            * m_list          = nullptr;
+    DxuiTextInput                           * m_nameEditor    = nullptr;
+    NameEdit                                  m_nameEdit;
+    std::unique_ptr<DebuggerPaneFrame>        m_frame;
+    std::unique_ptr<BreakpointBarCommands>    m_commands;
+    Shown                                     m_shown         = BreakpointColumns::GetDefaultShown();
+    ListValueFilters                          m_filters;
+    std::vector<size_t>                       m_order;
+    std::vector<int>                          m_rowIds;   // each row's breakpoint id, as the rows were last set
+    std::vector<std::string>                  m_groupNames;   // each heading's group, as the rows were last set
+    int                                       m_sort          = -1;
+    bool                                      m_isReverse     = false;
 };

@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/WatchesPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/WatchEdits.h"
 #include "Ui/Debugger/WatchActions.h"
+#include "Ui/Debugger/ByteDialog.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -23,8 +25,16 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-WatchesPane::WatchesPane (IDebuggerPaneHost & host) :
-    UndoListPane (host, DebuggerLayout::kWatches, L"Watches", ColorLegend::Pane::Watch)
+WatchesPane::WatchesPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
+    UndoListPane (parts, DebuggerLayout::kWatches, L"Watches", ColorLegend::Pane::Watch),
+    m_paneWindow (parts.window),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_paneCommands (parts.commands),
+    m_memory (memory),
+    m_latest (parts.latest),
+    m_look (parts.look)
 {
 }
 
@@ -54,14 +64,14 @@ WatchesPane::~WatchesPane() = default;
 
 bool WatchesPane::RouteContentMouse (const DxuiMouseEvent & ev)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     RECT                          bounds   = m_list->GetBounds();
     int                           row      = -1;
 
 
 
     if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || snapshot == nullptr ||
-        !m_list->IsVisible() || !m_host.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
+        !m_list->IsVisible() || !m_paneRouting.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
     {
         return false;
     }
@@ -75,7 +85,7 @@ bool WatchesPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
     m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
     ApplyRows (*snapshot);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -111,7 +121,7 @@ void WatchesPane::Configure()
     m_deleteCommand->label     = L"Delete";
     m_deleteCommand->glyph     = s_kpszMdl2Delete;
     m_deleteCommand->tip       = L"Delete the selected watches";
-    m_deleteCommand->dispatch  = [this] { RemoveSelected(); m_host.Repaint(); };
+    m_deleteCommand->dispatch  = [this] { RemoveSelected(); m_paneLayout.Repaint(); };
     m_deleteCommand->isEnabled = [this] { return !GetRemovableSelection().empty(); };
 
     remove.command  = m_deleteCommand;
@@ -126,7 +136,7 @@ void WatchesPane::Configure()
 
     m_list->SetOnActivateRow ([this] (int row)
     {
-        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+        const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
         //  A double-click's press has toggled the heading already.
         bool  isMouse = DxuiInputState::IsKeyDown (VK_LBUTTON);
@@ -150,7 +160,7 @@ void WatchesPane::Configure()
     m_grid->SetAddRowText      (L"Add new watch");
     m_grid->SetAddsOnFirstField (true);
     m_grid->SetReopensAddRow    (true);
-    m_grid->SetEditorHwnd      (m_host.GetOwnerHwnd());
+    m_grid->SetEditorHwnd      (m_paneRouting.GetOwnerHwnd());
     m_grid->SetEditorMaxLength (kEditMaxChars);
     m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitCell (row, column - kFirstFieldColumn, text, outError); });
     m_grid->SetOnAddRow        ([this] (const std::vector<std::wstring> & texts, std::wstring & outError) { return AddWatch (texts[kFirstFieldColumn], outError); });
@@ -174,7 +184,7 @@ void WatchesPane::Configure()
 
 DxuiListView * WatchesPane::CreateList()
 {
-    m_grid = m_host.GetControlParent().CreateChild<DxuiEditableGrid>();
+    m_grid = m_paneWindow.CreateChild<DxuiEditableGrid>();
     m_grid->SetRowsMovable (false);
 
 
@@ -257,8 +267,8 @@ void WatchesPane::RecordAdded (const DebuggerViewSnapshot & snapshot)
             continue;
         }
 
-        undo.actions = { WatchActions::GetClearWatch (watch.id, m_host.GetMode()) };
-        m_history.Record (std::move (undo), { WatchActions::GetAddWatchAt (watch.id, m_addedText, m_host.GetMode()) }, std::format (L"add watch {}", watch.id));
+        undo.actions = { WatchActions::GetClearWatch (watch.id, m_latest.GetMode()) };
+        m_history.Record (std::move (undo), { WatchActions::GetAddWatchAt (watch.id, m_addedText, m_latest.GetMode()) }, std::format (L"add watch {}", watch.id));
         m_addedText.clear();
         return;
     }
@@ -329,8 +339,8 @@ void WatchesPane::EditAddedValue (const DebuggerViewSnapshot & snapshot)
 
 void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 {
-    const StopChanges                             & changes     = m_host.GetStopChanges();
-    uint32_t                                        changed     = m_host.GetTextColors().changed;
+    const StopChanges                             & changes     = m_latest.GetStopChanges();
+    uint32_t                                        changed     = m_look.GetTextColors().changed;
     std::vector<DxuiEditableGrid::GridRow>          rows;
     bool                                            isInProgram = BasicWatches::IsStoppedInProgram (snapshot.basic);
     bool                                            isInBasic   = isInProgram && IsInRom (snapshot.pc);
@@ -399,7 +409,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             //  pane draws them in.
             if (line.key.starts_with ("M:"))
             {
-                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_host.GetTextColors());
+                name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_look.GetTextColors());
             }
 
             if (changes.IsChanged ("A:" + line.key))
@@ -440,7 +450,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         if (watch.enabled && watch.basicName.empty())
         {
-            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_host.GetTextColors());
+            name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_look.GetTextColors());
         }
 
         if (changes.IsChanged (std::format ("W:{}", watch.id)))
@@ -453,7 +463,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         if (!watch.error.empty())
         {
             value.text = TextEncoding::NarrowToWide (watch.error);
-            value.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
+            value.argb = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ErrorForeground() : 0;
         }
 
         value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
@@ -548,7 +558,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 std::vector<DxuiListView::Cell> WatchesPane::MakeHeading (const std::wstring & title) const
 {
     constexpr float     kTint = 0.35f;
-    const DxuiTheme   * theme = m_host.GetTheme();
+    const DxuiTheme   * theme = m_look.GetTheme();
     DxuiListView::Cell  label = { title };
     DxuiListView::Cell  blank = { L"" };
     uint32_t            fill  = DxuiColor::Mix (theme->ContentBackground(), theme->HoverBackground(), kTint);
@@ -582,7 +592,7 @@ DxuiListView::Cell WatchesPane::MakeIdCell (const std::wstring & text) const
 
 
 
-    cell.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ForegroundMuted() : 0;
+    cell.argb = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ForegroundMuted() : 0;
     return cell;
 }
 
@@ -712,10 +722,10 @@ void WatchesPane::BeginEdit (int row, int column)
 
     if (m_grid->BeginEdit (row, column + kFirstFieldColumn))
     {
-        m_host.FocusControl (m_grid);
+        m_paneFocus.FocusControl (m_grid);
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -731,7 +741,7 @@ void WatchesPane::BeginEdit (int row, int column)
 void WatchesPane::EndEdit (bool commit)
 {
     (void) m_grid->EndEdit (commit);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -749,7 +759,7 @@ void WatchesPane::EndEdit (bool commit)
 
 bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, std::wstring & outError)
 {
-    const DebuggerViewSnapshot            * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot            * snapshot = m_latest.Get();
     Edit                                    edit     = m_edit;
     std::optional<int>                      watchId;
     std::optional<int>                      autoAt;
@@ -809,8 +819,8 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, s
         return true;
     }
 
-    actions = WatchEdits::GetWatchEditActions (*snapshot, watchId, autoAt, column, TextEncoding::WideToNarrow (typed), m_host.GetMode());
-    undo    = actions.empty() ? std::nullopt : WatchEdits::GetWatchUndo (*snapshot, watchId, autoAt, column, m_host.GetMode());
+    actions = WatchEdits::GetWatchEditActions (*snapshot, watchId, autoAt, column, TextEncoding::WideToNarrow (typed), m_latest.GetMode());
+    undo    = actions.empty() ? std::nullopt : WatchEdits::GetWatchUndo (*snapshot, watchId, autoAt, column, m_latest.GetMode());
 
     if (undo.has_value())
     {
@@ -819,7 +829,7 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, s
 
     for (const DebuggerAction & action : actions)
     {
-        m_host.RunAction (action);
+        m_paneCommands.RunAction (action);
     }
 
     return true;
@@ -837,7 +847,7 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, s
 
 void WatchesPane::NoteEditBegun (int row)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
 
@@ -871,7 +881,7 @@ void WatchesPane::NoteEditBegun (int row)
 
 bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
 {
-    const DebuggerViewSnapshot  * snapshot   = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot   = m_latest.Get();
     std::string                   expression = TextEncoding::WideToNarrow (typed);
     std::string                   error;
 
@@ -905,7 +915,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
     m_addedBy             = m_clock() + kAddedWaitMs;
     m_addedText           = expression;
     SetError ({});
-    m_host.RunAction (WatchActions::GetAddWatch (expression, m_host.GetMode()));
+    m_paneCommands.RunAction (WatchActions::GetAddWatch (expression, m_latest.GetMode()));
     return true;
 }
 
@@ -923,12 +933,12 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
 
 void WatchesPane::SetError (const std::wstring & text)
 {
-    uint32_t  error = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
+    uint32_t  error = (m_look.GetTheme() != nullptr) ? m_look.GetTheme()->ErrorForeground() : 0;
 
 
 
     m_grid->SetAddRowNote (kFirstFieldColumn + 1, text, error);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -999,7 +1009,7 @@ void WatchesPane::RemoveSelected()
 
 void WatchesPane::RemoveRows (const std::vector<Row> & rows)
 {
-    const DebuggerViewSnapshot   * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot   * snapshot = m_latest.Get();
     std::vector<int>               ids;
     std::vector<int>               slots;
     std::vector<DebuggerAction>    clears;
@@ -1036,7 +1046,7 @@ void WatchesPane::RemoveRows (const std::vector<Row> & rows)
     {
         if (std::ranges::binary_search (ids, watch.id))
         {
-            undo.actions.push_back (WatchActions::GetAddWatchAt (watch.id, GetRestoreText (watch), m_host.GetMode()));
+            undo.actions.push_back (WatchActions::GetAddWatchAt (watch.id, GetRestoreText (watch), m_latest.GetMode()));
         }
     }
 
@@ -1044,25 +1054,25 @@ void WatchesPane::RemoveRows (const std::vector<Row> & rows)
     {
         if (std::ranges::binary_search (slots, pointer.id))
         {
-            undo.actions.push_back (WatchActions::GetAddZeroPagePointerAt (pointer.id, (Byte) pointer.address, m_host.GetMode()));
+            undo.actions.push_back (WatchActions::GetAddZeroPagePointerAt (pointer.id, (Byte) pointer.address, m_latest.GetMode()));
         }
     }
 
     for (auto id = ids.rbegin(); id != ids.rend(); ++id)
     {
-        clears.push_back (WatchActions::GetClearWatch (*id, m_host.GetMode()));
+        clears.push_back (WatchActions::GetClearWatch (*id, m_latest.GetMode()));
     }
 
     for (auto slot = slots.rbegin(); slot != slots.rend(); ++slot)
     {
-        clears.push_back (WatchActions::GetClearZeroPagePointer (*slot, m_host.GetMode()));
+        clears.push_back (WatchActions::GetClearZeroPagePointer (*slot, m_latest.GetMode()));
     }
 
     m_history.Record (std::move (undo), clears, L"remove watches");
 
     for (const DebuggerAction & clear : clears)
     {
-        m_host.RunAction (clear);
+        m_paneCommands.RunAction (clear);
     }
 }
 
@@ -1098,9 +1108,9 @@ void WatchesPane::RemoveFromMenu (const Row & row)
 
 void WatchesPane::RemoveWatch (int id)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     WatchEdits::WatchUndo         undo;
-    DebuggerAction                clear    = WatchActions::GetClearWatch (id, m_host.GetMode());
+    DebuggerAction                clear    = WatchActions::GetClearWatch (id, m_latest.GetMode());
 
 
 
@@ -1108,13 +1118,13 @@ void WatchesPane::RemoveWatch (int id)
     {
         if (watch.id == id)
         {
-            undo.actions = { WatchActions::GetAddWatchAt (id, GetRestoreText (watch), m_host.GetMode()) };
+            undo.actions = { WatchActions::GetAddWatchAt (id, GetRestoreText (watch), m_latest.GetMode()) };
             m_history.Record (std::move (undo), { clear }, std::format (L"remove watch {}", id));
             break;
         }
     }
 
-    m_host.RunAction (clear);
+    m_paneCommands.RunAction (clear);
 }
 
 
@@ -1131,9 +1141,9 @@ void WatchesPane::RemoveWatch (int id)
 
 void WatchesPane::RemovePointer (int slot)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     WatchEdits::WatchUndo         undo;
-    DebuggerAction                clear    = WatchActions::GetClearZeroPagePointer (slot, m_host.GetMode());
+    DebuggerAction                clear    = WatchActions::GetClearZeroPagePointer (slot, m_latest.GetMode());
 
 
 
@@ -1141,13 +1151,13 @@ void WatchesPane::RemovePointer (int slot)
     {
         if (pointer.id == slot)
         {
-            undo.actions = { WatchActions::GetAddZeroPagePointerAt (slot, (Byte) pointer.address, m_host.GetMode()) };
+            undo.actions = { WatchActions::GetAddZeroPagePointerAt (slot, (Byte) pointer.address, m_latest.GetMode()) };
             m_history.Record (std::move (undo), { clear }, std::format (L"remove zero-page pointer {}", slot));
             break;
         }
     }
 
-    m_host.RunAction (clear);
+    m_paneCommands.RunAction (clear);
 }
 
 
@@ -1192,7 +1202,7 @@ bool WatchesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
     if (m_grid->IsEditing())
     {
         (void) m_grid->OnKey (ev);
-        m_host.RepaintLater();
+        m_paneLayout.RepaintLater();
         return true;
     }
 
@@ -1238,7 +1248,7 @@ bool WatchesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
 
 bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     Row                           what;
 
 
@@ -1264,7 +1274,7 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         {
             const DebuggerViewSnapshot::WatchLine  watch = *found;
 
-            m_host.AddShowInMemoryItems (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
+            m_memory.AddShowInItems (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
             items.push_back ({ L"Remove", [this, id = watch.id] { RemoveFromMenu ({ RowKind::Manual, id }); } });
         }
     }
@@ -1277,15 +1287,15 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
     {
         std::string  hex = snapshot->autoWatches[(size_t) what.index].key.substr (2);
 
-        m_host.AddShowInMemoryItems (L"$" + TextEncoding::NarrowToWide (hex), hex, items);
+        m_memory.AddShowInItems (L"$" + TextEncoding::NarrowToWide (hex), hex, items);
     }
 
     if (what.kind != RowKind::Heading && what.kind != RowKind::BasicHeading)
     {
-        items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+        items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     }
 
-    items.push_back ({ L"Add pointer watch...", [this] { m_host.AddZeroPagePointer(); } });
+    items.push_back ({ L"Add pointer watch...", [this] { AddZeroPagePointer(); } });
     AddUndoItems (items);
     return true;
 }
@@ -1336,7 +1346,7 @@ std::wstring WatchesPane::GetUndoText (bool redo) const
 
 void WatchesPane::Undo (bool redo)
 {
-    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                  * snapshot = m_latest.Get();
     std::optional<std::vector<DebuggerAction>>    actions;
 
 
@@ -1346,7 +1356,7 @@ void WatchesPane::Undo (bool redo)
         return;
     }
 
-    actions = redo ? m_history.TryRedo() : m_history.TryUndo (*snapshot, m_host.GetMode());
+    actions = redo ? m_history.TryRedo() : m_history.TryUndo (*snapshot, m_latest.GetMode());
 
     if (!actions.has_value())
     {
@@ -1355,6 +1365,29 @@ void WatchesPane::Undo (bool redo)
 
     for (const DebuggerAction & action : *actions)
     {
-        m_host.RunAction (action);
+        m_paneCommands.RunAction (action);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::AddZeroPagePointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::AddZeroPagePointer()
+{
+    std::optional<Byte>  address = ByteDialog::RunModal (m_paneRouting.GetOwnerHwnd(), m_look.GetTheme(), L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText,
+                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_latest.Get() != nullptr) ? m_latest.Get()->memoryImage.get() : nullptr); });
+
+
+
+    if (address.has_value())
+    {
+        m_paneCommands.RunAction (WatchActions::GetAddZeroPagePointer (*address, m_latest.GetMode()));
     }
 }

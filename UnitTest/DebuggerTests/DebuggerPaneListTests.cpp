@@ -26,14 +26,14 @@ namespace DebuggerPaneListTests
     class TestPane : public IDebuggerPane
     {
     public:
-        explicit TestPane (IDebuggerPaneHost & host) : IDebuggerPane (host) {}
+        explicit TestPane (const DebuggerPaneParts & parts) : m_window (parts.window) {}
 
         const std::wstring & GetId() const override { static const std::wstring  s_kId = L"testpane"; return s_kId; }
         std::wstring  GetTitle() const override { return L"Test pane"; }
 
         void  CreateControls() override
         {
-            list = m_host.GetControlParent().CreateChild<DxuiListView>();
+            list = m_window.CreateChild<DxuiListView>();
         }
 
         void  Configure() override
@@ -65,6 +65,9 @@ namespace DebuggerPaneListTests
         int                                  docked     = 0;
         int                                  applied    = 0;
         Word                                 lastPc     = 0;
+
+    private:
+        DxuiWindow                         & m_window;
     };
 
 
@@ -85,11 +88,11 @@ namespace DebuggerPaneListTests
     public:
         PaneListWindow (const CassoTheme & theme, IDebuggerWindowHost & host)
         {
-            std::unique_ptr<TestPane>  each = std::make_unique<TestPane> (GetPaneHostForTest());
+            std::unique_ptr<TestPane>  each = std::make_unique<TestPane> (GetPanePartsForTest());
 
 
 
-            m_theme = &theme;
+            m_look.SetTheme (&theme);
             m_host  = &host;
             pane    = each.get();
 

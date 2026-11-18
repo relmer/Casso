@@ -27,7 +27,7 @@ class IoLogPane;
 class EventLogController : public IDebuggerPane
 {
 public:
-    EventLogController (IDebuggerPaneHost & host, std::wstring id, std::wstring title, DebugLogKind kind);
+    EventLogController (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, DebugLogKind kind);
     ~EventLogController() override;
 
     DxuiToolbar                * GetBar             () const { return m_bar.GetBar(); }
@@ -88,17 +88,22 @@ protected:
 
     bool                         CopyRows           (bool isAll);
 
-    IDebuggerWindowHost        * GetWindowHost      () const { return m_host.GetWindowHost(); }
+    IDebuggerWindowHost        * GetWindowHost      () const { return m_windowHost; }
 
+    DxuiWindow                                 & m_paneWindow;
+    IPaneDialogs                               & m_paneDialogs;
+    IPaneLayout                                & m_paneLayout;
+    IPaneRouting                               & m_paneRouting;
+    IDebuggerWindowHost * const                & m_windowHost;
     std::wstring                                 m_id;
     std::wstring                                 m_title;
     DebugLogKind                                 m_kind;
     PaneBarSlot                                  m_bar;
-    DxuiListView                               * m_list     = nullptr;
+    DxuiListView                               * m_list           = nullptr;
     std::unique_ptr<DebuggerPaneFrame>           m_frame;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_filterCommands;   // the open chevron menu's rows
-    bool                                         m_isOpened = false;
+    bool                                         m_isOpened       = false;
 
     //  From the last snapshot: the position the machine has been taken back
     //  to, none while live; whether the machine is a //c; and whether it has
@@ -124,7 +129,7 @@ protected:
 class DiskLogController : public EventLogController
 {
 public:
-    explicit DiskLogController (IDebuggerPaneHost & host);
+    explicit DiskLogController (const DebuggerPaneParts & parts);
     ~DiskLogController() override;
 
     DiskLogPane                     & GetModel         () const { return *m_model; }
@@ -150,8 +155,13 @@ private:
 
     void  SetBarEntries ();
 
+    DxuiWindow                    & m_paneWindow;
+    IPaneBars                     & m_paneBars;
+    IPaneRouting                  & m_paneRouting;
+    IPanePlaces                   & m_panePlaces;
+    const DebuggerPaneLook        & m_look;
     std::unique_ptr<DiskLogPane>    m_model;
-    DxuiLabel                     * m_error = nullptr;
+    DxuiLabel                     * m_error       = nullptr;
 };
 
 
@@ -170,7 +180,7 @@ private:
 class InputLogController : public EventLogController
 {
 public:
-    explicit InputLogController (IDebuggerPaneHost & host);
+    explicit InputLogController (const DebuggerPaneParts & parts);
     ~InputLogController() override;
 
     InputLogPane                & GetModel       () const { return *m_model; }
@@ -195,7 +205,9 @@ private:
     void          SetBarEntries    ();
     std::wstring  GetPairLabel     (int pair) const;
 
-    std::unique_ptr<InputLogPane>   m_model;
+    IPaneBars                      & m_paneBars;
+    IPanePlaces                    & m_panePlaces;
+    std::unique_ptr<InputLogPane>    m_model;
 };
 
 
@@ -215,7 +227,7 @@ private:
 class IoLogController : public EventLogController
 {
 public:
-    IoLogController (IDebuggerPaneHost & host, DebugLogKind kind);
+    IoLogController (const DebuggerPaneParts & parts, DebugLogKind kind);
     ~IoLogController() override;
 
     IoLogPane                   & GetModel       () const { return *m_model; }
@@ -244,5 +256,11 @@ private:
     bool          IsVideo          () const { return m_kind == DebugLogKind::Video; }
     void          SetBarEntries    ();
 
+    IPaneDialogs                & m_paneDialogs;
+    IPaneBars                   & m_paneBars;
+    IPaneRouting                & m_paneRouting;
+    IPanePlaces                 & m_panePlaces;
+    IPaneCommands               & m_paneCommands;
+    const LatestSnapshot        & m_latest;
     std::unique_ptr<IoLogPane>    m_model;
 };

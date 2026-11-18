@@ -6,6 +6,7 @@
 #include "Ui/Debugger/StackHistory.h"
 
 class HistoryBand;
+class MemoryWindowGroup;
 class UndoBarCommands;
 
 
@@ -25,7 +26,7 @@ class UndoBarCommands;
 class UndoListPane : public IDebuggerPane
 {
 public:
-    UndoListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title, ColorLegend::Pane legend);
+    UndoListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend);
     ~UndoListPane() override;
 
     DxuiListView                   * GetList        () const { return m_list; }
@@ -64,13 +65,16 @@ protected:
     //  The cell text rectangle a press landed right of, in the list.
     bool                             IsPressRightOf (int row, size_t column) const;
 
-    std::wstring                         m_id;
-    std::wstring                         m_title;
-    ColorLegend::Pane                    m_legend;
-    PaneBarSlot                          m_bar;
-    DxuiListView                       * m_list = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>   m_frame;
-    std::unique_ptr<UndoBarCommands>     m_commands;
+    DxuiWindow                          & m_paneWindow;
+    IPaneLayout                         & m_paneLayout;
+    IPaneRouting                        & m_paneRouting;
+    std::wstring                          m_id;
+    std::wstring                          m_title;
+    ColorLegend::Pane                     m_legend;
+    PaneBarSlot                           m_bar;
+    DxuiListView                        * m_list        = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>    m_frame;
+    std::unique_ptr<UndoBarCommands>      m_commands;
 };
 
 
@@ -90,7 +94,7 @@ protected:
 class ValueEditPane : public UndoListPane
 {
 public:
-    ValueEditPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title, ColorLegend::Pane legend);
+    ValueEditPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend);
     ~ValueEditPane() override;
 
     DxuiTextInput                  * GetEditor      () const { return m_editor; }
@@ -126,11 +130,17 @@ protected:
 
     static constexpr int  kEditMaxChars = 4;
 
-    DxuiTextInput  * m_editor   = nullptr;
-    int              m_editRow  = -1;
-    bool             m_isPaused = false;
-    Word             m_pc       = 0;
-    uint64_t         m_cycles   = 0;
+    const DxuiDpiScaler  & m_paneScaler;
+    DxuiWindow           & m_paneWindow;
+    IPaneReplies         & m_paneReplies;
+    IPaneLayout          & m_paneLayout;
+    IPaneRouting         & m_paneRouting;
+    IPaneFocus           & m_paneFocus;
+    DxuiTextInput        * m_editor      = nullptr;
+    int                    m_editRow     = -1;
+    bool                   m_isPaused    = false;
+    Word                   m_pc          = 0;
+    uint64_t               m_cycles      = 0;
 };
 
 
@@ -152,7 +162,7 @@ protected:
 class RegistersPane : public ValueEditPane
 {
 public:
-    explicit RegistersPane (IDebuggerPaneHost & host);
+    explicit RegistersPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~RegistersPane() override;
 
     RegisterHistory              & GetHistory      () { return m_history; }
@@ -187,11 +197,19 @@ private:
     void                 CommitRegister       (const std::string & name, Byte typed);
     void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
-    RegisterHistory                                      m_history;
-    HistoryBand                                        * m_band = nullptr;
-    std::vector<DebuggerViewSnapshot::RegisterRow>       m_registers;
-    std::optional<Word>                                  m_lastBranchFrom;
-    std::optional<Word>                                  m_lastBranchTo;
+    DxuiWindow                                      & m_paneWindow;
+    IPaneReplies                                    & m_paneReplies;
+    IPaneRouting                                    & m_paneRouting;
+    IPaneNavigator                                  & m_paneNavigator;
+    IPaneCommands                                   & m_paneCommands;
+    MemoryWindowGroup                               & m_memory;
+    const LatestSnapshot                            & m_latest;
+    const DebuggerPaneLook                          & m_look;
+    RegisterHistory                                   m_history;
+    HistoryBand                                     * m_band           = nullptr;
+    std::vector<DebuggerViewSnapshot::RegisterRow>    m_registers;
+    std::optional<Word>                               m_lastBranchFrom;
+    std::optional<Word>                               m_lastBranchTo;
 };
 
 
@@ -211,7 +229,7 @@ private:
 class StackPane : public ValueEditPane
 {
 public:
-    explicit StackPane (IDebuggerPaneHost & host);
+    explicit StackPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~StackPane() override;
 
     StackHistory                 & GetHistory   () { return m_history; }
@@ -234,6 +252,12 @@ protected:
 private:
     void                           PushByte     ();
 
-    StackHistory                                         m_history;
-    std::vector<DebuggerViewSnapshot::StackLine>         m_stack;
+    IPaneDialogs                                  & m_paneDialogs;
+    IPaneRouting                                  & m_paneRouting;
+    IPaneCommands                                 & m_paneCommands;
+    MemoryWindowGroup                             & m_memory;
+    const LatestSnapshot                          & m_latest;
+    const DebuggerPaneLook                        & m_look;
+    StackHistory                                    m_history;
+    std::vector<DebuggerViewSnapshot::StackLine>    m_stack;
 };

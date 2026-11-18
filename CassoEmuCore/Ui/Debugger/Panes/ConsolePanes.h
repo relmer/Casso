@@ -29,7 +29,7 @@ class ToolbarLabelEntry;
 class ConsoleOutput
 {
 public:
-    ConsoleOutput (IDebuggerPaneHost & host);
+    ConsoleOutput (const DebuggerPaneParts & parts);
 
     ConsoleOutput (const ConsoleOutput &)             = delete;
     ConsoleOutput & operator= (const ConsoleOutput &) = delete;
@@ -104,13 +104,18 @@ private:
     //  A click on a row's link: its file opened through the window's host.
     void                 OpenLink       (int row, int span);
 
-    IDebuggerPaneHost                       & m_host;
-    DxuiTextView                            * m_view      = nullptr;
+    IDebuggerWindowHost * const             & m_windowHost;
+    DxuiWindow                              & m_paneWindow;
+    IPaneLayout                             & m_paneLayout;
+    IPaneRouting                            & m_paneRouting;
+    IPaneFocus                              & m_paneFocus;
+    IPaneTabs                               & m_paneTabs;
+    DxuiTextView                            * m_view        = nullptr;
     std::vector<Line>                         m_lines;
     std::vector<int>                          m_rowLines;   // -1 for a row with no time stamp
     std::vector<std::vector<std::wstring>>    m_rowLinks;   // by span: a console row's spans are its links
-    int                                       m_columns   = 0;   // the view's width the rows were laid out for
-    int64_t                                   m_changedMs = 0;   // when the text last changed and was not yet saved; 0 for saved
+    int                                       m_columns     = 0;   // the view's width the rows were laid out for
+    int64_t                                   m_changedMs   = 0;   // when the text last changed and was not yet saved; 0 for saved
 };
 
 
@@ -130,7 +135,7 @@ private:
 class CommandLine
 {
 public:
-    CommandLine (IDebuggerPaneHost & host, ConsoleOutput & output);
+    CommandLine (const DebuggerPaneParts & parts, ConsoleOutput & output);
 
     CommandLine (const CommandLine &)             = delete;
     CommandLine & operator= (const CommandLine &) = delete;
@@ -175,13 +180,22 @@ public:
 private:
     void                 ShowHistoryList ();
 
-    IDebuggerPaneHost                                          & m_host;
+    IDebuggerWindowHost * const                                & m_windowHost;
+    const DxuiDpiScaler                                        & m_paneScaler;
+    DxuiWindow                                                 & m_paneWindow;
+    IPaneReplies                                               & m_paneReplies;
+    IPaneDialogs                                               & m_paneDialogs;
+    IPaneLayout                                                & m_paneLayout;
+    IPaneRouting                                               & m_paneRouting;
+    IPaneFocus                                                 & m_paneFocus;
+    const LatestSnapshot                                       & m_latest;
+    const DebuggerPaneLook                                     & m_look;
     ConsoleOutput                                              & m_output;
-    DxuiTextInput                                              * m_box                = nullptr;
+    DxuiTextInput                                              * m_box               = nullptr;
     ConsoleHistory                                               m_history;
     CommandCompletion                                            m_completion;
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_completionSymbols;
-    uint32_t                                                     m_offeredSuggestion  = 0;
+    uint32_t                                                     m_offeredSuggestion = 0;
 };
 
 
@@ -205,7 +219,7 @@ public:
 
     static constexpr int  kDialectEntry = 1;
 
-    explicit ConsoleModeBar (IDebuggerPaneHost & host);
+    explicit ConsoleModeBar (const DebuggerPaneParts & parts);
     ~ConsoleModeBar();
 
     ConsoleModeBar (const ConsoleModeBar &)             = delete;
@@ -232,10 +246,12 @@ public:
     static std::wstring                     GetHelpCommand (CommandMode mode);
 
 private:
-    IDebuggerPaneHost                     & m_host;
-    PaneBarSlot                             m_bar;
-    std::unique_ptr<ToolbarLabelEntry>      m_label;
-    std::shared_ptr<DxuiCommand>            m_dialect;
+    IPaneBars                           & m_paneBars;
+    IPaneCommands                       & m_paneCommands;
+    const LatestSnapshot                & m_latest;
+    PaneBarSlot                           m_bar;
+    std::unique_ptr<ToolbarLabelEntry>    m_label;
+    std::shared_ptr<DxuiCommand>          m_dialect;
 };
 
 
@@ -253,7 +269,7 @@ private:
 class ConsolePane : public IDebuggerPane
 {
 public:
-    explicit ConsolePane (IDebuggerPaneHost & host);
+    explicit ConsolePane (const DebuggerPaneParts & parts);
     ~ConsolePane() override;
 
     ConsoleOutput                  & GetOutput      () { return m_output; }

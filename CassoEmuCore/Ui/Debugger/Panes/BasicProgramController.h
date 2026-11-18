@@ -27,7 +27,7 @@ class DebuggerPaneFrame;
 class BasicProgramController : public IDebuggerPane
 {
 public:
-    explicit BasicProgramController (IDebuggerPaneHost & host);
+    explicit BasicProgramController (const DebuggerPaneParts & parts);
     ~BasicProgramController() override;
 
     DxuiListView                   * GetList        () const { return m_list; }
@@ -39,6 +39,16 @@ public:
     //  The line, brought forward in the pane, and scrolled to again once the
     //  pane has the program.
     void                             ShowLine       (Word line, bool isFocused);
+
+    //  An Applesoft listing the user picks, a file's or the clipboard's,
+    //  loaded as the program in memory once the user confirms; the program
+    //  saved to a file the user picks; and the program cleared, as NEW clears
+    //  it, once the user confirms.
+    void                             LoadPicked     ();
+    void                             Load           (const std::wstring & path, const std::wstring & label = {});
+    void                             Paste          ();
+    void                             Save           ();
+    void                             Clear          ();
 
     const std::wstring            & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"BASIC program"; }
@@ -69,16 +79,26 @@ private:
     void                ToggleBreakpoint (Word line);
     std::optional<int>  FindBreakpoint   (Word line) const;
 
-    std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
+    std::vector<DxuiToolbar::Entry>      MakeBarEntries ();
 
+    IDebuggerWindowHost * const         & m_windowHost;
+    const DxuiDpiScaler                 & m_paneScaler;
+    DxuiWindow                          & m_paneWindow;
+    IPaneDialogs                        & m_paneDialogs;
+    IPaneViews                          & m_paneViews;
+    IPaneRouting                        & m_paneRouting;
+    IPanePlaces                         & m_panePlaces;
+    IPaneCommands                       & m_paneCommands;
+    const LatestSnapshot                & m_latest;
+    const DebuggerPaneLook              & m_look;
     PaneBarSlot                           m_bar;
-    DxuiListView                        * m_list      = nullptr;
+    DxuiListView                        * m_list          = nullptr;
     std::unique_ptr<BasicProgramPane>     m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
     std::optional<Word>                   m_shownLine;
     std::optional<Word>                   m_pendingLine;
     std::optional<std::set<int>>          m_breakpointIds;
-    bool                                  m_isReading = false;
-    bool                                  m_wasPaused = false;
-    bool                                  m_isStop    = false;
+    bool                                  m_isReading     = false;
+    bool                                  m_wasPaused     = false;
+    bool                                  m_isStop        = false;
 };

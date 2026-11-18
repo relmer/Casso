@@ -44,15 +44,25 @@ DisassemblyViewPane::~DisassemblyViewPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisassemblyGroup::DisassemblyGroup (IDebuggerPaneHost & host, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources) :
-    m_host       (host),
-    m_gutter     (gutter),
-    m_edits      (edits),
-    m_sources    (sources),
-    m_sourceText (host),
-    m_symbols    (host, *this)
+DisassemblyGroup::DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources, MemoryWindowGroup & memory) :
+    m_windowHost  (parts.windowHost),
+    m_paneViews   (parts.views),
+    m_paneLayout  (parts.layout),
+    m_paneTips    (parts.tips),
+    m_paneRouting (parts.routing),
+    m_paneFocus   (parts.focus),
+    m_paneTabs    (parts.tabs),
+    m_memory      (memory),
+    m_latest      (parts.latest),
+    m_parts       (parts),
+    m_look        (parts.look),
+    m_gutter      (gutter),
+    m_edits       (edits),
+    m_sources     (sources),
+    m_sourceText  (parts),
+    m_symbols     (parts, *this)
 {
-    IDebuggerWindowHost  * windowHost = host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = parts.windowHost;
 
 
 
@@ -89,7 +99,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> DisassemblyGroup::CreateViews()
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
-        std::unique_ptr<DisassemblyViewPane>  pane = std::make_unique<DisassemblyViewPane> (m_host, *this, view);
+        std::unique_ptr<DisassemblyViewPane>  pane = std::make_unique<DisassemblyViewPane> (m_parts, *this, view, m_memory);
 
         m_views[(size_t) view] = pane.get();
         views.push_back (std::move (pane));
@@ -111,7 +121,7 @@ std::vector<std::unique_ptr<IDebuggerPane>> DisassemblyGroup::CreateViews()
 const std::vector<DebuggerViewSnapshot::CodeLine> & DisassemblyGroup::GetCodeLines (int view) const
 {
     static const std::vector<DebuggerViewSnapshot::CodeLine>  kNone;
-    const DebuggerViewSnapshot                              * snapshot = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot                              * snapshot = m_latest.Get();
 
 
 
@@ -298,7 +308,7 @@ std::vector<DxuiToolbar::Entry> DisassemblyGroup::BuildBarEntries()
         {
             m_optionEntries.back()->SetTipSource ([this]
             {
-                const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+                const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
                 return DisassemblyOptions::GetLineNumbersTip (snapshot != nullptr && snapshot->source.has_value(), m_options.IsOn (DisassemblyOptions::Option::Source));
             });
@@ -307,7 +317,7 @@ std::vector<DxuiToolbar::Entry> DisassemblyGroup::BuildBarEntries()
         {
             m_optionEntries.back()->SetTipSource ([this]
             {
-                const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+                const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
                 return DisassemblyOptions::GetSymbolsTip ((snapshot != nullptr) ? snapshot->symbolSources : std::vector<std::string>());
             });
@@ -336,7 +346,7 @@ std::vector<DxuiToolbar::Entry> DisassemblyGroup::BuildBarEntries()
 
 void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -352,14 +362,14 @@ void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
         host->SetDebuggerDisassemblyOptions (m_options.ToText());
     }
 
-    m_host.SyncHeatRecording();
+    m_paneViews.SyncHeatRecording();
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_host.GetLatestSnapshot() != nullptr; view++)
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_latest.Get() != nullptr; view++)
     {
         ApplyView (view);
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -377,7 +387,7 @@ void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
 
 bool DisassemblyGroup::IsOptionEnabled (DisassemblyOptions::Option option) const
 {
-    const DebuggerViewSnapshot  * snapshot     = m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  * snapshot     = m_latest.Get();
     bool                          hasDebugFile = snapshot != nullptr && snapshot->source.has_value();
 
 
@@ -452,7 +462,7 @@ void DisassemblyGroup::FitLabels (const DebuggerViewSnapshot & snapshot)
 
 void DisassemblyGroup::Apply()
 {
-    const DebuggerViewSnapshot  & snapshot = *m_host.GetLatestSnapshot();
+    const DebuggerViewSnapshot  & snapshot = *m_latest.Get();
 
 
 
@@ -476,12 +486,12 @@ void DisassemblyGroup::Apply()
 
             //  A view open as the window starts was open when it closed, and
             //  its group's front tab is the one in front then.
-            if (open && view > 0 && !m_host.IsRestoringViews())
+            if (open && view > 0 && !m_paneViews.IsRestoringViews())
             {
-                m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+                m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
             }
 
-            m_host.RelayoutDock();
+            m_paneLayout.RelayoutDock();
             UpdateLines();
         }
     }
@@ -496,10 +506,10 @@ void DisassemblyGroup::Apply()
         //  the two read as one sign.
         if (follows)
         {
-            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcTabMarkArgb() };
+            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_look.GetPcTabMarkArgb() };
         }
 
-        m_host.SetPaneTabMark (DebuggerLayout::GetCodePaneId (view), mark, follows ? L"This disassembly follows the PC" : L"");
+        m_paneTabs.SetPaneTabMark (DebuggerLayout::GetCodePaneId (view), mark, follows ? L"This disassembly follows the PC" : L"");
 
         if (m_isOpen[(size_t) view])
         {
@@ -587,7 +597,7 @@ void DisassemblyGroup::ApplyView (int view)
         KeepSelection (view, context);
     }
 
-    m_host.CheckOperandTip (view);
+    m_paneTips.CheckOperandTip (view);
 }
 
 
@@ -613,13 +623,13 @@ void DisassemblyGroup::ApplyView (int view)
 
 DisassemblyGroup::RowContext DisassemblyGroup::MakeRowContext (int view)
 {
-    RowContext    context     { m_host.GetLatestSnapshot(), m_host.GetTheme(), GetCodeList (view), GetCodeLines (view) };
+    RowContext    context     { m_latest.Get(), m_look.GetTheme(), GetCodeList (view), GetCodeLines (view) };
     std::wstring  text;
     int           pcSourceRow = -1;
 
 
 
-    context.textColors = m_host.GetTextColors();
+    context.textColors = m_look.GetTextColors();
     context.source     = m_options.IsOn (DisassemblyOptions::Option::Source) && IsOptionEnabled (DisassemblyOptions::Option::Source);
     context.numbers    = m_options.IsOn (DisassemblyOptions::Option::LineNumbers) && IsOptionEnabled (DisassemblyOptions::Option::LineNumbers);
 
@@ -627,7 +637,7 @@ DisassemblyGroup::RowContext DisassemblyGroup::MakeRowContext (int view)
 
     if (m_options.IsOn (DisassemblyOptions::Option::Heat))
     {
-        context.heatPalette = m_host.GetHeatPalette();
+        context.heatPalette = m_look.GetHeatPalette();
     }
 
     for (const DebuggerViewSnapshot::CodeLine & line : context.lines)
@@ -936,39 +946,39 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
     //  the pointer.
     if (line.hasBreakpoint)
     {
-        gutter.icon = m_host.GetBreakpointIcon (line.isEnabled);
+        gutter.icon = m_look.GetBreakpointIcon (line.isEnabled);
         gutter.tip  = ColorLegend::GetText (line.isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
     }
     else if (row == m_gutter.GetHoverRow (view) && DisassemblyOptions::CanTakeBreakpoint (line))
     {
-        gutter.icon = m_host.GetHoverBreakpointIcon();
+        gutter.icon = m_look.GetHoverBreakpointIcon();
         gutter.tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
     }
 
     //  A bookmark's outline goes around the dot's place, so a breakpoint on
     //  the line is seen inside it.
-    if (m_host.GetLatestSnapshot() != nullptr &&
-        std::ranges::any_of (m_host.GetLatestSnapshot()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
+    if (m_latest.Get() != nullptr &&
+        std::ranges::any_of (m_latest.Get()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
     {
-        gutter.icon = m_host.GetBookmarkMark (gutter.icon);
+        gutter.icon = m_look.GetBookmarkMark (gutter.icon);
         gutter.tip  = ColorLegend::JoinLines ({ gutter.tip, L"Bookmark" });
     }
 
     if (isMarked)
     {
-        gutter.icon = m_host.GetPcMarker (gutter.icon);
+        gutter.icon = m_look.GetPcIcon (gutter.icon);
         gutter.tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), gutter.tip });
-        fill        = m_host.GetPcRowArgb();
+        fill        = m_look.GetTextColors().pcRow;
         rowTip      = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
     }
     else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line.address)
     {
-        fill   = m_host.GetNavigatedRowArgb();
+        fill   = m_look.GetTextColors().navigatedRow;
         rowTip = ColorLegend::GetText (ColorLegend::Meaning::NavigatedRow);
     }
     else if (target.has_value() && *target == line.address)
     {
-        fill   = m_host.GetTargetRowArgb();
+        fill   = m_look.GetTextColors().targetRow;
         rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
     }
 }
@@ -1017,7 +1027,7 @@ void DisassemblyGroup::ApplyHistory (const HistoryStatus & status)
 
 void DisassemblyGroup::SendShownLines (int view, const std::vector<DisassemblyOptions::Row> & built)
 {
-    IDebuggerWindowHost  * host  = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host  = m_windowHost;
     int                    shown = DisassemblyOptions::CountShownLines (built, GetCodeList (view)->GetVisibleRowCapacity());
 
 
@@ -1073,7 +1083,7 @@ void DisassemblyGroup::SetAddressScroll (int view, const std::vector<DebuggerVie
 
     list->SetVertScrollModel (model, [this, view, shown, page = (int) model.nPage] (int code, int pos)
     {
-        IDebuggerWindowHost  * host = m_host.GetWindowHost();
+        IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -1111,7 +1121,7 @@ void DisassemblyGroup::SetAddressScroll (int view, const std::vector<DebuggerVie
 
 void DisassemblyGroup::UpdateLines()
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -1143,8 +1153,8 @@ void DisassemblyGroup::UpdateLines()
 
 void DisassemblyGroup::ShowCode (std::optional<Word> address)
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    IDebuggerWindowHost         * host     = m_host.GetWindowHost();
+    const DebuggerViewSnapshot  * snapshot = m_latest.Get();
+    IDebuggerWindowHost         * host     = m_windowHost;
     int                           view     = address.has_value() ? m_active : ((snapshot != nullptr) ? snapshot->followView : 0);
 
 
@@ -1156,8 +1166,8 @@ void DisassemblyGroup::ShowCode (std::optional<Word> address)
     //  ahead of the address, which is centered for the count the view has.
     if (m_isOpen[(size_t) view])
     {
-        m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
-        m_host.RelayoutDock();
+        m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+        m_paneLayout.RelayoutDock();
         UpdateLines();
     }
 
@@ -1261,13 +1271,13 @@ void DisassemblyGroup::SelectAsked (
             m_selected[(size_t) view]    = *asked;
             GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
             m_sources.ShowLine (lines[i].sourceFileId, lines[i].sourceLine);
-            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+            m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
 
             //  A find's match is selected with the focus left in the find box,
             //  so typing goes on there.
             if (m_findSelect[(size_t) view] != asked)
             {
-                m_host.FocusControl (GetCodeList (view));
+                m_paneFocus.FocusControl (GetCodeList (view));
             }
 
             m_findSelect[(size_t) view].reset();
@@ -1378,7 +1388,7 @@ DxuiListView * DisassemblyGroup::FindCodeListAt (POINT clientPx, int & view) con
     {
         DxuiListView  * code = GetCodeList (each);
 
-        if (m_host.IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), clientPx))
+        if (m_paneRouting.IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), clientPx))
         {
             list = code;
             view = each;
@@ -1449,7 +1459,7 @@ bool DisassemblyGroup::ScrollCodeAtEdge (
 
 
 
-        if (code == nullptr || code != focused || m_host.GetWindowHost() == nullptr)
+        if (code == nullptr || code != focused || m_windowHost == nullptr)
         {
             continue;
         }
@@ -1469,7 +1479,7 @@ bool DisassemblyGroup::ScrollCodeAtEdge (
         }
 
         SelectEdgeAfterScroll (view, lines < 0);
-        m_host.GetWindowHost()->ScrollDebuggerCode (lines, view);
+        m_windowHost->ScrollDebuggerCode (lines, view);
         return true;
     }
 

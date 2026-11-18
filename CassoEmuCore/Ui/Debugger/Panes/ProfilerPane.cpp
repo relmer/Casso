@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ProfilerPane.h"
+#include "Ui/Debugger/SymbolComments.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
@@ -36,10 +38,19 @@ static constexpr int  s_kProfilePeriod = 5;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfilerPane::ProfilerPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kProfiler, L"Profiler"),
-    m_bar        (host, DebuggerLayout::kProfiler, L"Profiler commands"),
-    m_navigator  (host, *this)
+ProfilerPane::ProfilerPane (const DebuggerPaneParts & parts) :
+    ToolListPane     (parts, DebuggerLayout::kProfiler, L"Profiler"),
+    m_windowHost     (parts.windowHost),
+    m_paneWindow     (parts.window),
+    m_paneDialogs    (parts.dialogs),
+    m_paneLayout     (parts.layout),
+    m_paneRouting    (parts.routing),
+    m_paneNavigator  (parts.navigator),
+    m_paneCommands   (parts.commands),
+    m_symbolComments (parts.symbolComments),
+    m_latest         (parts.latest),
+    m_bar            (parts, DebuggerLayout::kProfiler, L"Profiler commands"),
+    m_navigator      (parts, *this)
 {
 }
 
@@ -72,19 +83,19 @@ void ProfilerPane::CreateControls()
 {
     ToolListPane::CreateControls();
 
-    m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
-    m_totals     = m_host.GetControlParent().CreateChild<DxuiLabel>();
-    m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
+    m_timeline   = m_paneWindow.CreateChild<ProfileTimeline>();
+    m_totals     = m_paneWindow.CreateChild<DxuiLabel>();
+    m_flameGraph = m_paneWindow.CreateChild<FlameGraphView>();
     m_timeline  ->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_flameGraph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_flameGraph->SetTipHead ([this] (const ProfileRoutineEntry & routine) { return GetTipHeadWithComment (routine); });
-    m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
+    m_progress   = m_paneWindow.CreateChild<ProfileProgress>();
     m_bar.Create();
 
     m_totals->SetTextRole  (DxuiTextRole::Muted);
     m_totals->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_flameGraph->SetOnActivate ([this] (Word address)    { m_host.GoToCode (address); });
+    m_flameGraph->SetOnActivate ([this] (Word address)    { m_paneNavigator.GoToCode (address); });
     m_flameGraph->SetOnSelect   ([this] (size_t routine)  { m_selectedRoutine = routine; });
     m_flameGraph->SetOnZoom     ([this] (size_t node)   { m_navigator.OnFlameZoom (node); });
 
@@ -115,7 +126,7 @@ void ProfilerPane::Configure()
 
         if (address.has_value())
         {
-            m_host.GoToCode (*address);
+            m_paneNavigator.GoToCode (*address);
         }
     });
 
@@ -200,7 +211,7 @@ void ProfilerPane::SetView (ProfileRows::View view)
     if (m_frame != nullptr)
     {
         m_frame->Relayout();
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 
     switch (view)
@@ -354,7 +365,7 @@ void ProfilerPane::BuildIfDue()
 
     if (!m_isPeriodRead)
     {
-        IDebuggerWindowHost  * host = m_host.GetWindowHost();
+        IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -443,7 +454,7 @@ void ProfilerPane::Refresh()
 
 void ProfilerPane::RunProfile (const char * words)
 {
-    m_host.RunAction (SessionActions::GetProfile (words, m_host.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetProfile (words, m_latest.GetMode()));
 }
 
 
@@ -646,7 +657,7 @@ size_t ProfilerPane::GetPeriodIndex (const std::string & argument)
 
 void ProfilerPane::ChoosePeriod (size_t period)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -677,7 +688,7 @@ void ProfilerPane::ShowPeriod (size_t period)
     m_builtCycle = m_stopCycle;
     m_navigator.Reset();
     RunProfile (GetPeriods()[m_period].words);
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -703,9 +714,9 @@ bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
     //  This is called for every mouse event in the window, so the line at
     //  the pointer is cleared once the pointer is off the timeline. A move is
     //  not consumed, so the tip is drawn too.
-    if (m_host.IsRoutable (m_timeline) && m_timeline->SetPointer (isOver ? std::optional<int> (ev.positionDip.x) : std::nullopt))
+    if (m_paneRouting.IsRoutable (m_timeline) && m_timeline->SetPointer (isOver ? std::optional<int> (ev.positionDip.x) : std::nullopt))
     {
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 
     if (m_navigator.RouteDrag (ev))
@@ -713,7 +724,7 @@ bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (!m_host.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !DxuiDockSite::Contains (m_flameGraph->GetBounds(), ev.positionDip))
+    if (!m_paneRouting.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !DxuiDockSite::Contains (m_flameGraph->GetBounds(), ev.positionDip))
     {
         return false;
     }
@@ -722,7 +733,7 @@ bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
     if (isUsed)
     {
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 
     return isUsed;
@@ -744,7 +755,7 @@ bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
 bool ProfilerPane::Tick (int64_t nowMs)
 {
     bool  isWaiting  = m_navigator.Tick (nowMs);
-    bool  isMarching = m_flameGraph != nullptr && m_host.IsRoutable (m_flameGraph) && m_flameGraph->Animate (nowMs);
+    bool  isMarching = m_flameGraph != nullptr && m_paneRouting.IsRoutable (m_flameGraph) && m_flameGraph->Animate (nowMs);
 
 
 
@@ -776,7 +787,7 @@ bool ProfilerPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
         return m_navigator.ZoomAt (ev);
     }
 
-    if (!isBackOrForward || m_frame == nullptr || !m_host.IsRoutable (m_timeline) || !m_frame->IsVisible() ||
+    if (!isBackOrForward || m_frame == nullptr || !m_paneRouting.IsRoutable (m_timeline) || !m_frame->IsVisible() ||
         !DxuiDockSite::Contains (m_frame->GetBounds(), ev.positionDip))
     {
         return false;
@@ -832,12 +843,12 @@ bool ProfilerPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     tip.placement = DxuiTip::Placement::FollowPointer;
 
-    if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text, tip.lineSwatches))
+    if (m_paneRouting.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text, tip.lineSwatches))
     {
         return true;
     }
 
-    return m_host.IsRoutable (m_flameGraph) && m_flameGraph->TryGetTipAt (clientPx, tip.text);
+    return m_paneRouting.IsRoutable (m_flameGraph) && m_flameGraph->TryGetTipAt (clientPx, tip.text);
 }
 
 
@@ -866,8 +877,8 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & i
 
     if (address.has_value())
     {
-        items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_host, at); } });
-        m_host.AddBookmarkItem (*address, items);
+        items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_paneDialogs, m_paneCommands, m_latest.GetMode(), at); } });
+        PaneMenuRows::AddBookmark (m_latest, m_paneCommands, *address, items);
     }
 
     items.push_back ({ m_isOn ? L"Stop profiling" : L"Start profiling", [this, on = m_isOn] { RunProfile (on ? "OFF" : "ON"); } });
@@ -896,7 +907,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
 
 
-    if (!m_host.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !m_navigator.GetLists().byOpcode.has_value())
+    if (!m_paneRouting.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !m_navigator.GetLists().byOpcode.has_value())
     {
         return;
     }
@@ -905,7 +916,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
     if (routine.has_value() && *routine < m_navigator.GetLists().byOpcode->routines.size() && m_navigator.GetLists().byOpcode->routines[*routine].kind != RoutineKind::Top)
     {
-        items.push_back ({ L"Add symbol here...", [this, at = m_navigator.GetLists().byOpcode->routines[*routine].address] { AddSymbolDialog::Run (m_host, at); } });
+        items.push_back ({ L"Add symbol here...", [this, at = m_navigator.GetLists().byOpcode->routines[*routine].address] { AddSymbolDialog::Run (m_paneDialogs, m_paneCommands, m_latest.GetMode(), at); } });
     }
 }
 
@@ -922,7 +933,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 std::string ProfilerPane::GetTipHeadWithComment (const ProfileRoutineEntry & routine) const
 {
     std::string  head    = routine.GetTipHead();
-    std::string  comment = (routine.kind != RoutineKind::Top && !routine.symbol.empty()) ? m_host.GetSymbolComment (routine.address, routine.symbol) : std::string();
+    std::string  comment = (routine.kind != RoutineKind::Top && !routine.symbol.empty()) ? m_symbolComments.GetComment (m_latest.Get(), m_windowHost, routine.address, routine.symbol) : std::string();
 
 
 

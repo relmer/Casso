@@ -149,33 +149,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::NoteViewFocus
-//
-//  Steps follow the view: the source pane steps by source line, the
-//  disassembly by instruction, in the words of the session's mode. Sent only
-//  when it changes, so a click does not fill the console.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::NoteViewFocus (bool isSource)
-{
-    if (m_host == nullptr || m_snapshot == nullptr || !m_snapshot->source.has_value())
-    {
-        return;
-    }
-
-    if (m_snapshot->source->stepBySource != isSource)
-    {
-        RunAction (RunActions::GetSourceStepping (isSource, m_snapshot->mode));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::NoteTabFocus
 //
 //  A press on a pane's tab counts as a press inside that pane: the pane takes
@@ -238,6 +211,28 @@ void DebuggerWindow::NoteTabFocus (POINT pointDip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::NoteViewFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NoteViewFocus (bool isSource)
+{
+    std::optional<DebuggerAction>  action = RunActions::GetSteppingToFollow (m_latest.Get(), isSource);
+
+
+
+    if (action.has_value())
+    {
+        RunAction (*action);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnFilesDropped
 //
 //  A debug or symbol file loads as SYM LOAD would, and a source opens as File
@@ -272,7 +267,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (kind == DroppedFiles::Kind::Basic)
         {
-            LoadBasicProgram (path);
+            m_basicProgram->Load (path);
             continue;
         }
 
@@ -284,7 +279,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (opening == DroppedFiles::Opening::Basic)
         {
-            LoadBasicProgram (path);
+            m_basicProgram->Load (path);
             continue;
         }
 
@@ -379,11 +374,11 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
     if (action == DebuggerKeySchemes::Action::ToggleBookmark || action == DebuggerKeySchemes::Action::NextBookmark ||
         action == DebuggerKeySchemes::Action::PreviousBookmark)
     {
-        if (m_snapshot != nullptr && action == DebuggerKeySchemes::Action::ToggleBookmark)
+        if (m_latest.Get() != nullptr && action == DebuggerKeySchemes::Action::ToggleBookmark)
         {
             ToggleBookmarkAtCursor();
         }
-        else if (m_snapshot != nullptr)
+        else if (m_latest.Get() != nullptr)
         {
             GoToBookmark (action == DebuggerKeySchemes::Action::PreviousBookmark);
         }
@@ -460,13 +455,13 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
     }
 
     //  The cursor actions read the disassembly view last used.
-    if (m_snapshot != nullptr)
+    if (m_latest.Get() != nullptr)
     {
-        active      = *m_snapshot;
+        active      = *m_latest.Get();
         active.code = GetCodeLines (m_code->GetActive());
     }
 
-    taken = DebuggerKeyActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
+    taken = DebuggerKeyActions::GetForKey (action, (m_latest.Get() != nullptr) ? &active : nullptr, row, GetMode());
 
     if (taken.has_value())
     {
@@ -503,7 +498,7 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     DxuiTextInput                               * box           = GetFocusedBox();
     bool                                          inMemory      = std::ranges::any_of (m_panes, [this] (const std::unique_ptr<IDebuggerPane> & pane) { return pane->TakesTyping (GetFocused()); });
     bool                                          decided       = false;
-    CommandMode                                   mode          = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
+    CommandMode                                   mode          = (m_latest.Get() != nullptr) ? m_latest.Get()->mode : CommandMode::AppleWin;
     std::optional<DebuggerKeySchemes::Action>     consoleAction;
     bool                                          boxEmpty      = false;
     bool                                          boxKeeps      = false;
@@ -513,7 +508,7 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     //  While the line assembler takes the box's lines, Return and Space are
     //  the box's, so an empty line ends the assembly.
     if (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_consolePane->GetCommandLine().GetBox() &&
-        DebuggerCommandLines::DoesAssemblerKeepKey (m_snapshot.get(), ev.vk, ev.ctrl, ev.alt))
+        DebuggerCommandLines::DoesAssemblerKeepKey (m_latest.Get(), ev.vk, ev.ctrl, ev.alt))
     {
         return false;
     }
@@ -1584,10 +1579,10 @@ bool DebuggerWindow::GoToAddressInPane()
 
 
         error = L"Type a hex address such as 0300, PC, or a symbol's name.";
-        return GoToAddressText::TryParseGoTo (typed, m_snapshot.get(), ignored);
+        return GoToAddressText::TryParseGoTo (typed, m_latest.Get(), ignored);
     });
 
-    if (text.has_value() && GoToAddressText::TryParseGoTo (*text, m_snapshot.get(), address))
+    if (text.has_value() && GoToAddressText::TryParseGoTo (*text, m_latest.Get(), address))
     {
         ShowCode (address);
     }

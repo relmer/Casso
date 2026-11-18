@@ -4,9 +4,9 @@
 
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/Panes/DebuggerPaneParts.h"
 
 class DisassemblyGroup;
-class IDebuggerPaneHost;
 struct DiagnosticsIoRegister;
 
 
@@ -26,7 +26,7 @@ struct DiagnosticsIoRegister;
 class DisassemblySymbols
 {
 public:
-    DisassemblySymbols (IDebuggerPaneHost & host, const DisassemblyGroup & group) : m_host (host), m_group (group) {}
+    DisassemblySymbols (const DebuggerPaneParts & parts, const DisassemblyGroup & group) : m_windowHost (parts.windowHost), m_symbolComments (parts.symbolComments), m_latest (parts.latest), m_group (group) {}
 
     bool  TryGetSymbolTip       (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool  TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const;
@@ -45,6 +45,8 @@ public:
     static int   GetCodeEnd          (const DisassemblyCells::SourceParts & parts);
 
 private:
-    IDebuggerPaneHost       & m_host;
-    const DisassemblyGroup  & m_group;
+    IDebuggerWindowHost * const  & m_windowHost;
+    SymbolComments               & m_symbolComments;
+    const LatestSnapshot         & m_latest;
+    const DisassemblyGroup       & m_group;
 };
