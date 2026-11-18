@@ -37,6 +37,7 @@ private:
     void     CreateCpu      ();
     void     WireDiskDrive  ();
     void     WireSound      (const MachineConfig & config);
+    void     WireSerialPort (const MachineConfig & config);
     void     CreateVideo    ();
 
     MachineHost                 & m_host;

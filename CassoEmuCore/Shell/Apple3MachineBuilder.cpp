@@ -7,6 +7,8 @@
 #include "Core/Prng.h"
 #include "Machines/Apple3/Apple3System.h"
 #include "Audio/DriveAudioMixer.h"
+#include "Devices/SerialTrafficLog.h"
+#include "Shell/MachineConnectors.h"
 #include "Machines/Apple3/Apple3VideoOutput.h"
 #include "Machines/Apple3/Cpu6502Apple3.h"
 #include "Shell/MachineHost.h"
@@ -15,7 +17,9 @@
 
 
 
-static constexpr size_t  s_kBytesPerK = 1024;
+static constexpr size_t         s_kBytesPerK         = 1024;
+static constexpr int            s_kSerialPortNumber  = 1;
+static constexpr const char  *  s_kpszSerialPort     = "serial";
 
 
 
@@ -64,6 +68,7 @@ HRESULT Apple3MachineBuilder::Build (const MachineConfig & config)
     WireDiskDrive();
     m_builder.WireDriveAudio (Apple3DiskController::kDriveCount);
     WireSound (config);
+    WireSerialPort (config);
     CreateVideo();
 
     hr = m_host.GetMemoryBus().Validate();
@@ -221,6 +226,33 @@ void Apple3MachineBuilder::WireSound (const MachineConfig & config)
         m_services.mockingboardAudioMixer->UnregisterAllSources();
         m_services.mockingboardAudioMixer->RegisterSource (&sound);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireSerialPort
+//
+//  The built-in 6551 is serial port 1, and the "serial" port setting
+//  attaches its device, as the //c's "serial1" does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3MachineBuilder::WireSerialPort (const MachineConfig & config)
+{
+    const PortConfig  * port   = config.FindPort (s_kpszSerialPort);
+    SerialTrafficLog  * log    = (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr;
+    HRESULT             hr     = S_OK;
+
+
+
+    m_host.GetConnectors().SetSerialPort (s_kSerialPortNumber, &m_host.GetApple3()->GetAcia());
+
+    hr = m_host.GetConnectors().ConnectSerialPort (s_kSerialPortNumber, (port != nullptr) ? port->device : std::string(), m_services.streamFactory, log);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

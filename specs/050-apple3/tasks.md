@@ -227,7 +227,7 @@ reads the clock and both joystick ports.
 ## Phase 9: User Story 5 - Use the built-in serial port (Priority: P2)
 
 - [ ] T088 [P] [US5] Write a loopback test through `.RS232` at each baud rate in `ScenarioTests/Apple3SosTests.cpp` and a wiring test in `UnitTest/Apple3Tests/Apple3SerialTests.cpp`
-- [ ] T089 [US5] Create the `Acia6551` at its documented address with its interrupt wired, and attach it through the `serial` port configuration, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
+- [x] T089 [US5] Create the `Acia6551` at its documented address with its interrupt wired, and attach it through the `serial` port configuration, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
 - [ ] T090 [US5] Offer every attachment the Super Serial Card offers for the built-in port in settings, and label its traffic "Built-in" in the serial log (FR-053), in `CassoEmuCore/Ui/Settings/` and `CassoEmuCore/Debugger/Events/`
 
 ---
