@@ -7,8 +7,12 @@
 #include "Ui/Debugger/MemoryRegionKeys.h"
 #include "Ui/Debugger/Panes/HeatMapCells.h"
 #include "Ui/Debugger/Panes/HeatMapCellText.h"
+#include "Ui/Debugger/Panes/HeatMapBands.h"
+#include "Ui/Debugger/Panes/HeatMapControls.h"
+#include "Ui/Debugger/Panes/HeatMapFrame.h"
 #include "Ui/Debugger/Panes/HeatMapGrid.h"
 #include "Ui/Debugger/Panes/HeatMapPainter.h"
+#include "Ui/Debugger/Panes/HeatMapPicker.h"
 #include "Ui/Debugger/Panes/HeatMapSections.h"
 #include "Ui/Debugger/Panes/HeatMapZoomWidget.h"
 
@@ -154,7 +158,6 @@ public:
     static constexpr int    kMaxColumns     = HeatMapSections::kMaxColumns;
     static constexpr int    kBarDip         = HeatMapGrid::kBarDip;
     static constexpr int    kTabDip         = 52;
-    static constexpr int    kGutterDip      = HeatMapGrid::kGutterDip;
     static constexpr int    kInsetDip       = HeatMapGrid::kInsetDip;
     static constexpr float  kLabelLine      = HeatMapGrid::kLabelLine;
     static constexpr int    kScrollbarDip   = HeatMapGrid::kScrollbarDip;
@@ -163,9 +166,7 @@ public:
     //  A cell's side, without the street of one pixel after it: three at 96
     //  dpi to start, from one to kMaxCellPx as the zoom goes.
     static constexpr int    kStreetPx       = HeatMapSections::kStreetPx;
-    static constexpr int    kDefaultCellDip = HeatMapGrid::kDefaultCellDip;
     static constexpr int    kMaxCellPx      = HeatMapGrid::kMaxCellPx;
-    static constexpr float  kZoomPerNotch   = HeatMapGrid::kZoomPerNotch;
 
     //  The most a row's cells are widened to fill the pane before the row
     //  takes twice the addresses instead (HeatMapSections::kMaxStretch).
@@ -177,8 +178,8 @@ public:
     //  Below this side a cell is hard to land on, and over a cold cell the
     //  pick is the nearest hot cell in the same row within kSnapDip of the
     //  mouse.
-    static constexpr int    kComfortCellDip = HeatMapGrid::kComfortCellDip;
-    static constexpr int    kSnapDip        = HeatMapGrid::kSnapDip;
+    static constexpr int    kComfortCellDip = HeatMapPicker::kComfortCellDip;
+    static constexpr int    kSnapDip        = HeatMapPicker::kSnapDip;
 
     //  How far the mouse moves with the button down before it pans.
     static constexpr int    kDragDip        = 4;
@@ -304,19 +305,17 @@ public:
     }
 
     //  Whether the map is cut into sections now, and the ranges on the map.
-    bool                       IsSplit  () const { return m_grid.IsSplit(); }
-    const std::vector<Band> &  GetBands () const { return m_grid.GetBands(); }
+    bool                       IsSplit  () const { return m_bands.IsSplit(); }
+    const std::vector<Band> &  GetBands () const { return m_bands.GetAll(); }
 
     //  The height of a range's header, the room after a section's rows, and
     //  the note in place of an empty set.
     static constexpr int              kHeaderDip       = HeatMapGrid::kHeaderDip;
-    static constexpr int              kSectionAfterDip = HeatMapGrid::kSectionAfterDip;
 
     //  A section's label's size, its header's height, and the room between
     //  its box and its cells on every side, which the label's line runs
     //  through at the top.
     static constexpr float            kSectionLabelDip  = HeatMapPainter::kSectionLabelDip;
-    static constexpr int              kSectionHeaderDip = HeatMapGrid::kSectionHeaderDip;
     static constexpr int              kSectionPadDip    = HeatMapGrid::kSectionPadDip;
     static constexpr const wchar_t  * kpszNoRangesNote  = HeatMapPainter::kpszNoRangesNote;
 
@@ -324,7 +323,7 @@ public:
     //  none of that, for all of memory.
     void   SetRanges   (std::vector<Band> ranges) { m_grid.SetRanges (std::move (ranges)); }
     void   ClearRanges ()                         { m_grid.ClearRanges(); }
-    bool   HasRanges   () const                   { return m_grid.HasRanges(); }
+    bool   HasRanges   () const                   { return m_bands.HasRanges(); }
 
     //  Where a range's header is drawn within the pane, as scrolled.
     RECT   GetHeaderRect (size_t range) const { return m_grid.GetHeaderRect (range); }
@@ -349,7 +348,7 @@ public:
     //  map is scrolled down in pixels from its top.
     int    GetCellPx    () const       { return m_grid.GetCellPx(); }
     int    GetColumns   () const       { return m_grid.GetColumns(); }
-    int    GetRows      () const       { return m_grid.GetRows(); }
+    int    GetRows      () const       { return m_bands.GetRows (m_grid.GetColumns()); }
     long   GetScrollTop () const       { return m_grid.GetScrollTop(); }
     void   ZoomAt       (POINT point, float notches) { m_grid.ZoomAt (point, notches); }
     void   ZoomIn       ()             { m_grid.ZoomIn(); }
@@ -367,8 +366,8 @@ public:
     //  the zoom widget in the map's bottom-right corner; and its tip, for a
     //  point over its button.
     int                        GetStartCellPx  () const { return m_grid.GetStartCellPx(); }
-    const HeatMapZoomWidget &  GetZoomWidget   () const { return m_grid.GetZoomWidget(); }
-    bool                       TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & text) const { return m_grid.TryGetZoomTipAt (point, m_visible, anchor, text); }
+    const HeatMapZoomWidget &  GetZoomWidget   () const { return m_controls.GetZoomWidget(); }
+    bool                       TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & text) const { return m_controls.TryGetZoomTipAt (point, m_visible, anchor, text); }
 
     //  The addresses a row holds for a width at a pitch: the largest power of
     //  two from kMinColumns to kMaxColumns whose cells fit, or twice that when
@@ -388,7 +387,7 @@ public:
 
     //  The map as drawn, a pixel each, the size of the map's area, drawn again
     //  first if anything changed it since; and the color one address is drawn in.
-    const std::vector<uint32_t> &  GetPixels    ()                   { return m_grid.GetPixels (m_visible); }
+    const std::vector<uint32_t> &  GetPixels    ()                   { return m_frame.GetPixels (m_visible); }
     uint32_t                       GetCellColor (Word address) const { return m_cells.GetCellColor (address); }
 
     static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette) { return HeatMapCells::GetColor (mode, execute, read, write, palette); }
@@ -423,7 +422,7 @@ public:
     //  before it; the address the mouse picks there, which may be a busier one
     //  near it; the mode under a point in the bar.
     std::optional<Word>  GetAddressAt (POINT point) const { return m_grid.GetAddressAt (point); }
-    std::optional<Word>  GetPickAt    (POINT point) const { return m_grid.GetPickAt (point); }
+    std::optional<Word>  GetPickAt    (POINT point) const { return m_picker.GetPickAt (point); }
 
     std::optional<Word>  GetHover     () const { return m_grid.GetHover(); }
     bool                 IsPressed    () const;
@@ -463,7 +462,7 @@ public:
     std::wstring  GetTipText    (Word address) const { return m_cells.GetTipText (address); }
 
     //  The widening of a scrollbar under the mouse, carried out over frames.
-    bool                 TickScrollbars (int64_t nowMs) { return m_grid.TickScrollbars (nowMs); }
+    bool                 TickScrollbars (int64_t nowMs) { return m_controls.Tick (nowMs); }
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -474,20 +473,21 @@ public:
     std::wstring        GetAccessibleName () const override { return L"Heat map"; }
 
 private:
-    using Place  = HeatMapGrid::Place;
-    using Merged = HeatMapGrid::Merged;
-
-    bool                   OnPress             (const DxuiMouseEvent & ev);
-    bool                   OnRelease           (const DxuiMouseEvent & ev);
-    bool                   OnDragOrHover       (const DxuiMouseEvent & ev);
-    bool                   OnWheel             (const DxuiMouseEvent & ev);
-    bool                   OnZoomWidget        (const DxuiMouseEvent & ev);
-    void                   SetHover            (const std::optional<Place> & hover);
-    std::optional<Place>   GetKeyTarget        (const DxuiKeyEvent & ev) const;
+    bool                                OnPress       (const DxuiMouseEvent & ev);
+    bool                                OnRelease     (const DxuiMouseEvent & ev);
+    bool                                OnDragOrHover (const DxuiMouseEvent & ev);
+    bool                                OnWheel       (const DxuiMouseEvent & ev);
+    bool                                OnZoomWidget  (const DxuiMouseEvent & ev);
+    void                                SetHover      (const std::optional<HeatMapBands::Place> & hover);
+    std::optional<HeatMapBands::Place>  GetKeyTarget  (const DxuiKeyEvent & ev) const;
 
     HeatMapCells               m_cells;
-    HeatMapGrid                m_grid         { m_cells };
-    HeatMapPainter             m_painter      { m_grid, m_cells };
+    HeatMapBands               m_bands;
+    HeatMapControls            m_controls;
+    HeatMapGrid                m_grid         { m_cells, m_bands, m_controls };
+    HeatMapFrame               m_frame        { m_grid, m_bands, m_cells };
+    HeatMapPicker              m_picker       { m_grid, m_bands, m_cells };
+    HeatMapPainter             m_painter      { m_grid, m_bands, m_picker, m_cells };
     std::optional<POINT>       m_press;
     long                       m_pressTop     = 0;
     bool                       m_isDragging   = false;

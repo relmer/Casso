@@ -76,15 +76,15 @@ void HeatMapPainter::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme 
         return;
     }
 
-    for (size_t band = 0; band < m_grid.GetPlaced().size(); band++)
+    for (size_t band = 0; band < m_bands.GetPlaced().size(); band++)
     {
-        const Placed  & placed = m_grid.GetPlaced()[band];
-        long            step   = 1;
-        long            row    = 0;
+        const HeatMapBands::Placed  & placed = m_bands.GetPlaced()[band];
+        long                          step   = 1;
+        long                          row    = 0;
 
 
 
-        while (step < placed.rows && (float) (step * pitch) < size * kLabelLine)
+        while (step < placed.rows && (float) (step * pitch) < size * HeatMapGrid::kLabelLine)
         {
             step *= 2;
         }
@@ -103,9 +103,9 @@ void HeatMapPainter::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme 
                 break;
             }
 
-            label = std::format (L"${:04X}", (Word) (m_grid.GetBands()[band].first + row * placed.columns));
+            label = std::format (L"${:04X}", (Word) (m_bands.GetAll()[band].first + row * placed.columns));
 
-            hr = text.DrawString (label.c_str(), (float) m_grid.GetBounds().left, y, gutter, size * kLabelLine,
+            hr = text.DrawString (label.c_str(), (float) m_grid.GetBounds().left, y, gutter, size * HeatMapGrid::kLabelLine,
                                   theme.ForegroundMuted(), size, font.face, DxuiTextHAlign::Right, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
@@ -138,32 +138,32 @@ void HeatMapPainter::PaintHeaders (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 
 
-    if (!m_grid.HasRanges() && !m_grid.IsSplit())
+    if (!m_bands.HasRanges() && !m_bands.IsSplit())
     {
         return;
     }
 
-    if (m_grid.GetBands().empty())
+    if (m_bands.GetAll().empty())
     {
         hr = text.DrawString (kpszNoRangesNote, (float) m_grid.GetMapRect().left, (float) m_grid.GetMapRect().top, std::max (0.0f, (float) m_grid.GetBounds().right - (float) m_grid.GetMapRect().left),
-                              m_grid.GetScaler().ToPxf ((float) kHeaderDip), theme.ForegroundMuted(), size, font.face,
+                              m_grid.GetScaler().ToPxf ((float) HeatMapGrid::kHeaderDip), theme.ForegroundMuted(), size, font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
         return;
     }
 
-    for (size_t band = 0; band < m_grid.GetBands().size() && band < m_grid.GetPlaced().size(); band++)
+    for (size_t band = 0; band < m_bands.GetAll().size() && band < m_bands.GetPlaced().size(); band++)
     {
         RECT  header = m_grid.GetHeaderRect (band);
 
 
 
-        if (m_grid.GetBands()[band].isSection || !m_grid.HasHeader (band) || header.top < m_grid.GetMapRect().top || header.bottom > m_grid.GetMapRect().bottom)
+        if (m_bands.GetAll()[band].isSection || !m_bands.HasHeader (band) || header.top < m_grid.GetMapRect().top || header.bottom > m_grid.GetMapRect().bottom)
         {
             continue;
         }
 
-        title = HeatMapSections::GetBandTitle (m_grid.GetBands()[band]);
+        title = HeatMapSections::GetBandTitle (m_bands.GetAll()[band]);
 
         hr = text.DrawString (title.c_str(), left, (float) header.top, width, (float) (header.bottom - header.top), theme.Foreground(),
                               size, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
@@ -190,10 +190,10 @@ void HeatMapPainter::PaintHeaders (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 void HeatMapPainter::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr size_t  kCount     = (size_t) kAddressCount;
-    float             minFont    = m_grid.GetScaler().ToPxf (kMinDetailFontDip);
-    float             pad        = m_grid.GetScaler().ToPxf ((float) kDetailPadDip);
-    bool              hasDetail  = m_cells.GetValues().size() == kCount && (float) m_grid.GetCellPx() >= minFont * kLinePerEm + pad * 2.0f;
+    constexpr size_t  kCount     = (size_t) HeatMapSections::kAddressCount;
+    float             minFont    = m_grid.GetScaler().ToPxf (HeatMapCellText::kMinDetailFontDip);
+    float             pad        = m_grid.GetScaler().ToPxf ((float) HeatMapCellText::kDetailPadDip);
+    bool              hasDetail  = m_cells.GetValues().size() == kCount && (float) m_grid.GetCellPx() >= minFont * HeatMapCellText::kLinePerEm + pad * 2.0f;
     bool              hasMarks   = m_cells.GetPc().has_value() || m_cells.GetStack().has_value() || m_cells.GetFound().has_value() || !m_cells.GetBreakpoints().empty();
     bool              hasRegions = m_cells.GetRegions().size() == kCount && m_grid.GetCellPx() >= kRegionCellPx;
     int               covered    = 0;
@@ -209,12 +209,12 @@ void HeatMapPainter::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme &
 
     //  A street wider on each side than the map, so the lines in the street
     //  left of the first column are drawn too.
-    hr = text.PushClipRect ((float) (m_grid.GetMapRect().left - kStreetPx), (float) m_grid.GetMapRect().top, (float) (m_grid.GetMapRect().right - m_grid.GetMapRect().left + 2 * kStreetPx), (float) (m_grid.GetMapRect().bottom - m_grid.GetMapRect().top));
+    hr = text.PushClipRect ((float) (m_grid.GetMapRect().left - HeatMapSections::kStreetPx), (float) m_grid.GetMapRect().top, (float) (m_grid.GetMapRect().right - m_grid.GetMapRect().left + 2 * HeatMapSections::kStreetPx), (float) (m_grid.GetMapRect().bottom - m_grid.GetMapRect().top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_grid.ForEachVisible ([&] (const Place & place, Word address)
+    m_grid.ForEachVisible ([&] (const HeatMapBands::Place & place, Word address)
     {
-        std::optional<Merged>  merged;
+        std::optional<HeatMapPicker::Merged>  merged;
 
 
 
@@ -226,7 +226,7 @@ void HeatMapPainter::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme &
         }
         else if (hasDetail)
         {
-            merged = m_grid.GetMergedAt (place);
+            merged = m_picker.GetMergedAt (place);
 
             if (merged.has_value())
             {
@@ -241,7 +241,7 @@ void HeatMapPainter::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme &
 
         if (merged.has_value() && isMarked (merged->opcode))
         {
-            PaintOutlines (text, m_grid.GetMergedRects (*merged), merged->opcode);
+            PaintOutlines (text, m_picker.GetMergedRects (*merged), merged->opcode);
         }
         else if ((!merged.has_value() || merged->opcode != address) && isMarked (address))
         {
@@ -271,40 +271,40 @@ void HeatMapPainter::PaintOverlays (IDxuiTextRenderer & text, const IDxuiTheme &
 //  second line where three lines do not fit, wherever the cell is tall enough
 //  for two: the name is made smaller to fit across. A form or a name longer
 //  than the cell is made smaller to fit, but no smaller than
-//  kMinDetailFontDip, and is clipped to its cell beyond that. The value is
-//  in ROM's or I/O's color for a byte in either, and the name in the
-//  symbol color, each moved until it reads on the cell.
+//  HeatMapCellText::kMinDetailFontDip, and is clipped to its cell beyond
+//  that. The value is in ROM's or I/O's color for a byte in either, and the
+//  name in the symbol color, each moved until it reads on the cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapPainter::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const
+void HeatMapPainter::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeatMapBands::Place & place, Word address) const
 {
-    DxuiFontHandle  font     = theme.MonospaceFont();
-    RECT            cell     = m_grid.GetPlaceRect (place);
-    long            wide     = cell.right  - cell.left;
-    long            tall     = cell.bottom - cell.top;
-    float           maxFont  = m_grid.GetScaler().ToPxf (font.sizeDip);
-    float           minFont  = m_grid.GetScaler().ToPxf (kMinDetailFontDip);
-    float           pad      = m_grid.GetScaler().ToPxf ((float) kDetailPadDip);
-    Detail          detail   = HeatMapCellText::GetDetail (wide, tall, maxFont, minFont, pad);
-    int16_t         stored   = m_cells.GetValues()[address];
-    Byte            value    = (Byte) stored;
-    bool            isOpcode = m_cells.GetOpcodes().size() == (size_t) kAddressCount && m_cells.GetOpcodes()[address] != 0;
-    uint32_t        fill     = m_cells.GetCellColor (address) | 0xFF000000u;
-    uint32_t        plain    = DebuggerTextColors::GetReadable (HeatMapCellText::GetDetailTextColor (fill, theme.Foreground(), m_cells.GetPalette().background), fill);
-    uint32_t        ink      = m_cells.GetValueInk (address, fill, plain);
-    float           two      = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f), ((float) wide - pad * 2.0f) / ((float) kValueChars  * kAdvancePerEm) });
-    float           three    = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (kLinePerEm * 3.0f), ((float) wide - pad * 2.0f) / ((float) kDetailChars * kAdvancePerEm) });
-    std::wstring    name     = (two >= minFont) ? TextEncoding::NarrowToWide (m_cells.GetSymbolAt (address)) : std::wstring();
-    int             lines    = detail.lines;
-    float           fontPx   = detail.fontPx;
-    float           lineH    = 0.0f;
-    float           y        = 0.0f;
-    std::wstring    second;
-    HRESULT         hr       = S_OK;
+    DxuiFontHandle           font     = theme.MonospaceFont();
+    RECT                     cell     = m_grid.GetPlaceRect (place);
+    long                     wide     = cell.right  - cell.left;
+    long                     tall     = cell.bottom - cell.top;
+    float                    maxFont  = m_grid.GetScaler().ToPxf (font.sizeDip);
+    float                    minFont  = m_grid.GetScaler().ToPxf (HeatMapCellText::kMinDetailFontDip);
+    float                    pad      = m_grid.GetScaler().ToPxf ((float) HeatMapCellText::kDetailPadDip);
+    HeatMapCellText::Detail  detail   = HeatMapCellText::GetDetail (wide, tall, maxFont, minFont, pad);
+    int16_t                  stored   = m_cells.GetValues()[address];
+    Byte                     value    = (Byte) stored;
+    bool                     isOpcode = m_cells.GetOpcodes().size() == (size_t) HeatMapSections::kAddressCount && m_cells.GetOpcodes()[address] != 0;
+    uint32_t                 fill     = m_cells.GetCellColor (address) | 0xFF000000u;
+    uint32_t                 plain    = DebuggerTextColors::GetReadable (HeatMapCellText::GetDetailTextColor (fill, theme.Foreground(), m_cells.GetPalette().background), fill);
+    uint32_t                 ink      = m_cells.GetValueInk (address, fill, plain);
+    float                    two      = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (HeatMapCellText::kLinePerEm * 2.0f), ((float) wide - pad * 2.0f) / ((float) HeatMapCellText::kValueChars  * HeatMapCellText::kAdvancePerEm) });
+    float                    three    = std::min ({ maxFont, ((float) tall - pad * 2.0f) / (HeatMapCellText::kLinePerEm * 3.0f), ((float) wide - pad * 2.0f) / ((float) HeatMapCellText::kDetailChars * HeatMapCellText::kAdvancePerEm) });
+    std::wstring             name     = (two >= minFont) ? TextEncoding::NarrowToWide (m_cells.GetSymbolAt (address)) : std::wstring();
+    int                      lines    = detail.lines;
+    float                    fontPx   = detail.fontPx;
+    float                    lineH    = 0.0f;
+    float                    y        = 0.0f;
+    std::wstring             second;
+    HRESULT                  hr       = S_OK;
     auto            drawFit  = [&] (const std::wstring & line, float lineTop, uint32_t color)
     {
-        float  fit = ((float) wide - pad * 2.0f) / ((float) std::max<size_t> (1, line.size()) * kAdvancePerEm);
+        float  fit = ((float) wide - pad * 2.0f) / ((float) std::max<size_t> (1, line.size()) * HeatMapCellText::kAdvancePerEm);
 
 
 
@@ -331,7 +331,7 @@ void HeatMapPainter::PaintDetail (IDxuiTextRenderer & text, const IDxuiTheme & t
         fontPx = two;
     }
 
-    lineH = fontPx * kLinePerEm;
+    lineH = fontPx * HeatMapCellText::kLinePerEm;
     y     = (float) cell.top + ((float) tall - lineH * (float) lines) / 2.0f;
 
     hr = text.PushClipRect ((float) cell.left, (float) cell.top, (float) wide, (float) tall);
@@ -381,20 +381,20 @@ void HeatMapPainter::PaintRegions (IDxuiTextRenderer & text) const
 
 
 
-    m_grid.ForEachVisible ([&] (const Place & place, Word address)
+    m_grid.ForEachVisible ([&] (const HeatMapBands::Place & place, Word address)
     {
-        uint16_t        key     = m_cells.GetRegionAt (address);
-        const Band    & band    = m_grid.GetBands()[place.band];
-        const Placed  & placed  = m_grid.GetPlaced()[place.band];
-        long            column  = place.offset % placed.columns;
-        RECT            cell    = {};
-        float           street  = (float) kStreetPx;
-        float           wide    = 0.0f;
-        float           tall    = 0.0f;
-        uint32_t        stroke  = 0;
+        uint16_t                      key    = m_cells.GetRegionAt (address);
+        const HeatMapBands::Band    & band   = m_bands.GetAll()[place.band];
+        const HeatMapBands::Placed  & placed = m_bands.GetPlaced()[place.band];
+        long                          column = place.offset % placed.columns;
+        RECT                          cell   = {};
+        float                         street = (float) HeatMapSections::kStreetPx;
+        float                         wide   = 0.0f;
+        float                         tall   = 0.0f;
+        uint32_t                      stroke = 0;
         auto            isSame  = [&] (long offset)
         {
-            return offset >= 0 && offset < band.count && m_cells.GetRegionAt (m_grid.GetAddressOf (Place { place.band, offset })) == key;
+            return offset >= 0 && offset < band.count && m_cells.GetRegionAt (m_bands.GetAddressOf (HeatMapBands::Place { place.band, offset })) == key;
         };
 
 
@@ -446,11 +446,12 @@ void HeatMapPainter::PaintRegions (IDxuiTextRenderer & text) const
 //
 //  Each section in view as a box: a rounded outline in the range's color the
 //  width of the map around its rows, at least a row label's line tall,
-//  kSectionPadDip from the cells on every side, with its label on the top edge from
-//  the left, past the corner's curve, in the header's room above the cells,
-//  over a patch of the page that breaks the line there. A section of main
-//  RAM, which has no range color, is in the muted text color. A whole range
-//  of a set is labeled by its title and span, as "Zero page  $0000-$00FF".
+//  HeatMapGrid::kSectionPadDip from the cells on every side, with its label
+//  on the top edge from the left, past the corner's curve, in the header's
+//  room above the cells, over a patch of the page that breaks the line
+//  there. A section of main RAM, which has no range color, is in the muted
+//  text color. A whole range of a set is labeled by its title and span, as
+//  "Zero page  $0000-$00FF".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -460,12 +461,12 @@ void HeatMapPainter::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme &
     constexpr float  kCornerDip  = 4.0f;
     DxuiFontHandle   font        = theme.MonospaceFont();
     float            fontPx      = m_grid.GetScaler().ToPxf (kSectionLabelDip);
-    float            labelH      = fontPx * kLinePerEm;
-    float            pad         = m_grid.GetScaler().ToPxf ((float) kDetailPadDip);
-    float            inside      = (float) m_grid.GetScaler().ToPx (kSectionPadDip);
+    float            labelH      = fontPx * HeatMapCellText::kLinePerEm;
+    float            pad         = m_grid.GetScaler().ToPxf ((float) HeatMapCellText::kDetailPadDip);
+    float            inside      = (float) m_grid.GetScaler().ToPx (HeatMapGrid::kSectionPadDip);
     float            radius      = m_grid.GetScaler().ToPxf (kCornerDip);
     float            thickness   = m_grid.GetScaler().ToPxf (1.0f);
-    float            street      = (float) kStreetPx;
+    float            street      = (float) HeatMapSections::kStreetPx;
     long             pitch       = m_grid.GetPitch();
     uint32_t         back        = m_cells.GetPalette().background | 0xFF000000u;
     HRESULT          hr          = S_OK;
@@ -475,12 +476,12 @@ void HeatMapPainter::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme &
     hr = text.PushClipRect ((float) m_grid.GetBounds().left, (float) m_grid.GetMapRect().top, (float) (m_grid.GetBounds().right - m_grid.GetBounds().left), (float) (m_grid.GetMapRect().bottom - m_grid.GetMapRect().top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    for (size_t i = 0; i < m_grid.GetBands().size() && i < m_grid.GetPlaced().size(); i++)
+    for (size_t i = 0; i < m_bands.GetAll().size() && i < m_bands.GetPlaced().size(); i++)
     {
-        const Band              & band      = m_grid.GetBands()[i];
-        const Placed            & placed    = m_grid.GetPlaced()[i];
-        bool                      isRam     = band.first < HeatMapSections::kSectionStarts.front();
-        uint16_t                  key       = isRam ? (uint16_t) 0 : m_cells.GetRegionAt (band.first);
+        const HeatMapBands::Band    & band   = m_bands.GetAll()[i];
+        const HeatMapBands::Placed  & placed = m_bands.GetPlaced()[i];
+        bool                          isRam  = band.first < HeatMapSections::kSectionStarts.front();
+        uint16_t                      key    = isRam ? (uint16_t) 0 : m_cells.GetRegionAt (band.first);
         std::wstring              label     = band.isTitled ? HeatMapSections::GetBandTitle (band)
                                             : isRam         ? HeatMapSections::GetRamLabel (band.first)
                                                             : MemoryRegionKeys::GetRangeLabel (key, band.first, band.count, m_cells.GetSlotCards(), m_cells.GetMachineId());
@@ -490,7 +491,7 @@ void HeatMapPainter::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme &
         float                     right     = (float) (m_grid.GetMapRect().left + m_grid.GetRowPx()) + inside;
         float                     edge      = top - street - inside;
         float                     bottom    = top + (float) std::max (placed.rows * pitch, m_grid.GetLabelLinePx()) + inside;
-        float                     labelW    = (float) label.size() * fontPx * kAdvancePerEm + pad * 2.0f;
+        float                     labelW    = (float) label.size() * fontPx * HeatMapCellText::kAdvancePerEm + pad * 2.0f;
         float                     labelX    = left + radius + pad;
         std::vector<DxuiPointF>   points    = { { left, edge }, { right, edge }, { right, bottom }, { left, bottom } };
 
@@ -539,27 +540,27 @@ void HeatMapPainter::PaintSections (IDxuiTextRenderer & text, const IDxuiTheme &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapPainter::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Merged & merged) const
+void HeatMapPainter::PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeatMapPicker::Merged & merged) const
 {
     constexpr float     kBytesScale = 0.8f;
     constexpr float     kBytesDim   = 0.45f;
     DxuiFontHandle      font        = theme.MonospaceFont();
-    float               minFont     = m_grid.GetScaler().ToPxf (kMinDetailFontDip);
-    float               pad         = m_grid.GetScaler().ToPxf ((float) kDetailPadDip);
-    std::vector<RECT>   pieces      = m_grid.GetMergedRects (merged);
+    float               minFont     = m_grid.GetScaler().ToPxf (HeatMapCellText::kMinDetailFontDip);
+    float               pad         = m_grid.GetScaler().ToPxf ((float) HeatMapCellText::kDetailPadDip);
+    std::vector<RECT>   pieces      = m_picker.GetMergedRects (merged);
     Byte                opcode      = (Byte) m_cells.GetValues()[merged.opcode];
     std::vector<Byte>   operands;
     std::wstring        bytes       = std::format (L"{:02X}", opcode);
-    std::wstring        instruction;
-    std::vector<long>   cells;
-    InstructionLines    lines;
-    long                pitch       = m_grid.GetPitch();
-    long                tall        = pieces.front().bottom - pieces.front().top;
-    float               fontPx      = 0.0f;
-    float               lineH       = 0.0f;
-    uint32_t            fill        = m_cells.GetCellColor (merged.opcode) | 0xFF000000u;
-    uint32_t            ink         = m_cells.GetValueInk (merged.opcode, fill, DebuggerTextColors::GetReadable (HeatMapCellText::GetDetailTextColor (fill, theme.Foreground(), m_cells.GetPalette().background), fill));
-    HRESULT             hr          = S_OK;
+    std::wstring                       instruction;
+    std::vector<long>                  cells;
+    HeatMapCellText::InstructionLines  lines;
+    long                               pitch       = m_grid.GetPitch();
+    long                               tall        = pieces.front().bottom - pieces.front().top;
+    float                              fontPx      = 0.0f;
+    float                              lineH       = 0.0f;
+    uint32_t                           fill        = m_cells.GetCellColor (merged.opcode) | 0xFF000000u;
+    uint32_t                           ink         = m_cells.GetValueInk (merged.opcode, fill, DebuggerTextColors::GetReadable (HeatMapCellText::GetDetailTextColor (fill, theme.Foreground(), m_cells.GetPalette().background), fill));
+    HRESULT                            hr          = S_OK;
 
 
 
@@ -575,12 +576,12 @@ void HeatMapPainter::PaintInstruction (IDxuiTextRenderer & text, const IDxuiThem
 
     for (const RECT & piece : pieces)
     {
-        cells.push_back (std::max (1L, (piece.right - piece.left + HeatMapPainter::kStreetPx) / std::max (1L, pitch)));
+        cells.push_back (std::max (1L, (piece.right - piece.left + HeatMapSections::kStreetPx) / std::max (1L, pitch)));
     }
 
     instruction = m_cells.GetInstructionText ((*m_cells.GetOpcodeForms())[opcode], HeatMapOptions::GetCpuAddress (m_cells.GetShownBank(), merged.opcode), operands);
     lines       = HeatMapCellText::SplitInstruction (instruction, bytes, cells);
-    fontPx      = std::min (m_grid.GetScaler().ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (kLinePerEm * 2.0f));
+    fontPx      = std::min (m_grid.GetScaler().ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (HeatMapCellText::kLinePerEm * 2.0f));
 
     for (size_t i = 0; i < pieces.size(); i++)
     {
@@ -590,12 +591,12 @@ void HeatMapPainter::PaintInstruction (IDxuiTextRenderer & text, const IDxuiThem
 
         if (longest > 0)
         {
-            fontPx = std::min (fontPx, ((float) (pieces[i].right - pieces[i].left) - pad * 2.0f) / ((float) longest * kAdvancePerEm));
+            fontPx = std::min (fontPx, ((float) (pieces[i].right - pieces[i].left) - pad * 2.0f) / ((float) longest * HeatMapCellText::kAdvancePerEm));
         }
     }
 
     fontPx = std::max (minFont, fontPx);
-    lineH  = fontPx * kLinePerEm;
+    lineH  = fontPx * HeatMapCellText::kLinePerEm;
 
     for (size_t i = 0; i < pieces.size(); i++)
     {
@@ -666,7 +667,7 @@ void HeatMapPainter::PaintOutlines (IDxuiTextRenderer & text, const std::vector<
 
 
         ring = rects[k % rects.size()];
-        InflateRect (&ring, kStreetPx - inset, kStreetPx - inset);
+        InflateRect (&ring, HeatMapSections::kStreetPx - inset, HeatMapSections::kStreetPx - inset);
 
         if (ring.right - ring.left <= line * 2 || ring.bottom - ring.top <= line * 2)
         {
@@ -705,12 +706,12 @@ void HeatMapPainter::PaintOutlines (IDxuiTextRenderer & text, const std::vector<
 
 void HeatMapPainter::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    std::optional<Merged>  merged;
-    std::vector<RECT>      rects;
-    float                  tall  = (float) (m_grid.GetCellPx() + 2 * kStreetPx);
-    float                  line  = (float) kStreetPx;
-    uint32_t               color = theme.Foreground();
-    HRESULT                hr    = S_OK;
+    std::optional<HeatMapPicker::Merged>  merged;
+    std::vector<RECT>                     rects;
+    float                                 tall   = (float) (m_grid.GetCellPx() + 2 * HeatMapSections::kStreetPx);
+    float                                 line   = (float) HeatMapSections::kStreetPx;
+    uint32_t                              color  = theme.Foreground();
+    HRESULT                               hr     = S_OK;
 
 
 
@@ -719,14 +720,14 @@ void HeatMapPainter::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & th
         return;
     }
 
-    merged = m_grid.GetMergedAt (*m_grid.GetHoverPlace());
-    rects  = merged.has_value() ? m_grid.GetMergedRects (*merged) : std::vector<RECT> { m_grid.GetPlaceRect (*m_grid.GetHoverPlace()) };
+    merged = m_picker.GetMergedAt (*m_grid.GetHoverPlace());
+    rects  = merged.has_value() ? m_picker.GetMergedRects (*merged) : std::vector<RECT> { m_grid.GetPlaceRect (*m_grid.GetHoverPlace()) };
 
     for (const RECT & cell : rects)
     {
-        float  left = (float) (cell.left - kStreetPx);
-        float  top  = (float) (cell.top  - kStreetPx);
-        float  wide = (float) (cell.right - cell.left + 2 * kStreetPx);
+        float  left = (float) (cell.left - HeatMapSections::kStreetPx);
+        float  top  = (float) (cell.top  - HeatMapSections::kStreetPx);
+        float  wide = (float) (cell.right - cell.left + 2 * HeatMapSections::kStreetPx);
 
 
 

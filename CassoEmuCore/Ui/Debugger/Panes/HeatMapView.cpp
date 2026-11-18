@@ -17,7 +17,7 @@
 void HeatMapView::SetLevels (const std::vector<Byte> & execute, const std::vector<Byte> & read, const std::vector<Byte> & write)
 {
     m_cells.SetLevels (execute, read, write);
-    m_grid.MarkFrameStale();
+    m_frame.MarkStale();
 }
 
 
@@ -34,7 +34,7 @@ void HeatMapView::SetPalette (const Palette & palette)
 {
     if (m_cells.SetPalette (palette))
     {
-        m_grid.MarkFrameStale();
+        m_frame.MarkStale();
     }
 }
 
@@ -51,7 +51,7 @@ void HeatMapView::SetPalette (const Palette & palette)
 void HeatMapView::SetMode (Mode mode)
 {
     m_cells.SetMode (mode);
-    m_grid.MarkFrameStale();
+    m_frame.MarkStale();
 }
 
 
@@ -67,7 +67,7 @@ void HeatMapView::SetMode (Mode mode)
 void HeatMapView::SetOptions (const HeatMapOptions & options)
 {
     m_cells.SetOptions (options);
-    m_grid.MarkFrameStale();
+    m_frame.MarkStale();
 }
 
 
@@ -86,7 +86,7 @@ void HeatMapView::SetSymbols (std::shared_ptr<const HeatMapSymbols> symbols)
 {
     if (m_cells.SetSymbols (std::move (symbols)))
     {
-        m_grid.MarkFrameStale();
+        m_frame.MarkStale();
     }
 }
 
@@ -173,7 +173,7 @@ void HeatMapView::SetMachineId (const std::string & machineId)
 
 bool HeatMapView::IsPressed() const
 {
-    return m_press.has_value() || m_grid.GetScrollbar().IsDragging() || m_grid.GetZoomWidget().IsDragging();
+    return m_press.has_value() || m_controls.GetScrollbar().IsDragging() || m_controls.GetZoomWidget().IsDragging();
 }
 
 
@@ -215,19 +215,19 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
 bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches,
                                std::vector<uint32_t> & gradient, float & mark) const
 {
-    std::optional<Place>  pick;
-    TipLead               lead;
-    std::wstring          contents;
-    std::wstring          rest;
+    std::optional<HeatMapBands::Place>  pick;
+    TipLead                             lead;
+    std::wstring                        contents;
+    std::wstring                        rest;
 
 
 
-    if (!m_visible || IsPressed() || m_grid.GetZoomWidget().HitTest (point) != HeatMapZoomWidget::Hit::None)
+    if (!m_visible || IsPressed() || m_controls.GetZoomWidget().HitTest (point) != HeatMapZoomWidget::Hit::None)
     {
         return false;
     }
 
-    pick = m_grid.GetPickPlaceAt (point);
+    pick = m_picker.GetPickPlaceAt (point);
 
     if (!pick.has_value())
     {
@@ -236,15 +236,15 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
 
     anchor   = m_grid.GetPlaceRect (*pick);
     InflateRect (&anchor, kStreetPx, kStreetPx);
-    lead     = m_cells.GetTipLead (m_grid.GetAddressOf (*pick));
-    text     = m_cells.GetTipText (m_grid.GetAddressOf (*pick));
-    contents = m_cells.GetContentsLine (m_grid.GetAddressOf (*pick));
+    lead     = m_cells.GetTipLead (m_bands.GetAddressOf (*pick));
+    text     = m_cells.GetTipText (m_bands.GetAddressOf (*pick));
+    contents = m_cells.GetContentsLine (m_bands.GetAddressOf (*pick));
     rest     = contents.empty() ? text : text.substr (contents.size() + 1);
 
     //  The cell's contents come first, with no swatch. An untouched cell's
     //  next line already ends in "untouched", so the swatch goes on that line
     //  in place of a lead line.
-    if (m_cells.GetCellKind (m_grid.GetAddressOf (*pick)) != CellKind::Untouched)
+    if (m_cells.GetCellKind (m_bands.GetAddressOf (*pick)) != CellKind::Untouched)
     {
         rest = lead.meaning + L"\n" + rest;
     }
@@ -256,7 +256,7 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
     gradient.clear();
     mark = -1.0f;
 
-    if (!m_cells.TryGetCellScale (m_grid.GetAddressOf (*pick), gradient, mark))
+    if (!m_cells.TryGetCellScale (m_bands.GetAddressOf (*pick), gradient, mark))
     {
         gradient.clear();
         mark = -1.0f;
@@ -277,8 +277,8 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
 
 bool HeatMapView::IsTipComplete (POINT point) const
 {
-    std::optional<Place>  pick    = m_grid.GetPickPlaceAt (point);
-    Word                  address = 0;
+    std::optional<HeatMapBands::Place>  pick    = m_picker.GetPickPlaceAt (point);
+    Word                                address = 0;
 
 
 
@@ -287,7 +287,7 @@ bool HeatMapView::IsTipComplete (POINT point) const
         return true;
     }
 
-    address = m_grid.GetAddressOf (*pick);
+    address = m_bands.GetAddressOf (*pick);
 
     return m_cells.HasHoverAccess (address);
 }
@@ -319,7 +319,7 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     m_grid.MeasureGutter (text, theme);
 
-    frame  = &m_grid.GetPixels (m_visible);
+    frame  = &m_frame.GetPixels (m_visible);
     map    = m_grid.GetMapRect();
     width  = map.right  - map.left;
     height = map.bottom - map.top;
@@ -335,7 +335,7 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     m_painter.PaintOverlays (text, theme);
 
-    if (m_grid.IsSplit())
+    if (m_bands.IsSplit())
     {
         m_painter.PaintSections (text, theme);
     }
@@ -343,12 +343,12 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     m_painter.PaintHeaders (text, theme);
     m_painter.PaintHover   (text, theme);
 
-    m_grid.PlaceZoomWidget();
-    m_grid.GetZoomWidget().Paint (text, theme, m_grid.GetCellPx(), m_grid.GetStartCellPx(), kMaxCellPx);
+    m_controls.PlaceZoomWidget (m_grid);
+    m_controls.GetZoomWidget().Paint (text, theme, m_grid.GetCellPx(), m_grid.GetStartCellPx(), kMaxCellPx);
 
     if (m_grid.HasVerticalScroll())
     {
-        m_grid.GetScrollbar().Paint (painter, theme.ForegroundMuted());
+        m_controls.GetScrollbar().Paint (painter, theme.ForegroundMuted());
     }
 }
 
@@ -369,11 +369,11 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 bool HeatMapView::OnKey (const DxuiKeyEvent & ev)
 {
-    std::optional<Place>  target;
+    std::optional<HeatMapBands::Place>  target;
 
 
 
-    if (ev.kind != DxuiKeyEventKind::Down || m_grid.GetPlaced().empty())
+    if (ev.kind != DxuiKeyEventKind::Down || m_bands.GetPlaced().empty())
     {
         return false;
     }
@@ -382,7 +382,7 @@ bool HeatMapView::OnKey (const DxuiKeyEvent & ev)
     {
         if (m_grid.GetHoverPlace().has_value() && m_onPickAddress)
         {
-            m_onPickAddress (m_grid.GetAddressOf (*m_grid.GetHoverPlace()));
+            m_onPickAddress (m_bands.GetAddressOf (*m_grid.GetHoverPlace()));
         }
 
         return m_grid.GetHoverPlace().has_value();
@@ -397,7 +397,7 @@ bool HeatMapView::OnKey (const DxuiKeyEvent & ev)
 
     m_grid.ScrollToPlace (*target);
     SetHover (target);
-    m_grid.MarkFrameStale();
+    m_frame.MarkStale();
     return true;
 }
 
@@ -416,18 +416,18 @@ bool HeatMapView::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<HeatMapView::Place> HeatMapView::GetKeyTarget (const DxuiKeyEvent & ev) const
+std::optional<HeatMapBands::Place> HeatMapView::GetKeyTarget (const DxuiKeyEvent & ev) const
 {
-    std::optional<Place>   from    = m_grid.GetHoverPlace().has_value() ? m_grid.GetHoverPlace() : m_grid.GetPlaceAt (POINT { m_grid.GetMapRect().left + 1, m_grid.GetMapRect().top + 1 });
-    std::optional<Merged>  merged;
-    long                   columns = 0;
-    long                   count   = 0;
-    long                   page    = 0;
-    long                   offset  = 0;
+    std::optional<HeatMapBands::Place>    from    = m_grid.GetHoverPlace().has_value() ? m_grid.GetHoverPlace() : m_grid.GetPlaceAt (POINT { m_grid.GetMapRect().left + 1, m_grid.GetMapRect().top + 1 });
+    std::optional<HeatMapPicker::Merged>  merged;
+    long                                  columns = 0;
+    long                                  count   = 0;
+    long                                  page    = 0;
+    long                                  offset  = 0;
 
 
 
-    if (!from.has_value() || from->band >= m_grid.GetPlaced().size())
+    if (!from.has_value() || from->band >= m_bands.GetPlaced().size())
     {
         return std::nullopt;
     }
@@ -437,9 +437,9 @@ std::optional<HeatMapView::Place> HeatMapView::GetKeyTarget (const DxuiKeyEvent 
         return from;
     }
 
-    merged  = m_grid.GetMergedAt (*from);
-    columns = m_grid.GetPlaced()[from->band].columns;
-    count   = m_grid.GetBands()[from->band].count;
+    merged  = m_picker.GetMergedAt (*from);
+    columns = m_bands.GetPlaced()[from->band].columns;
+    count   = m_bands.GetAll()[from->band].count;
     page    = std::max (1L, (m_grid.GetMapRect().bottom - m_grid.GetMapRect().top) / std::max (1, m_grid.GetPitch())) * columns;
     offset  = from->offset;
 
@@ -457,9 +457,9 @@ std::optional<HeatMapView::Place> HeatMapView::GetKeyTarget (const DxuiKeyEvent 
     }
 
     offset = std::clamp (offset, 0L, count - 1);
-    merged = m_grid.GetMergedAt (Place { from->band, offset });
+    merged = m_picker.GetMergedAt (HeatMapBands::Place { from->band, offset });
 
-    return merged.has_value() ? merged->first : Place { from->band, offset };
+    return merged.has_value() ? merged->first : HeatMapBands::Place { from->band, offset };
 }
 
 
@@ -482,10 +482,10 @@ bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
 
 
 
-    if (m_grid.HasVerticalScroll() && m_grid.GetScrollbar().HitTest (at.x, at.y))
+    if (m_grid.HasVerticalScroll() && m_controls.GetScrollbar().HitTest (at.x, at.y))
     {
-        m_grid.GetScrollbar().OnMouseDown (at.x, at.y);
-        m_grid.ScrollBy (m_grid.GetScrollbar().GetScrollPos() - (int) m_grid.GetScrollTop());
+        m_controls.GetScrollbar().OnMouseDown (at.x, at.y);
+        m_grid.ScrollBy (m_controls.GetScrollbar().GetScrollPos() - (int) m_grid.GetScrollTop());
         return true;
     }
 
@@ -520,9 +520,9 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 
 
 
-    if (m_grid.GetScrollbar().IsDragging())
+    if (m_controls.GetScrollbar().IsDragging())
     {
-        m_grid.GetScrollbar().OnMouseUp();
+        m_controls.GetScrollbar().OnMouseUp();
         return true;
     }
 
@@ -533,13 +533,13 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 
     if (!m_isDragging)
     {
-        picked = m_grid.GetPickAt (*m_press);
+        picked = m_picker.GetPickAt (*m_press);
     }
 
     m_press.reset();
     m_isDragging = false;
 
-    SetHover (m_grid.GetPickPlaceAt (ev.positionDip));
+    SetHover (m_picker.GetPickPlaceAt (ev.positionDip));
 
     if (!picked.has_value())
     {
@@ -583,18 +583,18 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
 
 
 
-    if (m_grid.GetScrollbar().IsDragging())
+    if (m_controls.GetScrollbar().IsDragging())
     {
-        m_grid.GetScrollbar().OnMouseMove (at.x, at.y);
-        m_grid.ScrollBy (m_grid.GetScrollbar().GetScrollPos() - (int) m_grid.GetScrollTop());
+        m_controls.GetScrollbar().OnMouseMove (at.x, at.y);
+        m_grid.ScrollBy (m_controls.GetScrollbar().GetScrollPos() - (int) m_grid.GetScrollTop());
         return true;
     }
 
     if (!m_press.has_value())
     {
-        (void) m_grid.GetScrollbar().SetHover (m_grid.HasVerticalScroll() && m_grid.GetScrollbar().HitTest (at.x, at.y), at);
+        (void) m_controls.GetScrollbar().SetHover (m_grid.HasVerticalScroll() && m_controls.GetScrollbar().HitTest (at.x, at.y), at);
 
-        SetHover (m_grid.GetPickPlaceAt (at));
+        SetHover (m_picker.GetPickPlaceAt (at));
         return false;
     }
 
@@ -641,7 +641,7 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
 
     //  Over the zoom's button or its panel, the wheel zooms about the map's
     //  middle, as the slider does.
-    if (m_grid.GetZoomWidget().HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None && ev.wheelDelta != 0.0f && !ev.wheelHorizontal)
+    if (m_controls.GetZoomWidget().HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None && ev.wheelDelta != 0.0f && !ev.wheelHorizontal)
     {
         m_grid.ZoomAt ({ (m_grid.GetMapRect().left + m_grid.GetMapRect().right) / 2, (m_grid.GetMapRect().top + m_grid.GetMapRect().bottom) / 2 }, ev.wheelDelta);
         return true;
@@ -665,7 +665,7 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
         m_grid.ScrollBy (-step);
     }
 
-    SetHover (m_grid.GetPickPlaceAt (ev.positionDip));
+    SetHover (m_picker.GetPickPlaceAt (ev.positionDip));
     return true;
 }
 
@@ -694,18 +694,18 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
 
 
 
-    m_grid.PlaceZoomWidget();
-    hit = m_grid.GetZoomWidget().HitTest (ev.positionDip);
+    m_controls.PlaceZoomWidget (m_grid);
+    hit = m_controls.GetZoomWidget().HitTest (ev.positionDip);
 
-    if (m_grid.GetZoomWidget().IsDragging())
+    if (m_controls.GetZoomWidget().IsDragging())
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            m_grid.ApplyCellPx (m_grid.GetZoomWidget().GetCellPxAt (ev.positionDip, kMaxCellPx), center);
+            m_grid.ApplyCellPx (m_controls.GetZoomWidget().GetCellPxAt (ev.positionDip, kMaxCellPx), center);
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
-            m_grid.GetZoomWidget().SetDragging (false);
+            m_controls.GetZoomWidget().SetDragging (false);
         }
 
         return true;
@@ -724,12 +724,12 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
     switch (hit)
     {
     case Hit::Button:
-        m_grid.GetZoomWidget().Toggle();
+        m_controls.GetZoomWidget().Toggle();
         return true;
 
     case Hit::Track:
-        m_grid.GetZoomWidget().SetDragging (true);
-        m_grid.ApplyCellPx (m_grid.GetZoomWidget().GetCellPxAt (ev.positionDip, kMaxCellPx), center);
+        m_controls.GetZoomWidget().SetDragging (true);
+        m_grid.ApplyCellPx (m_controls.GetZoomWidget().GetCellPxAt (ev.positionDip, kMaxCellPx), center);
         return true;
 
     case Hit::Reset:
@@ -740,7 +740,7 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
         return true;
 
     default:
-        m_grid.GetZoomWidget().SetOpen (false);
+        m_controls.GetZoomWidget().SetOpen (false);
         return false;
     }
 }
@@ -762,7 +762,7 @@ void HeatMapView::OnFocusChanged (bool focused)
 {
     if (!focused)
     {
-        m_grid.GetZoomWidget().SetOpen (false);
+        m_controls.GetZoomWidget().SetOpen (false);
     }
 }
 
@@ -781,19 +781,19 @@ bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
     //  The zoom slider opens with the pointer over its button, and closes
     //  once the pointer moves away from it or off the map, except while its
     //  thumb is being dragged.
-    if (ev.kind == DxuiMouseEventKind::Move && !m_grid.GetZoomWidget().IsDragging())
+    if (ev.kind == DxuiMouseEventKind::Move && !m_controls.GetZoomWidget().IsDragging())
     {
-        m_grid.PlaceZoomWidget();
-        m_grid.GetZoomWidget().OnHover (ev.positionDip);
+        m_controls.PlaceZoomWidget (m_grid);
+        m_controls.GetZoomWidget().OnHover (ev.positionDip);
     }
-    else if (ev.kind == DxuiMouseEventKind::Leave && m_grid.GetZoomWidget().IsOpen() && !m_grid.GetZoomWidget().IsDragging())
+    else if (ev.kind == DxuiMouseEventKind::Leave && m_controls.GetZoomWidget().IsOpen() && !m_controls.GetZoomWidget().IsDragging())
     {
-        m_grid.GetZoomWidget().SetOpen (false);
+        m_controls.GetZoomWidget().SetOpen (false);
     }
 
     //  The pointer over the zoom frames no cell, and the move is left for the
     //  window, which shows the zoom's tip.
-    if (ev.kind == DxuiMouseEventKind::Move && !IsPressed() && m_grid.GetZoomWidget().HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None)
+    if (ev.kind == DxuiMouseEventKind::Move && !IsPressed() && m_controls.GetZoomWidget().HitTest (ev.positionDip) != HeatMapZoomWidget::Hit::None)
     {
         SetHover (std::nullopt);
         return false;
@@ -810,7 +810,7 @@ bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
         if (!IsPressed())
         {
             SetHover (std::nullopt);
-            (void) m_grid.GetScrollbar().SetHover (false);
+            (void) m_controls.GetScrollbar().SetHover (false);
         }
 
         return false;
@@ -873,7 +873,7 @@ HeatMapView::PickAction HeatMapView::GetPickAction (bool ctrl, bool shift, bool 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::SetHover (const std::optional<Place> & hover)
+void HeatMapView::SetHover (const std::optional<HeatMapBands::Place> & hover)
 {
     std::optional<Word>  before = m_grid.GetHover();
 

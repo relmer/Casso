@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/HeatMapCellText.h"
 #include "Ui/Debugger/Panes/HeatMapGrid.h"
+#include "Ui/Debugger/Panes/HeatMapPicker.h"
 
 class HeatMapCells;
 
@@ -18,7 +19,7 @@ class HeatMapCells;
 //  cell's value or instruction where the cells are large enough, the
 //  outlines of the marks and the labeled ranges, the sections' boxes, and
 //  the frame around the cell the mouse picks. The cells are read from
-//  HeatMapCells and placed by HeatMapGrid.
+//  HeatMapCells, banded by HeatMapBands and placed by HeatMapGrid.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,13 @@ public:
     //  A section's label's size.
     static constexpr float  kSectionLabelDip = 9.0f;
 
-    HeatMapPainter (const HeatMapGrid & grid, const HeatMapCells & cells) : m_grid (grid), m_cells (cells) {}
+    HeatMapPainter (const HeatMapGrid & grid, const HeatMapBands & bands, const HeatMapPicker & picker, const HeatMapCells & cells) :
+        m_grid   (grid),
+        m_bands  (bands),
+        m_picker (picker),
+        m_cells  (cells)
+    {
+    }
 
     void   SetRebuilding  (bool isRebuilding) { m_isRebuilding = isRebuilding; }
     bool   IsRebuilding   () const            { return m_isRebuilding; }
@@ -53,32 +60,15 @@ public:
     void   PaintHover     (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
 private:
-    using Band             = HeatMapGrid::Band;
-    using Place            = HeatMapGrid::Place;
-    using Placed           = HeatMapGrid::Placed;
-    using Merged           = HeatMapGrid::Merged;
-    using Detail           = HeatMapCellText::Detail;
-    using InstructionLines = HeatMapCellText::InstructionLines;
-
-    static constexpr int    kAddressCount     = HeatMapGrid::kAddressCount;
-    static constexpr int    kStreetPx         = HeatMapGrid::kStreetPx;
-    static constexpr float  kLabelLine        = HeatMapGrid::kLabelLine;
-    static constexpr int    kHeaderDip        = HeatMapGrid::kHeaderDip;
-    static constexpr int    kSectionPadDip    = HeatMapGrid::kSectionPadDip;
-    static constexpr float  kMinDetailFontDip = HeatMapCellText::kMinDetailFontDip;
-    static constexpr int    kDetailPadDip     = HeatMapCellText::kDetailPadDip;
-    static constexpr int    kValueChars       = HeatMapCellText::kValueChars;
-    static constexpr int    kDetailChars      = HeatMapCellText::kDetailChars;
-    static constexpr float  kAdvancePerEm     = HeatMapCellText::kAdvancePerEm;
-    static constexpr float  kLinePerEm        = HeatMapCellText::kLinePerEm;
-
-    void   PaintDetail      (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Place & place, Word address) const;
+    void   PaintDetail      (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeatMapBands::Place & place, Word address) const;
     void   PaintRegions     (IDxuiTextRenderer & text) const;
-    void   PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Merged & merged) const;
+    void   PaintInstruction (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeatMapPicker::Merged & merged) const;
     void   PaintOutlines    (IDxuiTextRenderer & text, const std::vector<RECT> & rects, Word address) const;
 
-    const HeatMapGrid   & m_grid;
-    const HeatMapCells  & m_cells;
-    bool                  m_isRebuilding = false;
-    RECT                  m_noteRect     = {};
+    const HeatMapGrid    & m_grid;
+    const HeatMapBands   & m_bands;
+    const HeatMapPicker  & m_picker;
+    const HeatMapCells   & m_cells;
+    bool                   m_isRebuilding = false;
+    RECT                   m_noteRect     = {};
 };
