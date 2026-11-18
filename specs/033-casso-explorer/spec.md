@@ -660,6 +660,10 @@ hardware.
 
 ### Session 2026-11-17
 
+- Q: Does the link wait on a Laser 128? -> A: No. No emulator found has
+  one and no published source has its ID bytes, so it is dropped from
+  Story 28, and the rest goes ahead without it (owner, 2026-11-18).
+
 - Q: Which audio encoding does Casso's cassette link use? -> A: An encoding designed in Casso, and ADTPro's audio client is served besides by ADTPro's encoding (owner, 2026-11-17: "go with option 2"). ADTPro's protocol document has nothing on its audio encoding, so that encoding comes from recordings of ADTPro 2.1.0's audio client and server, never from ADTPro's source (FR-096). Casso's encoding doesn't wait on that work, and an error in ADTPro's affects ADTPro's client alone.
 - Q: Is a failed track sent again whole, or only its failed sectors? -> A: Only its failed sectors (owner, 2026-11-17: "per-sector retries are fine"). A track is about 15 seconds of audio, so each sector has a CRC in the track's packet, and the reply lists those that failed.
 - Q: What does Casso's audio encoding have to tolerate? -> A: Each bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, as the monitor's tape format has, so an offset comparator, an inverted cable and resampling at 44.1 or 48 kHz don't change a bit; a turn starts with a tone and a mark that data can't contain; and the Apple's side is half duplex, sending what it has put when it next waits for a byte. The scenario tests run each direction through resampling, filtering, noise, inverted polarity, an offset threshold and jitter.
@@ -1699,8 +1703,8 @@ user does.
 
 **Independent Test**: The owner doesn't have any of these, so each is tested in an
 emulator run as the link's target: the IIgs's ports in KEGS, GSplus or MAME,
-whichever connects over TCP; a IIgs with a Super Serial Card and a Laser 128
-in MAME, scripted; Pascal-firmware cards in Casso's Super Serial Card, used through its Pascal entry points; the original Uthernet in AppleWin; and the LANceGS in MAME, scripted.
+whichever connects over TCP; a IIgs with a Super Serial Card in MAME,
+scripted; Pascal-firmware cards in Casso's Super Serial Card, used through its Pascal entry points; the original Uthernet in AppleWin; and the LANceGS in MAME, scripted.
 On each, run Story 14's scenarios.
 
 **Acceptance Scenarios**:
@@ -1714,8 +1718,8 @@ On each, run Story 14's scenarios.
 3. **Given** an original Uthernet, or a LANceGS, **When** the link runs over
    it, **Then** transfers work as over an Uthernet II, and its announcement
    is listed.
-4. **Given** a IIgs with a Super Serial Card, or a compatible such as a
-   Laser 128, **When** the link runs, **Then** Story 14's scenarios work.
+4. **Given** a IIgs with a Super Serial Card, **When** the link runs,
+   **Then** Story 14's scenarios work.
 
 ---
 
@@ -3827,9 +3831,8 @@ as they arrive.
   and status entry points.
 - **FR-210**: The link MUST run over an original Uthernet and a LANceGS as
   over an Uthernet II, with the same announcement.
-- **FR-211**: The link program MUST run on a IIgs with a Super Serial Card
-  and on compatibles whose serial and disk hardware match an Apple's, such
-  as the Laser 128. These and FR-208 to FR-210 MUST be tested in KEGS,
+- **FR-211**: The link program MUST run on a IIgs with a Super Serial Card.
+  This and FR-208 to FR-210 MUST be tested in KEGS,
   GSplus, MAME or AppleWin as Story 28 lists, MAME launched from a script.
 
 **Apple ///**
@@ -4578,7 +4581,7 @@ emulators run as targets of the link, never as sources of code:
 9. LANceGS and the original Uthernet, the Ethernet cards ADTPro supports
    besides the Uthernet II (S to M each).
 10. Tests on machines the link program may already run on: a IIgs with a
-    Super Serial Card, and compatibles such as the Laser 128 (S).
+    Super Serial Card (S).
 
 **4. File systems and layouts**
 
