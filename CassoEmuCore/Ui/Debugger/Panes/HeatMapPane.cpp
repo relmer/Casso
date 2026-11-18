@@ -155,7 +155,7 @@ void HeatMapPane::Configure()
     m_viewBar->SetPopupHost    (m_host.GetPanePopupHost());
     m_viewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_viewBar->SetCompact      (true);
-    m_viewBar->SetBandDp       (HeatMapView::kBarDip);
+    m_viewBar->SetBandDp       (HeatMapGrid::kBarDip);
     m_viewBar->SetBottomEdge   (false);
     m_viewBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_viewBar->SetEntries      (m_commands->BuildViewRowEntries());
@@ -439,7 +439,7 @@ void HeatMapPane::SetBarMenus()
     {
         HeatMapView::Mode  mode = (HeatMapView::Mode) index;
 
-        command = DebuggerMenuCommand::Make (HeatMapView::GetModeLabel (mode), mode == shown.view, [this, mode]
+        command = DebuggerMenuCommand::Make (HeatMapCells::GetModeLabel (mode), mode == shown.view, [this, mode]
         {
             HeatMapOptions  options = m_view->GetOptions();
 
@@ -792,7 +792,7 @@ std::wstring HeatMapPane::GetBarLabel (int id) const
 
     if (id == HeatMapBarCommands::kView)
     {
-        return HeatMapView::GetModeLabel (m_view->GetOptions().view);
+        return HeatMapCells::GetModeLabel (m_view->GetOptions().view);
     }
 
     if (id == HeatMapBarCommands::kIgnoreSet)
@@ -1237,7 +1237,7 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
     for (const DebuggerViewSnapshot::BreakpointLine & line : snapshot.breakpoints)
     {
-        std::optional<HeatMapView::BreakKind>  kind = HeatMapView::GetBreakKind (line.info);
+        std::optional<HeatMapView::BreakKind>  kind = HeatMapCells::GetBreakKind (line.info);
 
 
 

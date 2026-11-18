@@ -183,8 +183,8 @@ void EmulatorShell::OnCpuThreadStart()
     // Reverse execution records from here, on the thread that runs the
     // machine, which is built and power cycled by now. The settings are read
     // once, here, and hold for every machine built after.
-    m_debugger->LoadReverseSettings();
-    m_debugger->StartReverseRecording();
+    m_debugger->GetHistory().LoadSettings();
+    m_debugger->GetHistory().StartRecording();
 
     // On the CPU thread, which is where the debugger lives from here on.
     if (m_openDebuggerAtStart)
@@ -207,7 +207,7 @@ void EmulatorShell::OnCpuThreadStart()
 void EmulatorShell::OnCpuThreadStop()
 {
     // First, so the disks' held writes reach their files at shutdown.
-    m_debugger->StopReverseRecording();
+    m_debugger->GetHistory().StopRecording();
 
     m_debugger->CloseDebugger();
     m_audio->Stop();
@@ -607,7 +607,7 @@ void EmulatorShell::RunCpuThreadFrame()
 {
     // Recording pauses at a Maximum speed the user chose, and running the
     // machine from the past makes it live again.
-    m_debugger->RecordHistoryFrame (m_cpuManager.IsUserMaximumSpeed());
+    m_debugger->GetHistory().RecordFrame (m_cpuManager.IsUserMaximumSpeed());
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
@@ -821,7 +821,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // would change: the machine stops there and the user is asked.
         if (hooks.heldInputWatch->HasHit())
         {
-            m_debugger->StopForHeldInputRead();
+            m_debugger->GetDivergence().StopForHeldInputRead();
             hasRunEnded = true;
             break;
         }

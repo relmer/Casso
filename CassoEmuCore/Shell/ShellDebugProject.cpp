@@ -1,43 +1,18 @@
 #include "Pch.h"
 
-#include "Shell/ShellDebugger.h"
-#include "Ui/Debugger/DebuggerViewCommands.h"
-#include "Ui/Debugger/SessionActions.h"
-
+#include "Shell/ShellDebugProject.h"
 #include "Config/DebuggerSettings.h"
+#include "Config/Win32FileSystem.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
-#include "Debugger/Handlers/BreakpointHandlers.h"
-#include "Debugger/Handlers/WatchHandlers.h"
-#include "Shell/CpuManager.h"
-#include "Shell/EmulatorShellInternal.h"
+#include "Shell/DebugViewModel.h"
 #include "Shell/IDebuggerHost.h"
+#include "Shell/IShellDebugContext.h"
 #include "Shell/MachineHost.h"
 #include "Ui/Debugger/ConsoleLinks.h"
-#include "resource.h"
-
-
-
-
-
-static constexpr const wchar_t  * s_kpszProjectFolder = L"DebugProjects";
-
-//  The debugger window's client id, as ShellDebugger.cpp has it.
-static constexpr uint32_t         s_kWindowClientId   = 0;
-
-//  The Disk II controller's slot, as the machine host has it.
-static constexpr int              s_kDiskSlot         = 6;
-
-//  How often the open project is compared with what the debugger has now,
-//  and written when they differ.
-static constexpr ULONGLONG        s_kProjectCheckMs   = DebugProjectStore::kSaveDelayMs;
-
-//  The lines of a project's script that clear the old state ahead of its own,
-//  left out when its items are added to another project's.
-static constexpr const char     * s_kClearLines[]     = { "BPC *", "WC *", "ZPC *", "BMC *", "SKIP CLEAR" };
 
 
 
@@ -45,7 +20,52 @@ static constexpr const char     * s_kClearLines[]     = { "BPC *", "WC *", "ZPC 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::OpenProjectStore
+//  ShellDebugProject::ShellDebugProject
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShellDebugProject::ShellDebugProject (
+    IDebuggerHost        & host,
+    MachineHost          & machine,
+    DebuggerSettings     & settings,
+    Win32FileSystem      & debugFiles,
+    IShellDebugContext   & context,
+    DebugViewModel       & viewModel) :
+    m_host       (host),
+    m_machine    (machine),
+    m_settings   (settings),
+    m_debugFiles (debugFiles),
+    m_context    (context),
+    m_viewModel  (viewModel),
+    m_merge      (host, context, viewModel)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugProject::Close
+//
+//  The project is saved and closed; the next debugger opens it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugProject::Close()
+{
+    Save();
+    m_hasProject = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugProject::OpenStore
 //
 //  CPU thread, as the debug channel opens. The store's folder is
 //  %LOCALAPPDATA%\Casso\DebugProjects, made if it is not there. A debugger
@@ -54,10 +74,11 @@ static constexpr const char     * s_kClearLines[]     = { "BPC *", "WC *", "ZPC 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::OpenProjectStore()
+void ShellDebugProject::OpenStore()
 {
-    fs::path         folder = PathResolver::GetLocalAppDataDir (L"Casso");
-    std::error_code  error;
+    constexpr const wchar_t  * kpszFolder = L"DebugProjects";
+    fs::path                   folder     = PathResolver::GetLocalAppDataDir (L"Casso");
+    std::error_code            error;
 
 
 
@@ -66,7 +87,7 @@ void ShellDebugger::OpenProjectStore()
         return;
     }
 
-    folder /= s_kpszProjectFolder;
+    folder /= kpszFolder;
     fs::create_directories (folder, error);
 
     m_projectStore = std::make_unique<DebugProjectStore> (m_debugFiles, folder.native());
@@ -78,7 +99,7 @@ void ShellDebugger::OpenProjectStore()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::GetProjectScope
+//  ShellDebugProject::GetScope
 //
 //  The debug file, else the binary BLOAD last loaded, else the machine with
 //  the disk drive 1 had at its last power cycle, else the machine. The
@@ -88,9 +109,9 @@ void ShellDebugger::OpenProjectStore()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProjectScope ShellDebugger::GetProjectScope()
+ProjectScope ShellDebugProject::GetScope()
 {
-    DebugSession  & session   = m_debugController->GetSession();
+    DebugSession  & session   = m_context.GetDebugController()->GetSession();
     std::string     debugName = TextEncoding::WideToNarrow (fs::path (session.GetDebugFilePath()).filename().native());
 
 
@@ -105,16 +126,16 @@ ProjectScope ShellDebugger::GetProjectScope()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::GetBootDisk
+//  ShellDebugProject::GetBootDisk
 //
 //  The disk drive 1 had at the last power cycle, or, before the first one,
 //  the disk in it now.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ShellDebugger::GetBootDisk()
+std::wstring ShellDebugProject::GetBootDisk()
 {
-    return m_isBootDiskNoted ? m_bootDisk : TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (s_kDiskSlot, 0));
+    return m_isBootDiskNoted ? m_bootDisk : TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (kDiskSlot, 0));
 }
 
 
@@ -123,16 +144,16 @@ std::wstring ShellDebugger::GetBootDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::GetScopeFilePath
+//  ShellDebugProject::GetScopeFilePath
 //
 //  The file a scope is for: the debug file, the binary or the boot disk;
 //  empty for the machine alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ShellDebugger::GetScopeFilePath (const ProjectScope & scope)
+std::wstring ShellDebugProject::GetScopeFilePath (const ProjectScope & scope)
 {
-    DebugSession  & session = m_debugController->GetSession();
+    DebugSession  & session = m_context.GetDebugController()->GetSession();
 
 
 
@@ -151,11 +172,11 @@ std::wstring ShellDebugger::GetScopeFilePath (const ProjectScope & scope)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::GetProjectLine
+//  ShellDebugProject::GetProjectLine
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string ShellDebugger::GetProjectLine (const ProjectScope & scope, const std::wstring & projectPath, const std::wstring & targetPath)
+std::string ShellDebugProject::GetProjectLine (const ProjectScope & scope, const std::wstring & projectPath, const std::wstring & targetPath)
 {
     return std::format ("Loaded the debug {} for {}",
                         ConsoleLinks::MakeLink ("project", TextEncoding::WideToNarrow (projectPath)),
@@ -168,7 +189,7 @@ std::string ShellDebugger::GetProjectLine (const ProjectScope & scope, const std
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::NoteBootDisk
+//  ShellDebugProject::NoteBootDisk
 //
 //  CPU thread, at each power cycle: the disk in drive 1 then, the machine's
 //  signal for its project. A debug file or binary outranks the boot disk in
@@ -177,9 +198,9 @@ std::string ShellDebugger::GetProjectLine (const ProjectScope & scope, const std
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::NoteBootDisk()
+void ShellDebugProject::NoteBootDisk()
 {
-    m_bootDisk        = TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (s_kDiskSlot, 0));
+    m_bootDisk        = TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (kDiskSlot, 0));
     m_isBootDiskNoted = true;
 
     if (m_programBootDisk.has_value() && *m_programBootDisk != m_bootDisk)
@@ -194,16 +215,16 @@ void ShellDebugger::NoteBootDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::UnloadProgramFiles
+//  ShellDebugProject::UnloadProgramFiles
 //
 //  The debug file with the symbol table it loaded into, and the binary BLOAD
 //  loaded: the program on the disk booted before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::UnloadProgramFiles()
+void ShellDebugProject::UnloadProgramFiles()
 {
-    DebugSession                 * session = (m_debugController != nullptr) ? &m_debugController->GetSession() : nullptr;
+    DebugSession                 * session = (m_context.GetDebugController() != nullptr) ? &m_context.GetDebugController()->GetSession() : nullptr;
     std::optional<SymbolTableId>   table;
     std::vector<std::string>       lines;
 
@@ -234,7 +255,7 @@ void ShellDebugger::UnloadProgramFiles()
 
     session->ClearDebugFile();
     session->ForgetBinaryLoad();
-    AddConsoleLines (lines);
+    m_context.AddConsoleLines (lines);
 }
 
 
@@ -243,7 +264,7 @@ void ShellDebugger::UnloadProgramFiles()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::ServiceProject
+//  ShellDebugProject::Service
 //
 //  CPU thread, each service tick while the debugger is open, outside any
 //  command: a project switch the signals call for, whichever client's
@@ -252,13 +273,16 @@ void ShellDebugger::UnloadProgramFiles()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::ServiceProject()
+void ShellDebugProject::Service()
 {
-    ULONGLONG  now = GetTickCount64();
+    //  How often the open project is compared with what the debugger has now,
+    //  and written when they differ.
+    constexpr ULONGLONG  kCheckMs = DebugProjectStore::kSaveDelayMs;
+    ULONGLONG            now      = GetTickCount64();
 
 
 
-    SyncProject();
+    Sync();
 
     if (m_projectToOpen.has_value())
     {
@@ -267,19 +291,18 @@ void ShellDebugger::ServiceProject()
 
 
         m_projectToOpen.reset();
-        SaveProject();
+        Save();
         opened.scope = m_project.scope;
-        ApplyProject (opened);
+        Apply (opened);
 
         //  A debug file the project loads changes the scope; as for a
         //  restore, that is no switch the user made, so no merge is offered.
-        m_restoredScope = GetProjectScope();
+        m_restoredScope = GetScope();
     }
 
-    if (m_isMergeOwed)
+    if (m_merge.TakeOwed())
     {
-        m_isMergeOwed = false;
-        RunMergeLines();
+        m_merge.RunLines();
     }
 
     {
@@ -295,10 +318,10 @@ void ShellDebugger::ServiceProject()
         }
     }
 
-    if (m_hasProject && now - m_projectCheckedAt >= s_kProjectCheckMs)
+    if (m_hasProject && now - m_projectCheckedAt >= kCheckMs)
     {
         m_projectCheckedAt = now;
-        SaveProject();
+        Save();
     }
 }
 
@@ -308,7 +331,7 @@ void ShellDebugger::ServiceProject()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::SyncProject
+//  ShellDebugProject::Sync
 //
 //  When the scope the signals choose is not the open project's, the open
 //  one is saved and the scope's opens. The old project is saved with the symbol
@@ -324,7 +347,7 @@ void ShellDebugger::ServiceProject()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SyncProject()
+void ShellDebugProject::Sync()
 {
     ProjectScope              scope;
     DebugProject              old;
@@ -336,28 +359,28 @@ void ShellDebugger::SyncProject()
 
 
 
-    if (m_projectStore == nullptr || m_debugController == nullptr)
+    if (m_projectStore == nullptr || m_context.GetDebugController() == nullptr)
     {
         return;
     }
 
-    scope = GetProjectScope();
+    scope = GetScope();
 
     if (m_hasProject && scope == m_project.scope)
     {
         return;
     }
 
-    if (m_hasProject && !TryAllowProjectSwitch (scope))
+    if (m_hasProject && !TryAllowSwitch (scope))
     {
         return;
     }
 
     if (m_hasProject)
     {
-        SaveProject (true);
+        Save (true);
         old     = m_project;
-        isOffer = scope.IsMoreSpecificThan (old.scope) && scope != m_restoredScope && HasMergeItems (old);
+        isOffer = scope.IsMoreSpecificThan (old.scope) && scope != m_restoredScope && DebugProjectMerge::HasItems (old);
     }
 
     if (scope.kind == ProjectScopeKind::DebugFile || scope.kind == ProjectScopeKind::Binary)
@@ -373,27 +396,27 @@ void ShellDebugger::SyncProject()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     ConsoleLinks::LinkFiles (notices, { TextEncoding::WideToNarrow (opened.filePath) });
-    AddConsoleLines (notices);
+    m_context.AddConsoleLines (notices);
 
     isNew = opened.engineScript.empty() && opened.symbolFiles.empty() && opened.windowStrings.empty() && opened.startupCommands.empty();
 
     if (isNew)
     {
-        CaptureProject (opened);
+        Capture (opened);
 
         m_project    = opened;
         m_hasProject = true;
         m_projectSaved.clear();
-        PublishProject();
+        Publish();
         return;
     }
 
-    ApplyProject (opened);
-    m_restoredScope = GetProjectScope();
+    Apply (opened);
+    m_restoredScope = GetScope();
 
     if (isOffer)
     {
-        OfferProjectMerge (old);
+        m_merge.Offer (old, m_project.scope.label);
     }
 }
 
@@ -403,13 +426,13 @@ void ShellDebugger::SyncProject()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::TryAllowProjectSwitch
+//  ShellDebugProject::TryAllowSwitch
 //
 //  One console line is added when switching is paused.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShellDebugger::TryAllowProjectSwitch (const ProjectScope & scope)
+bool ShellDebugProject::TryAllowSwitch (const ProjectScope & scope)
 {
     bool  wasHeld = m_switchGuard.IsHeld();
 
@@ -422,7 +445,7 @@ bool ShellDebugger::TryAllowProjectSwitch (const ProjectScope & scope)
 
     if (!wasHeld)
     {
-        AddConsoleLines ({ std::format ("The debug project for {} and the one for {} each load a file that opens the other, so switching stops at {} "
+        m_context.AddConsoleLines ({ std::format ("The debug project for {} and the one for {} each load a file that opens the other, so switching stops at {} "
                                         "until the debug file, binary or machine changes.",
                                         m_project.scope.label, scope.label, m_project.scope.label) });
     }
@@ -436,33 +459,14 @@ bool ShellDebugger::TryAllowProjectSwitch (const ProjectScope & scope)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::HasMergeItems
-//
-//  Whether a project has a breakpoint, watch, bookmark or zero-page pointer
-//  to offer; its settings alone are not offered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDebugger::HasMergeItems (const DebugProject & project)
-{
-    return !project.breakpointIds.entries.empty() || !project.watchIds.entries.empty() || !project.bookmarkIds.entries.empty() ||
-           std::ranges::any_of (project.engineScript, [] (const std::string & line) { return line.starts_with ("ZP "); });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::ApplyProject
+//  ShellDebugProject::Apply
 //
 //  The project's items into the session, its window strings passed to the
 //  UI thread, then its startup commands run in order, each in its mode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::ApplyProject (const DebugProject & project)
+void ShellDebugProject::Apply (const DebugProject & project)
 {
     std::vector<std::string>  failures;
     std::vector<std::string>  lines;
@@ -470,12 +474,12 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
 
 
     {
-        std::lock_guard<std::mutex>  viewLock (m_debugViewStateLock);
+        std::lock_guard<std::mutex>  viewLock (m_viewModel.GetLock());
 
 
 
-        project.ApplyEngine (m_debugController->GetSession(), failures);
-        m_debugViewState.GetCommands().SetBreakpointUndoText (m_debugController->GetSession(), project.breakpointUndo);
+        project.ApplyEngine (m_context.GetDebugController()->GetSession(), failures);
+        m_viewModel.GetState().GetCommands().SetBreakpointUndoText (m_context.GetDebugController()->GetSession(), project.breakpointUndo);
     }
 
     {
@@ -489,7 +493,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
     m_project      = project;
     m_hasProject   = true;
     m_projectSaved = project.ToJson (fs::path (project.filePath).parent_path().native());
-    PublishProject();
+    Publish();
 
     lines.push_back (GetProjectLine (project.scope, project.filePath, GetScopeFilePath (project.scope)));
 
@@ -498,7 +502,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
         lines.push_back ("Not restored: " + failure);
     }
 
-    AddConsoleLines (lines);
+    m_context.AddConsoleLines (lines);
     RunStartupCommands();
 }
 
@@ -508,13 +512,13 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::RunStartupCommands
+//  ShellDebugProject::RunStartupCommands
 //
 //  Each through the console, so its lines appear as if typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::RunStartupCommands()
+void ShellDebugProject::RunStartupCommands()
 {
     std::vector<std::string>  lines;
 
@@ -527,18 +531,18 @@ void ShellDebugger::RunStartupCommands()
 
 
         {
-            std::lock_guard<std::mutex>  viewLock (m_debugViewStateLock);
+            std::lock_guard<std::mutex>  viewLock (m_viewModel.GetLock());
 
 
 
-            echoed = m_debugViewState.GetCommands().ExecuteConsoleLine (m_debugController->GetSession(), command.text, command.mode);
+            echoed = m_viewModel.GetState().GetCommands().ExecuteConsoleLine (m_context.GetDebugController()->GetSession(), command.text, command.mode);
         }
 
         DebuggerViewCommands::AddCommandGap (echoed);
         lines.insert (lines.end(), echoed.begin(), echoed.end());
     }
 
-    AddConsoleLines (lines);
+    m_context.AddConsoleLines (lines);
 }
 
 
@@ -547,281 +551,7 @@ void ShellDebugger::RunStartupCommands()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::OfferProjectMerge
-//
-//  The old project's breakpoint, watch, zero-page pointer and bookmark
-//  lines, each section after the line that clears it, saved for PROJECT
-//  MERGE; its settings, after SKIP CLEAR, are not offered. The prompt is
-//  posted to the UI thread.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::OfferProjectMerge (const DebugProject & old)
-{
-    std::vector<std::string>  lines;
-    bool                      hasItem = false;
-
-
-
-    for (const std::string & line : old.engineScript)
-    {
-        if (line == "SKIP CLEAR")
-        {
-            break;
-        }
-
-        lines.push_back (line);
-        hasItem = hasItem || std::ranges::find (s_kClearLines, line) == std::end (s_kClearLines);
-    }
-
-    if (!hasItem)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_mergeLines = std::move (lines);
-        m_mergeFrom  = old.scope.label;
-        m_mergeInto  = m_project.scope.label;
-    }
-
-    if (m_host.GetMainWindow() != nullptr)
-    {
-        PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellConfirmProjectMerge, 0, 0);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::HasMergeOffer
-//
-//  Whether the old project's items are set aside for the user's answer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDebugger::HasMergeOffer()
-{
-    std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-    return !m_mergeLines.empty();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::OnConfirmProjectMerge
-//
-//  UI thread: the prompt, and on Yes, PROJECT MERGE queued for the CPU thread.
-//  The emulator's window is drawn on a timer while the prompt is up, since
-//  the prompt's message loop replaces the window's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::OnConfirmProjectMerge()
-{
-    std::wstring         question;
-    HWND                 owner    = m_host.GetMainWindow();
-    const IDxuiTheme   * theme    = &m_host.GetChromeTheme();
-    int                  choice   = IDNO;
-
-
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        if (m_mergeLines.empty())
-        {
-            return;
-        }
-
-        question = TextEncoding::NarrowToWide (std::format ("The debug project for {} is open. Add the breakpoints, watches "
-                                                            "and bookmarks set for {} to it?", m_mergeInto, m_mergeFrom));
-    }
-
-    //  Over the debugger's window the box is in the debugger's theme.
-    if (m_debuggerWindow != nullptr && m_debuggerWindow->GetHwnd() != nullptr)
-    {
-        owner = m_debuggerWindow->GetHwnd();
-        theme = (m_debuggerWindow->GetThemeInForce() != nullptr) ? m_debuggerWindow->GetThemeInForce() : theme;
-    }
-
-    m_host.BeginModalKeepAlive();
-    choice = DxuiMessageBox (owner, theme, question.c_str(), L"Debug project", MB_YESNO | MB_ICONQUESTION);
-    m_host.EndModalKeepAlive();
-
-    if (choice == IDYES)
-    {
-        RunDebuggerAction (SessionActions::GetProject ("MERGE", std::string(), CommandMode::AppleWin));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::RunMergeLines
-//
-//  CPU thread: the old project's items added to the open one's. An item the
-//  open project has, by the same line, is not added again. A disable or
-//  flag line refers to the item by its place in the old project's list, so it
-//  is run for the id the item was given here, and not at all for an item
-//  that was not added.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::RunMergeLines()
-{
-    static constexpr std::string_view  kFlagVerbs[] = { "BPD ", "BPCHANGE ", "WD ", "ZPD " };
-    std::vector<std::string>           merge;
-    std::vector<std::string>           lines;
-    std::set<std::string>              present;
-    std::map<size_t, int>              mergedIds;
-    std::string                        section;
-    size_t                             place     = 0;
-
-
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        merge.swap (m_mergeLines);
-    }
-
-    {
-        std::lock_guard<std::mutex>  viewLock (m_debugViewStateLock);
-        DebugSession               & session = m_debugController->GetSession();
-        std::string                  script  = BreakpointHandlers::MakeScript (session) +
-                                               WatchHandlers::MakeScript (session, WatchListKind::Watch) +
-                                               WatchHandlers::MakeScript (session, WatchListKind::ZeroPage) +
-                                               WatchHandlers::MakeScript (session, WatchListKind::Bookmark);
-        std::istringstream           in (script);
-        std::string                  each;
-
-
-
-        while (std::getline (in, each))
-        {
-            present.insert (each);
-        }
-
-        for (const std::string & line : merge)
-        {
-            auto         verb = std::ranges::find_if (kFlagVerbs, [&line] (std::string_view v) { return line.starts_with (v); });
-            std::string  run  = line;
-            Reply        reply;
-
-
-
-            if (std::ranges::find (s_kClearLines, line) != std::end (s_kClearLines))
-            {
-                section = line;
-                place   = 0;
-                mergedIds.clear();
-                continue;
-            }
-
-            //  A zero-page pointer's slot is its id in both projects.
-            if (verb != std::end (kFlagVerbs) && section != "ZPC *")
-            {
-                size_t  numberAt = verb->size();
-                size_t  numberTo = line.find (' ', numberAt);
-                size_t  index    = (size_t) std::strtoul (line.c_str() + numberAt, nullptr, 10);
-
-
-
-                if (!mergedIds.contains (index))
-                {
-                    continue;
-                }
-
-                run = std::format ("{}{}{}", *verb, mergedIds[index], numberTo == std::string::npos ? std::string() : line.substr (numberTo));
-            }
-            else if (verb == std::end (kFlagVerbs) && line != "BRKUNINIT ON" && present.contains (line))
-            {
-                place++;
-                continue;
-            }
-
-            reply = session.ExecuteLine (run, CommandMode::AppleWin);
-
-            if (reply.status != CommandStatus::Ok)
-            {
-                lines.push_back ("Not added: " + line);
-            }
-
-            if (verb == std::end (kFlagVerbs) && line != "BRKUNINIT ON")
-            {
-                std::optional<int>  id = (reply.status == CommandStatus::Ok) ? GetMergedId (reply) : std::nullopt;
-
-
-
-                if (id.has_value())
-                {
-                    mergedIds[place] = *id;
-                }
-
-                place++;
-            }
-        }
-    }
-
-    AddConsoleLines (lines);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::GetMergedId
-//
-//  The id a breakpoint, watch or bookmark line was given.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<int> ShellDebugger::GetMergedId (const Reply & reply)
-{
-    if (const BreakpointSetData * set = std::get_if<BreakpointSetData> (&reply.data))
-    {
-        return set->breakpoint.id;
-    }
-
-    if (const WatchListData * list = std::get_if<WatchListData> (&reply.data); list != nullptr && list->entries.size() == 1)
-    {
-        return list->entries.front().id;
-    }
-
-    return std::nullopt;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::RunProjectRequest
+//  ShellDebugProject::RunRequest
 //
 //  PROJECT, PROJECT SAVEAS file, PROJECT OPEN file and PROJECT MERGE, run
 //  inside the command. An OPEN or a MERGE changes the session, so it is
@@ -829,7 +559,7 @@ std::optional<int> ShellDebugger::GetMergedId (const Reply & reply)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
+void ShellDebugProject::RunRequest (const std::string & text, Reply & reply)
 {
     std::string                 verb;
     std::string                 path;
@@ -837,7 +567,7 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
     std::vector<std::string>    notices;
     DebugProject                opened;
     const DebugProject        * reported = &m_project;
-    DebugSession              & session  = m_debugController->GetSession();
+    DebugSession              & session  = m_context.GetDebugController()->GetSession();
     HRESULT                     hr       = S_OK;
 
 
@@ -867,8 +597,8 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
 
     if (verb == "SAVEAS" && !path.empty())
     {
-        CaptureProject (m_project);
-        hr = m_projectStore->SaveAs (m_project, m_debugController->GetSession().ResolvePath (path));
+        Capture (m_project);
+        hr = m_projectStore->SaveAs (m_project, m_context.GetDebugController()->GetSession().ResolvePath (path));
 
         if (FAILED (hr))
         {
@@ -877,11 +607,11 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
         }
 
         m_projectSaved = m_project.ToJson (fs::path (m_project.filePath).parent_path().native());
-        PublishProject();
+        Publish();
     }
     else if (verb == "OPEN" && !path.empty())
     {
-        hr = m_projectStore->OpenFile (m_debugController->GetSession().ResolvePath (path), opened, notices);
+        hr = m_projectStore->OpenFile (m_context.GetDebugController()->GetSession().ResolvePath (path), opened, notices);
 
         if (FAILED (hr) || !notices.empty())
         {
@@ -895,7 +625,7 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
     }
     else if (verb == "MERGE" && path.empty())
     {
-        m_isMergeOwed = true;
+        m_merge.MarkOwed();
     }
     else if (!verb.empty())
     {
@@ -914,7 +644,7 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::CaptureProject
+//  ShellDebugProject::Capture
 //
 //  The session's items and the window's strings, as they are now, apart from
 //  the layout, which is the window's. Strings a switch passed to the UI
@@ -922,7 +652,7 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::CaptureProject (DebugProject & project)
+void ShellDebugProject::Capture (DebugProject & project)
 {
     std::lock_guard<std::mutex>  lock (m_projectMutex);
 
@@ -931,8 +661,8 @@ void ShellDebugger::CaptureProject (DebugProject & project)
     //  The breakpoint undo history changes only on the CPU thread, which this
     //  runs on, so reading it takes no view lock; a PROJECT command arrives
     //  here with that lock already taken.
-    project.breakpointUndo = m_debugViewState.GetCommands().GetBreakpointUndoText();
-    project.CaptureEngine (m_debugController->GetSession(), &m_debugController->GetHandlers().GetExecution());
+    project.breakpointUndo = m_viewModel.GetState().GetCommands().GetBreakpointUndoText();
+    project.CaptureEngine (m_context.GetDebugController()->GetSession(), &m_context.GetDebugController()->GetHandlers().GetExecution());
 
     if (m_projectWindowPending.has_value())
     {
@@ -944,7 +674,7 @@ void ShellDebugger::CaptureProject (DebugProject & project)
 
     project.rangeSets          = m_settings.heatMapRanges;
     project.disassemblyOptions = m_settings.disassemblyOptions;
-    project.windowStrings      = GetProjectWindowStrings();
+    project.windowStrings      = GetWindowStrings();
 }
 
 
@@ -953,14 +683,14 @@ void ShellDebugger::CaptureProject (DebugProject & project)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::GetProjectWindowStrings
+//  ShellDebugProject::GetWindowStrings
 //
 //  The window's settings a project saves beyond its two, by name, without
 //  the layout's; the caller has the project lock.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() const
+std::map<std::string, std::string> ShellDebugProject::GetWindowStrings() const
 {
     std::map<std::string, std::string>  strings;
 
@@ -990,7 +720,7 @@ std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::SetProjectWindowStrings
+//  ShellDebugProject::SetWindowStrings
 //
 //  As the two, a setting is replaced only by a string the project has; the
 //  caller has the project lock. The layout's strings are the window's, so an
@@ -998,7 +728,7 @@ std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::string> & strings)
+void ShellDebugProject::SetWindowStrings (const std::map<std::string, std::string> & strings)
 {
     std::pair<const char *, std::string *>  settings[] =
     {
@@ -1039,14 +769,14 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::SaveProject
+//  ShellDebugProject::Save
 //
 //  CPU thread. Written only when the file's text would change; with
 //  `isKeepingSymbolFiles`, its symbol files are the ones last captured.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SaveProject (bool isKeepingSymbolFiles)
+void ShellDebugProject::Save (bool isKeepingSymbolFiles)
 {
     std::vector<DebugProject::SymbolFile>  symbolFiles = m_project.symbolFiles;
     std::string                            text;
@@ -1054,12 +784,12 @@ void ShellDebugger::SaveProject (bool isKeepingSymbolFiles)
 
 
 
-    if (!m_hasProject || m_debugController == nullptr || m_projectStore == nullptr)
+    if (!m_hasProject || m_context.GetDebugController() == nullptr || m_projectStore == nullptr)
     {
         return;
     }
 
-    CaptureProject (m_project);
+    Capture (m_project);
 
     if (isKeepingSymbolFiles)
     {
@@ -1087,14 +817,14 @@ void ShellDebugger::SaveProject (bool isKeepingSymbolFiles)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::TakeDebuggerProjectState
+//  ShellDebugProject::TakeWindowState
 //
 //  UI thread: the window strings of a project just opened, made the
 //  window's settings; false when no project opened since the last call.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShellDebugger::TakeDebuggerProjectState()
+bool ShellDebugProject::TakeWindowState()
 {
     std::optional<DebugProject>  pending;
 
@@ -1116,7 +846,7 @@ bool ShellDebugger::TakeDebuggerProjectState()
         m_settings.heatMapRanges      = pending->rangeSets.empty()          ? m_settings.heatMapRanges      : pending->rangeSets;
         m_settings.disassemblyOptions = pending->disassemblyOptions.empty() ? m_settings.disassemblyOptions : pending->disassemblyOptions;
 
-        SetProjectWindowStrings (pending->windowStrings);
+        SetWindowStrings (pending->windowStrings);
     }
 
     m_host.SaveSettings();
@@ -1130,13 +860,13 @@ bool ShellDebugger::TakeDebuggerProjectState()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::PublishProject
+//  ShellDebugProject::Publish
 //
 //  CPU thread: a copy of the open project for the window's dialogs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::PublishProject()
+void ShellDebugProject::Publish()
 {
     std::lock_guard<std::mutex>  lock (m_projectMutex);
 
@@ -1151,13 +881,13 @@ void ShellDebugger::PublishProject()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::TryGetDebuggerProject
+//  ShellDebugProject::TryGetCopy
 //
 //  UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShellDebugger::TryGetDebuggerProject (DebugProject & project)
+bool ShellDebugProject::TryGetCopy (DebugProject & project)
 {
     std::lock_guard<std::mutex>  lock (m_projectMutex);
 
@@ -1178,14 +908,14 @@ bool ShellDebugger::TryGetDebuggerProject (DebugProject & project)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDebugger::SetDebuggerStartupCommands
+//  ShellDebugProject::SetStartupCommands
 //
 //  UI thread: the CPU thread takes them on its next service tick, and the
 //  project is saved with them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SetDebuggerStartupCommands (const std::vector<DebugProject::StartupCommand> & commands)
+void ShellDebugProject::SetStartupCommands (const std::vector<DebugProject::StartupCommand> & commands)
 {
     std::lock_guard<std::mutex>  lock (m_projectMutex);
 
@@ -1198,26 +928,3 @@ void ShellDebugger::SetDebuggerStartupCommands (const std::vector<DebugProject::
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::AddConsoleLines
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::AddConsoleLines (const std::vector<std::string> & lines)
-{
-    if (lines.empty())
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_debugViewMutex);
-
-
-
-        m_debugConsolePending.insert (m_debugConsolePending.end(), lines.begin(), lines.end());
-    }
-
-    m_isDebugViewDirty = true;
-}

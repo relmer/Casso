@@ -955,8 +955,8 @@ int EmulatorShell::RunMessageLoop()
 
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
-    m_cpuManager.SetServiceFunction ([this] { m_debugger->ServiceDebugger(); m_debugger->ServiceHistoryThumbnails(); });
-    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->AllowCommand (id, payload); });
+    m_cpuManager.SetServiceFunction ([this] { m_debugger->ServiceDebugger(); m_debugger->GetHistory().ServiceThumbnails(); });
+    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->GetDivergence().AllowCommand (id, payload); });
 
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
@@ -1477,7 +1477,7 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
     if (timerId == (UINT_PTR) AppTimerId::ShellClickRelease)
     {
-        m_debugger->ReleaseGuestMouseAfterClick();
+        m_debugger->GetDivergence().ReleaseMouseAfterClick();
         return DxuiMessageResult::Handled;
     }
 
@@ -1789,37 +1789,37 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         // A controller's flush can arrive behind live, before the cut a yes
         // queued; what is held waits for the one going live posts.
-        if (m_debugger->IsBehindLiveForUi())
+        if (m_debugger->GetDivergence().IsBehindLiveForUi())
         {
             return DxuiMessageResult::Handled;
         }
 
-        m_debugger->GetDivergenceGate().OnLive();
+        m_debugger->GetDivergence().GetGate().OnLive();
 
-        if (m_debugger->TakeJoyportSyncOwed())
+        if (m_debugger->GetDivergence().TakeJoyportSyncOwed())
         {
             m_input->GetControllers().SyncJoyport();
         }
 
         // Input held behind live lands now: told yes at a read, or never
         // read before the replay reached live.
-        mouseTarget = m_debugger->GetDivergenceGate().GetMouseTarget();
-        m_debugger->GetDivergenceGate().TakeHeld (held, heldInputs);
-        m_debugger->PublishHeldInput();
+        mouseTarget = m_debugger->GetDivergence().GetGate().GetMouseTarget();
+        m_debugger->GetDivergence().GetGate().TakeHeld (held, heldInputs);
+        m_debugger->GetDivergence().PublishHeldInput();
 
         for (const DxuiKeyEvent & ev : held)
         {
             (void) OnViewportKey (ev);
         }
 
-        m_debugger->ApplyHeldInputs (heldInputs);
+        m_debugger->GetDivergence().ApplyHeldInputs (heldInputs);
 
         if (mouseTarget.has_value())
         {
-            m_debugger->ApplyHeldMouseTarget (*mouseTarget);
+            m_debugger->GetDivergence().ApplyHeldMouseTarget (*mouseTarget);
         }
 
-        m_debugger->ResumeAfterHeldInput();
+        m_debugger->GetDivergence().ResumeAfterHeldInput();
 
         return DxuiMessageResult::Handled;
     }
@@ -1827,7 +1827,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // The //c's 80/40 switch behind live waits on this question.
     if (msg == (UINT) AppMessage::ShellConfirmInput)
     {
-        m_debugger->OnConfirmInputDiverge();
+        m_debugger->GetDivergence().OnConfirmInputDiverge();
 
         return DxuiMessageResult::Handled;
     }
@@ -1835,7 +1835,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // The replay stopped where the guest reads input held behind live.
     if (msg == (UINT) AppMessage::ShellHeldInputRead)
     {
-        m_debugger->OnHeldInputRead();
+        m_debugger->GetDivergence().OnHeldInputRead();
 
         return DxuiMessageResult::Handled;
     }
@@ -1843,7 +1843,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // A debugger edit behind live waits on this question.
     if (msg == (UINT) AppMessage::ShellConfirmDiverge)
     {
-        m_debugger->OnConfirmDiverge();
+        m_debugger->GetDivergence().OnConfirmDiverge();
 
         return DxuiMessageResult::Handled;
     }
@@ -1859,7 +1859,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // A more specific debug project opened, with the last one's items on offer.
     if (msg == (UINT) AppMessage::ShellConfirmProjectMerge)
     {
-        m_debugger->OnConfirmProjectMerge();
+        m_debugger->GetProject().GetMerge().OnConfirm();
 
         return DxuiMessageResult::Handled;
     }

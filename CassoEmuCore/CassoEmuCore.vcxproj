@@ -339,6 +339,16 @@
     <ClCompile Include="Ui\Debugger\Panes\BasicPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapView.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapCells.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapCellText.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapBands.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapControls.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapFrame.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapPicker.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapGrid.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapTips.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapPainter.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapSections.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapZoomWidget.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DebuggerPaneFrame.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FindWidgetPlate.cpp" />
@@ -349,6 +359,8 @@
     <ClCompile Include="Ui\Debugger\Panes\SoundBoardLayout.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SoundBoardTips.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SoundBoardView.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\SoundBoardInk.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\SoundVoiceCard.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerLayout.cpp" /><ClCompile Include="Ui\Debugger\DebuggerCommands.cpp" /><ClCompile Include="Ui\Debugger\MemoryBarCommands.cpp" /><ClCompile Include="Ui\Debugger\HeatMapBarCommands.cpp" /><ClCompile Include="Ui\Debugger\MemoryAddressEntry.cpp" /><ClCompile Include="Ui\Debugger\FlagsDialog.cpp" /><ClCompile Include="Ui\Debugger\BreakpointDialog.cpp" />
     <ClCompile Include="Ui\Debugger\DisassemblyOptions.cpp" /><ClCompile Include="Ui\Debugger\ToolbarCheckEntry.cpp" /><ClCompile Include="Ui\Debugger\ToolbarLabelEntry.cpp" /><ClCompile Include="Ui\Debugger\KeyHintLine.cpp" /><ClCompile Include="Ui\Debugger\HistoryBand.cpp" /><ClCompile Include="Ui\Debugger\DebuggerStatusText.cpp" /><ClCompile Include="Ui\Debugger\ColorLegend.cpp" /><ClCompile Include="Ui\Debugger\ColorKeyButton.cpp" /><ClCompile Include="Ui\Debugger\GutterGlyph.cpp" /><ClCompile Include="Ui\Debugger\ColorKeyPopup.cpp" /><ClCompile Include="Ui\Debugger\PaneColorKeys.cpp" /><ClCompile Include="Ui\Debugger\DebuggerWindowStatusBar.cpp" /><ClCompile Include="Ui\Debugger\ReverseBudget.cpp" /><ClCompile Include="Ui\Debugger\HistoryOptionsPage.cpp" /><ClCompile Include="Ui\Debugger\DisassemblyOptionsPage.cpp" /><ClCompile Include="Ui\Debugger\DebuggerOptionsSheet.cpp" /><ClCompile Include="Ui\Debugger\WholeWordButton.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindow.cpp" />
@@ -366,6 +378,12 @@
     <ClCompile Include="Debugger\WatchTable.cpp" />
     <ClCompile Include="Debugger\WinDbgFormatter.cpp" />
     <ClCompile Include="Debugger\DebugSession.cpp" />
+    <ClCompile Include="Debugger\BeamBreakMonitor.cpp" />
+    <ClCompile Include="Debugger\CallRecordKeeper.cpp" />
+    <ClCompile Include="Debugger\DebugHostFiles.cpp" />
+    <ClCompile Include="Debugger\DebugLineInterpreter.cpp" />
+    <ClCompile Include="Debugger\DebugProgramFiles.cpp" />
+    <ClCompile Include="Debugger\DebugStopMonitor.cpp" />
     <ClCompile Include="Debugger\DiskBreakpointMonitor.cpp" />
     <ClCompile Include="Debugger\DiskFieldTracker.cpp" />
     <ClCompile Include="Debugger\DiskLogicalMap.cpp" />
@@ -433,8 +451,6 @@
     <ClCompile Include="Debugger\Reverse\HeldInputWatch.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryStatus.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
-    <ClCompile Include="Shell\ShellDebuggerReverse.cpp" />
-    <ClCompile Include="Shell\ShellDebuggerProject.cpp" />
     <ClCompile Include="Shell\ShellDebuggerPrefs.cpp" />
     <ClCompile Include="Shell\TraceHistory.cpp" />
     <ClCompile Include="Shell\ProfileHistory.cpp" />
@@ -1610,6 +1626,13 @@
     <ClCompile Include="Shell\Components\ShellDeskScene.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
     <ClCompile Include="Shell\ShellDebugger.cpp" />
+    <ClCompile Include="Shell\DebugProjectMerge.cpp" />
+    <ClCompile Include="Shell\HistoryDivergence.cpp" />
+    <ClCompile Include="Shell\ShellDebugProject.cpp" />
+    <ClCompile Include="Shell\ShellDebugView.cpp" />
+    <ClCompile Include="Shell\ShellHistory.cpp" />
+    <ClCompile Include="Shell\DebugViewModel.cpp" />
+    <ClCompile Include="Shell\DebugWindowMailbox.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
     <ClCompile Include="Shell\Components\ShellInput.cpp" />
     <ClCompile Include="Shell\Components\ShellControllers.cpp" />
@@ -1899,6 +1922,16 @@
     <ClInclude Include="Ui\Debugger\Panes\BasicPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapCells.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapCellText.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapBands.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapControls.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapFrame.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapPicker.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapGrid.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapTips.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapPainter.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapSections.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapZoomWidget.h" />
     <ClInclude Include="Ui\Debugger\HeatMapRangeBarCommands.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
@@ -1945,6 +1978,8 @@
     <ClInclude Include="Ui\Debugger\Panes\SoundBoardLayout.h" />
     <ClInclude Include="Ui\Debugger\Panes\SoundBoardTips.h" />
     <ClInclude Include="Ui\Debugger\Panes\SoundBoardView.h" />
+    <ClInclude Include="Ui\Debugger\Panes\SoundBoardInk.h" />
+    <ClInclude Include="Ui\Debugger\Panes\SoundVoiceCard.h" />
     <ClInclude Include="Ui\Debugger\DebuggerLayout.h" /><ClInclude Include="Ui\Debugger\DebuggerCommands.h" /><ClInclude Include="Ui\Debugger\MemoryBarCommands.h" /><ClInclude Include="Ui\Debugger\HeatMapBarCommands.h" /><ClInclude Include="Ui\Debugger\MemoryAddressEntry.h" /><ClInclude Include="Ui\Debugger\FlagsDialog.h" /><ClInclude Include="Ui\Debugger\BreakpointDialog.h" /><ClInclude Include="Ui\Debugger\ProjectSettingsDialog.h" /><ClInclude Include="Ui\Debugger\StepFiltersDialog.h" /><ClInclude Include="Ui\Debugger\Panes\ToolPanes.h" /><ClInclude Include="Ui\Debugger\Panes\ProfilerPane.h" /><ClInclude Include="Ui\Debugger\Panes\AddSymbolDialog.h" /><ClInclude Include="Ui\Debugger\Panes\ProfileZoom.h" /><ClInclude Include="Shell\TraceHistory.h" /><ClInclude Include="Shell\ProfileHistory.h" /><ClInclude Include="Ui\Debugger\Panes\ProfileProgress.h" /><ClInclude Include="Debugger\Events\ProfileEventProbe.h" /><ClInclude Include="Debugger\Events\TraceEventProbe.h" /><ClInclude Include="Debugger\ITraceHistory.h" />
     <ClInclude Include="Ui\Debugger\DisassemblyOptions.h" /><ClInclude Include="Ui\Debugger\ToolbarCheckEntry.h" /><ClInclude Include="Ui\Debugger\ToolbarLabelEntry.h" /><ClInclude Include="Ui\Debugger\KeyHintLine.h" /><ClInclude Include="Ui\Debugger\HistoryBand.h" /><ClInclude Include="Ui\Debugger\DebuggerStatusText.h" /><ClInclude Include="Ui\Debugger\ColorLegend.h" /><ClInclude Include="Ui\Debugger\ColorKeyButton.h" /><ClInclude Include="Ui\Debugger\GutterGlyph.h" /><ClInclude Include="Ui\Debugger\ColorKeyPopup.h" /><ClInclude Include="Ui\Debugger\ReverseBudget.h" /><ClInclude Include="Ui\Debugger\HistoryOptionsPage.h" /><ClInclude Include="Ui\Debugger\DisassemblyOptionsPage.h" /><ClInclude Include="Ui\Debugger\DebuggerOptionsSheet.h" /><ClInclude Include="Ui\Debugger\WholeWordButton.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindow.h" />
@@ -1962,6 +1997,12 @@
     <ClInclude Include="Debugger\WatchTable.h" />
     <ClInclude Include="Debugger\WinDbgFormatter.h" />
     <ClInclude Include="Debugger\DebugSession.h" />
+    <ClInclude Include="Debugger\BeamBreakMonitor.h" />
+    <ClInclude Include="Debugger\CallRecordKeeper.h" />
+    <ClInclude Include="Debugger\DebugHostFiles.h" />
+    <ClInclude Include="Debugger\DebugLineInterpreter.h" />
+    <ClInclude Include="Debugger\DebugProgramFiles.h" />
+    <ClInclude Include="Debugger\DebugStopMonitor.h" />
     <ClInclude Include="Debugger\DiskBreakpointMonitor.h" />
     <ClInclude Include="Debugger\DiskFieldTracker.h" />
     <ClInclude Include="Debugger\DiskLogicalMap.h" />
@@ -2995,6 +3036,14 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
+    <ClInclude Include="Shell\DebugProjectMerge.h" />
+    <ClInclude Include="Shell\HistoryDivergence.h" />
+    <ClInclude Include="Shell\ShellDebugProject.h" />
+    <ClInclude Include="Shell\ShellDebugView.h" />
+    <ClInclude Include="Shell\ShellHistory.h" />
+    <ClInclude Include="Shell\IShellDebugContext.h" />
+    <ClInclude Include="Shell\DebugViewModel.h" />
+    <ClInclude Include="Shell\DebugWindowMailbox.h" />
     <ClInclude Include="Shell\ShellDebuggerPrefs.h" />
     <ClInclude Include="Shell\IDebuggerHost.h" />
     <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />

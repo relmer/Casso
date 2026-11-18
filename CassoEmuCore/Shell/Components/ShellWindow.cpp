@@ -603,7 +603,7 @@ void ShellWindow::UpdateWindowTitle()
     }
 
     // Behind live, where the replay stands.
-    title += m_shell.m_debugger->GetReplayCaption();
+    title += m_shell.m_debugger->GetHistory().GetCaption();
 
 #if defined (_DEBUG)
     // Dev builds stamp the exact binary identity (version, arch, compile

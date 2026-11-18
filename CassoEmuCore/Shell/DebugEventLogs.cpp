@@ -374,6 +374,108 @@ bool DebugEventLogs::TakeDelta (DebugLogKind kind, IoLogDelta & outDelta)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TakeDeltas
+//
+//  Each open pane's delta that has anything in it, added to outDeltas;
+//  true when any was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugEventLogs::TakeDeltas (DebugLogDeltas & outDeltas)
+{
+    static constexpr DebugLogKind  kIoKinds[] = { DebugLogKind::Video, DebugLogKind::Sound, DebugLogKind::Serial, DebugLogKind::Network };
+    DiskLogDelta                   disk;
+    InputLogDelta                  input;
+    bool                           isAny      = false;
+
+
+
+    if (TakeDelta (disk))
+    {
+        outDeltas.disk.push_back (std::move (disk));
+        isAny = true;
+    }
+
+    if (TakeDelta (input))
+    {
+        outDeltas.input.push_back (std::move (input));
+        isAny = true;
+    }
+
+    for (DebugLogKind kind : kIoKinds)
+    {
+        IoLogDelta  delta;
+
+
+
+        if (TakeDelta (kind, delta))
+        {
+            outDeltas.GetIo (kind).push_back (std::move (delta));
+            isAny = true;
+        }
+    }
+
+    return isAny;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyRequest
+//
+//  An event log pane opened or closed, or sent a request for the rows
+//  before its oldest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::ApplyRequest (DebugLogKind kind, const DebugLogRequest & request)
+{
+    switch (request.kind)
+    {
+    case DebugLogRequest::Kind::Open:
+    case DebugLogRequest::Kind::Close:
+        SetOpen (kind, request.kind == DebugLogRequest::Kind::Open);
+        break;
+
+    case DebugLogRequest::Kind::Earlier:
+        RequestEarlier (kind);
+        break;
+
+    case DebugLogRequest::Kind::DropBefore:
+        DropBefore (kind, request.from);
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloseAll
+//
+//  Every pane closed; the logs record on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::CloseAll()
+{
+    for (const auto & [kind, name] : s_kDebugLogNames)
+    {
+        SetOpen (kind, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetWorkQueue
 //
 ////////////////////////////////////////////////////////////////////////////////
