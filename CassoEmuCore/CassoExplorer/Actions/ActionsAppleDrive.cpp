@@ -9,6 +9,7 @@
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "Devices/Tape/WavCodec.h"
 #include "CassoLink/CassoLinkProDosDisk.h"
+#include "CassoLink/CassoLinkSosDisk.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
@@ -1712,6 +1713,63 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveLinkProDosDisk (const std::wstring 
     else if (FAILED (hr))
     {
         ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be saved.");
+    }
+    else
+    {
+        outcome.written++;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::SaveLinkSosDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkSosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io      = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string            source  = TextEncoding::WideToNarrow (usersDisk);
+    std::vector<Byte>      users;
+    std::vector<Byte>      disk;
+    std::string            reason;
+    HRESULT                hr      = io.ReadAllBytes (source, users);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = CassoLinkSosDisk::Make (users, source, settings.baud, disk, reason);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink SOS disk could not be made. The Apple ///'s serial port runs at 19,200 baud or slower; choose a slower speed for this connection.");
+    }
+    else if (FAILED (hr) && !reason.empty())
+    {
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"The CassoLink SOS disk could not be made: {}. Apple's System Demo disk has SOS.KERNEL, and a SOS.DRIVER with .RS232.",
+                                                              TextEncoding::NarrowToWide (reason)));
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink SOS disk could not be made. The disk chosen must be a 140K SOS disk with SOS.KERNEL and SOS.DRIVER.");
+    }
+    else if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink SOS disk could not be saved.");
     }
     else
     {

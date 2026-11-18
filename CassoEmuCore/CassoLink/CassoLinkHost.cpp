@@ -1298,6 +1298,16 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
     CBREx (intact || m_programChip != LinkChip::Cassette, HRESULT_FROM_WIN32 (ERROR_CRC));
 
+    //  The SOS build is SOS.INTERP on the CassoLink SOS disk, with no shim
+    //  to load another, so a disk from another version of Casso is made
+    //  again.
+    if (!intact && m_programChip == LinkChip::Sos && m_adtProServer.m_activity)
+    {
+        m_adtProServer.m_activity ("The CassoLink SOS disk doesn't match this version of Casso. Make the disk again from the connection's menu.");
+    }
+
+    CBREx (intact || m_programChip != LinkChip::Sos, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
+
     if (intact)
     {
         hr = SendPacket (CassoLinkCodec::kIdle, {});
@@ -1365,9 +1375,10 @@ Error:
 
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
-    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag);
+    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag | LinkProgram::kSosReadyFlag);
     LinkChip  chip  = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
                     : (packet.payload[2] & LinkProgram::kCassetteReadyFlag) != 0 ? LinkChip::Cassette
+                    : (packet.payload[2] & LinkProgram::kSosReadyFlag) != 0      ? LinkChip::Sos
                                                                                  : LinkChip::Acia;
 
 
@@ -1383,6 +1394,7 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     m_client.hasRomId       = packet.payload.size() >= 9;
     m_client.hasProgramCrc  = packet.payload.size() == 11;
     m_client.programCrc     = m_client.hasProgramCrc ? (Word) (packet.payload[9] | (packet.payload[10] << 8)) : (Word) 0;
+    m_client.isSos          = chip == LinkChip::Sos;
     m_hasClient             = true;
 
     if (m_client.hasRomId)

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "../TestHelpers.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkAnnouncement.h"
 #include "CassoLink/LinkProgram.h"
@@ -333,5 +334,133 @@ public:
                                std::format (L"A new version has new hashes: set the version, then the hashes to 0x{:016X} and 0x{:016X}.", aciaHash, w5100Hash).c_str());
         Assert::IsTrue (aciaHash == s_kAciaHash && w5100Hash == s_kW5100Hash,
                         std::format (L"The program changed with no new version. Raise LinkProgram::kProgramVersion, then set these to 0x{:016X} and 0x{:016X}.", aciaHash, w5100Hash).c_str());
+    }
+
+
+
+
+    //  The SOS build ends below its buffers, with room for its speed's byte,
+    //  and its Ready has the SOS flag and no Disk II drives.
+    TEST_METHOD (TheSosProgram_AssemblesBelowItsBuffers_WithTheSosFlagInReady)
+    {
+        std::vector<Byte>  bytes;
+        std::string        errors;
+        HRESULT            hr = LinkProgram::AssembleProgram (bytes, errors, LinkChip::Sos);
+        size_t             at = 0;
+
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::IsTrue (LinkProgram::kSosAddress + bytes.size() < LinkProgram::kSosBufferBase);
+
+        at = FindReady (bytes, 0x0B);
+        Assert::IsTrue (at + 16 <= bytes.size());
+        Assert::AreEqual<int> (LinkProgram::kProgramVersion & 0xFF, bytes[at + 5]);
+        Assert::AreEqual<int> (LinkProgram::kProgramVersion >> 8,   bytes[at + 6]);
+        Assert::AreEqual<int> (LinkProgram::kSosReadyFlag,          bytes[at + 7]);
+        Assert::AreEqual<int> (0,                                   bytes[at + 8], L"no Disk II drives");
+    }
+
+
+    //  The SOS program computes a CRC of itself at startup, and the host
+    //  compares it with the CRC of the image it assembles, so the two must be
+    //  equal. The
+    //  program runs here up to its first SOS call, the BRK that opens the
+    //  console, after its CRC is in Ready.
+    TEST_METHOD (TheSosProgram_ComputesTheCrcTheHostDoes)
+    {
+        static constexpr int  kStepLimit = 2000000;
+        std::vector<Byte>     bytes;
+        std::string           errors;
+        TestCpu               cpu;
+        size_t                at         = 0;
+        int                   steps      = 0;
+        Word                  crc        = 0;
+        Word                  reported   = 0;
+
+        AssertSucceeded (LinkProgram::AssembleProgram (bytes, errors, LinkChip::Sos));
+
+        cpu.InitForTest (LinkProgram::kSosAddress);
+
+        for (size_t i = 0; i < bytes.size(); i++)
+        {
+            cpu.Poke ((Word) (LinkProgram::kSosAddress + i), bytes[i]);
+        }
+
+        while (cpu.Peek (cpu.RegPC()) != 0x00 && steps < kStepLimit)
+        {
+            cpu.Step();
+            steps++;
+        }
+
+        Assert::IsTrue (steps < kStepLimit, L"the program reaches its first SOS call");
+
+        at       = FindReady (bytes, 0x0B);
+        crc      = CassoLinkCodec::ComputeCrc (bytes);
+        reported = (Word) (cpu.Peek ((Word) (LinkProgram::kSosAddress + at + 14)) | (cpu.Peek ((Word) (LinkProgram::kSosAddress + at + 15)) << 8));
+
+        Assert::AreEqual<int> (crc, reported);
+    }
+
+
+    //  SOS.INTERP: "SOS NTRP", no optional header, the loading address and
+    //  the code's length, which covers the program, the speed after it and
+    //  the buffers.
+    TEST_METHOD (TheSosInterpreter_HasApplesHeader_TheSpeed_AndRoomForItsBuffers)
+    {
+        static constexpr size_t  kHeader = 14;
+        std::vector<Byte>        program;
+        std::vector<Byte>        file;
+        std::string              errors;
+        Byte                     control = 0;
+        size_t                   length  = 0;
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (9600, control));
+        AssertSucceeded (LinkProgram::AssembleProgram (program, errors, LinkChip::Sos));
+        AssertSucceeded (LinkProgram::BuildSosInterpreter (control, file, errors));
+
+        length = (size_t) (file[12] | (file[13] << 8));
+
+        Assert::AreEqual (std::string ("SOS NTRP"), std::string (file.begin(), file.begin() + 8));
+        Assert::AreEqual<int> (0, file[8] | (file[9] << 8), L"no optional header");
+        Assert::AreEqual<int> (LinkProgram::kSosAddress, file[10] | (file[11] << 8));
+        Assert::AreEqual<size_t> ((size_t) (LinkProgram::kSosEnd - LinkProgram::kSosAddress), length);
+        Assert::AreEqual<size_t> (kHeader + length, file.size());
+        Assert::IsTrue (std::equal (program.begin(), program.end(), file.begin() + kHeader), L"the program as the host assembles it, so the CRC in its Ready matches");
+        Assert::AreEqual<int> (control, file[kHeader + program.size()], L"the speed right after the program");
+    }
+
+
+    //  .RS232 has no rate for the 6551's external clock, the //c's 115,200.
+    TEST_METHOD (TheSosInterpreter_FailsForTheExternalClocksRate)
+    {
+        std::vector<Byte>  file;
+        std::string        errors;
+        Byte               control = 0;
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (115200, control));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), LinkProgram::BuildSosInterpreter (control, file, errors));
+        Assert::IsTrue (file.empty());
+    }
+
+
+    //  The SOS build reports the block module's id and version as loaded,
+    //  so the host never sends it; the SOS build's block module is its
+    //  header, with no requests and a CRC that checks.
+    TEST_METHOD (TheSosBlockModule_HasTheBlockModulesIdAndVersion)
+    {
+        std::vector<Byte>  acia;
+        std::vector<Byte>  sos;
+        Word               crc = 0;
+
+        AssertSucceeded (LinkProgram::BuildBlockModule (acia, LinkChip::Acia));
+        AssertSucceeded (LinkProgram::BuildBlockModule (sos, LinkChip::Sos));
+
+        Assert::AreEqual<int> (LinkProgram::kBlockModuleId,      acia[2]);
+        Assert::AreEqual<int> (LinkProgram::kBlockModuleVersion, acia[3]);
+        Assert::IsTrue (std::equal (acia.begin(), acia.begin() + 6, sos.begin()), L"the magic, id, version and program version");
+        Assert::AreEqual<size_t> (sos.size(), (size_t) (sos[LinkProgram::kModuleLength] | (sos[LinkProgram::kModuleLength + 1] << 8)));
+        Assert::AreEqual<int> (0, sos[LinkProgram::kModuleCrcStart], L"no requests");
+
+        crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (sos).subspan (LinkProgram::kModuleCrcStart));
+        Assert::AreEqual<int> (crc, sos[LinkProgram::kModuleCrcOffset] | (sos[LinkProgram::kModuleCrcOffset + 1] << 8));
     }
 };

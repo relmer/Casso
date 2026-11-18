@@ -15,6 +15,7 @@
 #include "Block.s.h"
 #include "ThirteenSector.s.h"
 #include "VirtualDrive.s.h"
+#include "SosInterp.s.h"
 
 
 
@@ -55,17 +56,22 @@ Error:
 
 HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults)
 {
-    HRESULT  hr   = S_OK;
-    bool     fits = false;
+    HRESULT      hr     = S_OK;
+    bool         sos    = chip == LinkChip::Sos;
+    std::string  source = sos ? GetSosInterpSource() : GetProgramSource();
+    Word         origin = sos ? kSosAddress : kProgramAddress;
+    bool         fits   = false;
 
 
 
-    hr = Assemble (GetProgramSource(), kProgramAddress, chip, outBytes, outErrors, faults);
+    hr = Assemble (source, origin, chip, outBytes, outErrors, faults);
     CHR (hr);
 
     //  The program ends below the shim's copy of the zero page, and the shim,
-    //  which it returns to.
-    fits = kProgramAddress + outBytes.size() <= kZeroPageSave;
+    //  which it returns to. The SOS build ends with room for its speed's byte
+    //  below its buffers.
+    fits = sos ? kSosAddress + outBytes.size() < kSosBufferBase
+               : kProgramAddress + outBytes.size() <= kZeroPageSave;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -399,11 +405,59 @@ std::string LinkProgram::GetBlockModuleSource()
 
 HRESULT LinkProgram::BuildBlockModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
 {
+    HRESULT      hr = S_OK;
     std::string  errors;
 
 
 
-    return AssembleModule (GetBlockModuleSource(), outModule, errors, chip, faults);
+    if (chip == LinkChip::Sos)
+    {
+        MakeSosBlockModule (outModule);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = AssembleModule (GetBlockModuleSource(), outModule, errors, chip, faults);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::MakeSosBlockModule
+//
+//  The SOS build has the block requests in it, so its block module is the
+//  header alone, with no requests: the id and version the SOS build reports
+//  as loaded, so the host never sends it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LinkProgram::MakeSosBlockModule (std::vector<Byte> & outModule)
+{
+    static constexpr Byte  kMagic[] = { 'C', 'M' };
+    Word                   crc      = 0;
+
+
+
+    outModule.assign (kModuleCrcStart + 1, 0);
+
+    outModule[0]                 = kMagic[0];
+    outModule[1]                 = kMagic[1];
+    outModule[2]                 = kBlockModuleId;
+    outModule[3]                 = kBlockModuleVersion;
+    outModule[kModuleLength - 2] = (Byte) (kProgramVersion & 0xFF);
+    outModule[kModuleLength - 1] = (Byte) (kProgramVersion >> 8);
+    outModule[kModuleLength]     = (Byte) outModule.size();
+
+    crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (outModule).subspan (kModuleCrcStart));
+
+    outModule[kModuleCrcOffset]     = (Byte) (crc & 0xFF);
+    outModule[kModuleCrcOffset + 1] = (Byte) (crc >> 8);
 }
 
 
@@ -453,6 +507,67 @@ HRESULT LinkProgram::BuildThirteenSectorModule (std::vector<Byte> & outModule, L
 std::string LinkProgram::GetVirtualDriveSource()
 {
     return std::string (reinterpret_cast<const char *> (s_kVirtualDriveSource), sizeof (s_kVirtualDriveSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetSosInterpSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetSosInterpSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kSosInterpSource), sizeof (s_kSosInterpSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildSosInterpreter
+//
+//  The header is the label "SOS NTRP", no optional header, the loading
+//  address and the code's length. The code is the SOS build, the control
+//  byte after it, and zeros over the buffers, so SOS loads it all and the
+//  memory is the interpreter's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildSosInterpreter (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors)
+{
+    static constexpr char  kLabel[]  = "SOS NTRP";
+    static constexpr Byte  kRateMask = 0x0F;
+    HRESULT                hr        = S_OK;
+    std::vector<Byte>      program;
+    Word                   length    = kSosEnd - kSosAddress;
+    bool                   rated     = (speedControl & kRateMask) != 0;
+
+
+
+    outFile.clear();
+    outErrors.clear();
+
+    CBREx (rated, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    hr = AssembleProgram (program, outErrors, LinkChip::Sos);
+    CHR (hr);
+
+    outFile.assign (kLabel, kLabel + sizeof (kLabel) - 1);
+    outFile.insert (outFile.end(), { 0, 0,
+                                     (Byte) (kSosAddress & 0xFF), (Byte) (kSosAddress >> 8),
+                                     (Byte) (length & 0xFF),      (Byte) (length >> 8) });
+    outFile.insert (outFile.end(), program.begin(), program.end());
+    outFile.push_back (speedControl);
+    outFile.resize (outFile.size() + length - program.size() - 1, 0);
+
+Error:
+    return hr;
 }
 
 
@@ -719,13 +834,39 @@ std::string LinkProgram::GetCommandLines()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::GetChipLines
+//
+//  W5100, CASSETTE or ACIA for an Apple II build. The SOS build is given
+//  SOS, and the values it shares with the host: the Ready flag, the block
+//  module's id and version, and its addresses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetChipLines (LinkChip chip)
+{
+    switch (chip)
+    {
+        case LinkChip::W5100:     return "W5100 = 1\n";
+        case LinkChip::Cassette:  return "CASSETTE = 1\n";
+        case LinkChip::Sos:       return std::format ("SOS = 1\nSOSFLAG = ${:02X}\nBLKMODID = {}\nBLKMODVER = {}\nSOSORG = ${:04X}\nBUFBASE = ${:04X}\n",
+                                                      kSosReadyFlag, kBlockModuleId, kBlockModuleVersion, kSosAddress, kSosBufferBase);
+        default:                  return "ACIA = 1\n";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::Assemble
 //
 //  The source starts with its own .org; the result must begin at `origin`,
 //  so a source edited to load elsewhere fails here rather than on the Apple.
-//  A W5100 build is given W5100 ahead of the source, and a cassette build
-//  CASSETTE, and the source selects each one's code with ifdef; a build with
-//  faults is given FAULTS the same way.
+//  Each build is given its chip's lines ahead of the source (GetChipLines),
+//  and the source selects each one's code with ifdef; a build with faults
+//  is given FAULTS the same way.
 //  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
@@ -736,7 +877,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     HRESULT          hr        = S_OK;
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : (chip == LinkChip::Cassette) ? "CASSETTE = 1\n" : "ACIA = 1\n";
+    std::string      chipLine  = GetChipLines (chip);
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
     std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
     int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');

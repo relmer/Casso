@@ -9,8 +9,9 @@
 
 
 
-static constexpr size_t  s_kEntryBytes   = 23;     // slot, unit, SmartPort, blocks (3), kind, volume name (16)
-static constexpr size_t  s_kNameBytes    = 16;
+static constexpr size_t  s_kEntryBytes    = 23;     // slot, unit, SmartPort, blocks (3), kind, volume name (16)
+static constexpr size_t  s_kNameBytes     = 16;
+static constexpr size_t  s_kSosEntryBytes = s_kEntryBytes + s_kNameBytes;   // and the SOS device's name
 static constexpr size_t  s_kBlockPayload = 3 + CassoLinkCodec::kBlockSize + 2;   // the block's number, its bytes and their CRC
 static constexpr Byte    s_kNameLength   = 0x0F;
 
@@ -37,14 +38,18 @@ HRESULT CassoLinkHost::BuildBlockModule (std::vector<Byte> & outModule) const
 //
 //  CassoLinkHost::ListBlockDevices
 //
+//  The SOS program's entries have the device's name after the volume's, as
+//  SOS has it: its length, then the name.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ListBlockDevices (std::vector<CassoLinkBlockDevice> & outDevices)
 {
-    HRESULT          hr    = S_OK;
+    HRESULT          hr         = S_OK;
     CassoLinkPacket  reply;
-    size_t           count = 0;
-    bool             valid = false;
+    size_t           count      = 0;
+    size_t           entryBytes = m_client.isSos ? s_kSosEntryBytes : s_kEntryBytes;
+    bool             valid      = false;
 
 
 
@@ -57,12 +62,12 @@ HRESULT CassoLinkHost::ListBlockDevices (std::vector<CassoLinkBlockDevice> & out
     CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     count = reply.payload[0];
-    valid = reply.payload.size() == 1 + count * s_kEntryBytes;
+    valid = reply.payload.size() == 1 + count * entryBytes;
     CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     for (size_t each = 0; each < count; each++)
     {
-        const Byte            * entry  = reply.payload.data() + 1 + each * s_kEntryBytes;
+        const Byte            * entry  = reply.payload.data() + 1 + each * entryBytes;
         CassoLinkBlockDevice    device;
         size_t                  length = entry[7] & s_kNameLength;
 
@@ -72,6 +77,12 @@ HRESULT CassoLinkHost::ListBlockDevices (std::vector<CassoLinkBlockDevice> & out
         device.blocks      = (uint32_t) entry[3] | ((uint32_t) entry[4] << 8) | ((uint32_t) entry[5] << 16);
         device.kind        = entry[6];
         device.volume.assign ((const char *) entry + 8, std::min (length, s_kNameBytes - 1));
+
+        if (entryBytes == s_kSosEntryBytes)
+        {
+            length = entry[s_kEntryBytes] & s_kNameLength;
+            device.device.assign ((const char *) entry + s_kEntryBytes + 1, std::min (length, s_kNameBytes - 1));
+        }
 
         outDevices.push_back (device);
     }

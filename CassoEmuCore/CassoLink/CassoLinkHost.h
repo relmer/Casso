@@ -64,7 +64,9 @@ struct CassoLinkStatus
 //  A ProDOS block device or SmartPort unit, as the block module lists it:
 //  its slot; its unit, a SmartPort unit's number or a ProDOS drive, 1 or 2;
 //  its blocks; its kind, a SmartPort unit's type or kNoKind; and its volume
-//  name, empty when block 2 isn't a ProDOS volume header.
+//  name, empty when block 2 isn't a ProDOS volume header. On an Apple ///,
+//  the slot is the SOS device's number, the unit SOS's unit, and the device
+//  its name, as .D1.
 struct CassoLinkBlockDevice
 {
     static constexpr Byte  kNoKind = 0xFF;
@@ -75,6 +77,7 @@ struct CassoLinkBlockDevice
     uint32_t      blocks      = 0;
     Byte          kind        = kNoKind;
     std::string   volume;
+    std::string   device;
 };
 
 

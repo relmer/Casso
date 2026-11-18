@@ -333,6 +333,24 @@ public:
 
 
 
+    //  An Apple ///'s device is labeled with its SOS name, not its SOS
+    //  device number.
+    TEST_METHOD (AnAppleIIIsDevice_IsLabeledWithItsSosName)
+    {
+        LinkTreeEntry::Drive  device;
+
+        device.isBlockDevice = true;
+        device.slot          = 1;
+        device.blocks        = 280;
+        device.device        = L".D1";
+        device.volume        = L"/UTILITIES";
+
+        Assert::AreEqual (std::wstring (L".D1, 140K (/UTILITIES)"), TreeModel::GetLinkDriveLabel (device));
+    }
+
+
+
+
     TEST_METHOD (Stop_ClosesTheLink_AndInvalidate_ReadsAgain)
     {
         Rig            rig;

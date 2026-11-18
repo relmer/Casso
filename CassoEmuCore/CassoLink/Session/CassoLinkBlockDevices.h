@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/CachingBlockStore.h"
+#include "Devices/Disk/DosOrderBlockStore.h"
 #include "Devices/Disk/IBlockStore.h"
 
 class BlockBuffer;
@@ -26,6 +27,8 @@ enum class VolumeKind;
 //  List found them (FR-191, FR-192). A drive's volume is read through its
 //  blocks as an operation touches them, with the blocks cached until the
 //  next catalog of its top, and a change writes only the blocks it touched.
+//  A 140K device, as each of an Apple ///'s drives is, is read in DOS order
+//  through DosOrderBlockStore, as the volume layer reads a 140K volume.
 //  A whole device is read to an image or written from one by
 //  CassoLinkBlockTransfer. The Apple's label has the device and the block.
 //
@@ -83,6 +86,8 @@ private:
         CassoLinkBlockDevice                 device;
         std::unique_ptr<LinkStore>           store;
         std::unique_ptr<CachingBlockStore>   cache;
+        std::unique_ptr<DosOrderBlockStore>  order;
+        IBlockStore                        * view = nullptr;   // order for a 140K device, or cache
         std::unique_ptr<BlockImage>          image;
         std::unique_ptr<IVolume>             volume;
     };

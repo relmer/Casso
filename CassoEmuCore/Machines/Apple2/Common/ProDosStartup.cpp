@@ -197,12 +197,42 @@ void ProDosStartup::WriteBlock (vector<Byte> & ioSectors, int block, const std::
 //
 //  ProDosStartup::InstallSos
 //
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosStartup::InstallSos (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::string & outError)
+{
+    return InstallSosFiles (ioSectors, sosDisk, kpszSosFiles, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosStartup::InstallSosKernel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosStartup::InstallSosKernel (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::string & outError)
+{
+    return InstallSosFiles (ioSectors, sosDisk, kpszSosKernelFiles, outError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosStartup::InstallSosFiles
+//
 //  The files are written first, each through the volume's verified write,
 //  and the loader last, so on a failure `ioSectors` isn't changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosStartup::InstallSos (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::string & outError)
+HRESULT ProDosStartup::InstallSosFiles (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::span<const char * const> files, std::string & outError)
 {
     HRESULT                                hr      = S_OK;
     std::array<Byte, kBlockBytes>          first   = {};
@@ -225,7 +255,7 @@ HRESULT ProDosStartup::InstallSos (vector<Byte> & ioSectors, const vector<Byte> 
     loader = IsSosLoader (first) ? &first : IsSosLoader (second) ? &second : nullptr;
     CBRF (loader != nullptr, outError = "the SOS disk has no SOS loader in block 0 or 1");
 
-    for (const char * name : kpszSosFiles)
+    for (const char * name : files)
     {
         hr = ProDosVolume (sosDisk).Read (FilePath::Parse (name), payload);
         CHRF (hr, outError = std::string ("the SOS disk has no ") + name + " file");

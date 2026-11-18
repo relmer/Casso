@@ -275,6 +275,7 @@
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkVirtualDrives.cpp" />
     <ClCompile Include="CassoLink\CassoLinkProDosDisk.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkSosDisk.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
@@ -934,6 +935,7 @@
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\OffsetBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\DosOrderBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\BlockBuffer.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CardVolumeEdit.cpp" />
     <ClCompile Include="Devices\Disk\BlockImage.cpp" />
@@ -1786,6 +1788,7 @@
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Devices\Disk\OffsetBlockStore.h" />
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
+    <ClInclude Include="Devices\Disk\DosOrderBlockStore.h" />
     <ClInclude Include="Devices\Disk\BlockBuffer.h" />
     <ClInclude Include="Devices\Disk\Partitions\CardVolumeEdit.h" />
     <ClInclude Include="Devices\Disk\BlockImage.h" />
@@ -1922,6 +1925,7 @@
     <ClInclude Include="CassoLink\Host\CassoLinkAdtProServer.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkVirtualDrives.h" />
     <ClInclude Include="CassoLink\CassoLinkProDosDisk.h" />
+    <ClInclude Include="CassoLink\CassoLinkSosDisk.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />
     <ClInclude Include="CassoLink\LinkedDisk.h" />
@@ -2383,6 +2387,7 @@
     <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
+    <None Include="CassoLink\Apple\SosInterp.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>
