@@ -1556,14 +1556,14 @@ void DxuiDockSite::RequestDragFloat (const std::wstring & pane, POINT pointDip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::CommitMenuChange
+//  DxuiDockSite::CommitChange
 //
 //  A menu item that changed the layout lays the site out again and reports
 //  the change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDockSite::CommitMenuChange (bool changed)
+bool DxuiDockSite::CommitChange (bool changed)
 {
     if (changed)
     {
@@ -1580,13 +1580,13 @@ bool DxuiDockSite::CommitMenuChange (bool changed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::FloatAtCenter
+//  DxuiDockSite::FloatPane
 //
 //  The pane floats through the application, centered on the site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDockSite::FloatAtCenter (const std::wstring & pane)
+void DxuiDockSite::FloatPane (const std::wstring & pane)
 {
     RECT  area = m_boundsDip;
 
@@ -1601,20 +1601,50 @@ void DxuiDockSite::FloatAtCenter (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::FloatGroupFromMenu
+//  DxuiDockSite::FloatGroup
 //
 //  Every pane of a group floats through the application in one window,
 //  centered on the site, with `active` its selected tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDockSite::FloatGroupFromMenu (const std::vector<std::wstring> & panes, const std::wstring & active)
+void DxuiDockSite::FloatGroup (const std::vector<std::wstring> & panes, const std::wstring & active)
 {
     RECT  area = m_boundsDip;
 
 
 
     m_onFloatGroup (panes, active, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetMenuState
+//
+//  The layout arranged in the docked area, as the site would arrange it,
+//  and what the site's handlers allow for the pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDockMenus::SiteState DxuiDockSite::GetMenuState (const std::wstring & pane) const
+{
+    DxuiDockMenus::SiteState  state;
+
+
+
+    state.arranged       = m_layout.Arrange (GetDockedArea(), m_shown, m_minSize);
+    state.dockedArea     = GetDockedArea();
+    state.isDocument     = m_isDocument;
+    state.canFloat       = m_onFloat != nullptr;
+    state.canFloatGroup  = m_onFloatGroup != nullptr;
+    state.canClose       = m_onClosePane && (!m_canClosePane || m_canClosePane (pane));
+    state.isFloatingSite = IsFloatingSite();
+
+    return state;
 }
 
 

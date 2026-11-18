@@ -14,7 +14,7 @@
 #include "Widgets/DxuiTabGroup.h"
 #include "Widgets/IDxuiDockDragHost.h"
 #include "Widgets/IDxuiDockEdgesHost.h"
-#include "Widgets/IDxuiDockMenuHost.h"
+#include "Widgets/IDxuiDockOps.h"
 
 
 
@@ -54,7 +54,7 @@
 class DxuiDockSite : public IDxuiControl,
                      private IDxuiDockDragHost,
                      private IDxuiDockEdgesHost,
-                     private IDxuiDockMenuHost
+                     private IDxuiDockOps
 {
 public:
     using ChangedFn = std::function<void ()>;
@@ -212,13 +212,13 @@ public:
 
     //  Keyboard docking (FR-042): the Dock To menu for a pane, and a move by
     //  an arrow key into the group in that direction or against the edge.
-    std::vector<MenuItem>  GetDockToMenu   (const std::wstring & pane) { return m_menus.GetDockToMenu (pane); }
+    std::vector<MenuItem>  GetDockToMenu   (const std::wstring & pane) { return m_menus.GetDockToMenu (pane, GetMenuState (pane)); }
     bool                   MovePaneByArrow (const std::wstring & pane, DxuiDockSide direction);
 
     //  Visual Studio's menu for a pane's tab, or for its group's title bar and
     //  menu button: Dock, Dock in tab group, Auto hide, Move to new window (a
     //  tab's only), All to new window, and Close.
-    std::vector<MenuItem>  GetPaneMenu     (const std::wstring & pane, bool fromTab) { return m_menus.GetPaneMenu (pane, fromTab); }
+    std::vector<MenuItem>  GetPaneMenu     (const std::wstring & pane, bool fromTab) { return m_menus.GetPaneMenu (pane, fromTab, GetMenuState (pane)); }
 
     //  Auto-hidden panes: the one slid out, if any, and where it lies. A slid
     //  pane lies over the docked panes rather than taking room from them, so
@@ -352,25 +352,18 @@ private:
     bool            TearOff           (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
     bool            TearOffGroup      (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip);
     void            OnTitleButton     (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
-    bool            PinPane           (const std::wstring & pane, DxuiDockSide edge);
-    bool            UnpinPane         (const std::wstring & pane);
     void            StartMorph        (const RECT & from, const RECT & to) { m_morph.Start (from, to); }
     RECT            GetPaneTabRect    (const std::wstring & pane) const { return m_groups.GetPaneTabRect (pane); }
     bool            IsDocumentGroup   (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup  * FindGroupOf       (const std::wstring & pane) const { return m_groups.FindGroupOf (pane); }
-    void            FloatAtCenter     (const std::wstring & pane);
+    bool            CommitChange      (bool changed);
+
+    DxuiDockMenus::SiteState  GetMenuState (const std::wstring & pane) const;
 
     //  Each pane's minimum size, grown by the gap while one is set.
     DxuiPaneLayout::MinSizeFn  GetMinSizeWithGap() const { return m_gaps.GetMinSizeWithGap (m_minSize, m_scaler); }
 
     //  IDxuiDockDragHost: the site, for the drag.
-    const DxuiPaneLayout                    & GetDragLayout       () const override                                    { return m_layout; }
-    DxuiPaneLayout                          & EditDragLayout      () override                                          { return m_layout; }
-    size_t                                    GetDragGroupCount   () const override                                    { return m_groups.GetCount(); }
-    DxuiTabGroup                            * GetDragGroup        (size_t index) const override                        { return m_groups.Get (index); }
-    const DxuiTabGroup                      * FindDragGroupOf     (const std::wstring & pane) const override           { return FindGroupOf (pane); }
-    std::wstring                              GetDragPaneOf       (const IDxuiControl * content) const override        { return GetPaneOf (content); }
-    const DxuiDpiScaler                     & GetDragScaler       () const override                                    { return m_scaler; }
     RECT                                      GetDragDockedArea   () const override                                    { return GetDockedArea(); }
     RECT                                      GetDragPaneArea     () const override                                    { return GetPaneArea(); }
     long                                      GetDragGapPx        () const override                                    { return m_scaler.ToPx (m_gaps.GetGapDip()); }
@@ -381,30 +374,17 @@ private:
     void                                      CommitDragDrop      () override                                          { Arrange(); NotifyChanged(); }
 
     //  IDxuiDockEdgesHost: the site, for its edges.
-    const DxuiPaneLayout          & GetEdgesLayout       () const override                          { return m_layout; }
     RECT                            GetEdgesBounds       () const override                          { return m_boundsDip; }
-    const DxuiDpiScaler           & GetEdgesScaler       () const override                          { return m_scaler; }
     bool                            IsEdgePaneShown      (const std::wstring & pane) const override { return !m_shown || m_shown (pane); }
-    std::wstring                    GetEdgePaneTitle     (const std::wstring & pane) const override { return m_panes.GetTitle (pane); }
-    bool                            HasEdgePaneIndicator (const std::wstring & pane) const override { return m_panes.HasIndicator (pane); }
 
-    //  IDxuiDockMenuHost: the site, for its menus.
-    DxuiPaneLayout                          & EditMenuLayout        () override                                     { return m_layout; }
-    std::vector<std::wstring>                 GetActivePanes        () const override                               { return m_groups.GetActivePanes(); }
-    std::wstring                              GetMenuPaneTitle      (const std::wstring & pane) const override      { return m_panes.GetTitle (pane); }
-    RECT                                      GetMenuDockedArea     () const override                               { return GetDockedArea(); }
-    std::vector<DxuiPaneLayout::GroupRect>    ArrangeForMenu        () const override                               { return m_layout.Arrange (GetDockedArea(), m_shown, m_minSize); }
-    const PaneTestFn                        & GetMenuDocumentFn     () const override                               { return m_isDocument; }
-    bool                                      IsMenuFloatingSite    () const override                               { return IsFloatingSite(); }
-    bool                                      CommitMenuChange      (bool changed) override;
-    bool                                      PinFromMenu           (const std::wstring & pane, DxuiDockSide edge) override { return PinPane (pane, edge); }
-    bool                                      UnpinFromMenu         (const std::wstring & pane) override            { return UnpinPane (pane); }
-    bool                                      CanFloatFromMenu      () const override                               { return m_onFloat != nullptr; }
-    void                                      FloatFromMenu         (const std::wstring & pane) override            { FloatAtCenter (pane); }
-    bool                                      CanFloatGroupFromMenu () const override                               { return m_onFloatGroup != nullptr; }
-    void                                      FloatGroupFromMenu    (const std::vector<std::wstring> & panes, const std::wstring & active) override;
-    bool                                      CanCloseFromMenu      (const std::wstring & pane) const override      { return m_onClosePane && (!m_canClosePane || m_canClosePane (pane)); }
-    void                                      CloseFromMenu         (const std::wstring & pane) override            { m_onClosePane (pane); }
+    //  IDxuiDockOps: the site, for its menus.
+    bool                                      DockPaneToEdge        (const std::wstring & pane, DxuiDockSide edge) override           { return CommitChange (m_layout.DockToEdge (pane, edge)); }
+    bool                                      TabPaneWith           (const std::wstring & pane, const std::wstring & target) override { return CommitChange (m_layout.TabWith (pane, target)); }
+    bool                                      PinPane               (const std::wstring & pane, DxuiDockSide edge) override;
+    bool                                      UnpinPane             (const std::wstring & pane) override;
+    void                                      FloatPane             (const std::wstring & pane) override;
+    void                                      FloatGroup            (const std::vector<std::wstring> & panes, const std::wstring & active) override;
+    void                                      ClosePane             (const std::wstring & pane) override                              { m_onClosePane (pane); }
 
     //  A group's corners that are the window's, as DxuiPaneFrame's kCorner
     //  flags: none while the window's corners are square.
@@ -443,9 +423,9 @@ private:
     std::wstring                   m_carriedPane;
     POINT                          m_tearGrab       = {};
     bool                           m_tearFromTab    = false;
-    DxuiDockDrag                   m_drag           { *this };
-    DxuiDockEdges                  m_edges          { *this };
+    DxuiDockDrag                   m_drag           { *this, m_layout, m_scaler, m_groups, m_panes };
+    DxuiDockEdges                  m_edges          { *this, m_layout, m_scaler, m_panes };
     DxuiDockGaps                   m_gaps;
     DxuiDockMorph                  m_morph;
-    DxuiDockMenus                  m_menus          { *this };
+    DxuiDockMenus                  m_menus          { m_layout, m_panes, m_groups, *this };
 };

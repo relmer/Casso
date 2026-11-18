@@ -1,7 +1,10 @@
 #include "Pch.h"
 
 #include "DxuiDockMenus.h"
-#include "IDxuiDockMenuHost.h"
+#include "DxuiDockEdges.h"
+#include "DxuiDockGroups.h"
+#include "DxuiDockPanes.h"
+#include "IDxuiDockOps.h"
 
 
 
@@ -16,24 +19,23 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetDockToMenu (const std::wstring & pane)
+std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetDockToMenu (const std::wstring & pane, const SiteState & site)
 {
     static constexpr DxuiDockSide  kSides[]    = { DxuiDockSide::Left, DxuiDockSide::Top, DxuiDockSide::Right, DxuiDockSide::Bottom };
     static const wchar_t * const   kNames[]    = { L"Dock left", L"Dock top", L"Dock right", L"Dock bottom" };
     std::vector<MenuItem>          items;
-    std::vector<std::wstring>      mine        = m_host.EditMenuLayout().GetGroup (pane);
-    auto                           commit      = [this] (bool changed) { return m_host.CommitMenuChange (changed); };
+    std::vector<std::wstring>      mine        = m_layout.GetGroup (pane);
 
 
 
-    if (!m_host.EditMenuLayout().Contains (pane))
+    if (!m_layout.Contains (pane))
     {
         return items;
     }
 
-    if (!m_host.EditMenuLayout().IsDocked (pane))
+    if (!m_layout.IsDocked (pane))
     {
-        items.push_back ({ L"Dock", [this, pane] { return m_host.UnpinFromMenu (pane); } });
+        items.push_back ({ L"Dock", [this, pane] { return m_ops.UnpinPane (pane); } });
         return items;
     }
 
@@ -41,52 +43,35 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetDockToMenu (const std::ws
     {
         DxuiDockSide  side = kSides[i];
 
-        items.push_back ({ kNames[i], [this, pane, side, commit] { return commit (m_host.EditMenuLayout().DockToEdge (pane, side)); } });
+        items.push_back ({ kNames[i], [this, pane, side] { return m_ops.DockPaneToEdge (pane, side); } });
     }
 
-    for (const std::wstring & target : m_host.GetActivePanes())
+    for (const std::wstring & target : m_groups.GetActivePanes())
     {
         if (target.empty() || std::find (mine.begin(), mine.end(), target) != mine.end())
         {
             continue;
         }
 
-        items.push_back ({ L"Tab with " + m_host.GetMenuPaneTitle (target),
-                           [this, pane, target, commit] { return commit (m_host.EditMenuLayout().TabWith (pane, target)); } });
+        items.push_back ({ L"Tab with " + m_panes.GetTitle (target),
+                           [this, pane, target] { return m_ops.TabPaneWith (pane, target); } });
     }
 
-    for (const DxuiPaneLayout::GroupRect & group : m_host.ArrangeForMenu())
+    for (const DxuiPaneLayout::GroupRect & group : site.arranged)
     {
-        RECT          area  = m_host.GetMenuDockedArea();
-        long          gaps[] = { group.rect.left - area.left, group.rect.top - area.top,
-                                 area.right - group.rect.right, area.bottom - group.rect.bottom };
-        size_t        nearest = 0;
+        DxuiDockSide  edge = DxuiDockEdges::GetNearestEdge (group.rect, site.dockedArea);
 
         if (std::find (group.panes.begin(), group.panes.end(), pane) == group.panes.end())
         {
             continue;
         }
 
-        //  Against the edge the pane's group lies nearest. Between a side and
-        //  the top or bottom it touches, a group no wider than half the
-        //  window is in a side bar and hides to its side; a wider one hides
-        //  to the top or bottom. So the top of the right-hand column hides
-        //  right, and the memory row under the code hides to the bottom.
-        bool   sideBar = 2 * (group.rect.right - group.rect.left) <= (area.right - area.left);
-
-        for (size_t i = 1; i < std::size (gaps); i++)
-        {
-            bool  sideways = (i % 2) == 0;
-
-            nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == sideBar)) ? i : nearest;
-        }
-
-        items.push_back ({ kAutoHideLabel, [this, pane, nearest] { return m_host.PinFromMenu (pane, kSides[nearest]); } });
+        items.push_back ({ kAutoHideLabel, [this, pane, edge] { return m_ops.PinPane (pane, edge); } });
     }
 
-    if (m_host.CanFloatFromMenu())
+    if (site.canFloat)
     {
-        items.push_back ({ L"Float", [this, pane] { m_host.FloatFromMenu (pane); return true; } });
+        items.push_back ({ L"Float", [this, pane] { m_ops.FloatPane (pane); return true; } });
     }
 
     return items;
@@ -108,25 +93,23 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetDockToMenu (const std::ws
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstring & pane, bool fromTab)
+std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstring & pane, bool fromTab, const SiteState & site)
 {
-    std::vector<MenuItem>          items;
-    std::vector<MenuItem>          dockTo     = GetDockToMenu (pane);
-    std::vector<std::wstring>      mine       = m_host.EditMenuLayout().GetGroup (pane);
-    bool                           docked     = m_host.EditMenuLayout().IsDocked (pane);
-    bool                           canFloat   = docked && m_host.CanFloatFromMenu() && !m_host.IsMenuFloatingSite();
-    bool                           canClose   = m_host.CanCloseFromMenu (pane);
-    IDxuiDockMenuHost::PaneTestFn  isDocument = m_host.GetMenuDocumentFn();
-    std::wstring                   documents;
-    MenuItem                       autoHide   = { kAutoHideLabel, nullptr, false };
-    MenuItem                       dock       = { L"Dock", nullptr, false };
-    auto                           commit     = [this] (bool changed) { return m_host.CommitMenuChange (changed); };
-    auto                           floatPane  = [this, pane] { m_host.FloatFromMenu (pane); return true; };
-    std::wstring                   active     = pane;
+    std::vector<MenuItem>       items;
+    std::vector<MenuItem>       dockTo     = GetDockToMenu (pane, site);
+    std::vector<std::wstring>   mine       = m_layout.GetGroup (pane);
+    bool                        docked     = m_layout.IsDocked (pane);
+    bool                        canFloat   = docked && site.canFloat && !site.isFloatingSite;
+    const PaneTestFn          & isDocument = site.isDocument;
+    std::wstring                documents;
+    MenuItem                    autoHide   = { kAutoHideLabel, nullptr, false };
+    MenuItem                    dock       = { L"Dock", nullptr, false };
+    auto                        floatPane  = [this, pane] { m_ops.FloatPane (pane); return true; };
+    std::wstring                active     = pane;
 
 
 
-    if (!m_host.EditMenuLayout().Contains (pane))
+    if (!m_layout.Contains (pane))
     {
         return items;
     }
@@ -138,7 +121,7 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstr
     }
 
     //  The documents' group, when this pane is a tool window outside it.
-    for (const DxuiPaneLayout::GroupRect & group : m_host.ArrangeForMenu())
+    for (const DxuiPaneLayout::GroupRect & group : site.arranged)
     {
         bool  holdsDocument = isDocument && std::any_of (group.panes.begin(), group.panes.end(), isDocument);
         bool  holdsMe       = std::find (group.panes.begin(), group.panes.end(), pane) != group.panes.end();
@@ -150,8 +133,8 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstr
     documents = (isDocument && !isDocument (pane)) ? documents : std::wstring();
 
     items.push_back ({ L"Dock", dock.action, dock.action != nullptr });
-    items.push_back ({ L"Dock in tab group", [this, pane, documents, commit] { return commit (m_host.EditMenuLayout().TabWith (pane, documents)); },
-                       !documents.empty() && !m_host.IsMenuFloatingSite() });
+    items.push_back ({ L"Dock in tab group", [this, pane, documents] { return m_ops.TabPaneWith (pane, documents); },
+                       !documents.empty() && !site.isFloatingSite });
     items.push_back ({ kAutoHideLabel, autoHide.action, autoHide.action != nullptr });
 
     if (fromTab)
@@ -159,9 +142,9 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstr
         items.push_back ({ L"Move to new window", floatPane, canFloat });
     }
 
-    if (mine.size() > 1 && m_host.CanFloatGroupFromMenu())
+    if (mine.size() > 1 && site.canFloatGroup)
     {
-        items.push_back ({ L"All to new window", [this, mine, active] { m_host.FloatGroupFromMenu (mine, active); return true; }, canFloat });
+        items.push_back ({ L"All to new window", [this, mine, active] { m_ops.FloatGroup (mine, active); return true; }, canFloat });
     }
     else
     {
@@ -169,7 +152,7 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstr
     }
 
     items.push_back ({ L"", nullptr, false });
-    items.push_back ({ L"Close", [this, pane] { m_host.CloseFromMenu (pane); return true; }, canClose, L"Shift+Esc" });
+    items.push_back ({ L"Close", [this, pane] { m_ops.ClosePane (pane); return true; }, site.canClose, L"Shift+Esc" });
 
     return items;
 }

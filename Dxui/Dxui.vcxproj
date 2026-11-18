@@ -491,7 +491,7 @@
     <ClInclude Include="Widgets\DxuiDockGroups.h" />
     <ClInclude Include="Widgets\IDxuiDockDragHost.h" />
     <ClInclude Include="Widgets\IDxuiDockEdgesHost.h" />
-    <ClInclude Include="Widgets\IDxuiDockMenuHost.h" />
+    <ClInclude Include="Widgets\IDxuiDockOps.h" />
     <ClInclude Include="Window\DxuiCaptionDragTracker.h" />
     <ClInclude Include="Window\DxuiDockedWindow.h" />
     <ClInclude Include="Window\DxuiToolbarWindow.h" />

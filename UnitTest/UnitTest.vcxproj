@@ -1104,6 +1104,7 @@
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteGapTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSitePaneMenuTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockEdgesTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockPanesTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockCarryAndCompassTests.cpp" />

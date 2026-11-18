@@ -2,6 +2,7 @@
 
 #include "DxuiDockEdges.h"
 #include "IDxuiDockEdgesHost.h"
+#include "Widgets/DxuiDockPanes.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
@@ -41,14 +42,14 @@ void DxuiDockEdges::SetShare (DxuiDockSide edge, long thickness, long start, lon
 
 RECT DxuiDockEdges::GetDockedArea() const
 {
-    const DxuiDpiScaler  & scaler   = m_host.GetEdgesScaler();
+    const DxuiDpiScaler  & scaler   = m_scaler;
     RECT                   area     = m_host.GetEdgesBounds();
     bool                   used[4]  = {};
     long                   depth[4] = {};
 
 
 
-    for (const DxuiPaneLayout::AutoHidden & hidden : m_host.GetEdgesLayout().GetAutoHidden())
+    for (const DxuiPaneLayout::AutoHidden & hidden : m_layout.GetAutoHidden())
     {
         if (m_host.IsEdgePaneShown (hidden.pane))
         {
@@ -98,7 +99,7 @@ RECT DxuiDockEdges::GetDockedArea() const
 
 void DxuiDockEdges::Arrange (const RECT & dockedArea, const RECT & paneArea)
 {
-    const DxuiDpiScaler  & scaler    = m_host.GetEdgesScaler();
+    const DxuiDpiScaler  & scaler    = m_scaler;
     RECT                   bounds    = m_host.GetEdgesBounds();
     long                   along[4]  = { dockedArea.top, dockedArea.left, dockedArea.top, dockedArea.left };
     long                   minSlide  = scaler.ToPx (kSlideMinDip);
@@ -111,10 +112,10 @@ void DxuiDockEdges::Arrange (const RECT & dockedArea, const RECT & paneArea)
 
     m_tabs.clear();
 
-    for (const DxuiPaneLayout::AutoHidden & hidden : m_host.GetEdgesLayout().GetAutoHidden())
+    for (const DxuiPaneLayout::AutoHidden & hidden : m_layout.GetAutoHidden())
     {
         EdgeTab  tab;
-        long     length = scaler.ToPx (2 * DxuiTabGroup::kTabPadDip + (int) m_host.GetEdgePaneTitle (hidden.pane).size() * DxuiTabGroup::kCharDip);
+        long     length = scaler.ToPx (2 * DxuiTabGroup::kTabPadDip + (int) m_panes.GetTitle (hidden.pane).size() * DxuiTabGroup::kCharDip);
         long   & at     = along[(size_t) hidden.edge];
 
         if (!m_host.IsEdgePaneShown (hidden.pane))
@@ -227,7 +228,7 @@ RECT DxuiDockEdges::GetTabRect (const std::wstring & pane) const
 
 void DxuiDockEdges::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    const DxuiDpiScaler  & scaler = m_host.GetEdgesScaler();
+    const DxuiDpiScaler  & scaler = m_scaler;
     DxuiFontHandle         font   = theme.BodyFont();
     float                  pad    = scaler.ToPxf ((float) DxuiTabGroup::kTabPadDip / 2);
     float                  bar    = scaler.ToPxf ((float) kEdgeBarDip);
@@ -280,7 +281,7 @@ void DxuiDockEdges::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             text.PushTextRotation (90.0f, cx, cy);
         }
 
-        hr = text.DrawString (m_host.GetEdgePaneTitle (tab.pane).c_str(), cx - along / 2 + pad, cy - across / 2,
+        hr = text.DrawString (m_panes.GetTitle (tab.pane).c_str(), cx - along / 2 + pad, cy - across / 2,
                               along - 2 * pad, across,
                               lit ? theme.Foreground() : theme.ForegroundMuted(), scaler.ToPxf (font.sizeDip), font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
@@ -291,9 +292,45 @@ void DxuiDockEdges::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             text.PopTextRotation();
         }
 
-        if (m_host.HasEdgePaneIndicator (tab.pane))
+        if (m_panes.HasIndicator (tab.pane))
         {
             painter.FillCircle ((float) r.right - pad, (float) r.top + pad, scaler.ToPxf (3.0f), theme.Accent());
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockEdges::GetNearestEdge
+//
+//  Against the edge the pane's group lies nearest. Between a side and
+//  the top or bottom it touches, a group no wider than half the
+//  window is in a side bar and hides to its side; a wider one hides
+//  to the top or bottom. So the top of the right-hand column hides
+//  right, and the memory row under the code hides to the bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDockSide DxuiDockEdges::GetNearestEdge (const RECT & group, const RECT & area)
+{
+    static constexpr DxuiDockSide  kSides[] = { DxuiDockSide::Left, DxuiDockSide::Top, DxuiDockSide::Right, DxuiDockSide::Bottom };
+    long                           gaps[]   = { group.left - area.left, group.top - area.top,
+                                                area.right - group.right, area.bottom - group.bottom };
+    bool                           sideBar  = 2 * (group.right - group.left) <= (area.right - area.left);
+    size_t                         nearest  = 0;
+
+
+
+    for (size_t i = 1; i < std::size (gaps); i++)
+    {
+        bool  sideways = (i % 2) == 0;
+
+        nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == sideBar)) ? i : nearest;
+    }
+
+    return kSides[nearest];
 }

@@ -7,6 +7,8 @@
 #include "Render/DxuiCoverageRaster.h"
 #include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiDockGaps.h"
+#include "Widgets/DxuiDockGroups.h"
+#include "Widgets/DxuiDockPanes.h"
 #include "Widgets/DxuiTabGroup.h"
 
 
@@ -85,7 +87,7 @@ void DxuiDockDrag::Begin (const std::vector<std::wstring> & panes, const std::ws
 
     //  The groups as Arrange lays them out, each less its share of the gaps,
     //  so a group's cross sits on the middle of the pane as it is drawn.
-    groups = m_host.ArrangeForDrag (m_host.GetDragLayout());
+    groups = m_host.ArrangeForDrag (m_layout);
 
     for (DxuiPaneLayout::GroupRect & group : groups)
     {
@@ -94,7 +96,7 @@ void DxuiDockDrag::Begin (const std::vector<std::wstring> & panes, const std::ws
 
     m_pane     = active;
     m_panes    = panes;
-    m_zones        = DxuiDockDropZones::Build (groups, m_host.GetDragDockedArea(), active, m_host.GetDragScaler(),
+    m_zones        = DxuiDockDropZones::Build (groups, m_host.GetDragDockedArea(), active, m_scaler,
                                                [this] (const DxuiPaneLayout::GroupRect & group) { return m_host.IsDragDocumentGroup (group.panes); });
     m_hoverZone    = -1;
     m_compassGroup = -1;
@@ -134,9 +136,9 @@ void DxuiDockDrag::UpdateStripTarget (POINT pointDip)
 
 
 
-    for (size_t i = 0; i < m_host.GetDragGroupCount() && found < 0; i++)
+    for (size_t i = 0; i < m_groups.GetCount() && found < 0; i++)
     {
-        DxuiTabGroup  * group  = m_host.GetDragGroup (i);
+        DxuiTabGroup  * group  = m_groups.Get (i);
         size_t          inside = 0;
 
         if (!group->IsVisible() || !group->IsChromeAt (pointDip))
@@ -146,7 +148,7 @@ void DxuiDockDrag::UpdateStripTarget (POINT pointDip)
 
         for (int t = 0; t < (int) group->GetTabCount(); t++)
         {
-            inside += std::find (m_panes.begin(), m_panes.end(), m_host.GetDragPaneOf (group->GetContent (t))) != m_panes.end() ? 1 : 0;
+            inside += std::find (m_panes.begin(), m_panes.end(), m_sitePanes.GetPaneOf (group->GetContent (t))) != m_panes.end() ? 1 : 0;
         }
 
         if (inside == group->GetTabCount() || (inside > 0 && m_panes.size() > 1))
@@ -169,7 +171,7 @@ void DxuiDockDrag::UpdateStripTarget (POINT pointDip)
 
     if (found >= 0)
     {
-        m_host.GetDragGroup ((size_t) found)->SetInsertGap (index, m_host.GetDragScaler().ToPx (kInsertGapDip));
+        m_groups.Get ((size_t) found)->SetInsertGap (index, m_scaler.ToPx (kInsertGapDip));
     }
 }
 
@@ -185,9 +187,9 @@ void DxuiDockDrag::UpdateStripTarget (POINT pointDip)
 
 void DxuiDockDrag::ClearStripTarget()
 {
-    for (size_t i = 0; i < m_host.GetDragGroupCount(); i++)
+    for (size_t i = 0; i < m_groups.GetCount(); i++)
     {
-        m_host.GetDragGroup (i)->SetInsertGap (-1, 0);
+        m_groups.Get (i)->SetInsertGap (-1, 0);
     }
 
     m_stripGroup = -1;
@@ -212,8 +214,8 @@ void DxuiDockDrag::ClearStripTarget()
 
 bool DxuiDockDrag::DropOnStrip (int group, int index)
 {
-    DxuiTabGroup               * target  = (group >= 0 && group < (int) m_host.GetDragGroupCount()) ? m_host.GetDragGroup ((size_t) group) : nullptr;
-    DxuiPaneLayout             & layout  = m_host.EditDragLayout();
+    DxuiTabGroup               * target  = (group >= 0 && group < (int) m_groups.GetCount()) ? m_groups.Get ((size_t) group) : nullptr;
+    DxuiPaneLayout             & layout  = m_layout;
     std::wstring                 anchor;
     std::wstring                 edge;
     std::vector<std::wstring>    panes;
@@ -230,7 +232,7 @@ bool DxuiDockDrag::DropOnStrip (int group, int index)
 
     for (int t = 0; t < (int) target->GetTabCount() && anchor.empty(); t++)
     {
-        std::wstring  pane = m_host.GetDragPaneOf (target->GetContent (t));
+        std::wstring  pane = m_sitePanes.GetPaneOf (target->GetContent (t));
 
         if (std::find (m_panes.begin(), m_panes.end(), pane) == m_panes.end())
         {
@@ -244,7 +246,7 @@ bool DxuiDockDrag::DropOnStrip (int group, int index)
     }
 
     tabs  = (int) target->GetTabCount();
-    edge  = m_host.GetDragPaneOf (target->GetContent (std::clamp (index, 0, tabs - 1)));
+    edge  = m_sitePanes.GetPaneOf (target->GetContent (std::clamp (index, 0, tabs - 1)));
     panes = layout.GetGroup (anchor);
     at    = (int) (std::find (panes.begin(), panes.end(), edge) - panes.begin()) + ((index >= tabs) ? 1 : 0);
 
@@ -318,7 +320,7 @@ bool DxuiDockDrag::DropOnZone (
 
 void DxuiDockDrag::SetDropPreview (DxuiDockDropZone & zone) const
 {
-    DxuiPaneLayout                          layout = m_host.GetDragLayout();
+    DxuiPaneLayout                          layout = m_layout;
     std::vector<DxuiPaneLayout::GroupRect>  groups;
     RECT                                    area   = m_host.GetDragPaneArea();
     RECT                                    docked = m_host.GetDragDockedArea();
@@ -379,11 +381,11 @@ void DxuiDockDrag::SetDropPreview (DxuiDockDropZone & zone) const
 
 void DxuiDockDrag::SetTabDropPreview (DxuiDockDropZone & zone) const
 {
-    const DxuiTabGroup  * target = m_host.FindDragGroupOf (zone.targetPane);
+    const DxuiTabGroup  * target = m_groups.FindGroupOf (zone.targetPane);
     DxuiTabGroup          probe;
     RECT                  pane   = {};
     RECT                  band   = {};
-    long                  line   = DxuiPaneMetrics::GetLinePx (m_host.GetDragScaler());
+    long                  line   = DxuiPaneMetrics::GetLinePx (m_scaler);
     long                  tabEnd = 0;
     long                  edge   = 0;
 
@@ -395,11 +397,11 @@ void DxuiDockDrag::SetTabDropPreview (DxuiDockDropZone & zone) const
     }
 
     pane   = target->GetBounds();
-    tabEnd = std::min (pane.right, pane.left + (long) m_host.GetDragScaler().ToPx (kPreviewTabDip));
+    tabEnd = std::min (pane.right, pane.left + (long) m_scaler.ToPx (kPreviewTabDip));
 
     probe.SetKind        (target->GetKind());
     probe.SetStripForced (true);
-    probe.Layout         (pane, m_host.GetDragScaler());
+    probe.Layout         (pane, m_scaler);
     band = probe.GetStripRect();
 
     if (target->GetKind() == DxuiTabGroup::Kind::Document)
@@ -438,7 +440,7 @@ void DxuiDockDrag::UpdateCompass (POINT pointDip)
 
 
 
-    if (TryGetCompass (m_compassGroup, kind, origin) && DxuiDockGuide::IsInside (kind, origin, pointDip, m_host.GetDragScaler()))
+    if (TryGetCompass (m_compassGroup, kind, origin) && DxuiDockGuide::IsInside (kind, origin, pointDip, m_scaler))
     {
         return;
     }
@@ -578,7 +580,7 @@ bool DxuiDockDrag::TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & o
 
     kind   = split ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::SmallCross;
     origin = DxuiDockGuide::GetOrigin (kind, POINT { (found->groupRect.left + found->groupRect.right) / 2,
-                                                     (found->groupRect.top + found->groupRect.bottom) / 2 }, m_host.GetDragScaler());
+                                                     (found->groupRect.top + found->groupRect.bottom) / 2 }, m_scaler);
     return true;
 }
 
@@ -615,7 +617,7 @@ std::shared_ptr<const DxuiIconImage> DxuiDockDrag::GetGuideImage (
     wanted.key.kind                = kind;
     wanted.key.edge                = edge;
     wanted.key.hovered             = hovered;
-    wanted.key.dpi                 = m_host.GetDragScaler().GetDpi();
+    wanted.key.dpi                 = m_scaler.GetDpi();
     wanted.key.colors.border       = theme.DockGuideBorder();
     wanted.key.colors.fill         = theme.DockGuideFill();
     wanted.key.colors.buttonBorder = theme.DockGuideButtonBorder();
@@ -638,7 +640,7 @@ std::shared_ptr<const DxuiIconImage> DxuiDockDrag::GetGuideImage (
         m_guideImages.clear();
     }
 
-    image = DxuiDockGuide::Render (kind, edge, hovered, wanted.key.colors, m_host.GetDragScaler());
+    image = DxuiDockGuide::Render (kind, edge, hovered, wanted.key.colors, m_scaler);
 
     for (const DxuiCoverageRect & shade : shades)
     {
@@ -709,7 +711,7 @@ bool DxuiDockDrag::End (POINT pointDip)
     //  without one.
     if (zone.has_value())
     {
-        changed = DropOnZone (*zone, m_host.EditDragLayout());
+        changed = DropOnZone (*zone, m_layout);
     }
     else if (strip >= 0)
     {
@@ -782,7 +784,7 @@ std::vector<DxuiDockDragMark> DxuiDockDrag::GetMarks (const IDxuiTheme & theme) 
     auto                            addGuide = [&] (DxuiDockGuideKind guide, DxuiDockSide edge, POINT at, int lit)
     {
         DxuiDockDragMark               mark;
-        SIZE                           size = DxuiDockGuide::GetSizePx (guide, m_host.GetDragScaler());
+        SIZE                           size = DxuiDockGuide::GetSizePx (guide, m_scaler);
         std::vector<DxuiCoverageRect>  over;
 
         for (size_t i = 0; lit >= 0 && i < shades.size(); i++)
@@ -815,10 +817,10 @@ std::vector<DxuiDockDragMark> DxuiDockDrag::GetMarks (const IDxuiTheme & theme) 
         }
     }
 
-    if (m_stripGroup >= 0 && m_stripGroup < (int) m_host.GetDragGroupCount())
+    if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.GetCount())
     {
-        marks.push_back ({ m_host.GetDragGroup ((size_t) m_stripGroup)->GetBodyRect(),      preview,                                0 });
-        marks.push_back ({ m_host.GetDragGroup ((size_t) m_stripGroup)->GetInsertGapRect(), (theme.Accent() & kColor) | kGapTint, 0 });
+        marks.push_back ({ m_groups.Get ((size_t) m_stripGroup)->GetBodyRect(),      preview,                                0 });
+        marks.push_back ({ m_groups.Get ((size_t) m_stripGroup)->GetInsertGapRect(), (theme.Accent() & kColor) | kGapTint, 0 });
     }
 
     for (const DxuiDockDropZone & zone : m_zones)
@@ -830,7 +832,7 @@ std::vector<DxuiDockDragMark> DxuiDockDrag::GetMarks (const IDxuiTheme & theme) 
 
         button  = DxuiDockGuide::GetDockButton (zone.side);
         hovered = (&zone == hover) ? (int) button : -1;
-        addGuide (DxuiDockGuideKind::Edge, zone.side, DxuiDockGuide::GetOriginOfButton (DxuiDockGuideKind::Edge, button, zone.target, m_host.GetDragScaler()), hovered);
+        addGuide (DxuiDockGuideKind::Edge, zone.side, DxuiDockGuide::GetOriginOfButton (DxuiDockGuideKind::Edge, button, zone.target, m_scaler), hovered);
     }
 
     if (TryGetCompass (m_compassGroup, kind, origin))

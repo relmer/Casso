@@ -7,6 +7,10 @@
 #include "Core/DxuiIconImage.h"
 
 
+class DxuiDockGroups;
+class DxuiDockPanes;
+class DxuiDpiScaler;
+class DxuiPaneLayout;
 class IDxuiDockDragHost;
 class IDxuiTheme;
 
@@ -61,7 +65,11 @@ public:
     static constexpr int  kInsertGapDip  = 96;
     static constexpr int  kPreviewTabDip = 100;
 
-    explicit DxuiDockDrag (IDxuiDockDragHost & host) : m_host (host) {}
+    DxuiDockDrag (IDxuiDockDragHost     & host,
+                  DxuiPaneLayout        & layout,
+                  const DxuiDpiScaler   & scaler,
+                  const DxuiDockGroups  & groups,
+                  const DxuiDockPanes   & panes) : m_host (host), m_layout (layout), m_scaler (scaler), m_groups (groups), m_sitePanes (panes) {}
 
     void  Begin       (const std::vector<std::wstring> & panes, const std::wstring & active);
     bool  End         (POINT pointDip);
@@ -123,6 +131,10 @@ private:
     static bool  Contains (const RECT & rect, POINT point);
 
     IDxuiDockDragHost              & m_host;
+    DxuiPaneLayout                 & m_layout;
+    const DxuiDpiScaler            & m_scaler;
+    const DxuiDockGroups           & m_groups;
+    const DxuiDockPanes            & m_sitePanes;
     std::wstring                     m_pane;
     std::vector<std::wstring>        m_panes;
     int                              m_stripGroup    = -1;

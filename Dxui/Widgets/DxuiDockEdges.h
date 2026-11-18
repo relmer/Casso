@@ -4,6 +4,8 @@
 #include "Core/DxuiPaneLayout.h"
 
 
+class DxuiDockPanes;
+class DxuiDpiScaler;
 class IDxuiDockEdgesHost;
 class IDxuiPainter;
 class IDxuiTextRenderer;
@@ -35,7 +37,13 @@ public:
     static constexpr int  kEdgeBarDip      = 3;
     static constexpr int  kEdgeBarInsetDip = 2;
 
-    explicit DxuiDockEdges (IDxuiDockEdgesHost & host) : m_host (host) {}
+    DxuiDockEdges (IDxuiDockEdgesHost     & host,
+                   const DxuiPaneLayout   & layout,
+                   const DxuiDpiScaler    & scaler,
+                   const DxuiDockPanes    & panes) : m_host (host), m_layout (layout), m_scaler (scaler), m_panes (panes) {}
+
+    //  The edge a group in `area` hides against when its pane is pinned.
+    static DxuiDockSide  GetNearestEdge (const RECT & group, const RECT & area);
 
     void  SetShare   (DxuiDockSide edge, long thickness, long start, long end);
     void  ClearShare ()                                { m_shareOn = false; }
@@ -62,15 +70,18 @@ private:
         RECT          rect = {};
     };
 
-    IDxuiDockEdgesHost    & m_host;
-    std::vector<EdgeTab>    m_tabs;
-    bool                    m_shareOn    = false;
-    DxuiDockSide            m_shareEdge  = DxuiDockSide::Top;
-    long                    m_shareDepth = 0;
-    long                    m_shareStart = 0;
-    long                    m_shareEnd   = 0;
-    std::wstring            m_slidPane;
-    RECT                    m_slidRect   = {};
-    DxuiDockSide            m_slidEdge   = DxuiDockSide::Left;
-    std::wstring            m_hoverTab;
+    IDxuiDockEdgesHost      & m_host;
+    const DxuiPaneLayout    & m_layout;
+    const DxuiDpiScaler     & m_scaler;
+    const DxuiDockPanes     & m_panes;
+    std::vector<EdgeTab>      m_tabs;
+    bool                      m_shareOn    = false;
+    DxuiDockSide              m_shareEdge  = DxuiDockSide::Top;
+    long                      m_shareDepth = 0;
+    long                      m_shareStart = 0;
+    long                      m_shareEnd   = 0;
+    std::wstring              m_slidPane;
+    RECT                      m_slidRect   = {};
+    DxuiDockSide              m_slidEdge   = DxuiDockSide::Left;
+    std::wstring              m_hoverTab;
 };
