@@ -36,6 +36,7 @@ Sentence case throughout. **Status** is `proposed` until approved.
 |---|---|---|
 | Missing ROM | the existing missing-ROM message, with "Apple3.rom" | proposed |
 | Feature not available | Not available on the Apple /// | proposed |
+| --disk3 or --disk4 past the machine's drives | This machine has no drive %1. | proposed |
 | Error label | Illegal address | proposed |
 | Error text | A bank applies only to addresses $2000-$9FFF, and this machine has banks 0 through %1. | proposed |
 | BASIC view | This Business BASIC release is not supported. | proposed |

@@ -61,6 +61,7 @@ HRESULT Apple3MachineBuilder::Build (const MachineConfig & config)
     CHR (hr);
 
     WireDiskDrive();
+    m_builder.WireDriveAudio (Apple3DiskController::kDriveCount);
     CreateVideo();
 
     hr = m_host.GetMemoryBus().Validate();

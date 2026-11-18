@@ -51,11 +51,12 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
 //  StartupDiskPicker::GetStockDisks
 //
 //  The DOS 3.3 and ProDOS masters, which are 140K 5.25-inch disks, and the
-//  800K ProDOS disk built from ProDOS 2.4.3.
+//  800K ProDOS disk built from ProDOS 2.4.3. On the Apple ///, which boots
+//  SOS, the Apple /// System Utilities disk instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive & drive)
+std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive & drive, bool bootsSos)
 {
     std::vector<StockDiskRow>  rows;
     ImageClass                 master;
@@ -78,7 +79,7 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
 
     if (DriveImageRule::Accepts (drive, master))
     {
-        for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk })
+        for (AssetBootstrap::StockBootDisk disk : GetMasters (bootsSos))
         {
             std::filesystem::path  path = AssetBootstrap::GetStockBootDiskPath (disk);
 
@@ -86,7 +87,7 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
         }
     }
 
-    if (DriveImageRule::Accepts (drive, disk800K))
+    if (!bootsSos && DriveImageRule::Accepts (drive, disk800K))
     {
         std::filesystem::path  path = GetStockDisk800KPath();
 
@@ -94,6 +95,26 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDiskPicker::GetMasters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<AssetBootstrap::StockBootDisk> StartupDiskPicker::GetMasters (bool bootsSos)
+{
+    if (bootsSos)
+    {
+        return { AssetBootstrap::StockBootDisk::SosSystemDisk };
+    }
+
+    return { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk };
 }
 
 
@@ -172,7 +193,8 @@ bool StartupDiskPicker::FetchStockDisk (const std::wstring & path, std::wstring 
         return MakeStockDisk800K (outError);
     }
 
-    for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk })
+    for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk,
+                                                AssetBootstrap::StockBootDisk::SosSystemDisk })
     {
         if (_wcsicmp (AssetBootstrap::GetStockBootDiskPath (disk).c_str(), path.c_str()) == 0)
         {
@@ -244,7 +266,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT StartupDiskPicker::Run (HINSTANCE instance, HWND owner, const std::wstring & machineName, const ReceivingDrive & drive, const std::wstring & driveLabel,
-                                const std::string & activeTheme, std::wstring & outDiskPath, bool & outIsClosed)
+                                const std::string & activeTheme, bool bootsSos, std::wstring & outDiskPath, bool & outIsClosed)
 {
     HRESULT             hr       = S_OK;
     HRESULT             hrOle    = OleInitialize (nullptr);
@@ -257,7 +279,9 @@ HRESULT StartupDiskPicker::Run (HINSTANCE instance, HWND owner, const std::wstri
     outDiskPath.clear();
     outIsClosed = false;
 
-    host.Prepare (MakeRequest (machineName, drive, driveLabel, GetStockDisks (drive), GetDemoDisks (fileIo, drive)), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
+    // The demo disks are Apple II disks.
+    host.Prepare (MakeRequest (machineName, drive, driveLabel, GetStockDisks (drive, bootsSos), bootsSos ? std::vector<StockDiskRow>() : GetDemoDisks (fileIo, drive)),
+                  CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
 
     hr = host.RunModal (instance);
     CHR (hr);

@@ -198,29 +198,28 @@ void MachineManager::ShowMachinePicker()
 
 HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 {
-    HRESULT                hr                = S_OK;
-    std::vector<fs::path>  searchPaths;
-    fs::path               configRelPath;
-    fs::path               configPath;
-    std::ifstream          configFile;
-    bool                   configGood        = false;
-    std::stringstream      ss;
-    std::string            jsonText;
-    std::vector<fs::path>  romSearchPaths;
-    std::string            error;
-    MachineConfig          newConfig;
-    std::string            machineNameNarrow = fs::path (machineName).string();
-    JsonValue              defaultJson;
-    JsonValue              mergedJson;
-    JsonParseError         parseErr;
-    WORD                   speedCmd          = 0;
-    bool                   foundConfig       = false;
-    HRESULT                hrParse           = S_OK;
-    HRESULT                hrMerge           = S_OK;
-    std::string            carryDisk1;
-    std::string            carryDisk2;
-    const JsonValue *      inputUiPrefs      = nullptr;
-    bool                   isRebuild         = AutoStatePolicy::IsRebuild (m_shell.m_machine.GetCurrentMachineName(), machineName);
+    HRESULT                    hr                = S_OK;
+    std::vector<fs::path>      searchPaths;
+    fs::path                   configRelPath;
+    fs::path                   configPath;
+    std::ifstream              configFile;
+    bool                       configGood        = false;
+    std::stringstream          ss;
+    std::string                jsonText;
+    std::vector<fs::path>      romSearchPaths;
+    std::string                error;
+    MachineConfig              newConfig;
+    std::string                machineNameNarrow = fs::path (machineName).string();
+    JsonValue                  defaultJson;
+    JsonValue                  mergedJson;
+    JsonParseError             parseErr;
+    WORD                       speedCmd          = 0;
+    bool                       foundConfig       = false;
+    HRESULT                    hrParse           = S_OK;
+    HRESULT                    hrMerge           = S_OK;
+    DiskManager::DrivePaths    carryDisks;
+    const JsonValue *          inputUiPrefs      = nullptr;
+    bool                       isRebuild         = AutoStatePolicy::IsRebuild (m_shell.m_machine.GetCurrentMachineName(), machineName);
 
 
 
@@ -451,8 +450,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // machine also updates its per-machine prefs so the disk sticks
     // on subsequent launches. Empty paths fall through to the
     // per-machine prefs lookup inside MountCommandLineDisks.
-    carryDisk1 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 0);
-    carryDisk2 = m_shell.m_machine.GetDiskStore().GetSourcePath (6, 1);
+    for (size_t drive = 0; drive < carryDisks.size(); drive++)
+    {
+        carryDisks[drive] = m_shell.m_machine.GetDiskStore().GetSourcePath (6, (int) drive);
+    }
 
     // Tear down ALL per-machine state in one atomic move. The refs are a
     // struct of observer pointers into the owning collections
@@ -578,11 +579,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // was already flushed above, so no user data is lost.
     if (!m_shell.m_disks->GetManager()->HasSlot6Controller())
     {
-        carryDisk1.clear();
-        carryDisk2.clear();
+        carryDisks = {};
     }
 
-    m_shell.m_disks->GetManager()->MountCommandLineDisks (carryDisk1, carryDisk2);
+    m_shell.m_disks->GetManager()->MountCommandLineDisks (carryDisks);
     m_shell.m_debugger->NotifyDebugDisksMounted();
 
     // Each machine keeps its own tape, as it keeps its own disks.

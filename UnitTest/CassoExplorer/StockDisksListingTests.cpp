@@ -111,6 +111,21 @@ public:
 
 
 
+    //  The Apple /// boots SOS, so its drives are offered the Apple ///
+    //  System Utilities disk alone.
+    TEST_METHOD (StockDisks_AreTheSosDisk_OnAMachineThatBootsSos)
+    {
+        std::vector<StockDiskRow>  floppy = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, true);
+
+
+
+        Assert::AreEqual ((size_t) 1, floppy.size());
+        Assert::AreEqual (std::wstring (L"Apple /// System Utilities"), floppy[0].label);
+        Assert::IsTrue   (floppy[0].path.ends_with (StockBootDisks::kpszSosSystemDiskFile));
+    }
+
+
+
     TEST_METHOD (NoStockDisks_NoRows)
     {
         std::vector<CatalogRow>  rows = { CatalogRow() };

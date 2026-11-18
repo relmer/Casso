@@ -122,9 +122,14 @@ public:
     //  three cases.
     void     OnBayChange            (int slot, int drive, BayChange change);
 
+    // An image path for each slot 6 drive; empty for none.
+    using DrivePaths = std::array<std::string, DiskImageStore::kDriveCount>;
+
     void     RemountSlot6Disks      ();
-    void     MountCommandLineDisks  (const std::string & disk1Path,
-                                     const std::string & disk2Path);
+    void     MountCommandLineDisks  (const DrivePaths & paths);
+
+    // The slot 6 drives the machine has.
+    int      GetDriveCount          ();
 
     // IDriveCommandSink-style entry points routed through the CPU
     // command queue so the actual mount/eject runs on the CPU thread.
@@ -175,6 +180,9 @@ public:
                                        bool              & outNoPermission);
 
 private:
+    std::string  ReadSavedDrivePath             (int drive);
+    void         ClearSavedDrivePathUnlessGiven (int drive, const std::string & given);
+
     class MachineHost                                          & m_machine;
     DiskImageStore                                             & m_diskStore;
     std::vector<std::unique_ptr<Disk2AudioSource>>             & m_diskAudioSources;

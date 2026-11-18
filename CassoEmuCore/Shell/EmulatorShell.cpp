@@ -785,8 +785,7 @@ HRESULT EmulatorShell::Initialize (
     HINSTANCE             hInstance,
     const wstring       & machineName,
     const MachineConfig & config,
-    const string        & disk1Path,
-    const string        & disk2Path,
+    const DiskPaths     & diskPaths,
     const string        & tapePath)
 {
     HRESULT  hr = S_OK;
@@ -876,7 +875,7 @@ HRESULT EmulatorShell::Initialize (
     // installed before the command-line disks go in so those are covered too.
     m_disks->InstallMountReporting();
 
-    m_disks->GetManager()->MountCommandLineDisks (disk1Path, disk2Path);
+    m_disks->GetManager()->MountCommandLineDisks (diskPaths);
     m_debugger->NotifyDebugDisksMounted();
 
     m_tapeDeck->InsertStartupTape (tapePath);
@@ -887,7 +886,7 @@ HRESULT EmulatorShell::Initialize (
     // A launch whose command line mounts media starts cold with them; any
     // other resumes the machine's automatic state, before the CPU thread
     // starts, so the first frame is the resumed machine.
-    m_isCommandLineMediaSession = !disk1Path.empty() || !disk2Path.empty() || !tapePath.empty();
+    m_isCommandLineMediaSession = std::ranges::any_of (diskPaths, [] (const string & path) { return !path.empty(); }) || !tapePath.empty();
     ResumeAutoState (true);
 
 Error:

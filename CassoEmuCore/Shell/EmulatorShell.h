@@ -117,13 +117,15 @@ public:
     EmulatorShell();
     ~EmulatorShell();
 
+    // An image for each slot 6 drive from the command line; empty for none.
+    using DiskPaths = std::array<std::string, DiskImageStore::kDriveCount>;
+
     HRESULT Initialize (
         HINSTANCE              hInstance,
         const wstring        & machineName,
         const MachineConfig  & config,
-        const string    & disk1Path,
-        const string    & disk2Path,
-        const string    & tapePath = {});
+        const DiskPaths      & diskPaths,
+        const string         & tapePath = {});
 
     int RunMessageLoop();
 

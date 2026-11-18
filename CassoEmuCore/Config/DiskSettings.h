@@ -15,8 +15,8 @@ class JsonValue;
 //  DiskSettings
 //
 //  Per-machine remembered state, backed by the per-machine $cassoUiPrefs
-//  block in the unified prefs JSON via UserConfigStore: the disk1Path /
-//  disk2Path mount paths (stored exe-relative via
+//  block in the unified prefs JSON via UserConfigStore: the disk1Path to
+//  disk4Path mount paths (stored exe-relative via
 //  PathResolver::MakeExeRelativePath so the casso.exe + Disks/ tree stays
 //  portable), plus arbitrary boolean UI flags such as the //c case-switch
 //  latches (eightyColumnSwitch / keyboardDvorak).
@@ -26,6 +26,9 @@ class JsonValue;
 class DiskSettings
 {
 public:
+
+    // Drives 0 to 3: the Apple ///'s four. An Apple II has drives 0 and 1.
+    static constexpr int  kDriveCount = 4;
 
     static HRESULT  ReadSavedDiskPath  (UserConfigStore     & store,
                                         IFileSystem         & fs,

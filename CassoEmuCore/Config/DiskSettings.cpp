@@ -13,6 +13,12 @@
 
 
 
+static constexpr const char *  s_kDiskPathKeys[DiskSettings::kDriveCount] = { "disk1Path", "disk2Path", "disk3Path", "disk4Path" };
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  File-scope helpers
@@ -150,9 +156,9 @@ HRESULT DiskSettings::ReadSavedDiskPath (
 
     outPath.clear();
 
-    CBRAEx (drive >= 0 && drive <= 1, E_INVALIDARG);
+    CBRAEx (drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
-    hr = ReadSavedPath (store, fs, (drive == 0) ? "disk1Path" : "disk2Path", machineName, outPath);
+    hr = ReadSavedPath (store, fs, s_kDiskPathKeys[drive], machineName, outPath);
     CHR (hr);
 
 Error:
@@ -265,18 +271,16 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     const std::wstring & machineName,
     const std::wstring & path)
 {
-    HRESULT                                         hr           = S_OK;
+    HRESULT                                         hr = S_OK;
     std::wstring                                    stored;
     std::vector<std::pair<std::string, JsonValue>>  values;
-    bool                                            driveInRange = drive >= 0 && drive <= 1;
-    const char                                    * keyName      = (drive == 0) ? "disk1Path" : "disk2Path";
 
 
 
-    CBRAEx (driveInRange, E_INVALIDARG);
+    CBRAEx (drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     stored = PathResolver::MakeExeRelativePath (path);
-    values.emplace_back (keyName, JsonValue (WideToUtf8 (stored)));
+    values.emplace_back (s_kDiskPathKeys[drive], JsonValue (WideToUtf8 (stored)));
 
     hr = WriteSavedUiPrefs (store, fs, machineName, values);
     CHR (hr);

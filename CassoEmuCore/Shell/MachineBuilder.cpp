@@ -729,81 +729,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
-    // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
-    // FR-015 / FR-016). Allocate one Disk2AudioSource per drive, register
-    // each with the mixer, and route the controller's audio-sink events into
-    // drive 0's source (single sink covers both drives; the head / motor
-    // events themselves are not currently drive-tagged in Disk2Controller --
-    // a follow-up could split per-drive sinks).
-    //
-    // The sources are created UNCONDITIONALLY -- even for a machine with no
-    // (realized) Disk ][ controller -- so the settings drive-sound preview
-    // (#84 Phase C) still auditions when the user has toggled slot 6 on in
-    // settings but not yet committed the controller into the running machine.
-    // Without a controller the sources simply receive no real head / motor
-    // events; the mixer mixes them as silence until a test sound is fired.
-    //
-    // Pan policy: each drive's stereo position comes from the shell's
-    // stored per-drive pan (user-adjustable). Defaults place Drive 1
-    // left-of-center and Drive 2 right-of-center (kDefaultDriveOnePan /
-    // kDefaultDriveTwoPan).
-    if (m_services.diskAudioSources != nullptr && m_services.driveAudioMixer != nullptr)
-    {
-        int  driveCount = Disk2Controller::kDriveCount;
-        int  drive      = 0;
-
-        m_services.diskAudioSources->clear();
-        m_services.driveAudioMixer->UnregisterAllSources();
-
-        for (drive = 0; drive < driveCount; drive++)
-        {
-            auto   src  = std::make_unique<Disk2AudioSource>();
-            float  panL = DriveAudioMixer::kSpeakerCenter;
-            float  panR = DriveAudioMixer::kSpeakerCenter;
-
-            // Per-drive stereo position from the shell's stored pan
-            // (user-adjustable; defaults place Drive 1 left-of-center and
-            // Drive 2 right-of-center). drive index is clamped to the
-            // stored-pan array bound.
-            if (m_services.drivePan != nullptr)
-            {
-                DriveAudioMixer::PanToStereo (m_services.drivePan[drive], panL, panR);
-            }
-
-            src->SetPan (panL, panR);
-
-            m_services.driveAudioMixer->RegisterSource (src.get());
-            src->SetDriveIndex (drive);
-
-            if (m_services.driveMotorVolume != nullptr)
-            {
-                src->SetVolumes (*m_services.driveMotorVolume,
-                                 *m_services.driveHeadVolume,
-                                 *m_services.driveDoorVolume);
-            }
-
-            m_services.diskAudioSources->push_back (std::move (src));
-        }
-
-        // The emulated ImageWriter shares the generic drive-audio bus
-        // (FR-016). It is a single persistent shell-owned source; the
-        // UnregisterAllSources above dropped it along with the disk sources,
-        // so re-register it here on every machine build. Silent until the
-        // live preview publishes a paced reveal.
-        if (m_services.printerAudio != nullptr)
-        {
-            m_services.driveAudioMixer->RegisterSource (m_services.printerAudio);
-        }
-
-        // Feed real disk head / motor / door events to drive 0's source only
-        // when the machine actually has the Disk ][ controller realized.
-        if (m_host.GetRefs().diskController != nullptr && !m_services.diskAudioSources->empty())
-        {
-            m_host.GetRefs().diskController->GetSignals().SetAudioSink ((*m_services.diskAudioSources)[0].get());
-        }
-
-        StorageCardWiring (*this, m_host, m_services).WireDeviceAudio();
-    }
+    WireDriveAudio (Disk2Controller::kDriveCount);
 
     // Bytes from the last machine that were never drained are not this
     // machine's to print. The teardown before a build stops the drain.
@@ -1102,6 +1028,99 @@ void MachineBuilder::WireLanguageCard()
         // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
         lc->RebindWindow();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireDriveAudio
+//
+//  Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
+//  FR-015 / FR-016). Allocate one Disk2AudioSource per drive, register
+//  each with the mixer, and route the controller's audio-sink events into
+//  drive 0's source (single sink covers both drives; the head / motor
+//  events themselves are not currently drive-tagged in Disk2Controller --
+//  a follow-up could split per-drive sinks).
+//
+//  The sources are created UNCONDITIONALLY -- even for a machine with no
+//  (realized) Disk ][ controller -- so the settings drive-sound preview
+//  (#84 Phase C) is audible after slot 6 is turned on in settings and before
+//  the controller is committed into the running machine.
+//  Without a controller the sources simply receive no real head / motor
+//  events; the mixer mixes them as silence until a test sound is fired.
+//
+//  Pan policy: each drive's stereo position comes from the shell's
+//  stored per-drive pan (user-adjustable). Defaults place Drive 1
+//  left-of-center and Drive 2 right-of-center (kDefaultDriveOnePan /
+//  kDefaultDriveTwoPan).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireDriveAudio (int driveCount)
+{
+    int  drive = 0;
+
+
+
+    if (m_services.diskAudioSources == nullptr || m_services.driveAudioMixer == nullptr)
+    {
+        return;
+    }
+
+    m_services.diskAudioSources->clear();
+    m_services.driveAudioMixer->UnregisterAllSources();
+
+    for (drive = 0; drive < driveCount; drive++)
+    {
+        auto   src  = std::make_unique<Disk2AudioSource>();
+        float  panL = DriveAudioMixer::kSpeakerCenter;
+        float  panR = DriveAudioMixer::kSpeakerCenter;
+
+        // Per-drive stereo position from the shell's stored pan
+        // (user-adjustable; defaults place Drive 1 left-of-center and
+        // Drive 2 right-of-center). The Apple ///'s drives 3 and 4 take
+        // drive 2's.
+        if (m_services.drivePan != nullptr)
+        {
+            DriveAudioMixer::PanToStereo (m_services.drivePan[std::min (drive, kPannedDriveCount - 1)], panL, panR);
+        }
+
+        src->SetPan (panL, panR);
+
+        m_services.driveAudioMixer->RegisterSource (src.get());
+        src->SetDriveIndex (drive);
+
+        if (m_services.driveMotorVolume != nullptr)
+        {
+            src->SetVolumes (*m_services.driveMotorVolume,
+                             *m_services.driveHeadVolume,
+                             *m_services.driveDoorVolume);
+        }
+
+        m_services.diskAudioSources->push_back (std::move (src));
+    }
+
+    // The emulated ImageWriter shares the generic drive-audio bus
+    // (FR-016). It is a single persistent shell-owned source; the
+    // UnregisterAllSources above dropped it along with the disk sources,
+    // so re-register it here on every machine build. Silent until the
+    // live preview publishes a paced reveal.
+    if (m_services.printerAudio != nullptr)
+    {
+        m_services.driveAudioMixer->RegisterSource (m_services.printerAudio);
+    }
+
+    // Feed real disk head / motor / door events to drive 0's source only
+    // when the machine actually has the Disk ][ controller realized.
+    if (m_host.GetRefs().diskController != nullptr && !m_services.diskAudioSources->empty())
+    {
+        m_host.GetRefs().diskController->GetSignals().SetAudioSink ((*m_services.diskAudioSources)[0].get());
+    }
+
+    StorageCardWiring (*this, m_host, m_services).WireDeviceAudio();
 }
 
 

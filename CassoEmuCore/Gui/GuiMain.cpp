@@ -34,6 +34,7 @@
 #include "Seams/Win32ProcessLauncher.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "Machines/MachineDefinition.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "dbghelp.lib")
@@ -215,6 +216,45 @@ static void ShowCommandLineDialog (HINSTANCE hInstance, const CommandLineOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToShellPath
+//
+//  A command line path, in UTF-8, as the narrow path the shell mounts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static string ToShellPath (const string & utf8Path)
+{
+    return fs::path (TextEncoding::NarrowToWide (utf8Path)).string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFloppyDriveCount
+//
+//  The slot 6 drives a machine has: the Apple ///'s built-in drive and its
+//  external drives, and two on an Apple II.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int GetFloppyDriveCount (const MachineConfig & config)
+{
+    const MachineDefinition  * definition = MachineDefinitions::Find (config.machineId);
+
+
+
+    return (definition != nullptr && definition->hasBankedMemory) ? 1 + config.externalDrives : Disk2Controller::kDriveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsResumingAutoState
 //
 //  Whether the shell resumes the machine's automatic state at startup, by the
@@ -306,7 +346,7 @@ static HRESULT RunStartupForm (
     label          = boot.IsDiskIi() ? wstring (L"Drive 1") : DriveLabel::GetTitle (boot.drive, true);
 
     hr = StartupDiskPicker::Run (hInstance, hwndParent, AssetBootstrap::GetEmbeddedDisplayName (hInstance, machineName), receiving, label,
-                                 prefs.activeTheme, picked, userClosed);
+                                 prefs.activeTheme, definition != nullptr && definition->hasBankedMemory, picked, userClosed);
     CHRN (hr, L"The boot disk picker could not be opened.");
 
     // Closing the picker is a clean shutdown request, as choosing Exit in
@@ -797,8 +837,8 @@ extern "C" int WINAPI wCassoMain (
 
     HRESULT                              hr                  = S_OK;
     wstring                              machineName;
+    EmulatorShell::DiskPaths             diskPaths;
     wstring                              disk1Path;
-    wstring                              disk2Path;
     wstring                              tapePath;
     wstring                              titlePrefix;
     fs::path                             serialLogPath;
@@ -888,8 +928,7 @@ extern "C" int WINAPI wCassoMain (
     BAIL_OUT_IF (!parsed.explore.empty(), S_OK);
 
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
-    disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);
-    disk2Path     = TextEncoding::NarrowToWide (parsed.disk2);
+    diskPaths     = { ToShellPath (parsed.disk1), ToShellPath (parsed.disk2), ToShellPath (parsed.disk3), ToShellPath (parsed.disk4) };
     tapePath      = TextEncoding::NarrowToWide (parsed.tape);
     titlePrefix   = TextEncoding::NarrowToWide (parsed.titlePrefix);
     traceCapacity = parsed.traceEntries;
@@ -1010,19 +1049,31 @@ extern "C" int WINAPI wCassoMain (
     // Load machine configuration. A user who dismissed one of the
     // startup dialogs wants out, so exit cleanly without a follow-up
     // error MessageBox.
-    isResumingAutoState = IsResumingAutoState (machineName, !disk1Path.empty() || !disk2Path.empty() || !tapePath.empty());
+    isResumingAutoState = IsResumingAutoState (machineName, std::ranges::any_of (diskPaths, [] (const string & path) { return !path.empty(); }) || !tapePath.empty());
+
+    disk1Path = TextEncoding::NarrowToWide (parsed.disk1);
 
     hr = LoadMachineConfig (hInstance, machineName, disk1Path, isResumingAutoState, nullptr, userExited, config);
     CHR (hr);
     BAIL_OUT_IF (userExited, S_OK);
+
+    // The boot disk picker can choose drive 1's disk.
+    diskPaths[0] = fs::path (disk1Path).string();
+
+    // --disk3 and --disk4 are for an Apple /// with that many drives.
+    for (size_t drive = Disk2Controller::kDriveCount; drive < diskPaths.size(); drive++)
+    {
+        bool  isOnMachine = diskPaths[drive].empty() || (int) drive < GetFloppyDriveCount (config);
+
+        CBRN (isOnMachine, format (L"This machine has no drive {}.", drive + 1).c_str());
+    }
 
     // Initialize emulator. EmulatorShell::Initialize records the
     // chosen machine into GlobalUserPrefs.lastSelectedMachine and
     // flushes it to UserPrefs.json so the next launch boots the
     // same machine without --machine.
     hr = shell->Initialize (hInstance, machineName, config,
-                            fs::path (disk1Path).string(),
-                            fs::path (disk2Path).string(),
+                            diskPaths,
                             fs::path (tapePath).string());
     CHRN (hr, L"Failed to initialize emulator");
 

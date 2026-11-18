@@ -108,16 +108,16 @@ it back with Casso's disk tools.
 
 ### Tests
 
-- [ ] T039 [P] [US2] Extend `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp` for four drives: selection, an unconnected drive, write protect, and that selecting one drive does not affect the others' motors or lamps
+- [x] T039 [P] [US2] Extend `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp` for four drives: selection, an unconnected drive, write protect, and that selecting one drive does not affect the others' motors or lamps
 - [ ] T040 [US2] Add scenario tests (volumes listed for all four drives; format; copy between drives and read back byte for byte; write-protect error; `.D3` with one external drive) to `ScenarioTests/Apple3SosTests.cpp`
 
 ### Implementation
 
-- [ ] T041 [US2] Add the external drives and the Apple /// drive selection to `CassoEmuCore/Machines/Apple3/Apple3DiskController.cpp`, with the count from `externalDrives`
+- [x] T041 [US2] Add the external drives and the Apple /// drive selection to `CassoEmuCore/Machines/Apple3/Apple3DiskController.cpp`, with the count from `externalDrives`
 - [ ] T042 [US2] Change each two-drive assumption listed by T034 (event drive field, `DebugDiskState`, audio sources, mount and eject paths) in `CassoEmuCore/Machines/Apple2/Common/` and `CassoEmuCore/Debugger/`, with the Apple II behavior the same
-- [ ] T043 [P] [US2] Add Drive 3 and Drive 4 to the disk menus, drop targets, drive widgets and `--disk3`, `--disk4` (errors on an Apple II machine; both in `--help`) in `CassoEmuCore/Shell/` and `CassoEmuCore/Cli/`
-- [ ] T044 [P] [US2] Give each of the four drives the Disk II drive sounds through `Disk2AudioSource` in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
-- [ ] T045 [US2] Make the boot disk picker work for the built-in drive (FR-017), with SOS disks offered from `CassoEmuCore/Machines/Apple2/Common/StockBootDisks.h` and the picker in `CassoEmuCore/Ui/Dialogs/`
+- [x] T043 [P] [US2] Add Drive 3 and Drive 4 to the disk menus, drop targets, drive widgets and `--disk3`, `--disk4` (errors on an Apple II machine; both in `--help`) in `CassoEmuCore/Shell/` and `CassoEmuCore/Cli/`
+- [x] T044 [P] [US2] Give each of the four drives the Disk II drive sounds through `Disk2AudioSource` in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
+- [x] T045 [US2] Make the boot disk picker work for the built-in drive (FR-017), with SOS disks offered from `CassoEmuCore/Machines/Apple2/Common/StockBootDisks.h` and the picker in `CassoEmuCore/Ui/Dialogs/`
 
 **Checkpoint**: four drives work under SOS.
 

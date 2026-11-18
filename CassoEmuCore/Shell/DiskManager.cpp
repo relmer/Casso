@@ -313,107 +313,153 @@ Disk2Controller * DiskManager::FindSlot6Controller()
 //  Resolves the per-drive image to mount: explicit command-line path
 //  wins, otherwise the last-session registry remembers it. A missing
 //  remembered file is cleared on the spot (FR-047) so a moved or
-//  deleted image stops resurrecting every launch.
+//  deleted image stops resurrecting every launch. A drive past the
+//  machine's last is skipped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskManager::MountCommandLineDisks (
-    const std::string & disk1Path,
-    const std::string & disk2Path)
+void DiskManager::MountCommandLineDisks (const DrivePaths & paths)
 {
-    HRESULT      hr            = S_OK;
-    std::string  resolvedDisk1 = disk1Path;
-    std::string  resolvedDisk2 = disk2Path;
+    HRESULT     hr         = S_OK;
+    DrivePaths  resolved   = paths;
+    int         driveCount = std::min (GetDriveCount(), DiskImageStore::kDriveCount);
+    int         drive      = 0;
 
 
 
-    if (resolvedDisk1.empty() && !m_currentMachineName.empty())
+    for (drive = 0; drive < driveCount; drive++)
     {
-        std::wstring  saved;
-        HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
-                                                                0, m_currentMachineName, saved);
-
-        if (hrRead == S_OK && !saved.empty())
+        if (resolved[drive].empty())
         {
-            if (fs::exists (fs::path (saved)))
-            {
-                resolvedDisk1 = fs::path (saved).string();
-            }
-            else
-            {
-                OutputDebugStringW (L"[DiskManager] FR-047: drive 0 last-mounted image missing; clearing.\n");
-                HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                    m_userConfigStore, m_fileSystem, 0, m_currentMachineName, std::wstring());
-                IGNORE_RETURN_VALUE (hrClear, S_OK);
-            }
+            resolved[drive] = ReadSavedDrivePath (drive);
         }
     }
 
-    if (resolvedDisk2.empty() && !m_currentMachineName.empty())
-    {
-        std::wstring  saved;
-        HRESULT       hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem,
-                                                                1, m_currentMachineName, saved);
-
-        if (hrRead == S_OK && !saved.empty())
-        {
-            if (fs::exists (fs::path (saved)))
-            {
-                resolvedDisk2 = fs::path (saved).string();
-            }
-            else
-            {
-                OutputDebugStringW (L"[DiskManager] FR-047: drive 1 last-mounted image missing; clearing.\n");
-                HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                    m_userConfigStore, m_fileSystem, 1, m_currentMachineName, std::wstring());
-                IGNORE_RETURN_VALUE (hrClear, S_OK);
-            }
-        }
-    }
-
-    if (resolvedDisk1.empty() && resolvedDisk2.empty())
-    {
-        return;
-    }
-
-    // ONE FILE CANNOT GO IN BOTH DRIVES, and drive 1 is the one that keeps it:
-    // it is the drive the machine boots from. The store refuses the second bay
-    // whichever order they arrive in, and drive 2 goes in first, so without
-    // this the boot drive would be the one turned away.
+    // ONE FILE CANNOT GO IN TWO DRIVES, and the lower drive gets it: drive 1
+    // is the drive the machine boots from. The store fails the second bay's
+    // mount whichever order the mounts come in, and the higher drives go in
+    // first, so without this the boot drive's mount would be the one to fail.
     //
     // A DUPLICATE THAT CAME OUT OF THE SAVED PATHS IS CLEARED, not just
-    // skipped. Prefs written before the store refused this could hold the same
-    // file for both drives, and a launch that only skipped it would raise the
-    // same refusal on every launch after.
-    if (!resolvedDisk1.empty()
-     && MountedImageState::IsSamePath (resolvedDisk1, resolvedDisk2))
+    // skipped. Prefs written before the store checked for this can have the
+    // same file for two drives, and a launch that only skipped it would fail
+    // the same mount on every launch after.
+    for (drive = 1; drive < driveCount; drive++)
     {
-        resolvedDisk2.clear();
-
-        if (disk2Path.empty() && !m_currentMachineName.empty())
+        for (int lower = 0; lower < drive && !resolved[drive].empty(); lower++)
         {
-            HRESULT  hrClear = DiskSettings::WriteSavedDiskPath (
-                m_userConfigStore, m_fileSystem, 1, m_currentMachineName, std::wstring());
+            if (!resolved[lower].empty() && MountedImageState::IsSamePath (resolved[lower], resolved[drive]))
+            {
+                resolved[drive].clear();
+                ClearSavedDrivePathUnlessGiven (drive, paths[drive]);
+            }
+        }
+    }
+
+    // The highest drive goes in first so drive 1's disk -- the one the
+    // machine boots from -- is the last of the mounts and therefore the top
+    // entry in the recent-disks picker, which the mount completion feeds in
+    // the order the mounts finish. The bays are independent, so the order
+    // costs nothing else.
+    for (drive = driveCount - 1; drive >= 0; drive--)
+    {
+        if (!resolved[drive].empty())
+        {
+            hr = MountDiskInSlot6 (drive, resolved[drive]);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadSavedDrivePath
+//
+//  The image last mounted in a drive of this machine, or empty. A saved
+//  file that no longer exists is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskManager::ReadSavedDrivePath (int drive)
+{
+    std::wstring  saved;
+    std::string   path;
+    HRESULT       hrRead  = S_OK;
+    HRESULT       hrClear = S_OK;
+
+
+
+    if (m_currentMachineName.empty())
+    {
+        return path;
+    }
+
+    hrRead = DiskSettings::ReadSavedDiskPath (m_userConfigStore, m_fileSystem, drive, m_currentMachineName, saved);
+
+    if (hrRead == S_OK && !saved.empty())
+    {
+        if (fs::exists (fs::path (saved)))
+        {
+            path = fs::path (saved).string();
+        }
+        else
+        {
+            OutputDebugStringW (std::format (L"[DiskManager] FR-047: drive {} last-mounted image missing; clearing.\n", drive).c_str());
+            hrClear = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem, drive, m_currentMachineName, std::wstring());
             IGNORE_RETURN_VALUE (hrClear, S_OK);
         }
     }
 
-    // Drive 2 goes in first so drive 1's disk -- the one the machine boots
-    // from -- is the later of the two mounts and therefore the top entry in
-    // the recent-disks picker, which the mount completion feeds in the order
-    // the mounts finish. The two bays are independent, so the order costs
-    // nothing else.
-    if (!resolvedDisk2.empty())
-    {
-        hr = MountDiskInSlot6 (1, resolvedDisk2);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    return path;
+}
 
-    if (!resolvedDisk1.empty())
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearSavedDrivePathUnlessGiven
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::ClearSavedDrivePathUnlessGiven (int drive, const std::string & given)
+{
+    HRESULT  hrClear = S_OK;
+
+
+
+    if (given.empty() && !m_currentMachineName.empty())
     {
-        hr = MountDiskInSlot6 (0, resolvedDisk1);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        hrClear = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem, drive, m_currentMachineName, std::wstring());
+        IGNORE_RETURN_VALUE (hrClear, S_OK);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDriveCount
+//
+//  The slot 6 drives this machine has: the Apple ///'s built-in drive and
+//  its external drives, or the Disk II controller's two.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskManager::GetDriveCount()
+{
+    const Apple3DiskController  * apple3Disk = m_machine.GetRefs().apple3Disk;
+
+
+
+    return (apple3Disk != nullptr) ? 1 + apple3Disk->GetExternalDriveCount() : Disk2Controller::kDriveCount;
 }
 
 

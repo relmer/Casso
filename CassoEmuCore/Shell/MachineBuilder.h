@@ -147,6 +147,13 @@ public:
     //  they used to run separate copies of it that drifted.
     HRESULT  Build                (const MachineConfig & config);
 
+    //  One drive sound source for each slot 6 drive, registered with the
+    //  mixer, the controller's sounds on drive 1's. The drives past the
+    //  ones with a stored pan take the last one's.
+    void     WireDriveAudio       (int driveCount);
+
+    static constexpr int  kPannedDriveCount = 2;
+
     HRESULT         CreateMemoryDevices (const MachineConfig & config);
     void            WireLanguageCard    ();
     void            WireBankedRom       ();

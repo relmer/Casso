@@ -3136,6 +3136,20 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("c.woz"),   slashed.disk1);
         }
 
+
+        //  The Apple ///'s drives 3 and 4. Whether the machine has them is
+        //  checked once the machine is known, not here.
+        TEST_METHOD (Emulator_ParsesTheThirdAndFourthDrives)
+        {
+            ArgVector  args = { "--machine", "Apple3", "--disk3", "c.dsk", "/disk4", "d.dsk" };
+
+            CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+            Assert::IsTrue   (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::AreEqual (std::string ("c.dsk"), parsed.disk3);
+            Assert::AreEqual (std::string ("d.dsk"), parsed.disk4);
+        }
+
         //  A tape goes in by name either way, and a missing name is an error
         //  rather than the next flag taken for a file.
         TEST_METHOD (Emulator_TapeTakesAFileInEitherPrefix)

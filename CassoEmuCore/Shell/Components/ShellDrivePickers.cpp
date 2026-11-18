@@ -131,14 +131,16 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
     //  The DOS 3.3 and ProDOS masters, and apart from them the disks in the
     //  Apple2\Demos folder, each listed for a drive that accepts it. A master
     //  is downloaded when it is picked, as the old dialog's Download rows did.
-    hooks.getStockDisks = [] (const PickerDrive & drive)
+    // The Apple /// boots SOS, and the demo disks are Apple II disks.
+    hooks.getStockDisks = [this] (const PickerDrive & drive)
     {
-        return StartupDiskPicker::GetStockDisks (drive.receiving);
+        return StartupDiskPicker::GetStockDisks (drive.receiving, m_shell.m_disks->GetApple3DriveCount() > 0);
     };
 
     hooks.getDemoDisks = [this] (const PickerDrive & drive)
     {
-        return StartupDiskPicker::GetDemoDisks (m_shell.m_machine.GetStorage().GetBlockMediaFileIo(), drive.receiving);
+        return (m_shell.m_disks->GetApple3DriveCount() > 0) ? std::vector<StockDiskRow>()
+                                                            : StartupDiskPicker::GetDemoDisks (m_shell.m_machine.GetStorage().GetBlockMediaFileIo(), drive.receiving);
     };
 
     hooks.fetchStockDisk = [] (const std::wstring & path, std::wstring & outError)
