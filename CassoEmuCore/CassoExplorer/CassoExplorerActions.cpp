@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/BasicListingOutput.h"
+#include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
@@ -99,6 +100,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
+            verbs.push_back (Verb::GetWithOptions);
 
             //  The clipboard row's Copy, as for a real file: the entries go on
             //  as the files a paste would write.
@@ -1454,6 +1456,43 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::FindCopyOptionRows
+//
+//  Each selected file is read for its format. A folder doesn't add a row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows)
+{
+    std::vector<FileEntry>  entries;
+    std::string             image = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    VolumeKind              kind  = m_browser.GetVolumeKind();
+    FileFormat              format = FileFormat::None;
+
+
+
+    outRows.clear();
+    m_browser.GetSelectedEntries (entries);
+
+    for (const FileEntry & entry : entries)
+    {
+        if (entry.isDirectory)
+        {
+            continue;
+        }
+
+        format = CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind);
+
+        CopyOptionRows::Add (format, GetEncoding (entry, kind), PreviewDecoder::IsExecutableType (entry.type, kind), outRows);
+    }
 }
 
 

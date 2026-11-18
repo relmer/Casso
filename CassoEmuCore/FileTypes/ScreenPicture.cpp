@@ -141,6 +141,7 @@ HRESULT ScreenPicture::Unpack (FileFormat format, std::span<const Byte> bytes, c
 {
     HRESULT  hr     = S_OK;
     size_t   length = (format == FileFormat::DoubleHiResScreen) ? PicturePreview::kDoubleHiResLength : PicturePreview::kHiResLength;
+    bool     whole  = false;
 
 
 
@@ -156,7 +157,9 @@ HRESULT ScreenPicture::Unpack (FileFormat format, std::span<const Byte> bytes, c
     if (IsPacked (facts, (format == FileFormat::DoubleHiResScreen) ? kAuxPackedDouble : kAuxPacked))
     {
         PackBytes::Unpack (bytes, length, outScreen);
-        CBREx (outScreen.size() == length, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        whole = outScreen.size() == length;
+        CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
         return S_OK;
     }
 

@@ -253,50 +253,51 @@ void BasicListingOutput::ColorLine (const std::string & line, bool integer, std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicListingOutput::GetKeywords
+//  BasicListingOutput::BuildKeywords
 //
 //  Each token's keyword that starts with a letter, longest first, so that
 //  ATN is found ahead of AT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<std::string> BasicListingOutput::BuildKeywords (bool integer)
+{
+    std::vector<std::string>  keywords;
+    const char              * keyword = nullptr;
+    int                       first   = integer ? 0 : 0x80;
+    int                       last    = integer ? IntegerBasicDetokenizer::kLastToken : 0xFF;
+
+
+
+    for (int token = first; token <= last; token++)
+    {
+        keyword = integer ? IntegerBasicDetokenizer::GetKeyword ((Byte) token) : ApplesoftTokenizer::GetKeyword ((Byte) token);
+
+        if (keyword != nullptr && isalpha ((unsigned char) keyword[0]))
+        {
+            keywords.push_back (keyword);
+        }
+    }
+
+    std::stable_sort (keywords.begin(), keywords.end(), [] (const std::string & a, const std::string & b) { return a.size() > b.size(); });
+
+    return keywords;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicListingOutput::GetKeywords
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const std::vector<std::string> & BasicListingOutput::GetKeywords (bool integer)
 {
-    static const std::vector<std::string>  s_applesoft = [] ()
-    {
-        std::vector<std::string>  keywords;
-
-        for (int token = 0x80; token <= 0xFF; token++)
-        {
-            const char *  keyword = ApplesoftTokenizer::GetKeyword ((Byte) token);
-
-            if (keyword != nullptr && isalpha ((unsigned char) keyword[0]))
-            {
-                keywords.push_back (keyword);
-            }
-        }
-
-        std::stable_sort (keywords.begin(), keywords.end(), [] (const std::string & a, const std::string & b) { return a.size() > b.size(); });
-        return keywords;
-    } ();
-
-    static const std::vector<std::string>  s_integer = [] ()
-    {
-        std::vector<std::string>  keywords;
-
-        for (int token = 0; token <= IntegerBasicDetokenizer::kLastToken; token++)
-        {
-            const char *  keyword = IntegerBasicDetokenizer::GetKeyword ((Byte) token);
-
-            if (keyword != nullptr && isalpha ((unsigned char) keyword[0]))
-            {
-                keywords.push_back (keyword);
-            }
-        }
-
-        std::stable_sort (keywords.begin(), keywords.end(), [] (const std::string & a, const std::string & b) { return a.size() > b.size(); });
-        return keywords;
-    } ();
+    static const std::vector<std::string>  s_applesoft = BuildKeywords (false);
+    static const std::vector<std::string>  s_integer   = BuildKeywords (true);
 
 
 

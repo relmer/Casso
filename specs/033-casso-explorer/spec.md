@@ -681,7 +681,10 @@ hardware.
   passed over, and one report lists both, with no prompt for each failure.
   A "Get as" choice for a selection sets the options of each file kind in
   it that has options, such as hi-res in color or black and white, and
-  stores them as the defaults. Whether to convert many disk images from one
+  stores them as the defaults. It is "Copy to folder with options..."
+  (owner, 2026-11-18), not Get as: "Get" is the spec's word, and on screen
+  the command is Copy to folder. Its options match CiderPress II's
+  converters, MacPaint included. Whether to convert many disk images from one
   format to another is open.
 - Q: Does the link buffer disks in auxiliary or expanded memory? -> A: No
   (owner, 2026-11-18). At 115,200 baud the link, not the disk, sets the

@@ -258,7 +258,7 @@ void BrowserPreviewer::SetCharset (Charset charset)
 {
     if (!m_hexFormKey.empty())
     {
-        m_decodeOptions[m_hexFormKey].charset = charset;
+        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.charset = charset;
         UpdatePreview();
     }
 }
@@ -277,7 +277,7 @@ void BrowserPreviewer::SetRecordLength (size_t recordLength)
 {
     if (!m_hexFormKey.empty())
     {
-        m_decodeOptions[m_hexFormKey].recordLength = recordLength;
+        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.recordLength = recordLength;
         UpdatePreview();
     }
 }
@@ -296,7 +296,7 @@ void BrowserPreviewer::SetFormulas (bool formulas)
 {
     if (!m_hexFormKey.empty())
     {
-        m_decodeOptions[m_hexFormKey].formulas = formulas;
+        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.formulas = formulas;
         UpdatePreview();
     }
 }
@@ -317,7 +317,31 @@ DecodeOptions BrowserPreviewer::GetDecodeOptions (const std::wstring & imagePath
 
 
 
-    return (found != m_decodeOptions.end()) ? found->second : DecodeOptions();
+    return (found != m_decodeOptions.end()) ? found->second : m_defaultOptions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetDefaultDecodeOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetDefaultDecodeOptions (const DecodeOptions & options)
+{
+    m_defaultOptions              = options;
+    m_defaultOptions.recordLength = 0;
+
+    for (auto & [key, fileOptions] : m_decodeOptions)
+    {
+        size_t  recordLength = fileOptions.recordLength;
+
+        fileOptions              = m_defaultOptions;
+        fileOptions.recordLength = recordLength;
+    }
 }
 
 

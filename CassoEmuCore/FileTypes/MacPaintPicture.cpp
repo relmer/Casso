@@ -40,16 +40,18 @@ bool MacPaintPicture::Matches (const FileFacts & facts, std::span<const Byte> by
 
 HRESULT MacPaintPicture::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
 {
-    HRESULT                hr = S_OK;
+    HRESULT                hr       = S_OK;
     std::span<const Byte>  document;
     std::vector<Byte>      dots;
+    bool                   unpacked = false;
 
 
 
     UNREFERENCED_PARAMETER (facts);
     UNREFERENCED_PARAMETER (options);
 
-    CBREx (GetDocument (bytes, document) && Unpack (document, dots), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    unpacked = GetDocument (bytes, document) && Unpack (document, dots);
+    CBREx (unpacked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outFile.kind   = DecodedFile::Kind::Picture;
     outFile.width  = kWidth;

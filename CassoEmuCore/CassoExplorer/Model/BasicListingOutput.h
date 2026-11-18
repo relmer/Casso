@@ -52,7 +52,8 @@ private:
     static constexpr char  kCaret         = '^';
     static constexpr char  kControlBase   = 0x40;
 
-    static const std::vector<std::string> &  GetKeywords (bool integer);
-    static size_t                            MatchKeyword (const std::string & line, size_t at, bool integer);
-    static void                              AddRun       (std::vector<Run> & ioRuns, const std::string & text, RunColor color);
+    static std::vector<std::string>          BuildKeywords (bool integer);
+    static const std::vector<std::string>  & GetKeywords   (bool integer);
+    static size_t                            MatchKeyword  (const std::string & line, size_t at, bool integer);
+    static void                              AddRun        (std::vector<Run> & ioRuns, const std::string & text, RunColor color);
 };

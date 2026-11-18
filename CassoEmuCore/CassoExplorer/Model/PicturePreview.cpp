@@ -420,8 +420,8 @@ void PicturePreview::RenderWindowed (std::vector<uint32_t> & ioBgra)
 {
     for (int y = 0; y < kHeight; y += 2)
     {
-        uint32_t  * row   = ioBgra.data() + (size_t) y * kWidth;
-        int         index = 0;
+        uint32_t  * row         = ioBgra.data() + (size_t) y * kWidth;
+        int         index       = 0;
         bool        lit[kWidth] = {};
 
 

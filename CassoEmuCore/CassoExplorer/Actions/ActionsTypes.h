@@ -99,6 +99,9 @@ struct ActionsTypes
         //  Two selected images compared in one inspector window, the focused
         //  image as A.
         CompareDiskImages,
+
+        //  Copy to folder, its conversion options chosen first.
+        GetWithOptions,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag

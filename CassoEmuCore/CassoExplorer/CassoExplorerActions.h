@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CassoExplorer/Model/CopyOptionRows.h"
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsA2retroNet.h"
@@ -290,6 +291,9 @@ public:
     bool  CanChooseDriveFilesystem (const std::string & link, int drive) const { return m_appleDrive.CanChooseDriveFilesystem (link, drive); }
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
+
+    //  The rows Copy to folder with options has for the selected files.
+    void  FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows);
 
     static PutPlan       PlanPut         (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
     void                 GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome) { m_appleDrive.GetAppleSingle (image, entry, hostPath, inOutOutcome); }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/CassoExplorerCopyOptionsDialog.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerCollectionTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
@@ -1344,6 +1345,35 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             }
 
             break;
+
+        //  The choices become the options of every later copy, drag out and
+        //  Copy to folder, and are saved with Casso Explorer's settings. A
+        //  selection with no file that has options goes straight to the
+        //  folder.
+        case CassoExplorerActions::Verb::GetWithOptions:
+        {
+            std::vector<CopyOptionRows::Row>  rows;
+            DecodeOptions                     options = m_context.browser.GetDefaultDecodeOptions();
+
+            m_context.actions.FindCopyOptionRows (rows);
+
+            if (!rows.empty() && !CassoExplorerCopyOptionsDialog::Choose (m_context.window.GetHwnd(), m_context.theme, rows, options))
+            {
+                break;
+            }
+
+            m_context.prefs.copyOptions = options;
+            m_context.browser.SetDefaultDecodeOptions (options);
+
+            hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
+
+            if (SUCCEEDED (hr) && chosen)
+            {
+                ReportOutcome (m_context.actions.GetSelected (picked.wstring(), style, m_context.prompts.MakeCollisionPrompt()), L"Copy");
+            }
+
+            break;
+        }
 
         case CassoExplorerActions::Verb::Put:
             hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);

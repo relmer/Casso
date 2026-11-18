@@ -561,6 +561,7 @@
     <ClCompile Include="CassoExplorer\AppleFilePropertiesTests.cpp" />
     <ClCompile Include="CassoExplorer\BasicConversionTests.cpp" />
     <ClCompile Include="CassoExplorer\BasicListingOutputTests.cpp" />
+    <ClCompile Include="CassoExplorer\CopyOptionRowsTests.cpp" />
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialogTests.cpp" />

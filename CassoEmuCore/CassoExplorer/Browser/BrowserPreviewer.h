@@ -91,6 +91,11 @@ public:
     //  image; the defaults for a file with none.
     DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const;
 
+    //  The options of a file whose preview hasn't set any. Setting them
+    //  sets each file's options too, all but its record length.
+    void                   SetDefaultDecodeOptions (const DecodeOptions & options);
+    const DecodeOptions &  GetDefaultDecodeOptions () const { return m_defaultOptions; }
+
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
 
     PicturePreview::Monitor  GetPictureMonitor () const;
@@ -145,4 +150,5 @@ private:
 
     //  The decode choices of each file one was made for, by file key.
     std::map<std::wstring, DecodeOptions>  m_decodeOptions;
+    DecodeOptions                          m_defaultOptions;
 };

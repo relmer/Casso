@@ -295,6 +295,78 @@ bool CassoExplorerPrefs::TryGetLocationKind (const std::string & name, Location:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerPrefs::OptionsToJson
+//
+//  The enums as their numbers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue CassoExplorerPrefs::OptionsToJson (const DecodeOptions & options)
+{
+    std::vector<std::pair<std::string, JsonValue>>  fields;
+
+
+
+    fields.emplace_back ("charset",          JsonValue ((double) options.charset));
+    fields.emplace_back ("formulas",         JsonValue (options.formulas));
+    fields.emplace_back ("hiResMono",        JsonValue (options.hiResMono));
+    fields.emplace_back ("doubleHiRes",      JsonValue ((double) options.doubleHiRes));
+    fields.emplace_back ("basicColor",       JsonValue (options.basicColor));
+    fields.emplace_back ("basicRawControls", JsonValue (options.basicRawControls));
+    fields.emplace_back ("disassembly",      JsonValue ((double) options.disassembly));
+    fields.emplace_back ("longRegisters",    JsonValue (options.longRegisters));
+    fields.emplace_back ("followFlags",      JsonValue (options.followFlags));
+
+    return JsonValue (std::move (fields));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::ReadOptions
+//
+//  A number outside an enum's values is passed over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerPrefs::ReadOptions (const JsonValue & value, DecodeOptions & outOptions)
+{
+    int  number = 0;
+
+
+
+    if (value.HasInt ("charset", number) && number >= (int) Charset::Default && number <= (int) Charset::Iso8859_1)
+    {
+        outOptions.charset = (Charset) number;
+    }
+
+    if (value.HasInt ("doubleHiRes", number) && number >= (int) DoubleHiResForm::Auto && number <= (int) DoubleHiResForm::WindowedColor)
+    {
+        outOptions.doubleHiRes = (DoubleHiResForm) number;
+    }
+
+    if (value.HasInt ("disassembly", number) && number >= (int) DisassemblyCpu::None && number <= (int) DisassemblyCpu::Wdc65816)
+    {
+        outOptions.disassembly = (DisassemblyCpu) number;
+    }
+
+    value.HasBool ("formulas",         outOptions.formulas);
+    value.HasBool ("hiResMono",        outOptions.hiResMono);
+    value.HasBool ("basicColor",       outOptions.basicColor);
+    value.HasBool ("basicRawControls", outOptions.basicRawControls);
+    value.HasBool ("longRegisters",    outOptions.longRegisters);
+    value.HasBool ("followFlags",      outOptions.followFlags);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerPrefs::LinkToJson
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -588,6 +660,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
     root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
     root.emplace_back ("rawCopyMenu",    JsonValue (rawCopyMenu));
+    root.emplace_back ("copyOptions",    OptionsToJson (copyOptions));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
@@ -763,6 +836,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * seenArray    = nullptr;
     const JsonValue  * choiceArray  = nullptr;
     const JsonValue  * linkArray    = nullptr;
+    const JsonValue  * options      = nullptr;
     const JsonValue  * widthArray   = nullptr;
     const JsonValue  * orderArray   = nullptr;
     const JsonValue  * viewArray    = nullptr;
@@ -795,6 +869,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("enterExpandsPreview", enterExpandsPreview);
     root.HasBool ("autoThumbnails", autoThumbnails);
     root.HasBool ("rawCopyMenu",    rawCopyMenu);
+
+    if (root.HasObject ("copyOptions", options))
+    {
+        ReadOptions (*options, copyOptions);
+    }
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
