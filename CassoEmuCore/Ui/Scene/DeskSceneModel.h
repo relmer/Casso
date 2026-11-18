@@ -398,6 +398,10 @@ public:
     // owns these because they differ per drive and the model is shared.
     static void  StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber);
 
+    // Stamps the drive's number, 1 to 4, under "DRIVE" on a Disk ///'s
+    // drive label.
+    static void  StampDisk3Number (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber);
+
     // Stamps the HD20SC's model number, "20SC" or "32SC", beside its badge.
     // A character with no baked glyph is skipped.
     static void  StampHardDiskLabel (std::vector<Dxui3DRenderer::Vertex> & out, const std::wstring & label);

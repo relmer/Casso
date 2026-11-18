@@ -103,7 +103,7 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
     // -- its margin, size, color and finish -- belongs with the rest of the
     // faceplate furniture and stays in the model.
     //
-    // ONLY THE DISK II WEARS ONE. The //c drive has no drive-number legend on
+    // THE //c DRIVE IS NOT LABELED. There is no drive-number legend on
     // the real hardware, and stamping the Disk II's landed it off the top of
     // a face 20 mm shorter -- printing it on the monitor standing on the
     // drive rather than on the drive.
@@ -114,6 +114,13 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
     {
         DeskSceneModel::StampDriveLabel (m_driveLabelVerts[0], 1);
         DeskSceneModel::StampDriveLabel (m_driveLabelVerts[1], 2);
+    }
+
+    // The Disk /// has a drive label with a white field for its number.
+    if (driveKind == DeskDeviceKind::Disk3)
+    {
+        DeskSceneModel::StampDisk3Number (m_driveLabelVerts[0], 1);
+        DeskSceneModel::StampDisk3Number (m_driveLabelVerts[1], 2);
     }
 
     BuildDerivedGeometry();

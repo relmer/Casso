@@ -38,6 +38,16 @@ Ka 0 0 0
 Kd 0.92 0.92 0.9
 d 1
 
+newmtl label_logotype
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl label_word
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
 newmtl logo_plate
 Ka 0 0 0 
 Kd 0.07 0.07 0.075
@@ -78,14 +88,124 @@ Ka 0 0 0
 Kd 0.56 0.565 0.575
 d 1
 
-newmtl rear_label
+newmtl rear_opening
 Ka 0 0 0 
-Kd 0.78 0.11 0.12
+Kd 0.07 0.07 0.075
 d 1
 
 newmtl rear_header
 Ka 0 0 0 
-Kd 0.2 0.33 0.62
+Kd 0.2 0.42 0.76
+d 1
+
+newmtl rear_header_in
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl rear_socket
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl rear_screw
+Ka 0 0 0 
+Kd 0.7 0.705 0.715
+d 1
+
+newmtl rear_screw_slot
+Ka 0 0 0 
+Kd 0.3 0.3 0.31
+d 1
+
+newmtl rear_label
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_warning
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_serial
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_stripes
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_bracket
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_text_floppy
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_text_warning
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_text_connect
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_text_only
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_text_ports
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_text_company
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_text_registered
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_text_street
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_text_city
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
+d 1
+
+newmtl rear_text_serial
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_text_number
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_text_made
+Ka 0 0 0 
+Kd 0.86 0.15 0.165
+d 1
+
+newmtl rear_mark
+Ka 0 0 0 
+Kd 0.92 0.92 0.9
 d 1
 
 newmtl foot_26_56

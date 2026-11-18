@@ -45,5 +45,18 @@ dimension comes from the photographs.
   9.3 to 25.1 mm from the left and the logo plate at 12.7 to 45.8 mm.
 - **Feet** are 22 mm squares, 25.9 and 113.6 mm from the left and 55.6 and
   179.6 mm from the front, from the bottom photograph at 0.2 mm per pixel.
-- **Chamfers, the block's projection, the top panel's inset and the seam's
-  height** are by eye from the three-quarter views.
+- **Edges** are treated as the ProFile's are: the front top edge and the
+  rear corners are rounded, and the front corners, the top's sides, the rear
+  top edge and the bottom edges are 45-degree chamfers.
+- **The drive label** was read from the close-up of it in
+  `disk3-front-oc.jpg` at 0.052 mm per pixel. The scene stamps the drive's
+  number on it, from masks baked by `scripts/modelgen/bake_disk3_label.py`.
+- **The rear recess and its label** were read from
+  `disk3-rear-rr3483512.jpg` at 0.1 mm per pixel: the recess is 18.5 to
+  141.4 mm across and 35.5 to 92 mm high, and the label is 121.5 by 44.5 mm.
+  The label's contents were read from `disk3-rear-label-oc.jpg` at 0.035 mm
+  per pixel, and each line of lettering is set to its measured width. The
+  type is Century Gothic in place of the label's geometric sans. Casso's
+  silhouette replaces the logo.
+- **Chamfer and fillet sizes, the block's projection, the top panel's inset
+  and the seam's height** are by eye from the three-quarter views.

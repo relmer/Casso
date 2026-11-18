@@ -3231,6 +3231,7 @@
     <ClInclude Include="Devices\BlockDevice\AppleScsiCard.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceAttachments.h" />
     <ClInclude Include="Devices\BlockDevice\StockHardDiskImage.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneDisk3Labels.h" />
     <ClInclude Include="Ui\Scene\DeskSceneHardDiskLabels.h" />
     <ClInclude Include="Devices\BlockDevice\ProFileDrive.h" />
     <ClInclude Include="Devices\BlockDevice\ProFileCard.h" />

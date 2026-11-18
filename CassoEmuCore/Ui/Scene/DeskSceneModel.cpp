@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Ui/Scene/DeskSceneDisk3Labels.h"
 #include "Ui/Scene/DeskSceneHardDiskLabels.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
@@ -2475,6 +2476,55 @@ void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out,
                    s_kDriveLabelLeftMm + wordWidth + s_kDriveNumberGapMm,
                    centerZ + digitCap * 0.5f,
                    digitCap / (float) digitRows, s_kDriveLabelFrontY, ink.data(), true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::StampDisk3Number
+//
+//  The number is centered on the label's white field, below "DRIVE", in
+//  black. Its size and position are measured from the photograph that
+//  cad_disk3.py's label is modeled from. It is printed, so it is unlit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::StampDisk3Number (std::vector<Dxui3DRenderer::Vertex> & out, int driveNumber)
+{
+    constexpr float       kCapMm     = 2.95f;
+    constexpr float       kCenterXMm = 17.2f;
+    constexpr float       kCenterZMm = 74.3f;
+    constexpr float       kFrontY    = -0.6f;
+    constexpr float       kInkRgb[3] = { 0.06f, 0.06f, 0.06f };
+    const char * const  * rows       = s_kDisk3Digit1Mask;
+    int                   rowCount   = kDisk3Digit1MaskRows;
+    int                   colCount   = kDisk3Digit1MaskCols;
+    float                 cell       = 0.0f;
+    std::vector<float>    ink;
+
+
+
+    switch (driveNumber)
+    {
+        case 2:  rows = s_kDisk3Digit2Mask;  rowCount = kDisk3Digit2MaskRows;  colCount = kDisk3Digit2MaskCols;  break;
+        case 3:  rows = s_kDisk3Digit3Mask;  rowCount = kDisk3Digit3MaskRows;  colCount = kDisk3Digit3MaskCols;  break;
+        case 4:  rows = s_kDisk3Digit4Mask;  rowCount = kDisk3Digit4MaskRows;  colCount = kDisk3Digit4MaskCols;  break;
+        default: break;
+    }
+
+    cell = kCapMm / (float) rowCount;
+
+    for (int row = 0; row < rowCount; row++)
+    {
+        ink.insert (ink.end(), kInkRgb, kInkRgb + 3);
+    }
+
+    StampFaceMask (out, rows, rowCount, colCount,
+                   kCenterXMm - (float) colCount * cell * 0.5f, kCenterZMm + kCapMm * 0.5f,
+                   cell, kFrontY, ink.data(), false);
 }
 
 
