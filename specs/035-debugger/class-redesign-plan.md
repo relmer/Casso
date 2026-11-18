@@ -761,6 +761,41 @@ for the parts the class under test uses.
 5. The window's surface, then each interface in the table's order.
 6. Remove `IDebuggerPaneHost` and `GetPaneHostForTest`.
 
+**As built, 2026-11-18.** `IDebuggerPaneHost` and `GetPaneHostForTest` are
+gone, and `IDebuggerPane` has no host member. Where the build differs from the
+tables above:
+
+- The interfaces are in `Panes/PaneHostInterfaces.h` and keep the host's
+  method names. `IPaneViews` (open views and heat settings) and
+  `IPaneReplies` (`ShowPaneReply`, `ShowListAbove`, `AddSkipItem`) are split
+  out of the planned layout and dialog interfaces. `IPaneNavigator` also has
+  `GoLive`; `IPaneLayout` also has `Repaint` and `RepaintLater`; `IPaneTips`
+  also has `CheckOperandTip`; `IPaneDialogs` also has `GetHostDialogs`. Each
+  of those four is one call past rule 3's limit, a call the same panes make
+  with the others.
+- `DebuggerPaneParts` has the window as `DxuiWindow &`, its scaler, and
+  `windowHost`, a reference to the window's host pointer, which is set after
+  the panes are built.
+- `OpenEventLog` is replaced by `IPanePlaces::OpenPane` with the log pane's
+  `DebuggerLayout` id.
+- `NoteViewFocus` is replaced by `RunActions::GetSteppingToFollow`, static, which
+  the window and `SourceDocumentGroup` both call.
+- `BrowseForSource` is in `SourceDocumentGroup`, and opens the file it picks
+  through `IPaneCommands::OpenFiles`.
+- The file pickers that start in the last folder of a kind are
+  `DebuggerFilePicker`, static, used by the window and the panes.
+- `PaneMenuRows` has only the bookmark row. `AddSkipItem` stays on the window
+  (`IPaneReplies`), since its notice uses the window's checkbox dialog, which
+  tests override.
+- `MemoryWindowGroup` takes `HeatMapPane &` for a byte's heat rows. The panes
+  built after it (registers, stack, watches and the disassembly views) take
+  `MemoryWindowGroup &` for the "Show ... in Memory" rows; the heat map,
+  built before it, calls it through `IPaneNavigator::ShowMemoryAddress`.
+- `GetSymbolComment` is `SymbolComments::GetComment`, with the cache in the
+  parts.
+- `IsCodeHeatOn` stays on the window (`IPaneViews`), since its callers are
+  built before the disassembly views that own the option.
+
 Out of scope here: `IFloatingPanesHost`, which is also far past rule 3, and the
 other interfaces `DebuggerWindow` implements (`ICodeViews`, `IOperandTipHost`,
 `IFindWidgetHost`, `ITooltipSources`, `ICommandBarHost`,
