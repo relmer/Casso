@@ -364,6 +364,8 @@ It lands in `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\`, which is shared by every
 checkout on the machine, so this is once per machine and not once per
 worktree. Budget about four minutes and 1.7 GB.
 
+`-Opcode` and `-MaxVectors` write into the same folder. A folder that exists wins over the checked-in set, so after an `-Opcode` run the cache has one opcode and the rest of the suite fails. Delete the folder, or run the full command, before the next full run.
+
 A cached set generated before the cycle counts landed is format version 1 and
 is refused: `HarteVectorDepth` names the first stale file and the version it
 found. Regenerate it; there is no upgrade path, because the cycle counts were
