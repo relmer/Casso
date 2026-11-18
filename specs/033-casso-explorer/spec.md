@@ -683,6 +683,12 @@ hardware.
   it that has options, such as hi-res in color or black and white, and
   stores them as the defaults. Whether to convert many disk images from one
   format to another is open.
+- Q: Does the link buffer disks in auxiliary or expanded memory? -> A: No
+  (owner, 2026-11-18). At 115,200 baud the link, not the disk, sets the
+  speed of reads, writes, Full Send and raw capture, so more buffer changes
+  when a wait happens rather than how long a transfer takes; Krunch is left
+  as it is. The link sends less instead: a sector whose bytes are all one
+  value crosses as Sector blank, and a IIgs's port runs at 230,400 baud.
 - Q: Does the link wait on a Laser 128? -> A: No. No emulator found has
   one and no published source has its ID bytes, so it is dropped from
   Story 28, and the rest goes ahead without it (owner, 2026-11-18).

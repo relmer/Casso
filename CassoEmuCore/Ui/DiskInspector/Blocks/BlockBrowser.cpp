@@ -626,6 +626,11 @@ void BlockBrowser::AddVolumeRows (BlockListing & listing, int volume) const
         findings.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Finding, volume, BlockMapGrid::GetRoleName (role), blocks));
     }
 
+    for (const BlockCount & count : map.counts)
+    {
+        findings.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Finding, volume, count.finding, { first + count.keyBlock }));
+    }
+
     listing.groups.push_back (std::move (structures));
     listing.groups.push_back (std::move (findings));
 }

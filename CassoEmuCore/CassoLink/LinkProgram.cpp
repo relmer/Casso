@@ -16,6 +16,7 @@
 #include "ThirteenSector.s.h"
 #include "VirtualDrive.s.h"
 #include "SosInterp.s.h"
+#include "NetStack.s.h"
 
 
 
@@ -29,15 +30,33 @@
 
 HRESULT LinkProgram::AssembleShim (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip)
 {
-    HRESULT  hr   = S_OK;
-    bool     fits = false;
+    HRESULT                                hr       = S_OK;
+    std::unordered_map<std::string, Word>  symbols;
+    size_t                                 resident = 0;
+    bool                                   fits     = false;
 
 
 
-    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors);
-    CHR (hr);
+    //  The network build is the shim with the stack after it, at $B000,
+    //  below $C000.
+    if (chip == LinkChip::Network)
+    {
+        hr = Assemble (GetShimSource() + GetNetStackSource(), kNetShimAddress, chip, outBytes, outErrors);
+        CHR (hr);
 
-    fits = outBytes.size() <= kShimLimit;
+        fits = outBytes.size() <= kNetShimLimit;
+    }
+    else
+    {
+        hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors, false, &symbols);
+        CHR (hr);
+
+        //  The resident code ends where the startup part begins, or with the
+        //  shim for a build with no startup part.
+        resident = symbols.contains ("startup") ? (size_t) (symbols["startup"] - kShimAddress) : outBytes.size();
+        fits     = outBytes.size() <= kShimLimit && kShimAddress + resident <= kShimResidentEnd;
+    }
+
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -128,6 +147,11 @@ HRESULT LinkProgram::BuildShim (const LinkShimOptions & options, std::vector<Byt
 
         outShim[kNetPortOffset]     = (Byte) (network.port >> 8);
         outShim[kNetPortOffset + 1] = (Byte) network.port;
+
+        if (options.chip == LinkChip::Network)
+        {
+            outShim[kNetChipOffset] = network.netChip;
+        }
     }
 
 Error:
@@ -259,6 +283,7 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     HRESULT            hr      = S_OK;
     LinkShimOptions    acia    = options;
     LinkShimOptions    w5100   = options;
+    LinkShimOptions    network = options;
     std::vector<Byte>  payload;
     std::vector<Byte>  shim;
     std::string        errors;
@@ -271,6 +296,11 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     acia.slot  = 2;
     w5100.chip = LinkChip::W5100;
     w5100.slot = 3;
+
+    //  The stage writes the network card's slot and chip when it finds one.
+    network.chip            = LinkChip::Network;
+    network.slot            = 1;
+    network.network.netChip = 0;
 
     hr = AssembleUniversal (payload, errors);
     CHR (hr);
@@ -287,7 +317,13 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     CHR (hr);
 
     payload.insert (payload.end(), shim.begin(), shim.end());
-    payload.resize (kUniversalW5100 - kUniversalAddress + kShimLimit, 0);
+    payload.resize (kUniversalNetwork - kUniversalAddress, 0);
+
+    hr = BuildShim (network, shim);
+    CHR (hr);
+
+    payload.insert (payload.end(), shim.begin(), shim.end());
+    payload.resize (kUniversalNetwork - kUniversalAddress + kNetShimLimit, 0);
 
     spec.loadAddress  = kUniversalAddress;
     spec.entryAddress = kUniversalAddress;
@@ -312,6 +348,21 @@ Error:
 std::string LinkProgram::GetShimSource()
 {
     return std::string (reinterpret_cast<const char *> (s_kShimSource), sizeof (s_kShimSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetProgramSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetNetStackSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kNetStackSource), sizeof (s_kNetStackSource) - 1);
 }
 
 
@@ -774,7 +825,8 @@ Error:
 //
 //  LinkProgram::GetSpeedControl
 //
-//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c.
+//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c. Rate 1,
+//  50 baud on a 6551, indicates 230,400 on a IIgs's port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -782,7 +834,7 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 {
     static constexpr std::pair<DWORD, Byte>  s_kRates[] =
     {
-        { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
+        { 230400, 0x01 }, { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
     };
     static constexpr Byte  kEightBitsOneStop = 0x10;
     bool                   found             = false;
@@ -848,6 +900,7 @@ std::string LinkProgram::GetChipLines (LinkChip chip)
     {
         case LinkChip::W5100:     return "W5100 = 1\n";
         case LinkChip::Cassette:  return "CASSETTE = 1\n";
+        case LinkChip::Network:   return "NETWORK = 1\n";
         case LinkChip::Sos:       return std::format ("SOS = 1\nSOSFLAG = ${:02X}\nBLKMODID = {}\nBLKMODVER = {}\nSOSORG = ${:04X}\nBUFBASE = ${:04X}\n",
                                                       kSosReadyFlag, kBlockModuleId, kBlockModuleVersion, kSosAddress, kSosBufferBase);
         default:                  return "ACIA = 1\n";

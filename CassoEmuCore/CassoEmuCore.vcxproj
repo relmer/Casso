@@ -247,6 +247,7 @@
     <ClCompile Include="Seams\InProcessByteStream.cpp" />
     <ClCompile Include="Seams\ByteStreamSettings.cpp" />
     <ClCompile Include="Seams\Win32TcpStream.cpp" />
+    <ClCompile Include="Seams\Win32UdpStream.cpp" />
     <ClCompile Include="Seams\RawDevice\RawDeviceClient.cpp" />
     <ClCompile Include="Seams\RawDevice\RawDeviceProtocol.cpp" />
     <ClCompile Include="Seams\RawDevice\Fat32Format.cpp" />
@@ -355,10 +356,12 @@
     <ClCompile Include="Devices\Disk\ImageClassCache.cpp" />
     <ClCompile Include="Devices\Disk\DriveImageRule.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModelRepair.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorWorker.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockRepair.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BootLoaderId.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.cpp" />
@@ -1496,6 +1499,7 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockRepair.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BootLoaderId.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.h" />
@@ -1903,6 +1907,7 @@
     <ClInclude Include="Seams\InProcessByteStream.h" />
     <ClInclude Include="Seams\ByteStreamSettings.h" />
     <ClInclude Include="Seams\Win32TcpStream.h" />
+    <ClInclude Include="Seams\Win32UdpStream.h" />
     <ClInclude Include="Seams\ILinkAnnouncements.h" />
     <ClInclude Include="Seams\RawDevice\IRawDevice.h" />
     <ClInclude Include="Seams\RawDevice\RawDeviceClient.h" />
@@ -2390,6 +2395,7 @@
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
+    <None Include="CassoLink\Apple\NetStack.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
     <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />

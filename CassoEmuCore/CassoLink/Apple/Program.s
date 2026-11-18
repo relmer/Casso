@@ -8,7 +8,9 @@
 ;                   the PC is at work between an operation's requests,
 ;                   and the label and the motor stay.
 ;   Set speed       a 6551 control byte; ACK, then the new speed
-;   Read sectors    drive, track, count, sectors: Sector data for each
+;   Read sectors    drive, track, count, sectors: Sector data for each, or
+;                   Sector blank, its track, sector and value, for one whose
+;                   bytes are all one value
 ;   Write sectors   drive, track, count, sectors: for each, an Acknowledge
 ;                   with its number, ACK or NAK for another copy, and the
 ;                   host's Sector data, written and read back
@@ -121,9 +123,12 @@ PROGVER = 1
 SHIMVER = 1
         endif
 
-; Ready's shim version: a W5100 build sets bit 7 and a cassette build bit 6,
-; so the host sends the program built for the chip whatever the link it
-; connected through.
+; Ready's shim version: a W5100 build sets bit 7, a cassette build bit 6 and
+; the network build both, so the host sends the program built for the chip
+; whatever the link it connected through.
+        ifdef NETWORK
+READYVER = SHIMVER + $C0
+        else
         ifdef W5100
 READYVER = SHIMVER + $80
         else
@@ -132,6 +137,21 @@ READYVER = SHIMVER + $40
         else
 READYVER = SHIMVER
         endif
+        endif
+        endif
+
+; The network build, for an original Uthernet's CS8900A or a LANceGS's
+; LAN91C96: the network shim at $B000 has the stack, and each datagram's
+; payload is at RXDATA or TXDATA in its frames. Its connection and address
+; are drawn as the W5100 build's are.
+        ifdef NETWORK
+IPNET    = 1
+RXDATA   = $962A                ; the payload of the datagram received
+TXDATA   = $9C2A                ; and of the one put together to send
+LINKMAX  = $0400                ; the most bytes a datagram of the link has
+        endif
+        ifdef W5100
+IPNET    = 1
         endif
 
 ; The 6551, through slotx: slot * 16, $20 for the //c's port 2.
@@ -203,6 +223,9 @@ CRSECOND = 285                  ; units of 256 rounds in a second
         ifdef W5100
 BUFFERED = 1
         endif
+        ifdef NETWORK
+BUFFERED = 1
+        endif
         ifdef CASSETTE
 BUFFERED = 1
         endif
@@ -257,7 +280,15 @@ FLTUNREAD = 4
 FLTDATA   = 5
 FLTCRC    = 6
 
+        ifdef NETWORK
+SHIM      = $B000
+SHIMCHIP  = SHIM + $39            ; the network shim's chip: 1 for a CS8900A, 2 for a LAN91C96
+SHIMSEND  = SHIM + $3A            ; its send of X and Y bytes at TXDATA
+SHIMRECV  = SHIM + $3D            ; its wait of A seconds for a datagram at RXDATA
+SHIMRXLEN = SHIM + $44            ; the length of the datagram received
+        else
 SHIM      = $3A00
+        endif
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
@@ -391,6 +422,15 @@ wnum     = $2E                  ; and $2F: putword's value
 wdig     = $30                  ; putword: the digit
 wlead    = $31                  ; putword: nonzero once a digit is drawn
         endif
+        ifdef NETWORK
+rxn      = $26                  ; and $27: the datagram's bytes not yet read
+txn      = $28                  ; and $29: bytes put and not yet sent
+wsavy    = $2B                  ; getbt and putraw: Y as it came
+wbyte    = $2C                  ; putword: a difference
+wnum     = $2E                  ; and $2F: putword's value
+wdig     = $30                  ; putword: the digit
+wlead    = $31                  ; putword: nonzero once a digit is drawn
+        endif
         ifdef CASSETTE
 rxptr    = $24                  ; and $25: the next byte of RXBUF to read
 rxn      = $26                  ; and $27: bytes in RXBUF not yet read
@@ -419,6 +459,13 @@ entry:  sei
         lda #$20
         sta slotx
 slotok:
+        ifdef NETWORK
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta txn
+        sta txn+1
+        else
         ifdef CASSETTE
         lda #0
         sta rxn
@@ -440,6 +487,7 @@ slotok:
         clc                     ; absolute for the same reason as putb's
         adc #1
         sta sdwait+1
+        endif
         endif
         endif
         lda #$60
@@ -653,6 +701,9 @@ xlprim:
         jmp lvbasic             ; no shim saved the machine's state
         else
         jsr gsrestore
+        ifdef NETWORK
+        jsr flush
+        else
         ifdef W5100
         lda #CMDISCON           ; the PC's connection ended, then the socket
         jsr wzcmd               ; closed, after at most a few seconds
@@ -674,6 +725,7 @@ xlclose: lda #CMCLOSE
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
 xlnodtr:
+        endif
         endif
         endif
         lda SHIMSAVED          ; 1 once the shim saved them; an older shim
@@ -715,6 +767,19 @@ lvbasic: lda #0                 ; text output plain, whatever was saved:
         jsr $FE93               ; SETVID: output to the screen
         jsr $FB2F               ; INIT: the text screen, the whole window
         jsr $FC58               ; HOME
+        ifdef NETWORK
+        lda #$4C                ; DOS is gone, as the network shim and its
+        sta $03D0               ; frames were loaded over it: DOS's warm start
+        lda #<$E003             ; and Control-Reset go to Applesoft's
+        sta $03D1
+        sta $03F2
+        lda #>$E003
+        sta $03D2
+        sta $03F3
+        eor #$A5
+        sta $03F4
+        jmp $E003
+        endif
         lda $03D0               ; DOS's warm start, a JMP into DOS
         cmp #$4C
         bne lvwarm
@@ -961,6 +1026,11 @@ ggdone: rts
 ; speed the host sends the program at; and with the dial command marked as
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
+        ifdef NETWORK
+doload: jsr col40
+        jsr flush
+        jmp SHIM
+        else
         ifdef CASSETTE
 doload: jmp main                ; the program came from the cassette input, with no shim
         else
@@ -1011,6 +1081,7 @@ dlgo:   lda SHIMDIAL            ; the dial command marked as dialed, which the
         ora #$80
         sta SHIMDIAL
 dlnone: jmp SHIM
+        endif
         endif
         endif
 ; domodule: Load module. With no payload, the module's id and version in
@@ -1203,6 +1274,20 @@ cancel: jsr motoroff
 dospeed: lda #OPSPEED
         sta op
         jsr showop
+        ifndef BUFFERED
+        lda PKTBUF              ; 230,400 baud, rate 1, is for a IIgs's port
+        and #$0F                ; alone: for a 6551 or a card run through its
+        cmp #$01                ; firmware the program sends a NAK, and the
+        bne spdack              ; speed doesn't change
+        bit SHIMPAS
+        bvs spdack
+        lda #NAK
+        ldx #0
+        ldy #0
+        jsr sendack
+        jmp main
+spdack:
+        endif
         lda #ACK
         ldx #0
         ldy #0
@@ -1885,6 +1970,8 @@ statend:
 ; arrays of ready two-bit values, one per third of the sector; each byte is
 ; then one shift and one ORA, sent, and added to the EOR and the CRC, all
 ; inline, in less time than the 6551 takes to send a byte at 115,200 baud.
+; A sector whose bytes are all one value, as a disk's free space mostly is,
+; is sent as Sector blank instead, its value in place of its 256 bytes.
 sendsector: ldy #85
 ssaux:  lda (dst),y
         tax
@@ -1896,7 +1983,14 @@ ssaux:  lda (dst),y
         sta AUXA2,y
         dey
         bpl ssaux
-        ldy #0
+        ifdef FAULTS
+        lda fltact              ; a sector sent while a fault is armed goes whole
+        bne sdwhole
+        endif
+        jsr isfill
+        bcc sdwhole
+        jmp sendfill
+sdwhole: ldy #0
         sty crclo
         sty crchi
         ldx #0
@@ -1983,6 +2077,56 @@ sddone:
 datahdr: .byte $C1, $04, $01, CMDDATA, $C1 ^ $04 ^ $01 ^ CMDDATA
 dataend:
 
+; isfill: the carry set when the sector's 256 bytes are all one value, which
+; is then in A. Its six-bit values at (dstp) are all the same, and so are the
+; two-bit values sendsector put in AUXA0 to AUXA2, one page for the 256
+; bytes. Each check ends at the first difference, so a sector of other data
+; costs a few compares.
+isfill: ldy #0
+        lda (dstp),y
+        sta fillv
+ifpri:  lda (dstp),y
+        cmp fillv
+        bne ifno
+        iny
+        bne ifpri
+        lda AUXA0
+ifaux:  cmp AUXA0,y
+        bne ifno
+        iny
+        bne ifaux
+        lda fillv
+        asl a
+        asl a
+        ora AUXA0
+        sec
+        rts
+ifno:   clc
+        rts
+
+; sendfill: Sector blank, the track, the sector and the value in A.
+sendfill: sta fillv
+        ldx #0
+sfhdr:  lda fillhdr,x
+        jsr putb
+        inx
+        cpx #fillend-fillhdr
+        bne sfhdr
+        lda #0
+        sta peor
+        lda track
+        jsr putpe
+        lda sector
+        jsr putpe
+        lda fillv
+        jsr putpe
+        lda peor
+        jmp putb
+
+fillhdr: .byte $C1, $03, $00, CMDBLANK, $C1 ^ $03 ^ $00 ^ CMDBLANK
+fillend:
+fillv:  .byte 0                 ; isfill and sendfill: the value
+
 ; getsector: the host's Sector data into SECBUF. The carry is set when it
 ; times out, is not Sector data, is for another sector or fails its CRC.
 getsector: jsr getenvt
@@ -2032,21 +2176,24 @@ gscrc:  lda SECBUF,y
 gsfail: sec
         rts
 
-; A sector of zeros: its track and sector, then the payload's EOR, and SECBUF
-; filled with zeros here rather than sent.
+; A sector of one value: its track, sector and value, then the payload's
+; EOR, and SECBUF filled with the value here rather than sent.
 gsblank: jsr getbtq             ; track
         bcs gsfail
         jsr getbtq              ; sector
         bcs gsfail
         cmp sector
         bne gsfail
+        jsr getbtq              ; the value
+        bcs gsfail
+        sta fillv
         jsr getbtq              ; the payload's EOR
         bcs gsfail
-        lda #0
-        tay
-gszero: sta SECBUF,y
+        lda fillv
+        ldy #0
+gsfill: sta SECBUF,y
         iny
-        bne gszero
+        bne gsfill
         clc
         rts
 
@@ -2128,6 +2275,20 @@ gpfail: sec
 ; for only the packet's first byte, so any byte is taken as Cancel. A W5100
 ; takes the one byte the same way.
 pollcancel:
+        ifdef NETWORK
+        lda rxn
+        ora rxn+1
+        bne pcany
+        lda #0                  ; the card checked once
+        jsr SHIMRECV
+        bcs pcdone
+        jsr gbload
+        lda rxn
+        ora rxn+1
+        beq pcdone
+pcany:  jsr getbtq
+        jmp cancel
+        else
         ifdef CASSETTE
         rts
         else
@@ -2156,6 +2317,7 @@ pcacia: ldx slotx
         beq pcdone
         lda ACIADATA,x
         jmp cancel
+        endif
         endif
         endif
 pcdone: rts
@@ -2212,6 +2374,99 @@ slfend: cpy #<progend
         sta readycrc+1
         rts
 
+        ifdef NETWORK
+; getbt: a byte of the last datagram's payload, or with none left, the bytes
+; put sent and the next datagram received, waiting tmolen seconds. The carry
+; is set on a timeout. X and Y are saved and restored. getbtq waits a second,
+; for a byte inside a packet that came in more than one datagram.
+getbt:  stx savex
+        sty wsavy
+        lda tmolen
+gbwait: sta gbsecs
+gbnext: lda rxn
+        ora rxn+1
+        bne gbtake
+        jsr flush
+        lda gbsecs
+        jsr SHIMRECV
+        bcs gbnone
+        jsr gbload
+        jmp gbnext              ; a datagram with no payload is passed over
+gbtake:
+gbld:   lda RXDATA
+        inc gbld+1
+        bne gbcount
+        inc gbld+2
+gbcount: pha
+        lda rxn
+        bne gbdec
+        dec rxn+1
+gbdec:  dec rxn
+        pla
+        ldx savex
+        ldy wsavy
+        clc
+        rts
+gbnone: ldx savex
+        ldy wsavy
+        sec
+        rts
+getbtq: stx savex
+        sty wsavy
+        lda #1
+        bne gbwait              ; always
+
+; gbload: rxn and gbld set for the datagram the shim received.
+gbload: lda SHIMRXLEN
+        sta rxn
+        lda SHIMRXLEN+1
+        sta rxn+1
+        lda #<RXDATA
+        sta gbld+1
+        lda #>RXDATA
+        sta gbld+2
+        rts
+
+gbsecs: .byte 0                 ; getbt: the seconds to wait
+
+; putraw: A after the bytes put, sent with the next wait for a byte, or at
+; once when LINKMAX bytes are waiting. A, X and Y are saved and restored.
+putraw: stx savex
+        sty wsavy
+prst:   sta TXDATA
+        inc prst+1
+        bne prcount
+        inc prst+2
+prcount: inc txn
+        bne prfull
+        inc txn+1
+prfull: pha
+        lda txn+1
+        cmp #>LINKMAX
+        bcc prback
+        jsr flush
+prback: pla
+        ldx savex
+        ldy wsavy
+        rts
+
+; flush: the bytes put, sent to the PC as a datagram.
+flush:  lda txn
+        ora txn+1
+        beq fldone
+        ldx txn
+        ldy txn+1
+        jsr SHIMSEND
+        lda #0
+        sta txn
+        sta txn+1
+        lda #<TXDATA
+        sta prst+1
+        lda #>TXDATA
+        sta prst+2
+fldone: rts
+
+        else
         ifdef CASSETTE
 ; getbt: a byte of the burst in RXBUF, or with none left, the bytes put sent
 ; as a burst and the next burst received, waiting tmolen seconds for its tone.
@@ -2955,6 +3210,7 @@ pwwait: lda #0                  ; ready for output
         rts
 
 pasavy: .byte 0                 ; Y across a firmware call
+        endif
         endif
         endif
 
@@ -4368,15 +4624,26 @@ scwide: pha                     ; with a row width of 0 nothing is drawn, and Y
         jmp showpc
 
 ; conndraw: the connection into the row at scr from Y.
-conndraw: lda #<conntext
+conndraw:
+        ifdef NETWORK
+        lda SHIMCHIP            ; a LANceGS's chip, or an Uthernet's
+        cmp #2
+        bne cdthern
+        lda #<connlan
+        sta ptr
+        lda #>connlan
+        bne cdname              ; always
+cdthern:
+        endif
+        lda #<conntext
         sta ptr
         lda #>conntext
-        sta ptr+1
+cdname: sta ptr+1
         jsr puttext
         ifdef CASSETTE
         rts
         else
-        ifdef W5100
+        ifdef IPNET
         lda slotx               ; the card and its slot, as UTHERNET II,
         lsr a                   ; SLOT 3; the port is in the address below
         lsr a
@@ -4465,9 +4732,16 @@ scfound: lda speeds+1,x
 conntext: .text "Cassette ports (audio)"
         .byte 0
         else
-        ifdef W5100
+        ifdef IPNET
+        ifdef NETWORK
+conntext: .text "Uthernet, slot "
+        .byte 0
+connlan: .text "LANceGS, slot "
+        .byte 0
+        else
 conntext: .text "Uthernet II, slot "
         .byte 0
+        endif
 
 ; putword: wnum in decimal, without leading zeros, into the field from Y.
 putword: lda #0
@@ -4535,7 +4809,7 @@ showaddr:
         ifdef CASSETTE
         rts
         else
-        ifdef W5100
+        ifdef IPNET
         ldx #<ROW2
         lda #>ROW2
         jsr fullrow
@@ -4608,7 +4882,7 @@ sadone: rts
         endif
 
 pcend:  .byte 0                  ; the top row's column where the PC's blanks end
-        ifdef W5100
+        ifdef IPNET
 sacount: .byte 0                ; showaddr: the address's bytes drawn
 salen:  .byte 0                 ; and in 80 columns, its length
         else
@@ -4623,6 +4897,8 @@ s19200:  .text "19200"
          .byte 0
 s115200: .text "115200"
          .byte 0
+s230400: .text "230400"
+         .byte 0
 s4800:   .text "4800"
          .byte 0
 s2400:   .text "2400"
@@ -4636,6 +4912,7 @@ sother:  .text "Other"
 speeds: .byte $0E, <s9600, >s9600
         .byte $0F, <s19200, >s19200
         .byte $00, <s115200, >s115200
+        .byte $01, <s230400, >s230400
         .byte $0C, <s4800, >s4800
         .byte $0A, <s2400, >s2400
         .byte $08, <s1200, >s1200

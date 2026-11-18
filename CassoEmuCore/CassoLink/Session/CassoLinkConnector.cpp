@@ -79,7 +79,7 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     std::vector<Byte>                          transfer;
     std::vector<std::wstring>                  ports;
     bool                                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
-    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
+    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp;
     LinkFault                                  fault;
     std::unique_ptr<FaultInjectingByteStream>  faulty;
     IByteStream                              * target  = nullptr;
@@ -259,6 +259,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     std::wstring        model;
     HRESULT             logged   = S_OK;
     HRESULT             columns  = S_OK;
+    DWORD               linkBaud = m_session.m_settings.baud;
 
 
 
@@ -281,6 +282,13 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     else if (m_session.m_settings.transport == LinkTransport::Serial && m_session.m_settings.baud != m_session.m_settings.bootstrapBaud && !m_adtPro && !IsLineOpen())
     {
         speeds.push_back (m_session.m_settings.bootstrapBaud);
+    }
+
+    //  At 230,400 baud, an interface other than a IIgs's port runs the link
+    //  at 115,200, and an Apple that ran the link before waits there.
+    if (openAt == 0 && m_session.m_settings.baud == LinkProgram::kIIgsBaud && std::ranges::find (speeds, LinkProgram::kFallbackBaud) == speeds.end())
+    {
+        speeds.push_back (LinkProgram::kFallbackBaud);
     }
 
     //  A line kept open between attempts is prompted again on each one. A
@@ -341,21 +349,34 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
-    //  An Uthernet II and the cassette ports have no speed to set.
-    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Cassette)
+    //  An Uthernet II, the network cards and the cassette ports have no
+    //  speed to set.
+    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp
+        && m_session.m_settings.transport != LinkTransport::Cassette)
     {
-        LinkProgram::GetSpeedControl (m_session.m_settings.baud, control);
+        LinkProgram::GetSpeedControl (linkBaud, control);
 
         hr = m_session.m_host->SetSpeed (control);
         CHR (hr);
+
+        //  230,400 baud is a IIgs's port's alone; any other interface sends
+        //  a NAK for it, and the link runs at 115,200.
+        if (hr == S_FALSE)
+        {
+            linkBaud = LinkProgram::kFallbackBaud;
+            LinkProgram::GetSpeedControl (linkBaud, control);
+
+            hr = m_session.m_host->SetSpeed (control);
+            CHR (hr);
+        }
     }
 
     //  A port opened again at the link's speed has a new host, and the link
     //  is ready once the program's Ready arrives on it. The program sends
     //  Ready again after each second with no reply, so no Idle is sent.
-    if (m_session.m_settings.transport == LinkTransport::Serial && opened != m_session.m_settings.baud)
+    if (m_session.m_settings.transport == LinkTransport::Serial && opened != linkBaud)
     {
-        hr = OpenStream (m_session.m_settings.baud, stop);
+        hr = OpenStream (linkBaud, stop);
         CHR (hr);
 
         m_prompted = true;
@@ -771,6 +792,10 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
             CBREx (admitted, kDeferredByFirewall);
 
             hr = m_session.m_factory.ListenTcp (port, m_session.m_settings.transport, stream);
+        }
+        else if (m_session.m_settings.transport == LinkTransport::Udp)
+        {
+            hr = m_session.m_factory.OpenUdp (host, port, stream);
         }
         else
         {

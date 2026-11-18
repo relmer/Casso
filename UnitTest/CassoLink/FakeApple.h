@@ -824,8 +824,18 @@ private:
                 std::lock_guard<std::mutex>  guard (lock);
                 auto                         at = drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical);
 
+                //  A sector of one value goes as Sector blank, as the program
+                //  sends it.
                 wire.clear();
-                CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+
+                if (std::all_of (at, at + 256, [at] (Byte b) { return b == *at; }))
+                {
+                    CassoLinkCodec::EncodeSectorBlank ((Byte) track, physical, *at, wire);
+                }
+                else
+                {
+                    CassoLinkCodec::EncodeSectorData ((Byte) track, physical, std::span<const Byte> (at, at + 256), wire);
+                }
             }
 
             Send (line, wire);
@@ -885,7 +895,7 @@ private:
             }
             else if (packet.command == CassoLinkCodec::kSectorBlank)
             {
-                std::fill (data.begin(), data.end(), (Byte) 0);
+                CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
                 blanksReceived++;
             }
             else

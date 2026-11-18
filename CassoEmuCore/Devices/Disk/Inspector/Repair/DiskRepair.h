@@ -12,12 +12,14 @@ class SectorSource;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RepairOptions / RepairSector / RepairFix / RepairChange / RepairPlan
+//  RepairOptions / RepairSector / RepairBlock / RepairFix / RepairChange /
+//  RepairPlan
 //
 //  Repair's options, a sector it writes (by track and DOS logical sector,
-//  all 256 bytes), a finding a change sets right, a change, and the plan:
-//  whether the volume can be repaired and why not, the changes, the sectors,
-//  and the verdict before and after.
+//  all 256 bytes), a block of a volume of blocks it writes (its number in
+//  the volume, its bytes before and after), a finding a change sets right,
+//  a change, and the plan: whether the volume can be repaired and why not,
+//  the changes, the sectors or blocks, and the verdict before and after.
 //
 //  A change's key identifies it from one plan to the next, so a change can
 //  be left out by adding its key to RepairOptions::skipped.
@@ -38,6 +40,16 @@ struct RepairSector
     int                         track  = 0;
     int                         sector = 0;
     std::array<Byte, kBytes>    bytes  = {};
+};
+
+
+struct RepairBlock
+{
+    static constexpr int  kBytes = 512;
+
+    uint32_t                    block    = 0;
+    std::array<Byte, kBytes>    original = {};
+    std::array<Byte, kBytes>    bytes    = {};
 };
 
 
@@ -69,6 +81,7 @@ struct RepairPlan
     std::wstring           reason;
     vector<RepairChange>   changes;
     vector<RepairSector>   sectors;
+    vector<RepairBlock>    blocks;
     FileSystemVerdict      before    = FileSystemVerdict::None;
     FileSystemVerdict      after     = FileSystemVerdict::None;
 };
@@ -95,12 +108,20 @@ struct RepairPlan
 class DiskRepair
 {
 public:
+    //  The reason after a cross-link finding.
+    static constexpr LPCWSTR  kCrossLinkReason = L"Repair can't fix a cross-link without changing a file's data.";
+
     static RepairPlan  Plan  (const DiskAnalysis & analysis, const RepairOptions & options);
 
     //  The plan with only the changes whose keys are chosen. A change that
     //  appears only once others are left out, such as a count read through a
     //  catalog that isn't relinked, is left out too.
     static RepairPlan  PlanChosen (const DiskAnalysis & analysis, const RepairOptions & options, const std::set<std::wstring> & chosen);
+
+    //  The same for any planner: each change of its plan that isn't chosen is
+    //  skipped, and the volume planned again.
+    static RepairPlan  Narrow (const std::function<RepairPlan (const RepairOptions &)> & planner, const RepairOptions & options, const std::set<std::wstring> & chosen,
+                               FileSystemVerdict before);
 
     //  The plan's sectors written over a 140 KB volume in DOS logical order.
     static void        Apply (const RepairPlan & plan, vector<Byte> & inOutSectors);

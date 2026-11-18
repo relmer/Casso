@@ -113,13 +113,13 @@ client sends first; the host's reply is the next operation.
 | Idle | $C9 `'I'` | host | none; client sends Ready again after 100 ms |
 | Sector data | $CA `'J'` | either | track (1), sector (1), 256 bytes unencoded, CRC-16/XMODEM of the 256 bytes (2, LSB first) |
 | Load program | $CF `'O'` | host | page count (1); then Sector data packets, one per page from $0800, with the page number in the track and sector fields, each followed by the shim's bare ACK or NAK byte. A page numbered at or past the page count gets a NAK and isn't stored. The shim jumps to $0800 after the last. Sent to a running program, it returns that program to the shim, whose Ready follows |
-| Set speed | $D7 `'W'` | host | 6551 control byte (1); the client acknowledges ($CB, ACK, 0, 0) at the old speed, and both ends then switch |
+| Set speed | $D7 `'W'` | host | 6551 control byte (1); the client acknowledges ($CB, ACK, 0, 0) at the old speed, and both ends then switch. Rate 1, 50 baud on a 6551, indicates 230,400 baud, which only a IIgs's port has: any other interface sends a NAK, its speed doesn't change, and the host sends 115,200 instead |
 | Read sectors | $D5 `'U'` | host | drive (1; bit 7 set for a check the PC reports itself, such as its read of a catalog when it connects, for which no error is drawn), track (1), count (1), sector list (count), progress (2); client replies with Sector data per sector |
 | Write sectors | $D6 `'V'` | host | drive (1), track (1), count (1), sector list (count), progress (2); for each sector the client sends Acknowledge ($CB: ACK, sector, track) with the number of the sector to send, or NAK for another copy of a damaged one, and the host sends its Sector nibbles; the client writes it and reads it back before the next Acknowledge |
 | Sector nibbles | $CC | host | track (1), sector (1), the sector's data field as 6-and-2 nibbles, encoded on the PC so the Apple writes them as they arrive (343), CRC-16/XMODEM of the nibbles (2, LSB first) |
 | Format track | $C8 `'H'` | host | drive (1), track (1), volume (1), progress (2), gap (1): the self-sync bytes after each sector, 0 for 10 |
-| Write track | $DB `'[']` | host | drive (1), track (1), volume (1), progress (2), gap (1); the client requests each of the 16 sectors in physical order as for Write sectors, and the host sends Sector data, or Sector blank for a sector of zeros; the client then formats the track with their data in one revolution, reads it back and compares it; reported as a write |
-| Sector blank | $E0 | host | track (1), sector (1): a sector of zeros, which the client fills in |
+| Write track | $DB `'[']` | host | drive (1), track (1), volume (1), progress (2), gap (1); the client requests each of the 16 sectors in physical order as for Write sectors, and the host sends Sector data, or Sector blank for a sector whose bytes are all one value; the client then formats the track with their data in one revolution, reads it back and compares it; reported as a write |
+| Sector blank | $E0 | either | track (1), sector (1), value (1): a sector whose 256 bytes are all the value, sent in place of Sector data; the client sends one for such a sector in reply to Read sectors, and the host for one in Write track |
 | Read CRCs | $E4 | host | drive (1; bit 7 as for Read sectors), track (1), count (1), sector list (count), progress (2); the client reads the sectors as for Read sectors and replies with Sector CRCs, then Status |
 | Sector CRCs | $E5 | client | per sector: CRC-16/XMODEM of its 256 bytes (2, LSB first) and 1 if it was read, 0 if not (1). A sector not read is not an error here |
 | Time drive | $DE | host | drive (1), track (1), revolutions (1), progress (2); the client sends a bare $A5 each time sector 0's address field passes after the first, so the PC times a revolution, then Status. Status in place of a marker ends a track with no sector 0 |
@@ -142,7 +142,7 @@ for the sector, $30 the data field did not decode, $40 the sector read back
 differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
-The shim occupies $3A00 to $3FFF, with its copy of the machine's zero page at $3900, the 6551 control byte for its starting speed at $3A02, the speed's text at $3A06, a Wi-Fi modem's dial command, ending in a zero byte, at $3A0C (R24), and the 6551's slot at $3A38: 2 for the //c's port 2, or a Super Serial Card's slot. The byte at $3A39 is 0 for a 6551, $80 for a card run through its Pascal 1.1 firmware and $C0 for a IIgs's port, driven through its 8530; the jumps at $3A3A, $3A3D and $3A40 are the status, read and write calls for the last two; $3A43 is a IIgs's speed register as the program found it, plus 1; and the jump at $3A44 sets a IIgs's port to the speed of the 6551 control byte in A, which is stored as the starting speed (R47). Before Load program, the program sets bit 7 of the dial command's first byte, and the shim does not dial a command marked this way. The W5100 shim has the same address and header. The program
+The shim occupies $3A00 to $3FFF, with its startup part after it to at most $43FF and its copy of the machine's zero page at $3900, the 6551 control byte for its starting speed at $3A02, the speed's text at $3A06, a Wi-Fi modem's dial command, ending in a zero byte, at $3A0C (R24), and the 6551's slot at $3A38: 2 for the //c's port 2, or a Super Serial Card's slot. The byte at $3A39 is 0 for a 6551, $80 for a card run through its Pascal 1.1 firmware and $C0 for a IIgs's port, driven through its 8530; the jumps at $3A3A, $3A3D and $3A40 are the status, read and write calls for the last two; $3A43 is a IIgs's speed register as the program found it, plus 1; and the jump at $3A44 sets a IIgs's port to the speed of the 6551 control byte in A, which is stored as the starting speed (R47). Before Load program, the program sets bit 7 of the dial command's first byte, and the shim does not dial a command marked this way. The W5100 shim has the same address and header. The program
 runs from $0800 and uses $4000 to $92FF for buffers, with no DOS or ProDOS
 in memory.
 
@@ -304,13 +304,69 @@ address and port. The program adds a PC line,
 with no reply; an error line with the last Status error until an operation
 succeeds; and the last Label.
 
+## The Apple's memory
+
+The serial and W5100 builds, as each is loaded:
+
+| Range | Contents |
+|---|---|
+| $0400–$07FF | the text page, and on a //e, //c or IIgs the auxiliary text page for 80 columns |
+| $0800–about $35FF | the program; it must end below $3900 |
+| $3900–$39FF | the shim's copy of the machine's zero page |
+| $39A0–$39FF, $3950–$39FF | the slot finder or the serial loader, typed in ahead of the shim and run once before the zero page is copied over them |
+| $3A00–$3FFF | the shim's resident code, header first |
+| after it, to at most $43FF | the 6551 shim's startup part: run once, then built over by the program's tables |
+| $4000–$4FFF | the program's tables and small buffers |
+| $5000–$8FFF | the disk buffers, and a module with its buffers, which a disk operation clears |
+| $9000–$957F | the encoding tables and Krunch's copy of the history |
+| $9600–$BFFF | not used, so DOS is intact at exit |
+
+The network build, for an original Uthernet's CS8900A or a LANceGS's
+LAN91C96, has the same layout below $9600, and above it:
+
+| Range | Contents |
+|---|---|
+| $9600–$9BFF | the frame received |
+| $9C00–$A1FF | the frame to send; a datagram's payload is at $9C2A, at most 1,024 bytes |
+| $B000–$BFFF | the network shim, with its stack: header first, then the shim, then NetStack.s |
+
+DOS is gone at exit, so the program puts back the zero page and reset
+vector, points DOS's warm start at $03D0 and Control-Reset at Applesoft's
+warm start, $E003, and goes there.
+
+The network shim's header is the W5100 shim's, at $B000, with the
+address, subnet mask, gateway, MAC address and UDP port in the dial
+command's place, and after the slot:
+
+| Address | Contents |
+|---|---|
+| $B039 | the chip: 1 for a CS8900A, 2 for a LAN91C96 |
+| $B03A | `jmp`: the X (low) and Y (high) bytes at $9C2A sent as a datagram to the PC |
+| $B03D | `jmp`: a datagram of the link within A seconds, its payload at $962A, the carry clear; A of 0 checks once |
+| $B040 | `jmp`: the card set up, and for 0.0.0.0 an address by DHCP, 4 attempts of about 2 seconds; the carry set with none |
+| $B044 | the payload's length, low byte first |
+| $B047 | nonzero once the card is set up |
+| $B048 | `jmp`: the announcement broadcast |
+
+The link's datagrams go to the address, port and MAC address of the last
+datagram to the header's port, the first of which is empty, from Casso
+Explorer. Each payload is the link's bytes as a serial line has them. The
+stack replies to ARP requests for its address and doesn't send any, so a
+datagram to a PC behind a router goes to the router's MAC address. Frames that are
+fragments, have IP options, or are longer than 1,518 bytes are dropped.
+
+The shim's first start runs its startup part, which saves the zero page and
+reset vector, finds and sets up the interface, and dials a modem, then
+marks the header's byte at $3A47. A start from Load program sets the
+interface to the starting speed again and goes on to Ready.
+
 ## The universal boot disk
 
 Casso Explorer's boot disk works on every interface, as ADTPro's does. It
-loads a first stage at $2000, with the 6551 shim at $2C00 and the W5100
-shim at $3200, both built for $3A00, and the stage's copy of the zero page
-at $3800. The host writes both shims'
-headers as for their own disks.
+loads a first stage at $2000, with the 6551 shim and its startup part at
+$2E00 and the W5100 shim at $4400, both built for $3A00, the network shim at
+$4A00, built for $B000, and the stage's copy of the zero page at $3800. The
+host writes the shims' headers as for each shim's disk.
 
 The stage finds:
 
@@ -322,9 +378,20 @@ The stage finds:
   SERIAL PORT 1 or SERIAL PORT 2;
 - up to two cards with the same bytes and no 6551, waited on through their
   Pascal firmware;
+- an original Uthernet or a LANceGS in any other slot but a Disk II's, the
+  first found: a LAN91C96 by its bank select register's high byte at $C08F
+  plus 16 times the slot reading $33, or a CS8900A by its PacketPage
+  pointer's bits 14 to 12 at $C08B plus 16 times the slot reading 011, and
+  then its product ID at PacketPage 0, $630E, so a 6551 is never written to;
 - an Uthernet II in any other slot but a Disk II's, by its mode register
   at $C084 plus 16 times the slot reading with bits 6, 5 and 2 clear, and
   then the W5100 taking two address pointer values and returning them.
+
+For an original Uthernet or a LANceGS, the stage copies the network shim
+to $B000 with the card's slot and chip, and calls it at $B040. A card with
+no address is not waited on. The stage waits on the card through $B03D,
+broadcasts its announcement through $B048 with the W5100's, and starts
+the shim at $B000 for a datagram from the PC.
 
 The header's MAC address has the sum of RNDL and RNDH ($4E, $4F) and a
 16-bit sum of $4000-$BFFF added into its last three bytes before the
@@ -342,14 +409,16 @@ port 6510 from port 6511 about every two seconds:
 | Bytes | Field |
 |---|---|
 | 9 | `CASSOLINK` in ASCII |
-| 1 | version, 1 |
-| 4 | the W5100's address |
-| 2 | its TCP port, high byte first |
+| 1 | version: 1 for the W5100's TCP, 2 for the network shim's UDP |
+| 4 | the card's address |
+| 2 | its port, high byte first |
 | 6 | its MAC address |
 
 The screen: the title, `WAITING FOR THE PC ON:`, then a row for each
 interface: `SERIAL PORT <n>, <speed>` on a //c, `SSC, SLOT <n>, <speed>` for
-a card, and `UTHERNET II, SLOT <n>, <address>:<port>` for the Uthernet II.
+a card, `UTHERNET II, SLOT <n>, <address>:<port>` for the Uthernet II, and
+`UTHERNET, SLOT <n>, <address>:<port>` or `LANCEGS, SLOT <n>,
+<address>:<port>` for the network card.
 
 The stage waits on all of them. A $C1 byte, an envelope's start, on a 6551,
 or a connection to the W5100 chooses that interface: the stage copies the
@@ -363,7 +432,8 @@ the modem dials it.
 
 Casso Explorer listens on UDP port 6510 on every interface, with the port
 bound for reuse, and lists the Apple of each announcement, by its MAC
-address, as an Uthernet II link at the announcement's address. An
+address, as an Uthernet II link or, for version 2, an Uthernet or LANceGS
+link over UDP, at the announcement's address. An
 announcement from this PC is Casso's emulated card, whose listening socket
 is on 127.0.0.1, and is listed at 127.0.0.1.
 

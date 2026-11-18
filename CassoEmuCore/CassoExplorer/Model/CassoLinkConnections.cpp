@@ -257,7 +257,7 @@ void CassoLinkConnections::SetAnnounced (const std::vector<LinkAnnouncement> & a
 
     for (const CassoLinkSettings & settings : m_links)
     {
-        bool  apple = settings.transport == LinkTransport::Uthernet && !settings.IsSearch() && IsDiscovered (settings.name);
+        bool  apple = (settings.transport == LinkTransport::Uthernet || settings.transport == LinkTransport::Udp) && !settings.IsSearch() && IsDiscovered (settings.name);
 
         if (apple && !IsStarted (settings.name) && !IsHeld (settings.name))
         {
@@ -387,13 +387,13 @@ void CassoLinkConnections::Merge()
         CassoLinkSettings  settings;
         bool               covered  = false;
 
-        settings.transport = LinkTransport::Uthernet;
+        settings.transport = announced.udp ? LinkTransport::Udp : LinkTransport::Uthernet;
         settings.address   = announced.GetAddressText();
         settings.name      = CassoLinkSettings::MakeName (settings);
 
         covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
         {
-            return link.name == settings.name || (link.transport == LinkTransport::Uthernet && link.address == settings.address);
+            return link.name == settings.name || (link.transport == settings.transport && link.address == settings.address);
         });
 
         if (!covered)

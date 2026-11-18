@@ -57,17 +57,35 @@
 ; than one segment per byte. Back from the program's Load program with the
 ; PC connected, the connection stays open. When the PC disconnects, the shim
 ; listens again until the PC connects.
+;
+; The network build, for an original Uthernet's CS8900A or a LANceGS's
+; LAN91C96, is at $B000, with NetStack.s assembled after it: neither chip
+; has a network stack, and the stack is too large for $3A00. It has the
+; W5100 build's header, drawing and loading, and its bytes go as UDP
+; datagrams. The byte at $B039 is the chip. The program calls the stack
+; through the jumps at $B03A and $B03D, and the universal boot disk through
+; those at $B03D, $B040 and $B048. The PC is the sender of the first
+; datagram to the port; the announcement is broadcast until one comes.
 
         ifndef SHIMVER
 SHIMVER = 1
         endif
 
-; Ready's shim version: a W5100 build sets bit 7, so the host sends the
-; program built for the chip whatever the link it connected through.
+        ifdef NETWORK
+W5100 = 1
+        endif
+
+; Ready's shim version: a W5100 build sets bit 7 and the network build bits 7
+; and 6, so the host sends the program built for the chip whatever the link
+; it connected through.
+        ifdef NETWORK
+READYVER = SHIMVER + $C0
+        else
         ifdef W5100
 READYVER = SHIMVER + $80
         else
 READYVER = SHIMVER
+        endif
         endif
 
 ACIADATA = $C088                ; the 6551, + slot * 16
@@ -146,8 +164,15 @@ txn      = $1F                  ; bytes put since the last SEND
 savx     = $20                  ; getbto and putb: X and Y as they came
 savy     = $21
         endif
+        ifdef NETWORK
+ntxn     = $1D                  ; and $1E: bytes put and not yet sent
+        endif
 
+        ifdef NETWORK
+        .org $B000
+        else
         .org $3A00
+        endif
 
         sei
         ifndef W5100
@@ -166,96 +191,104 @@ hstat:  jmp pstat                ; $3A3A: its status entry, with the request in 
 hread:  jmp pread                ; $3A3D: its read entry,
 hwrite: jmp pwrite               ; $3A40: and its write entry, X and Y changed
         else
+        ifdef NETWORK
+netchip: .byte 0                 ; $B039: 1 for a CS8900A, 2 for a LAN91C96
+        jmp nsend                ; $B03A: X and Y bytes at TXDATA sent as a datagram
+        jmp nrecv                ; $B03D: a datagram within A seconds, at RXDATA
+        jmp nsboot               ; $B040: the card set up, and an address for 0.0.0.0
+        else
         .ds 10                   ; $3A39: the 6551 build's firmware entries
         endif
+        endif
         .byte 0                  ; $3A43: a IIgs's speed register as found, plus 1
+        ifdef NETWORK
+rxlen:  .word 0                  ; $B044: the length of the datagram nrecv received
+        .byte 0
+booted: .byte 0                  ; $B047: nonzero once the card is set up
+        jmp announce             ; $B048: the announcement broadcast
+        endif
         ifndef W5100
         jmp sccspd               ; $3A44: a IIgs's port set to the speed in A
+booted: .byte 0                  ; $3A47: nonzero once the startup part has run
         endif
 
+        ifdef W5100
 ; The first start saves the machine's zero page at ZPSAVE and its reset
 ; vector, for the program to put back when CassoLink ends. A bootstrap or a
 ; boot disk has zpsaved at 0; the program's Load program, back to the shim,
 ; finds it set and saves nothing.
-start:  pha                     ; the control byte, for the 6551 once it is found
+        ifdef NETWORK
+; The first start sets up the card, and takes an address from a DHCP server
+; for an address of 0.0.0.0. Back from the program's Load program, the card
+; and the PC are known already.
+start:  pha                     ; the control byte, not used
         cld
-        lda zpsaved
-        bne zpdone
-        ldx #0
-zpsave: lda $00,x
-        sta ZPSAVE,x
-        inx
-        bne zpsave
-        ldx #2
-rvsave: lda $03F2,x
-        sta oldreset,x
-        dex
-        bpl rvsave
-        inc zpsaved
-zpdone:
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta ntxn
+        sta ntxn+1
+        lda #<TXDATA
+        sta pbst+1
+        lda #>TXDATA
+        sta pbst+2
         lda slot
         asl a
         asl a
         asl a
         asl a
         sta slotx
-        ifdef W5100
-        pla                     ; the 6551 control byte, not used
+        pla
+        jsr home
+        lda booted
+        bne ready
+        jsr zpkeep
+        ldx #msgdhcp-msgs
+        jsr drawstate
+nsfirst: jsr nsboot
+        bcs nsfirst
+        else
+start:  pha                     ; the control byte, not used
+        cld
+        jsr zpkeep
+        lda slot
+        asl a
+        asl a
+        asl a
+        asl a
+        sta slotx
+        pla
         jsr home
         jsr wzstart
+        endif
         else
-        jsr pasinit             ; a card without a 6551 driver here
-        bcc acinit
-        pla                     ; the 6551 control byte, not used
-        jsr home
-        jmp ready
-acinit: lda slotx
-        ora #<ACIADATA          ; each read and write of the 6551 is absolute,
-        sta gtdata+1            ; set here for the slot
-        sta pbdata+1
-        ora #1
-        sta gtstat+1
-        sta pbstat+1
-        ldx slotx
+; The first start runs the startup part, after the resident code, which the
+; program's tables are built over: it saves the machine's state, finds the
+; interface and sets it up, and dials a modem. A start after that, from the
+; program's Load program, sets the interface to the starting speed again.
+start:  pha                     ; the control byte, for the interface
+        cld
+        lda booted
+        bne restart
+        jmp startup
+restart: lda slot
+        asl a
+        asl a
+        asl a
+        asl a
+        sta slotx
         pla
+        bit pascal
+        bpl rsacia
+        bvc rshome              ; a card run through its firmware sets its speed
+        jsr sccspd
+        jmp rshome
+rsacia: jsr fixctl
+        ldx slotx
         sta ACIACTL,x
         lda #$0B                ; DTR on, no parity, no interrupts
         sta ACIACMD,x
-        jsr home
-
-        lda dialtxt             ; bit 7 of its first byte is set once the modem
-        beq ready               ; is connected, as back from Load program
-        bmi ready
-        ldx #msgdial-msgs       ; the target, as the command has it after ATDT
-        jsr drawstate           ; and its spaces, in capitals and to 40 columns
-        ldx #4
-dlskip: lda dialtxt,x
-        cmp #$20
-        bne dltarget
-        inx
-        bne dlskip
-dltarget: lda dialtxt,x
-        beq dlsend
-        cmp #$61
-        bcc dlcaps
-        and #$DF
-dlcaps: ora #$80
-        sta ROW2,y
-        inx
-        iny
-        cpy #40
-        bne dltarget
-dlsend: ldx #0
-dial:   lda dialtxt,x
-        beq dialed
-        jsr putb
-        inx
-        bne dial
-dialed: lda #$0D
-        jsr putb
-modemreply: jsr getb               ; the modem's reply line, such as CONNECT,
-        cmp #$0A               ; ends in a line feed; Ready waits for it
-        bne modemreply
+rshome: jsr home
         endif
 
 ready:  ldx #msgwait-msgs
@@ -278,7 +311,11 @@ wdport: lda #$BA                ; a colon
         sta ROW2,y
         iny
         jsr putport
+        ifdef NETWORK
+        jsr nswait
+        else
         jsr wzwait
+        endif
         else
         ldx #4                  ; a card run through its firmware, by name alone,
         bit pascal              ; and a IIgs's port as SERIAL PORT 2
@@ -411,6 +448,37 @@ badpg:  lda #NAK                ; the host sends the page again
         jsr putb
         jmp loadpg
 
+
+; fixctl: the 6551 control byte in A with rate 1, which indicates 230,400
+; baud on a IIgs's port, as rate 0, 115,200 baud, the fastest a 6551 has.
+fixctl: pha
+        and #$0F
+        cmp #$01
+        bne fcpull
+        pla
+        and #$F0
+        rts
+fcpull: pla
+        rts
+
+; zpkeep: the machine's zero page saved at ZPSAVE and its reset vector, for
+; the program to put back when CassoLink ends, unless they are saved
+; already: a bootstrap or a boot disk has zpsaved at 0, and the universal
+; disk saves them itself.
+zpkeep: lda zpsaved
+        bne zkdone
+        ldx #0
+zpsave: lda $00,x
+        sta ZPSAVE,x
+        inx
+        bne zpsave
+        ldx #2
+rvsave: lda $03F2,x
+        sta oldreset,x
+        dex
+        bpl rvsave
+        inc zpsaved
+zkdone: rts
 
 ; home: the text page's rows cleared and the title drawn. Each 128 bytes of
 ; the page are three rows and 8 bytes off the screen, the screen holes, where
@@ -580,6 +648,86 @@ getb:   jsr getbto
         rts
 
         ifdef W5100
+        ifdef NETWORK
+; getbto: getb with a time limit of about a second; the bytes put are sent
+; first. The carry is set when no byte comes. X and Y are saved and restored.
+getbto: stx savx
+        sty savy
+gtnext: lda rxn
+        ora rxn+1
+        bne gtread
+        jsr flush
+        lda #1
+        jsr nrecv
+        bcs gtnone
+        lda rxlen
+        sta rxn
+        lda rxlen+1
+        sta rxn+1
+        lda #<RXDATA
+        sta gtld+1
+        lda #>RXDATA
+        sta gtld+2
+        jmp gtnext              ; a datagram with no payload is passed over
+gtnone: ldx savx
+        ldy savy
+        sec
+        rts
+gtread:
+gtld:   lda RXDATA
+        inc gtld+1
+        bne gtcount
+        inc gtld+2
+gtcount: pha
+        lda rxn
+        bne gtdec
+        dec rxn+1
+gtdec:  dec rxn
+        pla
+        ldx savx
+        ldy savy
+        clc
+        rts
+
+; putb: A after the bytes put, sent with the next wait for a byte, or once
+; LINKMAX bytes are waiting. X and Y are saved and restored.
+putb:   stx savx
+        sty savy
+pbst:   sta TXDATA
+        inc pbst+1
+        bne pbcount
+        inc pbst+2
+pbcount: inc ntxn
+        bne pbfull
+        inc ntxn+1
+pbfull: lda ntxn+1
+        cmp #>LINKMAX
+        bcc pbdone
+        jsr flush
+pbdone: ldx savx
+        ldy savy
+        rts
+
+; flush: the bytes put, sent to the PC as a datagram.
+flush:  lda ntxn
+        ora ntxn+1
+        beq fldone
+        ldx ntxn
+        ldy ntxn+1
+        jsr nsend
+        lda #0
+        sta ntxn
+        sta ntxn+1
+        lda #<TXDATA
+        sta pbst+1
+        lda #>TXDATA
+        sta pbst+2
+fldone: rts
+
+; rxdone: no bytes are returned to the chip, as each datagram is read from
+; RXDATA.
+rxdone: rts
+        else
 ; getbto: getb with a time limit of about a second, 16,384 polls of the
 ; chip; the bytes put are sent first. The carry is set when no byte comes.
 ; With the PC gone, the shim waits for it again. X and Y are saved and
@@ -830,6 +978,8 @@ wzptr:  ldx slotx
 wzput:  sta WZDATA
         rts
 
+        endif
+
 ; putport: the header's port in decimal, without leading zeros, on the
 ; state row from Y.
 putport: lda dialtxt+18
@@ -946,6 +1096,319 @@ ppwait: lda #0                  ; ready for output
         ldy psavy
         rts
 
+; pstat, pread and pwrite: the card's firmware entry, with A as it came, X
+; at $Cn and Y at $n0, as Pascal 1.1 calls take them. A firmware's read and
+; write are for text: Apple's sets bit 7 of each byte read, drops a line feed
+; and adds one after a return. Each byte goes as two characters instead
+; (CassoLinkHost::kTextHigh): $40 plus its high nibble, then $60 plus its low
+; nibble, with bit 7 ignored. A character of $40 to $4F starts the byte
+; again, so a stray character is passed over.
+pread:  jsr prchar
+prhigh: asl a
+        asl a
+        asl a
+        asl a
+        sta pnib
+        jsr prchar
+        cmp #$60
+        bcc prhigh
+        and #$0F
+        ora pnib
+        rts
+prchar: ldx #1
+        jsr pcall
+        and #$7F
+        rts
+
+pwrite: pha
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora #$40
+        jsr pwchar
+        pla
+        and #$0F
+        ora #$60
+pwchar: ldx #2
+        bne pcall
+pstat:  ldx #3
+pcall:  pha
+        lda pentry,x
+        sta pjmp+1
+        bit $CFFF               ; the $C800 space freed for the card's ROM: Apple's
+        pla                     ; entries jump into it, and the //e's ROM is
+                                ; there after a read of $C3xx
+pcx:    ldx #$C0
+pcy:    ldy #$00
+pjmp:   jmp $C000
+
+pentry: .byte 0, 0, 0, 0         ; the init, read, write and status offsets
+pnib:   .byte 0                 ; pread: the high nibble
+
+; A IIgs's port, through its 8530. Slot 1's printer port is channel B and
+; slot 2's modem port channel A. A read of a channel's command register reads
+; register 0 and selects it again; a write selects the register the next
+; access of it reads or writes. Reads are indexed by the channel. Writes are
+; absolute, set for the port, as an indexed store reads its address first,
+; which changes the register selected or reads a byte received.
+SCCBCMD  = $C038
+SCCBDATA = $C03A
+
+; sstat, sread and swrite: the firmware calls' contract, on the 8530.
+; sstat has the carry set when the transmitter is ready, for A of 0, or a
+; byte has arrived, for 1; a call when neither is true lasts about 100
+; cycles, as a firmware's status call does, since the timeouts here and in
+; the program count rounds of it. X and Y are changed.
+sstat:  tay
+        ldx schan
+        lda SCCBCMD,x
+        and sbits,y
+        bne ssyes
+        ldy #11
+sspad:  dey
+        bne sspad
+        clc
+        rts
+ssyes:  sec
+        rts
+
+sread:  ldx schan
+srwait: lda SCCBCMD,x
+        lsr a                   ; register 0, bit 0: a byte received
+        bcc srwait
+        lda SCCBDATA,x
+        rts
+
+swrite: pha
+        ldx schan
+swwait: lda SCCBCMD,x
+        and #$04                ; register 0, bit 2: the transmit buffer empty
+        beq swwait
+        pla
+swd:    sta SCCBDATA
+        rts
+
+; sccspd: the port's 8530 set to the speed of the 6551 control byte in A,
+; once the last byte written is sent, with 8 data bits, 1 stop bit, no
+; parity, DTR and RTS on and no interrupts; the control byte stored as the
+; starting speed. A speed with no time constant here changes nothing. The
+; IIgs's 8530 is clocked by a 3.6864 MHz crystal at RTxC: the baud rate
+; generator divides it by twice the time constant plus 2, and the channel
+; by 16 after that, or straight from RTxC by 32 for 115,200 baud and by 16
+; for 230,400. A 6551 control byte of rate 1, 50 baud, indicates 230,400.
+sccspd: pha
+        ldx #0
+        lda slotx
+        cmp #$20
+        bne sschan
+        inx
+sschan: stx schan
+        txa
+        clc
+        adc #<SCCBCMD
+        sta swr1+1
+        sta swr2+1
+        adc #2
+        sta swd+1
+        ldx schan
+        lda SCCBCMD,x           ; register 0 selected
+sssent: ldx #1
+        jsr ssel
+        ldx schan
+        lda SCCBCMD,x
+        lsr a                   ; register 1, bit 0: all sent
+        bcc sssent
+        pla
+        pha
+        and #$0F
+        ldx #12
+ssfind: cmp srates,x
+        beq ssfound
+        dex
+        dex
+        bpl ssfind
+        pla
+        rts
+ssfound: pla
+        sta ctlop+1
+        lda srates+1,x
+        ldx #s16-sregs
+        ldy #send-sregs
+        cmp #$FE                ; a time constant, for the generator
+        bcc sstc
+        lsr a                   ; straight from RTxC: $FF by 32, $FE by 16
+        lda #$84
+        bcs ssclock
+        lda #$44
+ssclock: sta sregs+1
+        ldx #0
+        ldy #s16-sregs
+sstc:   sta s16tc
+        sty stend
+ssreg:  stx ssx
+        lda sregs+1,x
+        pha
+        lda sregs,x
+        tax
+        pla
+        jsr ssel
+swr2:   sta SCCBCMD
+        ldx ssx
+        inx
+        inx
+        cpx stend
+        bne ssreg
+        rts
+
+; ssel: register X selected.
+ssel:
+swr1:   stx SCCBCMD
+        rts
+
+sbits:  .byte $04, $01          ; register 0: the transmit buffer empty, a byte received
+; Each 6551 rate's time constant: $FF for 115,200 baud and $FE for 230,400,
+; straight from RTxC.
+srates: .byte $00, $FF, $01, $FE, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
+; Each register and its value, for 115,200 baud and then for the others: the
+; clock mode, the generator off or the time constant and the generator on,
+; the clocks' source, no interrupts, and the receiver and transmitter on.
+sregs:  .byte 4, $84, 14, $00, 11, $00, 1, $00, 3, $C1, 5, $EA
+s16:    .byte 4, $44, 12
+s16tc:  .byte 0
+        .byte 13, $00, 14, $01, 11, $50, 1, $00, 3, $C1, 5, $EA
+send:
+schan:  .byte 0                 ; the port's channel: 0 for B, 1 for A
+stend:  .byte 0                 ; sccspd: the end of the registers written
+ssx:    .byte 0                 ; sccspd: the register's offset
+        endif
+
+
+title:  .text "CASSOLINK"
+        .byte 0
+msgs:
+        ifdef W5100
+msgwait: .text "WAITING FOR PC AT "      ; and the address and port, to 39 columns
+        .byte 0
+        ifdef NETWORK
+msgdhcp: .text "GETTING AN ADDRESS"
+        .byte 0
+        endif
+        else
+msgwait: .text "WAITING FOR THE PC ON:"
+        .byte 0
+msgssc: .text "SSC, SLOT "
+        .byte 0
+msgsscm: .text "WI-FI MODEM, SLOT "
+        .byte 0
+msgport: .text "SERIAL PORT "
+        .byte 0
+msgportm: .text "WI-FI MODEM, PORT "
+        .byte 0
+msgpas: .text "PASCAL FIRMWARE CARD, SLOT "
+        .byte 0
+        endif
+msgload: .text "LOADING PROGRAM "
+        .byte 0
+msgstart: .text "STARTING VERSION "
+        .byte 0
+        ifndef W5100
+msgdial: .text "DIALING "
+        .byte 0
+
+; The interface's name by card or port, then cable or modem. After the
+; text, as the assembler sizes a forward reference in .byte wrongly.
+ifnames: .byte msgssc-msgs, msgsscm-msgs, msgport-msgs, msgportm-msgs, msgpas-msgs
+        endif
+
+; Ready with no program: version 0, the shim's version, no drives.
+readypkt: .byte $C1, $04, $00, CMDREADY, $C1 ^ $04 ^ $00 ^ CMDREADY
+          .byte $00, $00, READYVER, $00
+          .byte $00 ^ $00 ^ READYVER ^ $00
+readyend:
+
+        ifndef W5100
+; ---------------------------------------------------------------------------
+; The startup part: run once, then built over by the program's tables, which
+; start at $4000. Only the resident code before it must end below $4000.
+; ---------------------------------------------------------------------------
+
+; startup: the machine's state saved, the interface found and set up, and a
+; modem dialed, then Ready. Run once, from the first start.
+startup: inc booted
+        jsr zpkeep
+        lda slot
+        asl a
+        asl a
+        asl a
+        asl a
+        sta slotx
+        jsr pasinit             ; a card without a 6551 driver here
+        bcc acinit
+        pla                     ; the control byte, set by pasinit for a IIgs's port
+        jsr home
+        jmp ready
+acinit: lda slotx
+        ora #<ACIADATA          ; each read and write of the 6551 is absolute,
+        sta gtdata+1            ; set here for the slot
+        sta pbdata+1
+        ora #1
+        sta gtstat+1
+        sta pbstat+1
+        pla
+        jsr fixctl
+        cmp ctlop+1
+        beq acspeed
+        sta ctlop+1             ; 230,400 baud runs at 115,200 on a 6551, and
+        ldx #5                  ; 115200 is drawn on the waiting screen
+acstext: lda s115200,x
+        sta speedtxt,x
+        dex
+        bpl acstext
+acspeed: lda ctlop+1
+        ldx slotx
+        sta ACIACTL,x
+        lda #$0B                ; DTR on, no parity, no interrupts
+        sta ACIACMD,x
+        jsr home
+
+        lda dialtxt             ; bit 7 of its first byte is set once the modem
+        beq sudone              ; is connected, as back from Load program
+        bmi sudone
+        ldx #msgdial-msgs       ; the target, as the command has it after ATDT
+        jsr drawstate           ; and its spaces, in capitals and to 40 columns
+        ldx #4
+dlskip: lda dialtxt,x
+        cmp #$20
+        bne dltarget
+        inx
+        bne dlskip
+dltarget: lda dialtxt,x
+        beq dlsend
+        cmp #$61
+        bcc dlcaps
+        and #$DF
+dlcaps: ora #$80
+        sta ROW2,y
+        inx
+        iny
+        cpy #40
+        bne dltarget
+dlsend: ldx #0
+dial:   lda dialtxt,x
+        beq dialed
+        jsr putb
+        inx
+        bne dial
+dialed: lda #$0D
+        jsr putb
+modemreply: jsr getb               ; the modem's reply line, such as CONNECT,
+        cmp #$0A               ; ends in a line feed; Ready waits for it
+        bne modemreply
+sudone: jmp ready
+
+s115200: .text "115200"
+
 ; is6551: the carry set when the 6551 control register at Y, slot * 16,
 ; reads back two values written to it, as a 6551's does; it is then put back.
 ; A card with another serial chip, or none there, reads back something else.
@@ -1044,56 +1507,6 @@ pinit:  ldx #0                  ; init
 pinone: clc
         rts
 
-; pstat, pread and pwrite: the card's firmware entry, with A as it came, X
-; at $Cn and Y at $n0, as Pascal 1.1 calls take them. A firmware's read and
-; write are for text: Apple's sets bit 7 of each byte read, drops a line feed
-; and adds one after a return. Each byte goes as two characters instead
-; (CassoLinkHost::kTextHigh): $40 plus its high nibble, then $60 plus its low
-; nibble, with bit 7 ignored. A character of $40 to $4F starts the byte
-; again, so a stray character is passed over.
-pread:  jsr prchar
-prhigh: asl a
-        asl a
-        asl a
-        asl a
-        sta pnib
-        jsr prchar
-        cmp #$60
-        bcc prhigh
-        and #$0F
-        ora pnib
-        rts
-prchar: ldx #1
-        jsr pcall
-        and #$7F
-        rts
-
-pwrite: pha
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        ora #$40
-        jsr pwchar
-        pla
-        and #$0F
-        ora #$60
-pwchar: ldx #2
-        bne pcall
-pstat:  ldx #3
-pcall:  pha
-        lda pentry,x
-        sta pjmp+1
-        bit $CFFF               ; the $C800 space freed for the card's ROM: Apple's
-        pla                     ; entries jump into it, and the //e's ROM is
-                                ; there after a read of $C3xx
-pcx:    ldx #$C0
-pcy:    ldy #$00
-pjmp:   jmp $C000
-
-pentry: .byte 0, 0, 0, 0         ; the init, read, write and status offsets
-pnib:   .byte 0                 ; pread: the high nibble
-
 ; isgs: the carry clear on a IIgs: an enhanced //e's identification bytes,
 ; and an ID call at $FE1F that clears the carry, where a //e has an RTS.
 isgs:   lda $FBB3
@@ -1107,175 +1520,7 @@ isgs:   lda $FBB3
 isno:   sec
         rts
 
-; A IIgs's port, through its 8530. Slot 1's printer port is channel B and
-; slot 2's modem port channel A. A read of a channel's command register reads
-; register 0 and selects it again; a write selects the register the next
-; access of it reads or writes. Reads are indexed by the channel. Writes are
-; absolute, set for the port, as an indexed store reads its address first,
-; which changes the register selected or reads a byte received.
-SCCBCMD  = $C038
-SCCBDATA = $C03A
-
-; sstat, sread and swrite: the firmware calls' contract, on the 8530.
-; sstat has the carry set when the transmitter is ready, for A of 0, or a
-; byte has arrived, for 1; a call when neither is true lasts about 100
-; cycles, as a firmware's status call does, since the timeouts here and in
-; the program count rounds of it. X and Y are changed.
-sstat:  tay
-        ldx schan
-        lda SCCBCMD,x
-        and sbits,y
-        bne ssyes
-        ldy #11
-sspad:  dey
-        bne sspad
-        clc
-        rts
-ssyes:  sec
-        rts
-
-sread:  ldx schan
-srwait: lda SCCBCMD,x
-        lsr a                   ; register 0, bit 0: a byte received
-        bcc srwait
-        lda SCCBDATA,x
-        rts
-
-swrite: pha
-        ldx schan
-swwait: lda SCCBCMD,x
-        and #$04                ; register 0, bit 2: the transmit buffer empty
-        beq swwait
-        pla
-swd:    sta SCCBDATA
-        rts
-
-; sccspd: the port's 8530 set to the speed of the 6551 control byte in A,
-; once the last byte written is sent, with 8 data bits, 1 stop bit, no
-; parity, DTR and RTS on and no interrupts; the control byte stored as the
-; starting speed. A speed with no time constant here changes nothing. The
-; IIgs's 8530 is clocked by a 3.6864 MHz crystal at RTxC: the baud rate
-; generator divides it by twice the time constant plus 2, and the channel
-; by 16 after that, or by 32 straight from RTxC for 115,200 baud.
-sccspd: pha
-        ldx #0
-        lda slotx
-        cmp #$20
-        bne sschan
-        inx
-sschan: stx schan
-        txa
-        clc
-        adc #<SCCBCMD
-        sta swr1+1
-        sta swr2+1
-        adc #2
-        sta swd+1
-        ldx schan
-        lda SCCBCMD,x           ; register 0 selected
-sssent: ldx #1
-        jsr ssel
-        ldx schan
-        lda SCCBCMD,x
-        lsr a                   ; register 1, bit 0: all sent
-        bcc sssent
-        pla
-        pha
-        and #$0F
-        ldx #10
-ssfind: cmp srates,x
-        beq ssfound
-        dex
-        dex
-        bpl ssfind
-        pla
-        rts
-ssfound: pla
-        sta ctlop+1
-        lda srates+1,x
-        ldx #s16-sregs
-        ldy #send-sregs
-        cmp #$FF
-        bne sstc
-        ldx #0
-        ldy #s16-sregs
-sstc:   sta s16tc
-        sty stend
-ssreg:  stx ssx
-        lda sregs+1,x
-        pha
-        lda sregs,x
-        tax
-        pla
-        jsr ssel
-swr2:   sta SCCBCMD
-        ldx ssx
-        inx
-        inx
-        cpx stend
-        bne ssreg
-        rts
-
-; ssel: register X selected.
-ssel:
-swr1:   stx SCCBCMD
-        rts
-
-sbits:  .byte $04, $01          ; register 0: the transmit buffer empty, a byte received
-; Each 6551 rate's time constant: $FF for 115,200 baud, straight from RTxC.
-srates: .byte $00, $FF, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
-; Each register and its value, for 115,200 baud and then for the others: the
-; clock mode, the generator off or the time constant and the generator on,
-; the clocks' source, no interrupts, and the receiver and transmitter on.
-sregs:  .byte 4, $84, 14, $00, 11, $00, 1, $00, 3, $C1, 5, $EA
-s16:    .byte 4, $44, 12
-s16tc:  .byte 0
-        .byte 13, $00, 14, $01, 11, $50, 1, $00, 3, $C1, 5, $EA
-send:
 scjumps: jmp sstat
         jmp sread
         jmp swrite
-schan:  .byte 0                 ; the port's channel: 0 for B, 1 for A
-stend:  .byte 0                 ; sccspd: the end of the registers written
-ssx:    .byte 0                 ; sccspd: the register's offset
         endif
-
-
-title:  .text "CASSOLINK"
-        .byte 0
-msgs:
-        ifdef W5100
-msgwait: .text "WAITING FOR PC AT "      ; and the address and port, to 39 columns
-        .byte 0
-        else
-msgwait: .text "WAITING FOR THE PC ON:"
-        .byte 0
-msgssc: .text "SSC, SLOT "
-        .byte 0
-msgsscm: .text "WI-FI MODEM, SLOT "
-        .byte 0
-msgport: .text "SERIAL PORT "
-        .byte 0
-msgportm: .text "WI-FI MODEM, PORT "
-        .byte 0
-msgpas: .text "PASCAL FIRMWARE CARD, SLOT "
-        .byte 0
-        endif
-msgload: .text "LOADING PROGRAM "
-        .byte 0
-msgstart: .text "STARTING VERSION "
-        .byte 0
-        ifndef W5100
-msgdial: .text "DIALING "
-        .byte 0
-
-; The interface's name by card or port, then cable or modem. After the
-; text, as the assembler sizes a forward reference in .byte wrongly.
-ifnames: .byte msgssc-msgs, msgsscm-msgs, msgport-msgs, msgportm-msgs, msgpas-msgs
-        endif
-
-; Ready with no program: version 0, the shim's version, no drives.
-readypkt: .byte $C1, $04, $00, CMDREADY, $C1 ^ $04 ^ $00 ^ CMDREADY
-          .byte $00, $00, READYVER, $00
-          .byte $00 ^ $00 ^ READYVER ^ $00
-readyend:
