@@ -1,0 +1,80 @@
+#include "Pch.h"
+
+#include "DxuiDockMorph.h"
+#include "Core/DxuiSystemSettings.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockMorph::Start
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockMorph::Start (const RECT & from, const RECT & to)
+{
+    bool     isAnimated = m_animations.has_value() ? *m_animations : DxuiSystemSettings::Instance().AreAnimationsEnabled();
+    int64_t  nowMs      = m_clock();
+
+
+
+    m_morph = DxuiRectMorph::Start (from, to, nowMs, isAnimated);
+    m_isOn  = !m_morph.IsDone (nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockMorph::IsOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockMorph::IsOn() const
+{
+    return m_isOn && !m_morph.IsDone (m_clock());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockMorph::GetRect
+//
+//  Where the morph's rect is now; empty when there is no morph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDockMorph::GetRect() const
+{
+    return IsOn() ? m_morph.GetRect (m_clock()) : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockMorph::Tick
+//
+//  True while a frame of the morph is due, and once more as it ends, so the
+//  frame without it is painted too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockMorph::Tick()
+{
+    bool  isDue = m_isOn;
+
+
+
+    m_isOn = IsOn();
+    return isDue;
+}

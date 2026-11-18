@@ -7,6 +7,7 @@
 #include "Theme/DxuiTheme.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiTheme.h"
+#include "DxuiTooltipBody.h"
 
 
 class DxuiHwndSource;
@@ -113,41 +114,30 @@ public:
 
     //  A fixed-width face, for a tip of code or bytes. A tip whose columns
     //  are separated by tabs lines them up in either face (TableLayout).
-    void  SetMonospace    (bool mono) { m_monospace = mono; }
+    void  SetMonospace    (bool mono) { m_look.isMonospace = mono; }
 
     //  Whether a hover tip is hidden after a set time. Off by default, so a tip
     //  is up until the pointer is out of its area or another app is in the
     //  foreground.
     void  SetHasLifetime  (bool hasLifetime) { m_hasLifetime = hasLifetime; }
 
-    //  A tip with a tab in its text is a table: the tab-separated parts of
-    //  each line start at the same columns, one em apart at the widest, so
-    //  they line up in a proportional face as they would in a fixed one. A
-    //  line with no tab spans the table and adds to no column.
-    struct TableLayout
-    {
-        std::vector<std::vector<std::wstring>>  lines;
-        std::vector<float>                      columnX;
-        std::vector<float>                      columnW;
-        float                                   width      = 0.0f;
-        float                                   lineHeight = 0.0f;
-    };
+    //  A tip with a tab in its text is a table (DxuiTooltipBody::TableLayout).
+    using TableLayout = DxuiTooltipBody::TableLayout;
+    using MeasureFn   = DxuiTooltipBody::MeasureFn;
 
-    using MeasureFn = std::function<HRESULT (const std::wstring & part, float & widthPx, float & heightPx)>;
-
-    static bool     IsTable     (const std::wstring & text) { return text.find (L'\t') != std::wstring::npos; }
+    static bool     IsTable     (const std::wstring & text) { return DxuiTooltipBody::IsTable (text); }
 
     //  Line colors, one for each line from the top; zero, or a line past the
     //  last, is drawn in the tip's text color. A tip with line colors is laid
     //  out as a table, so it isn't wrapped. Set before the request it goes
     //  with; a change of colors raises the tip again.
-    void  SetLineColors (std::vector<uint32_t> argbs) { m_lineArgbs = std::move (argbs); }
+    void  SetLineColors (std::vector<uint32_t> argbs) { m_look.lineArgbs = std::move (argbs); }
 
     //  A square of color before each line, for a key to colors drawn
     //  elsewhere: one for each line from the top, zero for none. Every line
     //  is indented by the squares' width, and the tip is laid out as a
     //  table. Set before the request it goes with, as the line colors are.
-    void  SetLineSwatches (std::vector<uint32_t> argbs) { m_lineSwatches = std::move (argbs); }
+    void  SetLineSwatches (std::vector<uint32_t> argbs) { m_look.lineSwatches = std::move (argbs); }
 
     //  The same squares, each with the line it is beside; with an empty list,
     //  no squares are drawn.
@@ -158,19 +148,19 @@ public:
     //  line from the top, none for a line without one. A line with a scale is
     //  indented by the scale's width, and the tip is laid out as a table. Set
     //  before the request it goes with, as the line colors are.
-    void  SetLineScales   (std::vector<std::vector<uint32_t>> scales) { m_lineScales = std::move (scales); }
+    void  SetLineScales   (std::vector<std::vector<uint32_t>> scales) { m_look.lineScales = std::move (scales); }
 
     //  How wide a line's scale is drawn, which a color key's scales match.
-    static constexpr float  kLineScaleWidthDip = 64.0f;
+    static constexpr float  kLineScaleWidthDip = DxuiTooltipBody::kLineScaleWidthDip;
 
     //  A color scale drawn under the text, its stops spread evenly from left
     //  to right, with an arrow under it at `mark`, from 0 at the left to 1 at
     //  the right; a mark outside that range has no arrow. No stops, no scale.
     //  Set before the request it goes with, as the line colors are.
-    void  SetGradient     (std::vector<uint32_t> stops, float mark) { m_gradient = std::move (stops); m_gradientMark = mark; }
+    void  SetGradient     (std::vector<uint32_t> stops, float mark) { m_look.gradient = std::move (stops); m_look.gradientMark = mark; }
 
     //  The scale's color at a fraction of its width, 0 to 1.
-    static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at);
+    static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at) { return DxuiTooltipBody::GetGradientColor (stops, at); }
 
     //  A rounded outline around everything in the tip, with its label on the
     //  top edge from the left, as a group of controls is labeled: in `argb`,
@@ -179,19 +169,19 @@ public:
     //  kMinLineContrast. An
     //  empty label has no frame. Set before the request it goes with, as the
     //  line colors are.
-    void  SetFrame        (std::wstring label, uint32_t argb) { m_frameLabel = std::move (label); m_frameArgb = argb; }
+    void  SetFrame        (std::wstring label, uint32_t argb) { m_look.frameLabel = std::move (label); m_look.frameArgb = argb; }
 
     //  A word at the right end of the first line, such as a mark on what the
     //  tip is about, in `argb` or the text color for 0, moved until its
     //  contrast with the background is kMinTextContrast. The tip is widened
     //  by it, so a mark that comes and goes doesn't add a line. Empty for none.
-    void            SetCornerTag (std::wstring tag, uint32_t argb)   { m_cornerTag = std::move (tag); m_cornerTagArgb = argb; }
-    static HRESULT  LayOutTable  (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
+    void            SetCornerTag (std::wstring tag, uint32_t argb)   { m_look.cornerTag = std::move (tag); m_look.cornerTagArgb = argb; }
+    static HRESULT  LayOutTable  (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table) { return DxuiTooltipBody::LayOutTable (text, gapPx, measure, table); }
     //  Text wider than this wraps onto more lines instead of growing the
     //  balloon past the window's edge; a fixed-width tip wraps at more than
     //  twice this. A tip of long lines, such as a log's, is given more.
-    static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
-    void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
+    static constexpr float  kDefaultMaxTextWidthDip = DxuiTooltipBody::kDefaultMaxTextWidthDip;
+    void  SetMaxTextWidthDip (float dip) { m_look.maxTextWidthDip = dip; }
     void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
     UINT  GetDpi             () const   { return m_scaler.GetDpi(); }
     void  SetViewportSize    (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -316,8 +306,8 @@ public:
     const RECT         & GetAnchor () const { return m_anchor;  }
 
     void             Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    const wchar_t  * GetFace            () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
-    float            GetMaxTextWidthDip () const;
+    const wchar_t  * GetFace            () const { return DxuiTooltipBody::GetFace (m_look); }
+    float            GetMaxTextWidthDip () const { return DxuiTooltipBody::GetMaxTextWidthDip (m_look); }
 
     //
     //  IDxuiControl overrides — additive shims so DxuiTooltip can
@@ -332,56 +322,13 @@ public:
 private:
     //  The room between a tip that follows the pointer and the pointer.
     static constexpr int    kPointerGapDip     = 4;
-    static constexpr float  kGradientGapDip    = 6.0f;
-    static constexpr float  kGradientHeightDip = 10.0f;
-
-    static constexpr float  kGradientArrowDip = 6.0f;
-    static constexpr float  kGradientWidthDip = 200.0f;
-    static constexpr int    kGradientSlices   = 64;
 
     static inline ActiveTest  s_pfnDefaultIsActive = IsPointerOverApp;
 
-    float  GetGradientExtraPx () const;
-    void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
-
-    //  The frame: its label's size, its inset from the tip's edge on every
-    //  side, the gap between it and the content, and the lowest contrast of
-    //  its label and line, WCAG's minimums for text and a control's border.
-    static constexpr float  kFrameLabelScale  = 0.85f;
-    static constexpr float  kFrameInsetDip    = 4.0f;
-    static constexpr float  kFrameGapDip      = 6.0f;
-    static constexpr float  kFrameCornerDip   = 4.0f;
-    static constexpr float  kFrameMix         = 0.6f;
-    static constexpr float  kFramedEdgeMix    = 0.15f;   // the tip's edge around a frame, close to its fill
-    static constexpr float  kFrameLineEm      = 1.4f;
-    static constexpr float  kMinTextContrast  = 4.5f;
-    static constexpr float  kMinLineContrast  = 3.0f;
-
-    //  The room around the content on each side: the tip's padding, or in a
-    //  frame its inset and gap, with its label's line above.
-    struct Margins
-    {
-        float  left   = 0.0f;
-        float  top    = 0.0f;
-        float  right  = 0.0f;
-        float  bottom = 0.0f;
-    };
-
-    //  The label's line is drawn centered on the frame's top edge; its
-    //  letters extend about kFrameCapEm of the label's size above and below
-    //  the middle. The frame's top edge is kFrameInsetDip below the top of
-    //  the letters, and its other edges are as far from the tip's edge as
-    //  its top edge is.
-    static constexpr float  kFrameCapEm = 0.36f;
-
-    Margins  GetContentMargins () const;
-    float    GetFrameLabelPx   () const { return m_scaler.ToPxf (m_fontDip) * kFrameLabelScale; }
-    float    GetFrameLabelHPx  () const { return std::ceil (GetFrameLabelPx() * kFrameLineEm); }
-    float    GetFrameEdgePx    () const { return std::round (m_scaler.ToPxf (kFrameInsetDip) + GetFrameLabelPx() * kFrameCapEm); }
-    float    GetCornerTagPx    (IDxuiTextRenderer * text) const;
-    void     DrawCornerTag     (IDxuiTextRenderer & text, float right, float top, float lineHeight) const;
-    void     DrawFrame         (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const;
-
+    //  The contents of the tip that is up, drawn with the look taken as it
+    //  was raised, so a look set for the next tip doesn't change how this
+    //  one is measured or drawn.
+    DxuiTooltipBody  GetShownBody () const { return DxuiTooltipBody (m_shownLook, m_text, m_scaler, m_fontDip, { m_bgArgb, m_borderArgb, m_textArgb }); }
 
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
@@ -415,8 +362,8 @@ private:
 
     //  Whether the colors, swatches, scales or gradient set differ from
     //  those drawn, and the ones set taken as the ones drawn.
-    bool  IsNewLook          () const;
-    void  TakeLook           ();
+    bool  IsNewLook          () const { return !(m_look == m_shownLook); }
+    void  TakeLook           ()       { m_shownLook = m_look; }
 
     //
     //  Return the live popup to the host pool (hiding its HWND) and
@@ -435,22 +382,6 @@ private:
     //  host's opaque background clear.
     //
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-
-    //  The table's parts drawn from its top-left, in pixels.
-    void  DrawTable          (IDxuiPainter & painter, IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
-    bool  IsTableTip         () const { return IsTable (m_text) || !m_shownLineArgbs.empty() || !m_shownLineSwatches.empty() || !m_shownLineScales.empty(); }
-    float GetSwatchIndentPx  (float lineHeight) const;
-    float GetLineIndentPx    (float lineHeight) const;
-    void  DrawLineScale      (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const;
-
-    //  The table laid out with `text` measuring the parts at the tip's font.
-    HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
-
-    //  The face and the wrap width of the tip that is up, from the look taken
-    //  as it was raised, so a look set for the next tip doesn't change how
-    //  this one is measured or drawn.
-    const wchar_t  * GetShownFace            () const { return m_shownMono ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
-    float            GetShownMaxTextWidthDip () const;
 
     //  A BALLOON IS NEVER SMALLER THAN ITS TEXT. Each time the balloon is
     //  drawn, its text is measured by the renderer drawing it; a balloon
@@ -471,8 +402,6 @@ private:
     int                                   m_dwellOpenMs        = 500;
     int                                   m_dwellCloseMs       = 100;
     float                                 m_fontDip            = 12.0f;
-    bool                                  m_monospace          = false;
-    float                                 m_maxTextWidthDip    = 0.0f;   // 0 for the default
     bool                                  m_followPointer      = false;
     uint32_t                              m_bgArgb             = 0xFF2D2D2D;
     uint32_t                              m_borderArgb         = 0xFF606060;
@@ -498,27 +427,9 @@ private:
     PointerExtent                         m_pointerExtent      = {};
     bool                                  m_hasPointerExtent   = false;
     int                                   m_showCount          = 0;
-    std::vector<uint32_t>                 m_lineArgbs;
-    std::vector<uint32_t>                 m_shownLineArgbs;
-    std::vector<uint32_t>                 m_lineSwatches;
-    std::vector<uint32_t>                 m_shownLineSwatches;
-    std::vector<std::vector<uint32_t>>    m_lineScales;
-    std::vector<std::vector<uint32_t>>    m_shownLineScales;
-    std::vector<uint32_t>                 m_gradient;
-    std::vector<uint32_t>                 m_shownGradient;
-    float                                 m_gradientMark       = -1.0f;
-    float                                 m_shownGradientMark  = -1.0f;
-    std::wstring                          m_cornerTag;
-    std::wstring                          m_shownCornerTag;
-    uint32_t                              m_cornerTagArgb      = 0;
-    uint32_t                              m_shownCornerTagArgb = 0;
-    bool                                  m_shownMono          = false;
-    float                                 m_shownMaxWidthDip   = 0.0f;
+    DxuiTooltipLook                       m_look;                         // set for the next request
+    DxuiTooltipLook                       m_shownLook;                    // the tip that is up
     mutable bool                          m_isTooSmall         = false;
     mutable SIZE                          m_neededPx           = {};
     mutable D2D1_SIZE_F                   m_instantMaxPx       = {};   // the largest size of a tip that follows the pointer, since it opened
-    std::wstring                          m_frameLabel;
-    std::wstring                          m_shownFrameLabel;
-    uint32_t                              m_frameArgb          = 0;
-    uint32_t                              m_shownFrameArgb     = 0;
 };

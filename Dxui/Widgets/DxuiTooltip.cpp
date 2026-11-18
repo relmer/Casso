@@ -1,7 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
-#include "Render/DxuiRoundedOutline.h"
 
 #include "DxuiTooltip.h"
 #include "Window/DxuiHwndSource.h"
@@ -17,27 +16,6 @@ static constexpr float     s_kPadYDip            = 4.0f;
 static constexpr float     s_kBorderDip          = 1.0f;
 static constexpr int       s_kPointerGapDip      = 26;   // above the pointer, as Explorer places its tips
 static constexpr int       s_kPointerBelowGapDip = 4;    // below the pointer's arrow, when there is no room above
-
-//
-//  A fixed-width tip's lines are columns, broken where the caller broke
-//  them, so they run far wider before they wrap: wrapping one moves the end
-//  of a line, a cycle count, say, under the start of the next.
-//
-static constexpr float     s_kMaxMonoWidthDip = 720.0f;
-
-//
-//  A table's parts are measured on one line each: a column is as wide as
-//  its widest part, never wrapped.
-//
-static constexpr float     s_kNoWrapPx        = 100000.0f;
-
-//
-//  Fallback glyph metrics used to size the balloon when precise text
-//  measurement is unavailable (e.g. test mode, where the popup has no
-//  DWrite factory). Deliberately a little generous so text never clips.
-//
-static constexpr float     s_kEstCharWidthEm  = 0.62f;
-static constexpr float     s_kEstLineHeightEm = 1.4f;
 
 
 
@@ -1215,51 +1193,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetMaxTextWidthDip
-//
-//  How wide a line may run before it wraps, which for a fixed-width tip is
-//  more than twice as wide.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTooltip::GetMaxTextWidthDip() const
-{
-    if (m_maxTextWidthDip > 0.0f)
-    {
-        return m_maxTextWidthDip;
-    }
-
-    return m_monospace ? s_kMaxMonoWidthDip : kDefaultMaxTextWidthDip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetShownMaxTextWidthDip
-//
-//  GetMaxTextWidthDip's width for the look the tip that is up was raised with.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTooltip::GetShownMaxTextWidthDip() const
-{
-    if (m_shownMaxWidthDip > 0.0f)
-    {
-        return m_shownMaxWidthDip;
-    }
-
-    return m_shownMono ? s_kMaxMonoWidthDip : kDefaultMaxTextWidthDip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  NoteIfTooSmall
 //
 //  Only a measurement counts: an estimate made without a renderer is not
@@ -1358,35 +1291,36 @@ bool DxuiTooltip::MeasureBoxPx (
     float              & heightPx,
     IDxuiTextRenderer  * text) const
 {
-    HRESULT  hr         = S_OK;
-    float    fontPx     = m_scaler.ToPxf (m_fontDip);
-    float    maxWPx     = m_scaler.ToPxf (GetShownMaxTextWidthDip());
-    float    textWPx    = 0.0f;
-    float    textHPx    = 0.0f;
-    bool     isMeasured = true;
-    Margins  margins;
-    auto     measure    = [this, text] (const wchar_t * what, float sizePx, float wrapPx, float & w, float & h) -> HRESULT
+    HRESULT                   hr         = S_OK;
+    DxuiTooltipBody           body       = GetShownBody();
+    float                     fontPx     = body.GetFontPx();
+    float                     maxWPx     = m_scaler.ToPxf (body.GetMaxTextWidthDip());
+    float                     textWPx    = 0.0f;
+    float                     textHPx    = 0.0f;
+    bool                      isMeasured = true;
+    DxuiTooltipBody::Margins  margins;
+    auto                      measure    = [this, text, &body] (const wchar_t * what, float sizePx, float wrapPx, float & w, float & h) -> HRESULT
     {
         if (text != nullptr)
         {
-            return text->MeasureStringWrapped (what, sizePx, GetShownFace(), wrapPx, w, h);
+            return text->MeasureStringWrapped (what, sizePx, body.GetFace(), wrapPx, w, h);
         }
 
-        return (m_activePopup != nullptr) ? m_activePopup->MeasureTextWrapped (what, sizePx, GetShownFace(), wrapPx, w, h) : E_FAIL;
+        return (m_activePopup != nullptr) ? m_activePopup->MeasureTextWrapped (what, sizePx, body.GetFace(), wrapPx, w, h) : E_FAIL;
     };
 
 
 
-    if (IsTableTip())
+    if (body.IsTableTip())
     {
         TableLayout  table;
 
         hr = LayOutTable (m_text, fontPx, [&measure, fontPx] (const std::wstring & part, float & w, float & h)
         {
-            return measure (part.c_str(), fontPx, s_kNoWrapPx, w, h);
+            return measure (part.c_str(), fontPx, DxuiTooltipBody::kNoWrapPx, w, h);
         }, table);
 
-        textWPx = table.width + GetLineIndentPx (table.lineHeight);
+        textWPx = table.width + body.GetLineIndentPx (table.lineHeight);
         textHPx = table.lineHeight * (float) table.lines.size();
     }
     else
@@ -1396,41 +1330,33 @@ bool DxuiTooltip::MeasureBoxPx (
 
     if (FAILED (hr) || textWPx <= 0.0f)
     {
-        float  estWPx   = (float) m_text.size() * fontPx * s_kEstCharWidthEm;
+        float  estWPx   = (float) m_text.size() * fontPx * DxuiTooltipBody::kEstCharWidthEm;
         float  estLines = std::ceil (estWPx / maxWPx);
 
         isMeasured = false;
         textWPx    = std::min (estWPx, maxWPx);
-        textHPx    = std::max (estLines, 1.0f) * fontPx * s_kEstLineHeightEm;
+        textHPx    = std::max (estLines, 1.0f) * fontPx * DxuiTooltipBody::kEstLineHeightEm;
     }
 
     if (textHPx <= 0.0f)
     {
-        textHPx = fontPx * s_kEstLineHeightEm;
+        textHPx = fontPx * DxuiTooltipBody::kEstLineHeightEm;
     }
 
-    margins  = GetContentMargins();
-    textWPx += GetCornerTagPx (text);
+    margins  = body.GetContentMargins (GetPadXPx(), GetPadYPx());
+    textWPx += body.GetCornerTagPx (measure);
     widthPx  = std::ceil (textWPx) + margins.left + margins.right;
     heightPx = std::ceil (textHPx) + margins.top  + margins.bottom;
 
-    if (!m_shownGradient.empty())
+    if (body.HasGradient())
     {
-        widthPx   = std::max (widthPx, std::ceil (m_scaler.ToPxf (kGradientWidthDip)) + margins.left + margins.right);
-        heightPx += GetGradientExtraPx();
+        widthPx   = std::max (widthPx, body.GetGradientWidthPx() + margins.left + margins.right);
+        heightPx += body.GetGradientExtraPx();
     }
 
-    if (!m_shownFrameLabel.empty())
+    if (body.HasFrame())
     {
-        float  labelW = (float) m_shownFrameLabel.size() * GetFrameLabelPx() * s_kEstCharWidthEm;
-        float  labelH = 0.0f;
-
-
-
-        hr = measure (m_shownFrameLabel.c_str(), GetFrameLabelPx(), s_kNoWrapPx, labelW, labelH);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        widthPx = std::max (widthPx, std::ceil (labelW) + (GetFrameEdgePx() + m_scaler.ToPxf (kFrameCornerDip) + m_scaler.ToPxf (kFrameGapDip)) * 2.0f);
+        widthPx = std::max (widthPx, body.GetFrameWidthPx (measure));
     }
 
     //  A tip that follows the pointer from cell to cell stays at the largest size
@@ -1445,129 +1371,6 @@ bool DxuiTooltip::MeasureBoxPx (
     }
 
     return isMeasured;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetContentMargins
-//
-//  In a frame, the frame is GetFrameEdgePx from the tip's edge on every side,
-//  then the same gap inside the frame to the content, where the top's is
-//  from the bottom of the label's letters.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiTooltip::Margins DxuiTooltip::GetContentMargins() const
-{
-    float  inset = GetFrameEdgePx();
-    float  gap   = m_scaler.ToPxf (kFrameGapDip);
-
-
-
-    if (m_shownFrameLabel.empty())
-    {
-        return Margins { GetPadXPx(), GetPadYPx(), GetPadXPx(), GetPadYPx() };
-    }
-
-    return Margins { inset + gap, inset + GetFrameLabelPx() * kFrameCapEm + gap, inset + gap, inset + gap };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetGradientExtraPx
-//
-//  The height a scale adds under the text: a gap, the scale, and the arrow.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTooltip::GetGradientExtraPx() const
-{
-    return std::ceil (m_scaler.ToPxf (kGradientGapDip + kGradientHeightDip + kGradientArrowDip));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetGradientColor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DxuiTooltip::GetGradientColor (const std::vector<uint32_t> & stops, float at)
-{
-    float   scaled = 0.0f;
-    size_t  low    = 0;
-
-
-
-    if (stops.empty())
-    {
-        return 0;
-    }
-
-    if (stops.size() == 1)
-    {
-        return stops[0];
-    }
-
-    scaled = std::clamp (at, 0.0f, 1.0f) * (float) (stops.size() - 1);
-    low    = std::min ((size_t) scaled, stops.size() - 2);
-
-    return DxuiColor::Mix (stops[low], stops[low + 1], scaled - (float) low);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawGradient
-//
-//  The scale in thin slices across the width, and under it an arrow whose
-//  point touches the scale at the mark, in the tip's text color.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTooltip::DrawGradient (IDxuiPainter & painter, float left, float width, float bottom) const
-{
-    float  arrowPx = m_scaler.ToPxf (kGradientArrowDip);
-    float  barPx   = m_scaler.ToPxf (kGradientHeightDip);
-    float  top     = bottom - arrowPx - barPx;
-    float  slice   = width / (float) kGradientSlices;
-    float  tipX    = left + width * m_shownGradientMark;
-
-
-
-    for (int i = 0; i < kGradientSlices; i++)
-    {
-        float  at = ((float) i + 0.5f) / (float) kGradientSlices;
-
-        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, barPx, GetGradientColor (m_shownGradient, at));
-    }
-
-    painter.OutlineRect (left, top, width, barPx, 1.0f, m_borderArgb);
-
-    if (m_shownGradientMark < 0.0f || m_shownGradientMark > 1.0f)
-    {
-        return;
-    }
-
-    painter.FillConvexQuad (tipX,           top + barPx,
-                            tipX + arrowPx, bottom,
-                            tipX - arrowPx, bottom,
-                            tipX,           top + barPx,
-                            m_textArgb);
 }
 
 
@@ -1702,56 +1505,6 @@ void DxuiTooltip::MovePopup (bool isNewText)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsNewLook
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTooltip::IsNewLook() const
-{
-    return m_lineArgbs    != m_shownLineArgbs    ||
-           m_lineSwatches != m_shownLineSwatches ||
-           m_lineScales   != m_shownLineScales   ||
-           m_gradient     != m_shownGradient     ||
-           m_gradientMark != m_shownGradientMark ||
-           m_frameLabel   != m_shownFrameLabel   ||
-           m_frameArgb    != m_shownFrameArgb    ||
-           m_cornerTag    != m_shownCornerTag    ||
-           m_cornerTagArgb != m_shownCornerTagArgb ||
-           m_monospace    != m_shownMono         ||
-           m_maxTextWidthDip != m_shownMaxWidthDip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TakeLook
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTooltip::TakeLook()
-{
-    m_shownLineArgbs    = m_lineArgbs;
-    m_shownLineSwatches = m_lineSwatches;
-    m_shownLineScales   = m_lineScales;
-    m_shownGradient     = m_gradient;
-    m_shownGradientMark = m_gradientMark;
-    m_shownFrameLabel    = m_frameLabel;
-    m_shownFrameArgb     = m_frameArgb;
-    m_shownCornerTag     = m_cornerTag;
-    m_shownCornerTagArgb = m_cornerTagArgb;
-    m_shownMono          = m_monospace;
-    m_shownMaxWidthDip   = m_maxTextWidthDip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ReleaseActivePopup
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1806,21 +1559,22 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
 
 
-    HRESULT      hr        = S_OK;
-    float        fontPx    = m_scaler.ToPxf (m_fontDip);
-    float        padX      = GetPadXPx();
-    float        padY      = GetPadYPx();
-    float        borderPx  = GetBorderPx();
-    float        anchorGap = m_scaler.ToPxf (s_kAnchorGapDip);
-    float        textW     = 0.0f;
-    float        textH     = 0.0f;
-    float        width     = 0.0f;
-    float        height    = 0.0f;
-    float        boxLeft   = 0.0f;
-    float        boxTop    = 0.0f;
-    RECT         anchor    = {};
-    bool         isTable   = IsTableTip();
-    TableLayout  table;
+    HRESULT          hr        = S_OK;
+    DxuiTooltipBody  body      = GetShownBody();
+    float            fontPx    = body.GetFontPx();
+    float            padX      = GetPadXPx();
+    float            padY      = GetPadYPx();
+    float            borderPx  = GetBorderPx();
+    float            anchorGap = m_scaler.ToPxf (s_kAnchorGapDip);
+    float            textW     = 0.0f;
+    float            textH     = 0.0f;
+    float            width     = 0.0f;
+    float            height    = 0.0f;
+    float            boxLeft   = 0.0f;
+    float            boxTop    = 0.0f;
+    RECT             anchor    = {};
+    bool             isTable   = body.IsTableTip();
+    TableLayout      table;
 
 
 
@@ -1831,17 +1585,17 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     if (isTable)
     {
-        hr = LayOutTableWith (const_cast<IDxuiTextRenderer &> (text), table);
+        hr = body.LayOutTableWith (const_cast<IDxuiTextRenderer &> (text), table);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        textW = table.width + GetSwatchIndentPx (table.lineHeight);
+        textW = table.width + body.GetSwatchIndentPx (table.lineHeight);
         textH = table.lineHeight * (float) table.lines.size();
     }
     else
     {
         hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
-                 m_text.c_str(), fontPx, GetShownFace(),
-                 m_scaler.ToPxf (GetShownMaxTextWidthDip()), textW, textH);
+                 m_text.c_str(), fontPx, body.GetFace(),
+                 m_scaler.ToPxf (body.GetMaxTextWidthDip()), textW, textH);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -1881,7 +1635,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     if (isTable)
     {
-        DrawTable (painter, text, table, boxLeft + padX, boxTop + padY);
+        body.DrawTable (painter, text, table, boxLeft + padX, boxTop + padY);
         return;
     }
 
@@ -1892,7 +1646,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                           height - padY * 2.0f,
                           m_textArgb,
                           fontPx,
-                          GetShownFace());
+                          body.GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1958,13 +1712,14 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT  hr       = S_OK;
-    RECT     placed   = {};
-    float    width    = 0.0f;
-    float    height   = 0.0f;
-    Margins  margins  = GetContentMargins();
-    float    borderPx = GetBorderPx();
-    float    fontPx   = m_scaler.ToPxf (m_fontDip);
+    HRESULT                   hr       = S_OK;
+    RECT                      placed   = {};
+    float                     width    = 0.0f;
+    float                     height   = 0.0f;
+    DxuiTooltipBody           body     = GetShownBody();
+    DxuiTooltipBody::Margins  margins  = body.GetContentMargins (GetPadXPx(), GetPadYPx());
+    float                     borderPx = GetBorderPx();
+    float                     fontPx   = body.GetFontPx();
 
 
 
@@ -1982,37 +1737,36 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     //  A tip that follows the pointer is a card with a shadow and no border.
     if (!m_followPointer)
     {
-        painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx,
-                                    m_shownFrameLabel.empty() ? m_borderArgb : (DxuiColor::Mix (m_bgArgb, m_borderArgb, kFramedEdgeMix) | 0xFF000000u));
+        painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, body.GetEdgeArgb());
     }
 
-    if (!m_shownFrameLabel.empty())
+    if (body.HasFrame())
     {
-        DrawFrame (painter, text, width, height);
+        body.DrawFrame (painter, text, width, height);
     }
 
-    if (!m_shownGradient.empty())
+    if (body.HasGradient())
     {
-        DrawGradient (painter, margins.left, width - margins.left - margins.right, height - margins.bottom);
-        height -= GetGradientExtraPx();
+        body.DrawGradient (painter, margins.left, width - margins.left - margins.right, height - margins.bottom);
+        height -= body.GetGradientExtraPx();
     }
 
-    if (IsTableTip())
+    if (body.IsTableTip())
     {
         TableLayout  table;
 
-        hr = LayOutTableWith (text, table);
+        hr = body.LayOutTableWith (text, table);
 
         if (SUCCEEDED (hr))
         {
-            DrawTable     (painter, text, table, margins.left, margins.top);
-            DrawCornerTag (text, width - margins.right, margins.top, table.lineHeight);
+            body.DrawTable     (painter, text, table, margins.left, margins.top);
+            body.DrawCornerTag (text, width - margins.right, margins.top, table.lineHeight);
         }
 
         return;
     }
 
-    DrawCornerTag (text, width - margins.right, margins.top, fontPx * s_kEstLineHeightEm);
+    body.DrawCornerTag (text, width - margins.right, margins.top, fontPx * DxuiTooltipBody::kEstLineHeightEm);
 
     hr = text.DrawString (m_text.c_str(),
                           margins.left,
@@ -2021,394 +1775,6 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           height - margins.top  - margins.bottom,
                           m_textArgb,
                           fontPx,
-                          GetShownFace());
+                          body.GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetCornerTagPx
-//
-//  The room the tag takes on the first line: its width and a gap before it.
-//  Measured by the popup's renderer when there is one up, else estimated.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTooltip::GetCornerTagPx (IDxuiTextRenderer * text) const
-{
-    float    fontPx = m_scaler.ToPxf (m_fontDip);
-    float    width  = (float) m_shownCornerTag.size() * fontPx * s_kEstCharWidthEm;
-    float    height = 0.0f;
-    HRESULT  hr     = S_OK;
-
-
-
-    if (m_shownCornerTag.empty())
-    {
-        return 0.0f;
-    }
-
-    if (text != nullptr)
-    {
-        hr = text->MeasureStringWrapped (m_shownCornerTag.c_str(), fontPx, GetShownFace(), s_kNoWrapPx, width, height);
-    }
-    else if (m_activePopup != nullptr)
-    {
-        hr = m_activePopup->MeasureTextWrapped (m_shownCornerTag.c_str(), fontPx, GetShownFace(), s_kNoWrapPx, width, height);
-    }
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    return std::ceil (width) + m_scaler.ToPxf (kFrameGapDip) * 2.0f;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawCornerTag
-//
-//  Right-aligned against `right` on the first line, over whatever the line
-//  has there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTooltip::DrawCornerTag (IDxuiTextRenderer & text, float right, float top, float lineHeight) const
-{
-    float     fontPx = m_scaler.ToPxf (m_fontDip);
-    float     width  = GetCornerTagPx (&text);
-    uint32_t  ink    = (m_shownCornerTagArgb != 0) ? (m_shownCornerTagArgb | 0xFF000000u) : m_textArgb;
-    HRESULT   hr     = S_OK;
-
-
-
-    if (m_shownCornerTag.empty())
-    {
-        return;
-    }
-
-    hr = text.DrawString (m_shownCornerTag.c_str(), right - width, top, width, lineHeight,
-                          DxuiColor::ComputeInkForContrast (ink, m_bgArgb, kMinTextContrast) | 0xFF000000u,
-                          fontPx, GetShownFace(), DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawFrame
-//
-//  The outline GetFrameEdgePx from the tip's edge on every side, its top
-//  edge through the middle of the label's line, and the label on it from
-//  the left, past the corner's curve, over a patch of the tip's background
-//  that breaks the line there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTooltip::DrawFrame (IDxuiPainter & painter, IDxuiTextRenderer & text, float width, float height) const
-{
-    float                    labelPx = GetFrameLabelPx();
-    float                    labelH  = GetFrameLabelHPx();
-    float                    labelW  = 0.0f;
-    float                    measH   = 0.0f;
-    float                    inset   = GetFrameEdgePx();
-    float                    left    = inset;
-    float                    right   = width  - inset;
-    float                    top     = GetFrameEdgePx();
-    float                    bottom  = height - inset;
-    float                    pad     = m_scaler.ToPxf (kFrameGapDip) / 2.0f;
-    float                    labelX  = left + m_scaler.ToPxf (kFrameCornerDip) + pad;
-    uint32_t                 ink     = (m_shownFrameArgb != 0) ? (m_shownFrameArgb | 0xFF000000u) : m_textArgb;
-    uint32_t                 stroke  = (m_shownFrameArgb != 0) ? (DxuiColor::Mix (m_bgArgb, ink, kFrameMix) | 0xFF000000u) : m_borderArgb;
-    HRESULT                  hr      = S_OK;
-
-
-
-    ink    = DxuiColor::ComputeInkForContrast (ink,    m_bgArgb, kMinTextContrast) | 0xFF000000u;
-    stroke = DxuiColor::ComputeInkForContrast (stroke, m_bgArgb, kMinLineContrast) | 0xFF000000u;
-
-
-
-    for (const DxuiRoundedOutline::Segment & segment : DxuiRoundedOutline::GetSegments ({ { left, top }, { right, top }, { right, bottom }, { left, bottom } },
-                                                                                      m_scaler.ToPxf (kFrameCornerDip)))
-    {
-        painter.DrawLine (segment.from.x, segment.from.y, segment.to.x, segment.to.y, 1.0f, stroke);
-    }
-
-    hr = text.MeasureStringWrapped (m_shownFrameLabel.c_str(), labelPx, GetShownFace(), s_kNoWrapPx, labelW, measH);
-
-    if (FAILED (hr) || labelW <= 0.0f)
-    {
-        labelW = (float) m_shownFrameLabel.size() * labelPx * s_kEstCharWidthEm;
-    }
-
-    labelW += pad * 2.0f;
-
-    painter.FillRect (std::round (labelX - pad), top - labelH / 2.0f, std::ceil (labelW), labelH, m_bgArgb);
-
-    hr = text.DrawString (m_shownFrameLabel.c_str(), std::round (labelX - pad), top - labelH / 2.0f, std::ceil (labelW), labelH,
-                          ink, labelPx, GetShownFace(), DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LayOutTable
-//
-//  Each column is as wide as its widest part; a column starts one gap
-//  after the one before it ends.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTooltip::LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table)
-{
-    HRESULT  hr    = S_OK;
-    float    spanW = 0.0f;
-    float    partW = 0.0f;
-    float    partH = 0.0f;
-    size_t   start = 0;
-    size_t   end   = 0;
-    size_t   from  = 0;
-    size_t   tab   = 0;
-    size_t   c     = 0;
-
-
-
-    table = TableLayout();
-
-    while (start <= text.size())
-    {
-        std::vector<std::wstring>  parts;
-        std::wstring               line;
-
-
-
-        end  = text.find (L'\n', start);
-        line = text.substr (start, (end == std::wstring::npos) ? std::wstring::npos : end - start);
-        from = 0;
-
-        while ((tab = line.find (L'\t', from)) != std::wstring::npos)
-        {
-            parts.push_back (line.substr (from, tab - from));
-            from = tab + 1;
-        }
-
-        parts.push_back (line.substr (from));
-        table.lines.push_back (std::move (parts));
-
-        start = (end == std::wstring::npos) ? text.size() + 1 : end + 1;
-    }
-
-    for (const std::vector<std::wstring> & parts : table.lines)
-    {
-        for (c = 0; c < parts.size(); c++)
-        {
-            partW = 0.0f;
-            partH = 0.0f;
-
-            if (!parts[c].empty())
-            {
-                hr = measure (parts[c], partW, partH);
-                CHR (hr);
-            }
-
-            table.lineHeight = (std::max) (table.lineHeight, std::ceil (partH));
-
-            if (parts.size() == 1)
-            {
-                spanW = (std::max) (spanW, std::ceil (partW));
-                continue;
-            }
-
-            if (table.columnW.size() <= c)
-            {
-                table.columnW.resize (c + 1, 0.0f);
-            }
-
-            table.columnW[c] = (std::max) (table.columnW[c], std::ceil (partW));
-        }
-    }
-
-    for (c = 0; c < table.columnW.size(); c++)
-    {
-        table.columnX.push_back ((c == 0) ? 0.0f : table.columnX[c - 1] + table.columnW[c - 1] + std::ceil (gapPx));
-    }
-
-    table.width = table.columnX.empty() ? spanW : (std::max) (spanW, table.columnX.back() + table.columnW.back());
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LayOutTableWith
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DxuiTooltip::LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const
-{
-    float  fontPx = m_scaler.ToPxf (m_fontDip);
-
-
-
-    return LayOutTable (m_text, fontPx, [this, &text, fontPx] (const std::wstring & part, float & w, float & h)
-    {
-        return text.MeasureStringWrapped (part.c_str(), fontPx, GetShownFace(), s_kNoWrapPx, w, h);
-    }, table);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawTable
-//
-//  A line's swatch is a square a little shorter than the line, centered on
-//  it, in the indent before the text.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTooltip::DrawTable (
-    IDxuiPainter             & painter,
-    IDxuiTextRenderer        & text,
-    const TableLayout        & table,
-    float                      left,
-    float                      top) const
-{
-    constexpr float  kSwatchShare = 0.6f;
-    HRESULT          hr           = S_OK;
-    float            fontPx       = m_scaler.ToPxf (m_fontDip);
-    float            indent       = GetSwatchIndentPx (table.lineHeight);
-    float            side         = std::round (table.lineHeight * kSwatchShare);
-    float            y            = top;
-    float            x            = 0.0f;
-    float            w            = 0.0f;
-
-
-
-    for (size_t line = 0; line < table.lines.size(); line++)
-    {
-        const std::vector<std::wstring>  & parts = table.lines[line];
-        uint32_t                           argb  = DxuiColor::ComputeInkForContrast ((line < m_shownLineArgbs.size() && m_shownLineArgbs[line] != 0) ? m_shownLineArgbs[line] : m_textArgb,
-                                                                                     m_bgArgb, kMinTextContrast);
-        uint32_t                           edge  = DxuiColor::ComputeInkForContrast (m_borderArgb, m_bgArgb, kMinLineContrast) | 0xFF000000u;
-        bool                               scale = line < m_shownLineScales.size() && !m_shownLineScales[line].empty();
-
-        indent = scale ? GetLineIndentPx (table.lineHeight) : GetSwatchIndentPx (table.lineHeight);
-
-        if (line < m_shownLineSwatches.size() && m_shownLineSwatches[line] != 0)
-        {
-            painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_shownLineSwatches[line]);
-            painter.OutlineRect (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, 1.0f, edge);
-        }
-
-        if (scale)
-        {
-            DrawLineScale (painter, m_shownLineScales[line], left, y + std::round ((table.lineHeight - side) / 2.0f), side);
-        }
-
-        for (size_t c = 0; c < parts.size(); c++)
-        {
-            bool  isSpan = parts.size() == 1;
-
-            x  = isSpan ? 0.0f        : table.columnX[c];
-            w  = isSpan ? table.width : table.width - table.columnX[c];
-            hr = text.DrawString (parts[c].c_str(), left + indent + x, y, w, table.lineHeight, argb, fontPx, GetShownFace());
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-
-        y += table.lineHeight;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DrawLineScale
-//
-//  A line's scale in thin slices from its first color on the left to its
-//  last on the right, heightPx high, outlined in the tip's border color.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTooltip::DrawLineScale (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const
-{
-    float  width = std::round (m_scaler.ToPxf (kLineScaleWidthDip));
-    float  slice = width / (float) kGradientSlices;
-
-
-
-    for (int i = 0; i < kGradientSlices; i++)
-    {
-        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, heightPx, GetGradientColor (stops, ((float) i + 0.5f) / (float) kGradientSlices));
-    }
-
-    painter.OutlineRect (left, top, width, heightPx, 1.0f, m_borderArgb);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLineIndentPx
-//
-//  The room before a line with a scale: the scale's width and a gap of half
-//  a line. With no scales, a swatch's indent.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTooltip::GetLineIndentPx (float lineHeight) const
-{
-    bool  hasScales = std::ranges::any_of (m_shownLineScales, [] (const std::vector<uint32_t> & stops) { return !stops.empty(); });
-
-
-
-    return hasScales ? std::round (m_scaler.ToPxf (kLineScaleWidthDip) + lineHeight * 0.5f) : GetSwatchIndentPx (lineHeight);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetSwatchIndentPx
-//
-//  The room before a line for its swatch and the gap after it, a line's
-//  height; none when the tip has no swatches.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTooltip::GetSwatchIndentPx (float lineHeight) const
-{
-    constexpr float  kIndentShare = 1.0f;
-
-
-
-    return m_shownLineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
 }

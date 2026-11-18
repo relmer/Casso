@@ -3,6 +3,10 @@
 #include "Pch.h"
 
 
+enum class DxuiKeyEventKind;
+struct DxuiKeyEvent;
+
+
 
 
 
@@ -29,6 +33,10 @@ public:
 
     //  Whether a key is down, from its state.
     static bool   IsKeyDown        (int vk)               { return (GetKeyState (vk) & kDownBit) != 0; }
+
+    //  A key event of `kind` for `vk`, with Shift, Ctrl and Alt as they are
+    //  now.
+    static DxuiKeyEvent  MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk);
 
     //  Null restores the Win32 call.
     static void   SetKeyReader      (KeyReader reader)     { s_readKey      = std::move (reader); }

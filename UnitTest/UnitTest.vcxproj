@@ -1008,6 +1008,7 @@
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
     <ClCompile Include="Dxui\DxuiTipServiceTests.cpp" />
     <ClCompile Include="Dxui\DxuiAddressBarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewFindOptionsTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewGutterTests.cpp" />
@@ -1112,6 +1113,9 @@
     <ClCompile Include="Dxui\DxuiDockSiteFloatingTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteGapTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSitePaneMenuTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockEdgesTests.cpp" />
+    <ClCompile Include="Dxui\DxuiInputStateTests.cpp" />
+    <ClCompile Include="Dxui\DxuiDockPanesTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockSiteTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockCarryAndCompassTests.cpp" />
     <ClCompile Include="Dxui\DxuiDragMarkVisibilityTests.cpp" />

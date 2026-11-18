@@ -191,6 +191,9 @@ public:
     //  too small to round.
     static long  GetCornerPx     (const RECT & pane, long cornerPx);
 
+    //  The corners of `pane` that are corners of `window`, as kCorner flags.
+    static UINT  GetWindowCorners (const RECT & pane, const RECT & window);
+
     //  A pane's corners, for DxuiPaneFrameSpec::windowCorners.
     static constexpr UINT  kCornerTopLeft     = 0x1;
     static constexpr UINT  kCornerTopRight    = 0x2;
