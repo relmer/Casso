@@ -26,6 +26,7 @@
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceBannerText.h"
 #include "Ui/Debugger/Panes/TracePane.h"
 #include "Ui/Debugger/InstructionTouches.h"
 #include "Ui/Debugger/InstructionEffect.h"
@@ -1111,16 +1112,16 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (TheBannerSaysWhatTheFileNeedsSaid)
         {
-            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::Exact, "a.s", true, 0, false, "", 0).empty());
-            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::Mismatch, "a.s", true, 0, false, "", 0).find (L"may not match") != std::wstring::npos);
-            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0).find (L"Drop it") != std::wstring::npos);
-            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::NotFound, "a.s", true, 0, false, "", 0).find (L"no line mapping") != std::wstring::npos);
-            Assert::IsTrue (SourcePane::GetBannerText (SourceMatch::Exact, "a.s", true, 1, false, "m.inc", 5).find (L"m.inc line 5") != std::wstring::npos);
+            Assert::IsTrue (SourceBannerText::GetBannerText (SourceMatch::Exact, "a.s", true, 0, false, "", 0).empty());
+            Assert::IsTrue (SourceBannerText::GetBannerText (SourceMatch::Mismatch, "a.s", true, 0, false, "", 0).find (L"may not match") != std::wstring::npos);
+            Assert::IsTrue (SourceBannerText::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0).find (L"Drop it") != std::wstring::npos);
+            Assert::IsTrue (SourceBannerText::GetBannerText (SourceMatch::NotFound, "a.s", true, 0, false, "", 0).find (L"no line mapping") != std::wstring::npos);
+            Assert::IsTrue (SourceBannerText::GetBannerText (SourceMatch::Exact, "a.s", true, 1, false, "m.inc", 5).find (L"m.inc line 5") != std::wstring::npos);
 
             //  Two things to say go on two lines, not run together.
             Assert::AreEqual (std::wstring (L"a.s is not the file that was assembled, so lines may not match.\n"
                                             L"Stopped inside a macro. Its body line is a.s line 5."),
-                              SourcePane::GetBannerText (SourceMatch::Mismatch, "a.s", true, 1, false, "a.s", 5));
+                              SourceBannerText::GetBannerText (SourceMatch::Mismatch, "a.s", true, 1, false, "a.s", 5));
         }
 
 
@@ -1128,10 +1129,10 @@ namespace DebuggerViewStateTests
         //  file that could, or in another file, can.
         TEST_METHOD (AMacroBodyInTheMissingFileIsNotOffered)
         {
-            Assert::IsFalse (SourcePane::CanShowBody (false, 1, 0, 0), L"the body is in the missing file");
-            Assert::IsTrue  (SourcePane::CanShowBody (false, 1, 1, 0), L"the body is in another file");
-            Assert::IsTrue  (SourcePane::CanShowBody (true,  1, 0, 0), L"the file is shown");
-            Assert::IsFalse (SourcePane::CanShowBody (true,  0, 0, 0), L"not in a macro");
+            Assert::IsFalse (SourceBannerText::CanShowBody (false, 1, 0, 0), L"the body is in the missing file");
+            Assert::IsTrue  (SourceBannerText::CanShowBody (false, 1, 1, 0), L"the body is in another file");
+            Assert::IsTrue  (SourceBannerText::CanShowBody (true,  1, 0, 0), L"the file is shown");
+            Assert::IsFalse (SourceBannerText::CanShowBody (true,  0, 0, 0), L"not in a macro");
         }
 
 

@@ -10,6 +10,7 @@
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/SourceLineText.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/CodeViewFind.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -602,7 +603,7 @@ void DisassemblyGroup::ApplyView (int view)
 
     built = DisassemblyOptions::BuildRows (lines, source,
                                            [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); },
-                                           [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text) && SourcePane::IsLabelLine (text); });
+                                           [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text) && SourceLineText::IsLabelLine (text); });
     m_views[(size_t) view]->SetRows (built);
     SendShownLines (view, built);
     SetAddressScroll (view, lines, built);
@@ -652,7 +653,7 @@ void DisassemblyGroup::ApplyView (int view)
         {
             hasText       = TryGetSourceText (each.fileId, each.sourceLine, text);
             text          = hasText ? text : std::wstring();
-            operandMoved  = gutter >= 0 && DisassemblyOptions::IsSingleInstruction (built, at) && SourcePane::IsInstructionLine (text);
+            operandMoved  = gutter >= 0 && DisassemblyOptions::IsSingleInstruction (built, at) && SourceLineText::IsInstructionLine (text);
 
             if (operandMoved)
             {
@@ -1473,7 +1474,7 @@ bool DisassemblyGroup::TryGetSymbolAt (POINT clientPx, std::string & name, Word 
 
     if (snapshot->symbols != nullptr && list->TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch))
     {
-        found = SourcePane::FindSymbolAt (list->GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, start);
+        found = SourceLineText::FindSymbolAt (list->GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, start);
     }
 
     if (found == nullptr)
@@ -1542,7 +1543,7 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     }
 
     text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
-    SourcePane::AppendSymbolDetails (text, name, address, false, *m_host.GetLatestSnapshot(), m_host.GetSymbolComment (address, name));
+    SourceLineText::AppendSymbolDetails (text, name, address, false, *m_host.GetLatestSnapshot(), m_host.GetSymbolComment (address, name));
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
@@ -1592,8 +1593,8 @@ bool DisassemblyGroup::TryGetOperandSymbol (int view, int row, std::wstring & te
     }
 
     return snapshot->symbols != nullptr && TryGetSourceParts (view, row, parts) && list->GetCellsOfRow (row).size() > parts.codeColumn &&
-           SourcePane::TryGetOperandSymbolText (list->GetCellsOfRow (row)[parts.codeColumn].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar,
-                                                snapshot->symbols->symbols, text);
+           SourceLineText::TryGetOperandSymbolText (list->GetCellsOfRow (row)[parts.codeColumn].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar,
+                                                    snapshot->symbols->symbols, text);
 }
 
 
@@ -1688,8 +1689,8 @@ bool DisassemblyGroup::IsOperandSymbolAt (POINT clientPx) const
 
     return snapshot->symbols != nullptr && TryGetSourceParts (view, row, parts) &&
            list->TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) && column == parts.codeColumn &&
-           SourcePane::IsOperandSymbolAt (list->GetCellsOfRow (row)[column].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar, ch,
-                                          snapshot->symbols->symbols);
+           SourceLineText::IsOperandSymbolAt (list->GetCellsOfRow (row)[column].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar, ch,
+                                              snapshot->symbols->symbols);
 }
 
 
@@ -1717,12 +1718,12 @@ bool DisassemblyGroup::TryGetSourceSymbolTip (const DxuiListView & list, POINT c
 
     if (snapshot == nullptr || snapshot->symbols == nullptr ||
         !list.TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) ||
-        !SourcePane::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text, &found))
+        !SourceLineText::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text, &found))
     {
         return false;
     }
 
-    SourcePane::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_host.GetSymbolComment (found->address, found->name));
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_host.GetSymbolComment (found->address, found->name));
     anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }

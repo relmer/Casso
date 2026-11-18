@@ -436,11 +436,11 @@ void SourcePane::Rebuild()
     bool                                  isRowsStale  = false;
     int                                   top          = m_view->GetTopLine();
     int                                   depth        = 0;
-    int                                   level        = GetMacroLevel (*m_state, m_macroLevel);
+    int                                   level        = SourceBannerText::GetMacroLevel (*m_state, m_macroLevel);
     bool                                  holdsPc      = false;
     bool                                  isBrowse     = false;
-    std::pair<int, int>                   shown        = GetPlace (*m_state, (level > 0) ? level : -1);
-    std::pair<int, int>                   invokedBy    = (level > 0) ? GetPlace (*m_state, level - 1) : std::pair<int, int> { -1, 0 };
+    std::pair<int, int>                   shown        = SourceBannerText::GetPlace (*m_state, (level > 0) ? level : -1);
+    std::pair<int, int>                   invokedBy    = (level > 0) ? SourceBannerText::GetPlace (*m_state, level - 1) : std::pair<int, int> { -1, 0 };
     std::string                           invokedName;
     std::wstring                          bannerText;
     std::wstring                          elsewhere;
@@ -564,7 +564,7 @@ void SourcePane::Rebuild()
     //  Only the document the PC is in speaks of the macro: the invocation's,
     //  or the shown level's while a body is shown.
     holdsPc = m_fileId >= 0 && (m_fileId == m_state->fileId || (level > 0 && m_fileId == shown.first));
-    depth   = (holdsPc && CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
+    depth   = (holdsPc && SourceBannerText::CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
 
     //  A level's invocation in the same file goes by its line alone.
     if (invokedBy.first >= 0 && invokedBy.first != shown.first)
@@ -572,9 +572,9 @@ void SourcePane::Rebuild()
         invokedName = GetFileName (invokedBy.first);
     }
 
-    bannerText = GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, level > 0,
+    bannerText = SourceBannerText::GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, level > 0,
                                 GetFileName (shown.first), shown.second, invokedName, invokedBy.second);
-    elsewhere  = m_isDropped ? std::wstring() : GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath, m_match == SourceMatch::Exact);
+    elsewhere  = m_isDropped ? std::wstring() : SourceBannerText::GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath, m_match == SourceMatch::Exact);
 
     if (!elsewhere.empty())
     {
@@ -583,7 +583,7 @@ void SourcePane::Rebuild()
 
     if (m_state->isStale)
     {
-        bannerText = bannerText.empty() ? GetStaleText (m_state->debugFilePath) : GetStaleText (m_state->debugFilePath) + L"\n" + bannerText;
+        bannerText = bannerText.empty() ? SourceBannerText::GetStaleText (m_state->debugFilePath) : SourceBannerText::GetStaleText (m_state->debugFilePath) + L"\n" + bannerText;
     }
 
     m_banner->SetText (bannerText);
@@ -1170,7 +1170,7 @@ void SourcePane::ToggleBody()
 
 int SourcePane::GetShownFileId() const
 {
-    return GetPlace (*m_state, GetMacroLevel (*m_state, m_macroLevel)).first;
+    return SourceBannerText::GetPlace (*m_state, SourceBannerText::GetMacroLevel (*m_state, m_macroLevel)).first;
 }
 
 
@@ -1185,40 +1185,7 @@ int SourcePane::GetShownFileId() const
 
 int SourcePane::GetShownLine() const
 {
-    return GetPlace (*m_state, GetMacroLevel (*m_state, m_macroLevel)).second;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetPlace
-//
-//  The file and line at a level, -1 being the body line. A state with no
-//  places has only its two ends.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::pair<int, int> SourcePane::GetPlace (const DebuggerViewSnapshot::SourceState & state, int level)
-{
-    const std::vector<std::pair<int, int>> & places = state.places;
-
-
-
-    if (places.empty())
-    {
-        return (level != 0 && state.depth > 0) ? std::pair<int, int> { state.bodyFileId, state.bodyLine }
-                                               : std::pair<int, int> { state.fileId, state.line };
-    }
-
-    if (level < 0 || level >= (int) places.size())
-    {
-        return places.back();
-    }
-
-    return places[(size_t) level];
+    return SourceBannerText::GetPlace (*m_state, SourceBannerText::GetMacroLevel (*m_state, m_macroLevel)).second;
 }
 
 
@@ -1585,7 +1552,7 @@ std::optional<int> SourcePane::FindMacroLine (const std::wstring & name) const
 
     for (const DxuiTextView::Row & row : m_view->GetRows())
     {
-        if (row.cells.size() <= (size_t) kTextCell || !IsMacroDefinition (row.cells[(size_t) kTextCell], name))
+        if (row.cells.size() <= (size_t) kTextCell || !SourceLineText::IsMacroDefinition (row.cells[(size_t) kTextCell], name))
         {
             continue;
         }
@@ -1637,7 +1604,7 @@ bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & s
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
     if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size() ||
-        !TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text, found))
+        !SourceLineText::TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text, found))
     {
         return false;
     }
@@ -1682,407 +1649,7 @@ bool SourcePane::IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> &
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
     return at.offset >= start && at.offset <= start + (int) row->cells[(size_t) kTextCell].size() &&
-           IsOperandSymbolAt (row->cells[(size_t) kTextCell], FindCodeStart (row->cells[(size_t) kTextCell]), at.offset - start, symbols);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetWordAt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring SourcePane::GetWordAt (const std::wstring & line, int ch)
-{
-    int  start = 0;
-    int  end   = 0;
-
-
-
-    //  With no symbols to match, the call only sets where the word starts.
-    (void) FindSymbolAt (line, ch, {}, start);
-
-    if (start < 0 || start >= (int) line.size())
-    {
-        return {};
-    }
-
-    for (end = start; end < (int) line.size() && (iswalnum (line[(size_t) end]) || line[(size_t) end] == L'_' || line[(size_t) end] == L'.' || line[(size_t) end] == L'@'); end++)
-    {
-    }
-
-    return (end > start && line.substr (0, (size_t) start).find (L';') == std::wstring::npos) ? line.substr ((size_t) start, (size_t) (end - start)) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::IsMacroDefinition
-//
-//  The first two words of the line, before a comment, compared with the
-//  name in its case and the keyword in any case. A label may end in a colon.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::IsMacroDefinition (const std::wstring & line, const std::wstring & name)
-{
-    std::wistringstream        words (line.substr (0, line.find (L';')));
-    std::wstring               first;
-    std::wstring               second;
-    auto                       isKeyword = [] (std::wstring word)
-    {
-        std::ranges::transform (word, word.begin(), [] (wchar_t each) { return (wchar_t) towlower (each); });
-        return word == L"macro" || word == L".macro" || word == L"mac" || word == L".mac";
-    };
-
-
-
-    words >> first >> second;
-
-    if (!first.empty() && first.back() == L':')
-    {
-        first.pop_back();
-    }
-
-    return (first == name && isKeyword (second)) || (isKeyword (first) && second == name);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::FindSymbolAt
-//
-//  A word is letters, digits, _, . and @, as a cheap local symbol is written
-//  in ca65. A symbol is matched by its case first, then in any case.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const SymbolInfo * SourcePane::FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start)
-{
-    auto                isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
-    int                 size        = (int) line.size();
-    int                 end         = 0;
-    std::string         name;
-    const SymbolInfo  * found       = nullptr;
-
-
-
-    start = ch;
-
-    if (ch < 0 || ch > size)
-    {
-        return nullptr;
-    }
-
-    //  A caret just past a word is on that word.
-    if ((ch == size || !isWordChar (line[(size_t) ch])) && ch > 0 && isWordChar (line[(size_t) ch - 1]))
-    {
-        start = ch - 1;
-    }
-
-    if (start >= size || !isWordChar (line[(size_t) start]) || line.substr (0, (size_t) start).find (L';') != std::wstring::npos)
-    {
-        return nullptr;
-    }
-
-    while (start > 0 && isWordChar (line[(size_t) start - 1]))
-    {
-        start--;
-    }
-
-    for (end = start; end < size && isWordChar (line[(size_t) end]); end++)
-    {
-    }
-
-    name = TextEncoding::WideToNarrow (line.substr ((size_t) start, (size_t) (end - start)));
-
-    for (const SymbolInfo & symbol : symbols)
-    {
-        if (symbol.name == name)
-        {
-            found = &symbol;
-            break;
-        }
-
-        found = (found == nullptr && _stricmp (symbol.name.c_str(), name.c_str()) == 0) ? &symbol : found;
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::FindCodeStart
-//
-//  A line that starts with a space has no label; a comment line has no code.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SourcePane::FindCodeStart (const std::wstring & line)
-{
-    int   size    = (int) line.size();
-    int   at      = 0;
-    bool  isAll   = size > 0 && (line[0] == L';' || line[0] == L'*');
-
-
-
-    while (!isAll && at < size && !iswspace (line[(size_t) at]))
-    {
-        at++;
-    }
-
-    while (!isAll && at < size && iswspace (line[(size_t) at]))
-    {
-        at++;
-    }
-
-    return (isAll || at >= size || line[(size_t) at] == L';') ? 0 : at;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::TryGetOperandSymbolText
-//
-//  Past the mnemonic, each word in turn, up to the comment; only the
-//  symbol's first line, not the byte a < or > takes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::TryGetOperandSymbolText (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols, std::wstring & text)
-{
-    int           at      = FindOperandSymbol (line, codeAt, symbols);
-    bool          isFound = at >= 0 && TryGetSymbolText (line, at, symbols, text);
-
-
-
-    if (isFound)
-    {
-        text = text.substr (0, text.find (L'\n'));
-    }
-
-    return isFound;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::FindOperandSymbol
-//
-//  Past the mnemonic, each word in turn, up to the comment.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SourcePane::FindOperandSymbol (const std::wstring & line, int codeAt, const std::vector<SymbolInfo> & symbols)
-{
-    auto    isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
-    int     size       = (int) line.size();
-    int     at         = std::clamp (codeAt, 0, size);
-    int     found      = -1;
-    int     start      = 0;
-
-
-
-    while (at < size && !iswspace (line[(size_t) at]))
-    {
-        at++;
-    }
-
-    for (; at < size && line[(size_t) at] != L';' && found < 0; at++)
-    {
-        if (!isWordChar (line[(size_t) at]) || (at > 0 && isWordChar (line[(size_t) at - 1])))
-        {
-            continue;
-        }
-
-        found = (FindSymbolAt (line, at, symbols, start) != nullptr) ? at : -1;
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::IsOperandSymbolAt
-//
-//  The same symbol written as the line's label, or in its comment, is not
-//  the operand's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::IsOperandSymbolAt (const std::wstring & line, int codeAt, int ch, const std::vector<SymbolInfo> & symbols)
-{
-    int   start   = 0;
-    int   operand = FindOperandSymbol (line, codeAt, symbols);
-
-
-
-    return operand >= 0 && FindSymbolAt (line, ch, symbols, start) != nullptr && start == operand;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::TryGetSymbolText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text,
-                                   const SymbolInfo ** symbol)
-{
-    int                 start       = 0;
-    const SymbolInfo  * found       = FindSymbolAt (line, ch, symbols, start);
-    wchar_t             op          = 0;
-    bool                isImmediate = false;
-
-
-
-    if (found == nullptr)
-    {
-        return false;
-    }
-
-    if (symbol != nullptr)
-    {
-        *symbol = found;
-    }
-
-    text = std::format (L"{} = ${:04X}{}", TextEncoding::NarrowToWide (found->name), found->address, found->isConstant ? L", a constant" : L"");
-
-    op          = (start > 0) ? line[(size_t) start - 1] : 0;
-    isImmediate = start > 1 && line[(size_t) start - 2] == L'#';
-
-    if (op == L'<' || op == L'>')
-    {
-        text += std::format (L"\n{}{}{} = {}${:02X}, its {} byte", isImmediate ? L"#" : L"", op, TextEncoding::NarrowToWide (found->name),
-                             isImmediate ? L"#" : L"", (op == L'<') ? (found->address & 0xFF) : (found->address >> 8), (op == L'<') ? L"low" : L"high");
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::AppendSymbolDetails
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SourcePane::AppendSymbolDetails (std::wstring & text, const std::string & name, Word address, bool isConstant,
-                                      const DebuggerViewSnapshot & snapshot, const std::string & comment)
-{
-    const char  * about = SymbolDescriptions::Find (name);
-    auto          read  = std::ranges::lower_bound (snapshot.symbolBytes, address, {}, &DebuggerViewSnapshot::SymbolBytes::address);
-
-
-
-    if (!isConstant && read != snapshot.symbolBytes.end() && read->address == address)
-    {
-        text += std::format (L"\n${:04X}:", address);
-
-        for (size_t i = 0; i < read->count; i++)
-        {
-            text += std::format (L" {:02X}", read->bytes[i]);
-        }
-    }
-
-    if (about != nullptr)
-    {
-        text += L"\n" + TextEncoding::NarrowToWide (about);
-    }
-
-    if (!comment.empty())
-    {
-        text += L"\n" + TextEncoding::NarrowToWide (comment);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::IsInstructionLine
-//
-//  Whether a line's opcode is a 65C02 mnemonic.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::IsInstructionLine (const std::wstring & line, SourceSyntax::Assembler assembler)
-{
-    for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (line, assembler))
-    {
-        if (run.token == SourceSyntax::Token::Mnemonic)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::IsLabelLine
-//
-//  A symbol in the first column, then nothing but a comment.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::IsLabelLine (const std::wstring & line, SourceSyntax::Assembler assembler)
-{
-    std::vector<SourceSyntax::Run>  runs = SourceSyntax::GetSourceRuns (line, assembler);
-
-
-
-    if (runs.empty() || runs[0].start != 0 || runs[0].token != SourceSyntax::Token::Symbol)
-    {
-        return false;
-    }
-
-    for (size_t i = 1; i < runs.size(); i++)
-    {
-        if (runs[i].token != SourceSyntax::Token::Comment)
-        {
-            return false;
-        }
-    }
-
-    return true;
+           IsOperandSymbolAt (row->cells[(size_t) kTextCell], SourceLineText::FindCodeStart (row->cells[(size_t) kTextCell]), at.offset - start, symbols);
 }
 
 
@@ -2172,7 +1739,7 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
 
             row.cells.emplace_back();
 
-            if (found != lineOperands.end() && IsInstructionLine (lines[i], assembler))
+            if (found != lineOperands.end() && SourceLineText::IsInstructionLine (lines[i], assembler))
             {
                 row.cells.back() = found->second.first;
 
@@ -2336,194 +1903,4 @@ std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSna
     }
 
     return std::nullopt;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetStaleText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring SourcePane::GetStaleText (const std::wstring & debugFilePath)
-{
-    return std::format (L"The program in memory doesn't match {}, so this file's lines aren't mapped to it.", fs::path (debugFilePath).filename().wstring());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetBannerText
-//
-//  What the file needs said, then where a macro is, each on a line of its own
-//  so the two do not read as one sentence.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring SourcePane::GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
-                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine,
-                                        const std::string & invokedByName, int invokedByLine)
-{
-    std::string  text;
-    std::string  invokedBy;
-
-
-
-    //  No file is open -- the PC is outside every source line -- so there is
-    //  no file to say anything about.
-    if (fileName.empty())
-    {
-        match = SourceMatch::Exact;
-    }
-
-    switch (match)
-    {
-    case SourceMatch::Mismatch:
-        text = std::format ("{} is not the file that was assembled, so lines may not match.", fileName);
-        break;
-
-    case SourceMatch::Unverified:
-        text = std::format ("{} has no recorded hash. It was matched by name and size.", fileName);
-        break;
-
-    case SourceMatch::NotFound:
-        text = hasText ? std::format ("{} matches no file in the debug file and has no line mapping.", fileName)
-                       : std::format ("{} was not found. Drop it on this window or browse for it.", fileName);
-        break;
-
-    default:
-        break;
-    }
-
-    if (depth > 0)
-    {
-        //  The invocation that produced the shown line: the next level out.
-        if (showingBody && invokedByLine > 0)
-        {
-            invokedBy = invokedByName.empty() ? std::format (", invoked by line {}", invokedByLine)
-                                              : std::format (", invoked by {} line {}", invokedByName, invokedByLine);
-        }
-
-        text += text.empty() ? "" : "\n";
-        text += showingBody ? std::format ("Showing the macro body: {} line {}{}.", bodyName, bodyLine, invokedBy)
-                            : std::format ("Stopped inside a macro. Its body line is {} line {}.", bodyName, bodyLine);
-    }
-
-    return SourcePathList::Utf8ToWide (text);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetFoundElsewhereText
-//
-//  A file gone from where the debug file records it can still be found by
-//  name in another search folder: a copy, from another checkout or an
-//  earlier session. Its text is displayed, so the banner has where it is from,
-//  and whether its hash is the one in the debug file.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
-                                                const std::wstring & foundPath, bool isVerified)
-{
-    std::wstring  recorded;
-
-
-
-    if (fileName.empty() || foundPath.empty() || debugFilePath.empty())
-    {
-        return std::wstring();
-    }
-
-    recorded = SourceService::Combine (SourceService::GetFolder (debugFilePath), SourcePathList::Utf8ToWide (fileName));
-
-    if (SourcePathList::IsSameFolder (SourceService::GetFolder (recorded), SourceService::GetFolder (foundPath)))
-    {
-        return std::wstring();
-    }
-
-    return std::format (L"Source file {} was not found with the debug file {}. Showing the copy in {}.{}",
-                        SourcePathList::Utf8ToWide (fileName), debugFilePath, SourceService::GetFolder (foundPath),
-                        isVerified ? L" Its contents are the ones the program was built from." : L"");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::CanShowBody
-//
-//  A macro's body can be shown unless it is in the very file that could not
-//  be found: then there is nothing to show, and neither the button nor the
-//  line it would go to means anything.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::CanShowBody (bool hasText, int depth, int bodyFileId, int fileId)
-{
-    return depth > 0 && (hasText || bodyFileId != fileId);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetNextMacroLevel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SourcePane::GetNextMacroLevel (int level, int deepest)
-{
-    if (deepest <= 0)
-    {
-        return 0;
-    }
-
-    if (level < 0 || level > deepest)
-    {
-        level = deepest;
-    }
-
-    return (level == 0) ? deepest : level - 1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetMacroLevel
-//
-//  Outside every macro there is only level 0. Without the places between,
-//  the body line is level 1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SourcePane::GetMacroLevel (const DebuggerViewSnapshot::SourceState & state, int level)
-{
-    int  deepest = state.places.empty() ? 1 : (int) state.places.size() - 1;
-
-
-
-    if (state.depth == 0)
-    {
-        return 0;
-    }
-
-    return (level < 0 || level > deepest) ? deepest : level;
 }

@@ -323,6 +323,8 @@
     <ClCompile Include="Ui\Debugger\Panes\MemoryPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SourceDocuments.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceLineText.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceBannerText.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\BasicPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapView.cpp" />
@@ -1829,6 +1831,8 @@
     <ClInclude Include="Ui\Debugger\Panes\MemoryPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\SourceDocuments.h" />
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
+    <ClInclude Include="Ui\Debugger\SourceLineText.h" />
+    <ClInclude Include="Ui\Debugger\SourceBannerText.h" />
     <ClInclude Include="Ui\Debugger\Panes\BasicPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />
