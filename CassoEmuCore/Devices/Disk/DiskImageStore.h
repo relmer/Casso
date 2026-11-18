@@ -434,8 +434,13 @@ public:
     //  meaningful only for an answer of PreserveCopy. Choosing it is a file
     //  dialog, which only the shell can raise, so the path arrives with the
     //  answer rather than being asked for from here.
+    //
+    //  `questionPath` IS THE QUESTION'S FILE. An answer is dropped
+    //  when the bay is on another file by then, since that disk's question
+    //  is a different one. Empty applies the answer to the bay's question.
     void          ResolvePendingChange (int slot, int drive, ChangeAction chosen,
-                                        const string & savePath = string());
+                                        const string & savePath  = string(),
+                                        const string & questionPath = string());
 
     //  Where "now" comes from, in milliseconds, so the quiet period can be
     //  swept in a test without waiting for one.

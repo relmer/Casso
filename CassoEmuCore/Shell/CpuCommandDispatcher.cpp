@@ -448,9 +448,10 @@ bool CpuCommandDispatcher::TryGetJournalInput (const EmulatorCommand & cmd, Inpu
 //
 //  DispatchResolveChange
 //
-//  "<slot> <drive> <action> <path>", chosen on the UI thread and carried out
-//  here. The path is last and takes the rest of the line, since it may
-//  contain spaces.
+//  "<slot> <drive> <action> <question path>|<save path>", chosen on the UI
+//  thread and applied here. The paths take the rest of the line, since
+//  they may contain spaces, and a '|' separates them because a Windows path
+//  cannot contain one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -460,7 +461,8 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
     int                 slot   = 0;
     int                 drive  = 0;
     int                 action = 0;
-    std::string         savePath;
+    std::string         paths;
+    size_t              split  = 0;
 
 
 
@@ -471,14 +473,21 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
         return;
     }
 
-    std::getline (reader, savePath);
+    std::getline (reader, paths);
 
-    while (!savePath.empty() && savePath.front() == ' ')
+    while (!paths.empty() && paths.front() == ' ')
     {
-        savePath.erase (savePath.begin());
+        paths.erase (paths.begin());
     }
 
-    disks.ResolvePendingChange (slot, drive, action, savePath);
+    split = paths.find ('|');
+
+    if (split == std::string::npos)
+    {
+        return;
+    }
+
+    disks.ResolvePendingChange (slot, drive, action, paths.substr (0, split), paths.substr (split + 1));
 }
 
 

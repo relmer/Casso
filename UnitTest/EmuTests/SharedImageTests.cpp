@@ -1738,6 +1738,40 @@ public:
     }
 
 
+    //  A question about one disk is on screen when another disk goes in the
+    //  same drive and gets a question too. The answer to the first
+    //  question is about the first disk, so it is dropped, and the second
+    //  question is outstanding.
+    TEST_METHOD (AnAnswerAboutTheDiskThatLeftTheDriveIsDropped)
+    {
+        static constexpr const char *  kOther = "C:\\work\\Other.dsk";
+
+        auto  rig = std::make_unique<Rig>();
+
+
+
+        rig->WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+
+        rig->WriteImage (kImagePath, 0x22);
+        rig->FireAndSettle (kImagePath);
+        Assert::AreEqual ((size_t) 1, rig->questions.size(), L"the first disk's question");
+
+        rig->WriteImage (kOther, 0x33);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kOther));
+
+        rig->WriteImage (kOther, 0x44);
+        rig->FireAndSettle (kOther);
+        Assert::AreEqual ((size_t) 2, rig->questions.size(), L"the second disk's question");
+
+        rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld, std::string(), kImagePath);
+
+        Assert::AreEqual (std::string (kOther), rig->store.GetSourcePath (kSlot, kDrive), L"the bay is on the second disk's file");
+        Assert::IsTrue   (rig->PreservedPaths().empty(), L"no copy is written");
+        Assert::IsTrue   (rig->store.GetSharedState (kSlot, kDrive)->IsAskOutstanding(), L"the second question is outstanding");
+    }
+
+
     //  A KeepHeld answer whose copy cannot be written puts a question. When
     //  the shell could not put it on screen, the bay has no question
     //  outstanding, so the next change to the file is acted on.

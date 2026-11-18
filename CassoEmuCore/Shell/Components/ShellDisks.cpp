@@ -1247,11 +1247,12 @@ void ShellDisks::AskAboutChange (const ChangeNotice & notice)
         }
     }
 
-    //  A path can contain spaces, so it goes last and the reader takes the
-    //  rest of the line.
+    //  The paths can contain spaces, so they go last, separated by a '|',
+    //  which a Windows path cannot contain. The question's file is included
+    //  so the answer is dropped when another disk is in the drive by then.
     m_shell.PostCommand (IDM_DISK_RESOLVE_CHANGE,
-                         std::format ("{} {} {} {}", notice.slot, notice.drive,
-                                      (int) chosen, saveTarget));
+                         std::format ("{} {} {} {}|{}", notice.slot, notice.drive,
+                                      (int) chosen, notice.prompt.imagePath, saveTarget));
 
     return;
 }
@@ -1624,9 +1625,10 @@ HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
+void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & questionPath,
+                                       const std::string & savePath)
 {
-    m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+    m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath, questionPath);
 }
 
 

@@ -648,7 +648,7 @@ void DiskStoreReload::AskAboutChange (int slot, int drive, Entry & entry, Change
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreReload::ResolvePendingChange (int slot, int drive, ChangeAction chosen,
-                                          const string & savePath)
+                                          const string & savePath, const string & questionPath)
 {
     ASSERT_THREAD_OWNERSHIP (m_store.m_ownership);
 
@@ -667,6 +667,15 @@ void DiskStoreReload::ResolvePendingChange (int slot, int drive, ChangeAction ch
         //  moved that bay onto the departed disk's rescue copy, which the next
         //  flush then wrote over.
         if (!entry.sharedState.IsAskOutstanding())
+        {
+            return;
+        }
+
+        //  An answer about another file is about a disk that left the drive.
+        //  The question outstanding is the new disk's, and its dialog is on
+        //  screen or queued, so the answer is dropped and the flag is not
+        //  cleared.
+        if (!questionPath.empty() && !DiskImageStore::IsSameFile (questionPath, entry.path))
         {
             return;
         }

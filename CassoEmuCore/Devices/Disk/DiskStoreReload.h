@@ -35,7 +35,8 @@ public:
     //  ResolvePendingChange.
     void           NoteExternalChange   (const string & path, ExternalChangeIntent intent);
     void           ApplyPendingReload   ();
-    void           ResolvePendingChange (int slot, int drive, ChangeAction chosen, const string & savePath);
+    void           ResolvePendingChange (int slot, int drive, ChangeAction chosen, const string & savePath,
+                                         const string & questionPath);
 
     //  Moves a mounted bay onto a different file without disturbing the disk
     //  in it. The image, and everything the guest can observe, is untouched;

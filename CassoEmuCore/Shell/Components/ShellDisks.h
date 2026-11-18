@@ -89,7 +89,8 @@ public:
     HRESULT  MountDisk               (int drive, const std::string & path) override;
     void     EjectDisk               (int drive) override;
     HRESULT  ToggleImageWriteProtect (int drive) override;
-    void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
+    void     ResolvePendingChange    (int slot, int drive, int action, const std::string & questionPath,
+                                      const std::string & savePath) override;
     void     AssessSalvage           (int drive) override;
     void     WriteSalvagedCopy       (int drive, uint64_t mediaId, const std::string & path) override;
     void     PostSalvageDone   (int drive, const std::string & path, HRESULT hrCopy, const DenibblizeReport & report);

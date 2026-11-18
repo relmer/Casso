@@ -97,6 +97,7 @@ public:
     virtual void     SetDriveUserWriteProtect (int drive, bool wp)                   = 0;
     virtual HRESULT  ToggleImageWriteProtect  (int drive)                            = 0;
     virtual void     ResolvePendingChange     (int slot, int drive, int action,
+                                               const std::string & questionPath,
                                                const std::string & savePath)        = 0;
 
     //  Salvage of a damaged disk: assess the drive and offer the copy, then

@@ -207,16 +207,26 @@ public:
     }
 
 
-    TEST_METHOD (AChangeResolutionCarriesThePathWithItsSpaces)
+    TEST_METHOD (AChangeResolutionPassesBothPathsWithTheirSpaces)
     {
         Notebook  target;
 
-        //  "<slot> <drive> <action> <path>": the path is last and takes the
-        //  rest of the line, so a folder with a space in it survives.
-        Dispatch (IDM_DISK_RESOLVE_CHANGE, "6 1 2 C:\\My Disks\\lost copy.dsk", target);
+        //  "<slot> <drive> <action> <question path>|<save path>": the paths take
+        //  the rest of the line, so a folder with a space in it survives.
+        Dispatch (IDM_DISK_RESOLVE_CHANGE, "6 1 2 C:\\My Disks\\game disk.dsk|C:\\My Disks\\lost copy.dsk", target);
 
-        Assert::AreEqual (std::string ("ResolvePendingChange 6 1 2 C:\\My Disks\\lost copy.dsk"),
+        Assert::AreEqual (std::string ("ResolvePendingChange 6 1 2 [C:\\My Disks\\game disk.dsk] [C:\\My Disks\\lost copy.dsk]"),
                           target.calls[0]);
+    }
+
+
+    TEST_METHOD (AChangeResolutionWithNoSavePathPassesAnEmptyOne)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DISK_RESOLVE_CHANGE, "6 0 1 C:\\Disks\\game.dsk|", target);
+
+        Assert::AreEqual (std::string ("ResolvePendingChange 6 0 1 [C:\\Disks\\game.dsk] []"), target.calls[0]);
     }
 
 
@@ -224,7 +234,8 @@ public:
     {
         Notebook  target;
 
-        Dispatch (IDM_DISK_RESOLVE_CHANGE, "six one two C:\\x.dsk", target);
+        Dispatch (IDM_DISK_RESOLVE_CHANGE, "six one two C:\\x.dsk|", target);
+        Dispatch (IDM_DISK_RESOLVE_CHANGE, "6 1 2 C:\\x.dsk", target);
         Dispatch (IDM_DISK_RESOLVE_CHANGE, "", target);
 
         Assert::IsTrue (target.calls.empty(), L"garbage is dropped, not guessed at");
@@ -642,9 +653,10 @@ private:
             return S_OK;
         }
 
-        void     ResolvePendingChange (int slot, int drive, int action, const std::string & savePath) override
+        void     ResolvePendingChange (int slot, int drive, int action, const std::string & questionPath,
+                                       const std::string & savePath) override
         {
-            calls.push_back (std::format ("ResolvePendingChange {} {} {} {}", slot, drive, action, savePath));
+            calls.push_back (std::format ("ResolvePendingChange {} {} {} [{}] [{}]", slot, drive, action, questionPath, savePath));
         }
 
         void     AssessSalvage (int drive) override { calls.push_back (std::format ("AssessSalvage {}", drive)); }

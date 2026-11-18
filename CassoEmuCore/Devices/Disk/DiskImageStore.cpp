@@ -1987,9 +1987,10 @@ void DiskImageStore::ApplyPendingReload()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction chosen, const string & savePath)
+void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction chosen, const string & savePath,
+                                           const string & questionPath)
 {
-    m_reload.ResolvePendingChange (slot, drive, chosen, savePath);
+    m_reload.ResolvePendingChange (slot, drive, chosen, savePath, questionPath);
 }
 
 
