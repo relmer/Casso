@@ -6,6 +6,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/Prng.h"
 #include "Machines/Apple3/Apple3System.h"
+#include "Audio/DriveAudioMixer.h"
 #include "Machines/Apple3/Apple3VideoOutput.h"
 #include "Machines/Apple3/Cpu6502Apple3.h"
 #include "Shell/MachineHost.h"
@@ -62,6 +63,7 @@ HRESULT Apple3MachineBuilder::Build (const MachineConfig & config)
 
     WireDiskDrive();
     m_builder.WireDriveAudio (Apple3DiskController::kDriveCount);
+    WireSound (config);
     CreateVideo();
 
     hr = m_host.GetMemoryBus().Validate();
@@ -187,6 +189,38 @@ void Apple3MachineBuilder::WireDiskDrive()
     }
 
     m_host.GetDiskStore().SetMachineRestartCallback (m_services.requestPowerCycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireSound
+//
+//  The speaker is the audio path's toggle log, as on an Apple II. The
+//  beeper and the DAC are a source in the sound card mixer. Both count the
+//  CPU's cycles, which are the time base's ticks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3MachineBuilder::WireSound (const MachineConfig & config)
+{
+    Apple3Sound  & sound = m_host.GetApple3()->GetSound();
+
+
+
+    sound.GetSpeaker().SetCycleCounter (m_host.GetCpu()->GetCycleCounterPtr());
+    sound.SetTickSource (m_host.GetCpu()->GetCycleCounterPtr(), (double) config.clockSpeed);
+
+    m_host.GetRefs().speaker = &sound.GetSpeaker();
+
+    if (m_services.mockingboardAudioMixer != nullptr)
+    {
+        m_services.mockingboardAudioMixer->UnregisterAllSources();
+        m_services.mockingboardAudioMixer->RegisterSource (&sound);
+    }
 }
 
 

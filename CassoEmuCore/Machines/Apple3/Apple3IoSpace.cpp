@@ -5,6 +5,7 @@
 #include "Apple3DiskController.h"
 #include "Apple3Keyboard.h"
 #include "Apple3Mmu.h"
+#include "Apple3Sound.h"
 #include "Apple3Slots.h"
 #include "Apple3Video.h"
 #include "Core/MemoryBus.h"
@@ -22,6 +23,10 @@ static constexpr Word  s_kSlot2Request   = 0xC064;
 static constexpr Word  s_kSlot1Request   = 0xC065;
 static constexpr Word  s_kAdTimeout      = 0xC066;
 static constexpr Word  s_kAciaMask       = 0x0003;
+static constexpr Word  s_kFirstSpeaker   = 0xC030;
+static constexpr Word  s_kLastSpeaker    = 0xC03F;
+static constexpr Word  s_kFirstBeeper    = 0xC040;
+static constexpr Word  s_kLastBeeper     = 0xC04D;
 static constexpr Word  s_kFirstClock     = 0xC070;
 static constexpr Word  s_kLastClock      = 0xC07F;
 static constexpr Word  s_kFirstAcia      = 0xC0F0;
@@ -41,7 +46,7 @@ static constexpr int   s_kSlot2          = 2;
 ////////////////////////////////////////////////////////////////////////////////
 
 Apple3IoSpace::Apple3IoSpace (MemoryBus & bus, Apple3Mmu & mmu, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
-                              Apple3AnalogInputs & analog, Acia6551 & acia, Mm58167 & clock)
+                              Apple3AnalogInputs & analog, Acia6551 & acia, Mm58167 & clock, Apple3Sound & sound)
     : m_bus      (bus),
       m_mmu      (mmu),
       m_keyboard (keyboard),
@@ -50,7 +55,8 @@ Apple3IoSpace::Apple3IoSpace (MemoryBus & bus, Apple3Mmu & mmu, Apple3Keyboard &
       m_disk     (disk),
       m_analog   (analog),
       m_acia     (acia),
-      m_clock    (clock)
+      m_clock    (clock),
+      m_sound    (sound)
 {
 }
 
@@ -141,6 +147,14 @@ Byte Apple3IoSpace::Access (Word address, bool isWrite, Byte value)
         {
             result = m_acia.Read (register_);
         }
+    }
+    else if (address >= s_kFirstSpeaker && address <= s_kLastSpeaker)
+    {
+        (void) m_sound.GetSpeaker().Read (address);
+    }
+    else if (address >= s_kFirstBeeper && address <= s_kLastBeeper)
+    {
+        m_sound.TriggerBeep();
     }
     else if (address >= s_kFirstClock && address <= s_kLastClock)
     {

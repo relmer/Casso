@@ -36,6 +36,7 @@ private:
     HRESULT  CreateSystem   (const MachineConfig & config);
     void     CreateCpu      ();
     void     WireDiskDrive  ();
+    void     WireSound      (const MachineConfig & config);
     void     CreateVideo    ();
 
     MachineHost                 & m_host;

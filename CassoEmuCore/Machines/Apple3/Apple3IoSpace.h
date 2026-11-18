@@ -10,6 +10,7 @@ class Apple3DiskController;
 class Apple3Keyboard;
 class Apple3Mmu;
 class Mm58167;
+class Apple3Sound;
 class Apple3Slots;
 class Apple3Video;
 class MemoryBus;
@@ -31,6 +32,7 @@ class MemoryBus;
 //  register at $C0Ex. An address with nothing behind it yet reads the
 //  floating bus.
 //
+//  $C030-$C03F toggles the speaker and $C040-$C04D starts the beeper.
 //  Any address in $C070-$C07F is the clock chip register the zero page
 //  register selects. An access to the clock chip or the 6551 at $C0Fx runs
 //  at 1 MHz and is counted for the time base.
@@ -44,7 +46,7 @@ public:
     static constexpr Word  kLast  = 0xCFFF;
 
     Apple3IoSpace (MemoryBus & bus, Apple3Mmu & mmu, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
-                   Apple3AnalogInputs & analog, Acia6551 & acia, Mm58167 & clock);
+                   Apple3AnalogInputs & analog, Acia6551 & acia, Mm58167 & clock, Apple3Sound & sound);
 
     Byte      Read            (Word address) override;
     void      Write           (Word address, Byte value) override;
@@ -70,5 +72,6 @@ private:
     Apple3AnalogInputs    & m_analog;
     Acia6551              & m_acia;
     Mm58167               & m_clock;
+    Apple3Sound           & m_sound;
     uint32_t                m_slowAccesses = 0;
 };

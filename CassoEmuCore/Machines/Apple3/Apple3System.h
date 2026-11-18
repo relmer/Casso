@@ -9,6 +9,7 @@
 #include "Apple3Keyboard.h"
 #include "Apple3Mmu.h"
 #include "Apple3Slots.h"
+#include "Apple3Sound.h"
 #include "Apple3SystemVias.h"
 #include "Apple3TimeBase.h"
 #include "Apple3Video.h"
@@ -74,6 +75,7 @@ public:
     Apple3AnalogInputs    & GetAnalogInputs   () { return m_analog; }
     Acia6551              & GetAcia           () { return m_acia; }
     Mm58167               & GetClock          () { return m_clock; }
+    Apple3Sound           & GetSound          () { return m_sound; }
     Apple3IoSpace         & GetIoSpace        () { return m_io; }
 
 private:
@@ -92,6 +94,7 @@ private:
     Apple3AnalogInputs      m_analog;
     Acia6551                m_acia;
     Mm58167                 m_clock;
+    Apple3Sound             m_sound;
     Apple3IoSpace           m_io;
     InterruptController   * m_interrupts      = nullptr;
     uint64_t                m_viaMasterClocks = 0;

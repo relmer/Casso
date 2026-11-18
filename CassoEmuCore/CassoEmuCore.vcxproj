@@ -1721,6 +1721,7 @@
     <ClCompile Include="Machines\Apple3\Apple3ColorHiResMode.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3HiRes560Mode.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Color140Mode.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3Sound.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -3201,6 +3202,7 @@
     <ClInclude Include="Machines\Apple3\Apple3ColorHiResMode.h" />
     <ClInclude Include="Machines\Apple3\Apple3HiRes560Mode.h" />
     <ClInclude Include="Machines\Apple3\Apple3Color140Mode.h" />
+    <ClInclude Include="Machines\Apple3\Apple3Sound.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceCatalog.h" />
     <ClInclude Include="Core\SpscEventRing.h" />
