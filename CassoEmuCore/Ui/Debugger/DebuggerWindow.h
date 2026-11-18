@@ -61,6 +61,7 @@
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/FloatingPanes.h"
 #include "Ui/Debugger/PaneColorKeys.h"
+#include "Ui/Debugger/PaneContentMouse.h"
 #include "Ui/Debugger/TooltipCoordinator.h"
 #include "Ui/Chrome/CassoTheme.h"
 
@@ -119,7 +120,7 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICommandBarHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICommandBarHost, private IPaneContentMouseHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
                        private IFloatingPanesHost, private IColorKeysHost
 {
 public:
@@ -423,10 +424,10 @@ protected:
     BreakpointsPane        & GetBreakpointsPane () const { return *m_breakpointsPane; }
     CodeEditCommands       & GetCodeEdits       () const { return *m_codeEdits; }
     DisassemblyGroup       & GetCodeGroup       () const { return *m_code; }
-    DisassemblyGutter      & GetCodeGutter      () const { return *m_gutter; }
+    DisassemblyGutter      & GetCodeGutter      () const override { return *m_gutter; }
     PaneColorKeys          & GetColorKeys       () const { return *m_colorKeys; }
     ConsolePane            & GetConsolePane     () const { return *m_consolePane; }
-    FindWidgetSet          & GetFindWidgets     () const { return *m_finds; }
+    FindWidgetSet          & GetFindWidgets     () const override { return *m_finds; }
     HeatMapPane            & GetHeatMapPane     () const { return *m_heatMapPane; }
     HeatRangesPane         & GetHeatRangesPane  () const { return *m_heatRangesPane; }
     MemoryWindowGroup      & GetMemoryGroup     () const { return *m_memoryGroup; }
@@ -639,7 +640,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                                                 NoteTabFocus       (POINT pointDip);
     int                                                  GetSourceSlotOf    (const std::wstring & pane) const;
     bool                                                 IsRestoringViews   () const override;
-    bool                                                 ForwardToList      (DxuiListView * list, const DxuiMouseEvent & ev);
     void                                                 ShowCode           (std::optional<Word> address);
     const std::vector<DebuggerViewSnapshot::CodeLine>  & GetCodeLines       (int view) const override;
     void                                                 ApplyCodeView      (int view);
@@ -716,17 +716,16 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     uint32_t                 GetResultArgb   () const override;
     SourceSyntax::Colors     GetSyntaxColors () const override;
     DebuggerTextColors::Set  GetTextColors   () const override;
-    void                     OfferPress      (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     //  The pointer's press, release or wheel over a find widget's plate.
     void                     RouteFindPlateMouse (const DxuiMouseEvent & ev);
 
-    std::vector<DxuiListView *>  GetLists          () const;
+    std::vector<DxuiListView *>  GetLists          () const override;
     std::vector<DxuiListView *>  GetTextLists      () const;
 
     void                           RefreshCursor         ();
     bool                           GoToAddressInPane     ();
-    std::vector<IDxuiControl *>    GetPressTargets       () const;
+    std::vector<IDxuiControl *>    GetPressTargets       () const override;
     DxuiTextInput                * GetFocusedBox         () const;
     const DxuiTextInput          * GetBlinkingBox        () const;
     DxuiTextInput                * GetTextBoxAt          (POINT clientPx) const;
@@ -891,6 +890,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiMenuBar                                * m_menuBar                = nullptr;
     std::vector<DxuiMenuBarItem>                 m_menuBarItems;
     CommandBarController                         m_runControls            { static_cast<ICommandBarHost &> (*this) };
+    PaneContentMouse                             m_contentMouse           { static_cast<IPaneContentMouseHost &> (*this) };
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     int                                          m_heldCodeView           = -1;   // the code view whose menu is open
     DxuiDockSite                               * m_dockSite               = nullptr;
@@ -995,12 +995,15 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     void                 ShowBasicLine          (Word line) override;
 
-    bool                         ShowColumnMenu     (DxuiListView * list, POINT clientPx);
-    bool                         HasOwnColumnWidths (const DxuiListView * list) const;
-    bool                         IsTextBox          (const IDxuiControl * control) const;
-    void                         NoteListReleased   (DxuiListView * list, POINT clientPx);
-    std::vector<IDxuiControl *>  GetLastChildren    () const;
-    void                         ApplyLogDeltas     ();
+    bool                         ShowColumnMenu      (DxuiListView * list, POINT clientPx);
+    bool                         HasOwnColumnWidths  (const DxuiListView * list) const;
+    bool                         IsTextBox           (const IDxuiControl * control) const;
+    void                         NoteListReleased    (DxuiListView * list, POINT clientPx) override;
+    std::vector<IDxuiControl *>  GetHoverBoxes       () const override;
+    void                         NoteCodeListPressed (DxuiListView * list) override;
+    bool                         ScrollCodeViewAt    (const DxuiMouseEvent & ev) override;
+    std::vector<IDxuiControl *>  GetLastChildren     () const;
+    void                         ApplyLogDeltas      ();
 
     //  The panes' info buttons and the color key they open, and the window's
     //  calls for them (IColorKeysHost).

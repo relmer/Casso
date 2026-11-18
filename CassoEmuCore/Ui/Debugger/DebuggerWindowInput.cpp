@@ -568,42 +568,6 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ForwardToList
-//
-//  A list takes the window's coordinates, through IDxuiControl.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::ForwardToList (DxuiListView * list, const DxuiMouseEvent & ev)
-{
-    return list->AsControl().OnMouse (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::OfferPress
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::OfferPress (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled)
-{
-    if (!handled && control != nullptr && IsRoutable (control) && control->IsVisible() && control->OnMouse (ev))
-    {
-        SetFocusedControl (control);
-        handled = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::RouteFindPlateMouse
 //
 //  A press is offered to the widgets' controls alone, and a release given to
@@ -639,7 +603,7 @@ void DebuggerWindow::RouteFindPlateMouse (const DxuiMouseEvent & ev)
         //  blinked the box's focus border.
         if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && dynamic_cast<DxuiTextInput *> (control) != nullptr)
         {
-            OfferPress (control, ev, handled);
+            m_contentMouse.OfferPress (control, ev, handled);
         }
         else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
         {
@@ -821,8 +785,6 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
 {
     int           x       = ev.positionDip.x;
     int           y       = ev.positionDip.y;
-    bool          lbDown  = DxuiInputState::IsKeyDown (VK_LBUTTON);
-    bool          handled = false;
     std::wstring  pane;
 
 
@@ -1055,169 +1017,104 @@ bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    for (DxuiListView * list : GetLists())
-    {
-        if (IsRoutable (list) && list->IsInteracting() && ev.kind != DxuiMouseEventKind::Down)
-        {
-            ForwardToList (list, ev);
-
-            //  A click on a register's value edits it once the click is
-            //  over, so the list is not left mid-press under the box.
-            if (ev.kind == DxuiMouseEventKind::Up)
-            {
-                NoteListReleased (list, ev.positionDip);
-            }
-
-            return true;
-        }
-    }
-
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Move:
-        //  A floating window's tips show from its own tooltip.
-        UpdateTooltip (ev.positionDip);
-        m_gutter->Hover (ev.positionDip);
-        m_gutter->Drag  (ev.positionDip);
-
-        //  Each box is given the move: a hover, or a drag begun in the box,
-        //  which selects text.
-        if (IsRoutable (m_consolePane->GetCommandLine().GetBox()))
-        {
-            (void) m_consolePane->GetCommandLine().GetBox()->OnMouse (ev);
-        }
-
-        for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
-        {
-            for (DxuiTextInput * box : each->GetTextBoxes())
-            {
-                if (IsRoutable (box))
-                {
-                    (void) box->OnMouse (ev);
-                }
-            }
-        }
-
-        //  Each find widget moves with its pane.
-        m_finds->OnMouseMove (ev, lbDown);
-
-        return true;
-
-    case DxuiMouseEventKind::Down:
-        if (ev.button != DxuiMouseButton::Left)
-        {
-            return true;
-        }
-
-        if (m_gutter->Click (ev))
-        {
-            return true;
-        }
-
-        for (IDxuiControl * control : GetPressTargets())
-        {
-            OfferPress (control, ev, handled);
-        }
-
-        for (DxuiListView * list : GetLists())
-        {
-            RECT  bounds = list->GetBounds();
-
-            if (!handled && IsRoutable (list) && list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
-            {
-                handled = ForwardToList (list, ev);
-                SetFocusedControl (list);
-                handled = true;
-
-                if (m_code->GetViewOf (list) >= 0)
-                {
-                    m_code->SetActive (m_code->GetViewOf (list));
-                    NoteViewFocus (false);
-                }
-            }
-        }
-
-        return true;
-
-    case DxuiMouseEventKind::Up:
-        if (ev.button == DxuiMouseButton::Left && m_gutter->Drop (ev))
-        {
-            return true;
-        }
-
-        //  Only to what is shown: the disassembly views' radios share a rect,
-        //  and a press on the one in front must not reach those behind it.
-        for (IDxuiControl * control : GetPressTargets())
-        {
-            if (IsRoutable (control) && control->IsVisible())
-            {
-                control->OnMouse (ev);
-            }
-        }
-
-        //  A release goes to the list UNDER THE POINTER, the same as a press. A
-        //  list mid-drag already had it above, whatever the pointer is over.
-        //  Sending it to every list reached the ones hidden behind a tab as
-        //  well: the Stack and Call Stack panes share a rect, so a click on the
-        //  fifth Stack row released onto the fifth Call Stack row -- which
-        //  activated it and moved the code pane to that frame's call site.
-        for (DxuiListView * list : GetLists())
-        {
-            RECT  bounds = list->GetBounds();
-
-            if (IsRoutable (list) && list->IsVisible() &&
-                x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
-            {
-                ForwardToList (list, ev);
-                NoteListReleased (list, ev.positionDip);
-            }
-        }
-
-        return true;
-
-    case DxuiMouseEventKind::Wheel:
-        //  The code pane has only the lines in view, so the vertical wheel
-        //  scrolls the disassembly itself, through all of memory. The
-        //  horizontal wheel, or Shift with the wheel, scrolls the list's
-        //  columns sideways, as it does every list's.
-        for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-        {
-            DxuiListView  * code = m_code->GetCodeList (view);
-
-            if (!IsRoutable (code) || !code->IsVisible() || !DxuiDockSite::Contains (code->GetBounds(), ev.positionDip) || m_host == nullptr)
-            {
-                continue;
-            }
-
-            if (ev.wheelHorizontal || ev.shift)
-            {
-                ForwardToList (code, ev);
-            }
-            else
-            {
-                m_host->ScrollDebuggerCode ((int) std::lround (-ev.wheelDelta * (float) code->GetWheelLinesPerNotch()), view);
-            }
-
-            return true;
-        }
-
-        for (DxuiListView * list : GetLists())
-        {
-            RECT  bounds = list->GetBounds();
-
-            if (IsRoutable (list) && list->IsVisible() && x >= bounds.left && x < bounds.right && y >= bounds.top && y < bounds.bottom)
-            {
-                ForwardToList (list, ev);
-            }
-        }
-
-        return true;
-
-    default:
-        return false;
-    }
+    return m_contentMouse.Route (ev);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHoverBoxes
+//
+//  The command line's box and every pane's text box, each given the
+//  pointer's moves for its hover and a drag begun in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> DebuggerWindow::GetHoverBoxes() const
+{
+    std::vector<IDxuiControl *>  boxes { m_consolePane->GetCommandLine().GetBox() };
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
+    {
+        std::ranges::copy (each->GetTextBoxes(), std::back_inserter (boxes));
+    }
+
+    return boxes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::NoteCodeListPressed
+//
+//  A press on a disassembly view makes it the view last used, and steps go
+//  by instruction.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::NoteCodeListPressed (DxuiListView * list)
+{
+    int  view = m_code->GetViewOf (list);
+
+
+
+    if (view < 0)
+    {
+        return;
+    }
+
+    m_code->SetActive (view);
+    NoteViewFocus (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ScrollCodeViewAt
+//
+//  The code pane has only the lines in view, so the vertical wheel scrolls
+//  the disassembly itself, through all of memory. The horizontal wheel, or
+//  Shift with the wheel, scrolls the list's columns sideways, as it does
+//  every list's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ScrollCodeViewAt (const DxuiMouseEvent & ev)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code = m_code->GetCodeList (view);
+
+        if (!IsRoutable (code) || !code->IsVisible() || !DxuiDockSite::Contains (code->GetBounds(), ev.positionDip) || m_host == nullptr)
+        {
+            continue;
+        }
+
+        if (ev.wheelHorizontal || ev.shift)
+        {
+            (void) code->AsControl().OnMouse (ev);
+        }
+        else
+        {
+            m_host->ScrollDebuggerCode ((int) std::lround (-ev.wheelDelta * (float) code->GetWheelLinesPerNotch()), view);
+        }
+
+        return true;
+    }
+
+    return false;
+}
 
 
 
