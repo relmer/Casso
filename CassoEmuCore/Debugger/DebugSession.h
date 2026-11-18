@@ -5,6 +5,7 @@
 #include "Debugger/BreakpointTable.h"
 #include "Debugger/CallRecordKeeper.h"
 #include "Debugger/CallStack.h"
+#include "Debugger/CountedStepRunner.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
 #include "Debugger/DebugHostFiles.h"
@@ -17,6 +18,7 @@
 #include "Debugger/IDebugTarget.h"
 #include "Debugger/IRunObserver.h"
 #include "Debugger/LineTable.h"
+#include "Debugger/MonitorRun.h"
 #include "Debugger/MonitorState.h"
 #include "Debugger/StepFilter.h"
 #include "Debugger/SymbolTable.h"
@@ -94,7 +96,8 @@ enum class StateFileRequest
 
 class DebugSession : public DebugHook,
                      public IRunObserver,
-                     public IDebugExpressionContext
+                     public IDebugExpressionContext,
+                     private ICountedStepOwner
 {
 public:
     DebugSession (IDebugTarget & target, IDebugNotificationSink & sink, RunState initialState);
@@ -390,37 +393,19 @@ public:
     uint64_t  GetSymbolRevision  (const std::string & name) const override;
 
 private:
-    //  Where a Monitor `G` returns to. The ROM's own G pushes the address of
-    //  the code that re-enters the Monitor, so an RTS from the program lands
-    //  back at the prompt; Casso pushes the same address and stops there.
-    static constexpr Word  kMonitorReentry = 0xFF69;
-    static constexpr Word  kStackPage      = 0x0100;
-
-    //  The stack bytes and registers a Monitor `G`'s return address push
-    //  replaced, put back when the run fails to start.
-    struct MonitorReturn
-    {
-        Cpu6502Registers  before    = {};
-        Byte              stackHigh = 0;
-        Byte              stackLow  = 0;
-        bool              isPushed  = false;
-    };
-
     bool     TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void     ExecuteRun              (const DebugCommand & command, Reply & reply);
     bool     TryPrepareRun           (const DebugCommand & command, RunRequest & request, bool & outIsStep, Reply & reply);
-    void     SetRunStart             (const DebugCommand & command, const RunRequest & request, bool isStep, MonitorReturn & outReturn);
-    void     AddMonitorStepLine      (Reply & reply);
+    void     SetRunStart             (const DebugCommand & command, const RunRequest & request, bool isStep, MonitorRun::Pushed & outReturn);
     void     FillRunRequest          (const DebugCommand & command, bool isStep, RunRequest & request, Reply & reply);
-    HRESULT  BeginRun                (const RunRequest & request);
-    void     UndoMonitorReturn       (const MonitorReturn & pushed);
-    bool     TryStartNextStep        ();
     void     ExecuteStepFilter       (const DebugCommand & command, Reply & reply);
     void     ExecuteBasicStep        (const DebugCommand & command, Reply & reply);
-    void     PushMonitorReturn       ();
     void     UpdateHookInstalled     ();
     void     RefreshHookFilter       ();
     bool     IsProfiling             () const;
+    void     PauseForNextStep        () override;
+    bool     StartStep               (const DebugCommand & step) override;
+    void     DeliverStop             (const StopEvent & stop) override;
 
     static bool         TryGetRunKind          (DebugVerb verb, RunKind & kind);
     static bool         TryGetFlagMask         (const std::string & name, Byte & mask);
@@ -482,11 +467,6 @@ private:
     //  A counted step over, step out or source step runs as that many single
     //  steps: the one to start after each step completes, how many are left,
     //  and the cycles the steps before it took.
-    std::optional<DebugCommand>           m_nextStep;
-    uint32_t                              m_stepsLeft     = 0;
-    uint64_t                              m_stepCycles    = 0;
-    StopEvent                             m_heldStop;
-    bool                                  m_isStartingRun = false;
-    bool                                  m_isStepPending = false;
     std::string                           m_runNotice;
+    CountedStepRunner                     m_countedSteps { *this };
 };

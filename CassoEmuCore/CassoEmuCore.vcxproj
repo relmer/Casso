@@ -383,6 +383,8 @@
     <ClCompile Include="Debugger\WatchTable.cpp" />
     <ClCompile Include="Debugger\WinDbgFormatter.cpp" />
     <ClCompile Include="Debugger\DebugSession.cpp" />
+    <ClCompile Include="Debugger\MonitorRun.cpp" />
+    <ClCompile Include="Debugger\CountedStepRunner.cpp" />
     <ClCompile Include="Debugger\BeamBreakMonitor.cpp" />
     <ClCompile Include="Debugger\CallRecordKeeper.cpp" />
     <ClCompile Include="Debugger\DebugHostFiles.cpp" />
@@ -2006,6 +2008,8 @@
     <ClInclude Include="Debugger\WatchTable.h" />
     <ClInclude Include="Debugger\WinDbgFormatter.h" />
     <ClInclude Include="Debugger\DebugSession.h" />
+    <ClInclude Include="Debugger\MonitorRun.h" />
+    <ClInclude Include="Debugger\CountedStepRunner.h" />
     <ClInclude Include="Debugger\BeamBreakMonitor.h" />
     <ClInclude Include="Debugger\CallRecordKeeper.h" />
     <ClInclude Include="Debugger\DebugHostFiles.h" />
