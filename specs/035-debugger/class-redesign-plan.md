@@ -392,7 +392,7 @@ Files: `DebuggerViewState.cpp`, `DebuggerViewStateTests.cpp`,
 Existing work, not merged, for reference and for the parts that pass the rules:
 
 - `refs/heads/claude/035-split-debugger-ui-2c6403`, stopped 2026-11-18 at
-  `3cba8b5b3`, based on `276f8eb7e`. Its report:
+  `174f0f731` (`3cba8b5b3` plus a blank-line fix), based on `276f8eb7e`. Its report:
   - The tip builds in Release. Its filtered debugger tests are green except three
     that fail at its base too; `09d81afd9` on `035-debugger` fixed those.
   - All eight files are under the limit, with no forwarders: callers use the new
@@ -420,7 +420,7 @@ Existing work, not merged, for reference and for the parts that pass the rules:
     `ShellDebugger.cpp`, `ShellDebuggerProject.cpp`, `DebugProject.cpp`, the
     other `DebuggerWindow*.cpp` files, most files under `Panes/`, the history
     files, and much of `UnitTest/DebuggerTests`.
-    `git diff --name-only 276f8eb7e..3cba8b5b3` lists them.
+    `git diff --name-only 276f8eb7e..174f0f731` lists them.
   - Its edits to the debug engine group's files are call-site renames only.
     `ShellDebugger.cpp` gets an include of `DebuggerViewCommands.h`, and its
     `m_debugViewState.X` calls go through `GetCodeViews()`, `GetMemoryWindows()`,
