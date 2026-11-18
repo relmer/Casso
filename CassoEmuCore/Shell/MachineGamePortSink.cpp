@@ -8,7 +8,18 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple3/Apple3AnalogInputs.h"
 #include "Shell/HostInputGate.h"
+
+
+
+
+
+//  The Apple /// input for each game port paddle and button: paddles 0 to 3
+//  are port A X, port A Y, port B X and port B Y; buttons 0 to 2 are
+//  $C061, $C063 and $C062, port A switches 0 and 1 and port B switch 0.
+static constexpr int  s_kApple3Axis[GamePortContribution::kAxisCount]     = { 0, 2, 1, 3 };
+static constexpr int  s_kApple3Button[GamePortContribution::kButtonCount] = { 1, 3, 2 };
 
 
 
@@ -165,8 +176,8 @@ void MachineGamePortSink::MaskUnread (
 {
     constexpr size_t  kShiftButton  = 2;
     GamePortState     rest;
-    bool              hasPaddles    = targets.gamePort != nullptr || targets.iieSwitches != nullptr;
-    bool              hasButtons    = targets.gamePort != nullptr || targets.iieKeyboard != nullptr;
+    bool              hasPaddles    = targets.gamePort != nullptr || targets.iieSwitches != nullptr || targets.apple3 != nullptr;
+    bool              hasButtons    = targets.gamePort != nullptr || targets.iieKeyboard != nullptr || targets.apple3 != nullptr;
     bool              isJoyportOn   = targets.joyport  != nullptr && targets.joyport->IsAttached();
     bool              isMouseOnPb2  = targets.gamePort == nullptr && targets.iieKeyboard != nullptr && targets.iieKeyboard->HasMouseOnShiftLine();
     bool              arePaddlesOut = isJoyportOn && !targets.joyport->ArePaddlesConnected();
@@ -237,6 +248,11 @@ void MachineGamePortSink::WritePaddles (
         {
             targets.iieSwitches->SetPaddle (axis, target.paddle[axis]);
         }
+
+        if (targets.apple3 != nullptr)
+        {
+            targets.apple3->SetAxis (s_kApple3Axis[axis], target.paddle[axis]);
+        }
     }
 }
 
@@ -279,6 +295,11 @@ void MachineGamePortSink::WriteButtons (
         if (targets.gamePort != nullptr)
         {
             targets.gamePort->SetButton (index, isPressed);
+        }
+
+        if (targets.apple3 != nullptr)
+        {
+            targets.apple3->SetButton (s_kApple3Button[index], isPressed);
         }
 
         if (targets.iieKeyboard == nullptr)

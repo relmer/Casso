@@ -7,6 +7,8 @@
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple3/Apple3AnalogInputs.h"
+#include "Machines/Apple3/Apple3TimeBase.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -95,6 +97,33 @@ namespace ControllerTests
             Assert::AreEqual (kButtonBit, static_cast<Byte> (port.Read (kPb2Address) & kButtonBit), L"PB2 must read pressed on the ][+");
         }
 
+
+        //  Joystick 1 is port A and joystick 2 port B. PB0 and PB1 are port A's
+        //  switches 0 and 1 ($C061, $C063), PB2 port B's switch 0 ($C062).
+        TEST_METHOD (Apple3_WritesBothPortsAxesAndSwitches)
+        {
+            std::shared_mutex    lifetime;
+            Apple3TimeBase       timeBase;
+            Apple3AnalogInputs   analog (timeBase);
+            GamePortTargets      targets;
+            GamePortState        state = MakeState (10, 20, true, false, true);
+
+            state.paddle[2] = 30;
+            state.paddle[3] = 40;
+            targets.apple3  = &analog;
+
+            MachineGamePortSink  sink (lifetime, [&targets] { return targets; });
+
+            Assert::IsTrue (sink.TryApply (state, nullptr));
+            Assert::AreEqual<int> (10, analog.GetAxis (0), L"port A X");
+            Assert::AreEqual<int> (30, analog.GetAxis (1), L"port B X");
+            Assert::AreEqual<int> (20, analog.GetAxis (2), L"port A Y");
+            Assert::AreEqual<int> (40, analog.GetAxis (3), L"port B Y");
+            Assert::IsTrue  (analog.IsButtonPressed (0xC061), L"PB0 is port A switch 0");
+            Assert::IsFalse (analog.IsButtonPressed (0xC063), L"PB1 is port A switch 1");
+            Assert::IsTrue  (analog.IsButtonPressed (0xC062), L"PB2 is port B switch 0");
+            Assert::IsFalse (analog.IsButtonPressed (0xC060), L"port B switch 1 has no game port button");
+        }
 
         TEST_METHOD (Apple2e_WritesPaddlesAndAppleKeysWithPb2AsShift)
         {

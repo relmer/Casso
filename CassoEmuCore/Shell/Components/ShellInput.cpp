@@ -18,6 +18,7 @@
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple3/Apple3System.h"
 #include "Config/DiskSettings.h"
 
 
@@ -447,7 +448,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
 bool ShellInput::IsDrivingJoystickFromKeys() const
 {
     return m_arrowsJoystick &&
-           (m_machine.GetRefs().iieSoftSwitches != nullptr || m_machine.GetRefs().gamePort != nullptr);
+           (m_machine.GetRefs().iieSoftSwitches != nullptr || m_machine.GetRefs().gamePort != nullptr || m_machine.GetApple3() != nullptr);
 }
 
 
@@ -1596,6 +1597,7 @@ HRESULT ShellInput::Start()
         targets.iieSwitches = m_machine.GetRefs().iieSoftSwitches;
         targets.iieKeyboard = m_machine.GetRefs().iieKeyboard;
         targets.joyport     = m_machine.GetJoyport();
+        targets.apple3      = (m_machine.GetApple3() != nullptr) ? &m_machine.GetApple3()->GetAnalogInputs() : nullptr;
 
         if (definition != nullptr)
         {

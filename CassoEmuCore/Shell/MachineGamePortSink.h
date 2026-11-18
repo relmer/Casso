@@ -8,6 +8,7 @@ class AppleGamePort;
 class Apple2eSoftSwitchBank;
 class Apple2eKeyboard;
 class SiriusJoyport;
+class Apple3AnalogInputs;
 class DivergenceGate;
 class HostInputGate;
 
@@ -28,6 +29,10 @@ class HostInputGate;
 //
 //  joyport is the machine's Sirius Joyport, attached or not; null on the //c.
 //
+//  apple3 is the Apple ///'s A/D and joystick switches: paddles 0 and 1 are
+//  port A's X and Y, paddles 2 and 3 port B's, and the three buttons port A
+//  switches 0 and 1 and port B switch 0.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct GamePortTargets
@@ -36,6 +41,7 @@ struct GamePortTargets
     Apple2eSoftSwitchBank  * iieSwitches = nullptr;
     Apple2eKeyboard        * iieKeyboard = nullptr;
     SiriusJoyport          * joyport     = nullptr;
+    Apple3AnalogInputs     * apple3      = nullptr;
     size_t                   axisCount   = GamePortContribution::kAxisCount;
 };
 

@@ -1383,6 +1383,7 @@
     <ClCompile Include="Apple3Tests\Apple3BootTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3GraphicsModeTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3SoundTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3AnalogInputsTests.cpp" />
     <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />

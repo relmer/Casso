@@ -57,6 +57,7 @@ public:
 
     //  Host input: an axis 0-255, and a switch.
     void      SetAxis         (int axis, Byte value);
+    Byte      GetAxis         (int axis) const { return (axis >= 0 && axis < kAxisCount) ? m_axes[(size_t) axis] : kCentered; }
     void      SetButton       (int button, bool isPressed);
 
     Byte      GetSelection    () const { return m_selection; }
