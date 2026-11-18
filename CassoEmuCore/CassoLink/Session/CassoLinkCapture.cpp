@@ -62,6 +62,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         bool      unstable   = false;
         bool      made       = false;
         bool      isStandard = false;
+        bool      unsure     = false;
 
         //  Each whole track after the first waits on a marker on the one
         //  before, so the tracks can be placed relative to each other. The
@@ -89,6 +90,23 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
         hr = Analyze (run, [&] () { isStandard = IsStandardTrack (read); });
         CHR (hr);
+
+        //  A track with bytes whose zero bits its reads don't settle, as a
+        //  protection's timing bytes can be, is read again: on a standard
+        //  track, bytes in its data fields, as the bytes after a field's
+        //  epilog are often followed by zero bits. So is a track aligned as
+        //  noisy, read with a quiet baseline, even with a read that doesn't
+        //  align.
+        hr = Analyze (run, [&] () { Stream mine; bool shaky = false; unsure = MakeStream (read, mine, shaky, true) && ((mine.noisy && mine.quiet) || (isStandard ? mine.unsureData : mine.unsure) >= s_kUnsureBytes); });
+        CHR (hr);
+
+        if (unsure)
+        {
+            run.planned += s_kTimingReads;
+
+            hr = ReadMore (run, s_kTimingReads, read);
+            CHR (hr);
+        }
 
         standard.push_back (isStandard);
         positions.push_back (std::move (read));
@@ -552,6 +570,48 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
         outPosition.reads.push_back (std::move (bytes));
         outPosition.delays.push_back (delay);
         outPosition.writeProtected = run.writeProtected;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::ReadMore
+//
+//  `reads` more reads of a position, at 8, 12 and 8 cycles as a whole
+//  track's are, waiting on no marker,
+//  after the reads it has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ReadMore (Run & run, int reads, Position & ioPosition)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    run.position = ioPosition.position;
+
+    for (int read = 0; read < reads; read++)
+    {
+        std::vector<Byte>  bytes;
+        bool               stopped = run.stop && run.stop();
+        bool               missed  = false;
+
+        CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+        hr = ReadOnce (run, ioPosition.position, kWholeDelays[read % kWholeReads], read + 1, reads, CassoLinkHost::kNoSync, {}, bytes, missed);
+        CHR (hr);
+
+        ioPosition.reads.push_back (std::move (bytes));
+        ioPosition.delays.push_back (kWholeDelays[read % kWholeReads]);
+        ioPosition.writeProtected = run.writeProtected;
     }
 
 Error:
@@ -1085,8 +1145,9 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     for (const Position & position : positions)
     {
         Stream  stream;
-        bool    unstable = false;
-        bool    hasWeak  = false;
+        bool    unstable  = false;
+        bool    hasWeak   = false;
+        size_t  weakBytes = 0;
 
         read.insert (position.position);
 
@@ -1095,13 +1156,15 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
             continue;
         }
 
-        hasWeak = std::find (stream.weak.begin(), stream.weak.end(), true) != stream.weak.end();
+        weakBytes = (size_t) std::count (stream.weak.begin(), stream.weak.end(), true);
+        hasWeak   = weakBytes > 0;
 
         //  A head between two tracks reads both at once: its reads differ, or
         //  it has a neighbor's address fields with data fields that don't
         //  decode. Such a stream is dropped, and the position has a standard
-        //  disk's entry. A stream a protection wrote there repeats cleanly.
-        if (position.position % 4 != 0 && (unstable || hasWeak || IsCrosstalk (stream.bytes, position.position)))
+        //  disk's entry. A stream a protection wrote there repeats cleanly,
+        //  but for its stretches with no flux, which the drive reads as noise.
+        if (position.position % 4 != 0 && (unstable || (!stream.noisy && weakBytes * s_kCrosstalkShare > stream.bytes.size()) || IsCrosstalk (stream.bytes, position.position)))
         {
             read.erase (position.position);
             continue;

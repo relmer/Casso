@@ -23,6 +23,46 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DelayedByteStream
+//
+//  The PC's end of the link, which runs the machine a pseudorandom count of
+//  cycles, up to a revolution, before each request is written, so each read
+//  starts at another angle. The counts depend only on the seed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DelayedByteStream : public IByteStream
+{
+public:
+    DelayedByteStream (TestMachine & machine, std::shared_ptr<IByteStream> inner, uint32_t seed) : m_machine (machine), m_inner (std::move (inner)), m_state (seed * 2654435761u + 12345u) {}
+
+    HRESULT  Write (const Byte * data, size_t count) override
+    {
+        m_state = m_state * 1664525u + 1013904223u;
+        m_machine.RunCycles ((m_state >> 8) % s_kMostCycles);
+
+        return m_inner->Write (data, count);
+    }
+
+    HRESULT  Read (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return m_inner->Read (buffer, capacity, timeoutMs, outRead); }
+    size_t   GetReadableCount() override                                                    { return m_inner->GetReadableCount(); }
+    bool     IsClosed() const override                                                      { return m_inner->IsClosed(); }
+    void     Close() override                                                               { m_inner->Close(); }
+
+private:
+    static constexpr uint32_t  s_kMostCycles = 204'000;   // a revolution
+
+    TestMachine                   & m_machine;
+    std::shared_ptr<IByteStream>    m_inner;
+    uint32_t                        m_state;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCaptureScenarioTests
 //
 //  A WOZ mounted in an emulated //c and captured raw over the link, every
@@ -170,54 +210,123 @@ public:
         return S_OK;
     }
 
+    //  A copy-protected disk captured raw on an emulated //c: returns how
+    //  many of its whole tracks with data are in the capture and how many
+    //  it has, and the capture's boot verdict. Its sectors aren't compared,
+    //  as its tracks aren't standard.
+    //  With a seed, each request is delayed (DelayedByteStream), so the reads
+    //  start at other angles.
+    static void  CaptureGame (const wchar_t * name, uint32_t seed, int & outFound, int & outTracks, BootVerdict & outVerdict)
+    {
+        std::vector<Byte>          source  = GuestSession::FindGameImage (name);
+        std::vector<Byte>          module;
+        DiskImage                  original;
+        DiskImage                  captured;
+        CassoLinkCapture::Result   result;
+        BootReport                 report;
+        std::string                machine;
+        std::vector<std::string>   missing;
 
-    //  Copy-protected disks captured raw on an emulated //c: each whole
-    //  track the disk has data on is in the capture, and the capture boots,
-    //  as the disk does (SC-055). Their sectors aren't compared, as their
-    //  tracks aren't standard. Disks whose tracks don't capture in emulation
-    //  are listed in tasks.md's T790.
+
+
+        outFound  = 0;
+        outTracks = 0;
+
+        Assert::IsFalse (source.empty(), (std::wstring (name) + L" is in the game images").c_str());
+
+        ProgramRig  rig (std::vector<Byte> (143360, 0));
+
+        if (seed != 0)
+        {
+            rig.host = std::make_unique<CassoLinkHost> (std::make_shared<DelayedByteStream> (rig.machine, rig.stream, seed), rig.folder, [] () { return std::array<Byte, 4> {}; });
+        }
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+        AssertSucceeded (WozLoader::Load (source, original));
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-17T00:00:00Z", {}, result));
+        AssertSucceeded (WozLoader::Load (result.woz, captured));
+
+
+        for (int quarter = 0; quarter <= CassoLinkCapture::kLastPosition; quarter += 4)
+        {
+            bool  hasData = !GetBits (original, quarter).empty();
+
+            outTracks += hasData ? 1 : 0;
+            outFound  += (hasData && !GetBits (captured, quarter).empty()) ? 1 : 0;
+        }
+
+        AssertSucceeded (BootCheck::Run (result.woz, DiskFormat::Woz, "Apple //e enhanced", {}, BuildFromFixtures, report, machine, missing));
+
+        outVerdict = report.verdict;
+
+        Logger::WriteMessage (std::format ("{} (seed {}): {} of {} whole tracks captured, {} weak, {} unstable, {} reads; boot {}\n", TextEncoding::WideToUtf8 (name), seed, outFound, outTracks,
+                                           result.weak.size(), result.unstable.size(), result.reads, BootProbe::GetVerdictName (outVerdict)).c_str());
+    }
+
+
+    //  A copy-protected disk captured, every whole track with data in the
+    //  capture, and the capture booted, as the disk is (SC-055).
+    static void  AssertCapturedAndBoots (const wchar_t * name, uint32_t seed = 0)
+    {
+        int           found   = 0;
+        int           tracks  = 0;
+        BootVerdict   verdict = BootVerdict::Unclear;
+        std::wstring  label   = std::format (L"{} (seed {})", name, seed);
+
+
+
+        CaptureGame (name, seed, found, tracks, verdict);
+
+        Assert::AreEqual (tracks, found, (label + L": every whole track with data is in the capture").c_str());
+        Assert::IsTrue   (verdict == BootVerdict::Booted, (label + L": the capture boots").c_str());
+    }
+
+
     TEST_METHOD (CopyProtectedDisks_AreCapturedTrackForTrack_AndBoot)
     {
-        static constexpr const wchar_t *  kGames[] = { L"HardHatMack.woz", L"AppleStellarInvaders.woz" };
+        AssertCapturedAndBoots (L"HardHatMack.woz");
+        AssertCapturedAndBoots (L"AppleStellarInvaders.woz");
+    }
 
-        for (const wchar_t * name : kGames)
+
+    //  Choplifter's tracks are 4-and-4 bytes with no sync bytes and long
+    //  stretches with no flux, which the drive reads as random bits, so each
+    //  revolution is a different count of bytes.
+    TEST_METHOD (Choplifter_TracksWithNoFlux_AreCaptured_AndBoot)
+    {
+        AssertCapturedAndBoots (L"Choplifter.woz");
+    }
+
+
+    //  Rocky's Boots' track 34 has a sector whose data field has E7 bytes
+    //  followed by one or two zero bits, which the protection times.
+    TEST_METHOD (RockysBoots_TimingBits_AreCaptured_AndBoot)
+    {
+        AssertCapturedAndBoots (L"RockysBoots.woz");
+    }
+
+
+    //  A read starts wherever the disk is when its request arrives. These
+    //  seeds start the reads at angles where Rocky's Boots' timing bits came
+    //  out a bit off, and where Apple Stellar Invaders' tracks, whose every
+    //  address field is followed by a stretch with no flux, lost a sector or
+    //  the whole track.
+    TEST_METHOD (ProtectedDisks_ReadFromOtherAngles_AreCaptured_AndBoot)
+    {
+        static constexpr uint32_t  kRockysBootsSeeds[] = { 12, 31, 37 };
+        static constexpr uint32_t  kInvadersSeeds[]    = { 14, 34, 41 };
+
+
+
+        for (uint32_t seed : kRockysBootsSeeds)
         {
-            std::vector<Byte>          source  = GuestSession::FindGameImage (name);
-            std::vector<Byte>          module;
-            DiskImage                  original;
-            DiskImage                  captured;
-            CassoLinkCapture::Result   result;
-            BootReport                 report;
-            std::string                machine;
-            std::vector<std::string>   missing;
-            int                        tracks  = 0;
-            int                        found   = 0;
+            AssertCapturedAndBoots (L"RockysBoots.woz", seed);
+        }
 
-            Assert::IsFalse (source.empty(), (std::wstring (name) + L" is in the game images").c_str());
-
-            ProgramRig  rig (std::vector<Byte> (143360, 0));
-
-            AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
-            AssertSucceeded (WozLoader::Load (source, original));
-            AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-            AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-17T00:00:00Z", {}, result));
-            AssertSucceeded (WozLoader::Load (result.woz, captured));
-
-            for (int quarter = 0; quarter <= CassoLinkCapture::kLastPosition; quarter += 4)
-            {
-                bool  hasData = !GetBits (original, quarter).empty();
-
-                tracks += hasData ? 1 : 0;
-                found  += (hasData && !GetBits (captured, quarter).empty()) ? 1 : 0;
-            }
-
-            AssertSucceeded (BootCheck::Run (result.woz, DiskFormat::Woz, "Apple //e enhanced", {}, BuildFromFixtures, report, machine, missing));
-
-            Logger::WriteMessage (std::format ("{}: {} of {} whole tracks captured, {} weak, {} unstable; boot {}\n", TextEncoding::WideToUtf8 (name), found, tracks,
-                                               result.weak.size(), result.unstable.size(), BootProbe::GetVerdictName (report.verdict)).c_str());
-
-            Assert::AreEqual (tracks, found, (std::wstring (name) + L": every whole track with data is in the capture").c_str());
-            Assert::IsTrue   (report.verdict == BootVerdict::Booted, (std::wstring (name) + L": the capture boots").c_str());
+        for (uint32_t seed : kInvadersSeeds)
+        {
+            AssertCapturedAndBoots (L"AppleStellarInvaders.woz", seed);
         }
     }
 };
