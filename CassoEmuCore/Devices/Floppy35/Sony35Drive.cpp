@@ -656,7 +656,7 @@ HRESULT Sony35Drive::SaveState (StateWriter & writer) const
     }
     else
     {
-        BlockDeviceMedia().SaveState (writer);
+        BlockDeviceMedia::SaveEmptyState (writer);
     }
 
 Error:

@@ -83,6 +83,10 @@ public:
     void     SaveState (StateWriter & writer) const;
     HRESULT  LoadState (StateReader & reader);
 
+    //  The state an empty media saves, written without making one, since a
+    //  keyframe saves it for every drive with no disk and may not allocate.
+    static void  SaveEmptyState (StateWriter & writer);
+
     //  IReplayMedia: the blocks as they were when the media was attached,
     //  made once and shared by every copy after.
     HRESULT  CopyForReplay   (ReplayBlockMedia & outCopy) override;
