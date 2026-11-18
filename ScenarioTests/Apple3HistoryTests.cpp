@@ -41,6 +41,17 @@ public:
     static constexpr uint64_t  kSeconds         = 20;
     static constexpr uint64_t  kKeyframeFrames  = 2;
     static constexpr int       kSecondsToPrompt = 40;
+    static constexpr uint64_t  kSeekFrames      = 4800;
+    static constexpr size_t    kSeekCount       = 100;
+    static constexpr size_t    kShuffle         = 37;
+    static constexpr uint32_t  kSeed            = 0x0505A3A3;
+
+    struct Sample
+    {
+        uint64_t           position = 0;
+        uint64_t           cycle    = 0;
+        std::vector<Byte>  state;
+    };
 
 
     TEST_METHOD (BusinessBasic_ReplaysToEveryKeyframe_AndBackToLive)
@@ -103,6 +114,98 @@ public:
         AssertSucceeded (hr, L"SeekToCycle live");
 
         CheckState (live, Save (machine));
+    }
+
+
+    //  A SOS boot with history on from power on, with the whole machine saved
+    //  at scattered instruction boundaries, then a seek to each of them in a
+    //  shuffled order: after each seek the machine saves the bytes it saved
+    //  live there.
+    TEST_METHOD (SosBoot_SeeksToScatteredCycles_MatchLive)
+    {
+        TestMachine          machine ("Apple3");
+        ReverseController    controller (machine);
+        ReverseResult        result;
+        std::vector<Sample>  samples;
+        std::vector<bool>    isSampled (kSeekFrames, false);
+        HRESULT              hr      = S_OK;
+        uint32_t             random  = kSeed;
+        size_t               picked  = 0;
+        size_t               i       = 0;
+        bool                 isReady = false;
+        std::string          typed   = "CATALOG\rPRINT TIME$\r";
+        size_t               next    = 0;
+
+
+
+        machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+        MountBusinessBasic (machine);
+
+        hr = controller.Start (ReverseSettings());
+        AssertSucceeded (hr, L"Start");
+
+        while (picked < kSeekCount)
+        {
+            random = NextRandom (random);
+
+            size_t  frame = (random >> 8) % kSeekFrames;
+
+            if (!isSampled[frame])
+            {
+                isSampled[frame] = true;
+                picked++;
+            }
+        }
+
+        for (uint64_t frame = 0; frame < kSeekFrames; frame++)
+        {
+            Apple3Keyboard  & keyboard = machine.GetApple3()->GetKeyboard();
+
+            if (!isReady && frame % kFramesPerSecond == 0)
+            {
+                isReady = GetScreenText (*machine.GetApple3()).find ("BLOCKS FREE") != std::string::npos;
+            }
+
+            if (isReady && next < typed.size() && keyboard.IsStrobeClear() && frame % 3 == 0)
+            {
+                keyboard.PressKey ((Byte) typed[next++]);
+            }
+
+            machine.GetHostInput().Sample();
+
+            if (isSampled[frame])
+            {
+                random = NextRandom (random);
+
+                uint64_t  into = 1 + (random >> 8) % (KeyframeSettings::kFrameCycles - 1);
+
+                machine.GetRunner().RunCycles (into);
+                samples.push_back (TakeSample (machine));
+                machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles - into);
+            }
+            else
+            {
+                machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
+            }
+        }
+
+        Assert::IsTrue (isReady, L"SOS booted to Business BASIC's prompt");
+        Assert::AreEqual (typed.size(), next, L"every key was typed");
+
+        hr = controller.GetKeyframes().WaitForPending();
+        AssertSucceeded (hr, L"WaitForPending");
+
+        for (i = 0; i < samples.size(); i++)
+        {
+            const Sample  & sample = samples[(i * kShuffle) % samples.size()];
+
+            hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+
+            Assert::IsTrue (result.outcome == ReverseOutcome::Moved, TextEncoding::Utf8ToWide ("a seek inside history moves: " + controller.GetSeeker().GetLastDivergence()).c_str());
+            Assert::AreEqual<uint64_t> (sample.position, result.position, L"the seek lands on the sampled boundary");
+            Assert::IsTrue (Save (machine) == sample.state, TextEncoding::Utf8ToWide (std::format ("at position {}: ", sample.position) + StateDiff::Describe (sample.state, Save (machine))).c_str());
+        }
     }
 
 
@@ -235,6 +338,26 @@ private:
         bool          TakePendingStop  () override                    { return false; }
         IWatchSink *  GetWatchSink     () override                    { return nullptr; }
     };
+
+
+    static uint32_t NextRandom (uint32_t value)
+    {
+        return value * 1664525u + 1013904223u;
+    }
+
+
+    static Sample TakeSample (TestMachine & machine)
+    {
+        Sample  sample;
+
+
+
+        sample.position = machine.GetRunner().GetPosition();
+        sample.cycle    = machine.GetCpu()->GetTotalCycles();
+        sample.state    = Save (machine);
+
+        return sample;
+    }
 
 
     static void MountBusinessBasic (TestMachine & machine)
