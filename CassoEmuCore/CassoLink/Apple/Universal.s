@@ -444,11 +444,13 @@ incs:   lda $C08B,y
 innone: clc
         rts
 
-; wait: until an envelope's start byte arrives on a 6551, or the PC connects
-; to the W5100. A W5100 socket that stops listening listens again, with the
-; next announcement rather than on every pass: a 6551 holds one byte, and a
-; listen that fails each time, as one does on a port the PC has taken, made
-; the pass too slow to catch the start byte at 115,200 baud.
+; wait: until a byte arrives on a 6551, or the PC connects to the W5100. Any
+; byte on a 6551 is the PC there: a pass of this loop is longer than a byte
+; at 115,200 baud, so the envelope's start byte can be overwritten by the
+; next before it is read, and the shim sends Ready when it starts. A
+; W5100 socket that stops listening listens again, with the next
+; announcement rather than on every pass: a listen that fails each time, as
+; one does on a port the PC has taken, made the pass slower.
 wait:   ldx #0
 wtacia: cpx nacia
         beq wtpas
@@ -463,9 +465,7 @@ wtacia: cpx nacia
         lda ACIASTAT,y
         and #RDRF
         beq wtnext
-        lda ACIADATA,y
-        cmp #$C1
-        bne wtnext
+        lda ACIADATA,y          ; read, so the 6551 takes the next byte
         stx sel
         jmp acgo
 wtscc:  and #$01                ; a IIgs's port, by its channel
