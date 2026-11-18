@@ -34,6 +34,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+class HostInputGate;
+class InputJournal;
+struct InputRecord;
+
 class Mm58167 : public IMachineState
 {
 public:
@@ -70,7 +74,7 @@ public:
     static constexpr Byte      kIrqMonth          = 0x80;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', '5', '8', 'K');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
     //  Local time in milliseconds since 1 January 1970.
     using TimeSource = std::function<int64_t ()>;
@@ -88,6 +92,13 @@ public:
     };
 
     Mm58167();
+
+    //  Reverse execution. With a journal attached, a ClockTime entry is added
+    //  when a read finds the host's time changed. While the host input gate is
+    //  closed, during a replay or behind live, the counters run on the time
+    //  from the journal.
+    void        SetInputJournal  (InputJournal * journal, HostInputGate * gate);
+    bool        ApplyInput       (const InputRecord & record);
 
     //  Null selects the host's local time.
     void        SetTimeSource (TimeSource source);
@@ -117,13 +128,17 @@ private:
     void        Advance       ();
     void        AdvanceDays   (int64_t days, Byte & outRolled);
     void        CheckCompare  ();
-    int64_t     GetNow        () const;
+    int64_t     GetNow        ();
+    int64_t     ReadSource    () const;
 
     static int  ToBcd         (int value) { return ((value / 10) << 4) | (value % 10); }
     static int  FromBcd       (Byte value) { return ((value >> 4) & 0x0F) * 10 + (value & 0x0F); }
     static int  GetMonthDays  (int month);
 
     TimeSource                          m_source;
+    InputJournal                      * m_inputJournal     = nullptr;
+    HostInputGate                     * m_gate             = nullptr;
+    int64_t                             m_sampledMs        = 0;
     std::array<Byte, kCounterCount>     m_counters         = {};
     std::array<Byte, kCounterCount>     m_latches          = {};
     int64_t                             m_lastMs           = 0;

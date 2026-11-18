@@ -4,6 +4,8 @@
 #include "Core/InterruptController.h"
 #include "Core/MemoryBus.h"
 #include "Core/Prng.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -244,6 +246,7 @@ void Apple3System::Reset()
 
 void Apple3System::GetStateParts (std::vector<IMachineState *> & outParts)
 {
+    outParts.push_back (this);
     outParts.push_back (&m_mmu);
     outParts.push_back (&m_vias);
     outParts.push_back (&m_slots);
@@ -256,4 +259,51 @@ void Apple3System::GetStateParts (std::vector<IMachineState *> & outParts)
     outParts.push_back (&m_acia);
     outParts.push_back (&m_clock);
     outParts.push_back (&m_sound);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple3System::SaveState (StateWriter & writer) const
+{
+    writer.BeginSection (kStateTag, kStateVersion);
+    writer.WriteUInt64  (m_viaMasterClocks);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple3System::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadUInt64 (m_viaMasterClocks);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }

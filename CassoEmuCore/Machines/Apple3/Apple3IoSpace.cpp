@@ -199,6 +199,7 @@ Byte Apple3IoSpace::Access (Word address, bool isWrite, Byte value)
     }
     else if (address >= s_kFirstSwitchReg && address <= s_kLastSwitchReg)
     {
+        m_analog.ObserveButton (address);
         result = ReadSwitch (address);
     }
 

@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
+#include "Machines/Apple3/Apple3System.h"
 #include "Shell/MachineParts.h"
 
 
@@ -140,6 +141,12 @@ void MachineHostInput::AttachJournal()
         m_parts.joyport->SetInputJournal (journal);
     }
 
+    if (m_parts.apple3 != nullptr)
+    {
+        m_parts.apple3->GetClock().SetInputJournal (journal, &m_gate);
+        m_parts.apple3->GetAnalogInputs().SetInputJournal (journal);
+    }
+
     for (i = 0; i < refs.serialChips.size(); i++)
     {
         refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
@@ -199,6 +206,11 @@ bool MachineHostInput::ApplyDeviceInput (const InputRecord & record)
     if (!isApplied && m_parts.joyport != nullptr)
     {
         isApplied = m_parts.joyport->ApplyInput (record);
+    }
+
+    if (!isApplied && m_parts.apple3 != nullptr)
+    {
+        isApplied = m_parts.apple3->GetClock().ApplyInput (record) || m_parts.apple3->GetAnalogInputs().ApplyInput (record);
     }
 
     if (!isApplied && record.kind == InputKind::AciaByte && record.detail < refs.serialChips.size())
@@ -327,6 +339,11 @@ void MachineHostInput::Sample()
     if (m_parts.joyport != nullptr)
     {
         m_parts.joyport->SampleHostInputs();
+    }
+
+    if (m_parts.apple3 != nullptr)
+    {
+        m_parts.apple3->GetAnalogInputs().SampleHostInputs();
     }
 
     m_journal.SetSampling (false);

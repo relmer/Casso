@@ -4,6 +4,7 @@
 #include "Apple3SystemVias.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 
 
@@ -267,6 +268,11 @@ Byte Apple3Keyboard::Read (Word address)
 
     if (address >= kFirstKbPort && address <= kLastKbPort)
     {
+        if (m_inputJournal != nullptr)
+        {
+            ObserveKbPort();
+        }
+
         return GetKbPort();
     }
 
@@ -339,7 +345,17 @@ void Apple3Keyboard::Reset()
 
 void Apple3Keyboard::UpdateInterruptLine()
 {
-    bool  isReady = (m_latchedKey.load (memory_order_acquire) & s_kStrobe) != 0;
+    Byte  latch   = m_latchedKey.load (memory_order_acquire);
+    bool  isReady = (latch & s_kStrobe) != 0;
+
+
+
+    //  The CPU first reads a new key here, so the journal entry for the key
+    //  is made here.
+    if (m_inputJournal != nullptr)
+    {
+        ObserveLatch (latch);
+    }
 
 
 
@@ -449,6 +465,167 @@ HRESULT Apple3Keyboard::LoadState (StateReader & reader)
     m_strokeControl.store (flags[6], memory_order_release);
     m_strokeSpecial.store (flags[7], memory_order_release);
 
+    SyncObservedInputs();
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveKbPort
+//
+//  CPU thread, journal attached: each KB port line another thread changed
+//  since the last read of it, and the key-down line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3Keyboard::ObserveKbPort()
+{
+    ObserveKeyDown (m_anyKeyDown.load (memory_order_acquire));
+
+    for (int index = 0; index < kObservedLineCount; index++)
+    {
+        ObserveLine (index, GetHostLine (index));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3Keyboard::ObserveLine (int index, bool isOn)
+{
+    if (m_observedLine[(size_t) index] != isOn)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Button, isOn ? 1 : 0,
+                                        (uint16_t) ((int) InputLine::Apple3Shift + index), 0);
+        m_observedLine[(size_t) index] = isOn;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHostLine
+//
+//  The lines in InputLine order from Apple3Shift.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple3Keyboard::GetHostLine (int index) const
+{
+    const atomic<bool>  * lines[kObservedLineCount] = { &m_shift, &m_control, &m_alphaLock, &m_apple1, &m_apple2,
+                                                        &m_strokeShift, &m_strokeControl, &m_strokeSpecial };
+
+
+
+    return lines[index]->load (memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHostLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3Keyboard::SetHostLine (int index, bool isOn)
+{
+    atomic<bool>  * lines[kObservedLineCount] = { &m_shift, &m_control, &m_alphaLock, &m_apple1, &m_apple2,
+                                                  &m_strokeShift, &m_strokeControl, &m_strokeSpecial };
+
+
+
+    lines[index]->store (isOn, memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SampleHostInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3Keyboard::SampleHostInputs()
+{
+    AppleKeyboard::SampleHostInputs();
+
+    if (m_inputJournal != nullptr)
+    {
+        for (int index = 0; index < kObservedLineCount; index++)
+        {
+            ObserveLine (index, GetHostLine (index));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncObservedInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3Keyboard::SyncObservedInputs()
+{
+    AppleKeyboard::SyncObservedInputs();
+
+    for (int index = 0; index < kObservedLineCount; index++)
+    {
+        m_observedLine[(size_t) index] = GetHostLine (index);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+//  Replay: a KB port line is set to the value a journal entry has;
+//  anything else is the base keyboard's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple3Keyboard::ApplyInput (const InputRecord & record)
+{
+    int   index     = (int) record.detail - (int) InputLine::Apple3Shift;
+    bool  isApplied = record.kind == InputKind::Button && index >= 0 && index < kObservedLineCount;
+
+
+
+    if (!isApplied)
+    {
+        return AppleKeyboard::ApplyInput (record);
+    }
+
+    SetHostLine (index, record.value != 0);
+    m_observedLine[(size_t) index] = record.value != 0;
+
+    return true;
 }

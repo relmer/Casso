@@ -43,13 +43,16 @@ class Prng;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple3System
+class Apple3System : public IMachineState
 {
 public:
     static constexpr uint32_t  kMasterPerViaCycle = 14;
     static constexpr Word      kRomStart          = 0xF000;
     static constexpr Word      kAciaAddress       = 0xC0F0;
     static constexpr uint32_t  kViaClockHz        = 1022727;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', '3', 'S', 'Y');
+    static constexpr uint16_t  kStateVersion = 1;
 
     explicit Apple3System (MemoryBus & bus);
 
@@ -63,6 +66,11 @@ public:
     void      Reset              ();
 
     void      GetStateParts      (std::vector<IMachineState *> & outParts);
+
+    //  The master clock count the VIAs and the 6551 were last run to. The
+    //  parts are separate sections.
+    HRESULT   SaveState          (StateWriter & writer) const override;
+    HRESULT   LoadState          (StateReader & reader) override;
 
     Apple3Mmu             & GetMmu            () { return m_mmu; }
     Apple3SystemVias      & GetVias           () { return m_vias; }

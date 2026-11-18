@@ -24,6 +24,7 @@ static constexpr int   s_kExternalLine = 1;
 
 static constexpr uint16_t  s_kFirstWithExternals = 2;
 static constexpr uint16_t  s_kFirstWithTicks     = 3;
+static constexpr uint16_t  s_kFirstWithSyncPoint = 4;
 static constexpr uint32_t  s_kMaxEngineBytes      = 0x10000;
 
 
@@ -505,6 +506,8 @@ HRESULT Apple3DiskController::SaveState (StateWriter & writer) const
     writer.WriteUInt64 (m_diskCycles);
     writer.WriteUInt64 (m_lastTicks);
     writer.WriteByte   ((Byte) m_connected);
+    writer.WriteUInt64 (m_syncedDiskCycles);
+    writer.WriteBool   (m_isOneMhz);
 
     for (const External & external : m_externals)
     {
@@ -567,6 +570,14 @@ HRESULT Apple3DiskController::LoadState (StateReader & reader)
         m_connected = connected;
         m_diskII->GetSignals().SetReportedDrive (s_kExternalLine, 1 + m_connected);
 
+        // From version 4, the disk cycle count as of the last sync, which a
+        // catch-up within an instruction can exceed, and the CPU's speed.
+        if (version >= s_kFirstWithSyncPoint)
+        {
+            reader.ReadUInt64 (m_syncedDiskCycles);
+            reader.ReadBool   (m_isOneMhz);
+        }
+
         for (External & external : m_externals)
         {
             reader.ReadUInt32 (quarterTrack);
@@ -578,6 +589,11 @@ HRESULT Apple3DiskController::LoadState (StateReader & reader)
             reader.ReadBytes (external.engineState.data(), engineBytes);
         }
     }
+
+    // Point the external line at the connected drive's disk, as ConnectExternal
+    // does, before the Disk II logic's state restores the head and rotation.
+    // Loaded over a running machine, the line can be on another drive's disk.
+    m_diskII->GetDrive (s_kExternalLine).SetExternalDisk ((m_connected < m_externalCount) ? m_externals[(size_t) m_connected].disk : nullptr);
 
     hr = m_diskII->LoadState (reader);
     CHR (hr);

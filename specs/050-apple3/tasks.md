@@ -219,7 +219,7 @@ reads the clock and both joystick ports.
 - [x] T083 [P] [US4] Implement `Apple3Sound` (speaker through `AppleSpeaker`, beeper, DAC, mixing) and its audio source in `CassoEmuCore/Machines/Apple3/Apple3Sound.h` and `.cpp`
 - [x] T084 [P] [US4] Implement `Apple3AnalogInputs` over 034's controller assignments in `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.h` and `.cpp`
 - [ ] T085 [US4] Complete the keyboard: PC key mappings for every Apple /// key in the settings key list, repeat rates, pasted text (FR-025), and Control with Reset obeying the environment register's reset bit, in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.cpp` and `CassoEmuCore/Ui/Settings/`
-- [ ] T086 [US4] Run the Confidence Test disk in the scenario suite (SC-002) in `ScenarioTests/Apple3SosTests.cpp`, after T089, since the test includes the serial port
+- [ ] T086 [US4] Run the Confidence Test disk in the scenario suite (SC-002) in `ScenarioTests/Apple3SosTests.cpp`, after T089, since the test includes the serial port. Machine Configuration passes at 128K and 256K, and so does the Memory Test at 128K (`ConfidenceProgram_*`). The disk tests use an external test diskette, which the program makes from a disk formatted by the System Utilities; that step does not advance yet
 - [ ] T087 [US4] Write a timing test program and check SC-005 at 2 MHz and 1 MHz in `UnitTest/Apple3Tests/Apple3TimingTests.cpp`
 
 ---
@@ -252,9 +252,9 @@ reads the clock and both joystick ports.
 ## Phase 11: User Story 9 - Rewind an Apple /// session (Priority: P2)
 
 - [x] T101 [P] [US9] Write save and load round-trip tests for every new device and the MMU in `UnitTest/Apple3Tests/Apple3StateTests.cpp`
-- [ ] T102 [US9] Write a history test: store a SOS boot, seek to 100 random cycles, compare the full state hash with the live run at each (SC-009), in `ScenarioTests/Apple3HistoryTests.cpp`
-- [ ] T103 [US9] Register every bank with history's page diff and keyframes, and add every new device to the machine state list, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
-- [ ] T104 [US9] Route the clock chip's host time and the analog inputs through `InputJournal` (FR-057) in `CassoEmuCore/Devices/Mm58167.cpp` and `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.cpp`
+- [ ] T102 [US9] Write a history test: store a SOS boot, seek to 100 random cycles, compare the full state hash with the live run at each (SC-009), in `ScenarioTests/Apple3HistoryTests.cpp` `Apple3HistoryTests` replays a Business BASIC run to every keyframe and back to live; the 100 random seeks remain
+- [x] T103 [US9] Register every bank with history's page diff and keyframes, and add every new device to the machine state list, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
+- [x] T104 [US9] Route the clock chip's host time and the analog inputs through `InputJournal` (FR-057) in `CassoEmuCore/Devices/Mm58167.cpp` and `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.cpp`
 - [ ] T105 [US9] Rebuild the stack and call stack panes for the stack in use after a seek, and report banks in the rebuilt trace, heat map and event logs, in `CassoEmuCore/Debugger/CallStack.cpp` and `CassoEmuCore/Debugger/Reverse/`
 
 ---

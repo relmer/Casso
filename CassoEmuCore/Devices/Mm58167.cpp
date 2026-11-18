@@ -3,6 +3,8 @@
 #include "Devices/Mm58167.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
+#include "Shell/HostInputGate.h"
 
 
 
@@ -19,6 +21,7 @@ static constexpr int      s_kDaysPerWeek        = 7;
 static constexpr int      s_kMonthsPerYear      = 12;
 static constexpr int64_t  s_kCalendarCycleDays  = 365 * s_kDaysPerWeek;
 static constexpr Byte     s_kDontCareNibble     = 0x0C;
+static constexpr uint16_t s_kFirstWithTimes     = 2;
 static constexpr int      s_kMonthDays[s_kMonthsPerYear] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
 
@@ -472,11 +475,49 @@ int Mm58167::GetMonthDays (int month)
 //
 //  GetNow
 //
+//  The time the counters run on. While the host input gate is closed, during
+//  a replay or behind live, it is the time from the journal. Otherwise it is
+//  the host's, and with a journal attached, a ClockTime entry is added when
+//  the time changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t Mm58167::GetNow()
+{
+    int64_t  now = 0;
+
+
+
+    if (m_gate != nullptr && m_gate->IsHeld())
+    {
+        return m_sampledMs;
+    }
+
+    now = ReadSource();
+
+    if (m_inputJournal != nullptr && now != m_sampledMs)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::ClockTime, 0, 0, (uint64_t) now);
+    }
+
+    m_sampledMs = now;
+
+    return now;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadSource
+//
 //  The host's local time when there is no time source.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t Mm58167::GetNow() const
+int64_t Mm58167::ReadSource() const
 {
     SYSTEMTIME      local = {};
     FILETIME        file  = {};
@@ -504,10 +545,52 @@ int64_t Mm58167::GetNow() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetInputJournal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Mm58167::SetInputJournal (InputJournal * journal, HostInputGate * gate)
+{
+    m_inputJournal = journal;
+    m_gate         = gate;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+//  Replay: a sampled host time goes back as the time the counters run on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Mm58167::ApplyInput (const InputRecord & record)
+{
+    bool  isApplied = record.kind == InputKind::ClockTime;
+
+
+
+    if (isApplied)
+    {
+        m_sampledMs = (int64_t) record.data;
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SaveState
 //
-//  The counters as of the save. The time since is host time, so a load
-//  advances them from the load on.
+//  The counters, and the time they were last advanced to. A load runs them
+//  on from there by the time since, on the host's clock or the journal's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -521,6 +604,8 @@ HRESULT Mm58167::SaveState (StateWriter & writer) const
     writer.WriteByte  (m_interruptControl);
     writer.WriteByte  (m_standby);
     writer.WriteBool  (m_status);
+    writer.WriteUInt64 ((uint64_t) m_lastMs);
+    writer.WriteUInt64 ((uint64_t) m_sampledMs);
 
     return writer.EndSection();
 }
@@ -537,8 +622,10 @@ HRESULT Mm58167::SaveState (StateWriter & writer) const
 
 HRESULT Mm58167::LoadState (StateReader & reader)
 {
-    HRESULT   hr      = S_OK;
-    uint16_t  version = 0;
+    HRESULT   hr        = S_OK;
+    uint16_t  version   = 0;
+    uint64_t  lastMs    = 0;
+    uint64_t  sampledMs = 0;
 
 
 
@@ -552,10 +639,23 @@ HRESULT Mm58167::LoadState (StateReader & reader)
     reader.ReadByte  (m_standby);
     reader.ReadBool  (m_status);
 
+    // From version 2, the time the counters were last advanced to and the
+    // last sampled host time, so a replay from a keyframe runs on the times
+    // the recording did. Before it, the counters run on from the load.
+    if (version >= s_kFirstWithTimes)
+    {
+        reader.ReadUInt64 (lastMs);
+        reader.ReadUInt64 (sampledMs);
+        m_lastMs    = (int64_t) lastMs;
+        m_sampledMs = (int64_t) sampledMs;
+    }
+    else
+    {
+        m_lastMs = GetNow();
+    }
+
     hr = reader.EndSection();
     CHR (hr);
-
-    m_lastMs = GetNow();
 
 Error:
     return hr;

@@ -4,6 +4,7 @@
 #include "Apple3TimeBase.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 
 
@@ -72,9 +73,17 @@ Apple3AnalogInputs::Apple3AnalogInputs (const Apple3TimeBase & timeBase)
 void Apple3AnalogInputs::HandleSwitch (Word address)
 {
     uint64_t  now    = m_timeBase.GetMasterClocks();
-    uint64_t  length = (uint64_t) GetRampMicros() * Apple3TimeBase::kMasterClockHz / s_kMicrosPerSec;
+    uint64_t  length = 0;
 
 
+
+    // The ramp's length is the selected axis as of its start.
+    if (address == s_kStart && m_inputJournal != nullptr && GetSelectedAxis() >= 0)
+    {
+        ObserveAxis (GetSelectedAxis());
+    }
+
+    length = (uint64_t) GetRampMicros() * Apple3TimeBase::kMasterClockHz / s_kMicrosPerSec;
 
     switch (address)
     {
@@ -254,6 +263,190 @@ HRESULT Apple3AnalogInputs::LoadState (StateReader & reader)
     hr = reader.EndSection();
     CHR (hr);
 
+    m_observedAxis   = m_axes;
+    m_observedButton = m_buttons;
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSelectedAxis
+//
+//  The axis the select bits choose, or -1 for an input that is not one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Apple3AnalogInputs::GetSelectedAxis() const
+{
+    int  axis = -1;
+
+
+
+    switch (m_selection)
+    {
+    case s_kPortAX: axis = s_kAxisAX; break;
+    case s_kPortBX: axis = s_kAxisBX; break;
+    case s_kPortAY: axis = s_kAxisAY; break;
+    case s_kPortBY: axis = s_kAxisBY; break;
+    default:                          break;
+    }
+
+    return axis;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3AnalogInputs::SetInputJournal (InputJournal * journal)
+{
+    m_inputJournal   = journal;
+    m_observedAxis   = m_axes;
+    m_observedButton = m_buttons;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveButton
+//
+//  A read of a joystick switch, journal attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3AnalogInputs::ObserveButton (Word address)
+{
+    if (m_inputJournal != nullptr && address >= kFirstButton && address <= kLastButton)
+    {
+        ObserveSwitch (address - kFirstButton);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveAxis
+//
+//  Adds a journal entry for an axis another thread changed since the last read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3AnalogInputs::ObserveAxis (int axis)
+{
+    Byte  value = m_axes[(size_t) axis];
+
+
+
+    if (value != m_observedAxis[(size_t) axis])
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Paddle, value, (uint16_t) axis, 0);
+        m_observedAxis[(size_t) axis] = value;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObserveSwitch
+//
+//  Adds a journal entry for a switch another thread changed since the last read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3AnalogInputs::ObserveSwitch (int button)
+{
+    bool  isPressed = m_buttons[(size_t) button];
+
+
+
+    if (isPressed != m_observedButton[(size_t) button])
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle(), InputKind::Button, isPressed ? 1 : 0,
+                                        (uint16_t) ((int) InputLine::Apple3Switch0 + button), 0);
+        m_observedButton[(size_t) button] = isPressed;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SampleHostInputs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3AnalogInputs::SampleHostInputs()
+{
+    if (m_inputJournal == nullptr)
+    {
+        return;
+    }
+
+    for (int axis = 0; axis < kAxisCount; axis++)
+    {
+        ObserveAxis (axis);
+    }
+
+    for (int button = 0; button < kButtonCount; button++)
+    {
+        ObserveSwitch (button);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+//  Replay: an axis or a switch is set to the value a journal entry has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple3AnalogInputs::ApplyInput (const InputRecord & record)
+{
+    int   button    = (int) record.detail - (int) InputLine::Apple3Switch0;
+    bool  isApplied = false;
+
+
+
+    if (record.kind == InputKind::Paddle && record.detail < kAxisCount)
+    {
+        m_axes[record.detail]         = record.value;
+        m_observedAxis[record.detail] = record.value;
+        isApplied                     = true;
+    }
+    else if (record.kind == InputKind::Button && button >= 0 && button < kButtonCount)
+    {
+        m_buttons[(size_t) button]        = record.value != 0;
+        m_observedButton[(size_t) button] = record.value != 0;
+        isApplied                         = true;
+    }
+
+    return isApplied;
 }

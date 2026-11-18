@@ -51,7 +51,7 @@ public:
     static constexpr int       kDriveCount      = 1 + kMaxExternal;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', '3', 'D', 'K');
-    static constexpr uint16_t  kStateVersion = 3;
+    static constexpr uint16_t  kStateVersion = 4;
 
     Apple3DiskController();
 

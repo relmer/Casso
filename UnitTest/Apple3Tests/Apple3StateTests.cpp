@@ -71,6 +71,46 @@ public:
     }
 
 
+    //  A machine loaded from a running one's state runs on as the running one
+    //  does: after the same cycles, every part saves the same bytes.
+    TEST_METHOD (ALoadedMachine_RunsAsTheOneItWasSavedFrom)
+    {
+        TestMachine                   running ("Apple3");
+        TestMachine                   loaded  ("Apple3");
+        StateWriter                   writer;
+        std::vector<IMachineState *>  runningParts;
+        std::vector<IMachineState *>  loadedParts;
+        HRESULT                       hr = S_OK;
+
+
+
+        running.GetRunner().RunCycles (kTicksPerSecond);
+
+        hr = running.GetStateStream().SaveState (writer);
+        Assert::AreEqual (S_OK, hr);
+
+        StateReader  reader (writer.GetBytes());
+
+        hr = loaded.GetStateStream().LoadState (reader);
+        Assert::AreEqual (S_OK, hr);
+
+        running.GetRunner().RunCycles (kTicksPerSecond / 2);
+        loaded.GetRunner().RunCycles  (kTicksPerSecond / 2);
+
+        running.GetApple3()->GetStateParts (runningParts);
+        loaded.GetApple3()->GetStateParts  (loadedParts);
+        runningParts.insert (runningParts.begin(), running.GetCpu());
+        loadedParts.insert  (loadedParts.begin(),  loaded.GetCpu());
+
+        Assert::AreEqual (runningParts.size(), loadedParts.size());
+
+        for (size_t i = 0; i < runningParts.size(); i++)
+        {
+            Assert::IsTrue (Save (*runningParts[i]) == Save (*loadedParts[i]), std::format (L"part {} of {} matches", i, runningParts.size()).c_str());
+        }
+    }
+
+
     //  A section from another part fails to load, so a state saved from a
     //  different machine cannot be loaded into one of these parts.
     TEST_METHOD (APart_FailsToLoadAnotherPartsSection)

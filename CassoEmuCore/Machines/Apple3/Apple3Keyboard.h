@@ -92,7 +92,13 @@ public:
     HRESULT  SaveState      (StateWriter & writer) const override;
     HRESULT  LoadState      (StateReader & reader) override;
 
+    //  Reverse execution: a Button entry for each KB port modifier another
+    //  thread changed since the last read of it.
+    bool     ApplyInput        (const InputRecord & record) override;
+    void     SampleHostInputs  () override;
+
 protected:
+    void      SyncObservedInputs  () override;
     Byte      TranslateTypedChar  (Byte ch) const override;
     void      OnKeyLatched        (Byte asciiChar, bool isSpecialKey) override;
     uint32_t  GetRepeatIntervalUs () const override;
@@ -110,4 +116,15 @@ private:
     atomic<bool>        m_strokeShift    {false};
     atomic<bool>        m_strokeControl  {false};
     atomic<bool>        m_strokeSpecial  {false};
+
+    //  The value of each KB port line at the CPU thread's last read, journal
+    //  attached.
+    static constexpr int  kObservedLineCount = 8;
+
+    std::array<bool, kObservedLineCount>  m_observedLine = {};
+
+    void      ObserveKbPort       ();
+    void      ObserveLine         (int index, bool isOn);
+    bool      GetHostLine         (int index) const;
+    void      SetHostLine         (int index, bool isOn);
 };

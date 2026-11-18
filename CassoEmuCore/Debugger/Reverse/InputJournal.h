@@ -40,6 +40,7 @@ enum class InputKind : uint8_t
     JoyportJack,
     HostState,
     NetworkCall,
+    ClockTime,
 };
 
 
@@ -67,6 +68,23 @@ enum class InputLine : uint16_t
     GamePortButton2,
     JoyportAttached,
     JoyportPaddlesConnected,
+
+    // The Apple ///'s KB port: the modifiers pressed, and those of the last
+    // key's stroke.
+    Apple3Shift,
+    Apple3Control,
+    Apple3AlphaLock,
+    Apple3Apple1,
+    Apple3Apple2,
+    Apple3StrokeShift,
+    Apple3StrokeControl,
+    Apple3StrokeSpecial,
+
+    // The Apple ///'s joystick switches, $C060 to $C063.
+    Apple3Switch0,
+    Apple3Switch1,
+    Apple3Switch2,
+    Apple3Switch3,
 };
 
 

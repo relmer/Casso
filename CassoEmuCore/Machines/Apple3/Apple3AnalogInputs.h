@@ -5,6 +5,8 @@
 #include "Core/IMachineState.h"
 
 class Apple3TimeBase;
+class InputJournal;
+struct InputRecord;
 
 
 
@@ -57,6 +59,7 @@ public:
 
     //  Host input: an axis 0-255, and a switch.
     void      SetAxis         (int axis, Byte value);
+
     Byte      GetAxis         (int axis) const { return (axis >= 0 && axis < kAxisCount) ? m_axes[(size_t) axis] : kCentered; }
     void      SetButton       (int button, bool isPressed);
 
@@ -64,6 +67,15 @@ public:
 
     //  The microseconds the selected input's ramp takes.
     uint32_t  GetRampMicros   () const;
+
+    //  Reverse execution. While a journal is attached, a ramp start and a
+    //  switch read record the axis or switch another thread changed since
+    //  the last read of it, and a replay puts each back. Attaching takes
+    //  the current values as the last read.
+    void      SetInputJournal  (InputJournal * journal);
+    void      ObserveButton    (Word address);
+    void      SampleHostInputs ();
+    bool      ApplyInput       (const InputRecord & record);
 
     HRESULT   SaveState       (StateWriter & writer) const override;
     HRESULT   LoadState       (StateReader & reader) override;
@@ -75,4 +87,12 @@ private:
     uint64_t                       m_rampEnd     = 0;
     std::array<Byte, kAxisCount>   m_axes        = { kCentered, kCentered, kCentered, kCentered };
     std::array<bool, kButtonCount> m_buttons     = {};
+
+    InputJournal                 * m_inputJournal   = nullptr;
+    std::array<Byte, kAxisCount>   m_observedAxis   = { kCentered, kCentered, kCentered, kCentered };
+    std::array<bool, kButtonCount> m_observedButton = {};
+
+    void      ObserveAxis      (int axis);
+    void      ObserveSwitch    (int button);
+    int       GetSelectedAxis  () const;
 };
