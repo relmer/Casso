@@ -66,7 +66,7 @@ public:
     }
 
 
-    TEST_METHOD (RomSelected_WriteReachesRamBeneath)
+    TEST_METHOD (RomSelected_WriteGoesToRamBeneath)
     {
         Apple3TestFixture  f;
 
@@ -94,7 +94,7 @@ public:
     }
 
 
-    TEST_METHOD (WriteProtect_LeavesLowMemoryWritable)
+    TEST_METHOD (WriteProtect_AppliesFromC000Up)
     {
         Apple3TestFixture  f;
 
@@ -126,7 +126,7 @@ public:
     }
 
 
-    TEST_METHOD (Vias_ReachedWithIoOff_RamWhenLockedOut)
+    TEST_METHOD (Vias_AccessedWithIoOff_RamWhenLockedOut)
     {
         Apple3TestFixture  f;
 

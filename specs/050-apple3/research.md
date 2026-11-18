@@ -210,10 +210,9 @@ map. The Apple II cores test the flag once per indirect instruction and a
 `bool` member once per instruction; both are always false for them.
 
 **Validation, 2026-11-17** (T015): with the flag and the hooks in place,
-the Dormann functional test and the Harte vectors pass. The NMOS core ran
-full depth, 10,000 vectors per opcode from
-`%LOCALAPPDATA%\Casso\HarteTests\6502`; the 65C02 ran the checked-in
-200-vector set. `scripts/GenerateHarteTests.py` writes to `UnitTest/<cpu>/`
+the Dormann functional test and the Harte vectors pass. Both the NMOS core
+and the 65C02 ran full depth, 10,000 vectors per opcode, from
+`%LOCALAPPDATA%\Casso\HarteTests`. `scripts/GenerateHarteTests.py` writes to `UnitTest/<cpu>/`
 by default, which the test runner never reads, so a full set has to be
 moved to the cache folder before it runs. The per-instruction timing
 comparison has not been run yet.

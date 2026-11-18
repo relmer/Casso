@@ -119,8 +119,8 @@ public:
     }
 
 
-    TEST_METHOD (Load_ReachesTheBankPair_IndirectY) { CheckLoadFromBankPair (Form::IndirectY); }
-    TEST_METHOD (Load_ReachesTheBankPair_XIndirect) { CheckLoadFromBankPair (Form::XIndirect); }
+    TEST_METHOD (Load_ReadsTheBankPair_IndirectY) { CheckLoadFromBankPair (Form::IndirectY); }
+    TEST_METHOD (Load_ReadsTheBankPair_XIndirect) { CheckLoadFromBankPair (Form::XIndirect); }
 
 
     static void CheckExtensionOff (Form form)
@@ -227,8 +227,8 @@ public:
     }
 
 
-    TEST_METHOD (Store_ReachesTheBank_AndTheMapIsRestored_IndirectY) { CheckStoreAndRestore (Form::IndirectY); }
-    TEST_METHOD (Store_ReachesTheBank_AndTheMapIsRestored_XIndirect) { CheckStoreAndRestore (Form::XIndirect); }
+    TEST_METHOD (Store_WritesTheBank_AndTheMapIsRestored_IndirectY) { CheckStoreAndRestore (Form::IndirectY); }
+    TEST_METHOD (Store_WritesTheBank_AndTheMapIsRestored_XIndirect) { CheckStoreAndRestore (Form::XIndirect); }
 
 
     static void CheckHighPageStore (Form form)
@@ -246,8 +246,8 @@ public:
     }
 
 
-    TEST_METHOD (StoreAtC000OrAbove_ReachesTheBank_IndirectY) { CheckHighPageStore (Form::IndirectY); }
-    TEST_METHOD (StoreAtC000OrAbove_ReachesTheBank_XIndirect) { CheckHighPageStore (Form::XIndirect); }
+    TEST_METHOD (StoreAtC000OrAbove_WritesTheBank_IndirectY) { CheckHighPageStore (Form::IndirectY); }
+    TEST_METHOD (StoreAtC000OrAbove_WritesTheBank_XIndirect) { CheckHighPageStore (Form::XIndirect); }
 
 
     static void CheckAbsentBank (Form form)

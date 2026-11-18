@@ -287,6 +287,7 @@ boot) when the device is built.
 | VIA decode | The VIAs are at `$FFD0-$FFEF` whatever environment bit 6 is; only the Apple II lockout removes them | SVC 2.30 (I/O decode covers `$C000-$CFFF` only) |
 | `$C500-$C7FF` | always RAM; with I/O on, `$C000-$C4FF` and `$C800-$CFFF` are the I/O space and slot ROMs | DDW p. 22 lists slots 1 to 4 only |
 | Under the ROM | A write to `$F000-$FFFF` with the ROM selected goes to the RAM beneath, unless write-protected. `$FFC0-$FFCF` reads the RAM even with the ROM selected | |
+| Shared slot space | An access to a slot's `$Cn00` page selects that slot for `$C800-$CFFF`; an access to `$CFFF` clears the selection and goes to no card, as on the Apple II | SVC 10.3 (`$C020` deselect); DDW p. 22 |
 | Zero page in the banked region | A zero page register value of `$20-$9F` selects a page of the current bank, and `$A0` and above a page of the S-bank | SVC 2.10 |
 | Keyboard reset | Control with Reset is a CPU reset; Reset alone is an NMI; both only while environment bit 4 is set | SVC 8.5, 8.8 |
 | Beeper | `$C040-$C04D`. `$C04E/F` is a character RAM enable that software does not rely on | SVC 10.3 |

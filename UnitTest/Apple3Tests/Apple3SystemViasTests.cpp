@@ -125,7 +125,7 @@ public:
     }
 
 
-    TEST_METHOD (SlotInterrupts_ReachTheirInputsAndTheAnySlotLine)
+    TEST_METHOD (SlotInterrupts_SetTheirInputsAndTheAnySlotLine)
     {
         ViaFixture  f;
 

@@ -108,7 +108,7 @@ public:
     }
 
 
-    TEST_METHOD (Parse_RejectsBadText)
+    TEST_METHOD (Parse_BadTextIsAnError)
     {
         Assert::AreEqual (kInvalidData, ParseResult ("",        DebugAddress::kColon));
         Assert::AreEqual (kInvalidData, ParseResult ("   ",     DebugAddress::kColon));
