@@ -89,8 +89,9 @@ public:
     HRESULT  LoadState      (StateReader & reader) override;
     void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', '+', 'D', 'P');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('C', '+', 'D', 'P');
+    static constexpr uint16_t  kStateVersion       = 2;
+    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
 
 private:
     static constexpr Word  kSwitchMask    = 0x0F;

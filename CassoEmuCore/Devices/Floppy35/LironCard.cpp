@@ -293,6 +293,8 @@ HRESULT LironCard::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     reader.ReadBool (m_selected);
 
     hr = m_port.LoadState (reader);

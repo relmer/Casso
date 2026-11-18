@@ -67,9 +67,11 @@ public:
 
     //  The drive's CPU, RAM, IWM, gate array and mechanism, and the lines it
     //  drives on the bus, written into and read from the owner's state
-    //  section. Its ROM is its firmware's.
-    HRESULT  SaveState (StateWriter & writer) const;
-    HRESULT  LoadState (StateReader & reader);
+    //  section. Its ROM is its firmware's. The CPU's cycles are saved
+    //  against hostNowNs, the host's time, and the IWM's and the idle loop's
+    //  stamps against the CPU's time.
+    HRESULT  SaveState (StateWriter & writer, uint64_t hostNowNs) const;
+    HRESULT  LoadState (StateReader & reader, uint64_t hostNowNs);
 
     // MemoryDevice: the drive CPU's whole map.
     Byte  Read     (Word address) override;

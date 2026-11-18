@@ -102,9 +102,10 @@ void SmartPortHost::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SmartPortHost::SetHostClock (const uint64_t * cycles, uint32_t clockHz)
+void SmartPortHost::SetHostClock (const uint64_t * cycles, const uint64_t * stateCycles, uint32_t clockHz)
 {
     m_hostCycles  = cycles;
+    m_stateCycles = stateCycles;
     m_hostHz      = clockHz;
     m_epochNs     = m_lastNs;
     m_epochCycles = (cycles != nullptr) ? *cycles : 0;
@@ -162,8 +163,7 @@ void SmartPortHost::SetFloppy35EventSink (IFloppy35EventSink * sink)
 
 uint64_t SmartPortHost::GetNowNs()
 {
-    uint64_t  cycles  = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
-    uint64_t  elapsed = 0;
+    uint64_t  cycles = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
 
 
 
@@ -174,14 +174,36 @@ uint64_t SmartPortHost::GetNowNs()
     }
 
     m_lastCycles = cycles;
-    elapsed      = cycles - m_epochCycles;
-
-    if (m_hostHz != 0)
-    {
-        m_lastNs = std::max (m_lastNs, m_epochNs + elapsed / m_hostHz * s_kNsPerSec + elapsed % m_hostHz * s_kNsPerSec / m_hostHz);
-    }
+    m_lastNs     = std::max (m_lastNs, GetTimeAt (cycles));
 
     return m_lastNs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTimeAt
+//
+//  The Apple's time in nanoseconds at a cycle count in the current epoch.
+//  With no clock rate, the time doesn't move past the epoch's start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t SmartPortHost::GetTimeAt (uint64_t cycles) const
+{
+    uint64_t  elapsed = cycles - m_epochCycles;
+
+
+
+    if (m_hostHz == 0)
+    {
+        return m_epochNs;
+    }
+
+    return m_epochNs + elapsed / m_hostHz * s_kNsPerSec + elapsed % m_hostHz * s_kNsPerSec / m_hostHz;
 }
 
 
@@ -196,25 +218,26 @@ uint64_t SmartPortHost::GetNowNs()
 
 HRESULT SmartPortHost::SaveState (StateWriter & writer) const
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr       = S_OK;
+    uint64_t  appleNow = (m_stateCycles != nullptr) ? *m_stateCycles : 0;
 
 
 
-    m_iwm.SaveState (writer);
+    writer.WriteUInt64 (m_epochCycles);
+    writer.WriteUInt64 (m_epochNs);
+    writer.WriteUInt64 (appleNow - m_lastCycles);
+    writer.WriteUInt64 (m_lastNs - GetTimeAt (m_lastCycles));
+
+    m_iwm.SaveState (writer, m_lastNs);
     m_bus.SaveState (writer);
 
     writer.WriteUInt32 (static_cast<uint32_t> (m_drives.size()));
 
     for (const std::unique_ptr<UniDisk35Drive> & drive : m_drives)
     {
-        hr = drive->SaveState (writer);
+        hr = drive->SaveState (writer, m_lastNs);
         CHR (hr);
     }
-
-    writer.WriteUInt64 (m_epochCycles);
-    writer.WriteUInt64 (m_epochNs);
-    writer.WriteUInt64 (m_lastNs);
-    writer.WriteUInt64 (m_lastCycles);
 
 Error:
     return hr;
@@ -235,10 +258,21 @@ HRESULT SmartPortHost::LoadState (StateReader & reader)
     HRESULT   hr          = S_OK;
     bool      isSameCount = false;
     uint32_t  driveCount  = 0;
+    uint64_t  appleNow    = (m_stateCycles != nullptr) ? *m_stateCycles : 0;
+    uint64_t  cyclesAgo   = 0;
+    uint64_t  nsPastCount = 0;
 
 
 
-    hr = m_iwm.LoadState (reader);
+    reader.ReadUInt64 (m_epochCycles);
+    reader.ReadUInt64 (m_epochNs);
+    reader.ReadUInt64 (cyclesAgo);
+    reader.ReadUInt64 (nsPastCount);
+
+    m_lastCycles = appleNow - cyclesAgo;
+    m_lastNs     = GetTimeAt (m_lastCycles) + nsPastCount;
+
+    hr = m_iwm.LoadState (reader, m_lastNs);
     CHR (hr);
 
     hr = m_bus.LoadState (reader);
@@ -250,14 +284,9 @@ HRESULT SmartPortHost::LoadState (StateReader & reader)
 
     for (std::unique_ptr<UniDisk35Drive> & drive : m_drives)
     {
-        hr = drive->LoadState (reader);
+        hr = drive->LoadState (reader, m_lastNs);
         CHR (hr);
     }
-
-    reader.ReadUInt64 (m_epochCycles);
-    reader.ReadUInt64 (m_epochNs);
-    reader.ReadUInt64 (m_lastNs);
-    reader.ReadUInt64 (m_lastCycles);
 
     hr = reader.GetResult();
 

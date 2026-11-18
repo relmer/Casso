@@ -134,7 +134,7 @@ public:
 
 
         Assert::AreEqual (S_OK, card.SetFirmware (MakeRom (0x7B01, 0x20)));
-        card.SetHostClock (&hostCycles, kHostHz);
+        card.SetHostClock (&hostCycles, &hostCycles, kHostHz);
         start = card.GetCardCpu().GetCycles();
 
         hostCycles = kHostHz / 10;
@@ -227,7 +227,7 @@ public:
 
 
         Assert::AreEqual (S_OK, card.SetFirmware (MakeRom (0x7B01, 0x20)));
-        card.SetHostClock (&hostCycles, kHostHz);
+        card.SetHostClock (&hostCycles, &hostCycles, kHostHz);
         start = card.GetCardCpu().GetCycles();
 
         hostCycles = kHostHz / 10;

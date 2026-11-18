@@ -121,11 +121,12 @@ public:
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag                 = IMachineState::MakeTag ('D', 'S', 'K', '2');
-    static constexpr uint16_t  kStateVersion             = 4;
+    static constexpr uint16_t  kStateVersion             = 5;
     static constexpr uint16_t  kWatcherStateVersion      = 2;   // the first with the watcher's section
     static constexpr uint16_t  kPerDriveHeadStateVersion = 3;   // the first with a head position per drive
     static constexpr uint16_t  kNibbleRecordStateVersion = 3;   // the first with the recent nibbles
-    static constexpr uint16_t  kIwmStateVersion          = 4;   // the first with the //c's IWM
+    static constexpr uint16_t  kIwmStateVersion          = 5;   // the first with the //c's IWM
+    static constexpr uint16_t  kUnreleasedStateVersion   = 4;   // never released, its IWM stamps absolute
 
 private:
     HRESULT  LoadParts (StateReader & reader, uint16_t version, Byte quarterTrack);

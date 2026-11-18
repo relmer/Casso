@@ -615,6 +615,8 @@ HRESULT Apple2cPlusDiskPort::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     reader.ReadBool (hasMig);
     CBREx (hasMig == (m_mig != nullptr), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

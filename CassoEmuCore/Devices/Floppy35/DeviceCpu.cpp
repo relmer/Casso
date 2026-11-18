@@ -221,7 +221,7 @@ void DeviceCpu::SetRegisters (const Cpu6502Registers & regs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeviceCpu::SaveState (StateWriter & writer) const
+HRESULT DeviceCpu::SaveState (StateWriter & writer, uint64_t nowCycle) const
 {
     HRESULT  hr = S_OK;
 
@@ -229,7 +229,7 @@ HRESULT DeviceCpu::SaveState (StateWriter & writer) const
 
     m_cpu->SaveRegisters (writer);
 
-    writer.WriteUInt64 (m_cycles);
+    writer.WriteUInt64 (nowCycle - m_cycles);
     writer.WriteUInt64 (m_instructions);
     writer.WriteUInt64 (m_idlePass);
 
@@ -246,17 +246,20 @@ HRESULT DeviceCpu::SaveState (StateWriter & writer) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeviceCpu::LoadState (StateReader & reader)
+HRESULT DeviceCpu::LoadState (StateReader & reader, uint64_t nowCycle)
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr        = S_OK;
+    uint64_t  cyclesAgo = 0;
 
 
 
     m_cpu->LoadRegisters (reader, MemoryBusCpu::kStateVersion);
 
-    reader.ReadUInt64 (m_cycles);
+    reader.ReadUInt64 (cyclesAgo);
     reader.ReadUInt64 (m_instructions);
     reader.ReadUInt64 (m_idlePass);
+
+    m_cycles = nowCycle - cyclesAgo;
 
     hr = reader.GetResult();
 
