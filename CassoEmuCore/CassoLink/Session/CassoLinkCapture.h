@@ -203,6 +203,9 @@ private:
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
     static HRESULT              ReadPosition   (Run & run, int position, int reads, Position & outPosition);
     static HRESULT              ReadMore       (Run & run, int reads, Position & ioPosition);
+    static bool                 IsUnsure       (const Position & position, bool isStandard);
+    static bool                 IsTimed        (const Position & position);
+    static HRESULT              ReadUnsure     (Run & run, bool isStandard, Position & ioPosition);
     static HRESULT              Analyze        (Run & run, const std::function<void()> & work);
     static void                 FindMarker     (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
     static void                 PlaceTracks    (const std::vector<Position> & positions, const std::map<int, Stream> & streams, double revolution, std::map<int, size_t> & outRotations, bool & outSynchronized);
@@ -349,6 +352,7 @@ private:
     static constexpr int      s_kFitNeeded     = 2;           // the revolutions of s_kFitOf whose marks a byte's zero bits must fit
     static constexpr int      s_kFitOf         = 3;
     static constexpr size_t   s_kBeamWidth     = 16;          // the sequences of counts followed
+    static constexpr double   s_kMissOdds      = 0.02;        // a mark that no moment of a catch fits
     static constexpr size_t   s_kCoveredNeeded = 3;           // the bytes of every s_kCoveredOf in a revolution that a read's widest part must span
     static constexpr size_t   s_kCoveredOf     = 4;
 

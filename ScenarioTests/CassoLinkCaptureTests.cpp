@@ -329,4 +329,27 @@ public:
             AssertCapturedAndBoots (L"AppleStellarInvaders.woz", seed);
         }
     }
+
+
+    //  Karateka's track 0 is 4-and-4 data whose timing bytes are followed by
+    //  zero bits; with 12 reads, these seeds timed a few of them wrong. Lode
+    //  Runner's track 27 has stretches with no flux, and from these angles
+    //  its first reads didn't align.
+    TEST_METHOD (KaratekaAndLodeRunner_ReadFromOtherAngles_AreCaptured_AndBoot)
+    {
+        static constexpr uint32_t  kKaratekaSeeds[]   = { 108, 116 };
+        static constexpr uint32_t  kLodeRunnerSeeds[] = { 101, 124 };
+
+
+
+        for (uint32_t seed : kKaratekaSeeds)
+        {
+            AssertCapturedAndBoots (L"Karateka.woz", seed);
+        }
+
+        for (uint32_t seed : kLodeRunnerSeeds)
+        {
+            AssertCapturedAndBoots (L"LodeRunner.woz", seed);
+        }
+    }
 };
