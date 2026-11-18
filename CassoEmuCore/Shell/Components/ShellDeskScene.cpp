@@ -1521,7 +1521,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
 
     if (AreDrivesOnBar())
     {
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < (int) m_shell.m_disks->GetDriveChrome().size(); i++)
         {
             const DriveWidget  & widget = m_shell.m_disks->GetDriveChrome()[(size_t) i];
             RECT                 body   = widget.GetBodyRect();
@@ -1536,10 +1536,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
     }
     else
     {
-        m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
-        m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
-        m_shell.m_disks->GetDriveChrome()[0].Hide();
-        m_shell.m_disks->GetDriveChrome()[1].Hide();
+        m_shell.m_disks->HideDriveWidgets();
     }
 
     for (int i = 0; i < comp.driveCount; i++)
@@ -4901,8 +4898,11 @@ RECT ShellDeskScene::GetStripGlimmerRect() const
 
 void ShellDeskScene::SetFlatStripTextClip (const RECT * clipPx)
 {
-    m_shell.m_disks->GetDriveChrome()[0].SetTextClip (clipPx);
-    m_shell.m_disks->GetDriveChrome()[1].SetTextClip (clipPx);
+    for (DriveWidget & drive : m_shell.m_disks->GetDriveChrome())
+    {
+        drive.SetTextClip (clipPx);
+    }
+
     m_shell.m_tapeDeck->GetWidget().SetTextClip (clipPx);
 }
 
@@ -5310,12 +5310,7 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
                     m_shell.m_chrome->LayoutDriveBandSurface (true, m_stripRectPx);
                     m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bandH, area.right,
                                                                       m_stripRectPx.bottom, m_shell.m_scaler.GetDpi(), 1.0f,
-                                                                      m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
-
-                    if (!m_shell.m_disks->ShouldShowExternalDrive())
-                    {
-                        m_shell.m_disks->GetDriveChrome()[1].Hide();
-                    }
+                                                                      m_shell.m_disks->GetShownDriveCount());
                 }
             }
             else
@@ -5326,10 +5321,7 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
                 if (!m_shell.DeskSceneActive() && !AreDrivesOnBar())
                 {
                     m_shell.m_chrome->SetDriveBandSurfaceVisible (false);
-                    m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
-                    m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
-                    m_shell.m_disks->GetDriveChrome()[0].Hide();
-                    m_shell.m_disks->GetDriveChrome()[1].Hide();
+                    m_shell.m_disks->HideDriveWidgets();
                 }
             }
         }

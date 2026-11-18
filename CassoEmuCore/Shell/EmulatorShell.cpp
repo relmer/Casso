@@ -1363,15 +1363,15 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         // and the bottom command bar is clear of drive UI.
         // The joystick-mode button still paints, since
         // joystick input is independent of disk presence.
-        m_disks->GetDriveChrome()[0].Hide();
-        m_disks->GetDriveChrome()[1].Hide();
+        m_disks->HideDriveWidgets();
     }
-    else if (!m_disks->ShouldShowExternalDrive())
+    else
     {
         // //c with the optional external drive not connected: the
         // internal drive (widget 0) shows, the external (widget 1)
-        // stays collapsed until the user connects it in Settings.
-        m_disks->GetDriveChrome()[1].Hide();
+        // stays collapsed until the user connects it in Settings. The
+        // Apple ///'s widgets past its drives are collapsed too.
+        m_disks->HideDriveWidgets (m_disks->GetShownDriveCount());
     }
 
     if (!DeskSceneActive() && !m_scene->AreDrivesOnBar())
@@ -1381,11 +1381,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
 
         if (fHasDisk)
         {
-            m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-            if (m_disks->ShouldShowExternalDrive())
-            {
-                m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
-            }
+            m_disks->RegisterDriveHitRects (m_uiShell.GetHitTester());
         }
 
         m_tapeDeck->RegisterTapeDropTarget();

@@ -239,9 +239,15 @@ void ShellChrome::LayoutDriveWidgetsInCommandBar (
 
         // Visible again: the desk scene turns these off rather than just
         // collapsing them, and this is the one path that brings the flat
-        // widgets back, so it is where they earn their visibility.
-        driveChrome[i].SetVisible (true);
+        // widgets back, so it is where they earn their visibility. A widget
+        // past the drives on screen is collapsed.
+        driveChrome[i].SetVisible ((int) i < visibleCount);
         driveChrome[i].Layout (widgetAnchor, scaler);
+
+        if ((int) i >= visibleCount)
+        {
+            driveChrome[i].Hide();
+        }
     }
 
     // SyncTapeChrome lays the recorder out every frame from this anchor.
@@ -305,13 +311,14 @@ void ShellChrome::SetChromeHiddenForFullscreenScene (bool hidden)
 
     // Leaving fullscreen must not hand the flat widgets back to a scene that
     // has already retired them.
-    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip());
-    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip());
+    for (int drive = 0; drive < m_shell.m_disks->GetShownDriveCount(); drive++)
+    {
+        m_shell.m_disks->GetDriveChrome()[(size_t) drive].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip());
+    }
 
     if (hidden)
     {
-        m_shell.m_disks->GetDriveChrome()[0].Hide();
-        m_shell.m_disks->GetDriveChrome()[1].Hide();
+        m_shell.m_disks->HideDriveWidgets();
     }
 }
 

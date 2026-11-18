@@ -422,8 +422,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     m_chrome->AdoptDriveBar (m_host->GetRoot());
     m_chrome->HideDriveBar();
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
+
+    for (DriveWidget & drive : m_disks->GetDriveChrome())
+    {
+        m_host->GetRoot().Adopt (drive);
+    }
+
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_chrome->GetFrameRateReadout().AdoptFrameRateReadout (m_host->GetRoot());
     m_scene->AdoptOverlays (m_host->GetRoot());
@@ -736,8 +740,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     }
 
-    m_disks->GetDriveChrome()[0].Initialize (6, 0, m_disks.get());
-    m_disks->GetDriveChrome()[1].Initialize (6, 1, m_disks.get());
+    for (int drive = 0; drive < (int) m_disks->GetDriveChrome().size(); drive++)
+    {
+        m_disks->GetDriveChrome()[(size_t) drive].Initialize (6, drive, m_disks.get());
+    }
 
     // Settle the desk-scene scale (monitor fit + band heights) BEFORE laying
     // the drive widgets, so they are born at the settled scale rather than
@@ -767,7 +773,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             m_chrome->HideDriveBar();
             m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->GetSceneScale(),
-                                                      m_disks->ShouldShowExternalDrive() ? 2 : 1);
+                                                      m_disks->GetShownDriveCount());
         }
 
         m_chrome->LayoutDriveBandSurface ((!DeskSceneActive() || m_scene->AreDrivesOnBar()) && !AreDrivesOnStrip(), RECT{ 0, driveRect.top, clientW, clientH });

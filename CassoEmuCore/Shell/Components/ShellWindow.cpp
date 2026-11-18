@@ -321,7 +321,7 @@ int ShellWindow::GetDriveRowWidthPx()
 {
     UINT            dpi    = m_shell.m_scaler.GetDpi();
     int             gap    = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
-    int             count  = m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1;
+    int             count  = m_shell.m_disks->GetShownDriveCount();
     DxuiDpiScaler   scaler;
     DriveWidget     drive;
     TapeDeckWidget  tape;
@@ -1260,17 +1260,11 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
             else if (fHasDisk)
             {
                 m_shell.m_chrome->HideDriveBar();
+                // The widgets past the drives on screen are collapsed: the
+                // //c's optional external drive while it is not connected, and
+                // the Apple ///'s drives past the ones plugged in.
                 m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
-                                                          m_shell.m_chrome->GetSceneScale(), m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
-
-                // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
-                // widgets. Re-collapse the external one when it is an optional
-                // //c drive the user has not connected, so only the internal
-                // drive shows.
-                if (!m_shell.m_disks->ShouldShowExternalDrive())
-                {
-                    m_shell.m_disks->GetDriveChrome()[1].Hide();
-                }
+                                                          m_shell.m_chrome->GetSceneScale(), m_shell.m_disks->GetShownDriveCount());
             }
             else
             {
@@ -1281,8 +1275,7 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
                 // joystick-mode button still paints -- joystick input is
                 // independent of disk presence.
                 m_shell.m_chrome->HideDriveBar();
-                m_shell.m_disks->GetDriveChrome()[0].Hide();
-                m_shell.m_disks->GetDriveChrome()[1].Hide();
+                m_shell.m_disks->HideDriveWidgets();
             }
 
             // OnSize is the authoritative layout (only fires on a real WM_SIZE,
@@ -1308,11 +1301,7 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
                 // fullscreen: the widgets are off screen most of the time.
                 if (fHasDisk && !m_shell.AreDrivesOnStrip())
                 {
-                    m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-                    if (m_shell.m_disks->ShouldShowExternalDrive())
-                    {
-                        m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
-                    }
+                    m_shell.m_disks->RegisterDriveHitRects (m_shell.m_uiShell.GetHitTester());
                 }
 
                 m_shell.m_tapeDeck->RegisterTapeDropTarget();

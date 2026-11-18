@@ -1615,6 +1615,67 @@ bool ShellDisks::ShouldShowExternalDrive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::GetShownDriveCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetShownDriveCount() const
+{
+    int  count = ShouldShowExternalDrive() ? kDiskIiPortCount : 1;
+
+
+
+    if (GetApple3DriveCount() > 0)
+    {
+        count = GetApple3DriveCount();
+    }
+
+    return std::min (count, (int) m_driveChrome.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::HideDriveWidgets
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::HideDriveWidgets (int first)
+{
+    for (int drive = std::max (first, 0); drive < (int) m_driveChrome.size(); drive++)
+    {
+        m_driveChrome[(size_t) drive].SetVisible (false);
+        m_driveChrome[(size_t) drive].Hide();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::RegisterDriveHitRects
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::RegisterDriveHitRects (DxuiHitTester & hitTester)
+{
+    for (int drive = 0; drive < GetShownDriveCount(); drive++)
+    {
+        hitTester.Register (DxuiHitRect { m_driveChrome[(size_t) drive].GetBodyRect(), DxuiHitSlot::Custom, drive });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::MachineHasBuiltInDrive
 //
 //  Whether the machine's drive is soldered in rather than plugged into a card,

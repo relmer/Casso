@@ -16,6 +16,7 @@
 
 
 class DiskManager;
+class DxuiHitTester;
 class EmulatorShell;
 class IFileSystem;
 class SalvageDialogContent;
@@ -149,6 +150,13 @@ public:
     // while connected; everywhere else the second drive is whatever is on the
     // Disk ][ card's second connector.
     bool  ShouldShowExternalDrive   () const;
+
+    // How many drive widgets are on screen: one for each of the Apple ///'s
+    // drives, or drive 1, and drive 2 when it is connected. The widgets past
+    // them are hidden, and the bodies of the others are drop targets.
+    int   GetShownDriveCount        () const;
+    void  HideDriveWidgets          (int first = 0);
+    void  RegisterDriveHitRects     (DxuiHitTester & hitTester);
     bool  IsSecondDriveOffered      () const;
     bool  IsExternalDriveConnected  () const         { return m_externalDriveConnected; }
     void  SetExternalDriveConnected (bool connected) { m_externalDriveConnected = connected; }

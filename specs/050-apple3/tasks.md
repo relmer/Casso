@@ -161,7 +161,7 @@ it back with Casso's disk tools.
 - [ ] T057 [US6] Add the Apple /// options (memory, external drives, slots, serial port, joystick ports) to the machine settings page in `CassoEmuCore/Ui/Settings/`
 - [ ] T058 [US6] Audit every feature that depends on the machine type (menus, command line, debug channel, MCP adapter, screenshot capture, disk tools, game controllers, drive audio, cassette, printer, update check) and make each work or be disabled with "Not available on the Apple ///" (FR-035); list the audit in `specs/050-apple3/validation/feature-audit.md`
 - [ ] T059 [P] [US6] Add `--machine Apple3` and `--machine Apple3Plus` handling (both in `--help`) and drag-and-drop mounting to the built-in drive in `CassoEmuCore/Cli/` and `CassoEmuCore/Shell/`
-- [ ] T060 [P] [US6] Extend the flat themes' drive and status widgets to four drives (FR-067) in `CassoEmuCore/Ui/Chrome/`
+- [x] T060 [P] [US6] Extend the flat themes' drive and status widgets to four drives (FR-067) in `CassoEmuCore/Ui/Chrome/`
 
 ---
 
