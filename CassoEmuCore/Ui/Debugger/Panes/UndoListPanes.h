@@ -65,13 +65,16 @@ protected:
     //  The cell text rectangle a press landed right of, in the list.
     bool                             IsPressRightOf (int row, size_t column) const;
 
-    std::wstring                         m_id;
-    std::wstring                         m_title;
-    ColorLegend::Pane                    m_legend;
-    PaneBarSlot                          m_bar;
-    DxuiListView                       * m_list = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>   m_frame;
-    std::unique_ptr<UndoBarCommands>     m_commands;
+    DxuiWindow                          & m_paneWindow;
+    IPaneLayout                         & m_paneLayout;
+    IPaneRouting                        & m_paneRouting;
+    std::wstring                          m_id;
+    std::wstring                          m_title;
+    ColorLegend::Pane                     m_legend;
+    PaneBarSlot                           m_bar;
+    DxuiListView                        * m_list        = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>    m_frame;
+    std::unique_ptr<UndoBarCommands>      m_commands;
 };
 
 
@@ -127,11 +130,17 @@ protected:
 
     static constexpr int  kEditMaxChars = 4;
 
-    DxuiTextInput  * m_editor   = nullptr;
-    int              m_editRow  = -1;
-    bool             m_isPaused = false;
-    Word             m_pc       = 0;
-    uint64_t         m_cycles   = 0;
+    const DxuiDpiScaler  & m_paneScaler;
+    DxuiWindow           & m_paneWindow;
+    IPaneReplies         & m_paneReplies;
+    IPaneLayout          & m_paneLayout;
+    IPaneRouting         & m_paneRouting;
+    IPaneFocus           & m_paneFocus;
+    DxuiTextInput        * m_editor      = nullptr;
+    int                    m_editRow     = -1;
+    bool                   m_isPaused    = false;
+    Word                   m_pc          = 0;
+    uint64_t               m_cycles      = 0;
 };
 
 
@@ -188,6 +197,11 @@ private:
     void                 CommitRegister       (const std::string & name, Byte typed);
     void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
+    DxuiWindow                                      & m_paneWindow;
+    IPaneReplies                                    & m_paneReplies;
+    IPaneRouting                                    & m_paneRouting;
+    IPaneNavigator                                  & m_paneNavigator;
+    IPaneCommands                                   & m_paneCommands;
     MemoryWindowGroup                               & m_memory;
     const LatestSnapshot                            & m_latest;
     const DebuggerPaneLook                          & m_look;
@@ -238,6 +252,9 @@ protected:
 private:
     void                           PushByte     ();
 
+    IPaneDialogs                                  & m_paneDialogs;
+    IPaneRouting                                  & m_paneRouting;
+    IPaneCommands                                 & m_paneCommands;
     MemoryWindowGroup                             & m_memory;
     const LatestSnapshot                          & m_latest;
     const DebuggerPaneLook                        & m_look;

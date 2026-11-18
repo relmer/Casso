@@ -104,13 +104,18 @@ private:
     //  A click on a row's link: its file opened through the window's host.
     void                 OpenLink       (int row, int span);
 
-    IDebuggerPaneHost                       & m_host;
-    DxuiTextView                            * m_view      = nullptr;
+    IDebuggerWindowHost * const             & m_windowHost;
+    DxuiWindow                              & m_paneWindow;
+    IPaneLayout                             & m_paneLayout;
+    IPaneRouting                            & m_paneRouting;
+    IPaneFocus                              & m_paneFocus;
+    IPaneTabs                               & m_paneTabs;
+    DxuiTextView                            * m_view        = nullptr;
     std::vector<Line>                         m_lines;
     std::vector<int>                          m_rowLines;   // -1 for a row with no time stamp
     std::vector<std::vector<std::wstring>>    m_rowLinks;   // by span: a console row's spans are its links
-    int                                       m_columns   = 0;   // the view's width the rows were laid out for
-    int64_t                                   m_changedMs = 0;   // when the text last changed and was not yet saved; 0 for saved
+    int                                       m_columns     = 0;   // the view's width the rows were laid out for
+    int64_t                                   m_changedMs   = 0;   // when the text last changed and was not yet saved; 0 for saved
 };
 
 
@@ -175,7 +180,14 @@ public:
 private:
     void                 ShowHistoryList ();
 
-    IDebuggerPaneHost                                          & m_host;
+    IDebuggerWindowHost * const                                & m_windowHost;
+    const DxuiDpiScaler                                        & m_paneScaler;
+    DxuiWindow                                                 & m_paneWindow;
+    IPaneReplies                                               & m_paneReplies;
+    IPaneDialogs                                               & m_paneDialogs;
+    IPaneLayout                                                & m_paneLayout;
+    IPaneRouting                                               & m_paneRouting;
+    IPaneFocus                                                 & m_paneFocus;
     const LatestSnapshot                                       & m_latest;
     const DebuggerPaneLook                                     & m_look;
     ConsoleOutput                                              & m_output;
@@ -234,7 +246,8 @@ public:
     static std::wstring                     GetHelpCommand (CommandMode mode);
 
 private:
-    IDebuggerPaneHost                   & m_host;
+    IPaneBars                           & m_paneBars;
+    IPaneCommands                       & m_paneCommands;
     const LatestSnapshot                & m_latest;
     PaneBarSlot                           m_bar;
     std::unique_ptr<ToolbarLabelEntry>    m_label;

@@ -366,12 +366,12 @@ namespace DebuggerCodeMenuTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            PaneMenuRows::AddBookmark (window.GetPanePartsForTest().latest, window.GetPanePartsForTest().host, 0x0302, items);
+            PaneMenuRows::AddBookmark (window.GetPanePartsForTest().latest, window.GetPanePartsForTest().commands, 0x0302, items);
             Run (items, L"Add bookmark");
             Assert::AreEqual (std::string ("BMA 0302"), host.commands.back());
 
             items.clear();
-            PaneMenuRows::AddBookmark (window.GetPanePartsForTest().latest, window.GetPanePartsForTest().host, 0x0305, items);
+            PaneMenuRows::AddBookmark (window.GetPanePartsForTest().latest, window.GetPanePartsForTest().commands, 0x0305, items);
             Assert::IsTrue (Has (items, L"Remove bookmark"), L"$0305 has a bookmark");
         }
 

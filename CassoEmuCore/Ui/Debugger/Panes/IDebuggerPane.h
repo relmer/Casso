@@ -22,9 +22,6 @@ class DebuggerPaneFrame;
 
 
 
-//  A context menu's rows: each its label and what choosing it does.
-using PaneMenuItems = std::vector<std::pair<std::wstring, std::function<void()>>>;
-
 //  A menu row drawn with a check: its label starts with kChecked, which the
 //  menu takes off. A row in a submenu has the submenu's label and kSubmenu
 //  ahead of the row's label; rows of one submenu are next to each other. A
@@ -87,192 +84,6 @@ struct PaneColorKeySpec
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IDebuggerPaneHost
-//
-//  The window's calls a debug pane makes. A pane calls the window through
-//  this and nothing else, so a test hosts a pane with a host of its own.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class IDebuggerPaneHost
-{
-public:
-    virtual ~IDebuggerPaneHost() = default;
-
-    //  The panel a pane creates its controls in, in the order they paint.
-    virtual DxuiPanel            & GetControlParent () = 0;
-
-    //  Whoever owns the debugger, for the requests a pane sends the machine
-    //  and the settings saved for it; none for a window with no host.
-    virtual IDebuggerWindowHost  * GetWindowHost    () = 0;
-
-    //  Runs a control's action.
-    virtual void                   RunAction        (const DebuggerAction & action) = 0;
-
-    //  Moves the disassembly to an address, or to the PC with none; a memory
-    //  window in view to one, or the last one used, bringing it forward; and
-    //  the last one used to one.
-    virtual void                   GoToCode         (std::optional<Word> address) = 0;
-
-    virtual void  ShowMemoryAddress (Word address) = 0;
-
-    //  A routine's Never step into this routine row: checked while the step
-    //  filter has it, a click then taking it out; otherwise a click adds it
-    //  and opens a notice of how to take it out again.
-    virtual void                   AddSkipItem          (const std::string & name, Word address, PaneMenuItems & items) = 0;
-
-    //  Goes back to the machine's present from a point in its history.
-    virtual void                   GoLive           () = 0;
-
-    //  Where the last press was, in the window's pixels, for a list's
-    //  double-click to find which of a row's cells it landed in.
-    virtual POINT                  GetLastPressPx   () const = 0;
-
-    //  The file pickers, none for a window with no host.
-    virtual IHostDialogs         * GetHostDialogs   () = 0;
-    virtual HWND                   GetOwnerHwnd     () const = 0;
-
-    //  The window's text renderer and popup host, for a bar configured in it.
-    virtual IDxuiTextRenderer    * GetPaneTextRenderer () = 0;
-    virtual DxuiHwndSource       * GetPanePopupHost    () = 0;
-
-    //  The window a pane is in now: this one, or the floating one it was
-    //  moved to. And the scaler panes are laid out with.
-    virtual DxuiWindow           * GetPaneWindow    (const std::wstring & pane) = 0;
-    virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
-
-    //  Opens a source file's document at a line and brings it forward; and
-    //  moves the BASIC program pane to a line.
-    virtual void                   OpenSource       (int fileId, int line) = 0;
-    virtual void                   ShowBasicLine    (Word line) = 0;
-
-    //  Saves the open views, with the choices the panes save among them; and
-    //  whether the views the window reopens at startup have yet to settle.
-    virtual void                   SaveOpenViews    () = 0;
-    virtual bool                   IsRestoringViews () const = 0;
-
-    //  Whether the disassembly views' heat column is on, which the other
-    //  listings match.
-    virtual bool                   IsCodeHeatOn     () const = 0;
-
-    //  New rows in a disassembly view, which take down the operand tip over
-    //  them when its cell changes.
-    virtual void                   CheckOperandTip  (int view) = 0;
-
-    //  A pane's tab: its title, and the mark ahead of the title with the
-    //  tab's tip.
-    virtual void                   SetPaneTitle     (const std::wstring & pane, const std::wstring & title) = 0;
-    virtual void                   SetPaneTabMark   (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) = 0;
-
-    //  Opens files as files dropped on the window are opened.
-    virtual void                   OpenFiles        (const std::vector<std::wstring> & paths) = 0;
-
-    //  Builds the window's menus again, after what they list changes.
-    virtual void  UpdateWindowMenus () = 0;
-
-    //  A list of rows over a control, at exactly its width, rising from its
-    //  top edge in the look given.
-    virtual void                   ShowListAbove    (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) = 0;
-
-    //  Marks a pane's tab for new output while the pane is out of sight.
-    virtual void                   MarkPaneTab      (const std::wstring & pane) = 0;
-
-    //  The Find entry for a pane's toolbar, which opens the pane's find
-    //  widget.
-    virtual DxuiToolbar::Entry     GetFindEntry     (const std::wstring & pane) = 0;
-
-    //  Runs a key scheme's action, as its key does, true when it acted; and a
-    //  command bar entry, as a click on it does.
-    virtual bool  RunKeyAction       (DebuggerKeySchemes::Action action) = 0;
-    virtual void  RunCommandBarEntry (int id) = 0;
-
-    //  Opens a pane and brings it forward, as its row on the View menu does,
-    //  and moves the focus to it when isFocused.
-    virtual void                   OpenPane         (const std::wstring & pane, bool isFocused) = 0;
-
-    //  A question put to the user in a message box centered on owner, with
-    //  the user's answer; a test supplies the answer instead.
-    virtual int                    ShowMessageBox   (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) = 0;
-
-    //  The same with buttons of the pane's own, and the id of the one
-    //  pressed; IDCANCEL for Escape.
-    virtual int                    ShowMessageBox   (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type,
-                                                     const std::vector<DxuiMessageBoxButton> & buttons, int defaultId) = 0;
-
-    //  Whether the event being routed goes to a control, and whether it
-    //  came from the window a pane's bar is in.
-    virtual bool                   IsRoutable       (const IDxuiControl * control) const = 0;
-    virtual bool                   IsBarRouted      (const std::wstring & pane) const = 0;
-
-    //  The part of a bar's slot its toolbar is laid out in, short of the
-    //  pane's info button.
-    virtual RECT                   GetBarStrip      (const std::wstring & pane, const RECT & slot) = 0;
-
-    //  Moves the keyboard focus to a control, as a press on it does.
-    virtual void                   FocusControl     (IDxuiControl * control) = 0;
-
-    //  Updates the tip under the pointer after a move over a bar, or after
-    //  what a tip lists comes in.
-    virtual void                   UpdateTooltip    (POINT clientPx) = 0;
-
-    //  The same for a pane's tip outside a mouse event, such as after what it
-    //  lists comes in, in the window the pane is in now: the debugger window
-    //  or the floating one; and whether that window's tip is up.
-    virtual void                   UpdatePaneTooltip    (const std::wstring & pane, POINT clientPx) = 0;
-    virtual bool                   IsPaneTooltipVisible (const std::wstring & pane) const = 0;
-
-    //  Whether a pane is open and not closed from its close button, as the
-    //  View menu's check has it.
-    virtual bool                   IsPaneOpen       (const std::wstring & pane) const = 0;
-
-    //  The control with the keyboard focus, the floating window's focused
-    //  control while an event from it is routed, and the step that moves it
-    //  to the command line, for a pane whose focused control is hidden.
-    virtual IDxuiControl  * GetFocusedControl () const = 0;
-    virtual void            FocusDefault      () = 0;
-
-    //  A reply to something done in a pane, in an infobar over the pane, or
-    //  in a message box with no pane or when the pane isn't on screen; and
-    //  the value the user types in a dialog, none when canceled, which a test
-    //  supplies instead.
-    virtual void                   ShowPaneReply    (const std::wstring & pane, const std::vector<std::string> & lines, bool isError) = 0;
-    virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label, const std::wstring & description) = 0;
-    virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
-                                                        TextDialog::CheckFn check) = 0;
-
-    //  Hides the tip under the pointer at once, as a press or a key does.
-    virtual void                   HideTooltip      () = 0;
-
-    //  Brings a pane's tab forward in its group, and lays the dock out again;
-    //  and lays the whole window out again.
-    virtual void                   ActivatePaneTab  (const std::wstring & pane) = 0;
-
-    //  The pane with the keyboard focus, empty for none; and whether two
-    //  panes are tabs of one group, so bringing one forward covers the other.
-    virtual std::wstring           GetFocusPane     () const { return {}; }
-    virtual bool                   IsSameTabGroup   (const std::wstring & a, const std::wstring & b) const { (void) a; (void) b; return false; }
-    virtual void                   RelayoutDock     () = 0;
-    virtual void                   RelayoutWindow   () = 0;
-
-    //  Sends the machine again whether to record the heat map's accesses.
-    virtual void                   SyncHeatRecording () = 0;
-
-    //  Moves controls that several panes share into another window, the one
-    //  the pane they now act on is in.
-    virtual void                   MoveSharedControls (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to) = 0;
-
-    //  Paints the window again at its next frame, or once the messages
-    //  waiting are handled, so a burst of input is taken before the paint.
-    virtual void                   Repaint          () = 0;
-    virtual void                   RepaintLater     () = 0;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IDebuggerPane
 //
 //  One debug pane: its controls, the frame the dock places, and what it does
@@ -280,7 +91,7 @@ public:
 //  of them and calls each in turn, so adding a pane is its class and one line
 //  in that list.
 //
-//  A PANE CREATES ITS CONTROLS IN THE HOST'S PANEL, which paints and routes
+//  A PANE CREATES ITS CONTROLS IN THE DEBUGGER WINDOW, which paints and routes
 //  them; a pane floated into a window of its own takes its controls with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +99,7 @@ public:
 class IDebuggerPane
 {
 public:
-    explicit  IDebuggerPane  (const DebuggerPaneParts & parts) : m_host (parts.host) {}
+              IDebuggerPane  () = default;
     virtual   ~IDebuggerPane () = default;
 
     IDebuggerPane (const IDebuggerPane &)             = delete;
@@ -459,6 +270,4 @@ public:
     virtual std::vector<DxuiPopupMenuItem>  GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands)
                                          { (void) list; (void) column; (void) commands; return {}; }
 
-protected:
-    IDebuggerPaneHost  & m_host;
 };

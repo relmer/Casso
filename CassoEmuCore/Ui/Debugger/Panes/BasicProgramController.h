@@ -81,6 +81,14 @@ private:
 
     std::vector<DxuiToolbar::Entry>      MakeBarEntries ();
 
+    IDebuggerWindowHost * const         & m_windowHost;
+    const DxuiDpiScaler                 & m_paneScaler;
+    DxuiWindow                          & m_paneWindow;
+    IPaneDialogs                        & m_paneDialogs;
+    IPaneViews                          & m_paneViews;
+    IPaneRouting                        & m_paneRouting;
+    IPanePlaces                         & m_panePlaces;
+    IPaneCommands                       & m_paneCommands;
     const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
     PaneBarSlot                           m_bar;

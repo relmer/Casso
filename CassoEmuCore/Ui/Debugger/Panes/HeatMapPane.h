@@ -120,6 +120,16 @@ private:
     void  SetBarEntries  (bool isCumulative);
     void  ApplyGoTo      (const DebuggerViewSnapshot & snapshot);
 
+    IDebuggerWindowHost * const                & m_windowHost;
+    const DxuiDpiScaler                        & m_paneScaler;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneReplies                               & m_paneReplies;
+    IPaneLayout                                & m_paneLayout;
+    IPaneTips                                  & m_paneTips;
+    IPaneBars                                  & m_paneBars;
+    IPaneRouting                               & m_paneRouting;
+    IPaneFocus                                 & m_paneFocus;
+    IPaneNavigator                             & m_paneNavigator;
     const DebuggerPaneLook                     & m_look;
     Ranges                                       m_ranges;
     PaneBarSlot                                  m_bar;

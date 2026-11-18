@@ -26,10 +26,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 BasicProgramController::BasicProgramController (const DebuggerPaneParts & parts) :
-    IDebuggerPane (parts),
-    m_latest (parts.latest),
-    m_look (parts.look),
-    m_bar         (parts, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
+    m_windowHost   (parts.windowHost),
+    m_paneScaler   (parts.scaler),
+    m_paneWindow   (parts.window),
+    m_paneDialogs  (parts.dialogs),
+    m_paneViews    (parts.views),
+    m_paneRouting  (parts.routing),
+    m_panePlaces   (parts.places),
+    m_paneCommands (parts.commands),
+    m_latest       (parts.latest),
+    m_look         (parts.look),
+    m_bar          (parts, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
 {
 }
 
@@ -76,7 +83,7 @@ const std::wstring & BasicProgramController::GetId() const
 
 void BasicProgramController::CreateControls()
 {
-    m_list  = m_host.GetControlParent().CreateChild<DxuiListView>();
+    m_list  = m_paneWindow.CreateChild<DxuiListView>();
     m_model = std::make_unique<BasicProgramPane> (m_list, [this] (Word line) { ToggleBreakpoint (line); });
 
     m_bar.Create();
@@ -95,7 +102,7 @@ void BasicProgramController::CreateControls()
 void BasicProgramController::Configure()
 {
     m_model->Configure (CodeMargins::kGlyphDip);
-    m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
+    m_list->SetOwnerWindow (m_paneRouting.GetOwnerHwnd());
     m_list->SetOnPaste     ([this] { Paste(); });
 
     m_bar.Configure();
@@ -242,7 +249,7 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
 
     if (isStop && snapshot.stopReason != StopReason::Step && snapshot.stopReason != StopReason::RunTo && IsMachineStop (snapshot) && m_list->IsVisible())
     {
-        m_host.OpenPane (DebuggerLayout::GetCodePaneId (snapshot.followView), false);
+        m_panePlaces.OpenPane (DebuggerLayout::GetCodePaneId (snapshot.followView), false);
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
@@ -346,7 +353,7 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
     (void) UpdateWrap();
 
     m_model->SetStyle (style);
-    m_model->SetHeat  (snapshot.heatColumns, m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_look.GetHeatPalette()) : std::nullopt);
+    m_model->SetHeat  (snapshot.heatColumns, m_paneViews.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_look.GetHeatPalette()) : std::nullopt);
     m_model->Apply    (basic, snapshot.breakpoints);
 
     if (m_pendingLine.has_value() && basic.has_value() && basic->hasProgram)
@@ -383,8 +390,8 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
 bool BasicProgramController::UpdateWrap()
 {
     constexpr float        kListingShare = 2.0f / 3.0f;
-    IDxuiTextRenderer    * text          = m_host.GetPaneTextRenderer();
-    const DxuiDpiScaler  & scaler        = m_host.GetPaneScaler();
+    IDxuiTextRenderer    * text          = m_paneWindow.GetTextRenderer();
+    const DxuiDpiScaler  & scaler        = m_paneScaler;
     const RECT           & bounds        = m_list->GetBounds();
     float                  fontPx        = scaler.ToPxf (m_list->GetFontSizeDip());
     const wchar_t        * face          = m_list->GetFace();
@@ -432,8 +439,8 @@ bool BasicProgramController::UpdateWrap()
 
 bool BasicProgramController::Tick (int64_t nowMs)
 {
-    IDebuggerWindowHost  * host     = m_host.GetWindowHost();
-    bool                   isWanted = m_host.IsPaneOpen (DebuggerLayout::kBasicProgram) && m_list->IsVisible();
+    IDebuggerWindowHost  * host     = m_windowHost;
+    bool                   isWanted = m_panePlaces.IsPaneOpen (DebuggerLayout::kBasicProgram) && m_list->IsVisible();
     bool                   isFading = m_isReading && m_model->Tick (nowMs);
 
 
@@ -470,7 +477,7 @@ bool BasicProgramController::Tick (int64_t nowMs)
 
 bool BasicProgramController::RouteEarlyMouse (const DxuiMouseEvent & ev)
 {
-    return m_list != nullptr && m_host.IsRoutable (m_list) && m_list->IsVisible() && m_model->OnGutterMouse (ev);
+    return m_list != nullptr && m_paneRouting.IsRoutable (m_list) && m_list->IsVisible() && m_model->OnGutterMouse (ev);
 }
 
 
@@ -505,7 +512,7 @@ void BasicProgramController::ToggleBreakpoint (Word line)
     action = id.has_value() ? BreakpointActions::GetClearBreakpoint (*id, m_latest.GetMode())
                             : BreakpointActions::GetDefineBreakpoint (definition, m_latest.GetMode());
 
-    m_host.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
+    m_paneCommands.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
 }
 
 
@@ -564,7 +571,7 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
         return false;
     }
 
-    items.push_back ({ L"Copy",  [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy",  [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     items.push_back ({ L"Paste", [this] { Paste(); } });
 
     //  The line's breakpoint rows, as the disassembly's are.
@@ -586,7 +593,7 @@ bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMen
                                      [this, at = *line] { ToggleBreakpoint (at); },
                                      [this, bp = id.value_or (-1)] (bool on)
                                      {
-                                         m_host.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions,
+                                         m_paneCommands.RunAction (BreakpointActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions,
                                                                                                  { BreakpointActions::GetEnableBreakpoint (bp, on, m_latest.GetMode()) }, {} }));
                                      },
                                      [this, at = *line] { ToggleBreakpoint (at); });
@@ -614,11 +621,11 @@ void BasicProgramController::ShowLine (Word line, bool isFocused)
 {
     if (isFocused)
     {
-        m_host.OpenPane (DebuggerLayout::kBasicProgram, true);
+        m_panePlaces.OpenPane (DebuggerLayout::kBasicProgram, true);
     }
     else
     {
-        m_host.OpenPane (DebuggerLayout::kBasicProgram, false);
+        m_panePlaces.OpenPane (DebuggerLayout::kBasicProgram, false);
     }
 
     m_model->ShowLine (line);
@@ -663,7 +670,7 @@ bool BasicProgramController::OnMappedAction (DebuggerKeySchemes::Action action, 
         return false;
     }
 
-    m_host.RunAction (RunActions::GetBasicStep (*verb, m_latest.GetMode()));
+    m_paneCommands.RunAction (RunActions::GetBasicStep (*verb, m_latest.GetMode()));
     return true;
 }
 
@@ -688,7 +695,7 @@ void BasicProgramController::LoadPicked()
 
     spec.filters = { { L"Applesoft listings", L"*.bas" }, { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
 
-    hr = DebuggerFilePicker::PickToOpen (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "basic", spec, chosen, picked);
+    hr = DebuggerFilePicker::PickToOpen (m_windowHost, m_paneRouting.GetOwnerHwnd(), "basic", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -721,13 +728,13 @@ void BasicProgramController::Load (const std::wstring & path, const std::wstring
 
 
     if (!isKnownEmpty &&
-        m_host.ShowMessageBox (m_host.GetOwnerHwnd(), std::format (L"Replace the BASIC program in memory with {}?", name), L"Load BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+        m_paneDialogs.ShowMessageBox (m_paneRouting.GetOwnerHwnd(), std::format (L"Replace the BASIC program in memory with {}?", name), L"Load BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
     {
         return;
     }
 
-    m_host.RunAction (SessionActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), m_latest.GetMode()));
-    m_host.OpenPane  (DebuggerLayout::kBasicProgram, true);
+    m_paneCommands.RunAction (SessionActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), m_latest.GetMode()));
+    m_panePlaces.OpenPane (DebuggerLayout::kBasicProgram, true);
 }
 
 
@@ -752,7 +759,7 @@ void BasicProgramController::Paste()
 
 
 
-    if (!DxuiClipboard::GetText (m_host.GetOwnerHwnd(), text) || text.find_first_not_of (L" \t\r\n") == std::wstring::npos)
+    if (!DxuiClipboard::GetText (m_paneRouting.GetOwnerHwnd(), text) || text.find_first_not_of (L" \t\r\n") == std::wstring::npos)
     {
         return;
     }
@@ -795,18 +802,18 @@ void BasicProgramController::Save()
 
 
 
-    BAIL_OUT_IF (m_host.GetWindowHost() == nullptr, S_OK);
+    BAIL_OUT_IF (m_windowHost == nullptr, S_OK);
 
     spec.filters          = { { L"Applesoft listings", L"*.bas" }, { L"All files", L"*.*" } };
     spec.defaultExtension = L"bas";
     spec.defaultFileName  = L"program.bas";
 
-    hr = DebuggerFilePicker::PickToSave (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "basic", spec, chosen, picked);
+    hr = DebuggerFilePicker::PickToSave (m_windowHost, m_paneRouting.GetOwnerHwnd(), "basic", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (SessionActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), m_latest.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), m_latest.GetMode()));
 
 Error:
     return;
@@ -830,11 +837,11 @@ void BasicProgramController::Clear()
 
 
     if (!isKnownEmpty &&
-        m_host.ShowMessageBox (m_host.GetOwnerHwnd(), L"Clear the BASIC program in memory?", L"Clear BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+        m_paneDialogs.ShowMessageBox (m_paneRouting.GetOwnerHwnd(), L"Clear the BASIC program in memory?", L"Clear BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
     {
         return;
     }
 
-    m_host.RunAction (SessionActions::GetClearBasic (m_latest.GetMode()));
-    m_host.OpenPane  (DebuggerLayout::kBasicProgram, true);
+    m_paneCommands.RunAction (SessionActions::GetClearBasic (m_latest.GetMode()));
+    m_panePlaces.OpenPane (DebuggerLayout::kBasicProgram, true);
 }

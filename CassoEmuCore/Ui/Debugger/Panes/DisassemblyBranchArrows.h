@@ -1,10 +1,9 @@
 #pragma once
 
 #include "Ui/Debugger/BranchArrow.h"
+#include "Ui/Debugger/Panes/DebuggerPaneParts.h"
 
 class DisassemblyGroup;
-class IDebuggerPaneHost;
-struct DebuggerPaneParts;
 class DebuggerPaneLook;
 class LatestSnapshot;
 class IDxuiPainter;
@@ -46,7 +45,8 @@ private:
     bool  GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
     void  ClickSourceArrow  (SourcePane & document);
 
-    IDebuggerPaneHost       & m_host;
+    IPaneRouting            & m_paneRouting;
+    IPaneNavigator          & m_paneNavigator;
     const LatestSnapshot    & m_latest;
     const DebuggerPaneLook  & m_look;
     DisassemblyGroup        & m_group;

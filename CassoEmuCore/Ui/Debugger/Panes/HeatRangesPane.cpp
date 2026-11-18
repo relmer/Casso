@@ -22,8 +22,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 HeatRangesPane::HeatRangesPane (const DebuggerPaneParts & parts, HeatMapPane & heatMap) :
-    IDebuggerPane (parts),
-    m_look (parts.look),
+    m_windowHost  (parts.windowHost),
+    m_paneScaler  (parts.scaler),
+    m_paneWindow  (parts.window),
+    m_paneDialogs (parts.dialogs),
+    m_paneLayout  (parts.layout),
+    m_paneBars    (parts.bars),
+    m_paneRouting (parts.routing),
+    m_paneFocus   (parts.focus),
+    m_panePlaces  (parts.places),
+    m_look        (parts.look),
     m_heatMap     (heatMap),
     m_bar         (parts, DebuggerLayout::kHeatRanges, L"Heat map range commands")
 {
@@ -75,8 +83,8 @@ const std::wstring & HeatRangesPane::GetId() const
 
 void HeatRangesPane::CreateControls()
 {
-    m_error = m_host.GetControlParent().CreateChild<DxuiLabel>();
-    m_list  = m_host.GetControlParent().CreateChild<DxuiEditableGrid>();
+    m_error = m_paneWindow.CreateChild<DxuiLabel>();
+    m_list  = m_paneWindow.CreateChild<DxuiEditableGrid>();
     m_bar.Create();
 }
 
@@ -94,7 +102,7 @@ void HeatRangesPane::CreateControls()
 
 void HeatRangesPane::CreateOverlays()
 {
-    m_editor = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+    m_editor = m_paneWindow.CreateChild<DxuiTextInput>();
 }
 
 
@@ -144,7 +152,7 @@ void HeatRangesPane::Configure()
     m_list->SetGridColumns         (std::move (columns));
     m_list->SetAddRowText          (L"Add new range");
     m_list->SetAlwaysShowSelection (true);
-    m_list->SetEditorHwnd          (m_host.GetOwnerHwnd());
+    m_list->SetEditorHwnd          (m_paneRouting.GetOwnerHwnd());
     m_list->SetEditorMaxLength     (kEditMaxChars);
     m_list->SetSelectOnCheckPress (false);
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked) { ToggleRange (row, checked); });
@@ -159,7 +167,7 @@ void HeatRangesPane::Configure()
 
     m_editor->SetVisible   (false);
     m_editor->SetOverText  (true);
-    m_editor->SetHwnd      (m_host.GetOwnerHwnd());
+    m_editor->SetHwnd      (m_paneRouting.GetOwnerHwnd());
     m_editor->SetMaxLength (kEditMaxChars);
 
     SetMenus();
@@ -180,7 +188,7 @@ void HeatRangesPane::Configure()
 
 void HeatRangesPane::LoadSets()
 {
-    IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = m_windowHost;
     std::string            text       = (windowHost != nullptr) ? windowHost->GetDebuggerHeatMapRanges() : std::string();
 
 
@@ -374,7 +382,7 @@ void HeatRangesPane::OpenForShownSet()
         EditRangeSet (m_sets.shown);
     }
 
-    m_host.OpenPane (GetId(), true);
+    m_panePlaces.OpenPane (GetId(), true);
 }
 
 
@@ -398,7 +406,7 @@ bool HeatRangesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 
     if (m_list->CanDeleteRow (row))
     {
-        items.push_back ({ L"Delete", [this, row] { m_list->DeleteRow (row); m_host.Repaint(); } });
+        items.push_back ({ L"Delete", [this, row] { m_list->DeleteRow (row); m_paneLayout.Repaint(); } });
     }
     else if (row >= 0 && GetEditedSet() != nullptr && row < (int) GetEditedSet()->ranges.size())
     {
@@ -607,7 +615,7 @@ void HeatRangesPane::RunBarEntry (int id)
         break;
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -647,7 +655,7 @@ bool HeatRangesPane::AddRange (const std::vector<std::wstring> & texts, std::wst
     set->ranges.push_back (range);
     Save();
     ApplyRanges();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -680,7 +688,7 @@ bool HeatRangesPane::CommitCell (int row, int column, const std::wstring & text,
 
     Save();
     ApplyRanges();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
     return true;
 }
 
@@ -717,7 +725,7 @@ void HeatRangesPane::RemoveRange (int row)
     SetError ({});
     ApplyRanges();
     Save();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -797,10 +805,10 @@ void HeatRangesPane::BeginEdit (int row, HeatMapRangeSets::Field field)
 {
     if (m_list->BeginEdit (row, (int) field + kFirstFieldColumn))
     {
-        m_host.FocusControl (m_list);
+        m_paneFocus.FocusControl (m_list);
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -833,14 +841,14 @@ void HeatRangesPane::BeginSetNameEdit (bool isNew)
 
     m_edit = Edit { isNew, true };
 
-    m_editor->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_editor->SetTextRenderer (m_paneWindow.GetTextRenderer());
     m_editor->SetFont         (DxuiTheme::kBodyFace, m_list->GetFontSizeDip());
     m_editor->SetText         (TextEncoding::Utf8ToWide (m_editedSet));
-    m_editor->Layout          (entry, m_host.GetPaneScaler());
+    m_editor->Layout          (entry, m_paneScaler);
     m_editor->SetVisible      (true);
-    m_host.FocusControl                  (m_editor);
+    m_paneFocus.FocusControl (m_editor);
     m_editor->SelectAll();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -869,7 +877,7 @@ void HeatRangesPane::EndEdit (bool commit)
     if (!m_edit.isSetName)
     {
         m_list->EndEdit (commit);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
         return;
     }
 
@@ -887,12 +895,12 @@ void HeatRangesPane::EndEdit (bool commit)
 
     m_edit = Edit {};
     m_editor->SetVisible (false);
-    m_host.FocusControl             (m_list);
+    m_paneFocus.FocusControl (m_list);
     SetError             ({});
     Save();
     ApplyRanges();
     SetMenus();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -922,7 +930,7 @@ void HeatRangesPane::ToggleRange (int row, bool included)
 
     Save();
     ApplyRanges();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -945,7 +953,7 @@ void HeatRangesPane::ShowRangeSet (const std::string & name)
     Save();
     ApplyRanges();
     SetMenus();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -972,7 +980,7 @@ void HeatRangesPane::EditRangeSet (const std::string & name)
     m_list->SetSelectedRow (-1);
     ApplyRows();
     SetMenus();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1117,9 +1125,9 @@ void HeatRangesPane::ApplyRows()
 
 void HeatRangesPane::Save()
 {
-    if (m_host.GetWindowHost() != nullptr)
+    if (m_windowHost != nullptr)
     {
-        m_host.GetWindowHost()->SetDebuggerHeatMapRanges (m_sets.ToText());
+        m_windowHost->SetDebuggerHeatMapRanges (m_sets.ToText());
     }
 }
 
@@ -1148,7 +1156,7 @@ void HeatRangesPane::SetError (const std::string & error)
         m_frame->Relayout();
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1272,7 +1280,7 @@ bool HeatRangesPane::RouteEditMouse (const DxuiMouseEvent & ev)
     if (DxuiDockSite::Contains (box, ev.positionDip))
     {
         m_editor->OnMouse (ev);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
         return true;
     }
 
@@ -1316,7 +1324,7 @@ bool HeatRangesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
             m_editor->OnKey (ev);
         }
 
-        m_host.RepaintLater();
+        m_paneLayout.RepaintLater();
         return true;
     }
 
@@ -1329,7 +1337,7 @@ bool HeatRangesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
         (isPlain && (ev.vk == VK_DELETE || ev.vk == VK_INSERT || ev.vk == VK_F2 || ev.vk == VK_RETURN)))
     {
         (void) m_list->OnKey (ev);
-        m_host.RepaintLater();
+        m_paneLayout.RepaintLater();
         return true;
     }
 
@@ -1351,13 +1359,13 @@ bool HeatRangesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
 
 bool HeatRangesPane::ConfirmDeleteSet()
 {
-    DxuiWindow    * host     = m_host.GetPaneWindow (DebuggerLayout::kHeatRanges);
+    DxuiWindow    * host     = m_paneBars.GetPaneWindow (DebuggerLayout::kHeatRanges);
     std::wstring    question = std::format (L"Delete the range set \"{}\"?", TextEncoding::Utf8ToWide (m_editedSet));
     int             answer   = IDCANCEL;
 
 
 
-    answer = m_host.ShowMessageBox ((host != nullptr) ? host->GetHwnd() : m_host.GetOwnerHwnd(), question, L"Delete range set", MB_ICONWARNING,
+    answer = m_paneDialogs.ShowMessageBox ((host != nullptr) ? host->GetHwnd() : m_paneRouting.GetOwnerHwnd(), question, L"Delete range set", MB_ICONWARNING,
                                     { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
 
     return answer == IDYES;

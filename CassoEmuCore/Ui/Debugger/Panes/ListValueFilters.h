@@ -52,7 +52,8 @@ public:
 private:
     void  ShowMenu (size_t column, RECT chevronPx);
 
-    IDebuggerPaneHost                          & m_host;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneLayout                                & m_paneLayout;
     DxuiListView                               * m_list = nullptr;
     std::vector<size_t>                          m_columns;
     std::map<size_t, std::set<std::wstring>>     m_present;

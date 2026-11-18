@@ -59,7 +59,10 @@ private:
         std::wstring       text;
     };
 
-    IDebuggerPaneHost     & m_host;
+    IPaneReplies          & m_paneReplies;
+    IPaneDialogs          & m_paneDialogs;
+    IPaneRouting          & m_paneRouting;
+    IPaneCommands         & m_paneCommands;
     const LatestSnapshot  & m_latest;
     const ICodeViews      & m_views;
     std::vector<Edit>       m_undo;

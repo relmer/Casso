@@ -28,13 +28,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DisassemblyViewPane::DisassemblyViewPane (const DebuggerPaneParts & parts, DisassemblyGroup & group, int view, MemoryWindowGroup & memory) :
-    IDebuggerPane (parts),
-    m_memory (memory),
-    m_latest (parts.latest),
-    m_group       (group),
-    m_view        (view),
-    m_id          (DebuggerLayout::GetCodePaneId (view)),
-    m_bar         (parts, m_id, L"Disassembly options")
+    m_windowHost    (parts.windowHost),
+    m_paneWindow    (parts.window),
+    m_paneBars      (parts.bars),
+    m_paneRouting   (parts.routing),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands  (parts.commands),
+    m_memory        (memory),
+    m_latest        (parts.latest),
+    m_group         (group),
+    m_view          (view),
+    m_id            (DebuggerLayout::GetCodePaneId (view)),
+    m_bar           (parts, m_id, L"Disassembly options")
 {
 }
 
@@ -118,7 +123,7 @@ int DisassemblyViewPane::GetStopFocusRank() const
 
 void DisassemblyViewPane::CreateControls()
 {
-    DxuiPanel  & parent = m_host.GetControlParent();
+    DxuiPanel  & parent = m_paneWindow;
 
 
 
@@ -138,7 +143,7 @@ void DisassemblyViewPane::CreateControls()
     if (m_view == 0)
     {
         m_historyBand = parent.CreateChild<HistoryBand>();
-        m_historyBand->SetOnGoLive ([this] { m_host.GoLive(); });
+        m_historyBand->SetOnGoLive ([this] { m_paneNavigator.GoLive(); });
     }
 }
 
@@ -219,7 +224,7 @@ std::optional<Word> DisassemblyViewPane::GetFindStart (bool isTop) const
 
 void DisassemblyViewPane::SelectFound (Word address)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -255,10 +260,10 @@ void DisassemblyViewPane::Configure()
 
 
 
-    entries.push_back (m_host.GetFindEntry (GetId()));
+    entries.push_back (m_paneBars.GetFindEntry (GetId()));
 
-    bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
-    bar->SetPopupHost     (m_host.GetPanePopupHost());
+    bar->SetTextRenderer  (m_paneWindow.GetTextRenderer());
+    bar->SetPopupHost     (m_paneWindow.GetPopupHost());
     bar->SetCompact       (true);
     bar->SetPaneTextInset (true);
     bar->SetEntries       (std::move (entries));
@@ -271,7 +276,7 @@ void DisassemblyViewPane::Configure()
 
     m_list->SetActivateOnDoubleClick (true);
     m_list->SetTextSelection         (true);
-    m_list->SetOwnerWindow           (m_host.GetOwnerHwnd());
+    m_list->SetOwnerWindow           (m_paneRouting.GetOwnerHwnd());
 }
 
 
@@ -311,7 +316,7 @@ bool DisassemblyViewPane::TryGetOpened (bool & isOpened) const
 
 bool DisassemblyViewPane::RequestOpen()
 {
-    IDebuggerWindowHost         * host     = m_host.GetWindowHost();
+    IDebuggerWindowHost         * host     = m_windowHost;
     const DebuggerViewSnapshot  * snapshot = m_latest.Get();
 
 
@@ -336,7 +341,7 @@ bool DisassemblyViewPane::RequestOpen()
 
 bool DisassemblyViewPane::RequestClose()
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -517,7 +522,7 @@ bool DisassemblyViewPane::RouteBarMouse (const DxuiMouseEvent & ev)
     }
 
     return m_historyBand != nullptr && m_historyBand->IsVisible() && DxuiDockSite::Contains (m_historyBand->GetBounds(), ev.positionDip) &&
-           m_host.IsBarRouted (GetId()) && m_historyBand->OnMouse (ev);
+           m_paneRouting.IsBarRouted (GetId()) && m_historyBand->OnMouse (ev);
 }
 
 
@@ -541,7 +546,7 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     int                           index    = m_group.GetMenuLineOfRow (m_view, row);
     RECT                          bounds   = m_list->GetBounds();
-    int                           column   = DensePaneList::GetColumnAt (m_list, m_host.GetLastPressPx().x - bounds.left);
+    int                           column   = DensePaneList::GetColumnAt (m_list, m_paneRouting.GetLastPressPx().x - bounds.left);
 
 
 
@@ -561,32 +566,32 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
 
 
-    items.push_back ({ L"Run to cursor", [this, at] { m_host.RunAction (RunActions::GetRunToCursor (at)); } });
+    items.push_back ({ L"Run to cursor", [this, at] { m_paneCommands.RunAction (RunActions::GetRunToCursor (at)); } });
 
     if (snapshot->isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
     {
         items.push_back ({ L"Set next statement", [this, at] { m_group.GetGutter().SetNextStatement (at); } });
     }
 
-    items.push_back ({ L"Show next statement", [this] { m_host.GoToCode (std::nullopt); } });
+    items.push_back ({ L"Show next statement", [this] { m_paneNavigator.GoToCode (std::nullopt); } });
     items.push_back (PaneMenu::MakeSeparator());
 
     if (line.hasBreakpoint)
     {
         PaneMenu::AddBreakpointRows (items, line.isEnabled, nullptr,
                                      (breakpoint == snapshot->breakpoints.end()) ? std::function<void (bool)>()
-                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_latest.GetMode())); },
-                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_latest.Get(), at, m_latest.GetMode())); });
+                                         : [this, id = breakpoint->id] (bool enable) { m_paneCommands.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_latest.GetMode())); },
+                                     [this, at] { m_paneCommands.RunAction (BreakpointActions::GetToggleBreakpoint (*m_latest.Get(), at, m_latest.GetMode())); });
     }
     else if (DisassemblyOptions::CanTakeBreakpoint (line))
     {
         PaneMenu::AddBreakpointRows (items, std::nullopt,
-                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_latest.Get(), at, m_latest.GetMode())); },
+                                     [this, at] { m_paneCommands.RunAction (BreakpointActions::GetToggleBreakpoint (*m_latest.Get(), at, m_latest.GetMode())); },
                                      nullptr, nullptr);
     }
 
     items.push_back (PaneMenu::MakeSeparator());
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
 
     if (column >= (int) DisassemblyCells::kInstructionColumn && !line.memoryOperand.empty())
     {

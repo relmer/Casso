@@ -132,6 +132,11 @@ private:
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
     void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
+    DxuiWindow                    & m_paneWindow;
+    IPaneLayout                   & m_paneLayout;
+    IPaneRouting                  & m_paneRouting;
+    IPaneFocus                    & m_paneFocus;
+    IPaneCommands                 & m_paneCommands;
     MemoryWindowGroup             & m_memory;
     const LatestSnapshot          & m_latest;
     const DebuggerPaneLook        & m_look;

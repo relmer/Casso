@@ -2007,6 +2007,7 @@
     <ClInclude Include="Ui\Debugger\DebuggerFilePicker.h" />
     <ClInclude Include="Ui\Debugger\LatestSnapshot.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneParts.h" />
+    <ClInclude Include="Ui\Debugger\Panes\PaneHostInterfaces.h" />
     <ClInclude Include="Ui\Debugger\Panes\PaneMenuRows.h" />
     <ClInclude Include="Ui\Debugger\DebuggerWindowText.h" />
     <ClInclude Include="Ui\Debugger\GoToAddressText.h" />

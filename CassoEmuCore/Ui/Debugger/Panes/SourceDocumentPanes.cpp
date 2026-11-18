@@ -30,13 +30,20 @@ namespace fs = std::filesystem;
 ////////////////////////////////////////////////////////////////////////////////
 
 SourceDocumentPane::SourceDocumentPane (const DebuggerPaneParts & parts, SourceDocumentGroup & group, int slot) :
-    IDebuggerPane (parts),
-    m_latest (parts.latest),
-    m_look (parts.look),
-    m_group       (group),
-    m_slot        (slot),
-    m_id          (DebuggerLayout::GetSourcePaneId (slot)),
-    m_bar         (parts, m_id, L"Source commands")
+    m_windowHost    (parts.windowHost),
+    m_paneWindow    (parts.window),
+    m_paneViews     (parts.views),
+    m_paneBars      (parts.bars),
+    m_paneRouting   (parts.routing),
+    m_paneTabs      (parts.tabs),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands  (parts.commands),
+    m_latest        (parts.latest),
+    m_look          (parts.look),
+    m_group         (group),
+    m_slot          (slot),
+    m_id            (DebuggerLayout::GetSourcePaneId (slot)),
+    m_bar           (parts, m_id, L"Source commands")
 {
 }
 
@@ -83,7 +90,7 @@ const std::wstring & SourceDocumentPane::GetId() const
 void SourceDocumentPane::CreateControls()
 {
     constexpr float kBannerPadDip = 5.0f;
-    DxuiPanel     & parent        = m_host.GetControlParent();
+    DxuiPanel     & parent        = m_paneWindow;
 
 
 
@@ -95,11 +102,11 @@ void SourceDocumentPane::CreateControls()
         m_view, m_banner,
         [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
         {
-            IDebuggerWindowHost  * host = m_host.GetWindowHost();
+            IDebuggerWindowHost  * host = m_windowHost;
 
             return (host != nullptr) ? host->FindDebuggerSource (record, path, key) : SourceLookup();
         },
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_latest.GetMode())); });
+        [this] (const DebuggerActionBuilder & build) { m_paneCommands.RunAction (build (m_latest.GetMode())); });
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
@@ -123,10 +130,10 @@ void SourceDocumentPane::CreateControls()
 
 void SourceDocumentPane::Configure()
 {
-    m_model->Configure (m_host.GetOwnerHwnd());
+    m_model->Configure (m_paneRouting.GetOwnerHwnd());
 
     m_bar.Configure();
-    m_bar.GetBar()->SetEntries ({ m_host.GetFindEntry (GetId()) });
+    m_bar.GetBar()->SetEntries ({ m_paneBars.GetFindEntry (GetId()) });
 }
 
 
@@ -168,7 +175,7 @@ void SourceDocumentPane::AddToDock (DxuiDockSite & dock)
     m_frame->AddPart (m_banner,
                       [this] (int width, const DxuiDpiScaler & scaler)
                       {
-                          IDxuiTextRenderer  * text = m_host.GetPaneTextRenderer();
+                          IDxuiTextRenderer  * text = m_paneWindow.GetTextRenderer();
 
                           //  Measured where a renderer exists: the estimate is from an
                           //  average glyph width, and a long path in a wide face ran
@@ -324,7 +331,7 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
 
     if (address.has_value())
     {
-        items.push_back ({ L"Go to disassembly", [this, at = *address] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Go to disassembly", [this, at = *address] { m_paneNavigator.GoToCode (at); } });
     }
 
     if (!m_model->TryGetLineBreakpoint (clientPx, line, breakpoint))
@@ -342,15 +349,15 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
 
             if (action.has_value())
             {
-                m_host.RunAction (*action);
+                m_paneCommands.RunAction (*action);
             }
         }, nullptr, nullptr);
         return;
     }
 
     PaneMenu::AddBreakpointRows (items, breakpoint->isEnabled, nullptr,
-                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_latest.GetMode())); },
-                                 [this, id = breakpoint->id] { m_host.RunAction (BreakpointActions::GetClearBreakpoint (id, m_latest.GetMode())); });
+                                 [this, id = breakpoint->id] (bool enable) { m_paneCommands.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_latest.GetMode())); },
+                                 [this, id = breakpoint->id] { m_paneCommands.RunAction (BreakpointActions::GetClearBreakpoint (id, m_latest.GetMode())); });
 }
 
 
@@ -393,7 +400,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
                               m_look.GetHoverBreakpointIcon() });
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);
-    m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_look.GetHeatPalette()) : std::nullopt);
+    m_model->SetHeat       (m_paneViews.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_look.GetHeatPalette()) : std::nullopt);
 
     m_model->SetBookmarkMark (m_look.GetBookmarkMark (nullptr));
 
@@ -402,7 +409,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
     if (title != m_title)
     {
         m_title = title;
-        m_host.SetPaneTitle (GetId(), title);
+        m_paneTabs.SetPaneTitle (GetId(), title);
     }
 
     bannerKey     = m_banner->GetText() + (m_banner->GetAction (0) != nullptr ? m_banner->GetAction (0)->GetAccessibleName() : L"");
@@ -440,7 +447,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
         tip += (tip.empty() ? L"" : L"\n") + std::wstring (L"The PC is in this file");
     }
 
-    m_host.SetPaneTabMark (GetId(), mark, tip);
+    m_paneTabs.SetPaneTabMark (GetId(), mark, tip);
     return relayout;
 }
 
@@ -455,7 +462,14 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 ////////////////////////////////////////////////////////////////////////////////
 
 SourceDocumentGroup::SourceDocumentGroup (const DebuggerPaneParts & parts) :
-    m_host (parts.host),
+    m_windowHost (parts.windowHost),
+    m_paneViews (parts.views),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_paneTabs (parts.tabs),
+    m_panePlaces (parts.places),
+    m_paneCommands (parts.commands),
     m_latest (parts.latest),
     m_parts (parts)
 {
@@ -576,7 +590,7 @@ void SourceDocumentGroup::Apply()
 
     if (relayout)
     {
-        m_host.RelayoutDock();
+        m_paneLayout.RelayoutDock();
     }
 
     //  A source opened before its debug file loaded, matched against it now.
@@ -632,8 +646,8 @@ void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
     {
         if (wasLine && m_hasFollowedPc && isOpen)
         {
-            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (snapshot.followView));
-            m_host.RelayoutDock();
+            m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (snapshot.followView));
+            m_paneLayout.RelayoutDock();
         }
 
         return;
@@ -688,7 +702,7 @@ void SourceDocumentGroup::Open (int fileId, int line, bool activate)
     if (activate)
     {
         Activate (slot);
-        m_host.FocusControl (m_documents[(size_t) slot]->GetView());
+        m_paneFocus.FocusControl (m_documents[(size_t) slot]->GetView());
     }
 }
 
@@ -704,9 +718,9 @@ void SourceDocumentGroup::Open (int fileId, int line, bool activate)
 
 void SourceDocumentGroup::Activate (int slot)
 {
-    m_host.ActivatePaneTab (DebuggerLayout::GetSourcePaneId (slot));
+    m_paneTabs.ActivatePaneTab (DebuggerLayout::GetSourcePaneId (slot));
     m_activeSlot = slot;
-    m_host.RelayoutDock();
+    m_paneLayout.RelayoutDock();
 }
 
 
@@ -724,7 +738,7 @@ void SourceDocumentGroup::Activate (int slot)
 
 bool SourceDocumentGroup::IsFocusKept (int slot) const
 {
-    std::wstring  focus      = m_host.GetFocusPane();
+    std::wstring  focus      = m_paneFocus.GetFocusPane();
     bool          isDocument = false;
 
 
@@ -734,7 +748,7 @@ bool SourceDocumentGroup::IsFocusKept (int slot) const
         isDocument = isDocument || focus == DebuggerLayout::GetSourcePaneId (each);
     }
 
-    return !focus.empty() && !isDocument && m_host.IsSameTabGroup (focus, DebuggerLayout::GetSourcePaneId (slot));
+    return !focus.empty() && !isDocument && m_panePlaces.IsSameTabGroup (focus, DebuggerLayout::GetSourcePaneId (slot));
 }
 
 
@@ -764,7 +778,7 @@ void SourceDocumentGroup::Close (int slot)
     if (m_latest.Get() != nullptr)
     {
         Apply();
-        m_host.SaveOpenViews();
+        m_paneViews.SaveOpenViews();
     }
 }
 
@@ -999,7 +1013,7 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
     }
 
     //  A document behind another tab takes no input.
-    if (!document->IsShown() || !view->IsVisible() || !m_host.IsRoutable (view))
+    if (!document->IsShown() || !view->IsVisible() || !m_paneRouting.IsRoutable (view))
     {
         return false;
     }
@@ -1044,7 +1058,7 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         m_clickAt = at;
 
         m_activeSlot = slot;
-        m_host.FocusControl  (view);
+        m_paneFocus.FocusControl (view);
         FollowFocus();
 
         //  A press on the glyph margin sets or clears a breakpoint, as the
@@ -1088,14 +1102,14 @@ void SourceDocumentGroup::HoverGutters (POINT atDip, int dragSlot)
 
     for (SourceDocumentPane * document : m_documents)
     {
-        bool  isOver = dragSlot < 0 && document->IsShown() && document->GetView()->IsVisible() && m_host.IsRoutable (document->GetView());
+        bool  isOver = dragSlot < 0 && document->IsShown() && document->GetView()->IsVisible() && m_paneRouting.IsRoutable (document->GetView());
 
         changed = document->GetModel().SetGutterHover (isOver ? atDip : kNowhere) || changed;
     }
 
     if (changed)
     {
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 }
 
@@ -1163,7 +1177,7 @@ std::string SourceDocumentGroup::FormatOpen (const std::function<std::string (in
 
 void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
 {
-    IDebuggerWindowHost         * host     = m_host.GetWindowHost();
+    IDebuggerWindowHost         * host     = m_windowHost;
     const DebuggerViewSnapshot  * snapshot = m_latest.Get();
     SourceLookup                  lookup;
     int                           index    = -1;
@@ -1186,7 +1200,7 @@ void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
     {
         if (host->DoesDebuggerFileExist (beside))
         {
-            m_host.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_latest.GetMode()));
+            m_paneCommands.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_latest.GetMode()));
             m_pendingLoose = path;
             break;
         }
@@ -1242,8 +1256,8 @@ void SourceDocumentGroup::OpenLooseFile (const std::wstring & path, const std::s
         Apply();
     }
 
-    m_host.UpdateWindowMenus();
-    m_host.Repaint();
+    m_paneLayout.UpdateWindowMenus();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1307,12 +1321,12 @@ void SourceDocumentGroup::BrowseForSource()
 
     spec.filters = { { L"Source files", L"*.s;*.a65;*.asm;*.inc;*.a;*.src;*.txt" }, { L"All files", L"*.*" } };
 
-    hr = DebuggerFilePicker::PickToOpen (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "source", spec, chosen, picked);
+    hr = DebuggerFilePicker::PickToOpen (m_windowHost, m_paneRouting.GetOwnerHwnd(), "source", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.OpenFiles ({ chosen.wstring() });
+    m_paneCommands.OpenFiles ({ chosen.wstring() });
 
 Error:
     return;
@@ -1337,16 +1351,16 @@ void SourceDocumentGroup::OpenSymbolFile (const std::wstring & thenShow)
 
 
 
-    BAIL_OUT_IF (m_host.GetWindowHost() == nullptr, S_OK);
+    BAIL_OUT_IF (m_windowHost == nullptr, S_OK);
 
     spec.filters = { { L"Debug and symbol files", L"*.dbg;*.sym" }, { L"All files", L"*.*" } };
 
-    hr = DebuggerFilePicker::PickToOpen (m_host.GetWindowHost(), m_host.GetOwnerHwnd(), "symbols", spec, chosen, picked);
+    hr = DebuggerFilePicker::PickToOpen (m_windowHost, m_paneRouting.GetOwnerHwnd(), "symbols", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
+    m_paneCommands.RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
     m_pendingLoose = thenShow;
 
 Error:
@@ -1373,7 +1387,7 @@ void SourceDocumentGroup::FollowFocus()
 
     if (action.has_value())
     {
-        m_host.RunAction (*action);
+        m_paneCommands.RunAction (*action);
     }
 }
 
@@ -1398,7 +1412,7 @@ void SourceDocumentGroup::ShowDropped (const std::wstring & path)
 
 
 
-    lookup = m_host.GetWindowHost()->MatchDroppedDebuggerSource (source.files, path, source.programKey, index);
+    lookup = m_windowHost->MatchDroppedDebuggerSource (source.files, path, source.programKey, index);
 
     if (index < 0 || index >= (int) source.files.size())
     {

@@ -18,13 +18,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddSymbolDialog::Run (IDebuggerPaneHost & host, CommandMode mode, Word address)
+void AddSymbolDialog::Run (IPaneDialogs & dialogs, IPaneCommands & commands, CommandMode mode, Word address)
 {
     std::optional<std::wstring>  typed;
 
 
 
-    typed = host.RunTextDialog (L"Add symbol", L"Name", L"LOOP", [] (const std::wstring & text, std::wstring & error)
+    typed = dialogs.RunTextDialog (L"Add symbol", L"Name", L"LOOP", [] (const std::wstring & text, std::wstring & error)
     {
         bool  isName = !text.empty() && iswalpha (text[0]) &&
                        std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
@@ -37,6 +37,6 @@ void AddSymbolDialog::Run (IDebuggerPaneHost & host, CommandMode mode, Word addr
 
     if (typed.has_value())
     {
-        host.RunAction (SymbolActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, mode));
+        commands.RunAction (SymbolActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, mode));
     }
 }

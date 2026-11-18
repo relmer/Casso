@@ -70,6 +70,14 @@ public:
     void         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
+    IDebuggerWindowHost * const         & m_windowHost;
+    DxuiWindow                          & m_paneWindow;
+    IPaneViews                          & m_paneViews;
+    IPaneBars                           & m_paneBars;
+    IPaneRouting                        & m_paneRouting;
+    IPaneTabs                           & m_paneTabs;
+    IPaneNavigator                      & m_paneNavigator;
+    IPaneCommands                       & m_paneCommands;
     const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
     SourceDocumentGroup                 & m_group;
@@ -187,7 +195,14 @@ private:
     //  The document of a file open on its own, given to the record it matched.
     void                             TakeOverLoose  (const std::wstring & path, int fileId);
 
-    IDebuggerPaneHost                    & m_host;
+    IDebuggerWindowHost * const          & m_windowHost;
+    IPaneViews                           & m_paneViews;
+    IPaneLayout                          & m_paneLayout;
+    IPaneRouting                         & m_paneRouting;
+    IPaneFocus                           & m_paneFocus;
+    IPaneTabs                            & m_paneTabs;
+    IPanePlaces                          & m_panePlaces;
+    IPaneCommands                        & m_paneCommands;
     const LatestSnapshot                 & m_latest;
     const DebuggerPaneParts              & m_parts;
     std::vector<SourceDocumentPane *>      m_documents;

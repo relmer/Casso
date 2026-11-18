@@ -2,11 +2,10 @@
 
 #include "Pch.h"
 
+#include "Ui/Debugger/Panes/DebuggerPaneParts.h"
 #include "Ui/Debugger/Panes/ProfileZoom.h"
 
 class FlameGraphView;
-class IDebuggerPaneHost;
-struct DebuggerPaneParts;
 class ProfileTimeline;
 struct DxuiMouseEvent;
 
@@ -95,21 +94,22 @@ private:
     void  ApplyState  (bool isFlameZoomSet);
     void  PushState   (const ProfileZoom::State & state);
 
-    IDebuggerPaneHost         & m_host;
-    IProfileNavigatorOwner    & m_owner;
-    ProfileTimeline           * m_timeline       = nullptr;
-    FlameGraphView            * m_flameGraph     = nullptr;
-    Profiles                    m_lists;            // the lists' and the flame graph's
-    Profiles                    m_timelineData;
-    ProfileZoom                 m_zoom;
-    std::map<Range, Profiles>   m_built;            // the ranges' profiles since the stack was emptied
-    std::optional<Range>        m_wholeRange;       // the cycles of the profile with no zoom
-    std::optional<Range>        m_timelineRange;    // the cycles of the timeline's profile
-    std::optional<Range>        m_listsRange;       // and of the lists'
-    bool                        m_isSelectionDue = false;
-    std::optional<size_t>       m_flameZoomDue;
-    int64_t                     m_lastWheelMs    = 0;
-    std::optional<int64_t>      m_zoomDueMs;
-    std::optional<int>          m_dragFromX;
-    std::optional<Range>        m_dragRange;
+    IPaneLayout                & m_paneLayout;
+    IPaneRouting               & m_paneRouting;
+    IProfileNavigatorOwner     & m_owner;
+    ProfileTimeline            * m_timeline       = nullptr;
+    FlameGraphView             * m_flameGraph     = nullptr;
+    Profiles                     m_lists;   // the lists' and the flame graph's
+    Profiles                     m_timelineData;
+    ProfileZoom                  m_zoom;
+    std::map<Range, Profiles>    m_built;   // the ranges' profiles since the stack was emptied
+    std::optional<Range>         m_wholeRange;   // the cycles of the profile with no zoom
+    std::optional<Range>         m_timelineRange;   // the cycles of the timeline's profile
+    std::optional<Range>         m_listsRange;   // and of the lists'
+    bool                         m_isSelectionDue = false;
+    std::optional<size_t>        m_flameZoomDue;
+    int64_t                      m_lastWheelMs    = 0;
+    std::optional<int64_t>       m_zoomDueMs;
+    std::optional<int>           m_dragFromX;
+    std::optional<Range>         m_dragRange;
 };

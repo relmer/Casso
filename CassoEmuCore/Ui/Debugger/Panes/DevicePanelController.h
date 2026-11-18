@@ -63,6 +63,14 @@ private:
     void  SetDriveBarEntries ();
     void  SetDrives          (DiskHeadView::DriveChoice choice);
 
+    IDebuggerWindowHost * const                & m_windowHost;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneViews                                 & m_paneViews;
+    IPaneLayout                                & m_paneLayout;
+    IPaneRouting                               & m_paneRouting;
+    IPaneTabs                                  & m_paneTabs;
+    IPanePlaces                                & m_panePlaces;
+    IPaneCommands                              & m_paneCommands;
     const LatestSnapshot                       & m_latest;
     const DebuggerPaneParts                    & m_parts;
     const DebuggerPaneLook                     & m_look;

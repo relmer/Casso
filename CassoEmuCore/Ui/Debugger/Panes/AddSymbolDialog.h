@@ -4,7 +4,8 @@
 
 #include "Debugger/DebugCommand.h"
 
-class IDebuggerPaneHost;
+class IPaneCommands;
+class IPaneDialogs;
 
 
 
@@ -23,5 +24,5 @@ class IDebuggerPaneHost;
 class AddSymbolDialog
 {
 public:
-    static void  Run (IDebuggerPaneHost & host, CommandMode mode, Word address);
+    static void  Run (IPaneDialogs & dialogs, IPaneCommands & commands, CommandMode mode, Word address);
 };

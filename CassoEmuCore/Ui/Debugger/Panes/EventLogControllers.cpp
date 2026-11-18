@@ -40,7 +40,11 @@ static constexpr float  s_kSeverityTint = 0.25f;
 ////////////////////////////////////////////////////////////////////////////////
 
 EventLogController::EventLogController (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, DebugLogKind kind) :
-    IDebuggerPane (parts),
+    m_paneWindow  (parts.window),
+    m_paneDialogs (parts.dialogs),
+    m_paneLayout  (parts.layout),
+    m_paneRouting (parts.routing),
+    m_windowHost  (parts.windowHost),
     m_id          (id),
     m_title       (std::move (title)),
     m_kind        (kind),
@@ -72,7 +76,7 @@ EventLogController::~EventLogController() = default;
 
 void EventLogController::CreateListAndBar()
 {
-    m_list = m_host.GetControlParent().CreateChild<DxuiListView>();
+    m_list = m_paneWindow.CreateChild<DxuiListView>();
     m_bar.Create();
 }
 
@@ -123,7 +127,7 @@ void EventLogController::ShowFilterState()
         m_list->SetColumnFilter (column, filters->GetFilterKind (column) != IEventLogFilter::Kind::None, filters->IsFiltered (column));
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -155,7 +159,7 @@ void EventLogController::ShowColumnFilter (size_t column, RECT chevronPx)
 
 
 
-    if (filters == nullptr || m_host.GetPanePopupHost() == nullptr)
+    if (filters == nullptr || m_paneWindow.GetPopupHost() == nullptr)
     {
         return;
     }
@@ -206,7 +210,7 @@ void EventLogController::ShowColumnFilter (size_t column, RECT chevronPx)
 
     if (!items.empty())
     {
-        DxuiContextMenu::ShowUnder (*m_host.GetPanePopupHost(), chevronPx, std::move (items));
+        DxuiContextMenu::ShowUnder (*m_paneWindow.GetPopupHost(), chevronPx, std::move (items));
     }
 }
 
@@ -246,7 +250,7 @@ void EventLogController::AskComparison (size_t column, IEventLogFilter::Op op)
         return;
     }
 
-    typed = m_host.RunTextDialog (std::format (L"Filter {}", heading), isBetween ? L"From and to" : L"Value",
+    typed = m_paneDialogs.RunTextDialog (std::format (L"Filter {}", heading), isBetween ? L"From and to" : L"Value",
                                   isBetween ? L"100 to 200" : L"as the column shows it",
                                   [filters, column, isBetween, split] (const std::wstring & text, std::wstring & error)
     {
@@ -498,7 +502,7 @@ void EventLogController::OnWindowClose()
 
 bool EventLogController::CopyRows (bool isAll)
 {
-    DxuiClipboard::SetText (m_host.GetOwnerHwnd(), GetModelText (!isAll));
+    DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), GetModelText (!isAll));
     return true;
 }
 
@@ -598,6 +602,10 @@ bool EventLogController::AddColumnMenuItems (DxuiListView * list, std::vector<st
 
 DiskLogController::DiskLogController (const DebuggerPaneParts & parts) :
     EventLogController (parts, DebuggerLayout::kDiskLog, L"Disk II log", DebugLogKind::Disk),
+    m_paneWindow (parts.window),
+    m_paneBars (parts.bars),
+    m_paneRouting (parts.routing),
+    m_panePlaces (parts.places),
     m_look (parts.look)
 {
 }
@@ -628,7 +636,7 @@ DiskLogController::~DiskLogController() = default;
 
 void DiskLogController::CreateControls()
 {
-    DxuiPanel  & parent = m_host.GetControlParent();
+    DxuiPanel  & parent = m_paneWindow;
 
 
 
@@ -749,7 +757,7 @@ void DiskLogController::SetBarEntries()
 
 
     m_commands.clear();
-    entries.push_back (m_host.GetFindEntry (m_id));
+    entries.push_back (m_paneBars.GetFindEntry (m_id));
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
 
@@ -780,7 +788,7 @@ bool DiskLogController::AddMenuItems (DxuiListView * list, int row, PaneMenuItem
 
     if (bytes != nullptr)
     {
-        items.push_back ({ L"Copy sector bytes", [this, bytes] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), DiskLogPane::GetHexDump (*bytes)); } });
+        items.push_back ({ L"Copy sector bytes", [this, bytes] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), DiskLogPane::GetHexDump (*bytes)); } });
     }
 
     return true;
@@ -813,7 +821,7 @@ void DiskLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWi
         m_model->Apply (delta);
     }
 
-    m_model->SetShown (isWindowVisible && m_host.IsPaneOpen (m_id));
+    m_model->SetShown (isWindowVisible && m_panePlaces.IsPaneOpen (m_id));
 
     if (theme != nullptr)
     {
@@ -869,7 +877,9 @@ IEventLogFilter * DiskLogController::GetColumnFilters() const { return m_model.g
 ////////////////////////////////////////////////////////////////////////////////
 
 InputLogController::InputLogController (const DebuggerPaneParts & parts) :
-    EventLogController (parts, DebuggerLayout::kInputLog, L"Input log", DebugLogKind::Input)
+    EventLogController (parts, DebuggerLayout::kInputLog, L"Input log", DebugLogKind::Input),
+    m_paneBars (parts.bars),
+    m_panePlaces (parts.places)
 {
 }
 
@@ -994,7 +1004,7 @@ void InputLogController::SetBarEntries()
     AddEntry (entries, s_kInputPair0, GetPairLabel (0).c_str(), L"View paddles 0 and 1 as joystick 0 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
     AddEntry (entries, s_kInputPair1, GetPairLabel (1).c_str(), L"View paddles 2 and 3 as joystick 1 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
 
-    entries.push_back (m_host.GetFindEntry (m_id));
+    entries.push_back (m_paneBars.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -1058,7 +1068,7 @@ void InputLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isW
         m_model->Apply (delta);
     }
 
-    m_model->SetShown             (isWindowVisible && m_host.IsPaneOpen (m_id));
+    m_model->SetShown             (isWindowVisible && m_panePlaces.IsPaneOpen (m_id));
     m_model->SetShownBefore       (m_shownBefore);
     m_model->SetMouseButtonAtC063 (m_isTwoC);
     m_model->Refresh();
@@ -1112,6 +1122,11 @@ IoLogController::IoLogController (const DebuggerPaneParts & parts, DebugLogKind 
                         (kind == DebugLogKind::Video) ? DebuggerLayout::kVideoLog : DebuggerLayout::kSoundLog,
                         (kind == DebugLogKind::Video) ? L"Video log" : L"Sound log",
                         kind),
+    m_paneDialogs (parts.dialogs),
+    m_paneBars (parts.bars),
+    m_paneRouting (parts.routing),
+    m_panePlaces (parts.places),
+    m_paneCommands (parts.commands),
     m_latest (parts.latest)
 {
 }
@@ -1245,7 +1260,7 @@ void IoLogController::SetBarEntries()
     command->dispatch = [this] { Save(); };
     entries.back().iconOnly = true;
 
-    entries.push_back (m_host.GetFindEntry (m_id));
+    entries.push_back (m_paneBars.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -1265,7 +1280,7 @@ void IoLogController::SetBarEntries()
 
 void IoLogController::Clear()
 {
-    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), "CLEAR", m_latest.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetIoLog (IsVideo(), "CLEAR", m_latest.GetMode()));
 }
 
 
@@ -1284,7 +1299,7 @@ void IoLogController::Clear()
 void IoLogController::Save()
 {
     HRESULT                hr      = S_OK;
-    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    IHostDialogs         * dialogs = m_paneDialogs.GetHostDialogs();
     FileDialogSpec         spec;
     std::filesystem::path  chosen;
     bool                   picked  = false;
@@ -1297,11 +1312,11 @@ void IoLogController::Save()
     spec.defaultExtension = L"txt";
     spec.defaultFileName  = IsVideo() ? L"VideoLog.txt" : L"SoundLog.txt";
 
-    hr = dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    hr = dialogs->PickFileToSave (m_paneRouting.GetOwnerHwnd(), spec, chosen, picked);
     CHR (hr);
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_latest.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_latest.GetMode()));
 
 Error:
     return;
@@ -1324,7 +1339,7 @@ void IoLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWind
         m_model->Apply (delta);
     }
 
-    m_model->SetShown       (isWindowVisible && m_host.IsPaneOpen (m_id));
+    m_model->SetShown       (isWindowVisible && m_panePlaces.IsPaneOpen (m_id));
     m_model->SetShownBefore (m_shownBefore);
     m_model->Refresh();
     m_model->FollowScroll();

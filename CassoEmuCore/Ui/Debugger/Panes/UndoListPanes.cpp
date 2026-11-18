@@ -30,7 +30,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 UndoListPane::UndoListPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend) :
-    IDebuggerPane (parts),
+    m_paneWindow  (parts.window),
+    m_paneLayout  (parts.layout),
+    m_paneRouting (parts.routing),
     m_id          (id),
     m_title       (std::move (title)),
     m_legend      (legend),
@@ -78,7 +80,7 @@ void UndoListPane::CreateControls()
 
 DxuiListView * UndoListPane::CreateList()
 {
-    return m_host.GetControlParent().CreateChild<DxuiListView>();
+    return m_paneWindow.CreateChild<DxuiListView>();
 }
 
 
@@ -99,7 +101,7 @@ void UndoListPane::Configure()
 
 
 
-    handlers.dispatch  = [this] (int id) { Undo (id == UndoBarCommands::kRedo); m_host.Repaint(); };
+    handlers.dispatch  = [this] (int id) { Undo (id == UndoBarCommands::kRedo); m_paneLayout.Repaint(); };
     handlers.isEnabled = [this] (int id) { return CanUndo (id == UndoBarCommands::kRedo); };
     handlers.getTip    = [this] (int id)
     {
@@ -211,7 +213,7 @@ bool UndoListPane::IsPressRightOf (int row, size_t column) const
 
 
 
-    return m_list->GetCellTextRectPx (row, column, cell) && m_host.GetLastPressPx().x - list.left >= cell.left;
+    return m_list->GetCellTextRectPx (row, column, cell) && m_paneRouting.GetLastPressPx().x - list.left >= cell.left;
 }
 
 
@@ -225,7 +227,13 @@ bool UndoListPane::IsPressRightOf (int row, size_t column) const
 ////////////////////////////////////////////////////////////////////////////////
 
 ValueEditPane::ValueEditPane (const DebuggerPaneParts & parts, std::wstring id, std::wstring title, ColorLegend::Pane legend) :
-    UndoListPane (parts, std::move (id), std::move (title), legend)
+    UndoListPane (parts, std::move (id), std::move (title), legend),
+    m_paneScaler (parts.scaler),
+    m_paneWindow (parts.window),
+    m_paneReplies (parts.replies),
+    m_paneLayout (parts.layout),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus)
 {
 }
 
@@ -255,7 +263,7 @@ ValueEditPane::~ValueEditPane() = default;
 
 void ValueEditPane::CreateOverlays()
 {
-    m_editor = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+    m_editor = m_paneWindow.CreateChild<DxuiTextInput>();
 }
 
 
@@ -274,7 +282,7 @@ void ValueEditPane::Configure()
 
     m_editor->SetVisible   (false);
     m_editor->SetOverText  (true);
-    m_editor->SetHwnd      (m_host.GetOwnerHwnd());
+    m_editor->SetHwnd      (m_paneRouting.GetOwnerHwnd());
     m_editor->SetMaxLength (kEditMaxChars);
 }
 
@@ -340,7 +348,7 @@ void ValueEditPane::BeginEdit (int row)
 
     if (!m_isPaused)
     {
-        m_host.ShowPaneReply (GetId(), { GetPauseNote() }, false);
+        m_paneReplies.ShowPaneReply (GetId(), { GetPauseNote() }, false);
         return;
     }
 
@@ -359,14 +367,14 @@ void ValueEditPane::BeginEdit (int row)
 
     m_editRow = row;
 
-    m_editor->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_editor->SetTextRenderer (m_paneWindow.GetTextRenderer());
     m_editor->SetFont         (DxuiTheme::kMonoFace, m_list->GetFontSizeDip());
     m_editor->SetText         (word.has_value() ? std::format (L"{:04X}", *word) : std::format (L"{:02X}", *value));
-    m_editor->Layout          (cell, m_host.GetPaneScaler());
+    m_editor->Layout          (cell, m_paneScaler);
     m_editor->SetVisible      (true);
-    m_host.FocusControl       (m_editor);
+    m_paneFocus.FocusControl (m_editor);
     m_editor->SelectAll();
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -401,8 +409,8 @@ void ValueEditPane::EndEdit (bool commit)
 
     m_editRow = -1;
     m_editor->SetVisible (false);
-    m_host.FocusControl  (m_list);
-    m_host.Repaint();
+    m_paneFocus.FocusControl (m_list);
+    m_paneLayout.Repaint();
 
     if (commit && isHex && isWord)
     {
@@ -437,7 +445,7 @@ bool ValueEditPane::RouteEditMouse (const DxuiMouseEvent & ev)
     if (DxuiDockSite::Contains (m_editor->GetBounds(), ev.positionDip))
     {
         m_editor->OnMouse (ev);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
         return true;
     }
 
@@ -475,7 +483,7 @@ bool ValueEditPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focuse
             m_editor->OnKey (ev);
         }
 
-        m_host.RepaintLater();
+        m_paneLayout.RepaintLater();
         return true;
     }
 
@@ -509,6 +517,11 @@ bool ValueEditPane::RouteListKey (const DxuiKeyEvent &)
 
 RegistersPane::RegistersPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
     ValueEditPane (parts, DebuggerLayout::kRegisters, L"Registers", ColorLegend::Pane::Registers),
+    m_paneWindow (parts.window),
+    m_paneReplies (parts.replies),
+    m_paneRouting (parts.routing),
+    m_paneNavigator (parts.navigator),
+    m_paneCommands (parts.commands),
     m_memory (memory),
     m_latest (parts.latest),
     m_look (parts.look)
@@ -541,8 +554,8 @@ void RegistersPane::CreateControls()
 {
     ValueEditPane::CreateControls();
 
-    m_band = m_host.GetControlParent().CreateChild<HistoryBand>();
-    m_band->SetOnGoLive ([this] { m_host.GoLive(); });
+    m_band = m_paneWindow.CreateChild<HistoryBand>();
+    m_band->SetOnGoLive ([this] { m_paneNavigator.GoLive(); });
 }
 
 
@@ -851,7 +864,7 @@ void RegistersPane::CommitWord (int row, Word typed)
 {
     if (GetEditWord (row).has_value() && *GetEditWord (row) != typed)
     {
-        m_host.RunAction (MemoryActions::GetSetRegister ("PC", typed, m_latest.GetMode()));
+        m_paneCommands.RunAction (MemoryActions::GetSetRegister ("PC", typed, m_latest.GetMode()));
     }
 }
 
@@ -880,7 +893,7 @@ void RegistersPane::CommitRegister (const std::string & name, Byte typed)
     }
 
     m_history.Record (name, *value, typed, m_pc, m_cycles);
-    m_host.RunAction (MemoryActions::GetSetRegister (name, typed, m_latest.GetMode()));
+    m_paneCommands.RunAction (MemoryActions::GetSetRegister (name, typed, m_latest.GetMode()));
 }
 
 
@@ -922,11 +935,11 @@ void RegistersPane::EditRegister (int row, bool onFlags)
 
     if (!m_isPaused)
     {
-        m_host.ShowPaneReply (GetId(), { GetPauseNote() }, false);
+        m_paneReplies.ShowPaneReply (GetId(), { GetPauseNote() }, false);
         return;
     }
 
-    if (value.has_value() && FlagsDialog::Ask (m_host.GetOwnerHwnd(), m_look.GetTheme(), *value, p))
+    if (value.has_value() && FlagsDialog::Ask (m_paneRouting.GetOwnerHwnd(), m_look.GetTheme(), *value, p))
     {
         CommitRegister ("P", p);
     }
@@ -997,7 +1010,7 @@ bool RegistersPane::RouteBarMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    return isOver && m_host.IsBarRouted (m_id) && m_band->OnMouse (ev);
+    return isOver && m_paneRouting.IsBarRouted (m_id) && m_band->OnMouse (ev);
 }
 
 
@@ -1023,7 +1036,7 @@ bool RegistersPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 
 
 
-    if (!m_host.IsRoutable (m_list) || !m_list->IsVisible() || !DxuiDockSite::Contains (bounds, clientPx))
+    if (!m_paneRouting.IsRoutable (m_list) || !m_list->IsVisible() || !DxuiDockSite::Contains (bounds, clientPx))
     {
         return false;
     }
@@ -1090,7 +1103,7 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (name == "PC")
     {
-        items.push_back ({ L"Show in code", [this] { m_host.GoToCode (std::nullopt); } });
+        items.push_back ({ L"Show in code", [this] { m_paneNavigator.GoToCode (std::nullopt); } });
     }
 
     if (!DebuggerViewState::IsReadOnlyRegister (name))
@@ -1100,20 +1113,20 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (name == DebuggerViewState::kCyclesRegister || name == DebuggerViewState::kTripRegister)
     {
-        items.push_back ({ L"Reset trip count", [this] { m_host.RunAction (RunActions::GetResetCycles (m_latest.GetMode())); } });
+        items.push_back ({ L"Reset trip count", [this] { m_paneCommands.RunAction (RunActions::GetResetCycles (m_latest.GetMode())); } });
     }
 
     if (name == DebuggerViewState::kLastBranchRegister && m_lastBranchFrom.has_value())
     {
-        items.push_back ({ L"Go to branch", [this, at = *m_lastBranchFrom] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Go to branch", [this, at = *m_lastBranchFrom] { m_paneNavigator.GoToCode (at); } });
 
         if (m_lastBranchTo.has_value())
         {
-            items.push_back ({ L"Go to target", [this, at = *m_lastBranchTo] { m_host.GoToCode (at); } });
+            items.push_back ({ L"Go to target", [this, at = *m_lastBranchTo] { m_paneNavigator.GoToCode (at); } });
         }
     }
 
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
     AddUndoItems (items);
     return true;
 }
@@ -1199,7 +1212,7 @@ void RegistersPane::Undo (bool redo)
 
     if (action.has_value())
     {
-        m_host.RunAction (*action);
+        m_paneCommands.RunAction (*action);
     }
 }
 
@@ -1215,6 +1228,9 @@ void RegistersPane::Undo (bool redo)
 
 StackPane::StackPane (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
     ValueEditPane (parts, DebuggerLayout::kStack, L"Stack", ColorLegend::Pane::Stack),
+    m_paneDialogs (parts.dialogs),
+    m_paneRouting (parts.routing),
+    m_paneCommands (parts.commands),
     m_memory (memory),
     m_latest (parts.latest),
     m_look (parts.look)
@@ -1352,7 +1368,7 @@ void StackPane::CommitEdit (int row, Byte typed)
     value = m_stack[m_stack.size() - 1 - (size_t) row].value;
 
     m_history.Record (at, value, typed, m_pc, m_cycles);
-    m_host.RunAction (MemoryActions::GetEnterByte (at, typed, m_latest.GetMode()));
+    m_paneCommands.RunAction (MemoryActions::GetEnterByte (at, typed, m_latest.GetMode()));
 }
 
 
@@ -1369,13 +1385,13 @@ void StackPane::CommitEdit (int row, Byte typed)
 
 void StackPane::PushByte()
 {
-    std::optional<Byte>  value = m_host.RunByteDialog (L"Push byte", L"Byte", {});
+    std::optional<Byte>  value = m_paneDialogs.RunByteDialog (L"Push byte", L"Byte", {});
 
 
 
     if (value.has_value())
     {
-        m_host.RunAction (MemoryActions::GetPushByte (*value, m_latest.GetMode()));
+        m_paneCommands.RunAction (MemoryActions::GetPushByte (*value, m_latest.GetMode()));
     }
 }
 
@@ -1403,7 +1419,7 @@ bool StackPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & item
         Word  at = m_stack[m_stack.size() - 1 - (size_t) row].address;
 
         m_memory.AddShowInItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
-        items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+        items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_paneRouting.GetOwnerHwnd(), m_list->GetSelectionText()); } });
 
         if (m_isPaused)
         {
@@ -1414,8 +1430,8 @@ bool StackPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & item
     if (m_isPaused)
     {
         items.push_back ({ L"Push byte...", [this] { PushByte(); } });
-        items.push_back ({ L"Pop byte",     [this] { m_host.RunAction (MemoryActions::GetPopByte (m_latest.GetMode())); } });
-        items.push_back ({ L"Pop word",     [this] { m_host.RunAction (MemoryActions::GetPopWord (m_latest.GetMode())); } });
+        items.push_back ({ L"Pop byte",     [this] { m_paneCommands.RunAction (MemoryActions::GetPopByte (m_latest.GetMode())); } });
+        items.push_back ({ L"Pop word",     [this] { m_paneCommands.RunAction (MemoryActions::GetPopWord (m_latest.GetMode())); } });
     }
 
     AddUndoItems (items);
@@ -1500,6 +1516,6 @@ void StackPane::Undo (bool redo)
 
     if (action.has_value())
     {
-        m_host.RunAction (*action);
+        m_paneCommands.RunAction (*action);
     }
 }

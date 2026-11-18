@@ -28,13 +28,17 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 MemoryWindowPane::MemoryWindowPane (const DebuggerPaneParts & parts, MemoryWindowGroup & group, int id) :
-    IDebuggerPane (parts),
-    m_latest (parts.latest),
-    m_group       (group),
-    m_windowId    (id),
-    m_id          (DebuggerLayout::GetMemoryPaneId (id)),
-    m_slot        (std::make_unique<DebuggerPaneFrame> (L"Memory commands")),
-    m_isOpen      (id == 1)
+    m_windowHost   (parts.windowHost),
+    m_paneWindow   (parts.window),
+    m_paneReplies  (parts.replies),
+    m_paneRouting  (parts.routing),
+    m_paneCommands (parts.commands),
+    m_latest       (parts.latest),
+    m_group        (group),
+    m_windowId     (id),
+    m_id           (DebuggerLayout::GetMemoryPaneId (id)),
+    m_slot         (std::make_unique<DebuggerPaneFrame> (L"Memory commands")),
+    m_isOpen       (id == 1)
 {
 }
 
@@ -94,18 +98,18 @@ std::wstring MemoryWindowPane::GetTitle() const
 
 void MemoryWindowPane::CreateControls()
 {
-    m_view  = m_host.GetControlParent().CreateChild<DxuiHexView>();
+    m_view  = m_paneWindow.CreateChild<DxuiHexView>();
     m_model = std::make_unique<MemoryPane> (
         m_windowId, m_view,
         [this] (int window, Word first)
         {
-            if (m_host.GetWindowHost() != nullptr)
+            if (m_windowHost != nullptr)
             {
-                m_host.GetWindowHost()->SetDebuggerMemoryWindow (window, first);
+                m_windowHost->SetDebuggerMemoryWindow (window, first);
             }
         },
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_latest.GetMode())); },
-        [this] (const std::string & line)            { m_host.ShowPaneReply (GetId(), { line }, false); });
+        [this] (const DebuggerActionBuilder & build) { m_paneCommands.RunAction (build (m_latest.GetMode())); },
+        [this] (const std::string & line)            { m_paneReplies.ShowPaneReply (GetId(), { line }, false); });
 
     m_view->SetVisible (m_isOpen);
 }
@@ -122,7 +126,7 @@ void MemoryWindowPane::CreateControls()
 
 void MemoryWindowPane::Configure()
 {
-    m_model->Configure (m_host.GetOwnerHwnd());
+    m_model->Configure (m_paneRouting.GetOwnerHwnd());
 }
 
 
@@ -217,9 +221,9 @@ bool MemoryWindowPane::RequestOpen()
         return false;
     }
 
-    if (m_host.GetWindowHost() != nullptr && first != nullptr)
+    if (m_windowHost != nullptr && first != nullptr)
     {
-        m_host.GetWindowHost()->SetDebuggerMemoryWindow (m_windowId, first->GetModel().GetTopAddress());
+        m_windowHost->SetDebuggerMemoryWindow (m_windowId, first->GetModel().GetTopAddress());
     }
 
     return true;
@@ -242,9 +246,9 @@ bool MemoryWindowPane::RequestClose()
         return false;
     }
 
-    if (m_host.GetWindowHost() != nullptr)
+    if (m_windowHost != nullptr)
     {
-        m_host.GetWindowHost()->SetDebuggerMemoryWindow (m_windowId, std::nullopt);
+        m_windowHost->SetDebuggerMemoryWindow (m_windowId, std::nullopt);
     }
 
     return true;
@@ -294,7 +298,20 @@ bool MemoryWindowPane::OnGoToKey()
 ////////////////////////////////////////////////////////////////////////////////
 
 MemoryWindowGroup::MemoryWindowGroup (const DebuggerPaneParts & parts, HeatMapPane & heatMap) :
-    IDebuggerPane (parts),
+    m_windowHost (parts.windowHost),
+    m_paneScaler (parts.scaler),
+    m_paneWindow (parts.window),
+    m_paneReplies (parts.replies),
+    m_paneDialogs (parts.dialogs),
+    m_paneViews (parts.views),
+    m_paneLayout (parts.layout),
+    m_paneTips (parts.tips),
+    m_paneBars (parts.bars),
+    m_paneRouting (parts.routing),
+    m_paneFocus (parts.focus),
+    m_paneTabs (parts.tabs),
+    m_panePlaces (parts.places),
+    m_paneCommands (parts.commands),
     m_heatMap (heatMap),
     m_latest (parts.latest),
     m_parts (parts),
@@ -415,7 +432,7 @@ MemoryWindowPane * MemoryWindowGroup::GetActive() const
 
 MemoryWindowPane * MemoryWindowGroup::GetFocused() const
 {
-    IDxuiControl  * focused = m_host.GetFocusedControl();
+    IDxuiControl  * focused = m_paneFocus.GetFocusedControl();
 
 
 
@@ -496,8 +513,8 @@ void MemoryWindowGroup::ApplyColors()
 
 void MemoryWindowGroup::CreateControls()
 {
-    m_bar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
-    m_box = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+    m_bar = m_paneWindow.CreateChild<DxuiToolbar>();
+    m_box = m_paneWindow.CreateChild<DxuiTextInput>();
 }
 
 
@@ -548,9 +565,9 @@ void MemoryWindowGroup::Configure()
     m_addressEntry->SetTooltips (L"Address: a hex address, a register, a symbol or an expression such as (3E),Y; Enter goes there",
                                  L"Addresses entered before");
 
-    m_bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
-    m_box->SetTextRenderer  (m_host.GetPaneTextRenderer());
-    m_bar->SetPopupHost     (m_host.GetPanePopupHost());
+    m_bar->SetTextRenderer  (m_paneWindow.GetTextRenderer());
+    m_box->SetTextRenderer  (m_paneWindow.GetTextRenderer());
+    m_bar->SetPopupHost     (m_paneWindow.GetPopupHost());
     m_bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
     m_bar->SetCompact       (true);
     m_bar->SetPaneTextInset (true);
@@ -559,7 +576,7 @@ void MemoryWindowGroup::Configure()
     SetBarEntries();
     m_bar->SetVisible       (false);
 
-    m_box->SetHwnd        (m_host.GetOwnerHwnd());
+    m_box->SetHwnd        (m_paneRouting.GetOwnerHwnd());
     m_box->SetMaxLength   (256);
     m_box->SetPlaceholder (L"Address: 0300, PC, (3E),Y");
 
@@ -706,7 +723,7 @@ void MemoryWindowGroup::RunBarEntry (int id)
     switch (id)
     {
     case MemoryBarCommands::kAddress:
-        m_host.FocusControl (m_box);
+        m_paneFocus.FocusControl (m_box);
         break;
 
     case MemoryBarCommands::kRefresh:
@@ -720,14 +737,14 @@ void MemoryWindowGroup::RunBarEntry (int id)
 
     case MemoryBarCommands::kHeat:
         GetActive()->GetModel().SetHeatOn (!GetActive()->GetModel().IsHeatOn());
-        m_host.SyncHeatRecording();
+        m_paneViews.SyncHeatRecording();
         break;
 
     default:
         break;
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -744,8 +761,8 @@ void MemoryWindowGroup::ChooseColumns (int columns)
 {
     GetActive()->GetModel().SetColumns (columns);
     SetBarMenus();
-    m_host.RelayoutWindow();
-    m_host.Repaint();
+    m_paneLayout.RelayoutWindow();
+    m_paneLayout.Repaint();
 }
 
 
@@ -819,9 +836,9 @@ void MemoryWindowGroup::SubmitBox()
     {
         GetActive()->GetModel().GoTo (address);
     }
-    else if (m_host.GetWindowHost() != nullptr)
+    else if (m_windowHost != nullptr)
     {
-        m_host.GetWindowHost()->GoToDebuggerMemory (GetActive()->GetWindowId(), SourcePathList::WideToUtf8 (m_box->GetText()));
+        m_windowHost->GoToDebuggerMemory (GetActive()->GetWindowId(), SourcePathList::WideToUtf8 (m_box->GetText()));
     }
 }
 
@@ -846,7 +863,7 @@ void MemoryWindowGroup::Undo (MemoryWindowPane * window, bool redo)
     }
 
     (void) (redo ? window->GetModel().Redo() : window->GetModel().Undo());
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -917,7 +934,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         }
         else
         {
-            m_host.ShowPaneReply (GetWindow (goTo.window) != nullptr ? GetWindow (goTo.window)->GetId() : std::wstring(),
+            m_paneReplies.ShowPaneReply (GetWindow (goTo.window) != nullptr ? GetWindow (goTo.window)->GetId() : std::wstring(),
                                   { std::format ("\"{}\" is not an address.", goTo.text), goTo.error }, true);
         }
     }
@@ -968,7 +985,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
             if (open[i])
             {
-                m_host.ActivatePaneTab (m_windows[i]->GetId());
+                m_paneTabs.ActivatePaneTab (m_windows[i]->GetId());
             }
         }
 
@@ -980,7 +997,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
     if (changed)
     {
-        m_host.RelayoutDock();
+        m_paneLayout.RelayoutDock();
     }
 }
 
@@ -1005,7 +1022,7 @@ void MemoryWindowGroup::ApplyResults (const DebuggerViewSnapshot & snapshot)
     {
         m_compare.isAwaiting = false;
         GetWindow (m_compare.window)->GetModel().SetComparison (snapshot.comparison);
-        m_host.Repaint();
+        m_paneLayout.Repaint();
     }
 }
 
@@ -1098,7 +1115,7 @@ void MemoryWindowGroup::PlaceBar()
 
     //  The bar is the pane's, so it goes with the pane into a floating
     //  window; with no pane to sit in, it is put in the main window.
-    host = (slot != nullptr) ? m_host.GetPaneWindow (m_barPane) : m_host.GetPaneWindow (std::wstring());
+    host = (slot != nullptr) ? m_paneBars.GetPaneWindow (m_barPane) : m_paneBars.GetPaneWindow (std::wstring());
     MoveBar (host);
 
     if (slot == nullptr)
@@ -1112,9 +1129,9 @@ void MemoryWindowGroup::PlaceBar()
     //  back to the command line, as they do when the find bar closes.
     m_box->SetVisible (slot != nullptr);
 
-    if (slot == nullptr && m_host.GetFocusedControl() == m_box)
+    if (slot == nullptr && m_paneFocus.GetFocusedControl() == m_box)
     {
-        m_host.FocusDefault();
+        m_paneFocus.FocusDefault();
     }
 
     if (slot == nullptr)
@@ -1130,7 +1147,7 @@ void MemoryWindowGroup::PlaceBar()
     m_box->SetTextRenderer   (host->GetTextRenderer());
     m_bar->SetPopupHost      (host->GetPopupHost());
     m_bar->SetHostClientRect (host->GetBounds());
-    m_bar->Layout            (m_host.GetBarStrip (m_barPane, bounds), m_host.GetPaneScaler());
+    m_bar->Layout            (m_paneBars.GetBarStrip (m_barPane, bounds), m_paneScaler);
 
     host->SetChildClip (m_bar, bounds);
     host->SetChildClip (m_box, bounds);
@@ -1148,7 +1165,7 @@ void MemoryWindowGroup::PlaceBar()
 
 void MemoryWindowGroup::MoveBar (DxuiWindow * to)
 {
-    DxuiWindow  * from = (m_barHost != nullptr) ? m_barHost : m_host.GetPaneWindow (std::wstring());
+    DxuiWindow  * from = (m_barHost != nullptr) ? m_barHost : m_paneBars.GetPaneWindow (std::wstring());
 
 
 
@@ -1157,7 +1174,7 @@ void MemoryWindowGroup::MoveBar (DxuiWindow * to)
         return;
     }
 
-    m_host.MoveSharedControls ({ m_bar, m_box }, from, to);
+    m_panePlaces.MoveSharedControls ({ m_bar, m_box }, from, to);
     m_barHost = to;
 }
 
@@ -1178,7 +1195,7 @@ void MemoryWindowGroup::OnFloatClosed (DxuiWindow * window)
 {
     if (m_barHost == window)
     {
-        MoveBar (m_host.GetPaneWindow (std::wstring()));
+        MoveBar (m_paneBars.GetPaneWindow (std::wstring()));
     }
 }
 
@@ -1204,7 +1221,7 @@ bool MemoryWindowGroup::RouteBarMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (!m_host.IsBarRouted (m_barPane))
+    if (!m_paneRouting.IsBarRouted (m_barPane))
     {
         return false;
     }
@@ -1228,7 +1245,7 @@ bool MemoryWindowGroup::RouteBarMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        m_host.UpdateTooltip (ev.positionDip);
+        m_paneTips.UpdateTooltip (ev.positionDip);
         return m_bar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
@@ -1275,7 +1292,7 @@ bool MemoryWindowGroup::RouteContentMouse (const DxuiMouseEvent & ev)
         RECT           bounds = view->GetBounds();
         bool           inside = view->IsVisible() && at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
 
-        if (!m_host.IsRoutable (view))
+        if (!m_paneRouting.IsRoutable (view))
         {
             continue;
         }
@@ -1294,8 +1311,8 @@ bool MemoryWindowGroup::RouteContentMouse (const DxuiMouseEvent & ev)
             //  would sit over; the next move brings it back.
             if (ev.kind == DxuiMouseEventKind::Down)
             {
-                m_host.HideTooltip();
-                m_host.FocusControl (view);
+                m_paneTips.HideTooltip();
+                m_paneFocus.FocusControl (view);
                 m_active = window;
             }
 
@@ -1338,7 +1355,7 @@ bool MemoryWindowGroup::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * fo
 
     if (ev.kind == DxuiKeyEventKind::Down)
     {
-        m_host.HideTooltip();
+        m_paneTips.HideTooltip();
     }
 
     if (ev.kind == DxuiKeyEventKind::Char)
@@ -1417,7 +1434,7 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
     {
         DxuiHexView  * view = window->GetView();
 
-        if (m_host.IsRoutable (view) && view->IsVisible() && DxuiDockSite::Contains (view->GetBounds(), clientPx) &&
+        if (m_paneRouting.IsRoutable (view) && view->IsVisible() && DxuiDockSite::Contains (view->GetBounds(), clientPx) &&
             view->TryGetByteTipAt (clientPx, tip.anchor, tip.text))
         {
             HeatStrip::Tip  heat = window->GetModel().GetHeatTip (view->HitTestPoint (clientPx).offset);
@@ -1468,7 +1485,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
 
 
-    if (!window.IsOpen() || !m_host.IsRoutable (window.GetView()) || !window.GetView()->IsVisible() ||
+    if (!window.IsOpen() || !m_paneRouting.IsRoutable (window.GetView()) || !window.GetView()->IsVisible() ||
         !DxuiDockSite::Contains (window.GetView()->GetBounds(), clientPx))
     {
         return;
@@ -1480,8 +1497,8 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
     {
         each->GetModel().SyncFromView();
         SetBarMenus();
-        m_host.RelayoutWindow();
-        m_host.Repaint();
+        m_paneLayout.RelayoutWindow();
+        m_paneLayout.Repaint();
     });
 
     //  The hex view's menu, Copy apart from its format choices.
@@ -1534,7 +1551,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
         }
     }
 
-    items.push_back ({ L"Find...", [this, each] { m_host.FocusControl (each->GetView()); (void) m_host.RunKeyAction (DebuggerKeySchemes::Action::Find); } });
+    items.push_back ({ L"Find...", [this, each] { m_paneFocus.FocusControl (each->GetView()); (void) m_paneCommands.RunKeyAction (DebuggerKeySchemes::Action::Find); } });
 
     if (model.GetSelectedRange().has_value())
     {
@@ -1559,12 +1576,12 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value() && *byte < 0x100)
     {
-        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (WatchActions::GetAddZeroPagePointer (at, m_latest.GetMode())); } });
+        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_paneCommands.RunAction (WatchActions::GetAddZeroPagePointer (at, m_latest.GetMode())); } });
     }
 
     if (byte.has_value())
     {
-        PaneMenuRows::AddBookmark (m_latest, m_host, *byte, items);
+        PaneMenuRows::AddBookmark (m_latest, m_paneCommands, *byte, items);
     }
 }
 
@@ -1655,7 +1672,7 @@ void MemoryWindowGroup::FillSelection (MemoryWindowPane * window)
         return;
     }
 
-    typed = m_host.RunTextDialog (L"Fill selection", L"Bytes", L"00 or A9 20", [] (const std::wstring & text, std::wstring & error)
+    typed = m_paneDialogs.RunTextDialog (L"Fill selection", L"Bytes", L"00 or A9 20", [] (const std::wstring & text, std::wstring & error)
     {
         std::vector<Byte>  parsed;
 
@@ -1665,7 +1682,7 @@ void MemoryWindowGroup::FillSelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseBytes (*typed, bytes))
     {
-        m_host.RunAction (MemoryActions::GetFillMemory (range->first, range->second, bytes, m_latest.GetMode()));
+        m_paneCommands.RunAction (MemoryActions::GetFillMemory (range->first, range->second, bytes, m_latest.GetMode()));
     }
 }
 
@@ -1692,7 +1709,7 @@ void MemoryWindowGroup::CopySelection (MemoryWindowPane * window)
         return;
     }
 
-    typed = m_host.RunTextDialog (L"Copy selection to", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
+    typed = m_paneDialogs.RunTextDialog (L"Copy selection to", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
     {
         Word  address = 0;
 
@@ -1702,7 +1719,7 @@ void MemoryWindowGroup::CopySelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, to))
     {
-        m_host.RunAction (MemoryActions::GetMoveMemory (to, range->first, range->second, m_latest.GetMode()));
+        m_paneCommands.RunAction (MemoryActions::GetMoveMemory (to, range->first, range->second, m_latest.GetMode()));
     }
 }
 
@@ -1732,7 +1749,7 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
         return;
     }
 
-    typed = m_host.RunTextDialog (L"Compare with", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
+    typed = m_paneDialogs.RunTextDialog (L"Compare with", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
     {
         Word  address = 0;
 
@@ -1743,7 +1760,7 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, other))
     {
         m_compare = Compare { window->GetWindowId(), m_compareSerial, true };
-        m_host.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_latest.GetMode()));
+        m_paneCommands.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_latest.GetMode()));
     }
 }
 
@@ -1784,11 +1801,11 @@ void MemoryWindowGroup::ShowAddress (Word address)
 
     if (!pane->GetView()->IsVisible())
     {
-        m_host.ActivatePaneTab (pane->GetId());
-        m_host.SyncHeatRecording();
+        m_paneTabs.ActivatePaneTab (pane->GetId());
+        m_paneViews.SyncHeatRecording();
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -1812,7 +1829,7 @@ void MemoryWindowGroup::AddShowInItems (const std::wstring & what, const std::st
 
         items.push_back ({ std::format (L"Show {} in Memory {}", what, id), [this, id, goTo]
         {
-            IDebuggerWindowHost  * windowHost = m_host.GetWindowHost();
+            IDebuggerWindowHost  * windowHost = m_windowHost;
 
 
 

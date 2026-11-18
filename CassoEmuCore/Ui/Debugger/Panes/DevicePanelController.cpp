@@ -23,13 +23,20 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DevicePanelController::DevicePanelController (const DebuggerPaneParts & parts, std::string panelId, std::wstring title) :
-    IDebuggerPane (parts),
-    m_latest (parts.latest),
-    m_parts (parts),
-    m_look (parts.look),
-    m_panelId     (std::move (panelId)),
-    m_id          (DebuggerLayout::GetDiagnosticsPaneId (m_panelId)),
-    m_title       (std::move (title))
+    m_windowHost   (parts.windowHost),
+    m_paneWindow   (parts.window),
+    m_paneViews    (parts.views),
+    m_paneLayout   (parts.layout),
+    m_paneRouting  (parts.routing),
+    m_paneTabs     (parts.tabs),
+    m_panePlaces   (parts.places),
+    m_paneCommands (parts.commands),
+    m_latest       (parts.latest),
+    m_parts        (parts),
+    m_look         (parts.look),
+    m_panelId      (std::move (panelId)),
+    m_id           (DebuggerLayout::GetDiagnosticsPaneId (m_panelId)),
+    m_title        (std::move (title))
 {
 }
 
@@ -75,7 +82,7 @@ const std::wstring & DevicePanelController::GetId() const
 
 void DevicePanelController::CreateControls()
 {
-    DxuiPanel       & parent = m_host.GetControlParent();
+    DxuiPanel       & parent = m_paneWindow;
     DxuiListView    * list   = parent.CreateChild<DxuiListView>();
     MemoryMapBar    * map    = parent.CreateChild<MemoryMapBar>();
     DiskHeadView    * head   = parent.CreateChild<DiskHeadView>();
@@ -99,7 +106,7 @@ void DevicePanelController::CreateControls()
 
     board->SetOnMute ([this] (int channel, bool isMuted)
     {
-        if (IDebuggerWindowHost * host = m_host.GetWindowHost())
+        if (IDebuggerWindowHost * host = m_windowHost)
         {
             host->SetDebuggerSoundMuted (channel, isMuted);
         }
@@ -118,7 +125,7 @@ void DevicePanelController::CreateControls()
 
 void DevicePanelController::Configure()
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -200,7 +207,7 @@ void DevicePanelController::SetDriveBarEntries()
 
 void DevicePanelController::SetDrives (DiskHeadView::DriveChoice choice)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -211,8 +218,8 @@ void DevicePanelController::SetDrives (DiskHeadView::DriveChoice choice)
         host->SetDebuggerDiskDrives (ToText (choice));
     }
 
-    m_host.RelayoutDock();
-    m_host.Repaint();
+    m_paneLayout.RelayoutDock();
+    m_paneLayout.Repaint();
 }
 
 
@@ -317,7 +324,7 @@ bool DevicePanelController::RouteBarMouse (const DxuiMouseEvent & ev)
 
 bool DevicePanelController::RequestOpen()
 {
-    m_host.RunAction (SessionActions::GetPanel (m_panelId, true, m_latest.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetPanel (m_panelId, true, m_latest.GetMode()));
     return true;
 }
 
@@ -333,7 +340,7 @@ bool DevicePanelController::RequestOpen()
 
 bool DevicePanelController::RequestClose()
 {
-    m_host.RunAction (SessionActions::GetPanel (m_panelId, false, m_latest.GetMode()));
+    m_paneCommands.RunAction (SessionActions::GetPanel (m_panelId, false, m_latest.GetMode()));
     return true;
 }
 
@@ -512,14 +519,14 @@ void DevicePanelController::Apply (const DebuggerViewSnapshot & snapshot)
         }
     }
 
-    if (m_isOpen && !wasOpen && !m_host.IsRestoringViews())
+    if (m_isOpen && !wasOpen && !m_paneViews.IsRestoringViews())
     {
-        m_host.ActivatePaneTab (GetId());
+        m_paneTabs.ActivatePaneTab (GetId());
     }
 
     if (m_isOpen != wasOpen)
     {
-        m_host.RelayoutDock();
+        m_paneLayout.RelayoutDock();
     }
 }
 
@@ -561,7 +568,7 @@ bool DevicePanelController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 
 
 
-    if (map != nullptr && m_host.IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, tip.text))
+    if (map != nullptr && m_paneRouting.IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, tip.text))
     {
         tip.placement = DxuiTip::Placement::FollowPointer;
         return true;
@@ -570,7 +577,7 @@ bool DevicePanelController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
     //  The tip is placed at the pointer where it first opens, and isn't moved
     //  while the pointer is over a part with the same tip. Moving the balloon
     //  with every move of the pointer lagged a frame behind it.
-    if (board != nullptr && m_host.IsRoutable (board) && board->IsVisible() && board->TryGetTipAt (clientPx, tip.text))
+    if (board != nullptr && m_paneRouting.IsRoutable (board) && board->IsVisible() && board->TryGetTipAt (clientPx, tip.text))
     {
         if (tip.text != m_boardTipText)
         {
@@ -585,7 +592,7 @@ bool DevicePanelController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 
     m_boardTipText.clear();
 
-    if (head == nullptr || !m_host.IsRoutable (head))
+    if (head == nullptr || !m_paneRouting.IsRoutable (head))
     {
         return false;
     }
@@ -618,7 +625,7 @@ bool DevicePanelController::RouteContentMouse (const DxuiMouseEvent & ev)
 
 
 
-    return board != nullptr && m_host.IsRoutable (board) && board->IsVisible() && board->OnMouse (ev);
+    return board != nullptr && m_paneRouting.IsRoutable (board) && board->IsVisible() && board->OnMouse (ev);
 }
 
 
@@ -637,18 +644,18 @@ void DevicePanelController::AddContentMenuItems (POINT clientPx, PaneMenuItems &
 
     if (m_panelId == "video")
     {
-        items.push_back ({ L"Open video log", [this] { m_host.OpenPane (DebuggerLayout::kVideoLog, true); } });
+        items.push_back ({ L"Open video log", [this] { m_panePlaces.OpenPane (DebuggerLayout::kVideoLog, true); } });
     }
     else if (m_panelId == "mockingboard")
     {
-        items.push_back ({ L"Open sound log", [this] { m_host.OpenPane (DebuggerLayout::kSoundLog, true); } });
+        items.push_back ({ L"Open sound log", [this] { m_panePlaces.OpenPane (DebuggerLayout::kSoundLog, true); } });
     }
     else if (m_panelId == "serial-card" || m_panelId.starts_with ("serial-port-"))
     {
-        items.push_back ({ L"Open serial log", [this] { m_host.OpenPane (DebuggerLayout::kSerialLog, true); } });
+        items.push_back ({ L"Open serial log", [this] { m_panePlaces.OpenPane (DebuggerLayout::kSerialLog, true); } });
     }
     else if (m_panelId == "uthernet")
     {
-        items.push_back ({ L"Open network log", [this] { m_host.OpenPane (DebuggerLayout::kNetworkLog, true); } });
+        items.push_back ({ L"Open network log", [this] { m_panePlaces.OpenPane (DebuggerLayout::kNetworkLog, true); } });
     }
 }

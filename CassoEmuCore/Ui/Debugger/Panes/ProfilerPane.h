@@ -104,6 +104,13 @@ private:
     void  Save           ();
     void  SortBy         (int column);
 
+    IDebuggerWindowHost * const                & m_windowHost;
+    DxuiWindow                                 & m_paneWindow;
+    IPaneDialogs                               & m_paneDialogs;
+    IPaneLayout                                & m_paneLayout;
+    IPaneRouting                               & m_paneRouting;
+    IPaneNavigator                             & m_paneNavigator;
+    IPaneCommands                              & m_paneCommands;
     SymbolComments                             & m_symbolComments;
     const LatestSnapshot                       & m_latest;
     PaneBarSlot                                  m_bar;

@@ -173,7 +173,13 @@ private:
     void                             SelectAsked        (int view, const DebuggerViewSnapshot & snapshot, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
                                                          const std::vector<DisassemblyOptions::Row> & built);
 
-    IDebuggerPaneHost                                                    & m_host;
+    IDebuggerWindowHost * const                                          & m_windowHost;
+    IPaneViews                                                           & m_paneViews;
+    IPaneLayout                                                          & m_paneLayout;
+    IPaneTips                                                            & m_paneTips;
+    IPaneRouting                                                         & m_paneRouting;
+    IPaneFocus                                                           & m_paneFocus;
+    IPaneTabs                                                            & m_paneTabs;
     MemoryWindowGroup                                                    & m_memory;
     const LatestSnapshot                                                 & m_latest;
     const DebuggerPaneParts                                              & m_parts;

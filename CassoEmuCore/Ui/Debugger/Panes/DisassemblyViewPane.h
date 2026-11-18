@@ -84,6 +84,12 @@ private:
     std::optional<Word>                                                 GetFindStart (bool isTop) const;
     void                                                                SelectFound  (Word address);
 
+    IDebuggerWindowHost * const                 & m_windowHost;
+    DxuiWindow                                  & m_paneWindow;
+    IPaneBars                                   & m_paneBars;
+    IPaneRouting                                & m_paneRouting;
+    IPaneNavigator                              & m_paneNavigator;
+    IPaneCommands                               & m_paneCommands;
     MemoryWindowGroup                           & m_memory;
     const LatestSnapshot                        & m_latest;
     DisassemblyGroup                            & m_group;

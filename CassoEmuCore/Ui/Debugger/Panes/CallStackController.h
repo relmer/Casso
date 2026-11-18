@@ -47,10 +47,15 @@ public:
     bool                           AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
+    DxuiWindow                          & m_paneWindow;
+    IPaneReplies                        & m_paneReplies;
+    IPaneRouting                        & m_paneRouting;
+    IPaneNavigator                      & m_paneNavigator;
+    IPaneCommands                       & m_paneCommands;
     const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
-    DxuiListView                        * m_list   = nullptr;
-    DxuiButton                          * m_button = nullptr;
+    DxuiListView                        * m_list          = nullptr;
+    DxuiButton                          * m_button        = nullptr;
     std::unique_ptr<CallStackPane>        m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
 };

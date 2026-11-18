@@ -22,7 +22,8 @@ DisassemblyBranchArrows::DisassemblyBranchArrows (
     const DebuggerPaneParts  & parts,
     DisassemblyGroup     & group,
     SourceDocumentGroup  & sources) :
-    m_host    (parts.host),
+    m_paneRouting (parts.routing),
+    m_paneNavigator (parts.navigator),
     m_latest (parts.latest),
     m_look (parts.look),
     m_group   (group),
@@ -108,10 +109,10 @@ bool DisassemblyBranchArrows::GetOneBranchArrow (int view, BranchArrow::Input & 
     {
         const SourceDocumentPane & document = m_sources.GetDocument (view - DebuggerViewState::kMaxCodeViews);
 
-        return !isBranchedFrom && document.IsShown() && m_host.IsRoutable (document.GetView()) && document.GetModel().GetBranchArrow (input, goesTo, isTaken);
+        return !isBranchedFrom && document.IsShown() && m_paneRouting.IsRoutable (document.GetView()) && document.GetModel().GetBranchArrow (input, goesTo, isTaken);
     }
 
-    if (list == nullptr || !m_group.IsOpen (view) || !list->IsVisible() || !m_host.IsRoutable (list))
+    if (list == nullptr || !m_group.IsOpen (view) || !list->IsVisible() || !m_paneRouting.IsRoutable (list))
     {
         return false;
     }
@@ -224,11 +225,11 @@ bool DisassemblyBranchArrows::ClickBranchArrow (POINT pointPx)
 
             if (m_isArrowAtTarget)
             {
-                m_host.GoToCode (std::nullopt);
+                m_paneNavigator.GoToCode (std::nullopt);
             }
             else
             {
-                m_host.GoToCode ((isBranchedFrom && snapshot != nullptr && snapshot->branchedFrom.has_value()) ? *snapshot->branchedFrom : goesTo);
+                m_paneNavigator.GoToCode ((isBranchedFrom && snapshot != nullptr && snapshot->branchedFrom.has_value()) ? *snapshot->branchedFrom : goesTo);
             }
 
             m_isArrowAtTarget = !m_isArrowAtTarget;
@@ -358,7 +359,7 @@ bool DisassemblyBranchArrows::IsOverArrowsOrGutter (POINT clientPx) const
     {
         const SourceDocumentPane  & document = m_sources.GetDocument (slot);
 
-        if (document.IsShown() && document.GetView()->IsVisible() && m_host.IsRoutable (document.GetView()) &&
+        if (document.IsShown() && document.GetView()->IsVisible() && m_paneRouting.IsRoutable (document.GetView()) &&
             (document.GetView()->IsInGutter (clientPx) || document.GetModel().IsOverArrowLanes (clientPx)))
         {
             return true;

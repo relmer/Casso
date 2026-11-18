@@ -45,18 +45,24 @@ DisassemblyViewPane::~DisassemblyViewPane() = default;
 ////////////////////////////////////////////////////////////////////////////////
 
 DisassemblyGroup::DisassemblyGroup (const DebuggerPaneParts & parts, DisassemblyGutter & gutter, CodeEditCommands & edits, SourceDocumentGroup & sources, MemoryWindowGroup & memory) :
-    m_host       (parts.host),
-    m_memory (memory),
-    m_latest (parts.latest),
-    m_parts (parts),
-    m_look (parts.look),
-    m_gutter     (gutter),
-    m_edits      (edits),
-    m_sources    (sources),
-    m_sourceText (parts),
-    m_symbols    (parts, *this)
+    m_windowHost  (parts.windowHost),
+    m_paneViews   (parts.views),
+    m_paneLayout  (parts.layout),
+    m_paneTips    (parts.tips),
+    m_paneRouting (parts.routing),
+    m_paneFocus   (parts.focus),
+    m_paneTabs    (parts.tabs),
+    m_memory      (memory),
+    m_latest      (parts.latest),
+    m_parts       (parts),
+    m_look        (parts.look),
+    m_gutter      (gutter),
+    m_edits       (edits),
+    m_sources     (sources),
+    m_sourceText  (parts),
+    m_symbols     (parts, *this)
 {
-    IDebuggerWindowHost  * windowHost = parts.host.GetWindowHost();
+    IDebuggerWindowHost  * windowHost = parts.windowHost;
 
 
 
@@ -340,7 +346,7 @@ std::vector<DxuiToolbar::Entry> DisassemblyGroup::BuildBarEntries()
 
 void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -356,14 +362,14 @@ void DisassemblyGroup::ToggleOption (DisassemblyOptions::Option option)
         host->SetDebuggerDisassemblyOptions (m_options.ToText());
     }
 
-    m_host.SyncHeatRecording();
+    m_paneViews.SyncHeatRecording();
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_latest.Get() != nullptr; view++)
     {
         ApplyView (view);
     }
 
-    m_host.Repaint();
+    m_paneLayout.Repaint();
 }
 
 
@@ -480,12 +486,12 @@ void DisassemblyGroup::Apply()
 
             //  A view open as the window starts was open when it closed, and
             //  its group's front tab is the one in front then.
-            if (open && view > 0 && !m_host.IsRestoringViews())
+            if (open && view > 0 && !m_paneViews.IsRestoringViews())
             {
-                m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+                m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
             }
 
-            m_host.RelayoutDock();
+            m_paneLayout.RelayoutDock();
             UpdateLines();
         }
     }
@@ -503,7 +509,7 @@ void DisassemblyGroup::Apply()
             mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_look.GetPcTabMarkArgb() };
         }
 
-        m_host.SetPaneTabMark (DebuggerLayout::GetCodePaneId (view), mark, follows ? L"This disassembly follows the PC" : L"");
+        m_paneTabs.SetPaneTabMark (DebuggerLayout::GetCodePaneId (view), mark, follows ? L"This disassembly follows the PC" : L"");
 
         if (m_isOpen[(size_t) view])
         {
@@ -591,7 +597,7 @@ void DisassemblyGroup::ApplyView (int view)
         KeepSelection (view, context);
     }
 
-    m_host.CheckOperandTip (view);
+    m_paneTips.CheckOperandTip (view);
 }
 
 
@@ -1021,7 +1027,7 @@ void DisassemblyGroup::ApplyHistory (const HistoryStatus & status)
 
 void DisassemblyGroup::SendShownLines (int view, const std::vector<DisassemblyOptions::Row> & built)
 {
-    IDebuggerWindowHost  * host  = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host  = m_windowHost;
     int                    shown = DisassemblyOptions::CountShownLines (built, GetCodeList (view)->GetVisibleRowCapacity());
 
 
@@ -1077,7 +1083,7 @@ void DisassemblyGroup::SetAddressScroll (int view, const std::vector<DebuggerVie
 
     list->SetVertScrollModel (model, [this, view, shown, page = (int) model.nPage] (int code, int pos)
     {
-        IDebuggerWindowHost  * host = m_host.GetWindowHost();
+        IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -1115,7 +1121,7 @@ void DisassemblyGroup::SetAddressScroll (int view, const std::vector<DebuggerVie
 
 void DisassemblyGroup::UpdateLines()
 {
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    IDebuggerWindowHost  * host = m_windowHost;
 
 
 
@@ -1148,7 +1154,7 @@ void DisassemblyGroup::UpdateLines()
 void DisassemblyGroup::ShowCode (std::optional<Word> address)
 {
     const DebuggerViewSnapshot  * snapshot = m_latest.Get();
-    IDebuggerWindowHost         * host     = m_host.GetWindowHost();
+    IDebuggerWindowHost         * host     = m_windowHost;
     int                           view     = address.has_value() ? m_active : ((snapshot != nullptr) ? snapshot->followView : 0);
 
 
@@ -1160,8 +1166,8 @@ void DisassemblyGroup::ShowCode (std::optional<Word> address)
     //  ahead of the address, which is centered for the count the view has.
     if (m_isOpen[(size_t) view])
     {
-        m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
-        m_host.RelayoutDock();
+        m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+        m_paneLayout.RelayoutDock();
         UpdateLines();
     }
 
@@ -1265,13 +1271,13 @@ void DisassemblyGroup::SelectAsked (
             m_selected[(size_t) view]    = *asked;
             GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
             m_sources.ShowLine (lines[i].sourceFileId, lines[i].sourceLine);
-            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+            m_paneTabs.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
 
             //  A find's match is selected with the focus left in the find box,
             //  so typing goes on there.
             if (m_findSelect[(size_t) view] != asked)
             {
-                m_host.FocusControl (GetCodeList (view));
+                m_paneFocus.FocusControl (GetCodeList (view));
             }
 
             m_findSelect[(size_t) view].reset();
@@ -1382,7 +1388,7 @@ DxuiListView * DisassemblyGroup::FindCodeListAt (POINT clientPx, int & view) con
     {
         DxuiListView  * code = GetCodeList (each);
 
-        if (m_host.IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), clientPx))
+        if (m_paneRouting.IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), clientPx))
         {
             list = code;
             view = each;
@@ -1453,7 +1459,7 @@ bool DisassemblyGroup::ScrollCodeAtEdge (
 
 
 
-        if (code == nullptr || code != focused || m_host.GetWindowHost() == nullptr)
+        if (code == nullptr || code != focused || m_windowHost == nullptr)
         {
             continue;
         }
@@ -1473,7 +1479,7 @@ bool DisassemblyGroup::ScrollCodeAtEdge (
         }
 
         SelectEdgeAfterScroll (view, lines < 0);
-        m_host.GetWindowHost()->ScrollDebuggerCode (lines, view);
+        m_windowHost->ScrollDebuggerCode (lines, view);
         return true;
     }
 

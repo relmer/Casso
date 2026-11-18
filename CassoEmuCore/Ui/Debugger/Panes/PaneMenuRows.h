@@ -18,5 +18,5 @@ class PaneMenuRows
 {
 public:
     //  Add bookmark for an address, or Remove bookmark when it has one.
-    static void  AddBookmark (const LatestSnapshot & latest, IDebuggerPaneHost & host, Word address, PaneMenuItems & items);
+    static void  AddBookmark (const LatestSnapshot & latest, IPaneCommands & commands, Word address, PaneMenuItems & items);
 };

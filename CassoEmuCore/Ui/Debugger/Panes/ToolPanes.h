@@ -58,10 +58,13 @@ protected:
     //  the selection.
     std::vector<int>             GetActedRows   (int row) const;
 
-    std::wstring                         m_id;
-    std::wstring                         m_title;
-    DxuiListView                       * m_list = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>   m_frame;
+    DxuiWindow                          & m_paneWindow;
+    IPaneDialogs                        & m_paneDialogs;
+    IPaneRouting                        & m_paneRouting;
+    std::wstring                          m_id;
+    std::wstring                          m_title;
+    DxuiListView                        * m_list        = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>    m_frame;
 };
 
 
@@ -138,13 +141,17 @@ private:
     //  other way.
     static std::string  GetFileOf (const DebuggerViewSnapshot::SymbolsState & symbols, const std::string & table);
 
+    IPaneLayout                                                & m_paneLayout;
+    IPaneRouting                                               & m_paneRouting;
+    IPaneNavigator                                             & m_paneNavigator;
+    IPaneCommands                                              & m_paneCommands;
     const LatestSnapshot                                       & m_latest;
     Kind                                                         m_kind;
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
     std::vector<Row>                                             m_rows;
     std::set<std::string>                                        m_open;   // the tables whose headings are open
-    Sort                                                         m_sort      = Sort::Name;
-    bool                                                         m_isReverse = false;
+    Sort                                                         m_sort          = Sort::Name;
+    bool                                                         m_isReverse     = false;
 };
 
 
@@ -194,10 +201,13 @@ private:
     //  moves another one's number first.
     void  DeleteRows (const std::vector<int> & rows);
 
+    IPaneLayout                                   & m_paneLayout;
+    IPaneNavigator                                & m_paneNavigator;
+    IPaneCommands                                 & m_paneCommands;
     const LatestSnapshot                          & m_latest;
     std::vector<DebuggerViewSnapshot::WatchLine>    m_bookmarks;
-    int                                             m_sort      = -1;
-    bool                                            m_isReverse = false;
+    int                                             m_sort          = -1;
+    bool                                            m_isReverse     = false;
 };
 
 
@@ -248,9 +258,13 @@ private:
     void  DeleteRows (const std::vector<int> & rows);
     void  Rename     (const DataBlockEntry & block);
 
+    IPaneDialogs                 & m_paneDialogs;
+    IPaneLayout                  & m_paneLayout;
+    IPaneNavigator               & m_paneNavigator;
+    IPaneCommands                & m_paneCommands;
     const LatestSnapshot         & m_latest;
     std::vector<DataBlockEntry>    m_blocks;
     ListValueFilters               m_filters;
-    int                            m_sort      = -1;
-    bool                           m_isReverse = false;
+    int                            m_sort          = -1;
+    bool                           m_isReverse     = false;
 };

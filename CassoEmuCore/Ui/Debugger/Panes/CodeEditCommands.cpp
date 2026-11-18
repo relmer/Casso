@@ -24,7 +24,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 CodeEditCommands::CodeEditCommands (const DebuggerPaneParts & parts, const ICodeViews & views) :
-    m_host  (parts.host),
+    m_paneReplies (parts.replies),
+    m_paneDialogs (parts.dialogs),
+    m_paneRouting (parts.routing),
+    m_paneCommands (parts.commands),
     m_latest (parts.latest),
     m_views (views)
 {
@@ -167,25 +170,25 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
 
     //  What is added at the line: a symbol, a bookmark, a step filter entry
     //  and the stopwatch's ends.
-    items.push_back ({ L"Add symbol here...", [this, at] { AddSymbolDialog::Run (m_host, m_latest.GetMode(), at); } });
+    items.push_back ({ L"Add symbol here...", [this, at] { AddSymbolDialog::Run (m_paneDialogs, m_paneCommands, m_latest.GetMode(), at); } });
 
     if (bookmark != snapshot.bookmarks.end())
     {
-        items.push_back ({ L"Remove bookmark", [this, id = bookmark->id] { m_host.RunAction (WatchActions::GetClearBookmark (id, m_latest.GetMode())); } });
+        items.push_back ({ L"Remove bookmark", [this, id = bookmark->id] { m_paneCommands.RunAction (WatchActions::GetClearBookmark (id, m_latest.GetMode())); } });
     }
     else
     {
-        items.push_back ({ L"Add bookmark", [this, at] { m_host.RunAction (WatchActions::GetAddBookmark (at, m_latest.GetMode())); } });
+        items.push_back ({ L"Add bookmark", [this, at] { m_paneCommands.RunAction (WatchActions::GetAddBookmark (at, m_latest.GetMode())); } });
     }
 
-    m_host.AddSkipItem (name, routine, items);
+    m_paneReplies.AddSkipItem (name, routine, items);
     items.push_back ({ L"Start stopwatch here", [this, at] { m_stopwatchStart = at; } });
 
     if (m_stopwatchStart.has_value())
     {
         items.push_back ({ L"Stop stopwatch here", [this, at]
         {
-            m_host.RunAction (RunActions::GetStopwatch (*m_stopwatchStart, at, m_latest.GetMode()));
+            m_paneCommands.RunAction (RunActions::GetStopwatch (*m_stopwatchStart, at, m_latest.GetMode()));
             m_stopwatchStart.reset();
         } });
     }
@@ -195,25 +198,25 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
 
     for (const auto & [label, directive] : kMarks)
     {
-        items.push_back ({ PaneMenu::MakeInSubmenu (L"Mark as data", label), [this, data, directive] { m_host.RunAction (SymbolActions::GetMarkData (directive, data.first, data.second, m_latest.GetMode())); } });
+        items.push_back ({ PaneMenu::MakeInSubmenu (L"Mark as data", label), [this, data, directive] { m_paneCommands.RunAction (SymbolActions::GetMarkData (directive, data.first, data.second, m_latest.GetMode())); } });
     }
 
     if (snapshot.heatColumns != nullptr && HeatStrip::TryGetDataRange (*snapshot.heatColumns, at, dataFirst, dataLast))
     {
         items.push_back ({ std::format (L"Mark ${:04X}-${:04X} as data (read or written, never run)", dataFirst, dataLast), [this, dataFirst, dataLast]
         {
-            m_host.RunAction (SymbolActions::GetMarkData ("DB", dataFirst, dataLast, m_latest.GetMode()));
+            m_paneCommands.RunAction (SymbolActions::GetMarkData ("DB", dataFirst, dataLast, m_latest.GetMode()));
         } });
     }
 
-    items.push_back ({ L"Clear data marking", [this, range] { m_host.RunAction (SymbolActions::GetClearData (range.first, range.second, m_latest.GetMode())); } });
+    items.push_back ({ L"Clear data marking", [this, range] { m_paneCommands.RunAction (SymbolActions::GetClearData (range.first, range.second, m_latest.GetMode())); } });
 
     //  Changes to the machine at the line.
     items.push_back (PaneMenu::MakeSeparator());
 
     if (snapshot.isPaused)
     {
-        items.push_back ({ L"Call subroutine here", [this, at] { m_host.RunAction (RunActions::GetCallSubroutine (at, m_latest.GetMode())); } });
+        items.push_back ({ L"Call subroutine here", [this, at] { m_paneCommands.RunAction (RunActions::GetCallSubroutine (at, m_latest.GetMode())); } });
         items.push_back ({ L"Edit instruction...",  [this, view, line]  { EditInstruction (view, line); } });
         items.push_back ({ L"Replace with NOPs",    [this, view, range] { ReplaceWithNops (view, range); } });
     }
@@ -301,7 +304,7 @@ void CodeEditCommands::EditInstruction (int view, const DebuggerViewSnapshot::Co
 
     if (line.isRom)
     {
-        m_host.ShowMessageBox (m_host.GetOwnerHwnd(), std::format (L"${:04X} is in ROM, which an instruction edit does not change.", line.address),
+        m_paneDialogs.ShowMessageBox (m_paneRouting.GetOwnerHwnd(), std::format (L"${:04X} is in ROM, which an instruction edit does not change.", line.address),
                                L"Edit instruction", MB_OK | MB_ICONINFORMATION);
         return;
     }
@@ -316,7 +319,7 @@ void CodeEditCommands::EditInstruction (int view, const DebuggerViewSnapshot::Co
 
 
 
-    typed = m_host.RunTextDialog (L"Edit instruction", L"Instruction", TextEncoding::NarrowToWide (line.instruction), [&assembler, &line] (const std::wstring & text, std::wstring & message)
+    typed = m_paneDialogs.RunTextDialog (L"Edit instruction", L"Instruction", TextEncoding::NarrowToWide (line.instruction), [&assembler, &line] (const std::wstring & text, std::wstring & message)
     {
         std::vector<Byte>  trial;
         std::string        problem;
@@ -371,7 +374,7 @@ void CodeEditCommands::EditInstruction (int view, const DebuggerViewSnapshot::Co
             list += std::format (L"{}{}", (i == 0) ? L"" : (i + 1 == covered.size()) ? L" and " : L", ", TextEncoding::NarrowToWide (covered[i]));
         }
 
-        if (m_host.ShowMessageBox (m_host.GetOwnerHwnd(), std::format (L"{} is longer than {}, and also overwrites {}. Write it?", *typed, TextEncoding::NarrowToWide (line.instruction), list),
+        if (m_paneDialogs.ShowMessageBox (m_paneRouting.GetOwnerHwnd(), std::format (L"{} is longer than {}, and also overwrites {}. Write it?", *typed, TextEncoding::NarrowToWide (line.instruction), list),
                                    L"Edit instruction", MB_YESNO | MB_ICONQUESTION) != IDYES)
         {
             return;
@@ -387,7 +390,7 @@ void CodeEditCommands::EditInstruction (int view, const DebuggerViewSnapshot::Co
 
     m_undo.push_back ({ line.address, before, bytes, std::format (L"edit at ${:04X}", line.address) });
     m_redo.clear();
-    m_host.RunAction (MemoryActions::GetPatch (line.address, bytes, m_latest.GetMode(), before));
+    m_paneCommands.RunAction (MemoryActions::GetPatch (line.address, bytes, m_latest.GetMode(), before));
 }
 
 
@@ -418,7 +421,7 @@ void CodeEditCommands::ReplaceWithNops (int view, std::pair<Word, Word> range)
 
     if (isRom)
     {
-        m_host.ShowMessageBox (m_host.GetOwnerHwnd(), L"The selection is in ROM, which Replace with NOPs does not change.", L"Replace with NOPs", MB_OK | MB_ICONINFORMATION);
+        m_paneDialogs.ShowMessageBox (m_paneRouting.GetOwnerHwnd(), L"The selection is in ROM, which Replace with NOPs does not change.", L"Replace with NOPs", MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -430,7 +433,7 @@ void CodeEditCommands::ReplaceWithNops (int view, std::pair<Word, Word> range)
     after.assign (before.size(), kNop);
     m_undo.push_back ({ range.first, before, after, std::format (L"NOPs at ${:04X}", range.first) });
     m_redo.clear();
-    m_host.RunAction (MemoryActions::GetPatch (range.first, after, m_latest.GetMode(), before));
+    m_paneCommands.RunAction (MemoryActions::GetPatch (range.first, after, m_latest.GetMode(), before));
 }
 
 
@@ -463,7 +466,7 @@ void CodeEditCommands::Undo (bool redo)
 
 
     from.pop_back();
-    m_host.RunAction (redo ? MemoryActions::GetPatch (edit.address, edit.after, m_latest.GetMode(), edit.before)
+    m_paneCommands.RunAction (redo ? MemoryActions::GetPatch (edit.address, edit.after, m_latest.GetMode(), edit.before)
                            : MemoryActions::GetPatch (edit.address, edit.before, m_latest.GetMode(), edit.after));
     to.push_back (std::move (edit));
 }

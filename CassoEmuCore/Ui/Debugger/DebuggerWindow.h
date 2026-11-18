@@ -122,7 +122,7 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICommandBarHost, private IPaneContentMouseHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
+class DebuggerWindow : public DxuiWindow, private IPaneCommands, private IPaneNavigator, private IPanePlaces, private IPaneTabs, private IPaneFocus, private IPaneRouting, private IPaneBars, private IPaneTips, private IPaneLayout, private IPaneViews, private IPaneDialogs, private IPaneReplies, private ICommandBarHost, private IPaneContentMouseHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
                        private IFloatingPanesHost, private IColorKeysHost
 {
 public:
@@ -284,7 +284,6 @@ protected:
     //  Protected so a test can add a pane of its own ahead of OnCreate, as
     //  CreatePanes adds the window's, over the window's pane parts.
     void                       AddPane             (std::unique_ptr<IDebuggerPane> pane) { m_panes.push_back (std::move (pane)); }
-    IDebuggerPaneHost        & GetPaneHostForTest  () { return *this; }
     const DebuggerPaneParts  & GetPanePartsForTest () const { return m_paneParts; }
 
     //  A question put to the user in a message box centered on owner, as
@@ -421,7 +420,7 @@ protected:
     LatestSnapshot         m_latest;
     const CassoTheme     * m_emulatorTheme = nullptr;
     IDebuggerWindowHost  * m_host          = nullptr;
-    DebuggerPaneParts      m_paneParts     { static_cast<IDebuggerPaneHost &> (*this), m_look, m_latest, m_symbolComments };
+    DebuggerPaneParts      m_paneParts     { *this, m_scaler, m_host, m_look, m_latest, m_symbolComments, *this, *this, *this, *this, *this, *this, *this, *this, *this, *this, *this, *this };
 
     //  Protected so a test can work each pane and group through its own
     //  class, as the window does.
@@ -880,10 +879,8 @@ private:
     void                 CreatePanes            ();
     IDebuggerPane      * FindPane               (const std::wstring & pane) const;
 
-    //  The window's calls the panes make (IDebuggerPaneHost).
-    DxuiPanel                             & GetControlParent     () override { return *this; }
+    //  The window's calls the panes make (PaneHostInterfaces.h).
     void                                    GoToCode             (std::optional<Word> address) override { ShowCode (address); }
-    IDebuggerWindowHost                   * GetWindowHost        () override { return m_host; }
     bool                                    IsPaneOpen           (const std::wstring & pane) const override { return IsPaneShown (pane); }
     IDxuiControl                          * GetFocusedControl    () const override { return GetFocused(); }
     void                                    FocusDefault         () override { m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox()); }
@@ -907,10 +904,7 @@ private:
     const DxuiTheme                       * GetTheme             () const override { return m_look.GetTheme(); }
     void                                    RepaintLater         () override { RequestPaint(); }
     HWND                                    GetOwnerHwnd         () const override { return GetRoutingHwnd(); }
-    IDxuiTextRenderer                     * GetPaneTextRenderer  () override { return GetTextRenderer(); }
-    DxuiHwndSource                        * GetPanePopupHost     () override { return GetPopupHost(); }
     DxuiWindow                            * GetPaneWindow        (const std::wstring & pane) override { return GetPaneHost (pane); }
-    const DxuiDpiScaler                   & GetPaneScaler        () const override { return m_scaler; }
     bool                                    IsBarRouted          (const std::wstring & pane) const override { return m_floating->GetRoutingPane() == GetBarRoutingPane (pane); }
     void                                    Repaint              () override { Invalidate(); }
     void                                    OpenSource           (int fileId, int line) override;
@@ -944,10 +938,11 @@ private:
     //  calls for them (IColorKeysHost).
     std::unique_ptr<PaneColorKeys>  m_colorKeys;
 
-    ColorKeyButton  * CreateColorKeyButton (const std::wstring & pane, ColorLegend::Pane legend) override { return CreateChild<ColorKeyButton> (pane, legend); }
-    DxuiDockSite    * FindDockSiteOf       (const std::wstring & pane) const override { return m_floating->Contains (pane) ? m_floating->FindSite (pane) : m_dockSite; }
-    void              HideRoutedTip        () override { GetRoutedTooltip().HideImmediate(); }
-    RECT              GetBarStrip          (const std::wstring & pane, const RECT & slot) override { return m_colorKeys->GetBarStrip (pane, slot); }
+    ColorKeyButton       * CreateColorKeyButton (const std::wstring & pane, ColorLegend::Pane legend) override { return CreateChild<ColorKeyButton> (pane, legend); }
+    DxuiDockSite         * FindDockSiteOf       (const std::wstring & pane) const override { return m_floating->Contains (pane) ? m_floating->FindSite (pane) : m_dockSite; }
+    void                   HideRoutedTip        () override { GetRoutedTooltip().HideImmediate(); }
+    RECT                   GetBarStrip          (const std::wstring & pane, const RECT & slot) override { return m_colorKeys->GetBarStrip (pane, slot); }
+    const DxuiDpiScaler  & GetPaneScaler        () const override { return m_scaler; }
 
     std::string                                                   m_machine;
     std::wstring                                                  m_slidPane;

@@ -65,10 +65,15 @@ private:
     void          SetBarEntries  ();
     void          UpdateGraph    ();
 
-    std::unique_ptr<CommLogPane>  m_model;
-    CommSignalGraph             * m_graph         = nullptr;
-    uint64_t                      m_span          = kDefaultSpan;
-    int                           m_graphedRow    = -2;          // the keyboard's row when the graph was last built
-    size_t                        m_graphedCount  = SIZE_MAX;    // the rows then
-    uint64_t                      m_graphedBefore = UINT64_MAX;  // and the position the machine was taken back to
+    DxuiWindow                    & m_paneWindow;
+    IPaneLayout                   & m_paneLayout;
+    IPaneBars                     & m_paneBars;
+    IPaneRouting                  & m_paneRouting;
+    IPanePlaces                   & m_panePlaces;
+    std::unique_ptr<CommLogPane>    m_model;
+    CommSignalGraph               * m_graph         = nullptr;
+    uint64_t                        m_span          = kDefaultSpan;
+    int                             m_graphedRow    = -2;   // the keyboard's row when the graph was last built
+    size_t                          m_graphedCount  = SIZE_MAX;   // the rows then
+    uint64_t                        m_graphedBefore = UINT64_MAX;   // and the position the machine was taken back to
 };
