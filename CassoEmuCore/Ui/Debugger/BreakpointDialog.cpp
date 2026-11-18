@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/BreakpointDialog.h"
+#include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/Source/SourcePathList.h"
 
@@ -8,8 +10,8 @@
 
 static constexpr const wchar_t *  s_kDiskEventNames[] =
 {
-    L"Sector read", L"Address field", L"Head position", L"Write", L"DOS 3.3 sector", L"ProDOS block",
-    L"RWTS call",   L"ProDOS driver call", L"Motor", L"Drive select", L"Disk inserted", L"Disk ejected",
+    L"Read sector", L"Read address field", L"Move head", L"Write disk", L"Read or write DOS 3.3 sector", L"Read or write ProDOS block",
+    L"Call RWTS", L"Call ProDOS driver", L"Turn motor on or off", L"Select drive", L"Insert disk image (Casso)", L"Eject disk image (Casso)",
 };
 
 static constexpr const char *  s_kDrivePrefixes[] = { "", "D1 ", "D2 " };
@@ -85,15 +87,15 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
     for (const Row & each : m_rows)
     {
         bool  isShown = (each.error != nullptr) ? each.error->HasError() : each.field->IsVisible();
-        int   height  = (each.error != nullptr) ? GetErrorHeightPx (*each.error, scaler, width) : row;
+        int   height  = (each.error != nullptr) ? GetErrorRoomPx (*each.error, scaler, width) : row;
 
 
 
         if (each.error != nullptr)
         {
             each.error->SetVisible (isShown);
-            each.error->Layout (RECT { boundsDip.left, y, boundsDip.right, y + (isShown ? height : 0) }, scaler);
-            y += isShown ? height + gap : 0;
+            each.error->Layout (RECT { boundsDip.left, y, boundsDip.right, y + height }, scaler);
+            y += height + gap;
             continue;
         }
 
@@ -155,9 +157,9 @@ int BreakpointDialogPanel::GetHeightPx (const DxuiDpiScaler & scaler, int widthP
 
     for (const Row & each : m_rows)
     {
-        if (each.error != nullptr && each.error->HasError())
+        if (each.error != nullptr)
         {
-            height += GetErrorHeightPx (*each.error, scaler, widthPx) + gap;
+            height += GetErrorRoomPx (*each.error, scaler, widthPx) + gap;
         }
         else if (each.error == nullptr && each.field->IsVisible())
         {
@@ -196,16 +198,39 @@ int BreakpointDialogPanel::GetErrorHeightPx (const DxuiFieldError & error, const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointDialogPanel::GetErrorRoomPx
+//
+//  The room reserved for the error, or the error's height when it is taller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointDialogPanel::GetErrorRoomPx (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const
+{
+    int  room = scaler.ToPx (kErrorDip);
+
+
+
+    return error.HasError() ? (std::max) (room, GetErrorHeightPx (error, scaler, widthPx)) : room;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointDialogPanel::GetTextWidthPx
 //
-//  The label's text in the theme's body font, as the label draws it; the
-//  whole label column until the text renderer and the theme are set.
+//  The label's text in the theme's body font, as the label draws it, with
+//  its required mark; the whole label column until the text renderer and
+//  the theme are set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int BreakpointDialogPanel::GetTextWidthPx (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
 {
     DxuiFontHandle  font;
+    std::wstring    marked = label.GetText() + (label.IsRequired() ? DxuiLabel::kRequiredMark : L"");
     float           width  = 0.0f;
     float           height = 0.0f;
     HRESULT         hr     = S_OK;
@@ -219,7 +244,7 @@ int BreakpointDialogPanel::GetTextWidthPx (const DxuiLabel & label, const DxuiDp
 
     font         = m_theme->BodyFont();
     font.sizeDip = scaler.ToPxf (font.sizeDip);
-    hr           = m_text->MeasureString (label.GetText().c_str(), font, width, height);
+    hr           = m_text->MeasureString (marked.c_str(), font, width, height);
 
     return SUCCEEDED (hr) ? (int) std::ceil (width) : scaler.ToPx (kLabelDip);
 }
@@ -243,6 +268,7 @@ const std::vector<BreakpointDialog::TypeRow> & BreakpointDialog::GetTypeRows()
     {
         { L"Execution",                    std::nullopt              },
         { L"Address",                      Type::Execute             },
+        { L"Source line",                  Type::SourceLine          },
         { L"Condition",                    Type::Condition           },
         { L"Opcode",                       Type::Opcode              },
         { L"BRK",                          Type::Brk                 },
@@ -425,6 +451,14 @@ BreakpointDialog::DiskFieldSet BreakpointDialog::GetDiskFieldSet (int event)
         fieldSet.isEvery = true;
     }
 
+    //  A DOS 3.3 sector or a ProDOS block is watched being read, written or
+    //  either.
+    if (word == "DOS" || word == "BLOCK")
+    {
+        fieldSet.choiceLabel = L"Access";
+        fieldSet.choices     = { L"Read", L"Written", L"Read or written" };
+    }
+
     return fieldSet;
 }
 
@@ -448,6 +482,7 @@ std::string BreakpointDialog::MakeDiskArguments (int event, const DiskFields & f
     static constexpr const char *  kRwtsCommands[]   = { "", "READ", "WRITE", "SEEK", "FORMAT" };
     static constexpr const char *  kDriverCommands[] = { "", "READ", "WRITE", "STATUS", "FORMAT" };
     static constexpr const char *  kMotorStates[]    = { "", "ON", "OFF", "STOPPED" };
+    static constexpr const char *  kAccessWords[]    = { "", "WRITTEN", "EITHER" };
     std::string                    word    = DiskBreakSpecText::GetEventWords()[std::clamp<size_t> (event, 0, DiskBreakSpecText::GetEventWords().size() - 1)].word;
     DiskFieldSet                   set     = GetDiskFieldSet (event);
     std::vector<std::string>       parts;
@@ -500,6 +535,7 @@ std::string BreakpointDialog::MakeDiskArguments (int event, const DiskFields & f
            :                                          std::string());
     }
 
+    add ((word == "DOS" || word == "BLOCK") ? kAccessWords [std::min (choice, 2)] : "");
     add (word == "RWTS"   ? kRwtsCommands  [std::min (choice, 4)] : "");
     add (word == "DRIVER" ? kDriverCommands[std::min (choice, 4)] : "");
     add (word == "MOTOR"  ? kMotorStates   [std::min (choice, 3)] : "");
@@ -578,6 +614,8 @@ BreakpointDialog::DiskFields BreakpointDialog::ParseDiskArguments (int event, co
         else if (key == "BUMP")       { fields.isBump        = true; }
         else if (key == "EVERY")      { fields.isEvery       = true; }
         else if (key == "HALF")       { fields.choice        = 3; }
+        else if (key == "WRITTEN")    { fields.choice        = 1; }
+        else if (key == "EITHER")     { fields.choice        = 2; }
         else if (key == "BLOCKED")    { fields.choice        = 4; }
         else if ((key == "T" || key == "QT") && i + 1 < words.size())
         {
@@ -690,7 +728,9 @@ BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
     shown.access    = isWatched;
     shown.value     = type == Type::Value || type == Type::Opcode || type == Type::Beam;
     shown.condition = type != Type::UnwrittenRead && type != Type::VideoLine && type != Type::Beam;
-    shown.address   = type == Type::Execute || isWatched || type == Type::Value || type == Type::BasicLine ||
+    shown.file      = type == Type::SourceLine;
+    shown.log       = type != Type::UnwrittenRead;
+    shown.address   = type == Type::Execute || type == Type::SourceLine || isWatched || type == Type::Value || type == Type::BasicLine ||
                       type == Type::BasicVariable || type == Type::VideoLine || type == Type::Beam;
 
     return shown;
@@ -708,38 +748,36 @@ BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
 
 std::string BreakpointDialog::MakeDefinition (const Fields & fields)
 {
-    std::string  clause = fields.condition.empty() ? std::string() : " IF " + fields.condition;
-    std::string  mode   = (fields.mode == WatchMode::Before) ? " BEFORE" : "";
+    return BreakpointActions::GetBreakpointEcho (ToDefinition (fields));
+}
 
 
 
-    switch (fields.type)
-    {
-    case Type::Read:      return "BPMR " + fields.address + mode + clause;
-    case Type::Write:     return "BPMW " + fields.address + mode + clause;
-    case Type::ReadWrite: return "BPM " + fields.address + mode + clause;
-    case Type::Value:     return "BPMV " + fields.address + " " + fields.value + clause;
-    case Type::Condition: return "BPR IF " + fields.condition;
-    case Type::Opcode:    return "BRKOP " + fields.value + clause;
-    case Type::Brk:       return "BRK ON" + clause;
-    case Type::Interrupt: return "BRKINT ON" + clause;
-    case Type::Disk:      return std::format ("BPDISK {}{}{}{}", s_kDrivePrefixes[std::clamp (fields.drive, 0, 2)],
-                                              DiskBreakSpecText::GetEventWords()[std::clamp<size_t> (fields.event, 0, DiskBreakSpecText::GetEventWords().size() - 1)].word,
-                                              fields.arguments.empty() ? std::string() : " " + fields.arguments, clause);
-    case Type::BasicLine:
-        return "BPBASIC " + fields.address + clause;
-    case Type::BasicVariable:
-        return "BPBASICVAR " + fields.address + clause;
-    case Type::BasicError:
-        return "BRKBASIC ON" + clause;
-    case Type::UnwrittenRead:
-        return "BRKUNINIT ON";
-    case Type::VideoLine:
-        return "BPV " + fields.address;
-    case Type::Beam:
-        return (_stricmp (fields.address.c_str(), "VBL") == 0) ? std::string ("BPBEAM VBL") : "BPBEAM " + fields.address + " " + fields.value;
-    default:              return "BP " + fields.address + clause;
-    }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::ToDefinition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointDefinition BreakpointDialog::ToDefinition (const Fields & fields)
+{
+    BreakpointDefinition  definition;
+
+
+
+    definition.type      = fields.type;
+    definition.isBefore  = fields.mode == WatchMode::Before;
+    definition.address   = fields.address;
+    definition.value     = fields.value;
+    definition.condition = fields.condition;
+    definition.event     = fields.event;
+    definition.drive     = fields.drive;
+    definition.arguments = fields.arguments;
+    definition.file      = fields.file;
+
+    return definition;
 }
 
 
@@ -765,6 +803,8 @@ BreakpointDialog::Fields BreakpointDialog::GetFields (const BreakpointInfo & inf
     fields.address   = (info.last > info.address) ? std::format ("{:04X}:{:04X}", info.address, info.last)
                                                   : std::format ("{:04X}", info.address);
     fields.condition = info.condition;
+    fields.log       = info.log;
+    fields.isLogGo   = !info.stops;
 
     switch (fields.type)
     {
@@ -885,12 +925,16 @@ void BreakpointDialog::ShowFieldsForType()
 
 
     m_conditionTip.SetText (GetConditionTip (type));
+    m_logTip.SetText       (GetLogTip (type));
     m_mode.SetVisible      (shown.mode);
     m_event.SetVisible     (shown.event);
     m_drive.SetVisible     (shown.drive);
+    m_file.SetVisible      (shown.file);
     m_value.SetVisible     (shown.value);
     m_address.SetVisible   (shown.address);
     m_condition.SetVisible (shown.condition);
+    m_log.SetVisible       (shown.log);
+    m_logGo.SetVisible     (shown.log);
     m_accessRead.SetVisible  (shown.access);
     ShowDiskFields (type == Type::Disk);
 
@@ -909,6 +953,11 @@ void BreakpointDialog::ShowFieldsForType()
     case Type::BasicLine:
         m_addressLabel.SetText   (L"Line number");
         m_address.SetPlaceholder (L"A line number, 0 to 63999");
+        break;
+
+    case Type::SourceLine:
+        m_addressLabel.SetText   (L"Line number");
+        m_address.SetPlaceholder (L"A line number in the file");
         break;
 
     case Type::BasicVariable:
@@ -955,7 +1004,13 @@ void BreakpointDialog::ShowFieldsForType()
         break;
     }
 
-    m_condition.SetPlaceholder (type == Type::Condition ? L"An expression: A == 41" : L"Optional: A == 41");
+    m_condition.SetPlaceholder (L"An expression: A == 41");
+
+    //  The fields the type can't do without are marked, as IsCheckedOnFocusLoss
+    //  finds them.
+    m_addressLabel.SetRequired   (shown.address);
+    m_valueLabel.SetRequired     (shown.value);
+    m_conditionLabel.SetRequired (type == Type::Condition);
 
     //  The rows close up over the hidden fields, and the dialog fits them.
     Resize();
@@ -1116,9 +1171,10 @@ void BreakpointDialog::ShowDiskFields (bool isDisk)
     m_diskNumberLabel.SetText (fieldSet.numberLabel != nullptr ? fieldSet.numberLabel : L"");
     m_diskChoiceLabel.SetText (fieldSet.choiceLabel != nullptr ? fieldSet.choiceLabel : L"");
 
-    m_diskTrack.SetPlaceholder  (fieldSet.isRange || (word == "WRITE" && choice != 1) ? L"A hex track or range: 11 or 10:12" : L"A hex track number. Optional.");
-    m_diskSector.SetPlaceholder (L"A hex sector number. Optional.");
-    m_diskNumber.SetPlaceholder ((word == "ADDRESS") ? L"A decimal volume, as in CATALOG. Optional." : L"A hex block number. Optional.");
+    m_diskTrack.SetPlaceholder   (fieldSet.isRange || (word == "WRITE" && choice != 1) ? L"A hex track or range: 11 or 10:12" : L"A hex track number");
+    m_diskSector.SetPlaceholder  (L"A hex sector number");
+    m_diskNumber.SetPlaceholder  ((word == "ADDRESS") ? L"A decimal volume, as in CATALOG" : L"A hex block number");
+    m_diskTrackLabel.SetRequired (fieldSet.isRange || (word == "WRITE" && choice != 1));
 
     m_choiceTip.SetText ((word == "HEAD")  ? L"Any position\tevery move of the head\n"
                                              L"Whole tracks\tthe head arriving on a track in the range\n"
@@ -1186,9 +1242,17 @@ void BreakpointDialog::OnCreate()
         fields.type = *m_presetType;
     }
 
+    //  A breakpoint set on a source line is edited as one: its file and line.
+    if (m_sourcePlace.has_value())
+    {
+        fields.type    = Type::SourceLine;
+        fields.file    = SourcePathList::WideToUtf8 (m_sourcePlace->first);
+        fields.address = std::to_string (m_sourcePlace->second);
+    }
+
     m_type = fields.type;
 
-    for (DxuiLabel * label : { &m_accessLabel, &m_eventLabel, &m_driveLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
+    for (DxuiLabel * label : { &m_accessLabel, &m_eventLabel, &m_driveLabel, &m_fileLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel, &m_logLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -1197,9 +1261,14 @@ void BreakpointDialog::OnCreate()
     m_accessLabel.SetText    (L"Access");
     m_eventLabel.SetText     (L"Disk event");
     m_driveLabel.SetText     (L"Drive");
+    m_fileLabel.SetText      (L"File");
     m_modeLabel.SetText      (L"Stops");
     m_addressLabel.SetText   (L"Address or range");
     m_conditionLabel.SetText (L"Condition");
+    m_logLabel.SetText       (L"Log message");
+    m_logGo.SetLabel         (L"Don't break");
+    m_logGo.SetChecked       (fields.isLogGo);
+    m_log.SetPlaceholder     (L"Text with {expressions}");
 
     m_accessRead.SetLabel    (L"Read");
     m_accessWrite.SetLabel   (L"Write");
@@ -1219,6 +1288,11 @@ void BreakpointDialog::OnCreate()
     m_drive.SetSelected  (fields.drive);
     m_drive.SetPopupHost (GetPopupHost());
 
+    m_file.SetItems     (m_sourceFiles);
+    m_file.SetSelected  (std::ranges::contains (m_sourceFiles, SourcePathList::Utf8ToWide (fields.file))
+                             ? (int) (std::ranges::find (m_sourceFiles, SourcePathList::Utf8ToWide (fields.file)) - m_sourceFiles.begin()) : 0);
+    m_file.SetPopupHost (GetPopupHost());
+
     {
         DiskFields    disk     = ParseDiskArguments (fields.event, fields.arguments);
         DiskFieldSet  fieldSet = GetDiskFieldSet (fields.event);
@@ -1231,8 +1305,8 @@ void BreakpointDialog::OnCreate()
 
         m_diskAddressMarksLabel.SetText   (L"Address prologue");
         m_diskDataMarksLabel.SetText      (L"Data prologue");
-        m_diskAddressMarks.SetPlaceholder (L"Three hex bytes, ?? for any. Optional.");
-        m_diskDataMarks.SetPlaceholder    (L"Three hex bytes, ?? for any. Optional.");
+        m_diskAddressMarks.SetPlaceholder (L"Three hex bytes, ?? for any");
+        m_diskDataMarks.SetPlaceholder    (L"Three hex bytes, ?? for any");
 
         m_diskTrack.SetText        (SourcePathList::Utf8ToWide (disk.track));
         m_diskSector.SetText       (SourcePathList::Utf8ToWide (disk.sector));
@@ -1246,12 +1320,12 @@ void BreakpointDialog::OnCreate()
         m_diskChoice.SetPopupHost (GetPopupHost());
         m_diskFieldSetEvent = fields.event;
 
-        m_diskPassed.SetLabel      (L"Also fields the search passes over");
-        m_diskBadChecksum.SetLabel (L"Only when its checksum is wrong");
-        m_diskWrongTrack.SetLabel  (L"Only when its track is not the head's");
-        m_diskBump.SetLabel        (L"Only a step against the end stop");
-        m_diskEvery.SetLabel       (L"Every selection, not only a change");
-        m_diskThirteen.SetLabel    (L"A 13-sector disk, as DOS 3.2 writes");
+        m_diskPassed.SetLabel      (L"Fields passed over while searching");
+        m_diskBadChecksum.SetLabel (L"Bad checksum");
+        m_diskWrongTrack.SetLabel  (L"Track differs from the head's");
+        m_diskBump.SetLabel        (L"Step against the end stop");
+        m_diskEvery.SetLabel       (L"Every selection, including the same drive");
+        m_diskThirteen.SetLabel    (L"13-sector format (DOS 3.2)");
 
         m_diskPassed.SetChecked      (disk.isPassed);
         m_diskBadChecksum.SetChecked (disk.isBadChecksum);
@@ -1261,7 +1335,7 @@ void BreakpointDialog::OnCreate()
         m_diskThirteen.SetChecked    (disk.isThirteen);
     }
 
-    for (DxuiTextInput * box : { &m_address, &m_value, &m_condition, &m_diskTrack, &m_diskSector, &m_diskNumber, &m_diskAddressMarks, &m_diskDataMarks })
+    for (DxuiTextInput * box : { &m_address, &m_value, &m_condition, &m_log, &m_diskTrack, &m_diskSector, &m_diskNumber, &m_diskAddressMarks, &m_diskDataMarks })
     {
         box->SetTheme        (m_theme);
         box->SetHwnd         (GetHwnd());
@@ -1273,8 +1347,9 @@ void BreakpointDialog::OnCreate()
     m_newAddress = m_newAddress.has_value() ? std::optional<std::wstring> (SourcePathList::Utf8ToWide (fields.address)) : std::nullopt;
     m_value.SetText     (SourcePathList::Utf8ToWide (fields.value));
     m_condition.SetText (SourcePathList::Utf8ToWide (fields.condition));
+    m_log.SetText       (SourcePathList::Utf8ToWide (fields.log));
 
-    for (DxuiInfoTip * tip : { &m_conditionTip, &m_eventTip, &m_choiceTip })
+    for (DxuiInfoTip * tip : { &m_conditionTip, &m_eventTip, &m_choiceTip, &m_logTip })
     {
         tip->SetPopupHost (GetPopupHost());
         tip->SetDpi       (GetDpi());
@@ -1282,6 +1357,7 @@ void BreakpointDialog::OnCreate()
 
     m_conditionTip.SetText (GetConditionTip (fields.type));
     m_eventTip.SetText     (GetDiskEventTip());
+    m_logTip.SetText       (GetLogTip (fields.type));
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
     m_body->SetTextMeasure (GetTextRenderer(), m_theme);
@@ -1297,13 +1373,16 @@ void BreakpointDialog::OnCreate()
     m_body->Add (m_diskCheckLabels[3],       m_diskBump);
     m_body->Add (m_diskCheckLabels[4],       m_diskEvery);
     m_body->Add (m_diskAddressMarksLabel,    m_diskAddressMarks);
-    m_body->Add (m_diskDataMarksLabel,       m_diskDataMarks);
     m_body->Add (m_diskCheckLabels[5],       m_diskThirteen);
+    m_body->Add (m_diskDataMarksLabel,       m_diskDataMarks);
     m_body->Add (m_accessLabel,              m_accessRead, nullptr, &m_accessWrite);
     m_body->Add (m_modeLabel,                m_mode);
+    m_body->Add (m_fileLabel,                m_file);
     m_body->Add (m_addressLabel,             m_address);
     m_body->Add (m_valueLabel,               m_value);
     m_body->Add (m_conditionLabel,           m_condition, &m_conditionTip);
+    m_body->Add (m_logLabel,                 m_log, &m_logTip);
+    m_body->Add (m_logGoLabel,               m_logGo);
     m_body->AddError (m_error);
 
     ShowFieldsForType();
@@ -1337,8 +1416,8 @@ void BreakpointDialog::OnCreate()
 
 void BreakpointDialog::Confirm()
 {
-    std::string  definition = MakeEditedDefinition();
-    std::string  reason     = m_validator ? m_validator (definition) : std::string();
+    BreakpointDefinition  definition = MakeEditedDefinition();
+    std::string           reason     = m_validator ? m_validator (definition) : std::string();
 
 
 
@@ -1350,7 +1429,7 @@ void BreakpointDialog::Confirm()
         return;
     }
 
-    m_definition = definition;
+    m_result = Result { definition, SourcePathList::WideToUtf8 (m_log.GetText()), m_logGo.IsChecked() };
     EndDialog (IDOK);
 }
 
@@ -1364,9 +1443,9 @@ void BreakpointDialog::Confirm()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string BreakpointDialog::MakeEditedDefinition() const
+BreakpointDefinition BreakpointDialog::MakeEditedDefinition() const
 {
-    return MakeDefinition (GetEditedFields());
+    return ToDefinition (GetEditedFields());
 }
 
 
@@ -1392,7 +1471,10 @@ BreakpointDialog::Fields BreakpointDialog::GetEditedFields() const
     edited.condition = SourcePathList::WideToUtf8 (m_condition.GetText());
     edited.event     = m_event.GetSelectedIndex();
     edited.drive     = m_drive.GetSelectedIndex();
+    edited.file      = (m_file.GetSelectedIndex() >= 0 && m_file.GetSelectedIndex() < (int) m_sourceFiles.size()) ? SourcePathList::WideToUtf8 (m_sourceFiles[(size_t) m_file.GetSelectedIndex()]) : std::string();
     edited.arguments = MakeDiskArguments (edited.event, ReadDiskFields());
+    edited.log       = SourcePathList::WideToUtf8 (m_log.GetText());
+    edited.isLogGo   = m_logGo.IsChecked();
 
     return edited;
 }
@@ -1413,7 +1495,7 @@ BreakpointDialog::Fields BreakpointDialog::GetEditedFields() const
 void BreakpointDialog::CheckFields()
 {
     Fields        edited = GetEditedFields();
-    std::wstring  reason = (m_validator && IsCheckedOnFocusLoss (edited)) ? SourcePathList::Utf8ToWide (m_validator (MakeDefinition (edited))) : std::wstring();
+    std::wstring  reason = (m_validator && IsCheckedOnFocusLoss (edited)) ? SourcePathList::Utf8ToWide (m_validator (ToDefinition (edited))) : std::wstring();
 
 
 
@@ -1459,8 +1541,7 @@ std::wstring BreakpointDialog::GetConditionTip (Type type)
 
     if (isDisk)
     {
-        tip += L"The disk: DISK.DRIVE, DISK.QTRACK, DISK.QTRACK1, DISK.QTRACK2, DISK.MOTOR, DISK.WRITING, "
-               L"DISK.PROTECTED, DISK.INSERTED, DISK.ATRACK, DISK.ASECTOR and DISK.AVOLUME\n";
+        tip += GetDiskValuesLine();
     }
 
     tip += L"All numbers are in hex, with or without a $ prefix. For decimal, prefix with 0n, for example 0n123.\n";
@@ -1555,17 +1636,83 @@ bool BreakpointDialog::IsCheckedOnFocusLoss (const Fields & fields)
 
 const wchar_t * BreakpointDialog::GetDiskEventTip()
 {
-    return L"Sector read\ta physical sector's data read by a program, not passed over\n"
-           L"Address field\tan address field passing under the head\n"
-           L"Head position\tthe head arriving on a track\n"
-           L"Write\twrite mode, a sector written, or a write blocked\n"
-           L"DOS 3.3 sector\ta DOS 3.3 logical sector read, through its physical sector\n"
-           L"ProDOS block\tboth halves of a ProDOS block read\n"
-           L"RWTS call\tDOS 3.3's RWTS called with that request, before it runs\n"
-           L"ProDOS driver call\tProDOS's disk driver called, before it runs\n"
-           L"Motor\tthe motor switched on or off, or stopping\n"
-           L"Drive select\tthe other drive selected\n"
-           L"Disk inserted, ejected\ta disk put in or taken out";
+    return L"Read sector\ta physical sector's data read by a program, not passed over\n"
+           L"Read address field\tan address field passing under the head\n"
+           L"Move head\tthe head arriving on a track\n"
+           L"Write disk\twrite mode, a physical sector written, or a write blocked\n"
+           L"Read or write DOS 3.3 sector\ta DOS 3.3 logical sector, through its physical sector\n"
+           L"Read or write ProDOS block\tboth halves of a ProDOS block\n"
+           L"Call RWTS\tDOS 3.3's RWTS called with that request, before it runs\n"
+           L"Call ProDOS driver\tProDOS's disk driver called, before it runs\n"
+           L"Turn motor on or off\tthe motor switched on or off, or stopping\n"
+           L"Select drive\tthe other drive selected\n"
+           L"Insert, eject disk image (Casso)\ta disk image mounted or ejected in Casso; the drive itself can't report this";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetDiskValuesLine
+//
+//  The disk's values an expression reads, the address field's apart from
+//  where the head is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * BreakpointDialog::GetDiskValuesLine()
+{
+    return L"The disk: DISK.DRIVE, DISK.QTRACK (where the head is, in quarter tracks), DISK.QTRACK1, DISK.QTRACK2, DISK.MOTOR, "
+           L"DISK.WRITING, DISK.PROTECTED, DISK.INSERTED, and the last address field read: DISK.ADDR.TRACK, "
+           L"DISK.ADDR.SECTOR and DISK.ADDR.VOLUME\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetLogTip
+//
+//  What a message can read for the type, as the condition tip lists it: a
+//  memory breakpoint adds its access, and a disk or condition breakpoint
+//  the disk's values, with an example that uses them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BreakpointDialog::GetLogTip (Type type)
+{
+    bool          isMemory = type == Type::Read || type == Type::Write || type == Type::ReadWrite || type == Type::Value;
+    bool          isDisk   = type == Type::Disk || type == Type::Condition;
+    std::wstring  tip;
+
+
+
+    tip  = L"Each hit writes this message to the console, with each expression in braces evaluated at the hit, in hex.\n";
+    tip += L"An expression reads the registers, the flags, memory and symbols, as a condition does.\n";
+    tip += L"A .b or .w after a symbol reads its byte or word.\n";
+
+    if (isMemory)
+    {
+        tip += L"The access: ACCESS for its address and VALUE for its byte\n";
+    }
+
+    if (isDisk)
+    {
+        tip += GetDiskValuesLine();
+    }
+
+    tip += L"\n";
+    tip += isDisk   ? L"Example: T={DISK.ADDR.TRACK} S={DISK.ADDR.SECTOR}\n"
+         : isMemory ? L"Example: {ACCESS}={VALUE}\n"
+         :            L"Example: A={A} count={count.b}\n";
+    tip += L"\n";
+    tip += L"With Don't break checked, a hit is counted and logged and the machine runs on; otherwise it stops.";
+
+    return tip;
 }
 
 
@@ -1578,21 +1725,24 @@ const wchar_t * BreakpointDialog::GetDiskEventTip()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type, Validator validator)
+std::optional<BreakpointDialog::Result> BreakpointDialog::RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type, Validator validator,
+                                                                    std::vector<std::wstring> sourceFiles, std::optional<SourcePlace> sourcePlace)
 {
-    HRESULT                   hr     = S_OK;
-    BreakpointDialog          dialog;
-    DxuiWindow::CreateParams  params;
+    HRESULT                            hr     = S_OK;
+    std::unique_ptr<BreakpointDialog>  dialog = std::make_unique<BreakpointDialog>();
+    DxuiWindow::CreateParams           params;
 
 
 
-    dialog.m_theme      = theme;
-    dialog.m_info       = info;
-    dialog.m_presetType = type;
-    dialog.m_newAddress = (info.id < 0) ? std::optional<std::wstring> (std::wstring()) : std::nullopt;
-    dialog.m_validator  = std::move (validator);
+    dialog->m_theme      = theme;
+    dialog->m_info       = info;
+    dialog->m_presetType = type;
+    dialog->m_newAddress = (info.id < 0) ? std::optional<std::wstring> (std::wstring()) : std::nullopt;
+    dialog->m_validator  = std::move (validator);
+    dialog->m_sourceFiles = std::move (sourceFiles);
+    dialog->m_sourcePlace = std::move (sourcePlace);
 
-    params.title                    = GetTitle (type.value_or (GetType (info)), (info.id < 0) ? std::nullopt : std::optional<int> (info.id));
+    params.title                    = GetTitle (dialog->m_sourcePlace.has_value() ? Type::SourceLine : type.value_or (GetType (info)), (info.id < 0) ? std::nullopt : std::optional<int> (info.id));
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 500, 300 };
@@ -1602,18 +1752,18 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
     params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
-    hr = dialog.Create (params);
+    hr = dialog->Create (params);
 
     if (FAILED (hr))
     {
         return std::nullopt;
     }
 
-    dialog.SetTheme (theme);
-    dialog.FitToMaxSize();
-    dialog.ShowModalDialog (IDOK);
+    dialog->SetTheme (theme);
+    dialog->FitToMaxSize();
+    dialog->ShowModalDialog (IDOK);
 
-    return dialog.m_definition;
+    return dialog->m_result;
 }
 
 
@@ -1626,7 +1776,8 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator)
+std::optional<BreakpointDialog::Result> BreakpointDialog::RunNew (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator,
+                                                                  std::vector<std::wstring> sourceFiles)
 {
     BreakpointInfo  info;
 
@@ -1637,7 +1788,7 @@ std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiThem
     info.address = pc;
     info.last    = pc;
 
-    return RunModal (owner, theme, info, type, std::move (validator));
+    return RunModal (owner, theme, info, type, std::move (validator), std::move (sourceFiles));
 }
 
 
@@ -1665,6 +1816,7 @@ void BreakpointDialog::OnDialogTick()
     m_conditionTip.Tick (nowMs);
     m_eventTip.Tick     (nowMs);
     m_choiceTip.Tick    (nowMs);
+    m_logTip.Tick       (nowMs);
 
     if (m_isCheckDue && !isPressed)
     {

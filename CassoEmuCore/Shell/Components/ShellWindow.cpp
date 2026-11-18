@@ -1,6 +1,6 @@
 #include "Pch.h"
 #include "Shell/ShellDebugger.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellHistory.h"
 
 #include "Shell/Components/ShellWindow.h"
 #include "Shell/EmulatorShell.h"
@@ -19,6 +19,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
+#include "Ui/Debugger/DroppedFiles.h"
 #include "Config/MachineInputPrefs.h"
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
@@ -70,7 +71,8 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
-#include "Devices/Tape/TapeImageLoader.h"
+#include "Devices/Disk/ImageClassifier.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -280,8 +282,8 @@ SIZE ShellWindow::GetClientSizeForFramebufferPx (int framebufferWidthDp, int fra
     if (m_shell.CrtMonitorActive())
     {
         SIZE   center     = DeskSceneLayout::CenterSizeForDisplayPx (framebufferWpx, framebufferHpx,
-                                                                     m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                                                     m_shell.m_scene->GetScene().Metrics(),
+                                                                     m_shell.m_scaler.GetDpi(), m_shell.m_scene->GetDeskCompositionDriveCount(),
+                                                                     m_shell.m_scene->GetDeskCompositionMetrics(),
                                                                      m_shell.m_scaler.ToPx (s_kSceneDriveGapDp + s_kStripEdgeZoneDp));
         float  savedScale = m_shell.m_chrome->GetSceneScale();
 
@@ -515,7 +517,7 @@ void ShellWindow::ApplyAppIconToWindow (HWND target)
 //  The thread check is not defensive coding -- SwitchMachine legitimately
 //  calls this from the CPU thread, while DxuiHwndSource::SetTitle mutates the
 //  caption bar and asserts the UI thread. An off-thread call therefore posts
-//  WM_APP_DXUI_UPDATE_TITLE and returns; the message loop calls back here on
+//  AppMessage::ShellUpdateTitle and returns; the message loop calls back here on
 //  the right thread. (That same message doubles as the machine-switch signal
 //  to reflow the chrome -- see RunMessageLoop.)
 //
@@ -548,12 +550,12 @@ void ShellWindow::UpdateWindowTitle()
 
     // SwitchMachine calls this on the CPU thread; DxuiHwndSource::SetTitle
     // mutates the caption bar and asserts the UI thread. Bounce off-thread
-    // callers through the message loop (WM_APP_DXUI_UPDATE_TITLE handler above).
+    // callers through the message loop (AppMessage::ShellUpdateTitle handler above).
     isOffThread = GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) != GetCurrentThreadId();
 
     if (isOffThread)
     {
-        PostMessageW (m_shell.m_hwnd, WM_APP_DXUI_UPDATE_TITLE, 0, 0);
+        PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellUpdateTitle, 0, 0);
     }
 
     BAIL_OUT_IF (isOffThread, S_OK);
@@ -602,7 +604,7 @@ void ShellWindow::UpdateWindowTitle()
     }
 
     // Behind live, where the replay stands.
-    title += m_shell.m_history->GetReplayCaption();
+    title += m_shell.m_history->GetCaption();
 
 #if defined (_DEBUG)
     // Dev builds stamp the exact binary identity (version, arch, compile
@@ -697,16 +699,30 @@ void ShellWindow::InstallDragDropTarget()
     // Drag-drop is an optional convenience -- File > Open and the drive
     // widgets' click-to-browse cover the same mounts -- so a failed
     // registration disables drop but must not prevent launch.
-    // Disks and tapes both; OnFileDropped sends each only to what can take it.
+    // Disks, tapes and BASIC programs; GetDropAction sends each only to what can take it.
     hrDrop = m_dragDropTarget.Initialize (m_shell.m_hwnd,
                                           &m_shell.m_uiShell.GetHitTester(),
                                           [this] (int tag, const std::wstring & path) { m_shell.OnFileDropped (tag, path); },
                                           [] (const std::wstring & path)
                                           {
-                                              return IsSupportedDiskImageExtension (path) ||
-                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                              return ImageClassifier::IsImageExtension (std::filesystem::path (path).extension().wstring()) ||
+                                                     DroppedFiles::IsBasicProgramFile (path);
                                           });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
+
+    // Each drive shows the copy cursor only for an image it takes, by the
+    // same rule as the picker and the drop itself. The file is classified
+    // once a drag, not at every move.
+    m_dragDropTarget.SetTagFilter ([this, lastPath = std::wstring(), lastClass = ImageClass()] (int tag, const std::wstring & path) mutable
+    {
+        if (path != lastPath)
+        {
+            lastClass = ImageClassifier::Classify (m_shell.m_machine.GetStorage().GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
+            lastPath  = path;
+        }
+
+        return m_shell.IsDropAccepted (tag, lastClass);
+    });
 
     // UIPI whitelist. When Casso runs at a higher integrity
     // level than the source (e.g. user launched Casso
@@ -1141,6 +1157,10 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
 
     m_shell.m_chrome->SetInLayout (true);
 
+    // A drive connected or removed since the desk was planned moves the
+    // floppies, and this layout is laid out from the plan.
+    m_shell.m_scene->ReplanIfDrivesChanged();
+
     // A resize restretches the window; drop any open menu so its
     // window-anchored popup is not left stranded.
     if (m_shell.m_chrome->GetMainMenu().IsOpen())
@@ -1183,6 +1203,15 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
         {
             m_shell.m_chrome->SetChromeHiddenForFullscreenScene (true);
             m_shell.m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
+
+            // The drive bar rides the slide over the picture, as the desk's
+            // drives do.
+            if (m_shell.m_scene->AreDrivesOnBar())
+            {
+                m_shell.m_chrome->LayoutDriveBar (0, static_cast<int> (width), renderH, dpi);
+                m_shell.m_scene->SyncSceneDriveChrome();
+            }
+
             m_shell.m_chrome->RecordSizedFor ((m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller(),
                                       m_shell.MachineHasCaseSwitches());
         }
@@ -1209,13 +1238,29 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
 
             (void) vr;                                        // dock side-effect: bands arranged
 
-            if (m_shell.DeskSceneActive())
+            if (m_shell.m_scene->AreDrivesOnBar())
             {
+                // Drives are on the drive bar, so the bar is laid out in the
+                // band under the scene or the compact theme's picture, or on
+                // the slide when auto-hidden.
+                m_shell.m_chrome->LayoutDriveBar (bottomInsetPx, static_cast<int> (width), renderH, dpi);
+            }
+            else if (m_shell.DeskSceneActive())
+            {
+                m_shell.m_chrome->HideDriveBar();
+
                 // The 3D scene owns the drives; nothing to lay out. The hit
                 // registry is refreshed below with the rest of the chrome.
             }
+            else if (m_shell.AreDrivesOnStrip())
+            {
+                // Auto-hide: the strip lays the widgets out each frame while it
+                // is up, and hides them while it is down.
+                m_shell.m_chrome->HideDriveBar();
+            }
             else if (fHasDisk)
             {
+                m_shell.m_chrome->HideDriveBar();
                 m_shell.m_chrome->LayoutDriveWidgetsInCommandBar (m_shell.m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
                                                           m_shell.m_chrome->GetSceneScale(), m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1);
 
@@ -1236,6 +1281,7 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
                 // path treats the whole window as the drop target. The
                 // joystick-mode button still paints -- joystick input is
                 // independent of disk presence.
+                m_shell.m_chrome->HideDriveBar();
                 m_shell.m_disks->GetDriveChrome()[0].Hide();
                 m_shell.m_disks->GetDriveChrome()[1].Hide();
             }
@@ -1245,18 +1291,23 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
             // window size now accounts for. ReflowChromeForMachineChange reads
             // these pre-switch values to grow/shrink the window by the band delta.
             m_shell.m_chrome->RecordSizedFor (fHasDisk, m_shell.MachineHasCaseSwitches());
-            m_shell.m_chrome->LayoutDriveBandSurface (!m_shell.DeskSceneActive(), RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
+            m_shell.m_chrome->LayoutDriveBandSurface ((!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip(),
+                                                      RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
 
             m_shell.m_chrome->LayoutSwitchBar (dpi);
 
-            if (m_shell.DeskSceneActive())
+            if (m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar())
             {
                 m_shell.m_scene->SyncSceneDriveChrome();
             }
             else
             {
                 m_shell.m_uiShell.GetHitTester().Clear();
-                if (fHasDisk)
+                m_shell.RegisterScreenDropTarget();
+
+                // With auto-hide on, no drive rects are registered, as in
+                // fullscreen: the widgets are off screen most of the time.
+                if (fHasDisk && !m_shell.AreDrivesOnStrip())
                 {
                     m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { m_shell.m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
                     if (m_shell.m_disks->ShouldShowExternalDrive())

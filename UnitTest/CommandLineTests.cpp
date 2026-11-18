@@ -740,7 +740,7 @@ namespace CommandLineTests
         {
             const char    kBanner[]   = "CassoCli - 6502 Assembler and Emulator  v0.0.0\n"
                                         "Copyright (c) 2025-2026 by Robert Elmer\n";
-            const size_t  kScreenful  = 30;
+            const size_t  kScreenful  = 32;
             const char    kPrefixes[] = { '-', '/' };
 
             for (char prefix : kPrefixes)
@@ -3009,10 +3009,23 @@ namespace CommandLineTests
                 //  Both halves of the raw pairs, which are the cases worth
                 //  sweeping: each pair shares a prefix, and a table matched by
                 //  anything less than the whole word would fold them together.
-                { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
-                { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
-                { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
-                { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
+                { "sectorread",       CommandLineOptions::DiskOptions::Command::SectorRead      },
+                { "read-sector",      CommandLineOptions::DiskOptions::Command::SectorRead      },
+                { "sectorwrite",      CommandLineOptions::DiskOptions::Command::SectorWrite     },
+                { "write-sector",     CommandLineOptions::DiskOptions::Command::SectorWrite     },
+                { "blockread",        CommandLineOptions::DiskOptions::Command::BlockRead       },
+                { "read-block",       CommandLineOptions::DiskOptions::Command::BlockRead       },
+                { "blockwrite",       CommandLineOptions::DiskOptions::Command::BlockWrite      },
+                { "write-block",      CommandLineOptions::DiskOptions::Command::BlockWrite      },
+                { "krunch",           CommandLineOptions::DiskOptions::Command::Krunch          },
+                { "test",             CommandLineOptions::DiskOptions::Command::Test            },
+                { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
+                { "search",           CommandLineOptions::DiskOptions::Command::Search          },
+                { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+                { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
+                { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+                { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+                { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
             };
 
             for (const auto & form : kSpellings)
@@ -3028,7 +3041,22 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (25), CommandLineParser::GetAllDiskCommands().size(),
+            {
+                ArgVector           args = { "CassoCli", "disk", "put", "c.dsk", "a.com", "--user", "7" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.disk.hasUser);
+                Assert::AreEqual (7, opts.disk.user);
+            }
+
+            {
+                ArgVector           args = { "CassoCli", "disk", "put", "c.dsk", "a.com", "--user", "32" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            }
+
+            Assert::AreEqual (size_t (38), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 
@@ -3253,6 +3281,43 @@ namespace CommandLineTests
             Assert::IsFalse  (without.openDebugger,   L"absent, the channel stays closed");
         }
 
+        //  The serial capture file is undocumented, and parsed through the
+        //  same table, so the slash form works. Its path is optional: the
+        //  next argument is the path only when it is neither an option nor a
+        //  disk image.
+        TEST_METHOD (Emulator_TakesAnUndocumentedSerialLog)
+        {
+            ArgVector  dashed   = { "--serial-log", "C:\\captures\\adtpro send.txt", "--machine", "Apple2c" };
+            ArgVector  slashed  = { "/serial-log", "log.txt" };
+            ArgVector  bare     = { "--serial-log" };
+            ArgVector  optionAfter = { "--serial-log", "--machine", "Apple2c" };
+            ArgVector  diskAfter   = { "--serial-log", "game.dsk" };
+            ArgVector  absent   = { "--machine", "Apple2c" };
+
+            CommandLineOptions::EmulatorOptions  withLog       = CommandLineParser::ParseEmulator (dashed.Count(),      dashed.Data());
+            CommandLineOptions::EmulatorOptions  withSlash     = CommandLineParser::ParseEmulator (slashed.Count(),     slashed.Data());
+            CommandLineOptions::EmulatorOptions  withoutPath   = CommandLineParser::ParseEmulator (bare.Count(),        bare.Data());
+            CommandLineOptions::EmulatorOptions  beforeOption  = CommandLineParser::ParseEmulator (optionAfter.Count(), optionAfter.Data());
+            CommandLineOptions::EmulatorOptions  beforeDisk    = CommandLineParser::ParseEmulator (diskAfter.Count(),   diskAfter.Data());
+            CommandLineOptions::EmulatorOptions  without       = CommandLineParser::ParseEmulator (absent.Count(),      absent.Data());
+
+            Assert::IsTrue (withLog.serialLogRequested);
+            Assert::AreEqual (std::string ("C:\\captures\\adtpro send.txt"), withLog.serialLog);
+            Assert::AreEqual (std::string ("Apple2c"), withLog.machine);
+            Assert::AreEqual (std::string ("log.txt"), withSlash.serialLog);
+
+            Assert::IsTrue (withoutPath.serialLogRequested && withoutPath.serialLog.empty(), L"a bare flag selects the default file");
+            Assert::IsTrue (withoutPath.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+
+            Assert::IsTrue (beforeOption.serialLogRequested && beforeOption.serialLog.empty());
+            Assert::AreEqual (std::string ("Apple2c"), beforeOption.machine);
+
+            Assert::IsTrue (beforeDisk.serialLogRequested && beforeDisk.serialLog.empty());
+            Assert::AreEqual (std::string ("game.dsk"), beforeDisk.disk1, L"a disk image after the flag is mounted, not logged to");
+
+            Assert::IsFalse (without.serialLogRequested);
+        }
+
         //  THE RELAUNCH AFTER A SELF-UPDATE. Casso writes these itself, so they
         //  are undocumented; a process id that is not one stops startup rather
         //  than leaving the old files to a guess.
@@ -3292,38 +3357,30 @@ namespace CommandLineTests
         }
 
 
-        //  A BARE IMAGE PATH IS REFUSED, NOT GUESSED AT. This grammar has no
-        //  operand: a drive is filled by --disk1 or --disk2 and by nothing else.
-        //
-        //  It WAS read as drive 1 for one revision, on the reasoning that
-        //  dragging an image onto Casso.exe should boot it. That bought a second
-        //  way to say --disk1 and a precedence rule to go with it, and the
-        //  assembler grammars gave up a bare source file rather than keep the
-        //  same bargain. Refusing is not the old silence: the reader is told,
-        //  and the two options that do take an image are on the screen with the
-        //  message.
-        TEST_METHOD (Emulator_RefusesABareImagePath)
+        //  A BARE DISK IMAGE GOES IN A DRIVE, as images dropped on Casso.exe in
+        //  File Explorer arrive: the first in drive 1, a second in drive 2, and a
+        //  third has nowhere to go.
+        TEST_METHOD (Emulator_BareImagesFillDrive1ThenDrive2)
         {
             ArgVector  alone   = { "C:\\Disks\\work.dsk" };
-            ArgVector  withRun = { "--machine", "Apple2e", "work.dsk" };
+            ArgVector  two     = { "--machine", "Apple2e", "a.WOZ", "b.po" };
+            ArgVector  three   = { "a.dsk", "b.dsk", "c.dsk" };
 
             CommandLineOptions::EmulatorOptions  onlyPath =
                 CommandLineParser::ParseEmulator (alone.Count(), alone.Data());
-            CommandLineOptions::EmulatorOptions  after    =
-                CommandLineParser::ParseEmulator (withRun.Count(), withRun.Data());
+            CommandLineOptions::EmulatorOptions  both     =
+                CommandLineParser::ParseEmulator (two.Count(), two.Data());
+            CommandLineOptions::EmulatorOptions  extra    =
+                CommandLineParser::ParseEmulator (three.Count(), three.Data());
 
-            Assert::AreEqual (std::string ("Error: unexpected argument C:\\Disks\\work.dsk"),
-                onlyPath.refusalMessage);
+            Assert::IsTrue   (onlyPath.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean);
+            Assert::AreEqual (std::string ("C:\\Disks\\work.dsk"), onlyPath.disk1);
 
-            Assert::IsTrue (after.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused,
-                L"the invocation that sent a session chasing a speech bug on the wrong "
-                L"disk is now reported rather than half-obeyed");
+            Assert::AreEqual (std::string ("a.WOZ"), both.disk1, L"any case of the extension");
+            Assert::AreEqual (std::string ("b.po"),  both.disk2);
 
-            Assert::AreEqual (std::string ("Error: unexpected argument work.dsk"),
-                after.refusalMessage);
-
-            Assert::IsTrue (after.disk1.empty(),
-                L"and nothing was mounted on the strength of a guess");
+            Assert::IsTrue   (extra.verdict == CommandLineOptions::EmulatorOptions::Verdict::Refused);
+            Assert::AreEqual (std::string ("Error: unexpected argument c.dsk"), extra.refusalMessage);
         }
 
 
@@ -3333,7 +3390,7 @@ namespace CommandLineTests
         //  needs to see the word they got wrong.
         TEST_METHOD (Emulator_APathAndAMistypedFlagGetDifferentMessages)
         {
-            ArgVector  path = { "work.dsk" };
+            ArgVector  path = { "work.txt" };
             ArgVector  typo = { "--work.dsk" };
 
             CommandLineOptions::EmulatorOptions  a =
@@ -3341,7 +3398,7 @@ namespace CommandLineTests
             CommandLineOptions::EmulatorOptions  b =
                 CommandLineParser::ParseEmulator (typo.Count(), typo.Data());
 
-            Assert::AreEqual (std::string ("Error: unexpected argument work.dsk"), a.refusalMessage);
+            Assert::AreEqual (std::string ("Error: unexpected argument work.txt"), a.refusalMessage);
             Assert::AreEqual (std::string ("Error: unknown option --work.dsk"),     b.refusalMessage);
         }
 
@@ -3647,6 +3704,12 @@ namespace CommandLineTests
             Assert::IsTrue (parsed.erase ("updated") == 1 && parsed.erase ("cleanup-old") == 1,
                 L"the self-update relaunch flags are parsed and deliberately not described");
 
+            Assert::IsTrue (parsed.erase ("serial-log") == 1,
+                L"the serial capture file is parsed and deliberately left out of the help");
+
+            Assert::IsTrue (parsed.erase ("explore") == 1,
+                L"the package's Open in Casso Explorer command is parsed and deliberately left out of the help");
+
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");
         }
@@ -3693,6 +3756,95 @@ namespace CommandLineTests
             Assert::IsTrue (text.find ("Options:")         != std::string::npos);
             Assert::IsTrue (text.find ("Insert this image into drive 1") != std::string::npos,
                 L"and each flag carries its description, not just its name");
+        }
+
+
+        //  THE DIALOG'S TABLE HAS ONE ROW PER DOCUMENTED FLAG, in the parser's
+        //  order, each written in the prefix the reader typed and each with a
+        //  description.
+        TEST_METHOD (Emulator_HelpRowsFollowTheFlagTable)
+        {
+            std::span<const CommandLineParser::EmulatorFlag>  flags     = CommandLineParser::GetEmulatorFlags();
+            std::vector<CommandLineHelpRow>                   dashed    = CommandLineHelp::GetEmulatorRows ('-');
+            std::vector<CommandLineHelpRow>                   slashed   = CommandLineHelp::GetEmulatorRows ('/');
+            size_t                                            flagCount = flags.size();
+            size_t                                            i         = 0;
+
+
+
+            Assert::IsTrue (flagCount > 0, L"a sweep over an empty table checks nothing");
+            Assert::AreEqual (flagCount, dashed.size());
+            Assert::AreEqual (flagCount, slashed.size());
+
+            for (i = 0; i < flagCount; ++i)
+            {
+                Assert::IsTrue (dashed[i].option.starts_with (flags[i].option),
+                    Widen ("row out of order or misspelled: " + dashed[i].option).c_str());
+                Assert::IsTrue (slashed[i].option.starts_with ("/"),
+                    Widen ("slash style not applied: " + slashed[i].option).c_str());
+                Assert::AreEqual (std::string (flags[i].description), dashed[i].description);
+                Assert::IsFalse  (dashed[i].description.empty());
+            }
+
+            Assert::AreEqual (std::string ("--disk1 <image>"), dashed[1].option,
+                L"the value name follows the switch");
+            Assert::AreEqual (std::string ("/disk1 <image>"), slashed[1].option);
+        }
+
+        //  --HD AND --SMARTPORT RECORD A SLOT, A UNIT OR A CHAIN POSITION AND
+        //  AN IMAGE, in either prefix, and are rows of the help dialog.
+        TEST_METHOD (Emulator_HdAndSmartPortAttachments)
+        {
+            ArgVector  args = { "--hd", "7=C:\\a.hdv", "/hd", "7.3=b.po", "--smartport", "2=c.2mg" };
+            CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+            std::vector<CommandLineHelpRow>      rows   = CommandLineHelp::GetEmulatorRows ('-');
+            bool                                 hasHd  = false;
+            bool                                 hasSp  = false;
+
+
+
+            Assert::AreEqual ((int) CommandLineOptions::EmulatorOptions::Verdict::Clean, (int) parsed.verdict);
+            Assert::AreEqual ((size_t) 2, parsed.hdAttachments.size());
+            Assert::AreEqual (7,  parsed.hdAttachments[0].slot);
+            Assert::AreEqual (-1, parsed.hdAttachments[0].unit, L"no unit is the card's first");
+            Assert::AreEqual (std::string ("C:\\a.hdv"), parsed.hdAttachments[0].image);
+            Assert::AreEqual (3,  parsed.hdAttachments[1].unit);
+            Assert::AreEqual ((size_t) 1, parsed.smartPortAttachments.size());
+            Assert::AreEqual (2,  parsed.smartPortAttachments[0].chain);
+
+            for (const CommandLineHelpRow & row : rows)
+            {
+                hasHd = hasHd || row.option.starts_with ("--hd ");
+                hasSp = hasSp || row.option.starts_with ("--smartport ");
+            }
+
+            Assert::IsTrue (hasHd && hasSp, L"both flags are rows of the help dialog");
+        }
+
+        //  A BAD --HD OR --SMARTPORT VALUE REFUSES THE LINE, in the fixed
+        //  error layout.
+        TEST_METHOD (Emulator_BadBlockAttachmentsAreRefused)
+        {
+            for (const char * value : { "8=x.po", "7.7=x.po", "7=", "x=y", "7.a=x.po" })
+            {
+                ArgVector  args = { "--hd", value };
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+
+
+                Assert::AreEqual ((int) CommandLineOptions::EmulatorOptions::Verdict::Refused, (int) parsed.verdict, Widen (value).c_str());
+                Assert::IsTrue   (parsed.refusalMessage.starts_with ("Error: illegal --hd value"));
+                Assert::IsTrue   (parsed.refusalMessage.find ("\n       ") != std::string::npos, L"the rule is on the next line");
+            }
+
+            {
+                ArgVector  args = { "--smartport", "5=x.po" };
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+
+
+                Assert::IsTrue (parsed.refusalMessage.starts_with ("Error: illegal --smartport value"));
+            }
         }
 
         //  THE PREFIX IS TAKEN FROM THE LINE, NOT ONLY FROM A HELP REQUEST.

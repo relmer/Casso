@@ -3,7 +3,7 @@
 #include "Shell/Components/ShellHistoryOverlays.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellHistory.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -44,7 +45,7 @@ namespace DebuggerTests
                 Show (0x0300, MemoryRegion::MainRam);
                 model.SetOnPatch ([this] (Word address, std::span<const Byte> bytes, std::span<const Byte> before)
                 {
-                    lines.push_back (DebuggerActions::GetPatch (address, bytes, CommandMode::AppleWin).echo);
+                    lines.push_back (MemoryActions::GetPatch (address, bytes, CommandMode::AppleWin).echo);
                     required.assign (before.begin(), before.end());
                 });
             }
@@ -458,7 +459,7 @@ namespace DebuggerTests
             value = rig.Read (0xF805);
 
             Assert::AreEqual (MemoryEditModel::kMarkRom,   mark,   L"ROM the window read before is still marked ROM");
-            Assert::AreEqual (MemoryEditModel::kRegionRom, region, L"and still outlined");
+            Assert::IsTrue   (MemoryRegionKeys::IsRom (region),          L"and outlined as ROM");
             Assert::AreEqual ((Byte) 5,                    value,  L"with the value it read");
 
             Assert::IsFalse (rig.Write (0xF805, { 0x00 }), L"an edit still needs the byte in the window's current read");

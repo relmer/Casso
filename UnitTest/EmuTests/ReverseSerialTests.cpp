@@ -85,7 +85,7 @@ public:
         {
             const Sample  & sample = samples[(i * s_kSerialShuffle) % count];
 
-            hr = controller.SeekToCycle (sample.cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"a seek inside history moves");
@@ -93,11 +93,11 @@ public:
             CheckState (sample.state, ReverseSessionRig::Save (machine), sample.position);
         }
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         CheckState (last.state, ReverseSessionRig::Save (machine), last.position);
-        Assert::IsFalse (controller.IsInHistory(), L"at the live end the machine is live again");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"at the live end the machine is live again");
     }
 
 
@@ -130,7 +130,7 @@ public:
         {
             const Sample  & sample = samples[(i * s_kSerialShuffle) % count];
 
-            hr = controller.SeekToCycle (sample.cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
             CheckState (sample.state, ReverseSessionRig::Save (machine), sample.position);
@@ -165,19 +165,19 @@ public:
         before  = CountRecords (machine, InputKind::AciaByte);
         waiting = machine.GetRefs().serialChips[0]->GetQueuedReceiveCount();
 
-        hr = controller.SeekToCycle (samples[samples.size() / 2].cycle, result);
+        hr = controller.GetSeeker().SeekToCycle (samples[samples.size() / 2].cycle, result);
         AssertSucceeded (hr, L"SeekToCycle");
-        Assert::IsTrue (controller.IsInHistory());
+        Assert::IsTrue (controller.GetSpan().IsInHistory());
 
         machine.GetRefs().serialChips[0]->EnqueueReceivedBytes (&kLate, 1);
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         CheckState (last.state, ReverseSessionRig::Save (machine), last.position);
         Assert::AreEqual<size_t> (waiting + 1, machine.GetRefs().serialChips[0]->GetQueuedReceiveCount(), L"the byte waits in the queue");
 
-        machine.RunCycles (s_kSerialSliceCycles);
+        machine.GetRunner().RunCycles (s_kSerialSliceCycles);
 
         Assert::AreEqual<size_t> (before + 1, CountRecords (machine, InputKind::AciaByte), L"taken live and journaled");
     }
@@ -212,11 +212,11 @@ public:
 
         Assert::AreEqual (kBytes[4], machine.GetMemoryBus().ReadByte (kStored + 4), L"the guest received them live");
 
-        hr = controller.SeekToCycle (point, result);
+        hr = controller.GetSeeker().SeekToCycle (point, result);
         AssertSucceeded (hr, L"SeekToCycle");
         Assert::AreNotEqual (kBytes[0], machine.GetMemoryBus().ReadByte (kStored), L"and not yet at the point");
 
-        hr = controller.OnMachineChanged();
+        hr = controller.GetSeeker().OnMachineChanged();
         AssertSucceeded (hr, L"OnMachineChanged");
 
         RecordSession (machine, false);
@@ -252,15 +252,15 @@ public:
         sent = capture.bytes.size();
         Assert::IsTrue (sent > 0, L"live, the port sends");
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition oldest");
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         Assert::AreEqual (sent, capture.bytes.size(), L"the replays send nothing");
 
-        machine.RunCycles (s_kSerialSliceCycles);
+        machine.GetRunner().RunCycles (s_kSerialSliceCycles);
         Assert::IsTrue (capture.bytes.size() > sent, L"live again, the port sends");
 
         machine.GetRefs().serialChips[0]->SetEndpoint (nullptr);
@@ -284,7 +284,7 @@ public:
         hr = scratch.Build();
         AssertSucceeded (hr, L"Build");
 
-        Assert::IsTrue (scratch.GetMachine()->IsOutputMuted(), L"the scratch machine is muted");
+        Assert::IsTrue (scratch.GetMachine()->GetOutputMute().IsMuted(), L"the scratch machine is muted");
     }
 
 
@@ -423,7 +423,7 @@ private:
                 machine.GetRefs().serialChips[0]->EnqueueReceivedBytes (bytes, sizeof (bytes));
             }
 
-            machine.RunCycles (s_kSerialSliceCycles);
+            machine.GetRunner().RunCycles (s_kSerialSliceCycles);
         }
 
         return samples;
@@ -436,7 +436,7 @@ private:
 
 
 
-        sample.position = machine.GetPosition();
+        sample.position = machine.GetRunner().GetPosition();
         sample.cycle    = machine.GetCpu()->GetTotalCycles();
         sample.state    = ReverseSessionRig::Save (machine);
 
@@ -446,7 +446,7 @@ private:
 
     static size_t CountRecords (MachineHost & machine, InputKind kind)
     {
-        const InputJournal  & journal = machine.GetInputJournal();
+        const InputJournal  & journal = machine.GetHostInput().GetJournal();
         size_t                count   = 0;
         size_t                i       = 0;
 

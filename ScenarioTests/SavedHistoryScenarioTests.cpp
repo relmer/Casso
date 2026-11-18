@@ -46,8 +46,8 @@ public:
 
         for (frame = 0; frame < seconds * kFramesPerSecond; frame++)
         {
-            machine.SampleHostInputs();
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetHostInput().Sample();
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
     }
 
@@ -55,13 +55,13 @@ public:
     static uint64_t Checksum (MachineHost & machine)
     {
         StateWriter  writer;
-        HRESULT      hr = machine.SaveState (writer);
+        HRESULT      hr = machine.GetStateStream().SaveState (writer);
 
 
 
         AssertSucceeded (hr, L"SaveState");
 
-        return KeyframeStore::ComputeChecksum (writer.GetBytes().data(), writer.GetBytes().size());
+        return KeyframeCodec::ComputeChecksum (writer.GetBytes().data(), writer.GetBytes().size());
     }
 
 
@@ -90,7 +90,7 @@ public:
 
 
 
-        hr = machine.ComputeStateFingerprint (contents.fingerprint);
+        hr = machine.GetStateStream().ComputeFingerprint (contents.fingerprint);
         AssertSucceeded (hr, L"ComputeStateFingerprint");
 
         hr = host.GetController().SaveHistory (contents.keyframes);
@@ -107,7 +107,7 @@ public:
             }
         }
 
-        contents.resumePosition = machine.GetPosition();
+        contents.resumePosition = machine.GetRunner().GetPosition();
 
         hr = SavedHistory::Build (contents, section);
         AssertSucceeded (hr, L"SavedHistory::Build");
@@ -141,7 +141,7 @@ public:
         hr = SavedHistory::Parse (contents.historySection.data(), contents.historySection.size(), history);
         AssertSucceeded (hr, L"SavedHistory::Parse");
 
-        hr = machine.ComputeStateFingerprint (fingerprint);
+        hr = machine.GetStateStream().ComputeFingerprint (fingerprint);
         AssertSucceeded (hr, L"ComputeStateFingerprint");
         Assert::AreEqual<uint64_t> (history.fingerprint, fingerprint, L"the same build saved it");
 
@@ -191,7 +191,7 @@ public:
         KeystrokeInjector::InjectLine (source, "RUN");
         RunSeconds (source, 3);
 
-        forkAt = (sourceHost.GetController().GetOldestPosition() + source.GetPosition()) / 2;
+        forkAt = (sourceHost.GetController().GetSeeker().GetOldestPosition() + source.GetRunner().GetPosition()) / 2;
 
         Execute (sourceHost, ReverseCommand::Seek, forkAt);
 
@@ -205,19 +205,19 @@ public:
 
         Load (target, targetHost, bytes);
 
-        Assert::AreEqual<uint64_t> (source.GetPosition(), target.GetPosition(), L"at the same live end");
+        Assert::AreEqual<uint64_t> (source.GetRunner().GetPosition(), target.GetRunner().GetPosition(), L"at the same live end");
         Assert::AreEqual<uint64_t> (Checksum (source),    Checksum (target),    L"with the same machine");
 
-        sourceHost.GetController().GetKeyframes().GetBranches (branches);
+        sourceHost.GetController().GetKeyframes().GetArena().GetBranches (branches);
         Assert::AreEqual<size_t> (1, branches.size(), L"one branch");
 
         Execute (sourceHost, ReverseCommand::SwitchBranch, branches[0].id);
         Execute (targetHost, ReverseCommand::SwitchBranch, branches[0].id);
 
-        Assert::AreEqual<uint64_t> (source.GetPosition(), target.GetPosition(), L"both at the branch's live end");
+        Assert::AreEqual<uint64_t> (source.GetRunner().GetPosition(), target.GetRunner().GetPosition(), L"both at the branch's live end");
         Assert::AreEqual<uint64_t> (Checksum (source),    Checksum (target),    L"with the same machine");
 
-        sourceHost.GetController().GetKeyframes().GetBranches (branches);
+        sourceHost.GetController().GetKeyframes().GetArena().GetBranches (branches);
 
         Execute (sourceHost, ReverseCommand::SwitchBranch, branches[0].id);
         Execute (targetHost, ReverseCommand::SwitchBranch, branches[0].id);
@@ -256,7 +256,7 @@ public:
         KeystrokeInjector::InjectLine (source, "20 HCOLOR= RND (1) * 8 : Y = RND (1) * 159 : HPLOT 0,Y TO 279,Y : GOTO 20");
         KeystrokeInjector::InjectLine (source, "RUN");
 
-        while (sourceHost.GetController().GetKeyframes().GetByteCount() < full && seconds < kMostSeconds)
+        while (sourceHost.GetController().GetKeyframes().GetArena().GetByteCount() < full && seconds < kMostSeconds)
         {
             RunSeconds (source, 10);
             seconds += 10;
@@ -274,8 +274,8 @@ public:
 
         Logger::WriteMessage (std::format ("saved history: {} s of recording, {} keyframes in {} bytes; file {} bytes; save {:.0f} ms, load {:.0f} ms\n",
                                            seconds,
-                                           sourceHost.GetController().GetKeyframes().GetCount(),
-                                           sourceHost.GetController().GetKeyframes().GetByteCount(),
+                                           sourceHost.GetController().GetKeyframes().GetArena().GetCount(),
+                                           sourceHost.GetController().GetKeyframes().GetArena().GetByteCount(),
                                            bytes.size(),
                                            saveMs,
                                            loadMs).c_str());

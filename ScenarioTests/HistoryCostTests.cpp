@@ -54,8 +54,8 @@ public:
 
         for (frame = 0; frame < seconds * kFramesPerSecond; frame++)
         {
-            machine.SampleHostInputs();
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetHostInput().Sample();
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
     }
 
@@ -127,7 +127,7 @@ public:
             recordedUs += TimeSeconds (recorded, &controller, kRoundSeconds);
         }
 
-        Assert::AreEqual<uint64_t> (plain.GetPosition(), recorded.GetPosition(), L"both ran the same instructions");
+        Assert::AreEqual<uint64_t> (plain.GetRunner().GetPosition(), recorded.GetRunner().GetPosition(), L"both ran the same instructions");
 
         plainPer  = plainUs    / seconds;
         recordPer = recordedUs / seconds;
@@ -141,8 +141,8 @@ public:
                                            kUsPerSecond / recordPer,
                                            recordPer * kPercent / kUsPerSecond,
                                            (recordPer - plainPer) * kPercent / kUsPerSecond,
-                                           controller.GetKeyframes().GetCount(),
-                                           controller.GetKeyframes().GetByteCount()).c_str());
+                                           controller.GetKeyframes().GetArena().GetCount(),
+                                           controller.GetKeyframes().GetArena().GetByteCount()).c_str());
     }
 
 
@@ -256,7 +256,7 @@ public:
         {
             QueryPerformanceCounter (&start);
 
-            hr = controller.StepBackCycles (ReverseController::kFrameCycles, result);
+            hr = controller.GetStepper().StepBackCycles (ReverseController::kFrameCycles, result);
             AssertSucceeded (hr, L"StepBackCycles");
 
             QueryPerformanceCounter (&stop);
@@ -276,7 +276,7 @@ public:
                                            worstMs,
                                            over,
                                            kFrameBudgetMs,
-                                           controller.GetKeyframes().GetCount()).c_str());
+                                           controller.GetKeyframes().GetArena().GetCount()).c_str());
     }
 
 

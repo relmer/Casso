@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "ApplesoftTokenizer.h"
+#include "Core/AppleSingleCodec.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Ui/Debugger/DroppedFiles.h"
 
@@ -28,7 +30,7 @@ DroppedFiles::Kind DroppedFiles::GetKind (const std::wstring & path)
         return Kind::Source;
     }
 
-    if (HasExtension (path, { L".bas" }))
+    if (IsBasicProgramFile (path))
     {
         return Kind::Basic;
     }
@@ -53,12 +55,176 @@ DroppedFiles::Opening DroppedFiles::GetOpening (const std::string & content)
         return Opening::Hex;
     }
 
+    if (IsBasicListing (content))
+    {
+        return Opening::Basic;
+    }
+
     if (SymbolFileReader::Detect (content) != SymbolFileFormat::Unknown)
     {
         return Opening::Symbols;
     }
 
     return Opening::Text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DroppedFiles::IsBasicListing
+//
+//  Each line that isn't blank starts with a line number above the line
+//  before's, and some line has one of the statements a program can't do
+//  without after its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DroppedFiles::IsBasicListing (const std::string & content)
+{
+    static constexpr const char *  s_kpszStatements[] = { "REM", "PRINT", "GOTO", "GOSUB", "IF", "FOR", "NEXT", "HOME", "TEXT", "INPUT",
+                                                          "POKE", "DIM", "END", "RETURN", "LET", "HGR", "GR", "DATA", "READ", "CALL" };
+    std::istringstream             stream (content);
+    std::string                    line;
+    long                           last         = -1;
+    int                            numbered     = 0;
+    bool                           hasStatement = false;
+
+
+
+    while (std::getline (stream, line))
+    {
+        size_t       at     = line.find_first_not_of (" \t");
+        size_t       digits = 0;
+        long         number = 0;
+        std::string  word;
+
+        if (at == std::string::npos || line[at] == '\r')
+        {
+            continue;
+        }
+
+        while (at + digits < line.size() && isdigit ((unsigned char) line[at + digits]) && digits < 6)
+        {
+            number = number * 10 + (line[at + digits] - '0');
+            digits++;
+        }
+
+        if (digits == 0 || number <= last || at + digits >= line.size() || !isspace ((unsigned char) line[at + digits]))
+        {
+            return false;
+        }
+
+        last = number;
+        numbered++;
+
+        std::istringstream (line.substr (at + digits)) >> word;
+
+        for (const char * statement : s_kpszStatements)
+        {
+            hasStatement = hasStatement || _stricmp (word.c_str(), statement) == 0;
+        }
+    }
+
+    return numbered > 0 && hasStatement;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DroppedFiles::IsBasicProgramFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DroppedFiles::IsBasicProgramFile (const std::wstring & path)
+{
+    std::wstring  name = std::filesystem::path (path).filename().wstring();
+
+
+
+    std::ranges::transform (name, name.begin(), [] (wchar_t ch) { return (wchar_t) towlower (ch); });
+
+    return name.ends_with (L".bas") || name.ends_with (L".bas.txt") || name.ends_with (L".as") || name.find (L"#fc") != std::wstring::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DroppedFiles::TryGetBasicProgram
+//
+//  An AppleSingle file by its magic, whatever its name; a CiderPress #fc
+//  file's bytes as they are; anything else is a listing. A ProDOS TXT file's
+//  text has the high bit clear and lines ending in a return, which the
+//  tokenizer takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DroppedFiles::TryGetBasicProgram (const std::wstring & path, const std::vector<Byte> & bytes, std::vector<Byte> & tokenized, std::string & error)
+{
+    static constexpr Word  kBasType = 0x00FC;
+    static constexpr Word  kTxtType = 0x0004;
+    AppleSingleFile        single;
+    ApplesoftListingError  listingError;
+    std::string            text;
+    std::wstring           name     = std::filesystem::path (path).filename().wstring();
+    HRESULT                hr       = S_OK;
+
+
+
+    std::ranges::transform (name, name.begin(), [] (wchar_t ch) { return (wchar_t) towlower (ch); });
+
+    if (AppleSingleCodec::IsAppleSingle (bytes))
+    {
+        hr = AppleSingleCodec::Decode (bytes, single, error);
+
+        if (FAILED (hr))
+        {
+            return false;
+        }
+
+        if (single.fileType == kBasType)
+        {
+            tokenized = single.data;
+            return true;
+        }
+
+        if (single.fileType != kTxtType)
+        {
+            error = std::format ("The AppleSingle file is of ProDOS type ${:02X}, not a BAS or TXT file.", single.fileType);
+            return false;
+        }
+
+        text.assign (single.data.begin(), single.data.end());
+    }
+    else if (name.find (L"#fc") != std::wstring::npos)
+    {
+        tokenized = bytes;
+        return true;
+    }
+    else
+    {
+        text.assign (bytes.begin(), bytes.end());
+    }
+
+    std::ranges::transform (text, text.begin(), [] (char ch) { return (char) (ch & 0x7F); });
+
+    hr = ApplesoftTokenizer::Tokenize (text, tokenized, listingError);
+
+    if (FAILED (hr))
+    {
+        error = listingError.hasLineNumber ? std::format ("Line {}: {}", listingError.lineNumber, listingError.reason) : listingError.reason;
+        return false;
+    }
+
+    return true;
 }
 
 

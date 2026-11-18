@@ -62,8 +62,8 @@ public:
     HandlerRig()
     {
         session.AddHandler          (&handlers);
-        session.SetFileSystem       (&files);
-        session.SetCurrentDirectory (L"C:\\Work");
+        session.GetHostFiles().SetFileSystem (&files);
+        session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
     }
 
     Reply Run (const std::string & line)
@@ -136,8 +136,8 @@ public:
         target.SetRunDriver         (&driver);
         machine.PowerCycle();
         session.AddHandler          (&handlers);
-        session.SetFileSystem       (&files);
-        session.SetCurrentDirectory (L"C:\\Work");
+        session.GetHostFiles().SetFileSystem (&files);
+        session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
     }
 
     // Writes bytes and points the CPU at start with interrupts masked.

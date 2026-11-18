@@ -3,6 +3,7 @@
 #include "CommandLine.h"
 #include "DiskCommand.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -45,12 +46,13 @@
 
 int DiskCommand::Run (const CommandLineOptions & options)
 {
-    Win32DiskFileIo     fileIo;
-    Win32IntentChannel  intentChannel;
-    DiskCommandRunner   runner (fileIo);
-    DiskCommandResult  result;
-    HRESULT            hr       = S_OK;
-    int                exitCode = 0;
+    Win32DiskFileIo      hostIo;
+    ContainerDiskFileIo  fileIo (hostIo);
+    Win32IntentChannel   intentChannel;
+    DiskCommandRunner    runner (fileIo);
+    DiskCommandResult    result;
+    HRESULT              hr       = S_OK;
+    int                  exitCode = 0;
 
 
 

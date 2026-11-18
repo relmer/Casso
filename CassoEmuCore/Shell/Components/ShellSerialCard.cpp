@@ -25,7 +25,8 @@ ShellSerialCard::ShellSerialCard (EmulatorShell & shell)
 {
     m_banner.SetSeverity (DxuiInfoBanner::Severity::Warning);
     m_banner.SetVisible  (false);
-    m_banner.SetOnAction ([this] (size_t index) { OnAction (index); });
+    m_banner.SetOnAction  ([this] (size_t index) { OnAction (index); });
+    m_banner.SetOnDismiss ([this] () { Show (SerialCardNotice()); });
 }
 
 
@@ -264,10 +265,22 @@ void ShellSerialCard::Show (const SerialCardNotice & notice)
 
     m_notice = notice;
 
-    m_banner.SetSeverity (isGood ? DxuiInfoBanner::Severity::Info : DxuiInfoBanner::Severity::Warning);
-    m_banner.SetText     (notice.text);
-    m_banner.SetActions  (notice.actions);
-    m_banner.SetVisible  (notice.kind != SerialCardNoticeKind::None);
+    //  Dismiss is the strip's close box, and the rest are its buttons.
+    m_buttons.clear();
+
+    for (const wstring & action : notice.actions)
+    {
+        if (action != SerialCardNotice::kpszDismiss)
+        {
+            m_buttons.push_back (action);
+        }
+    }
+
+    m_banner.SetSeverity    (isGood ? DxuiInfoBanner::Severity::Info : DxuiInfoBanner::Severity::Warning);
+    m_banner.SetText        (notice.text);
+    m_banner.SetActions     (m_buttons);
+    m_banner.SetDismissible (m_buttons.size() != notice.actions.size());
+    m_banner.SetVisible     (notice.kind != SerialCardNoticeKind::None);
 
     if (m_shell.m_chrome != nullptr)
     {
@@ -290,7 +303,7 @@ void ShellSerialCard::Show (const SerialCardNotice & notice)
 
 void ShellSerialCard::OnAction (size_t index)
 {
-    wstring  label = (index < m_notice.actions.size()) ? m_notice.actions[index] : wstring();
+    wstring  label = (index < m_buttons.size()) ? m_buttons[index] : wstring();
 
 
 

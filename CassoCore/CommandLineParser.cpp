@@ -24,6 +24,7 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
     { "disk",   CommandLineOptions::Subcommand::Disk   },
     { "debug",  CommandLineOptions::Subcommand::Debug  },
     { "mcp",    CommandLineOptions::Subcommand::Mcp    },
+    { "basic",  CommandLineOptions::Subcommand::Basic  },
 };
 
 
@@ -45,31 +46,44 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 //
 static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
 {
-    { "list",        CommandLineOptions::DiskOptions::Command::List        },
-    { "ls",          CommandLineOptions::DiskOptions::Command::List        },
-    { "dir",         CommandLineOptions::DiskOptions::Command::List        },
-    { "cat",         CommandLineOptions::DiskOptions::Command::List        },
-    { "catalog",     CommandLineOptions::DiskOptions::Command::List        },
-    { "get",         CommandLineOptions::DiskOptions::Command::Get         },
-    { "read",        CommandLineOptions::DiskOptions::Command::Get         },
-    { "put",         CommandLineOptions::DiskOptions::Command::Put         },
-    { "write",       CommandLineOptions::DiskOptions::Command::Put         },
-    { "delete",      CommandLineOptions::DiskOptions::Command::Delete      },
-    { "rm",          CommandLineOptions::DiskOptions::Command::Delete      },
-    { "del",         CommandLineOptions::DiskOptions::Command::Delete      },
-    { "boot",        CommandLineOptions::DiskOptions::Command::Boot        },
-    { "mkdir",       CommandLineOptions::DiskOptions::Command::Mkdir       },
-    { "md",          CommandLineOptions::DiskOptions::Command::Mkdir       },
-    { "rmdir",       CommandLineOptions::DiskOptions::Command::Rmdir       },
-    { "rd",          CommandLineOptions::DiskOptions::Command::Rmdir       },
-    { "create",      CommandLineOptions::DiskOptions::Command::Create      },
-    { "new",         CommandLineOptions::DiskOptions::Command::Create      },
-    { "init",        CommandLineOptions::DiskOptions::Command::Init        },
-    { "format",      CommandLineOptions::DiskOptions::Command::Init        },
-    { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
-    { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
-    { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
-    { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
+    { "list",             CommandLineOptions::DiskOptions::Command::List            },
+    { "ls",               CommandLineOptions::DiskOptions::Command::List            },
+    { "dir",              CommandLineOptions::DiskOptions::Command::List            },
+    { "cat",              CommandLineOptions::DiskOptions::Command::List            },
+    { "catalog",          CommandLineOptions::DiskOptions::Command::List            },
+    { "get",              CommandLineOptions::DiskOptions::Command::Get             },
+    { "read",             CommandLineOptions::DiskOptions::Command::Get             },
+    { "put",              CommandLineOptions::DiskOptions::Command::Put             },
+    { "write",            CommandLineOptions::DiskOptions::Command::Put             },
+    { "delete",           CommandLineOptions::DiskOptions::Command::Delete          },
+    { "rm",               CommandLineOptions::DiskOptions::Command::Delete          },
+    { "del",              CommandLineOptions::DiskOptions::Command::Delete          },
+    { "boot",             CommandLineOptions::DiskOptions::Command::Boot            },
+    { "mkdir",            CommandLineOptions::DiskOptions::Command::Mkdir           },
+    { "md",               CommandLineOptions::DiskOptions::Command::Mkdir           },
+    { "rmdir",            CommandLineOptions::DiskOptions::Command::Rmdir           },
+    { "rd",               CommandLineOptions::DiskOptions::Command::Rmdir           },
+    { "create",           CommandLineOptions::DiskOptions::Command::Create          },
+    { "new",              CommandLineOptions::DiskOptions::Command::Create          },
+    { "init",             CommandLineOptions::DiskOptions::Command::Init            },
+    { "format",           CommandLineOptions::DiskOptions::Command::Init            },
+    { "sectorread",       CommandLineOptions::DiskOptions::Command::SectorRead      },
+    { "read-sector",      CommandLineOptions::DiskOptions::Command::SectorRead      },
+    { "sectorwrite",      CommandLineOptions::DiskOptions::Command::SectorWrite     },
+    { "write-sector",     CommandLineOptions::DiskOptions::Command::SectorWrite     },
+    { "blockread",        CommandLineOptions::DiskOptions::Command::BlockRead       },
+    { "read-block",       CommandLineOptions::DiskOptions::Command::BlockRead       },
+    { "blockwrite",       CommandLineOptions::DiskOptions::Command::BlockWrite      },
+    { "write-block",      CommandLineOptions::DiskOptions::Command::BlockWrite      },
+    { "krunch",           CommandLineOptions::DiskOptions::Command::Krunch          },
+    { "test",             CommandLineOptions::DiskOptions::Command::Test            },
+    { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
+    { "search",           CommandLineOptions::DiskOptions::Command::Search          },
+    { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+    { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
+    { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+    { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+    { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
 };
 
 
@@ -247,7 +261,9 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "text",
     "basic",
     "format",
+    "filesystem",
     "volume",
+    "size",
     "bootable",
     "boot",
     "flux",
@@ -260,9 +276,12 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "physical",
     "block",
     "index",
+    "user",
     "recurse",
     "force",
     "yes",
+    "no-free-unowned",
+    "list",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -317,6 +336,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "hd",
+    "smartport",
     "tape",
     "trace",
     "debugger",
@@ -325,13 +346,19 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  Undocumented, and here rather than in a help table for that reason:
     //  this list is what makes `/no-image-watch` canonicalize like every other
     //  flag, and the help is generated from tables this one does not feed.
-    //  `title` is here on the same terms -- see CommandLineOptions.
+    //  `title` and `serial-log` are here on the same terms -- see
+    //  CommandLineOptions.
     "no-image-watch",
     "title",
+    "serial-log",
 
     //  Also undocumented: what a relaunch after a self-update passes.
     "updated",
     "cleanup-old",
+
+    //  Undocumented as well: the installed package's Open in Casso Explorer
+    //  command, which opens the image in Casso Explorer instead.
+    "explore",
 };
 
 
@@ -341,20 +368,25 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
 //
 //  The machine, the disks and the tape are saved in the preferences already,
 //  so repeating them would undo a change made during the session. A seed is
-//  for reproducing one startup, not every startup after it.
+//  for reproducing one startup, not every startup after it. A serial log
+//  repeated would truncate the capture it was opened for.
 static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRules[] =
 {
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "hd",             CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "smartport",      CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "tape",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "trace",          CommandLineParser::OptionValue::OptionalSize, CommandLineParser::RelaunchRule::Repeat },
     { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "no-image-watch", CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
     { "title",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Repeat },
     { "debugger",       CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Repeat },
+    { "serial-log",     CommandLineParser::OptionValue::OptionalPath, CommandLineParser::RelaunchRule::Drop   },
     { "updated",        CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
     { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "explore",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
 };
 
 
@@ -372,6 +404,13 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--hd",      " <slot>[.<unit>]=<image>",
+                               "Attach this image to the hard disk or UniDisk 3.5 card "
+                               "in the slot, for this run. The unit is a SCSI ID or a "
+                               "drive number." },
+    { "--smartport", " <n>=<image>",
+                               "Attach this image to the nth drive on the //c disk port, "
+                               "for this run." },
     { "--tape",    " <file>",  "Insert this WAV, AIFF, MP3, or FLAC recording into the cassette recorder." },
     { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
                               "by Debug > Save CPU trace or on a crash. A size takes "
@@ -441,6 +480,14 @@ static constexpr const char *  s_kpszDebugLongOptions[] =
     "list",
     "attach",
     "timeout",
+};
+
+
+//  The `mcp` grammar's long options. Its client writes requests to its
+//  standard input, so the subcommand doesn't take an operand.
+static constexpr const char *  s_kpszMcpLongOptions[] =
+{
+    "allow-path",
 };
 
 
@@ -623,7 +670,8 @@ int CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand mod
 {
     bool  startedNothing = mode == CommandLineOptions::Subcommand::Run  ||
                            mode == CommandLineOptions::Subcommand::Disk ||
-                           mode == CommandLineOptions::Subcommand::Debug;
+                           mode == CommandLineOptions::Subcommand::Debug ||
+                           mode == CommandLineOptions::Subcommand::Basic;
 
 
 
@@ -1027,6 +1075,11 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Init:
         case CommandLineOptions::DiskOptions::Command::SectorRead:
         case CommandLineOptions::DiskOptions::Command::BlockRead:
+        case CommandLineOptions::DiskOptions::Command::Krunch:
+        case CommandLineOptions::DiskOptions::Command::Test:
+        case CommandLineOptions::DiskOptions::Command::Dupes:
+        case CommandLineOptions::DiskOptions::Command::Inspect:
+        case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;
 
@@ -1041,6 +1094,10 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Rmdir:
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
+        case CommandLineOptions::DiskOptions::Command::Search:
+        case CommandLineOptions::DiskOptions::Command::Repair:
+        case CommandLineOptions::DiskOptions::Command::SetThumbnail:
+        case CommandLineOptions::DiskOptions::Command::GetThumbnail:
             count = 2;
             break;
 
@@ -1105,7 +1162,7 @@ bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
         || arg == "--load" || arg == "--exec" || arg == "--on-change"
-        || arg == "--index";
+        || arg == "--index" || arg == "--filesystem" || arg == "--user";
 }
 
 
@@ -1370,6 +1427,18 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        if (arg == "--no-free-unowned")
+        {
+            options.disk.noFreeUnowned = true;
+            continue;
+        }
+
+        if (arg == "--list")
+        {
+            options.disk.listOnly = true;
+            continue;
+        }
+
         if (arg == "--basic")
         {
             options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
@@ -1410,6 +1479,30 @@ void CommandLineParser::ParseDiskOptions (
             {
                 options.disk.index    = (size_t) parsed;
                 options.disk.hasIndex = true;
+            }
+
+            continue;
+        }
+
+        if (arg == "--user" && hasValue)
+        {
+            constexpr unsigned long  kMaxUser = 31;
+            std::string              value    = argv[++i];
+            char                   * end      = nullptr;
+            unsigned long            parsed   = strtoul (value.c_str(), &end, 10);
+            bool                     valid    = !value.empty() && end != nullptr && *end == '\0' && parsed <= kMaxUser;
+
+            if (!valid)
+            {
+                Refusal (options) << "Error: illegal " << FormatLongOption ("--user", options.flagPrefix) << " value\n"
+                                  << "       CP/M user numbers are 0 to 31.\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.user    = (int) parsed;
+                options.disk.hasUser = true;
             }
 
             continue;
@@ -1464,6 +1557,14 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        if (arg == "--size" && hasValue)
+        {
+            options.disk.sizeName = argv[i + 1];
+
+            i++;
+            continue;
+        }
+
         //  WHICH NUMBERING the sector commands' track and sector speak. Two
         //  bare words rather than one flag with a value, because either reads
         //  naturally on a command line and neither is a default: naming both
@@ -1503,9 +1604,10 @@ void CommandLineParser::ParseDiskOptions (
             int          value = 0;
             bool         ok    = IsPlainDecimal (text);
 
+            //  A number too large for an int is an error, as a word is.
             if (ok)
             {
-                value = std::stoi (text);
+                ok = std::from_chars (text.data(), text.data() + text.size(), value).ec == std::errc();
             }
 
             if (ok)
@@ -1535,6 +1637,13 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--format" && hasValue)
         {
             options.disk.formatName = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--filesystem" && hasValue)
+        {
+            options.disk.filesystem = argv[i + 1];
             i++;
             continue;
         }
@@ -1707,9 +1816,15 @@ void CommandLineParser::ParseDiskOptions (
             // they write to may have no filesystem to hold a name in.
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
              || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite
-             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite)
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::GetThumbnail
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::Repair)
             {
                 options.disk.hostFile = arg;
+            }
+            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::SetThumbnail)
+            {
+                options.disk.picturePath = arg;
             }
             else
             {
@@ -1921,6 +2036,23 @@ std::span<const char * const> CommandLineParser::GetRunLongOptions()
 std::span<const char * const> CommandLineParser::GetDebugLongOptions()
 {
     return std::span<const char * const> (s_kpszDebugLongOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetMcpLongOptions
+//
+//  The long options `mcp` takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetMcpLongOptions()
+{
+    return std::span<const char * const> (s_kpszMcpLongOptions);
 }
 
 
@@ -3371,7 +3503,7 @@ void CommandLineParser::ApplyAs65Defaults (CommandLineOptions & options, const F
 //  than printed here.
 //
 //  It used to be a warning written to stderr from inside the parser, after
-//  which parsing -- and the assembly -- carried on. That made a typo silent in
+//  which parsing -- and the assembly -- continued. That made a typo silent in
 //  every way that mattered: the warning scrolled past, the exit code was 0, and
 //  the output file was written as though the flag had been honored. Recording
 //  it lets the edge refuse the invocation and print the help for the mode the
@@ -4365,6 +4497,85 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ParseMcpOptions
+//
+//  The `mcp` grammar: --allow-path <folder>, repeatable.
+//  Anything else fails, as in the `debug` grammar, since a dropped option
+//  would change which files the client's commands can access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ParseMcpOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options)
+{
+    CommandLineOptions::McpOptions & mcp       = options.mcp;
+    bool                             wantsHelp = IsLoneQuestionMark (argc, argv, argIndex);
+
+
+
+    for (int probe = argIndex; probe < argc; probe++)
+    {
+        if (IsHelpRequest (argv[probe]))
+        {
+            wantsHelp = true;
+
+            if (argv[probe][0] == '/')
+            {
+                options.flagPrefix = '/';
+            }
+        }
+    }
+
+    if (wantsHelp)
+    {
+        options.showHelp = true;
+        options.helpPage = CommandLineOptions::HelpPage::Mcp;
+        return;
+    }
+
+    while (argIndex < argc)
+    {
+        std::string  arg      = GetCanonicalLongFlag (argv[argIndex], std::span<const char * const> (s_kpszMcpLongOptions));
+        bool         hasValue = argIndex + 1 < argc;
+
+
+
+        if (argv[argIndex][0] == '/')
+        {
+            NoteFlagPrefix ('/', options);
+        }
+
+        if (IsLongOption (arg, "--allow-path", options) && hasValue)
+        {
+            mcp.allowPaths.push_back (argv[++argIndex]);
+        }
+        else if (arg == "--allow-path")
+        {
+            Refusal (options) << "Error: " << argv[argIndex] << " requires a folder after it\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+        else if (IsFlagShaped (arg))
+        {
+            Refusal (options) << "Error: unknown option: " << arg << "\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            RecordUnrecognizedFlag (arg, options);
+        }
+        else
+        {
+            Refusal (options) << "Error: surplus argument: " << arg << "\n"
+                              << "       `mcp` doesn't take an operand. Its client writes to its standard input.\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+
+        argIndex++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RefuseSourceWithoutDialect
 //
 //  Refuses a `run` command line that hands over source without saying which
@@ -4599,11 +4810,13 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     {
         ParseDebugOptions (argc, argv, 2, options);
     }
-    else if (named == CommandLineOptions::Subcommand::Mcp && argc > 2)
+    else if (named == CommandLineOptions::Subcommand::Mcp)
     {
-        //  `mcp` doesn't take options: its client writes to its standard input.
-        options.unrecognizedArgument = argv[2];
-        options.subcommand           = CommandLineOptions::Subcommand::None;
+        ParseMcpOptions (argc, argv, 2, options);
+    }
+    else if (named == CommandLineOptions::Subcommand::Basic)
+    {
+        ParseBasicOptions (argc, argv, 2, options);
     }
 
 Error:
@@ -4680,14 +4893,12 @@ std::string CommandLineParser::ApplyListingExtension (const std::string & name)
 //  a typo, and answering a typo by booting the last disk is how a session
 //  spends an afternoon capturing audio from the wrong image.
 //
-//  THERE IS NO OPERAND. A drive is filled by --disk1 or --disk2 and by nothing
-//  else, so a bare image path is refused rather than taken as either. It was
-//  read as drive 1 for one revision, on the reasoning that dragging a disk onto
-//  the executable should boot it -- but no file association is registered
-//  anywhere, dropping a disk on the RUNNING window already works, and the whole
-//  of what it bought was a second way to say --disk1. The assembler grammars
-//  gave up a bare source file for the same reason: an operand makes the tool
-//  guess at what the caller can state.
+//  A BARE DISK IMAGE IS A DRIVE'S DISK. Dropping images on Casso.exe in File
+//  Explorer, and opening one through Casso's file association, pass each path
+//  alone, so the first goes in drive 1 and a second in drive 2, as --disk1 and
+//  --disk2 would put them. Only a path with a disk image's extension is taken;
+//  any other bare argument is refused, since there is nothing else it could
+//  mean.
 //
 //  THE FIRST REFUSAL IS THE ONE REPORTED. The walk runs to the end regardless,
 //  since a refused command line starts nothing and what it reads afterward is
@@ -4757,6 +4968,9 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
         else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
+        else if (arg == "--hd"        && hasValue) { ApplyBlockAttachment (argv[++i], false, parsed); }
+        else if (arg == "--smartport" && hasValue) { ApplyBlockAttachment (argv[++i], true,  parsed); }
+        else if (arg == "--explore" && hasValue) { parsed.explore = argv[++i]; }
         else if (arg == "--trace")
         {
             parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
@@ -4791,6 +5005,15 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             parsed.titlePrefix = argv[++i];
         }
+        else if (arg == "--serial-log")
+        {
+            parsed.serialLogRequested = true;
+
+            if (hasValue && IsSerialLogPath (argv[i + 1]))
+            {
+                parsed.serialLog = argv[++i];
+            }
+        }
         else if (arg == "--updated")
         {
             parsed.wasUpdated = true;
@@ -4799,6 +5022,14 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         {
             ApplyCleanupPid (argv[++i], parsed);
         }
+        else if (!IsFlagShaped (raw) && IsDiskImagePath (raw) && parsed.disk1.empty())
+        {
+            parsed.disk1 = raw;
+        }
+        else if (!IsFlagShaped (raw) && IsDiskImagePath (raw) && parsed.disk2.empty())
+        {
+            parsed.disk2 = raw;
+        }
         else if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
         {
             RefuseEmulatorArgument (raw, arg, parsed);
@@ -4806,6 +5037,45 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
     }
 
     return parsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsDiskImagePath
+//
+//  The six extensions Casso mounts, compared without regard to case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsDiskImagePath (const std::string & path)
+{
+    size_t       dot       = path.find_last_of ('.');
+    size_t       slash     = path.find_last_of ("\\/");
+    std::string  extension = (dot == std::string::npos || (slash != std::string::npos && slash > dot)) ? std::string() : path.substr (dot);
+
+
+
+    return std::any_of (std::begin (s_kpszDiskImageExtensions), std::end (s_kpszDiskImageExtensions),
+                        [&extension] (const char * known) { return _stricmp (extension.c_str(), known) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::IsSerialLogPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLineParser::IsSerialLogPath (const std::string & arg)
+{
+    return !IsFlagShaped (arg) && !IsDiskImagePath (arg);
 }
 
 
@@ -4849,16 +5119,16 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
 
     if (!isFlag)
     {
-        //  A disk goes in a drive by being put there, so an image path with no
-        //  option in front of it is a reader assuming an operand this grammar
-        //  has never had. The options beside this message show the two that
-        //  take one.
+        //  A bare argument that is not a disk image, or a third image with
+        //  both drives filled, has nowhere to go. The options beside this
+        //  message show what does take one.
         parsed.refusalMessage = "Error: unexpected argument " + raw;
     }
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
-          || canonical == "--cleanup-old")
+          || canonical == "--cleanup-old" || canonical == "--hd"
+          || canonical == "--smartport")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -5028,7 +5298,8 @@ std::vector<std::string> CommandLineParser::SelectRelaunchArguments (int argc, c
         hasValue = (i + 1) < argc;
         takes    = !hasEqual && hasValue &&
                    (rule->value == OptionValue::Required ||
-                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])));
+                    (rule->value == OptionValue::OptionalSize && isdigit ((unsigned char) argv[i + 1][0])) ||
+                    (rule->value == OptionValue::OptionalPath && IsSerialLogPath (argv[i + 1])));
 
         if (rule->rule == RelaunchRule::Repeat)
         {
@@ -5174,6 +5445,95 @@ void CommandLineParser::ApplySeed (const std::string                   & text,
     {
         parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
         parsed.refusalMessage = "Error: invalid seed " + text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyBlockAttachment
+//
+//  An --hd value is <slot>=<image> or <slot>.<unit>=<image>, with a slot
+//  from 1 to 7 and a unit from 0 to 6; a --smartport value is <n>=<image>,
+//  with n from 1 to 4. Anything else refuses the command line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyBlockAttachment (const std::string                   & text,
+                                              bool                                  isSmartPort,
+                                              CommandLineOptions::EmulatorOptions & parsed)
+{
+    constexpr int                                         kMaxSlot   = 7;
+    constexpr int                                         kMaxUnit   = 6;
+    constexpr int                                         kMaxChain  = 4;
+    size_t                                                equals     = text.find ('=');
+    std::string                                           target     = text.substr (0, std::min (equals, text.size()));
+    size_t                                                dot        = target.find ('.');
+    int                                                   first      = 0;
+    int                                                   second     = -1;
+    bool                                                  isValid    = equals != std::string::npos && equals + 1 < text.size() && !target.empty();
+    CommandLineOptions::EmulatorOptions::BlockAttachment  attachment;
+
+
+
+    if (isValid)
+    {
+        std::string            head   = target.substr (0, std::min (dot, target.size()));
+        std::from_chars_result result = std::from_chars (head.data(), head.data() + head.size(), first);
+
+
+
+        isValid = result.ec == std::errc() && result.ptr == head.data() + head.size();
+
+        if (isValid && dot != std::string::npos)
+        {
+            std::string  tail = target.substr (dot + 1);
+
+
+
+            result  = std::from_chars (tail.data(), tail.data() + tail.size(), second);
+            isValid = !isSmartPort && !tail.empty() && result.ec == std::errc() && result.ptr == tail.data() + tail.size();
+        }
+    }
+
+    if (isValid)
+    {
+        isValid = isSmartPort ? (first >= 1 && first <= kMaxChain)
+                              : (first >= 1 && first <= kMaxSlot && second >= -1 && second <= kMaxUnit);
+    }
+
+    if (!isValid)
+    {
+        if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+        {
+            parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+            parsed.refusalMessage = isSmartPort
+                ? "Error: illegal --smartport value " + text + "\n"
+                  "       The value is <n>=<image>, where n is a drive's position on\n"
+                  "       the disk port, from 1 to 4."
+                : "Error: illegal --hd value " + text + "\n"
+                  "       The value is <slot>=<image> or <slot>.<unit>=<image>, with a\n"
+                  "       slot from 1 to 7 and a unit from 0 to 6.";
+        }
+
+        return;
+    }
+
+    attachment.image = text.substr (equals + 1);
+
+    if (isSmartPort)
+    {
+        attachment.chain = first;
+        parsed.smartPortAttachments.push_back (attachment);
+    }
+    else
+    {
+        attachment.slot = first;
+        attachment.unit = second;
+        parsed.hdAttachments.push_back (attachment);
     }
 }
 

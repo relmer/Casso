@@ -4,6 +4,8 @@
 
 
 class DxuiPanel;
+struct DialogDefinition;
+enum class DialogIcon;
 
 
 
@@ -31,6 +33,13 @@ class DxuiPanel;
 class MessageDialog : public DxuiDialogWindow
 {
 public:
+    //  Loads an app icon for a definition that asks for one.
+    using AppIconLoader = std::function<HRESULT (DialogIcon icon, int sourcePx, std::vector<uint32_t> & outPixels, int & outWidth, int & outHeight)>;
+
+    //  Shows `def` modally over `owner` and returns the chosen button's result
+    //  code. `loadIcon` may be empty, which leaves an app icon out.
+    static int  ShowDefinition (const DialogDefinition & def, HINSTANCE instance, HWND owner, const IDxuiTheme * theme, const AppIconLoader & loadIcon);
+
     struct Button
     {
         std::wstring  label;

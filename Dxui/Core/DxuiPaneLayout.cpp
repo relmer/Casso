@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "DxuiPaneLayout.h"
+#include "DxuiPaneLayoutArranger.h"
+#include "DxuiPaneLayoutText.h"
 
 
 
@@ -1041,6 +1043,7 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
 {
     Floating      entry;
     std::wstring  window = GetFloatingWindow (pane);
+    Node *        group  = FindGroup (m_root.get(), pane);
     bool          shared = false;
 
 
@@ -1078,9 +1081,15 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
     entry.isActive   = true;
     entry.homePane   = IsDocked (pane) ? GetNeighbor (pane) : std::wstring();
 
+    if (group != nullptr && group->panes.size() > 1)
+    {
+        entry.homeIndex = (int) (std::find (group->panes.begin(), group->panes.end(), pane) - group->panes.begin());
+    }
+
     for (const AutoHidden & hidden : m_autoHidden)
     {
-        entry.homePane = (hidden.pane == pane) ? hidden.homePane : entry.homePane;
+        entry.homePane  = (hidden.pane == pane) ? hidden.homePane  : entry.homePane;
+        entry.homeIndex = (hidden.pane == pane) ? hidden.homeIndex : entry.homeIndex;
     }
 
     Detach (pane);
@@ -1264,6 +1273,11 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
     entry.homePane = IsDocked (pane) ? GetNeighbor (pane) : std::wstring();
     parent         = (group != nullptr && group->panes.size() == 1) ? FindParent (m_root.get(), group) : nullptr;
 
+    if (group != nullptr && group->panes.size() > 1)
+    {
+        entry.homeIndex = (int) (std::find (group->panes.begin(), group->panes.end(), pane) - group->panes.begin());
+    }
+
     if (parent != nullptr)
     {
         first              = (parent->first.get() == group);
@@ -1297,6 +1311,9 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
 //
 //  A floating or auto-hidden pane returns to the pane it sat beside, tabbed
 //  with it; when that pane is not docked any more, against the right edge.
+//  A floating or auto-hidden pane that shared its group is inserted at its
+//  index among the group's tabs, or at the end when the group now has fewer
+//  tabs, and is the group's active tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1306,6 +1323,7 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
     AutoHidden    place;
     Node *        group   = nullptr;
     Node *        subtree = nullptr;
+    int           at      = 0;
 
 
 
@@ -1316,7 +1334,8 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
 
     for (const Floating & floating : m_floating)
     {
-        home = (floating.pane == pane) ? floating.homePane : home;
+        home            = (floating.pane == pane) ? floating.homePane  : home;
+        place.homeIndex = (floating.pane == pane) ? floating.homeIndex : place.homeIndex;
     }
 
     for (const AutoHidden & hidden : m_autoHidden)
@@ -1336,8 +1355,10 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
     }
     else if (group != nullptr)
     {
-        group->panes.push_back (pane);
-        group->active = (int) group->panes.size() - 1;
+        at = (place.homeIndex >= 0) ? std::min (place.homeIndex, (int) group->panes.size()) : (int) group->panes.size();
+
+        group->panes.insert (group->panes.begin() + at, pane);
+        group->active = at;
     }
     else if (m_root == nullptr)
     {
@@ -1518,79 +1539,6 @@ bool DxuiPaneLayout::MoveByArrow (const std::wstring & pane, DxuiDockSide direct
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPaneLayout::HasShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiPaneLayout::HasShown (const Node * node, const ShownFn & shown)
-{
-    if (node == nullptr)
-    {
-        return false;
-    }
-
-    if (node->kind == Node::Kind::Tabs)
-    {
-        return std::any_of (node->panes.begin(), node->panes.end(),
-                            [&] (const std::wstring & pane) { return !shown || shown (pane); });
-    }
-
-    return HasShown (node->first.get(), shown) || HasShown (node->second.get(), shown);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::GetMinimum
-//
-//  What a subtree needs: a group, the largest of its shown panes; a split,
-//  the two sides added along its axis and the larger across it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE DxuiPaneLayout::GetMinimum (const Node * node, const ShownFn & shown, const MinSizeFn & minSize)
-{
-    SIZE  result = {};
-    SIZE  a      = {};
-    SIZE  b      = {};
-
-
-
-    if (!HasShown (node, shown))
-    {
-        return result;
-    }
-
-    if (node->kind == Node::Kind::Tabs)
-    {
-        for (const std::wstring & pane : node->panes)
-        {
-            SIZE  one = (minSize && (!shown || shown (pane))) ? minSize (pane) : SIZE {};
-
-            result.cx = std::max (result.cx, one.cx);
-            result.cy = std::max (result.cy, one.cy);
-        }
-
-        return result;
-    }
-
-    a = GetMinimum (node->first.get(),  shown, minSize);
-    b = GetMinimum (node->second.get(), shown, minSize);
-
-    result.cx = node->horizontal ? a.cx + b.cx : std::max (a.cx, b.cx);
-    result.cy = node->horizontal ? std::max (a.cy, b.cy) : a.cy + b.cy;
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiPaneLayout::Arrange
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1598,148 +1546,7 @@ SIZE DxuiPaneLayout::GetMinimum (const Node * node, const ShownFn & shown, const
 std::vector<DxuiPaneLayout::GroupRect> DxuiPaneLayout::Arrange (const RECT & areaDip, const ShownFn & shown,
                                                                 const MinSizeFn & minSize) const
 {
-    std::vector<GroupRect>  groups;
-
-
-
-    ArrangeNode (m_root.get(), areaDip, shown, minSize, groups);
-    return groups;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::ArrangeNode
-//
-//  The ratio places the split, then the split moves as little as it must for
-//  each side to get its minimum. When the area cannot hold both minimums,
-//  they share it in proportion to what each needs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiPaneLayout::ArrangeNode (const Node * node, const RECT & area, const ShownFn & shown,
-                                  const MinSizeFn & minSize, std::vector<GroupRect> & out)
-{
-    GroupRect  group;
-    bool       firstShown  = false;
-    bool       secondShown = false;
-    long       split       = 0;
-    RECT       a           = area;
-    RECT       b           = area;
-
-
-
-    if (!HasShown (node, shown))
-    {
-        return;
-    }
-
-    if (node->kind == Node::Kind::Tabs)
-    {
-        for (const std::wstring & pane : node->panes)
-        {
-            if (!shown || shown (pane))
-            {
-                group.panes.push_back (pane);
-            }
-        }
-
-        group.active = group.panes.front();
-
-        //  When the active pane is hidden, as one just closed is, the front
-        //  goes to the next visible pane after it in the group, or to the one
-        //  before it when it was the last.
-        for (int at = node->active, step = 1; node->active >= 0 && node->active < (int) node->panes.size(); at += step)
-        {
-            if (at >= (int) node->panes.size())
-            {
-                at   = node->active;
-                step = -1;
-                continue;
-            }
-
-            if (at < 0)
-            {
-                break;
-            }
-
-            if (!shown || shown (node->panes[(size_t) at]))
-            {
-                group.active = node->panes[(size_t) at];
-                break;
-            }
-        }
-
-        group.rect = area;
-        out.push_back (std::move (group));
-        return;
-    }
-
-    firstShown  = HasShown (node->first.get(),  shown);
-    secondShown = HasShown (node->second.get(), shown);
-
-    if (!firstShown || !secondShown)
-    {
-        ArrangeNode (firstShown ? node->first.get() : node->second.get(), area, shown, minSize, out);
-        return;
-    }
-
-    split = GetSplitPosition (node, area, shown, minSize);
-
-    if (node->horizontal)
-    {
-        a.right = area.left + split;
-        b.left  = a.right;
-    }
-    else
-    {
-        a.bottom = area.top + split;
-        b.top    = a.bottom;
-    }
-
-    ArrangeNode (node->first.get(),  a, shown, minSize, out);
-    ArrangeNode (node->second.get(), b, shown, minSize, out);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::GetSplitPosition
-//
-//  How far along its axis a split divides its area. The ratio places the
-//  division, then it moves as little as it must for each side to get its
-//  minimum; when the area cannot hold both minimums, they share it in
-//  proportion to what each needs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-long DxuiPaneLayout::GetSplitPosition (const Node * node, const RECT & area, const ShownFn & shown, const MinSizeFn & minSize)
-{
-    long  total = node->horizontal ? (area.right - area.left) : (area.bottom - area.top);
-    SIZE  a     = GetMinimum (node->first.get(),  shown, minSize);
-    SIZE  b     = GetMinimum (node->second.get(), shown, minSize);
-    long  needA = node->horizontal ? a.cx : a.cy;
-    long  needB = node->horizontal ? b.cx : b.cy;
-    long  split = (long) std::lround (total * node->ratio);
-
-
-
-    if (needA + needB <= total)
-    {
-        split = std::clamp (split, needA, total - needB);
-    }
-    else if (needA + needB > 0)
-    {
-        split = total * needA / (needA + needB);
-    }
-
-    return split;
+    return DxuiPaneLayoutArranger (shown, minSize).Arrange (m_root.get(), areaDip);
 }
 
 
@@ -1755,74 +1562,7 @@ long DxuiPaneLayout::GetSplitPosition (const Node * node, const RECT & area, con
 std::vector<DxuiPaneLayout::SplitRect> DxuiPaneLayout::ArrangeSplits (const RECT & areaDip, const ShownFn & shown,
                                                                       const MinSizeFn & minSize) const
 {
-    std::vector<SplitRect>  splits;
-
-
-
-    ArrangeSplitsIn (m_root.get(), areaDip, shown, minSize, std::wstring(), splits);
-    return splits;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::ArrangeSplitsIn
-//
-//  The same walk as ArrangeNode, recording each split both of whose sides are
-//  shown. A split with one side hidden gives its whole area to the other and
-//  has nothing to drag.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiPaneLayout::ArrangeSplitsIn (const Node * node, const RECT & area, const ShownFn & shown,
-                                      const MinSizeFn & minSize, const std::wstring & path,
-                                      std::vector<SplitRect> & out)
-{
-    SplitRect  split;
-    bool       firstShown  = false;
-    bool       secondShown = false;
-    RECT       a           = area;
-    RECT       b           = area;
-
-
-
-    if (node == nullptr || node->kind != Node::Kind::Split || !HasShown (node, shown))
-    {
-        return;
-    }
-
-    firstShown  = HasShown (node->first.get(),  shown);
-    secondShown = HasShown (node->second.get(), shown);
-
-    if (!firstShown || !secondShown)
-    {
-        ArrangeSplitsIn (firstShown ? node->first.get() : node->second.get(), area, shown, minSize,
-                         path + (firstShown ? L"0" : L"1"), out);
-        return;
-    }
-
-    split.path       = path;
-    split.horizontal = node->horizontal;
-    split.area       = area;
-    split.position   = (node->horizontal ? area.left : area.top) + GetSplitPosition (node, area, shown, minSize);
-    out.push_back (split);
-
-    if (node->horizontal)
-    {
-        a.right = split.position;
-        b.left  = split.position;
-    }
-    else
-    {
-        a.bottom = split.position;
-        b.top    = split.position;
-    }
-
-    ArrangeSplitsIn (node->first.get(),  a, shown, minSize, path + L"0", out);
-    ArrangeSplitsIn (node->second.get(), b, shown, minSize, path + L"1", out);
+    return DxuiPaneLayoutArranger (shown, minSize).ArrangeSplits (m_root.get(), areaDip);
 }
 
 
@@ -1997,315 +1737,13 @@ void DxuiPaneLayout::PlaceOnMonitors (const std::vector<Monitor> & monitors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPaneLayout::GetSideName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * DxuiPaneLayout::GetSideName (DxuiDockSide side)
-{
-    static const wchar_t * const  kNames[] = { L"left", L"top", L"right", L"bottom" };
-
-
-
-    return kNames[(int) side];
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::TryGetSide
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiPaneLayout::TryGetSide (const std::wstring & name, DxuiDockSide & side)
-{
-    for (int i = 0; i < 4; i++)
-    {
-        if (name == GetSideName ((DxuiDockSide) i))
-        {
-            side = (DxuiDockSide) i;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiPaneLayout::ToText
-//
-//  `dxui-layout 1`, then `tree` and the tree as nested lists, then a `float`
-//  line per floating pane and a `hide` line per auto-hidden one. Names are
-//  quoted, with `\` before a quote or a backslash in them. A floating pane
-//  that shares its window, or whose window is not keyed by its own name,
-//  ends its line with the window's key, then `active` for the tab shown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DxuiPaneLayout::ToText() const
 {
-    std::wstring  out   = std::format (L"dxui-layout {}\ntree ", kVersion);
-    auto          quote = [] (const std::wstring & text)
-    {
-        std::wstring  q = L"\"";
-
-        for (wchar_t c : text)
-        {
-            q += (c == L'"' || c == L'\\') ? std::wstring (L"\\") + c : std::wstring (1, c);
-        }
-
-        return q + L"\"";
-    };
-
-
-
-    if (m_root == nullptr)
-    {
-        out += L"none";
-    }
-    else
-    {
-        WriteNode (m_root.get(), out);
-    }
-
-    out += L"\n";
-
-    for (const Floating & f : m_floating)
-    {
-        out += std::format (L"float {} {} {} {} {} {} {}", quote (f.pane), quote (f.monitorKey),
-                            f.rectDip.left, f.rectDip.top, f.rectDip.right, f.rectDip.bottom, quote (f.homePane));
-
-        //  A pane alone in a window keyed by its own name is written as
-        //  before windows held groups.
-        if (f.window != f.pane || GetFloatingPanes (f.window).size() > 1)
-        {
-            out += L" " + quote (f.window) + (f.isActive ? L" active" : L"");
-        }
-
-        out += L"\n";
-    }
-
-    //  A pane that was alone on its side of a split has that side, the
-    //  split's ratio and the panes on the other side, so DockBack splits
-    //  there again.
-    for (const AutoHidden & h : m_autoHidden)
-    {
-        out += std::format (L"hide {} {} {}", quote (h.pane), GetSideName (h.edge), quote (h.homePane));
-
-        if (h.homeSplit)
-        {
-            out += std::format (L" split {} {:.4f} {}", GetSideName (h.homeSide), h.homeRatio, h.homeSiblings.size());
-
-            for (const std::wstring & sibling : h.homeSiblings)
-            {
-                out += L" " + quote (sibling);
-            }
-        }
-
-        out += L"\n";
-    }
-
-    return out;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::WriteNode
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiPaneLayout::WriteNode (const Node * node, std::wstring & out)
-{
-    if (node->kind == Node::Kind::Split)
-    {
-        out += std::format (L"(split {} {:.4f} ", node->horizontal ? L"h" : L"v", node->ratio);
-        WriteNode (node->first.get(), out);
-        out += L" ";
-        WriteNode (node->second.get(), out);
-        out += L")";
-        return;
-    }
-
-    out += std::format (L"(tabs {}", node->active);
-
-    for (const std::wstring & pane : node->panes)
-    {
-        out += L" \"";
-
-        for (wchar_t c : pane)
-        {
-            out += (c == L'"' || c == L'\\') ? std::wstring (L"\\") + c : std::wstring (1, c);
-        }
-
-        out += L"\"";
-    }
-
-    out += L")";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::Tokenize
-//
-//  Parentheses are tokens of their own; a quoted string is one token, kept
-//  with its opening quote so it cannot be mistaken for a keyword.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> DxuiPaneLayout::Tokenize (const std::wstring & text)
-{
-    std::vector<std::wstring>  tokens;
-    size_t                     at     = 0;
-
-
-
-    while (at < text.size())
-    {
-        wchar_t       c = text[at];
-        std::wstring  token;
-
-        if (iswspace (c))
-        {
-            at++;
-            continue;
-        }
-
-        if (c == L'(' || c == L')')
-        {
-            tokens.push_back (std::wstring (1, c));
-            at++;
-            continue;
-        }
-
-        if (c == L'"')
-        {
-            token = L"\"";
-
-            for (at++; at < text.size() && text[at] != L'"'; at++)
-            {
-                if (text[at] == L'\\' && at + 1 < text.size())
-                {
-                    at++;
-                }
-
-                token += text[at];
-            }
-
-            if (at >= text.size())
-            {
-                return {};
-            }
-
-            at++;
-            tokens.push_back (token);
-            continue;
-        }
-
-        while (at < text.size() && !iswspace (text[at]) && text[at] != L'(' && text[at] != L')' && text[at] != L'"')
-        {
-            token += text[at++];
-        }
-
-        tokens.push_back (token);
-    }
-
-    return tokens;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiPaneLayout::ReadNode
-//
-//  Null on anything malformed; the caller refuses the whole text.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<DxuiPaneLayoutNode> DxuiPaneLayout::ReadNode (const std::vector<std::wstring> & tokens, size_t & at)
-{
-    std::unique_ptr<Node>  node   = std::make_unique<Node>();
-    wchar_t              * end    = nullptr;
-    std::wstring           kind;
-    std::wstring           axis;
-    std::wstring           ratio;
-    std::wstring           active;
-    auto                   next   = [&] () -> std::wstring { return (at < tokens.size()) ? tokens[at++] : std::wstring(); };
-
-
-
-    if (next() != L"(")
-    {
-        return nullptr;
-    }
-
-    kind = next();
-
-    if (kind == L"split")
-    {
-        axis  = next();
-        ratio = next();
-
-        node->kind       = Node::Kind::Split;
-        node->horizontal = (axis == L"h");
-        node->ratio      = wcstof (ratio.c_str(), &end);
-
-        if ((axis != L"h" && axis != L"v") || ratio.empty() || *end != L'\0' || node->ratio < 0.0f || node->ratio > 1.0f)
-        {
-            return nullptr;
-        }
-
-        node->first  = ReadNode (tokens, at);
-        node->second = (node->first != nullptr) ? ReadNode (tokens, at) : nullptr;
-
-        return (node->second != nullptr && next() == L")") ? std::move (node) : nullptr;
-    }
-
-    if (kind != L"tabs")
-    {
-        return nullptr;
-    }
-
-    active = next();
-
-    node->kind   = Node::Kind::Tabs;
-    node->active = (int) wcstol (active.c_str(), &end, 10);
-
-    if (active.empty() || *end != L'\0')
-    {
-        return nullptr;
-    }
-
-    while (at < tokens.size() && !tokens[at].empty() && tokens[at][0] == L'"')
-    {
-        node->panes.push_back (tokens[at++].substr (1));
-    }
-
-    if (node->panes.empty() || next() != L")")
-    {
-        return nullptr;
-    }
-
-    node->active = std::clamp (node->active, 0, (int) node->panes.size() - 1);
-    return node;
+    return DxuiPaneLayoutText::Write (*this);
 }
 
 
@@ -2316,159 +1754,27 @@ std::unique_ptr<DxuiPaneLayoutNode> DxuiPaneLayout::ReadNode (const std::vector<
 //
 //  DxuiPaneLayout::TryParse
 //
-//  All or nothing: a text with another version, a malformed tree, an unknown
-//  line, or a pane named twice leaves `out` as it was.
+//  All or nothing: `out` is replaced only when DxuiPaneLayoutText reads the
+//  whole text. The floating windows' active tabs are then repaired.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPaneLayout::TryParse (const std::wstring & text, DxuiPaneLayout & out)
 {
-    std::vector<std::wstring>  tokens = Tokenize (text);
+    DxuiPaneLayoutText::Parts  parts;
     DxuiPaneLayout             layout;
-    std::vector<std::wstring>  seen;
-    size_t                     at     = 2;
-    wchar_t                  * end    = nullptr;
-    std::function<void (const Node *)>  collect = [&] (const Node * node)
-    {
-        if (node == nullptr)
-        {
-            return;
-        }
-
-        seen.insert (seen.end(), node->panes.begin(), node->panes.end());
-        collect (node->first.get());
-        collect (node->second.get());
-    };
-    auto  isString = [&] (size_t i) { return i < tokens.size() && !tokens[i].empty() && tokens[i][0] == L'"'; };
 
 
 
-    if (tokens.size() < 4 || tokens[0] != L"dxui-layout" || tokens[1] != std::to_wstring (kVersion) || tokens[2] != L"tree")
+    if (!DxuiPaneLayoutText::TryRead (text, parts))
     {
         return false;
     }
 
-    at = 3;
-
-    if (tokens[at] == L"none")
-    {
-        at++;
-    }
-    else
-    {
-        layout.m_root = ReadNode (tokens, at);
-
-        if (layout.m_root == nullptr)
-        {
-            return false;
-        }
-    }
-
-    while (at < tokens.size())
-    {
-        if (tokens[at] == L"float" && isString (at + 1) && isString (at + 2) && isString (at + 7))
-        {
-            Floating  floating;
-            long      values[4] = {};
-
-            for (int i = 0; i < 4; i++)
-            {
-                values[i] = wcstol (tokens[at + 3 + (size_t) i].c_str(), &end, 10);
-
-                if (*end != L'\0' || tokens[at + 3 + (size_t) i].empty())
-                {
-                    return false;
-                }
-            }
-
-            floating.pane       = tokens[at + 1].substr (1);
-            floating.monitorKey = tokens[at + 2].substr (1);
-            floating.rectDip    = { values[0], values[1], values[2], values[3] };
-            floating.homePane   = tokens[at + 7].substr (1);
-            floating.window     = floating.pane;
-            floating.isActive   = true;
-            at += 8;
-
-            //  The window it shares with other panes, and whether it is the
-            //  tab shown there; absent for a pane alone in its window.
-            if (isString (at))
-            {
-                floating.window   = tokens[at].substr (1);
-                floating.isActive = at + 1 < tokens.size() && tokens[at + 1] == L"active";
-                at += floating.isActive ? 2 : 1;
-            }
-
-            layout.m_floating.push_back (floating);
-            continue;
-        }
-
-        if (tokens[at] == L"hide" && isString (at + 1) && at + 3 < tokens.size() && isString (at + 3))
-        {
-            AutoHidden  hidden;
-
-            if (!TryGetSide (tokens[at + 2], hidden.edge))
-            {
-                return false;
-            }
-
-            hidden.pane     = tokens[at + 1].substr (1);
-            hidden.homePane = tokens[at + 3].substr (1);
-            at += 4;
-
-            if (at + 3 < tokens.size() && tokens[at] == L"split")
-            {
-                wchar_t  * ratioEnd = nullptr;
-                wchar_t  * countEnd = nullptr;
-                long       count    = 0;
-
-                hidden.homeSplit = TryGetSide (tokens[at + 1], hidden.homeSide);
-                hidden.homeRatio = wcstof (tokens[at + 2].c_str(), &ratioEnd);
-                count            = wcstol (tokens[at + 3].c_str(), &countEnd, 10);
-
-                if (!hidden.homeSplit || *ratioEnd != L'\0' || *countEnd != L'\0' || hidden.homeRatio < 0.0f || hidden.homeRatio > 1.0f || count < 0)
-                {
-                    return false;
-                }
-
-                at += 4;
-
-                for (long i = 0; i < count; i++, at++)
-                {
-                    if (!isString (at))
-                    {
-                        return false;
-                    }
-
-                    hidden.homeSiblings.push_back (tokens[at].substr (1));
-                }
-            }
-
-            layout.m_autoHidden.push_back (hidden);
-            continue;
-        }
-
-        return false;
-    }
-
+    layout.m_root       = std::move (parts.root);
+    layout.m_floating   = std::move (parts.floating);
+    layout.m_autoHidden = std::move (parts.autoHidden);
     layout.FixActiveTabs();
-    collect (layout.m_root.get());
-
-    for (const Floating & floating : layout.m_floating)
-    {
-        seen.push_back (floating.pane);
-    }
-
-    for (const AutoHidden & hidden : layout.m_autoHidden)
-    {
-        seen.push_back (hidden.pane);
-    }
-
-    std::sort (seen.begin(), seen.end());
-
-    if (std::adjacent_find (seen.begin(), seen.end()) != seen.end())
-    {
-        return false;
-    }
 
     out = std::move (layout);
     return true;

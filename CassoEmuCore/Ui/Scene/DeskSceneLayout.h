@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Render/CurvedDisplayMath.h"
+#include "Ui/Scene/DeskDrivePlan.h"
 
 
 
@@ -33,6 +34,22 @@
 //  form so the whole scene is contained at any viewport shape.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+//  The most drives other than the Disk II pair the desk places.
+static constexpr int  kMaxDeskExtras = 16;
+
+
+//  One drive other than the Disk II pair: its model, where the drive plan put
+//  it, its level in a stack (0 the bottom), and its model bounds.
+struct DeskExtraMetrics
+{
+    DeskDriveModel  model  = DeskDriveModel::HardDisk20SC;
+    DeskDriveSpot   spot   = DeskDriveSpot::LeftStack;
+    int             level  = 0;
+    float           min[3] = {};
+    float           max[3] = {};
+};
+
 
 //
 //  Measured model dimensions the layout composes with -- passed in rather
@@ -90,6 +107,16 @@ struct DeskSceneMetrics
     float                 recorderMax[3]      = {};
     float                 recorderPadSideMm   = 0.0f;
     float                 recorderPadDepthMm  = 0.0f;
+
+    // The hard disks and 3.5-inch drives on the desk, their fronts in line
+    // with the drives'. Each is under the monitor, which then sits on top,
+    // or in the left or right stack, built up from the desk. The Disk II
+    // pair's spot is `driveSpot`, under the monitor or in the right stack,
+    // where each drive's level is `driveLevel`.
+    int                   extraCount          = 0;
+    DeskExtraMetrics      extras[kMaxDeskExtras];
+    DeskDriveSpot         driveSpot           = DeskDriveSpot::UnderMonitor;
+    int                   driveLevel[2]       = {};
 };
 
 
@@ -110,6 +137,16 @@ struct DeskSceneMetrics
 //  Pan is in NDC, so it is resolution-independent by construction: 0.5 shifts
 //  by a quarter of the viewport whatever the window size or DPI, and a window
 //  resize cannot slide the scene out from under the user.
+//
+struct DeskDockHover
+{
+    float  pointerPx = -1.0f;   // the pointer's client x, or negative for none
+    float  strength  = 0.0f;    // 0 at rest, 1 fully magnified
+};
+
+
+//
+//  The user's framing of the desk.
 //
 struct DeskSceneView
 {
@@ -173,6 +210,26 @@ struct DeskSceneComposition
     int    hasRecorder        = 0;
     float  recorderWorld[16]  = {};
     RECT   recorderRectPx     = {};
+
+    // The extra drives, in DeskSceneMetrics::extras order. A count for the
+    // same memcmp reason.
+    int    extraCount                      = 0;
+    float  extraWorld[kMaxDeskExtras][16]  = {};
+    RECT   extraRectPx[kMaxDeskExtras]     = {};
+
+    // Per extra drive under auto-hide: nonzero when it is in the dock rather
+    // than in its desk spot, and nonzero when it is not drawn because the
+    // dock is down. Ints for the same memcmp reason.
+    int    extraDocked[kMaxDeskExtras]     = {};
+    int    extraHidden[kMaxDeskExtras]     = {};
+
+    // The scale at which a docked device in front of the monitor looks its
+    // true size beside it, and the lowest view tangent of the dock and its
+    // labels that is in the frame.
+    float  dockFullScale                   = 0.0f;
+    float  dockFloorTan                    = 0.0f;
+
+    bool  IsExtraShown (int i) const { return i >= 0 && i < extraCount && extraHidden[i] == 0; }
 };
 
 
@@ -193,6 +250,33 @@ public:
                              int                      reservedGapPx = 0,
                              const DeskSceneView    & view = DeskSceneView {});
 
+    // Whether an extra drive goes in the auto-hide dock: the floppies do,
+    // and the hard disks are in their desk spots instead.
+    static bool     IsDockedExtra  (const DeskExtraMetrics & extra);
+
+    // Auto-hide on the desk: the camera and framing of the monitor and the
+    // hard disks on the desk, with the floppy drives and the recorder in a
+    // dock in front of the monitor. At a
+    // `slideProgress` of 0 they are omitted, and in between they rise from
+    // just below the frame. At 1 they are on the desk, or raised off it just
+    // far enough for their fronts and `slideClearPx` of labels under them to
+    // be inside the frame.
+    static HRESULT  ComputeSliding (const RECT             & viewportPx,
+                                    UINT                     dpi,
+                                    int                      driveCount,
+                                    const DeskSceneMetrics & metrics,
+                                    float                    slideProgress,
+                                    int                      slideClearPx,
+                                    DeskSceneComposition   & out,
+                                    const DeskSceneView    & view = DeskSceneView {},
+                                    const DeskDockHover    & dock = DeskDockHover {});
+
+    // The screen y of the highest point of the sliding devices' front faces,
+    // ignoring the bodies behind them. False when there are no devices.
+    static bool     GetSlideFrontTopPx (const DeskSceneComposition & comp,
+                                        const DeskSceneMetrics     & metrics,
+                                        LONG                       & outTopPx);
+
     // Magnify and shift a projection in CLIP SPACE, which is what lets the
     // user's framing ride on top of the fitted composition without disturbing
     // it. Applied before the bounds are projected, so glassRectPx and the
@@ -206,19 +290,24 @@ public:
 
     // The fullscreen presentation: a straight-on camera at the closest
     // distance that does not crop the picture, showing the tube alone on
-    // black (the composition sets `glassOnly`, and the drives come from the
-    // overlay strip). Closest means the glass covers the viewport; on a
-    // viewport wide enough that covering would crop the raster, the picture's
-    // own containment distance applies instead and black fills what that
-    // leaves beside the tube. `displayW` x `displayH` is the emulated grid,
-    // which determines the picture's band on the glass. Same S_FALSE contract
-    // for an empty viewport.
+    // black (the composition sets `glassOnly`). Closest means the glass
+    // covers the viewport; on a viewport wide enough that covering would crop
+    // the raster, the picture's containment distance applies instead and the
+    // rest of the screen beside the tube is black. `displayW` x `displayH` is
+    // the emulated grid, which determines the picture's band on the glass.
+    // Same S_FALSE contract for an empty viewport. With a `slideProgress` of 0
+    // or more, `driveCount` drives and the recorder slide up in front of the
+    // glass, as documented at ComputeSliding.
     static HRESULT  ComputeGlassFill (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      displayW,
                                       int                      displayH,
                                       const DeskSceneMetrics & metrics,
-                                      DeskSceneComposition   & out);
+                                      DeskSceneComposition   & out,
+                                      int                      driveCount    = 0,
+                                      float                    slideProgress = kNoSlide,
+                                      int                      slideClearPx  = 0,
+                                      const DeskDockHover    & dock          = DeskDockHover {});
 
     // The fullscreen drive overlay strip: the drive row alone, full model
     // scale, its own contained camera over the strip's viewport band --
@@ -297,6 +386,33 @@ public:
     // Air over a risen door, on top of the rise itself. Enough that the gap
     // reads as a gap rather than as two parts just failing to touch.
     static constexpr float  kDoorRiseMarginMm      =  6.0f;
+
+    // The furthest the sliding devices are lowered to put them below the
+    // frame, and the slide progress that marks an ordinary, unsliding solve.
+    static constexpr float  kMaxSlideDropMm        = 4000.0f;
+
+    // How far the sliding drives' backs are ahead of the monitor's frontmost
+    // point: enough that the two never share a depth.
+    static constexpr float  kSlideMonitorGapMm       = 3.0f;
+
+    // The share of the frame's half-width the sliding row may fill before it
+    // is scaled down to fit, so it never touches the window's sides.
+    static constexpr float  kSlideFitMargin        = 0.96f;
+
+    // In fullscreen the fitted row is shrunk to this share of its size: at
+    // the full screen width it covered too much of the picture.
+    static constexpr float  kFullscreenSlideScale  = 0.6f;
+
+    // In a window the fitted row is shrunk to half its size, so the drives
+    // cover less of the monitor when they rise.
+    static constexpr float  kWindowedSlideScale    = 0.5f;
+
+    // The dock magnifies the device under the pointer to this share of its
+    // true size, and its neighbors less, out to this many average device
+    // widths.
+    static constexpr float  kDockMostOfFullSize    = 0.75f;
+    static constexpr float  kDockReachWidths       = 2.0f;
+    static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
     // Field of view is SOLVED rather than fixed, because the eye position is
@@ -375,6 +491,40 @@ public:
                                            float                        outCorners[4][3],
                                            int                          offsetXPx = 0);
 
+    // The eye point of a view-projection matrix: the one point it sends to
+    // clip x = y = w = 0. False for a matrix with none.
+    static bool     TryGetEyePoint        (const float viewProj[16], float outEye[3]);
+
+    // A drive's hover label, lying in a plane parallel to the drive's front,
+    // kFaceLabelStandoffMm in front of the model's frontmost point: centered
+    // across the face, kFaceLabelWidthFrac of its width, its center
+    // kFaceLabelHeightFrac of the way up, with `aspect` (width over height).
+    // The corners are world space, top-left, top-right, bottom-left,
+    // bottom-right as the front is seen; `outNormal` is the face's outward
+    // normal in world space. The label turns with the drive.
+    static constexpr float  kFaceLabelStandoffMm = 0.6f;
+    static constexpr float  kFaceLabelWidthFrac  = 0.8f;
+    static constexpr float  kFaceLabelHeightFrac = 0.28f;
+
+    static bool     TryMakeFaceLabelQuad  (const float  world[16],
+                                           const float  modelMin[3],
+                                           const float  modelMax[3],
+                                           float        aspect,
+                                           float        outCorners[4][3],
+                                           float        outNormal[3]);
+
+    // How squarely a face is seen: the cosine between its outward normal and
+    // the direction from `center` to the eye. Negative from behind.
+    static float    GetFacing             (const float viewProj[16], const float center[3], const float normal[3]);
+
+    // A face label's opacity for its facing: none from behind or edge-on,
+    // where a label on the face has no thickness, and full from
+    // kFaceLabelFullFacing on.
+    static constexpr float  kFaceLabelZeroFacing = 0.15f;
+    static constexpr float  kFaceLabelFullFacing = 0.40f;
+
+    static float    GetFaceLabelAlpha     (float facing);
+
 private:
     static void     SolveStandoff (const float             sceneMin[3],
                                    const float             sceneMax[3],
@@ -412,6 +562,18 @@ private:
                                      float                    sceneMin[3],
                                      float                    sceneMax[3],
                                      DeskSceneComposition   & out);
+    static void     PlaceStack      (const DeskSceneMetrics & metrics,
+                                     DeskDriveSpot            spot,
+                                     bool                     everyExtra,
+                                     int                      driveCount,
+                                     float                    driveZ,
+                                     float                    frontZ,
+                                     float                    deviceMin[3],
+                                     float                    deviceMax[3],
+                                     float                    sceneMin[3],
+                                     float                    sceneMax[3],
+                                     DeskSceneComposition   & out,
+                                     bool                     hardDisksOnly = false);
 
     static void     ProjectModelBox (const float    world[16],
                                      const float    boxMin[3],
@@ -421,12 +583,115 @@ private:
                                      RECT         & outPx);
 
     // One full composition solve at a specific drive drop; Compute wraps it
-    // with the gap-reserving correction.
+    // with the gap-reserving correction. A `slideProgress` of 0 or more
+    // selects the auto-hide arrangement documented at ComputeSliding.
     static HRESULT  SolveComposition (const RECT             & viewportPx,
                                       UINT                     dpi,
                                       int                      driveCount,
                                       const DeskSceneMetrics & metrics,
                                       float                    dropMm,
                                       DeskSceneComposition   & out,
-                                      const DeskSceneView    & view = DeskSceneView {});
+                                      const DeskSceneView    & view          = DeskSceneView {},
+                                      float                    slideProgress = kNoSlide,
+                                      int                      slideClearPx  = 0,
+                                      const DeskDockHover    & dock          = DeskDockHover {});
+
+    // The tangent range along `axis` (0 is x, 1 is y) a model box, raised by
+    // `offsetMm`, covers in a view, widened into [ioLo, ioHi].
+    static bool     GetBoxTanRange   (const float              view[16],
+                                      const float              world[16],
+                                      const float              boxMin[3],
+                                      const float              boxMax[3],
+                                      float                    offsetMm,
+                                      int                      axis,
+                                      float                  & ioLo,
+                                      float                  & ioHi);
+
+    // The same over every sliding device in a composition.
+    static bool     GetSlideTanRange (const DeskSceneComposition & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        offsetMm,
+                                      int                          axis,
+                                      float                      & outLo,
+                                      float                      & outHi);
+
+    // Places the drives and the recorder for a sliding composition.
+    static void     PlaceSlidingDevices (const DeskSceneMetrics & metrics,
+                                         int                      driveCount,
+                                         DeskSceneComposition   & out);
+
+    // Scales, fits and raises the placed devices for a slide position, and
+    // returns the drive count left in the composition.
+    static int      SlideDevices     (DeskSceneComposition       & out,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        eyeDistMm,
+                                      float                        tanHalfX,
+                                      float                        tanHalfY,
+                                      int                          viewportH,
+                                      float                        slideProgress,
+                                      int                          slideClearPx,
+                                      float                        centerXMm,
+                                      float                        extraScale);
+
+    // Grows the docked devices near the pointer, as a macOS dock does, and
+    // spreads the row to make room. `tanHalfX` and `viewportPx` map the
+    // pointer into the view.
+    static void     MagnifyDock      (DeskSceneComposition       & out,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      const DeskDockHover        & dock,
+                                      float                        tanHalfX,
+                                      const RECT                 & viewportPx);
+
+    // A docked device: its world matrix in the composition, its model's
+    // bounds, and its span in world x at rest.
+    struct DockItem
+    {
+        float        * world;
+        const float  * lo;
+        const float  * hi;
+        float          x0;
+        float          w;
+    };
+
+    // The docked devices grown for the pointer at pointerX on the row at
+    // rest, each from its world matrix at rest in `rest`.
+    static void     GrowDock         (std::vector<DockItem>                         & items,
+                                      const std::vector<std::array<float, 16>>      & rest,
+                                      const std::vector<DxuiMagnifiedItem>          & row,
+                                      float                                           pointerX,
+                                      float                                           strength,
+                                      float                                           reach);
+
+    // The drives' and recorder's screen rects and the drives' label anchors.
+    static void     ProjectDeviceRects (DeskSceneComposition     & out,
+                                        const DeskSceneMetrics   & metrics,
+                                        int                        driveCount,
+                                        const RECT               & viewportPx);
+
+    // Scales the sliding devices down, about the row's back-bottom center,
+    // until the row fits within a horizontal tangent.
+    static void     FitSlideDevices  (DeskSceneComposition       & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        limitTanX,
+                                      float                        pivotX,
+                                      float                        pivotZ);
+
+    // Scales every sliding device uniformly about (pivotX, the desk, pivotZ).
+    static void     ScaleSlideDevices (DeskSceneComposition      & comp,
+                                       int                         driveCount,
+                                       float                       factor,
+                                       float                       pivotX,
+                                       float                       pivotZ);
+
+    // How far the sliding devices are moved up or down to put them past a
+    // vertical tangent.
+    static float    SolveSlideOffset (const DeskSceneComposition & comp,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      float                        direction,
+                                      float                        limitTan);
 };

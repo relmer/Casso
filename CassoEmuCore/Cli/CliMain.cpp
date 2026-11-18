@@ -5,6 +5,7 @@
 #include "CommandLineHelp.h"
 #include "As65Mode.h"
 #include "DebugMode.h"
+#include "BasicCommand.h"
 #include "DiskCommand.h"
 #include "Cli/McpMode.h"
 #include "MerlinMode.h"
@@ -194,6 +195,15 @@ int CliMain (int argc, char * argv[])
         // width it was composed at however wide the terminal was.
         CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
     }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Basic
+             && options.basic.command == CommandLineOptions::BasicOptions::Command::Help)
+    {
+        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Basic)
+    {
+        exitCode = BasicCommand::Run (options);
+    }
     else if (options.subcommand == CommandLineOptions::Subcommand::Disk)
     {
         // The only arm that reports its own status rather than an HRESULT:
@@ -221,7 +231,7 @@ int CliMain (int argc, char * argv[])
     {
         //  Standard output is the protocol's, so the blank line below, and
         //  anything else, is never written to it.
-        return McpMode::Run();
+        return McpMode::Run (options);
     }
     else
     {

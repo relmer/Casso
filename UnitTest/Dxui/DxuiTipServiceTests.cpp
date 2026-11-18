@@ -35,9 +35,9 @@ public:
     }
 
 
-    //  As the system's tips do, the tip opens once the pointer has rested
-    //  over its control for the open delay: a move starts the delay again.
-    TEST_METHOD (ATipOpensOnceThePointerRestsForItsDelay)
+    //  The open delay runs from when the pointer reaches the control: a move
+    //  over the same control doesn't start it again.
+    TEST_METHOD (ATipOpensOnceThePointerHasBeenOverItsControlForItsDelay)
     {
         DxuiTooltip     tooltip;
         DxuiTipService  tips (tooltip);
@@ -49,11 +49,11 @@ public:
 
         tips.Show (tip, POINT { 5, 5 }, 0);
         tips.Show (tip, POINT { 6, 5 }, kOpenMs - 10);
-        tooltip.Tick (kOpenMs);
-        Assert::IsFalse (tooltip.IsVisible(), L"the tip opened while the pointer moved");
+        tooltip.Tick (kOpenMs - 5);
+        Assert::IsFalse (tooltip.IsVisible(), L"the tip opened before its delay");
 
-        tooltip.Tick (kOpenMs * 2 - 10);
-        Assert::IsTrue   (tooltip.IsVisible(), L"no tip once the pointer rested");
+        tooltip.Tick (kOpenMs);
+        Assert::IsTrue   (tooltip.IsVisible(), L"the move started the delay again");
         Assert::AreEqual (std::wstring (L"Run"), tooltip.GetText());
     }
 
@@ -140,6 +140,34 @@ public:
         Assert::IsTrue   (tooltip.IsVisible(), L"it waited out a delay");
         Assert::AreEqual (3L, tooltip.GetAnchor().left);
         Assert::AreEqual (7L, tooltip.GetAnchor().top);
+    }
+
+
+    //  An immediate tip, as over a symbol in a code view, is up at once by
+    //  the pointer, and isn't moved while the pointer stays over the same
+    //  text; new text moves it to the pointer.
+    TEST_METHOD (AnImmediateTipIsUpAtOnceAndFixedWhileItsTextIsTheSame)
+    {
+        DxuiTooltip     tooltip;
+        DxuiTipService  tips (tooltip);
+        DxuiTip         tip = MakeTip (L"count = $60C1", RECT { 0, 0, 40, 16 });
+
+
+
+        tip.isImmediate = true;
+        tooltip.SetDwellOpenMs (kOpenMs);
+
+        tips.Show (tip, POINT { 3, 7 }, 0);
+        Assert::IsTrue   (tooltip.IsVisible(), L"it waited out a delay");
+        Assert::AreEqual (3L, tooltip.GetAnchor().left);
+
+        tips.Show (tip, POINT { 20, 8 }, 10);
+        Assert::AreEqual (3L, tooltip.GetAnchor().left, L"moved along with the pointer");
+
+        tip.text = L"wait = $60B6";
+        tips.Show (tip, POINT { 30, 8 }, 20);
+        Assert::AreEqual (std::wstring (L"wait = $60B6"), tooltip.GetText());
+        Assert::AreEqual (30L, tooltip.GetAnchor().left);
     }
 
 
@@ -380,7 +408,7 @@ public:
 
 
     //  Every part of a tip's look is set for each tip, so a tip of a sentence
-    //  after a tip of code is in the body face.
+    //  after a tip of code is in the UI face.
     TEST_METHOD (ATipHasNoneOfTheLastTipsLook)
     {
         DxuiTooltip     tooltip;
@@ -396,6 +424,6 @@ public:
         Assert::AreEqual (std::wstring (DxuiTheme::kMonoFace), std::wstring (tooltip.GetFace()));
 
         tips.Show (plain, POINT { 25, 5 }, 10);
-        Assert::AreEqual (std::wstring (DxuiTheme::kBodyFace), std::wstring (tooltip.GetFace()), L"the face of the last tip");
+        Assert::AreEqual (std::wstring (DxuiTheme::GetUiFace()), std::wstring (tooltip.GetFace()), L"the face of the last tip");
     }
 };

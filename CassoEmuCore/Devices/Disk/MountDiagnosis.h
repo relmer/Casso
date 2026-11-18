@@ -51,6 +51,9 @@
 //                          header or checksum, so a file that is the right size
 //                          and holds high bits is indistinguishable from a real
 //                          one until something tries to boot it.
+//      WozNot525           a WOZ image whose INFO marks a disk other than a
+//                          5.25-inch one, such as a 3.5-inch disk, which a
+//                          3.5-inch drive mounts and a Disk II doesn't
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +70,7 @@ enum class MountFailure
     WrongSizeForNibble,
     NotANibbleStream,
     AlreadyMounted,
+    WozNot525,
 };
 
 

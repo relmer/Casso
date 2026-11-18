@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/BreakpointActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
@@ -10,6 +11,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Debugger/Source/SourcePathList.h"
 
 
 
@@ -23,7 +25,8 @@
 
 BreakpointsPane::BreakpointsPane (IDebuggerPaneHost & host) :
     IDebuggerPane (host),
-    m_bar         (host, DebuggerLayout::kBreakpoints, L"Breakpoint commands")
+    m_bar         (host, DebuggerLayout::kBreakpoints, L"Breakpoint commands"),
+    m_filters     (host)
 {
 }
 
@@ -145,25 +148,30 @@ void BreakpointsPane::Configure()
 
     SetColumns();
 
+    m_filters.Attach (m_list, { (size_t) BreakpointColumns::Column::Kind, (size_t) BreakpointColumns::Column::Trigger, (size_t) BreakpointColumns::Column::File },
+                      [this] { ApplyRows(); });
+
+    //  A double-click, anywhere on the row, goes to where the breakpoint is:
+    //  its source line, or its address in the disassembly. Rename and F2
+    //  edit the name, and Settings... the rest.
     m_list->SetOnActivateRow ([this] (int row)
     {
-        const DebuggerViewSnapshot::BreakpointLine  * bp    = GetBreakpointOfRow (row);
-        RECT                                          name  = {};
-        RECT                                          list  = m_list->GetBounds();
-        POINT                                         press = m_host.GetLastPressPx();
-        bool                                          isOn  = m_list->GetCellTextRectPx (row, 0, name) && press.x - list.left >= name.left &&
-                                                              press.x - list.left < name.right;
+        const DebuggerViewSnapshot::BreakpointLine  * bp       = GetBreakpointOfRow (row);
+        const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+        int                                           fileId   = -1;
+        int                                           line     = 0;
 
-        if (bp != nullptr && isOn)
+        if (bp != nullptr && snapshot != nullptr && BreakpointColumns::TryGetSourcePlace (*snapshot, *bp, fileId, line))
         {
-            BeginNameEdit (row);
+            m_host.OpenSource (fileId, line);
         }
-        else if (bp != nullptr)
+        else if (bp != nullptr && (BreakpointColumns::HasAddress (bp->info) || BreakpointColumns::HasRoutine (bp->info)))
         {
             m_host.GoToCode (bp->address);
         }
     });
 
+    m_list->SetSelectOnCheckPress (false);
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked)
     {
         const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
@@ -175,7 +183,7 @@ void BreakpointsPane::Configure()
         }
         else if (bp != nullptr && bp->id >= 0)
         {
-            RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp->id, checked, m_host.GetMode()) }, {} });
+            RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp->id, checked, m_host.GetMode()) }, {} });
         }
     });
 
@@ -231,6 +239,231 @@ IDxuiControl * BreakpointsPane::GetContent() const
 std::vector<IDxuiControl *> BreakpointsPane::GetControls() const
 {
     return { m_bar.GetSlot(), m_list, m_bar.GetBar(), m_nameEditor };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GroupOrder
+//
+//  A heading is the group's name and how many breakpoints are in it. With no
+//  group, no headings. A group collapsed before is collapsed again, found by
+//  its name, since the list finds a group by its heading, which has the count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::Group> BreakpointsPane::GroupOrder (const DebuggerViewSnapshot & snapshot)
+{
+    std::vector<DxuiListView::Group>  groups;
+    std::vector<size_t>               order;
+    std::vector<std::string>          collapsed;
+
+
+
+    for (size_t i = 0; i < m_groupNames.size() && i < m_list->GetGroups().size(); i++)
+    {
+        if (m_list->IsGroupCollapsed ((int) i))
+        {
+            collapsed.push_back (m_groupNames[i]);
+        }
+    }
+
+    m_groupNames.clear();
+
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+    {
+        if (!bp.info.group.empty() && std::ranges::none_of (m_groupNames, [&bp] (const std::string & each) { return BreakpointTable::IsSameGroup (each, bp.info.group); }))
+        {
+            m_groupNames.push_back (bp.info.group);
+        }
+    }
+
+    std::ranges::copy_if (m_order, std::back_inserter (order), [&snapshot] (size_t index) { return snapshot.breakpoints[index].info.group.empty(); });
+
+    for (const std::string & group : m_groupNames)
+    {
+        size_t  first = order.size();
+
+        std::ranges::copy_if (m_order, std::back_inserter (order), [&snapshot, &group] (size_t index) { return BreakpointTable::IsSameGroup (snapshot.breakpoints[index].info.group, group); });
+        groups.push_back ({ std::format (L"{} ({})", TextEncoding::NarrowToWide (group), order.size() - first), (int) first,
+                            std::ranges::any_of (collapsed, [&group] (const std::string & each) { return BreakpointTable::IsSameGroup (each, group); }) });
+    }
+
+    m_order = std::move (order);
+    return groups;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::AddGroupItems
+//
+//  Add to breakpoint group, a submenu of the groups there are, New group...,
+//  and Remove from group while a selected breakpoint is in one; each acts on
+//  every selected breakpoint, as one undo step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::AddGroupItems (const std::vector<DebuggerViewSnapshot::BreakpointLine> & selected, PaneMenuItems & items)
+{
+    static constexpr const wchar_t *  kSubmenu = L"Add to breakpoint group";
+    std::string                       ids      = MakeIdList (selected);
+    bool                              isIn     = std::ranges::any_of (selected, [] (const DebuggerViewSnapshot::BreakpointLine & each) { return !each.info.group.empty(); });
+
+
+
+    if (ids.empty())
+    {
+        return;
+    }
+
+    for (const std::string & group : m_groupNames)
+    {
+        items.push_back ({ PaneMenu::MakeInSubmenu (kSubmenu, TextEncoding::NarrowToWide (group)), [this, group, ids] { RunGroupAction (std::format ("\"{}\" {}", group, ids)); } });
+    }
+
+    items.push_back ({ PaneMenu::MakeInSubmenu (kSubmenu, L"New group..."), [this, ids]
+    {
+        std::optional<std::string>  name = AskGroupName (L"New breakpoint group", L"A name for the group");
+
+        if (name.has_value())
+        {
+            RunGroupAction (std::format ("\"{}\" {}", *name, ids));
+        }
+    } });
+
+    if (isIn)
+    {
+        items.push_back ({ L"Remove from group", [this, ids] { RunGroupAction ("! " + ids); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::AddHeadingItems
+//
+//  A group heading's menu: Enable all, Disable all, Rename group...,
+//  Ungroup, and Delete group and its breakpoints, after a confirmation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::AddHeadingItems (const std::string & group, PaneMenuItems & items)
+{
+    items.push_back ({ L"Enable all",  [this, group] { RunGroupAction (std::format ("ENABLE \"{}\"", group)); } });
+    items.push_back ({ L"Disable all", [this, group] { RunGroupAction (std::format ("DISABLE \"{}\"", group)); } });
+    items.push_back ({ L"", {} });
+
+    items.push_back ({ L"Rename group...", [this, group]
+    {
+        std::optional<std::string>  name = AskGroupName (L"Rename breakpoint group", TextEncoding::NarrowToWide (group));
+
+        if (name.has_value())
+        {
+            RunGroupAction (std::format ("RENAME \"{}\" \"{}\"", group, *name));
+        }
+    } });
+
+    items.push_back ({ L"Ungroup", [this, group] { RunGroupAction (std::format ("UNGROUP \"{}\"", group)); } });
+
+    items.push_back ({ L"Delete group and its breakpoints", [this, group]
+    {
+        DxuiWindow  * window = m_host.GetPaneWindow (DebuggerLayout::kBreakpoints);
+        int           answer = m_host.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_host.GetOwnerHwnd(),
+                                                      std::format (L"Delete group \"{}\" and its breakpoints?", TextEncoding::NarrowToWide (group)), L"Delete breakpoint group",
+                                                      MB_ICONWARNING, { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
+
+        if (answer == IDYES)
+        {
+            RunGroupAction (std::format ("DELETE \"{}\"", group));
+        }
+    } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::RunGroupAction
+//
+//  BPGROUP as one step on the pane's undo list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::RunGroupAction (const std::string & arguments)
+{
+    RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetGroupBreakpoints (arguments, m_host.GetMode()) }, {} });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::AskGroupName
+//
+//  A name with no quote in it, since BPGROUP takes a quoted name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::string> BreakpointsPane::AskGroupName (const std::wstring & title, const std::wstring & placeholder)
+{
+    std::optional<std::wstring>  typed = m_host.RunTextDialog (title, L"Name", placeholder, [] (const std::wstring & text, std::wstring & error)
+    {
+        error = L"Type a name with no quotes in it.";
+        return text.find_first_not_of (L" \t") != std::wstring::npos && text.find (L'"') == std::wstring::npos;
+    });
+
+
+
+    if (!typed.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return TextEncoding::WideToNarrow (*typed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::MakeIdList
+//
+//  The ids of the table entries among the lines, apart by commas; a
+//  session stop has no id and isn't listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointsPane::MakeIdList (const std::vector<DebuggerViewSnapshot::BreakpointLine> & lines)
+{
+    std::string  ids;
+
+
+
+    for (const DebuggerViewSnapshot::BreakpointLine & line : lines)
+    {
+        if (line.id >= 0)
+        {
+            ids += (ids.empty() ? "" : ",") + std::to_string (line.id);
+        }
+    }
+
+    return ids;
 }
 
 
@@ -335,6 +568,8 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     DebuggerViewSnapshot::BreakpointLine          bp;
     int                                           fileId   = -1;
     int                                           line     = 0;
+    POINT                                         press    = m_host.GetLastPressPx();
+    int                                           heading  = (row < 0) ? m_list->HitTestGroupHeader (press.x - m_list->GetBounds().left, press.y - m_list->GetBounds().top) : -1;
 
 
 
@@ -343,12 +578,24 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
         return false;
     }
 
+    //  A right-click on a group's heading.
+    if (found == nullptr && heading >= 0 && heading < (int) m_groupNames.size())
+    {
+        AddHeadingItems (m_groupNames[(size_t) heading], items);
+        return true;
+    }
+
     if (found == nullptr)
     {
         return true;
     }
 
     bp = *found;
+
+    //  In Visual Studio's order: Delete, the two Go to rows, Settings and the
+    //  name, then the rows Visual Studio doesn't have.
+    items.push_back ({ L"Delete", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (bp) }, {} }); } });
+    items.push_back ({ L"", {} });
 
     if (BreakpointColumns::TryGetSourcePlace (*snapshot, bp, fileId, line))
     {
@@ -360,35 +607,29 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
         items.push_back ({ L"Go to disassembly", [this, bp] { m_host.GoToCode (bp.address); } });
     }
 
-    //  A session stop is no table entry: it has no off state, no name and no
-    //  id, and a new definition replaces it.
-    if (bp.id >= 0)
-    {
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
-        items.push_back ({ L"Rename",                           [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
-    }
-
-    items.push_back ({ L"Remove", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (bp) }, {} }); } });
+    items.push_back ({ L"", {} });
 
     //  Its type and the fields of that type, in a dialog; the result is
     //  the definition BPEDIT takes, as a person could have typed it
     //  (FR-094).
     if (bp.info.kind != BreakpointKind::UnwrittenRead)
     {
-        items.push_back ({ L"Edit...", [this, bp]
-        {
-            std::optional<int>          editedId   = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
-            std::optional<std::string>  definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId));
+        items.push_back ({ L"Settings...", [this, bp] { EditInDialog (bp); } });
+    }
 
-            if (definition.has_value() && bp.id >= 0)
-            {
-                RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEditBreakpoint (bp.id, *definition, m_host.GetMode()) }, {} });
-            }
-            else if (definition.has_value())
-            {
-                RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, m_host.GetMode()) }, {} });
-            }
-        } });
+    //  A session stop is no table entry: it has no off state, no name and no
+    //  id, and a new definition replaces it.
+    if (bp.id >= 0)
+    {
+        items.push_back ({ L"Rename", [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
+        AddGroupItems (GetSelected(), items);
+        items.push_back ({ L"", {} });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
+    }
+
+    if (BreakpointColumns::HasAddress (bp.info))
+    {
+        m_host.AddBookmarkItem (bp.address, items);
     }
 
     return true;
@@ -478,12 +719,12 @@ void BreakpointsPane::RunBarEntry (int id)
     case BreakpointBarCommands::kDeleteAll:
         if (ConfirmDeleteAll())
         {
-            RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints (mode) }, {} });
+            RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetClearAllBreakpoints (mode) }, {} });
         }
 
         break;
 
-    case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
+    case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
     case BreakpointBarCommands::kUndo:       RunStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                      break;
     case BreakpointBarCommands::kRedo:       RunStep ({ BreakpointStep::Kind::Redo,    {}, {} });                                                      break;
     case BreakpointBarCommands::kExport:     Export();                                                                                                 break;
@@ -572,7 +813,7 @@ std::vector<DxuiPopupMenuItem> BreakpointsPane::GetNewMenuItems()
     {
         if (!heading.empty() && heading != L"Execution")
         {
-            items.push_back (DxuiPopupMenuItem::ForSubmenu (DebuggerMenuCommand::Make (heading, false, [] {}), std::move (submenu)));
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (DebuggerMenuCommand::Make (heading, [] {}), std::move (submenu)));
         }
 
         submenu.clear();
@@ -602,6 +843,36 @@ std::vector<DxuiPopupMenuItem> BreakpointsPane::GetNewMenuItems()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::GetSourceFiles
+//
+//  The loaded debug file's sources by name, for a breakpoint on a line;
+//  empty without a debug file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> BreakpointsPane::GetSourceFiles (const DebuggerViewSnapshot * snapshot)
+{
+    std::vector<std::wstring>  files;
+
+
+
+    if (snapshot != nullptr && snapshot->source.has_value())
+    {
+        for (const DebugSourceFile & file : snapshot->source->files)
+        {
+            files.push_back (SourcePathList::Utf8ToWide (file.name));
+        }
+    }
+
+    return files;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::MakeTypeCommand
 //
 //  BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors take
@@ -618,24 +889,32 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
                                            : (type == Type::Interrupt)     ? BreakpointKind::Interrupt
                                            : (type == Type::UnwrittenRead) ? BreakpointKind::UnwrittenRead
                                            :                                 BreakpointKind::BasicError;
-    const char                  * verb     = (type == Type::Brk)           ? "BRK"
-                                           : (type == Type::Interrupt)     ? "BRKINT"
-                                           : (type == Type::UnwrittenRead) ? "BRKUNINIT"
-                                           :                                 "BRKBASIC";
     bool                          isToggle = type == Type::Brk || type == Type::Interrupt || type == Type::UnwrittenRead || type == Type::BasicError;
     bool                          isOn     = snapshot != nullptr && std::ranges::any_of (snapshot->breakpoints,
                                                  [kind] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.info.kind == kind; });
 
 
 
-    if (!isToggle)
+    //  A source line comes from the debug file's sources, so without one the
+    //  row is disabled and its tip has why.
+    if (type == Type::SourceLine)
     {
-        return DebuggerMenuCommand::Make (std::wstring (label) + L"...", false, [this, type] { NewBreakpoint (type); });
+        auto  command = DebuggerMenuCommand::Make (std::wstring (label) + L"...", [this, type] { NewBreakpoint (type); });
+        bool  hasFile = !GetSourceFiles (snapshot).empty();
+
+        command->isEnabled = [hasFile] { return hasFile; };
+        command->tip       = hasFile ? std::wstring() : std::wstring (BreakpointDialog::s_kNoSourceTip);
+        return command;
     }
 
-    return DebuggerMenuCommand::Make (label, isOn, [this, verb, isOn]
+    if (!isToggle)
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (std::format ("{} {}", verb, isOn ? "OFF" : "ON"), m_host.GetMode()) }, {} });
+        return DebuggerMenuCommand::Make (std::wstring (label) + L"...", [this, type] { NewBreakpoint (type); });
+    }
+
+    return DebuggerMenuCommand::Make (label, isOn, [this, type, isOn]
+    {
+        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, !isOn), m_host.GetMode()) }, {} });
     });
 }
 
@@ -653,13 +932,14 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
 
 DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const
 {
-    const char  * off = (bp.info.kind == BreakpointKind::UnwrittenRead) ? "BRKUNINIT OFF"
-                      : (bp.info.kind == BreakpointKind::VideoLine)     ? "BPV OFF"
-                      :                                                   "BPBEAM OFF";
+    BreakpointDefinition::Type  type = (bp.info.kind == BreakpointKind::UnwrittenRead) ? BreakpointDefinition::Type::UnwrittenRead
+                                     : (bp.info.kind == BreakpointKind::VideoLine)     ? BreakpointDefinition::Type::VideoLine
+                                     :                                                   BreakpointDefinition::Type::Beam;
 
 
 
-    return (bp.id >= 0) ? DebuggerActions::GetClearBreakpoint (bp.id, m_host.GetMode()) : DebuggerActions::GetDefineBreakpoint (off, m_host.GetMode());
+    return (bp.id >= 0) ? BreakpointActions::GetClearBreakpoint (bp.id, m_host.GetMode())
+                        : BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, false), m_host.GetMode());
 }
 
 
@@ -677,17 +957,105 @@ DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::Brea
 
 void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 {
-    const DebuggerViewSnapshot   * snapshot   = m_host.GetLatestSnapshot();
-    std::optional<std::string>     definition;
+    const DebuggerViewSnapshot               * snapshot = m_host.GetLatestSnapshot();
+    std::optional<BreakpointDialog::Result>    result;
 
 
 
-    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt));
+    result = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt),
+                                       GetSourceFiles (snapshot));
 
-    if (definition.has_value())
+    //  The dialog is modal, so the latest snapshot is read again for the id
+    //  the new breakpoint takes.
+    snapshot = m_host.GetLatestSnapshot();
+
+    if (result.has_value())
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, std::nullopt, BreakpointInfo {}, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::EditInDialog
+//
+//  The breakpoint's dialog, opened as a breakpoint set on a source line
+//  when it was one; OK runs the edit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::EditInDialog (const DebuggerViewSnapshot::BreakpointLine & bp)
+{
+    std::optional<int>                            editedId = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
+    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
+    std::optional<BreakpointDialog::SourcePlace>  place;
+    std::optional<BreakpointDialog::Result>       result;
+    std::string                                   file;
+    int                                           line     = 0;
+
+
+
+    if (snapshot != nullptr && BreakpointColumns::TryGetSourceLine (*snapshot, bp.id, file, line))
+    {
+        place = BreakpointDialog::SourcePlace { SourcePathList::Utf8ToWide (file), line };
+    }
+
+    result   = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId), GetSourceFiles (snapshot), place);
+    snapshot = m_host.GetLatestSnapshot();
+
+    if (result.has_value())
+    {
+        RunStep ({ BreakpointStep::Kind::Actions, GetDialogActions (*result, editedId, bp.info, (snapshot != nullptr) ? snapshot->nextBreakpointId : 0, m_host.GetMode()), {} });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GetDialogActions
+//
+//  The definition, as an edit of the breakpoint or a new one, then BPLOG
+//  where the message changed, or whether a hit stops changed with a message
+//  set. Without a message, Don't break is the breakpoint's flag, set with
+//  BPCHANGE; a breakpoint stops after BPLOG CLEAR, so a cleared message is
+//  followed by BPCHANGE too. A new breakpoint's message and flag
+//  are set on the id it takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DebuggerAction> BreakpointsPane::GetDialogActions (const BreakpointDialog::Result & result, std::optional<int> editedId, const BreakpointInfo & original,
+                                                               int nextId, CommandMode mode)
+{
+    std::vector<DebuggerAction>  actions;
+    int                          id           = editedId.value_or (nextId);
+    bool                         wasStopping  = !editedId.has_value() || original.stops;
+    bool                         isStopping   = !result.isLogGo;
+    bool                         isLogChanged = result.log != original.log || (!result.log.empty() && isStopping != wasStopping);
+    bool                         isStopsAfter = isLogChanged ? true : wasStopping;
+
+
+
+    actions.push_back (editedId.has_value() ? BreakpointActions::GetEditBreakpoint (*editedId, result.definition, mode)
+                                            : BreakpointActions::GetDefineBreakpoint (result.definition, mode));
+
+    if (isLogChanged)
+    {
+        actions.push_back (BreakpointActions::GetLogBreakpoint (id, result.log, result.isLogGo, mode));
+    }
+
+    if (result.log.empty() && isStopping != isStopsAfter)
+    {
+        actions.push_back (BreakpointActions::GetChangeBreakpoint (id, !editedId.has_value() || original.enabled, editedId.has_value() && original.temporary, isStopping, mode));
+    }
+
+    return actions;
 }
 
 
@@ -704,7 +1072,7 @@ void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 
 BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> editedId)
 {
-    return [this, editedId] (const std::string & definition)
+    return [this, editedId] (const BreakpointDefinition & definition)
     {
         const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
 
@@ -726,7 +1094,7 @@ BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> e
 
 void BreakpointsPane::RunStep (BreakpointStep step)
 {
-    m_host.RunAction (DebuggerActions::GetBreakpointStep (std::move (step)));
+    m_host.RunAction (BreakpointActions::GetBreakpointStep (std::move (step)));
 }
 
 
@@ -807,7 +1175,7 @@ void BreakpointsPane::Export()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (DebuggerActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_host.RunAction (BreakpointActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
 
 Error:
     return;
@@ -931,7 +1299,7 @@ void BreakpointsPane::EndNameEdit (bool commit)
 
     if (isNew)
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetNameBreakpoint (id, typed, m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetNameBreakpoint (id, typed, m_host.GetMode()) }, {} });
     }
 }
 
@@ -980,7 +1348,7 @@ bool BreakpointsPane::RouteEditMouse (const DxuiMouseEvent & ev)
 //
 //  The rename box takes every key: Enter commits what was typed, Escape
 //  cancels the rename. F2 on the list renames the selected breakpoint, as in
-//  Visual Studio.
+//  Visual Studio, and Delete, Ctrl+Z and Ctrl+Y on it delete, undo and redo.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -997,7 +1365,7 @@ bool BreakpointsPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focu
             m_nameEditor->OnKey (ev);
         }
 
-        m_host.Repaint();
+        m_host.RepaintLater();
         return true;
     }
 
@@ -1005,6 +1373,22 @@ bool BreakpointsPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focu
     {
         BeginNameEdit (m_list->GetSelectedRow());
         return true;
+    }
+
+    //  Delete, Ctrl+Z and Ctrl+Y run the bar's Delete, Undo and Redo, each
+    //  only while it is enabled, as the bar's entries are.
+    if (ev.kind == DxuiKeyEventKind::Down && focused == m_list && !ev.alt && !ev.shift)
+    {
+        int  id = (!ev.ctrl && ev.vk == VK_DELETE) ? BreakpointBarCommands::kDelete
+                : ( ev.ctrl && ev.vk == 'Z')       ? BreakpointBarCommands::kUndo
+                : ( ev.ctrl && ev.vk == 'Y')       ? BreakpointBarCommands::kRedo
+                :                                    -1;
+
+        if (id >= 0)
+        {
+            RunBarEntry (id);
+            return true;
+        }
     }
 
     return false;
@@ -1039,6 +1423,7 @@ void BreakpointsPane::SetColumns()
     }
 
     m_list->SetColumns (columns);
+    m_filters.ShowState();
 }
 
 
@@ -1071,10 +1456,52 @@ std::vector<std::wstring> BreakpointsPane::GetRowKeys() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::FilterOrder
+//
+//  Each filtering column's values are those of every breakpoint, so a hidden
+//  value stays in the heading's menu; then each breakpoint with a hidden
+//  value is taken out of the order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::FilterOrder (const std::vector<BreakpointColumns::Cells> & allCells)
+{
+    static constexpr BreakpointColumns::Column  s_kFiltered[] = { BreakpointColumns::Column::Kind, BreakpointColumns::Column::Trigger, BreakpointColumns::Column::File };
+
+
+
+    for (BreakpointColumns::Column column : s_kFiltered)
+    {
+        std::vector<std::wstring>  values;
+
+        for (const BreakpointColumns::Cells & cells : allCells)
+        {
+            values.push_back (TextEncoding::NarrowToWide (cells[(size_t) column]));
+        }
+
+        m_filters.SetValues ((size_t) column, values);
+    }
+
+    std::erase_if (m_order, [this, &allCells] (size_t index)
+    {
+        return index >= allCells.size() || std::ranges::any_of (s_kFiltered, [this, &allCells, index] (BreakpointColumns::Column column)
+        {
+            return !m_filters.IsShown ((size_t) column, TextEncoding::NarrowToWide (allCells[index][(size_t) column]));
+        });
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::ApplyRows
 //
 //  A checkbox and the code views' gutter mark ahead of the name, then a
-//  cell for each column, in the order the chosen heading sorts them.
+//  cell for each column, in the order the chosen heading sorts them, without
+//  the breakpoints hidden by the headings' filters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1082,10 +1509,13 @@ void BreakpointsPane::ApplyRows()
 {
     const DebuggerViewSnapshot                    * snapshot = m_host.GetLatestSnapshot();
     std::vector<std::vector<DxuiListView::Cell>>    rows;
+    std::vector<BreakpointColumns::Cells>           allCells;
     std::vector<int>                                selectedIds;
     std::vector<int>                                selectedRows;
+    std::vector<DxuiListView::Group>                groups;
     int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
     int                                             rowId    = GetIdOfRow (m_list->GetSelectedRow());
+    const DxuiTheme                               * theme    = m_host.GetTheme();
 
 
 
@@ -1116,23 +1546,36 @@ void BreakpointsPane::ApplyRows()
         }
     }
 
+    for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot->breakpoints)
+    {
+        allCells.push_back (BreakpointColumns::GetCells (*snapshot, bp));
+    }
+
+    FilterOrder (allCells);
+    groups = GroupOrder (*snapshot);
+
     for (size_t index : m_order)
     {
         const DebuggerViewSnapshot::BreakpointLine  & bp    = snapshot->breakpoints[index];
-        BreakpointColumns::Cells                      cells = BreakpointColumns::GetCells (*snapshot, bp);
+        const BreakpointColumns::Cells              & cells = allCells[index];
         std::vector<DxuiListView::Cell>               row;
 
+        //  A breakpoint on a BASIC line the program does not have is drawn as
+        //  one that can't be bound: in the disabled color and italic, with its
+        //  checkbox disabled and the disabled breakpoint's icon.
         for (const std::string & text : cells)
         {
             DxuiListView::Cell  cell;
 
-            cell.text = TextEncoding::NarrowToWide (text);
-            cell.dim  = !bp.enabled;
+            cell.text   = TextEncoding::NarrowToWide (text);
+            cell.dim    = !bp.enabled && !bp.isAbsent;
+            cell.argb   = (bp.isAbsent && theme != nullptr) ? theme->ForegroundDisabled() : 0;
+            cell.weight = bp.isAbsent ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
             row.push_back (cell);
         }
 
-        row[(size_t) BreakpointColumns::Column::Name].check = bp.enabled;
-        row[(size_t) BreakpointColumns::Column::Name].icon  = m_host.GetBreakpointIcon (bp.enabled);
+        row[(size_t) BreakpointColumns::Column::Name].check = DxuiListView::Cell::GetCheck (bp.enabled, bp.isAbsent);
+        row[(size_t) BreakpointColumns::Column::Name].icon            = m_host.GetBreakpointIcon (bp.enabled && !bp.isAbsent);
         rows.push_back (std::move (row));
     }
 
@@ -1143,7 +1586,8 @@ void BreakpointsPane::ApplyRows()
         m_rowIds.push_back (snapshot->breakpoints[index].id);
     }
 
-    m_list->SetRows (std::move (rows));
+    m_list->SetRows   (std::move (rows));
+    m_list->SetGroups (groups);
     m_list->ShowNewRow (GetRowKeys());
 
     for (int id : selectedIds)
@@ -1248,6 +1692,13 @@ void BreakpointsPane::ToggleColumn (BreakpointColumns::Column column)
     }
 
     m_shown[(size_t) column] = !m_shown[(size_t) column];
+
+    //  A hidden column has no heading to clear its filter from.
+    if (!m_shown[(size_t) column])
+    {
+        m_filters.Clear ((size_t) column);
+    }
+
     SetColumns();
     ApplyRows();
 

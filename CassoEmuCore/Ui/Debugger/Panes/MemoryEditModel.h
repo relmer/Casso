@@ -2,6 +2,7 @@
 
 #include "Debugger/Reply.h"
 #include "Ui/Debugger/ByteChanges.h"
+#include "Ui/Debugger/MemoryRegionKeys.h"
 
 
 
@@ -50,32 +51,31 @@ public:
     //  A byte that differs from its counterpart in the range compared with.
     static constexpr uint8_t  kMarkDiffers = 5;
 
-    //  The regions a window outlines: one for each run with a label of its
-    //  own, every slot's ROM apart from the next. Main RAM is in none.
-    static constexpr uint16_t  kRegionRom          = 1;
-    static constexpr uint16_t  kRegionIo           = 2;
-    static constexpr uint16_t  kRegionLcBank1      = 3;
-    static constexpr uint16_t  kRegionLcBank2      = 4;
-    static constexpr uint16_t  kRegionAux          = 5;
-    static constexpr uint16_t  kRegionExpansionRom = 6;
-    static constexpr uint16_t  kRegionSlotRom      = 8;     // plus the slot, 1 to 7
+    //  The regions a window outlines, as MemoryRegionKeys has them.
+    static constexpr uint16_t  kRegionRom          = MemoryRegionKeys::kRegionRom;
+    static constexpr uint16_t  kRegionIo           = MemoryRegionKeys::kRegionIo;
+    static constexpr uint16_t  kRegionLcBank1      = MemoryRegionKeys::kRegionLcBank1;
+    static constexpr uint16_t  kRegionLcBank2      = MemoryRegionKeys::kRegionLcBank2;
+    static constexpr uint16_t  kRegionAux          = MemoryRegionKeys::kRegionAux;
+    static constexpr uint16_t  kRegionExpansionRom = MemoryRegionKeys::kRegionExpansionRom;
+    static constexpr uint16_t  kRegionSlotRom      = MemoryRegionKeys::kRegionSlotRom;
+    static constexpr uint16_t  kRegionSlotIo       = MemoryRegionKeys::kRegionSlotIo;
 
-    //  The outline colors: ROM's and I/O's are their bytes' own, and the
-    //  language card's and aux RAM's the memory map's. Until the window has
-    //  the theme's, the dark themes' defaults.
-    struct RegionColors
-    {
-        uint32_t  rom     = 0xFF7FB2E5;
-        uint32_t  io      = 0xFF909090;
-        uint32_t  lcBank1 = 0xFF5BB36A;
-        uint32_t  lcBank2 = 0xFF2E8B57;
-        uint32_t  aux     = 0xFFD98A4A;
-    };
+    using RegionColors = MemoryRegionKeys::Colors;
 
-    static uint16_t      GetRegionKey   (MemoryRegion region, Word address);
-    static std::wstring  GetRegionLabel (uint16_t key);
+    static uint16_t      GetRegionKey   (MemoryRegion region, Word address) { return MemoryRegionKeys::GetKey (region, address); }
+    static std::wstring  GetRegionLabel (uint16_t key)                       { return MemoryRegionKeys::GetLabel (key, {}); }
 
-    void  SetRegionColors (const RegionColors & colors) { m_regionColors = colors; }
+    void  SetRegionColors (const RegionColors & colors)             { m_regionColors = colors; }
+
+    //  The card in each slot, which labels the slot's ranges, and the
+    //  model's directory name, which labels the parts of its ROM.
+    void  SetSlotCards    (const MemoryRegionKeys::SlotCards & cards) { m_slotCards = cards; }
+    void  SetMachineId    (const std::string & machineId)             { m_machineId = machineId; }
+
+    //  The symbols a byte's tip gives the name of.
+    void  SetSymbols      (std::shared_ptr<const std::vector<SymbolInfo>> symbols) { m_symbols = std::move (symbols); }
+
     //  An edit's bytes, which the window writes at the address directly. For
     //  an undo or redo, `required` is what memory must contain there first;
     //  for a new edit it is empty.
@@ -92,12 +92,12 @@ public:
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused   (bool isPaused) { m_isPaused = isPaused; }
 
-    uint64_t  GetByteCount  () const override { return kAddressSpace; }
-    void      ReadBytes     (uint64_t offset, std::span<uint8_t> out) const override;
-    void      ReadMarks     (uint64_t offset, std::span<uint8_t> out) const override;
-    bool      WriteBytes    (uint64_t offset, std::span<const uint8_t> bytes) const override;
-    bool      TryGetByteTip (uint64_t offset, std::wstring & tip) const override;
-    void      ReadRegions   (uint64_t offset, std::span<uint16_t> out) const override;
+    uint64_t  GetByteCount      () const override { return kAddressSpace; }
+    void      ReadBytes         (uint64_t offset, std::span<uint8_t> out) const override;
+    void      ReadMarks         (uint64_t offset, std::span<uint8_t> out) const override;
+    bool      WriteBytes        (uint64_t offset, std::span<const uint8_t> bytes) const override;
+    bool      TryGetByteTip     (uint64_t offset, std::wstring & tip) const override;
+    void      ReadRegions       (uint64_t offset, std::span<uint16_t> out) const override;
     bool      TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const override;
 
     //  Where the view's rows start relative to a row boundary, less than a
@@ -193,11 +193,14 @@ private:
     //  past its read draws what it was last shown there rather than unmarked
     //  zeros until the next read arrives. A region is kept one above its
     //  value; zero is an address no read has reached.
-    std::vector<std::optional<Byte>>          m_keptBytes;
-    std::vector<uint8_t>                      m_keptRegions;
-    mutable std::vector<Edit>                 m_history;
-    mutable std::vector<Edit>                 m_redo;
-    std::optional<Unconfirmed>                m_unconfirmed;
-    PatchFn                                   m_onPatch;
-    RegionColors                              m_regionColors;
+    std::vector<std::optional<Byte>>                m_keptBytes;
+    std::vector<uint8_t>                            m_keptRegions;
+    mutable std::vector<Edit>                       m_history;
+    mutable std::vector<Edit>                       m_redo;
+    std::optional<Unconfirmed>                      m_unconfirmed;
+    PatchFn                                         m_onPatch;
+    RegionColors                                    m_regionColors;
+    MemoryRegionKeys::SlotCards                     m_slotCards;
+    std::string                                     m_machineId;
+    std::shared_ptr<const std::vector<SymbolInfo>>  m_symbols;
 };

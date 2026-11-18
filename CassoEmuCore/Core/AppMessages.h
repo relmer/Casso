@@ -1,0 +1,67 @@
+#pragma once
+
+#include "Pch.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppMessage
+//
+//  Every private window message the app posts, in one enum so that no two
+//  have the same value. A message posted between threads is handled by the
+//  window it is posted to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class AppMessage : UINT
+{
+    ShellUpdateTitle         = WM_APP + 0x21,   // a window-title refresh, from the CPU thread to the UI thread
+    ShellNotifyUser          = WM_APP + 0x22,
+    ShellReportDamage        = WM_APP + 0x23,
+    ShellMountCompleted      = WM_APP + 0x25,
+    ShellChangeReport        = WM_APP + 0x26,
+    ShellChangeAsk           = WM_APP + 0x27,
+    ShellShowNotice          = WM_APP + 0x28,
+    ShellGameportFlush       = WM_APP + 0x29,
+    ShellControllerPick      = WM_APP + 0x2A,
+    ShellUpdateResult        = WM_APP + 0x2B,
+    ShellIntentReply         = WM_APP + 0x2C,
+    ShellForkForInput        = WM_APP + 0x2D,
+
+    ShellHeldInputRead       = WM_APP + 0x2F,
+    ShellConfirmProjectMerge = WM_APP + 0x30,
+    ShellPasteText           = WM_APP + 0x40,
+    ShellHardDiskImage       = WM_APP + 0x4E,   // a hard disk's new image, from the CPU thread to the UI thread to be saved
+
+    ExplorerReply            = WM_APP + 0x31,
+    ExplorerFolderChanged    = WM_APP + 0x32,
+    ExplorerRunCommand       = WM_APP + 0x33,
+    ExplorerDropMenu         = WM_APP + 0x34,
+    ExplorerIconsLoaded      = WM_APP + 0x35,
+    ExplorerInfoTip          = WM_APP + 0x36,
+    ExplorerRecycleBin       = WM_APP + 0x37,
+    ExplorerShellListed      = WM_APP + 0x38,
+    ExplorerContentDetails   = WM_APP + 0x39,
+    ExplorerShellPreview     = WM_APP + 0x3A,
+    PreviewHelperReady       = WM_APP + 0x3B,   // the preview helper's window exists, posted to the Explorer window
+    PreviewHelperResult      = WM_APP + 0x3C,   // a preview handler's load finished, posted to the Explorer window
+    ExplorerNewChoices       = WM_APP + 0x3D,
+    ExplorerCassoLink        = WM_APP + 0x3E,
+    ExplorerRunningCasso     = WM_APP + 0x3F,
+    ExplorerLaunch           = WM_APP + 0x41,
+    PreviewHelperRunLoad     = WM_APP + 0x42,   // to the preview helper's window
+    PreviewHelperUnload      = WM_APP + 0x43,   // to the preview helper's window
+    ShellPreviewLoad         = WM_APP + 0x44,   // to the shell preview's thread
+    ExplorerUpdateStart      = WM_APP + 0x46,   // the automatic update check, posted to the updater's message window
+    ExplorerCutPasted        = WM_APP + 0x45,   // a target pasted the files a cut put on the clipboard
+    ExplorerThumbnail        = WM_APP + 0x47,   // a disk image's thumbnail is built, posted to the Explorer window
+    ExplorerCardProgress     = WM_APP + 0x48,   // a storage card's initialize reported progress or ended, posted to the Explorer window
+    ExplorerElevation        = WM_APP + 0x49,   // sent before the storage card broker starts: wParam bool * for OK, lParam the card's name
+    ExplorerCardArrivals     = WM_APP + 0x4A,   // images an A2Pico doesn't read were copied to its card, posted to the Explorer window
+    ExplorerPicturesReady    = WM_APP + 0x4B,   // a disk image was booted and its picture made, posted to each Explorer window
+    ExplorerVolumeFacts      = WM_APP + 0x4C,   // an image's file system and volume name were read, posted to the Explorer window
+    ExplorerCardWrite        = WM_APP + 0x4D,   // sent before a write to a storage card: wParam bool * for OK, lParam the question
+};

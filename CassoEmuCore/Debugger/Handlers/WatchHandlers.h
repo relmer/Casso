@@ -49,7 +49,7 @@ public:
 private:
     static constexpr int  kListLines = 20;
 
-    static void  Add    (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
+    static void  Add             (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
     static bool  TryResolveTyped (DebugSession & session, const std::string & text, WatchItem & item, std::string & error);
     static void  ReadTyped       (DebugSession & session, const WatchItem & item, WatchEntry & entry);
 
@@ -61,18 +61,18 @@ private:
     static std::string  ReadText (DebugSession & session, Word address);
 
     //  Whether a text data block starts at an address.
-    static bool         IsTextAt (DebugSession & session, Word address);
-    static void  Clear  (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
-    static void  Enable (DebugSession & session, const DebugCommand & command, WatchListKind kind, bool enabled, Reply & reply);
-    static void  GoTo   (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Save   (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
+    static bool  IsTextAt (DebugSession & session, Word address);
+    static void  Clear    (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
+    static void  Enable   (DebugSession & session, const DebugCommand & command, WatchListKind kind, bool enabled, Reply & reply);
+    static void  GoTo     (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  Save     (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
 
-    static WatchTable          & GetTable       (DebugSession & session, WatchListKind kind);
-    static const char          * GetNoun        (WatchListKind kind);
-    static const char          * GetPlural      (WatchListKind kind);
-    static bool                  TryGetSlot     (const std::string & sourceName, int & slot);
-    static bool                  TryGetFreeSlot (const WatchTable & table, int & slot);
-    static std::optional<Word>   PeekWord       (DebugSession & session, Word address, WatchListKind kind);
-    static void                  SetNoSuch      (Reply & reply, WatchListKind kind, uint32_t id);
-    static bool                  IsProgramRunning (DebugSession & session, const ApplesoftProgram & program);
+    static WatchTable           & GetTable         (DebugSession & session, WatchListKind kind);
+    static const char           * GetNoun          (WatchListKind kind);
+    static const char           * GetPlural        (WatchListKind kind);
+    static bool                   TryGetSlot       (const std::string & sourceName, int & slot);
+    static bool                   TryGetFreeSlot   (const WatchTable & table, int & slot);
+    static std::optional<Word>    PeekWord         (DebugSession & session, Word address, WatchListKind kind);
+    static void                   SetNoSuch        (Reply & reply, WatchListKind kind, uint32_t id);
+    static bool                   IsProgramRunning (DebugSession & session, const ApplesoftProgram & program);
 };

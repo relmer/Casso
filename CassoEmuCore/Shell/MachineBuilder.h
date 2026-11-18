@@ -6,12 +6,25 @@
 
 
 class Acia6551;
+class Apple35ControllerCard;
+class LironCard;
+class Disk2Controller;
+class IDriveAudioSource;
+class Apple2cPlusDiskPort;
+class SmartPortHost;
+struct PortConfig;
+class AppleScsiCard;
+class ProFileCard;
+class IExpansionRomCard;
+class MemoryDevice;
+class SlotRomPage;
 class DriveAudioMixer;
 class IHostNetwork;
 class Disk2AudioSource;
 class JsonValue;
 class PrinterAudioSource;
 class PrinterWorker;
+class PrinterCard;
 class SuperSerialCard;
 class WasapiAudio;
 
@@ -51,6 +64,7 @@ struct SlotConfig;
 struct MachineBuildServices
 {
     std::vector<std::unique_ptr<Disk2AudioSource>>  *  diskAudioSources       = nullptr;
+    std::vector<std::unique_ptr<IDriveAudioSource>> *  deviceAudioSources     = nullptr;   // the 3.5-inch drives' and hard disks'
     DriveAudioMixer                                 *  driveAudioMixer        = nullptr;
     DriveAudioMixer                                 *  mockingboardAudioMixer = nullptr;
     PrinterAudioSource                              *  printerAudio           = nullptr;
@@ -63,10 +77,21 @@ struct MachineBuildServices
     IHostNetwork   *  hostNetwork             = nullptr;
     uint64_t       *  printerAutoOpenActivity = nullptr;
 
+    //  Whether the firewall admits a port the Uthernet II listens on. With
+    //  null, every port opens.
+    const class ListenGate *  listenGate = nullptr;
+
     const float  *  drivePan          = nullptr;    // two entries
     const float  *  driveMotorVolume  = nullptr;
     const float  *  driveHeadVolume   = nullptr;
     const float  *  driveDoorVolume   = nullptr;
+
+    //  Opens the stream for a serial port's device (a TCP port, a COM
+    //  port). Without one, every serial port loops back on itself.
+    class IByteStreamFactory  *  streamFactory = nullptr;
+
+    //  Writes the bytes on every bridged serial port, for --serial-log.
+    const std::unique_ptr<class SerialTrafficLog> *  serialLog = nullptr;
 
     //  Command-line options that reach machine construction: the CPU trace
     //  ring size (0 = off) and whether mounted images are watched for
@@ -122,29 +147,38 @@ public:
     //  they used to run separate copies of it that drifted.
     HRESULT  Build                (const MachineConfig & config);
 
-    HRESULT  CreateMemoryDevices  (const MachineConfig & config);
-    void     WireLanguageCard     ();
-    void     WireBankedRom        ();
-    static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
-    void     WirePageTable        ();
-    void     WireFloatingBus      ();
-    void     MarkVideoWatchPages  ();
-    void     RebuildBankingPages  ();
-    void     CreateVideoModes     ();
-    HRESULT  CreateCpu            (const MachineConfig & config);
-    void     WireJoyport          ();
-    void     WireCassettePort     ();
-    HRESULT  WireUthernet         (const MachineConfig & config);
+    HRESULT         CreateMemoryDevices (const MachineConfig & config);
+    void            WireLanguageCard    ();
+    void            WireBankedRom       ();
+    static HRESULT  ReadRomFileBytes    (const std::string & path, std::vector<Byte> & out);
+
+    //  Starts the printer drain on the host's ring unless it is running.
+    static void  StartPrinterDrain   (MachineHost & host, PrinterWorker * worker, uint64_t * autoOpenActivity);
+    void         WirePageTable       ();
+    void         WireFloatingBus     ();
+    void         MarkVideoWatchPages ();
+    void         RebuildBankingPages ();
+    void         CreateVideoModes    ();
+    HRESULT      CreateCpu           (const MachineConfig & config);
+    void         WireJoyport         ();
+    void         WireCassettePort    ();
+    void         AttachSerialDevices (const MachineConfig & config);
+    HRESULT      WireUthernet        (const MachineConfig & config);
 
     Byte *   GetAuxRamBuffer      ();
     Byte *   GetMainRamBuffer     ();
 
     void     SelectVideoMode      ();
 
+    //  Puts a card's $Cn00 page and its share of the $C800-$CFFF expansion
+    //  space on the machine.
+    void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
+
 private:
 
-    void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
-    void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
+    void  WireParallelPrinter   (const SlotConfig & slot, PrinterCard & card);
+    void  WireSuperSerialCard   (const SlotConfig & slot, SuperSerialCard & card);
+    void  AttachSerialEndpoint  (const SlotConfig & slot, SuperSerialCard & card);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;

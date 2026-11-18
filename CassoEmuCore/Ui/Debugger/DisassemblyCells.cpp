@@ -1,9 +1,12 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/CodeAnnotations.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 
 
 
@@ -13,23 +16,26 @@
 //
 //  DisassemblyCells::Configure
 //
-//  Every column is fitted to its contents and none stretches, so a pane is
-//  exactly as wide as its text (FR-026a). The glyph margin alone has a set
-//  width, since its glyphs are not text a fit could measure; it contains the
-//  breakpoints and the PC's arrow, and the address column follows it. The
-//  rows are drawn on a text view's background.
+//  Every column but the last is fitted to its contents. The operand and
+//  result fill the width after the other columns, never less than
+//  kOperandFloorDip, and an annotation wider than that is cut off at the
+//  pane's edge, so the pane scrolls sideways only when the columns ahead of
+//  it don't fit. The glyph margin and the heat strip have fixed widths, the
+//  same as a source document's (CodeMargins), since neither is text a fit
+//  could measure; the glyph margin contains the breakpoints and the PC's
+//  arrow. The rows are drawn on a text view's background.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisassemblyCells::Configure (DxuiListView & list)
 {
-    std::vector<DxuiListView::Column>  columns = { { L"",                   kGutterColumnDip, false, DxuiTextHAlign::Left },
-                                                   { L"Heat",               0,                false, DxuiTextHAlign::Left },
-                                                   { L"Address",            0,                false, DxuiTextHAlign::Left },
-                                                   { L"Bytes",              0,                false, DxuiTextHAlign::Left },
-                                                   { L"Label",              0,                false, DxuiTextHAlign::Left },
-                                                   { L"Instruction",        0,                false, DxuiTextHAlign::Left },
-                                                   { L"Operand and result", 0,                false, DxuiTextHAlign::Left } };
+    std::vector<DxuiListView::Column>  columns = { { L"",                   CodeMargins::kGlyphDip, false, DxuiTextHAlign::Left },
+                                                   { L"Heat",               CodeMargins::kHeatDip,  false, DxuiTextHAlign::Left },
+                                                   { L"Address",            0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Bytes",              0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Label",              0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Instruction",        0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Operand and result", kOperandFloorDip,       true,  DxuiTextHAlign::Left } };
 
 
 
@@ -38,8 +44,13 @@ void DisassemblyCells::Configure (DxuiListView & list)
     columns[kHeatColumn].tipLineScales = HeatStrip::GetHeadingTip (false).lineScales;
     columns[kHeatColumn].isText        = false;
 
+    //  The annotation is worked out for the rows on screen alone, so it isn't
+    //  searched by a find, which covers every line while the machine is
+    //  paused.
+    columns[kOperandColumn].isSearched = false;
+
     list.SetColumns         (std::move (columns));
-    list.SetGlyphCenterDip  (kGlyphCenterDip);
+    list.SetGlyphCenterDip  (CodeMargins::kGlyphCenterDip);
     list.SetTextViewSurface (true);
 }
 
@@ -70,14 +81,17 @@ void DisassemblyCells::ShowColumns (DxuiListView & list, const DisassemblyOption
 //  DisassemblyCells::FillSourceRow
 //
 //  A line that starts with a space has no label; a comment line, which starts
-//  with ; or *, is all in the label column, as a label is.
+//  with ; or *, is all in the label column, as a label is. The comment
+//  starts at the line's first ; outside a string or a character, as the
+//  in-place tip finds it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
-                                      const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
-                                      const DxuiListView::Cell * operand)
+DisassemblyCells::SourceParts DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
+                                                               const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors,
+                                                               uint32_t numberArgb, const DxuiListView::Cell * operand)
 {
+    SourceParts                     parts;
     std::wstring                    prefix   = withNumber ? std::format (L"{:>5}  ", sourceLine) : std::wstring();
     std::wstring                    number   = withNumber ? std::format (L"{}", sourceLine) : std::wstring();
     std::vector<SourceSyntax::Run>  runs     = SourceSyntax::GetSourceRuns (text);
@@ -94,7 +108,7 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
 
     labelEnd = (labelEnd == std::wstring::npos) ? text.size() : labelEnd;
     restAt   = std::min (text.size(), text.find_first_not_of (L" \t", labelEnd));
-    comment  = GetCommentStart (runs, restAt, text.size());
+    comment  = SourceSyntax::FindComment (text, restAt);
     codeEnd  = comment;
 
     while (codeEnd > restAt && iswspace (text[codeEnd - 1]))
@@ -124,12 +138,17 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
 
         AddSourceRuns (cells[column], runs, 0, (int) text.size(), (int) prefix.size(), colors);
 
+        parts.codeColumn = column;
+        parts.codeChar   = (int) (prefix.size() + ((restAt < comment) ? restAt : 0));
+
         if (operand != nullptr)
         {
             AppendCell (cells[column], *operand);
+            parts.operandColumn = column;
+            parts.operandChar   = (int) (cells[column].text.size() - operand->text.size());
         }
 
-        return;
+        return parts;
     }
 
     //  The number in the address column, or the bytes column while the
@@ -143,7 +162,8 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
         prefix.clear();
     }
 
-    cells[kLabelColumn].text = prefix + text.substr (0, labelEnd);
+    cells[kLabelColumn].text     = prefix + text.substr (0, labelEnd);
+    cells[kLabelColumn].trailDip = kLabelTrailDip;
 
     if (!prefix.empty())
     {
@@ -151,6 +171,8 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
     }
 
     AddSourceRuns (cells[kLabelColumn], runs, 0, (int) labelEnd, (int) prefix.size(), colors);
+
+    parts.codeColumn = kInstructionColumn;
 
     if (operand == nullptr || isNarrow)
     {
@@ -161,15 +183,18 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
         if (operand != nullptr)
         {
             AppendCell (cells[kInstructionColumn], *operand);
+            parts.operandColumn = kInstructionColumn;
+            parts.operandChar   = (int) (cells[kInstructionColumn].text.size() - operand->text.size());
         }
 
-        return;
+        return parts;
     }
 
     cells[kInstructionColumn].text = text.substr (restAt, codeEnd - restAt);
     AddSourceRuns (cells[kInstructionColumn], runs, (int) restAt, (int) codeEnd, 0, colors);
 
     cells[kOperandColumn] = *operand;
+    parts.operandColumn   = kOperandColumn;
 
     if (comment < text.size())
     {
@@ -179,7 +204,10 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
         AddSourceRuns (remark, runs, (int) comment, (int) text.size(), 0, colors);
         AppendCell (cells[kOperandColumn], remark);
         cells[kOperandColumn].spansRow = true;
+        parts.commentChar              = (int) (cells[kOperandColumn].text.size() - remark.text.size());
     }
+
+    return parts;
 }
 
 
@@ -252,29 +280,6 @@ void DisassemblyCells::AppendCell (DxuiListView::Cell & cell, const DxuiListView
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DisassemblyCells::GetCommentStart
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t DisassemblyCells::GetCommentStart (const std::vector<SourceSyntax::Run> & runs, size_t from, size_t end)
-{
-    for (const SourceSyntax::Run & run : runs)
-    {
-        if (run.token == SourceSyntax::Token::Comment && (size_t) run.start >= from)
-        {
-            return (std::min) ((size_t) run.start, end);
-        }
-    }
-
-    return end;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DisassemblyCells::TryGetSourceRowSpan
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -327,15 +332,16 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
 {
     bool         symbols    = options.IsOn (DisassemblyOptions::Option::Symbols);
     bool         colon      = options.IsOn (DisassemblyOptions::Option::AddressColon);
-    std::string  annotation = DebuggerViewState::ComposeAnnotation (line.annotationParts,
-                                                                    options.IsOn (DisassemblyOptions::Option::OperandValues),
-                                                                    options.IsOn (DisassemblyOptions::Option::Pointers));
+    std::string  annotation = CodeAnnotations::ComposeAnnotation (line.annotationParts,
+                                                                  options.IsOn (DisassemblyOptions::Option::OperandValues),
+                                                                  options.IsOn (DisassemblyOptions::Option::Pointers));
 
 
 
     cells[kAddressColumn].text     = std::format (L"{:04X}{}", line.address, colon ? L":" : L"");
     cells[kBytesColumn].text       = TextEncoding::NarrowToWide (line.bytes);
     cells[kLabelColumn].text       = TextEncoding::NarrowToWide (line.label);
+    cells[kLabelColumn].trailDip   = kLabelTrailDip;
     cells[kInstructionColumn].text = TextEncoding::NarrowToWide (DisassemblyOptions::GetInstructionText (line, symbols));
     cells[kOperandColumn]          = GetOperandAndResultCell (annotation, line.effect, colors.result);
 
@@ -347,6 +353,10 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
 
     cells[kInstructionColumn].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[kInstructionColumn].text, colors);
     cells[kInstructionColumn].weight      = (line.dataOrigin != DataOrigin::None) ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
+
+    //  A data line has no operand or result, and its text, often a string,
+    //  runs on across the operand column rather than being cut off.
+    cells[kInstructionColumn].spansRow    = line.dataOrigin != DataOrigin::None;
 
     return annotation;
 }
@@ -434,7 +444,7 @@ DxuiListView::Cell DisassemblyCells::GetOperandAndResultCell (const std::string 
 
     if (!result.empty())
     {
-        result     = SourcePane::kpszResultPrefix + result;
+        result     = SourceRows::kpszResultPrefix + result;
         cell.text += cell.text.empty() ? L"" : L"  ";
         cell.colorRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()), resultArgb);
         cell.text += result;
@@ -464,18 +474,40 @@ uint32_t DisassemblyCells::GetPcMarkerArgb (uint32_t background)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyCells::TryGetPcArrowEnds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyCells::TryGetPcArrowEnds (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, ArrowEnds & ends)
+{
+    for (const DebuggerViewSnapshot::CodeLine & line : lines)
+    {
+        if (line.isCurrent && line.target.has_value())
+        {
+            ends = { line.address, *line.target, line.isTargetTaken };
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyCells::TryGetBranchArrow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
-                                          const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken,
-                                          std::optional<Word> branchedFrom)
+                                          const std::vector<DisassemblyOptions::Row> & rows, const ArrowEnds & ends, BranchArrow::Input & input)
 {
     int    current  = -1;
-    int    pcLine   = -1;
     int    target   = -1;
-    int    from     = -1;
+    int    beyond   = -1;
     int    firstRow = 0;
     int    endRow   = 0;
     RECT   bounds   = {};
@@ -485,14 +517,9 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     float  top      = 0.0f;
     float  bottom   = 0.0f;
     int    rowPx    = 0;
+    bool   isAbove  = false;
 
 
-
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        pcLine  = lines[i].isCurrent ? (int) i : pcLine;
-        current = (branchedFrom.has_value() ? lines[i].address == *branchedFrom : lines[i].isCurrent) ? (int) i : current;
-    }
 
     firstRow = list.GetTopRow();
 
@@ -501,47 +528,28 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
         return false;
     }
 
-    //  The stepped branch went to the PC, which its snapshot made sure of;
-    //  the PC's own goes to its target.
-    if (branchedFrom.has_value())
-    {
-        if (pcLine < 0)
-        {
-            return false;
-        }
-
-        goesTo  = lines[(size_t) pcLine].address;
-        isTaken = true;
-    }
-    else
-    {
-        if (current < 0 || !lines[(size_t) current].target.has_value())
-        {
-            return false;
-        }
-
-        goesTo  = *lines[(size_t) current].target;
-        isTaken = lines[(size_t) current].isTargetTaken;
-    }
-
+    //  Indexes are rows: a source row above an instruction moves the
+    //  instruction down a row, and an instruction under the source row
+    //  representing it has its arrow there.
     for (size_t i = 0; i < lines.size(); i++)
     {
-        target = (lines[i].address == goesTo) ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : target;
+        current = (lines[i].address == ends.from)   ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : current;
+        target  = (lines[i].address == ends.goesTo) ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : target;
     }
 
-    //  From here on, indexes are rows: a source row above an instruction moves
-    //  the instruction down a row, and an instruction under the source row
-    //  representing it has its arrow there. A stepped source not among the
-    //  lines lies above them or below, by its address.
-    from = current;
-
-    if (current >= 0)
+    //  A target inside a line, as a jump into the middle of an instruction
+    //  is, points at the line it lies in.
+    for (size_t i = 0; target < 0 && i + 1 < lines.size(); i++)
     {
-        current = DisassemblyOptions::GetFrontRowOfLine (rows, current);
+        if (lines[i].address < ends.goesTo && lines[i + 1].address > ends.goesTo)
+        {
+            target = DisassemblyOptions::GetFrontRowOfLine (rows, (int) i);
+        }
     }
-    else
+
+    if (current < 0 && !GetOutsideRow (list, lines, ends.from, current))
     {
-        current = (*branchedFrom < lines.front().address) ? -1 : list.GetRowCount();
+        return false;
     }
 
     bounds = list.GetBounds();
@@ -552,7 +560,7 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     bottom = top + (float) ((endRow - firstRow) * rowPx);
 
     input.mnemonicX     = (float) (bounds.left + column.left);
-    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) from].address;
+    input.isTargetBelow = (target >= 0) ? target > current : ends.goesTo > ends.from;
     input.edgeY         = input.isTargetBelow ? bottom : top;
     input.sourceEdgeY   = input.isTargetBelow ? top : bottom;
     input.marginPx     *= scale;
@@ -565,10 +573,15 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     //  rows: above them toward a target below, or below toward one above.
     if (current < firstRow || current >= endRow)
     {
-        bool  above = current < firstRow;
+        isAbove = current < firstRow;
+        beyond  = target;
 
-        if (above != input.isTargetBelow ||
-            (target >= 0 && (above ? target < firstRow : target >= endRow)))
+        if (beyond < 0 && !GetOutsideRow (list, lines, ends.goesTo, beyond))
+        {
+            return false;
+        }
+
+        if (isAbove != input.isTargetBelow || (isAbove ? beyond < firstRow : beyond >= endRow))
         {
             return false;
         }
@@ -585,6 +598,73 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
 
     //  Scrolled sideways past the mnemonics, there is no room for it.
     return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::GetOutsideRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyCells::GetOutsideRow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word address, int & row)
+{
+    if (address < lines.front().address)
+    {
+        row = -1;
+        return true;
+    }
+
+    if (address > lines.back().address)
+    {
+        row = list.GetRowCount();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::SeparateArrows
+//
+//  The stepped arrow ends at the PC's row and the PC's starts there. The
+//  stepped one ends a little to the side of the row toward its source, and
+//  the PC's starts a little to the other side. Run the same way, as from a
+//  branch below to a PC whose target is below too, the two would share a
+//  lane; the PC's is moved out a lane, and since it starts on the side away
+//  from the stepped one's end, the two lines don't cross.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyCells::SeparateArrows (BranchArrow::Input & stepped, BranchArrow::Input & pc)
+{
+    float  scale  = pc.radiusPx / BranchArrow::Input().radiusPx;
+    float  offset = (stepped.isTargetBelow ? -kArrowSplitDip : kArrowSplitDip) * scale;
+
+
+
+    if (stepped.targetY.has_value())
+    {
+        *stepped.targetY += offset;
+    }
+
+    if (pc.sourceY.has_value())
+    {
+        *pc.sourceY -= offset;
+    }
+
+    if (stepped.isTargetBelow != pc.isTargetBelow)
+    {
+        pc.stubPx += kArrowLaneDip * scale;
+    }
 }
 
 

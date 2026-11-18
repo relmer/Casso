@@ -98,9 +98,21 @@ void DxuiTipService::Show (const DxuiTip & tip, POINT pointPx, int64_t nowMs)
 
     ApplyLook (tip);
 
+    if (tip.placement == DxuiTip::Placement::FollowPointer && tip.isDelayed)
+    {
+        m_tooltip.RequestShowFollowing (pointer, tip.text, nowMs);
+        return;
+    }
+
     if (tip.placement == DxuiTip::Placement::FollowPointer)
     {
         m_tooltip.RequestShowNow (pointer, tip.text, nowMs);
+        return;
+    }
+
+    if (tip.isImmediate)
+    {
+        ShowImmediate (tip, pointer, nowMs);
         return;
     }
 
@@ -117,6 +129,29 @@ void DxuiTipService::Show (const DxuiTip & tip, POINT pointPx, int64_t nowMs)
     }
 
     m_tooltip.RequestShow (tip.anchor, tip.text, nowMs, tip.placement == DxuiTip::Placement::AtPointer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTipService::ShowImmediate
+//
+//  A tip that opens at once is placed by the pointer when its text first
+//  comes up, and isn't moved while the pointer stays over the same text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTipService::ShowImmediate (const DxuiTip & tip, const RECT & pointer, int64_t nowMs)
+{
+    if (m_tooltip.IsVisible() && m_tooltip.GetText() == tip.text)
+    {
+        return;
+    }
+
+    m_tooltip.RequestShowNow (pointer, tip.text, nowMs);
 }
 
 
@@ -258,6 +293,8 @@ void DxuiTipService::ApplyLook (const DxuiTip & tip)
     m_tooltip.SetLineSwatches (tip.lineSwatches);
     m_tooltip.SetLineScales   (tip.lineScales);
     m_tooltip.SetGradient     (tip.gradient, tip.gradientMark);
+    m_tooltip.SetFrame        (tip.frameLabel, tip.frameArgb);
+    m_tooltip.SetCornerTag    (tip.cornerTag,  tip.cornerTagArgb);
 }
 
 

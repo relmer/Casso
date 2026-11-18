@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 
@@ -49,7 +50,7 @@ namespace DebuggerTests
         {
             for (CommandMode mode : { CommandMode::AppleWin, CommandMode::GSSquared, CommandMode::WinDbg })
             {
-                std::optional<DebuggerAction>  action = DebuggerActions::GetForKey (Action::RunFrame, nullptr, -1, mode);
+                std::optional<DebuggerAction>  action = DebuggerKeyActions::GetForKey (Action::RunFrame, nullptr, -1, mode);
 
 
 

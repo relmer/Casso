@@ -1250,7 +1250,7 @@ def crt_inner_z(cz, h):
 # screen riding a quarter of a screen-height above it.
 #
 # The two are separate strokes that OVERLAP rather than one cut out of the
-# other, so the larger screen's top arc carries on THROUGH the smaller's
+# other, so the larger screen's top arc runs on THROUGH the smaller's
 # opening -- which is the whole reading of the glyph: a picture caught mid
 # roll, not two screens stacked.
 _vh_off = CRT_H * 0.10
@@ -1568,7 +1568,7 @@ m.add_triangles("glass",
 # It is a SEPARATE PART because the scene derives its display sphere and its
 # picture band from the bounding box of the part named "glass"; growing that
 # part would grow the raster with it and push the picture under the bezel.
-SKIRT_OUT     = 5.0        # how far past the glass rim the dome carries on
+SKIRT_OUT     = 5.0        # how far past the glass rim the dome runs on
 SKIRT_BACK    = 30.0       # how far the wall then dives into the cabinet
 SKIRT_BURY    = 0.25       # behind the glass, so the two never fight
 # FOUR MILLIMETERS UNDER THE RIM, for the tube ring's reason (its own underlap

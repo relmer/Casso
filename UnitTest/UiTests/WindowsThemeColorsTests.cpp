@@ -92,5 +92,15 @@ namespace WindowsThemeColorsTests
             sys.Refresh();
             Assert::IsTrue (sys.IsDarkMode() == true || sys.IsDarkMode() == false);
         }
+
+
+        //  A light surface read back dark, as the light class does while
+        //  Windows is dark, is not taken.
+        TEST_METHOD (Surfaces_On_The_Wrong_Side_Of_Mid_Gray_Are_Refused)
+        {
+            Assert::IsTrue  (DxuiWindowsThemeColors::AreSurfacesForTheirModes (0xFF191919u, 0xFFFFFFFFu));
+            Assert::IsFalse (DxuiWindowsThemeColors::AreSurfacesForTheirModes (0xFF191919u, 0xFF191919u));
+            Assert::IsFalse (DxuiWindowsThemeColors::AreSurfacesForTheirModes (0xFFFFFFFFu, 0xFFFFFFFFu));
+        }
     };
 }

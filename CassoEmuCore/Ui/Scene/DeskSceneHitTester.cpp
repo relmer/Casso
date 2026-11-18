@@ -57,6 +57,66 @@ bool DeskSceneHitTester::RayHitsBox (const float   origin[3],
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneHitTester::TryGetRayEntry
+//
+//  Measured in world units, so devices whose models are scaled differently
+//  compare fairly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneHitTester::TryGetRayEntry (const DeskSceneComposition & comp,
+                                         const float                  world[16],
+                                         const float                  boxMin[3],
+                                         const float                  boxMax[3],
+                                         float                        screenX,
+                                         float                        screenY,
+                                         float                      & outDistance)
+{
+    float  invViewProj[16] = {};
+    float  invWorld[16]    = {};
+    float  origin[3]       = {};
+    float  dir[3]          = {};
+    float  modelOrigin[3]  = {};
+    float  modelDir[3]     = {};
+    float  modelEntry[3]   = {};
+    float  worldEntry[3]   = {};
+    float  tNear           = 0.0f;
+    bool   isHit           = false;
+
+
+
+    isHit = SceneCamera::Inverse44 (comp.viewProj, invViewProj) &&
+            SceneCamera::ScreenRayFromPx (invViewProj, comp.viewportPx, screenX, screenY, origin, dir) &&
+            SceneCamera::Inverse44 (world, invWorld) &&
+            SceneCamera::TransformPoint (invWorld, origin, modelOrigin);
+
+    if (isHit)
+    {
+        SceneCamera::TransformVector (invWorld, dir, modelDir);
+        isHit = RayHitsBox (modelOrigin, modelDir, boxMin, boxMax, tNear);
+    }
+
+    for (int axis = 0; isHit && axis < 3; axis++)
+    {
+        modelEntry[axis] = modelOrigin[axis] + modelDir[axis] * tNear;
+    }
+
+    isHit = isHit && SceneCamera::TransformPoint (world, modelEntry, worldEntry);
+
+    if (isHit)
+    {
+        outDistance = std::hypot (worldEntry[0] - origin[0], worldEntry[1] - origin[1], worldEntry[2] - origin[2]);
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneHitTester::Classify
 //
 //  The glass is tested first and outranks everything: it is the one surface
@@ -128,6 +188,7 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
     // the opposite of a refinement.
     float  tMonitorBody   = FLT_MAX;
     float  tDriveBody[2]  = { FLT_MAX, FLT_MAX };
+    float  tRecorderBody  = FLT_MAX;
     bool   monitorFrontal = (monitorBoundsMin == nullptr || monitorBoundsMax == nullptr);
 
     if (includeGlass && monitorBoundsMin != nullptr && monitorBoundsMax != nullptr)
@@ -176,14 +237,37 @@ SceneHitResult DeskSceneHitTester::Classify (const DeskSceneComposition       & 
         }
     }
 
+    // The recorder's body too. Beside the monitor it never overlaps the
+    // glass, but the drives and the recorder slide up IN FRONT of the glass
+    // when auto-hidden, and in fullscreen the glass fills the screen: there
+    // a recorder that did not count let the picture take every click on it.
+    if (comp.hasRecorder != 0 && recorderBoundsMin != nullptr && recorderBoundsMax != nullptr)
+    {
+        float  invWorld[16]   = {};
+        float  modelOrigin[3] = {};
+        float  modelDir[3]    = {};
+        float  tNear          = 0.0f;
+
+        if (SceneCamera::Inverse44 (comp.recorderWorld, invWorld) &&
+            SceneCamera::TransformPoint (invWorld, origin, modelOrigin))
+        {
+            SceneCamera::TransformVector (invWorld, dir, modelDir);
+
+            if (RayHitsBox (modelOrigin, modelDir, recorderBoundsMin, recorderBoundsMax, tNear))
+            {
+                tRecorderBody = tNear;
+            }
+        }
+    }
+
     if (includeGlass && monitorFrontal &&
         CurvedDisplayMath::EmulatedPixelFromScreenPx (glass, monWorld, comp.viewProj,
                                                       comp.viewportPx, screenX, screenY,
                                                       displayW, displayH, result.emulatedPixel))
     {
-        // The picture is the monitor's; a drive standing nearer along the
-        // ray means the ray is not looking at the picture at all.
-        bool  occluded = false;
+        // The picture is the monitor's; a drive or the recorder standing
+        // nearer along the ray means the ray is not looking at the picture.
+        bool  occluded = tRecorderBody < tMonitorBody - kOcclusionSlackMm;
 
         for (int drive = 0; drive < comp.driveCount; drive++)
         {

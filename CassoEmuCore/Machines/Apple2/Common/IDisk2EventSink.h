@@ -80,18 +80,18 @@ class IDisk2EventSink
 public:
     virtual ~IDisk2EventSink() = default;
 
-    virtual void OnMotorCommandOn() = 0;
-    virtual void OnMotorEngaged() = 0;
-    virtual void OnMotorCommandOff() = 0;
-    virtual void OnMotorDisengaged() = 0;
+    virtual void  OnMotorCommandOn  () = 0;
+    virtual void  OnMotorEngaged    () = 0;
+    virtual void  OnMotorCommandOff () = 0;
+    virtual void  OnMotorDisengaged () = 0;
 
     virtual void OnHeadStep (int prevQt, int newQt) = 0;
     virtual void OnHeadBump (int atQt) = 0;
 
-    virtual void OnAddressMark (int track, int sector, int volume) = 0;
-    virtual void OnDataMarkRead (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
-    virtual void OnDataMarkWrite (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
-    virtual void OnReadStall (int quarterTrack) {}
+    virtual void  OnAddressMark   (int track, int sector, int volume) = 0;
+    virtual void  OnDataMarkRead  (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
+    virtual void  OnDataMarkWrite (int track, int sector, int volume, std::span<const Byte> bytes) = 0;
+    virtual void  OnReadStall     (int quarterTrack) {}
 
     virtual void OnAddressChecksumError (int track, int sector, int volume)                              { (void) track; (void) sector; (void) volume; }
     virtual void OnDataChecksumError    (int track, int sector, int volume, std::span<const Byte> bytes) { (void) track; (void) sector; (void) volume; (void) bytes; }
@@ -100,7 +100,7 @@ public:
     virtual void OnWriteProtected       ()                                                                {}
     virtual void OnWriteMode            (int drive, bool isOn)                                            { (void) drive; (void) isOn; }
 
-    virtual void OnDriveSelect (int drive) = 0;
-    virtual void OnDiskInserted (int drive) = 0;
-    virtual void OnDiskEjected (int drive) = 0;
+    virtual void  OnDriveSelect  (int drive) = 0;
+    virtual void  OnDiskInserted (int drive) = 0;
+    virtual void  OnDiskEjected  (int drive) = 0;
 };

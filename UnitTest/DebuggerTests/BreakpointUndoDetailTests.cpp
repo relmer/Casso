@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
@@ -33,7 +34,7 @@ namespace BreakpointUndoDetailTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Do (BreakpointStep::Kind kind)
@@ -41,7 +42,7 @@ namespace BreakpointUndoDetailTests
             BreakpointStep  step;
 
             step.kind = kind;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()
@@ -91,7 +92,7 @@ namespace BreakpointUndoDetailTests
 
             rig.Run ("BP 0300");
             rig.Run ("BP C000");
-            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
             for (const BreakpointInfo & info : rig.List())
@@ -116,7 +117,7 @@ namespace BreakpointUndoDetailTests
 
             rig.Run ("BP 0300");
             rig.Run ("BP C000");
-            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
             rig.Do (BreakpointStep::Kind::Undo);
             lines = rig.Do (BreakpointStep::Kind::Redo);
 
@@ -137,7 +138,7 @@ namespace BreakpointUndoDetailTests
             id = rig.List().at (0).id;
             rig.SetHits (id, 7);
 
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             Assert::AreEqual ((uint32_t) 0, rig.List().at (0).hits, L"an edit starts the count afresh");
 
             rig.Do (BreakpointStep::Kind::Undo);

@@ -10,6 +10,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/BreakpointGroupHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -43,7 +44,7 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
     //  The symbols the user added first, so a breakpoint or watch set by
     //  such a symbol's name resolves.
-    for (const DebugSession::AddedSymbol & added : session.GetAddedSymbols())
+    for (const DebugSession::AddedSymbol & added : session.GetFiles().GetAddedSymbols())
     {
         script += std::format ("SYM{} {} = {:04X}\n", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (added.table)), added.name, added.address);
     }
@@ -75,9 +76,9 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
                                              session.GetSymbols().IsEnabled ((SymbolTableId) table) ? "ON" : "OFF"));
     }
 
-    if (!session.GetCurrentDirectory().empty())
+    if (!session.GetHostFiles().GetCurrentDirectory().empty())
     {
-        engineScript.push_back (std::format ("CD \"{}\"", TextEncoding::WideToNarrow (session.GetCurrentDirectory())));
+        engineScript.push_back (std::format ("CD \"{}\"", TextEncoding::WideToNarrow (session.GetHostFiles().GetCurrentDirectory())));
     }
 
     engineScript.push_back (session.GetTarget().IsTraceOn() ? "HISTORY ON" : "HISTORY OFF");
@@ -119,6 +120,8 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
     BreakpointHandlers::ListAll (session, list);
     breakpointNames.clear();
+    breakpointLogs.clear();
+    breakpointGroups.clear();
 
     for (size_t i = 0; i < list.breakpoints.size(); i++)
     {
@@ -126,14 +129,55 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
         {
             breakpointNames[i] = list.breakpoints[i].name;
         }
+
+        if (!list.breakpoints[i].log.empty())
+        {
+            breakpointLogs[i] = list.breakpoints[i].log;
+        }
+
+        if (!list.breakpoints[i].group.empty())
+        {
+            breakpointGroups[i] = list.breakpoints[i].group;
+        }
     }
 
     symbolFiles.clear();
 
-    for (const DebugSession::SymbolLoad & load : session.GetSymbolLoads())
+    for (const DebugSession::SymbolLoad & load : session.GetFiles().GetSymbolLoads())
     {
-        symbolFiles.push_back ({ load.table, load.path, load.offset });
+        if (!IsOtherDebugFile (session, load.path))
+        {
+            symbolFiles.push_back ({ load.table, load.path, load.offset });
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::IsOtherDebugFile
+//
+//  Whether a symbol file is a debug file other than the one a debug file's
+//  project is for: the loaded debug file when its key isn't the project's,
+//  or another file with a debug file's extension. Loading one switches to
+//  that file's project, so a debug file's project that saved it and loaded
+//  it again would switch to the other project, whose load switched back,
+//  without end. It happened when the outgoing project was saved after the
+//  load that caused the switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugProject::IsOtherDebugFile (const DebugSession & session, const std::wstring & path) const
+{
+    bool  isLoaded = path == session.GetFiles().GetDebugFilePath();
+    bool  isDebug  = _wcsicmp (fs::path (path).extension().c_str(), L".dbg") == 0;
+
+
+
+    return scope.kind == ProjectScopeKind::DebugFile && (isLoaded ? session.GetFiles().GetDebugFileKey() != scope.key : isDebug);
 }
 
 
@@ -176,20 +220,21 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
     //  A load replaces its table, so of a table's files only the last is
     //  loaded; a project saved before that listed every file a table had
     //  ever been loaded from. A BASIC program an earlier Casso loaded as
-    //  symbols is passed over. Either way, the next save drops them.
+    //  symbols is passed over, and so is another debug file a debug file's
+    //  project was saved with. Either way, the next save drops them.
     for (size_t i = 0; i < symbolFiles.size(); i++)
     {
         const SymbolFile  & file     = symbolFiles[i];
         auto                isUsable = [] (const SymbolFile & each) { return !SymbolHandlers::IsBasicListing (TextEncoding::WideToNarrow (each.path), std::string()); };
         bool                isLater  = std::any_of (symbolFiles.begin() + (std::ptrdiff_t) i + 1, symbolFiles.end(), [&] (const SymbolFile & each) { return each.table == file.table && isUsable (each); });
-        bool                isLoaded = std::ranges::any_of (session.GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
+        bool                isLoaded = std::ranges::any_of (session.GetFiles().GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
         {
             return load.table == file.table && load.path == file.path;
         });
 
 
 
-        if (!isLoaded && !isLater && isUsable (file))
+        if (!isLoaded && !isLater && isUsable (file) && !IsOtherDebugFile (session, file.path))
         {
             run (std::format ("SYM{} LOAD \"{}\",{:04X}", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (file.table)),
                               TextEncoding::WideToNarrow (file.path), file.offset));
@@ -210,6 +255,22 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
         if (index < created.size() && created[index] >= 0 && !session.GetBreakpoints().TrySetName (created[index], name))
         {
             session.GetWatchpoints().TrySetName (created[index], name);
+        }
+    }
+
+    for (const auto & [index, log] : breakpointLogs)
+    {
+        if (index < created.size() && created[index] >= 0 && !session.GetBreakpoints().TrySetLog (created[index], log))
+        {
+            session.GetWatchpoints().TrySetLog (created[index], log);
+        }
+    }
+
+    for (const auto & [index, group] : breakpointGroups)
+    {
+        if (index < created.size() && created[index] >= 0)
+        {
+            (void) BreakpointGroupHandlers::SetGroup (session, created[index], group);
         }
     }
 
@@ -328,9 +389,10 @@ void DebugProject::RunScriptLine (
     verb     = (command != nullptr) ? command->verb : DebugVerb::None;
     isNumber = !number.empty() && std::ranges::all_of (number, [] (char ch) { return isdigit ((unsigned char) ch) != 0; });
 
+    //  A number too large to be an index is no breakpoint's.
     if (isNumber)
     {
-        index = std::stoul (number);
+        isNumber = std::from_chars (number.data(), number.data() + number.size(), index).ec == std::errc();
     }
 
     if (isNumber && (verb == DebugVerb::DisableBreakpoint || verb == DebugVerb::EnableBreakpoint || verb == DebugVerb::ChangeBreakpoint))
@@ -463,6 +525,27 @@ void DebugProject::RestoreWatchIds (WatchTable & table, const Ids & ids)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugProject::IsLayoutString
+//
+//  The keys of the layout strings in an older project's file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugProject::IsLayoutString (const std::string & name)
+{
+    static constexpr std::string_view  kLayoutNames[] = { "layout", "openViews", "closedPanes", "focusedPane", "commandBarDock", "timelineDock" };
+
+
+
+    return std::ranges::find (kLayoutNames, name) != std::end (kLayoutNames);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugProject::ToJson
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,6 +555,8 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     std::vector<JsonValue>  files;
     std::vector<JsonValue>  script;
     std::vector<JsonValue>  named;
+    std::vector<JsonValue>  logged;
+    std::vector<JsonValue>  grouped;
     std::vector<JsonValue>  startup;
     Members                 window;
     Members                 root;
@@ -495,6 +580,16 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
         named.push_back (JsonValue (Members { { "index", JsonValue ((double) index) }, { "name", JsonValue (name) } }));
     }
 
+    for (const auto & [index, log] : breakpointLogs)
+    {
+        logged.push_back (JsonValue (Members { { "index", JsonValue ((double) index) }, { "log", JsonValue (log) } }));
+    }
+
+    for (const auto & [index, group] : breakpointGroups)
+    {
+        grouped.push_back (JsonValue (Members { { "index", JsonValue ((double) index) }, { "group", JsonValue (group) } }));
+    }
+
     for (const StartupCommand & command : startupCommands)
     {
         startup.push_back (JsonValue (Members { { "mode", JsonValue (std::string (CommandModeNames::GetName (command.mode))) },
@@ -509,14 +604,17 @@ std::string DebugProject::ToJson (const std::wstring & directory) const
     root.emplace_back ("symbolFiles",     JsonValue (std::move (files)));
     root.emplace_back ("engineScript",    JsonValue (std::move (script)));
     root.emplace_back ("names",           JsonValue (std::move (named)));
-    window.emplace_back ("layout",             JsonValue (layout));
+    root.emplace_back ("logs",            JsonValue (std::move (logged)));
+    root.emplace_back ("groups",          JsonValue (std::move (grouped)));
     window.emplace_back ("rangeSets",          JsonValue (rangeSets));
     window.emplace_back ("disassemblyOptions", JsonValue (disassemblyOptions));
-    window.emplace_back ("openViews",          JsonValue (openViews));
 
     for (const auto & [name, text] : windowStrings)
     {
-        window.emplace_back (name, JsonValue (text));
+        if (!IsLayoutString (name))
+        {
+            window.emplace_back (name, JsonValue (text));
+        }
     }
 
     root.emplace_back ("window",          JsonValue (std::move (window)));
@@ -571,7 +669,7 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
 
         if (!scope->HasString ("kind", kind) || !ProjectScope::TryParseKind (kind, project.scope.kind))
         {
-            error = "The project's scope has a kind unknown to this version.";
+            error = "The project's scope is of a kind added in a later version of Casso.";
             return false;
         }
     }
@@ -610,6 +708,38 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
         }
     }
 
+    if (root.HasArray ("logs", array))
+    {
+        for (size_t i = 0; i < array->GetArraySize(); i++)
+        {
+            int          index = -1;
+            std::string  log;
+
+
+
+            if (array->GetArrayElement (i).HasInt ("index", index) && array->GetArrayElement (i).HasString ("log", log) && index >= 0)
+            {
+                project.breakpointLogs[(size_t) index] = log;
+            }
+        }
+    }
+
+    if (root.HasArray ("groups", array))
+    {
+        for (size_t i = 0; i < array->GetArraySize(); i++)
+        {
+            int          index = -1;
+            std::string  group;
+
+
+
+            if (array->GetArrayElement (i).HasInt ("index", index) && array->GetArrayElement (i).HasString ("group", group) && index >= 0)
+            {
+                project.breakpointGroups[(size_t) index] = group;
+            }
+        }
+    }
+
     if (root.HasArray ("names", array))
     {
         for (size_t i = 0; i < array->GetArraySize(); i++)
@@ -628,15 +758,14 @@ bool DebugProject::TryParse (const std::string & text, const std::wstring & dire
 
     if (root.HasObject ("window", window))
     {
-        window->HasString ("layout",             project.layout);
         window->HasString ("rangeSets",          project.rangeSets);
         window->HasString ("disassemblyOptions", project.disassemblyOptions);
-        window->HasString ("openViews",          project.openViews);
 
-        //  Every other string of the window's is one of its states, by name.
+        //  Every other string of the window's is one of its states, by name,
+        //  apart from the layout an older project saved.
         for (const auto & [name, value] : window->GetObjectEntries())
         {
-            if (value.GetType() == JsonType::String && name != "layout" && name != "rangeSets" && name != "disassemblyOptions" && name != "openViews")
+            if (value.GetType() == JsonType::String && name != "rangeSets" && name != "disassemblyOptions" && !IsLayoutString (name))
             {
                 project.windowStrings[name] = value.GetString();
             }

@@ -74,7 +74,7 @@
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\</OutDir>
     <IntDir>$(SolutionDir)$(Platform)\$(Configuration)$(CassoBuildFlavor)\obj\$(ProjectName)\</IntDir>
   </PropertyGroup>
-  <!-- The entry point is wCassoMain in CassoEmuCore/Gui/GuiMain.cpp. Cassque's
+  <!-- The entry point is wCassoMain in CassoEmuCore/Gui/GuiMain.cpp. CassoExplorer's
        entry point lives in the same library, and a library keeps only one
        definition of a symbol, so neither program's is called wWinMain.
        /ALTERNATENAME maps the C runtime's call to wWinMain onto this one. -->
@@ -205,9 +205,12 @@
     would break exactly the cross-compile it is supposed to serve.
 
     Inputs/Outputs give MSBuild the incrementality: an untouched model is not
-    re-baked. When a model DOES change, Casso.rc is touched, because the
+    re-baked. When a model DOES change, Casso.res is deleted, because the
     resource compiler tracks the .rc file and not the RCDATA payloads it
-    names, so without that the build would embed the previous blob.
+    names, so without that the build would embed the previous blob. Deleting
+    the compiled output forces the recompile. Touching Casso.rc did too, but
+    it changed a tracked file's timestamp on every rebuild, which the test
+    runner's tree guard reports when a build runs beside a test run.
 
     MeshCreator.exe IS ONE OF THE INPUTS, so a change to the baker re-bakes
     every blob. It has to be built in a target of its own ahead of this one
@@ -236,6 +239,11 @@
     <BakedMesh Include="Disk2c" />
     <BakedMesh Include="DuoDisk" />
     <BakedMesh Include="CassetteRecorder" />
+    <BakedMesh Include="HardDisk20SC" />
+    <BakedMesh Include="ProFile" />
+    <BakedMesh Include="UniDisk35" />
+    <BakedMesh Include="Apple35Drive" />
+    <BakedMesh Include="Apple35Plus" />
     <BakedMesh Include="ImageWriterII" />
   </ItemGroup>
   <PropertyGroup>
@@ -251,7 +259,7 @@
           Outputs="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')">
     <MakeDir Directories="$(IntDir)Models" />
     <Exec Command="&quot;$(MeshCreatorExe)&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mesh&quot; &quot;..\Resources\Models\%(BakedMesh.Identity)\%(BakedMesh.Identity).mtl&quot; &quot;$(IntDir)Models\%(BakedMesh.Identity).dmesh&quot;" />
-    <Touch Files="Casso.rc" />
+    <Delete Files="$(IntDir)Casso.res" />
   </Target>
   <Target Name="CleanBakedMeshes" AfterTargets="Clean">
     <Delete Files="@(BakedMesh->'$(IntDir)Models\%(Identity).dmesh')" />

@@ -24,13 +24,13 @@
 class DxuiDwm
 {
 public:
-    static bool IsWindows11OrGreater      ();
-    static bool IsWindows10_1809OrGreater();
-    static void ApplyRoundedCorners       (HWND hwnd, bool round);
-    static void ApplyMicaBackdrop         (HWND hwnd, bool mica);
-    static void ApplyImmersiveDarkMode    (HWND hwnd, bool dark);
-    static void ExtendFrameIntoClientArea (HWND hwnd, int inset);
-    static void ApplyBorderColor          (HWND hwnd, uint32_t argb);
+    static bool  IsWindows11OrGreater      ();
+    static bool  IsWindows10_1809OrGreater ();
+    static void  ApplyRoundedCorners       (HWND hwnd, bool round);
+    static void  ApplyMicaBackdrop         (HWND hwnd, bool mica, bool alt = false);
+    static void  ApplyImmersiveDarkMode    (HWND hwnd, bool dark);
+    static void  ExtendFrameIntoClientArea (HWND hwnd, int inset);
+    static void  ApplyBorderColor          (HWND hwnd, uint32_t argb);
 
     static uint32_t ArgbToColorref (uint32_t argb);
 
@@ -65,4 +65,5 @@ private:
     static constexpr DWORD kDwmsbtAuto                      = 0;
     static constexpr DWORD kDwmsbtNone                      = 1;
     static constexpr DWORD kDwmsbtMainWindow                = 2;   // Mica.
+    static constexpr DWORD kDwmsbtTabbedWindow              = 4;   // Mica Alt, File Explorer's.
 };

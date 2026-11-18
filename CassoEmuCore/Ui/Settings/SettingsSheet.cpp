@@ -2,6 +2,7 @@
 #include "Shell/Components/ShellInput.h"
 
 #include "SettingsSheet.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
@@ -13,6 +14,7 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Ui/Settings/SerialCardPage.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
@@ -29,7 +31,7 @@
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/DiskPage.h"
 #include "Ui/Debugger/HistoryOptionsPage.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellHistory.h"
 #include "Config/HistorySettings.h"
 
 
@@ -310,6 +312,8 @@ HRESULT SettingsSheet::OpenModeless (
     m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
     m_networkPage->SetState  (&m_state);
+    m_networkPage->SetFirewall (&emuShell.GetFirewall(), [&emuShell] () { return emuShell.GetGuestInboundPorts(); });
+    m_networkPage->SetListenProblem ([&emuShell] () { return emuShell.GetNetworkCard().GetListenProblem(); });
 
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)
@@ -335,17 +339,23 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->GetSelectedThemeId());
     });
 
-    // The 3D desk-scene opt in/out: applies + persists immediately (the
-    // scene appears/disappears on the live chrome behind the sheet), so
-    // there is no staged state to revert on Cancel.
+    // The CRT monitor and auto-hide checkboxes are staged like the theme pick:
+    // OK applies and persists them, and Cancel discards them. The page's mock
+    // window previews the CRT checkbox in the meantime.
     m_themePage->SetCrtMonitorChecked (prefs.crtMonitor);
     m_themePage->SetOnCrtMonitorToggled ([this] (bool enabled)
     {
-        m_emuShell->GetChrome().SetCrtMonitorEnabled (enabled);
+        m_apply.StageCrtMonitor (enabled);
     });
 
-    // The General page: every control is live and persisted on the click,
-    // like the CRT opt-in above, so Cancel has nothing to revert.
+    m_themePage->SetAutoHideDrivesChecked (prefs.autoHideDrives);
+    m_themePage->SetOnAutoHideDrivesToggled ([this] (bool enabled)
+    {
+        m_apply.StageAutoHideDrives (enabled);
+    });
+
+    // The General page: every control is live and persisted on the click, so
+    // Cancel has nothing to revert.
     m_generalPage->SetAutoUpdateChecked (prefs.autoUpdateCheck);
     m_generalPage->SetAudioOfferChecked (GeneralPageModel::IsOfferChecked (prefs.audioDownloadConsent));
     m_generalPage->SetRomOfferChecked   (GeneralPageModel::IsOfferChecked (prefs.romRefreshConsent));
@@ -643,9 +653,55 @@ HRESULT SettingsSheet::OpenModeless (
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
-    // printing prefs too).
+    // printing prefs too). The printer's connector is staged machine state.
     m_printingPage->SetPrefs (&prefs);
-    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinter().GetPrinterBannerMessage());
+    m_printingPage->SetState (&m_state);
+
+    // A change on one of these tabs that alters the other's settings is
+    // reported, and both are synced to it.
+    m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_hardwarePage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
+    m_hardwarePage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
+    {
+        FileDialogSpec          spec;
+        fs::path                picked;
+        bool                    isPicked = false;
+        HRESULT                 hr       = S_OK;
+        const BlockDriveSpec  * drive    = BlockDeviceCatalog::FindDrive (device);
+
+
+
+        spec.filters = { { L"Disk images", L"*.po;*.hdv;*.2mg;*.2img;*.dsk;*.dc;*.dc42;*.image;*.woz" }, { L"All files", L"*.*" } };
+        spec.content = FileDialogContent::Images;
+
+        //  The picker lists what the port's drive accepts: a hard disk up to
+        //  its capacity, or a 3.5-inch drive's disks.
+        if (drive != nullptr)
+        {
+            bool  isUniDisk = device == kpszUniDisk35Device;
+            bool  isApple35 = device == kpszApple35DriveDevice;
+
+            spec.receivingDrive = ReceivingDrive { isUniDisk ? ReceivingDriveKind::UniDisk35 : isApple35 ? ReceivingDriveKind::Apple35 : ReceivingDriveKind::HardDisk,
+                                                   (isUniDisk || isApple35) ? 0 : drive->maxBlocks };
+            spec.driveLabel     = TextEncoding::Utf8ToWide (drive->label);
+        }
+
+        if (!inOutPath.empty())
+        {
+            spec.initialFolder   = fs::path (TextEncoding::Utf8ToWide (inOutPath)).parent_path();
+            spec.defaultFileName = fs::path (TextEncoding::Utf8ToWide (inOutPath)).filename().wstring();
+        }
+
+        hr = m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
+
+        if (SUCCEEDED (hr) && isPicked)
+        {
+            inOutPath = TextEncoding::WideToUtf8 (picked.wstring());
+        }
+
+        return SUCCEEDED (hr) && isPicked;
+    });
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
@@ -658,6 +714,8 @@ HRESULT SettingsSheet::OpenModeless (
 
         IGNORE_RETURN_VALUE (downloaded, false);
     });
+    m_serialPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_serialPage->SetListenProblem ([&emuShell] () { return emuShell.GetNetworkCard().GetSerialListenProblem(); });
     m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
     {
         FileDialogSpec  spec;
@@ -725,9 +783,11 @@ HRESULT SettingsSheet::OpenModeless (
     Show();
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
+    m_serialPage->SetComPorts (m_hardwarePage->GetComPorts());
     m_serialPage->Rebuild();
     m_displayPage->Rebuild();
     m_networkPage->Rebuild();
+    m_printingPage->Sync();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
@@ -1045,12 +1105,21 @@ void SettingsSheet::OnDialogTick()
     UpdateNetworkTabVisibility();
     m_sparkle.Update();
     UpdateTickInterval();
+    ShowPendingNotice();
+    OfferCardFirmware();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
-    // staged card behind the Network page.
+    // staged card behind the Network page, and the connectors the printer
+    // can be attached to.
     if (m_networkPage != nullptr)
     {
         m_networkPage->Sync();
+    m_serialPage->SyncListenProblem();
+    }
+
+    if (m_printingPage != nullptr)
+    {
+        m_printingPage->Sync();
     }
 
     // Controllers that came or went while the sheet is open, then the
@@ -1438,13 +1507,8 @@ void SettingsSheet::UpdateSerialTabVisibility()
         m_serialPage->Rebuild();
     }
 
-    // The user turned this card on a moment ago and waited for its download,
-    // so its tab is opened, not just marked.
-    if (fetched)
-    {
-        SetActivePage (m_serialPageIndex);
-    }
-
+    // The Machine tab stays open, as it does for any card turned on, and the
+    // new tab is marked.
     if (turnedOn)
     {
         m_sparkle.Start (m_serialPageIndex);
@@ -1538,6 +1602,108 @@ std::wstring SettingsSheet::GetSerialFirmwareStatus() const
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportCrossTabChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ReportCrossTabChange (const std::wstring & notice)
+{
+    m_serialPage->Rebuild();
+    m_printingPage->Sync();
+    m_hardwarePage->Rebuild();
+    Invalidate();
+
+    m_pendingNotice = notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowPendingNotice
+//
+//  On the tick after the change, so the drop-down the change was picked
+//  from is closed before the message box opens over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ShowPendingNotice()
+{
+    std::wstring  notice = std::move (m_pendingNotice);
+
+
+
+    m_pendingNotice.clear();
+
+    if (!notice.empty())
+    {
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), notice.c_str(), L"Settings", MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferCardFirmware
+//
+//  On the tick after a card is put in a slot, so the drop-down the card was
+//  picked from is closed first. Without its firmware the machine runs
+//  without the card, so the card stays in the slot after a canceled or
+//  failed download.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::OfferCardFirmware()
+{
+    HRESULT                hr          = S_OK;
+    std::string            device      = std::move (m_pendingCardDevice);
+    std::vector<fs::path>  searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
+    const BlockCardSpec  * card        = nullptr;
+    std::string            rom;
+    std::string            error;
+    std::wstring           label;
+    std::wstring           intro;
+    std::wstring           message;
+    bool                   downloaded  = false;
+
+
+
+    m_pendingCardDevice.clear();
+    BAIL_OUT_IF (device.empty(), S_OK);
+
+    card = BlockDeviceCatalog::FindCard (device);
+    rom  = AssetBootstrap::GetMissingCardRom (device, searchPaths);
+    BAIL_OUT_IF (card == nullptr || rom.empty(), S_OK);
+
+    label = TextEncoding::NarrowToWide (card->label);
+    intro = std::format (L"The {} runs firmware that is not installed. Click Download to fetch it, or Cancel to "
+                         L"download it later. Until then, the machine runs without the card.", label);
+
+    hr = AssetBootstrap::OfferOptionalRomDownload (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), rom,
+                                                   label + L" firmware", intro, downloaded, error);
+
+    if (FAILED (hr) || !error.empty())
+    {
+        message = std::format (L"The {} firmware could not be downloaded. {}", label, TextEncoding::NarrowToWide (error));
+
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), message.c_str(), label.c_str(), MB_OK | MB_ICONWARNING);
+    }
+
+Error:
+    return;
 }
 
 

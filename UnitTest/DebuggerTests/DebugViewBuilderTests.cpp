@@ -53,7 +53,7 @@ namespace DebugViewBuilderTests
             rig.machine.GetMemoryBus().WriteByte (0x0305, 0x4C);
             rig.machine.GetMemoryBus().WriteByte (0x0306, 0x00);
             rig.machine.GetMemoryBus().WriteByte (0x0307, 0x03);
-            rig.machine.RunCycles (kRunCycles);
+            rig.machine.GetRunner().RunCycles (kRunCycles);
 
             *live = liveHeld->BuildCaptured (session, true);
 
@@ -99,7 +99,7 @@ namespace DebugViewBuilderTests
             rig.machine.GetMemoryBus().WriteByte (0x0305, 0x4C);
             rig.machine.GetMemoryBus().WriteByte (0x0306, 0x00);
             rig.machine.GetMemoryBus().WriteByte (0x0307, 0x03);
-            rig.machine.RunCycles (kRunCycles);
+            rig.machine.GetRunner().RunCycles (kRunCycles);
 
             hr = pool.Create (kMaxThreads);
             Assert::AreEqual (S_OK, hr);
@@ -160,7 +160,7 @@ namespace DebugViewBuilderTests
             built = build();
             Assert::IsFalse (built.branchedFrom.has_value());
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             built = build();
 
             Assert::AreEqual ((int) 0x0310, (int) built.pc);

@@ -48,9 +48,9 @@ public:
 
     //  A range of cycles selected, drawn over the bars, or none.
     void     SetSelection (std::optional<Range> selection) { m_selection = selection; }
-    Range    GetDataSpan () const;
-    int64_t  GetCycleAt  (int x) const;
-    float    GetCycleX   (int64_t cycle) const;
+    Range    GetDataSpan  () const;
+    int64_t  GetCycleAt   (int x) const;
+    float    GetCycleX    (int64_t cycle) const;
 
     //  The frame's number and cycles, then its routines by their cycles, and
     //  for each line the color its routine is drawn in, otherArgb for the

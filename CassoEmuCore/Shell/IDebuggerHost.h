@@ -72,6 +72,13 @@ public:
     virtual IHostDialogs          & GetHostDialogs      ()                       = 0;
     virtual WindowPlacementProfile  GetWindowPlacements ()                       = 0;
 
+    //  A file in File Explorer: its folder open, the file selected. UI thread.
+    virtual void                    ShowFileInFolder    (const std::wstring & path) = 0;
+
+    //  A file in Casso Explorer, its folder open and the file selected; false
+    //  when Casso Explorer is not beside the emulator or does not start.
+    virtual bool                    ShowFileInCassoExplorer (const std::wstring & path) = 0;
+
     //  Saves the preferences, the debugger's settings among them, after a
     //  short delay; and a machine switch's position, which the machine's own
     //  preferences keep.

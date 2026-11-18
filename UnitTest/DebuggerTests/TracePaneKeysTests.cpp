@@ -325,7 +325,8 @@ namespace DebuggerTests
 
 
         //  The row about to run, the PC's, has the PC's marker and row color,
-        //  as the disassembly's does; the rows after it have neither.
+        //  as the disassembly's does; every other row has a clear image of the
+        //  marker's size in its place.
         TEST_METHOD (ThePcsRowHasThePcsMarkerAndColor)
         {
             constexpr uint32_t                     kPcRow = 0xFF403810;
@@ -333,9 +334,15 @@ namespace DebuggerTests
             TracePane                              pane   (&list, [] (std::optional<uint64_t>) {});
             DebuggerViewSnapshot::TraceState       trace;
             std::vector<DxuiListView::Cell>        cells;
-            std::shared_ptr<const DxuiIconImage>   marker = std::make_shared<DxuiIconImage>();
+            auto                                   image  = std::make_shared<DxuiIconImage>();
+            std::shared_ptr<const DxuiIconImage>   marker;
 
 
+
+            image->width  = 9;
+            image->height = 9;
+            image->bgraPremul.assign (81, 0xFFFFFFFFu);
+            marker = image;
 
             pane.Configure();
             pane.SetPcStyle (marker, kPcRow);
@@ -354,11 +361,14 @@ namespace DebuggerTests
             }
 
             pane.ProvideRow (2, cells);
-            Assert::IsTrue   (cells[0].icon == nullptr, L"none on the row after it");
+            Assert::IsTrue   (cells[0].icon != marker,  L"not the marker on the row after it");
+            Assert::IsTrue   (cells[0].icon != nullptr, L"but a clear image of its size, so every row's text starts at one column");
+            Assert::AreEqual (marker->width, cells[0].icon->width);
             Assert::AreEqual (0u, cells[0].background);
 
             pane.ProvideRow (0, cells);
             Assert::AreEqual (0u, cells[0].background, L"nor on an entry that ran");
+            Assert::IsTrue   (cells[0].icon != nullptr && cells[0].icon != marker, L"which has the clear image too");
         }
     };
 

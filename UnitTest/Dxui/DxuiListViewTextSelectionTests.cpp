@@ -71,7 +71,7 @@ public:
         ev.button      = DxuiMouseButton::Left;
         ev.positionDip = at;
 
-        (void) list.OnMouse (ev);
+        (void) list.AsControl().OnMouse (ev);
     }
 
 
@@ -105,9 +105,9 @@ public:
         Assert::IsTrue (list.GetCellTextRectPx (0, 1, empty));
         Assert::IsTrue (list.GetCellTextRectPx (0, 0, last));
 
-        Assert::IsTrue (list.GetCursorForPoint (At (list, 0, 0, 1)) == IDC_IBEAM, L"over LDA");
-        Assert::IsNull (list.GetCursorForPoint (POINT { (empty.left + empty.right) / 2, (empty.top + empty.bottom) / 2 }), L"over the empty cell");
-        Assert::IsNull (list.GetCursorForPoint (POINT { last.left + 4, last.bottom + 40 }), L"below the rows");
+        Assert::IsTrue (list.AsControl().GetCursorForPoint (At (list, 0, 0, 1)) == IDC_IBEAM, L"over LDA");
+        Assert::IsNull (list.AsControl().GetCursorForPoint (POINT { (empty.left + empty.right) / 2, (empty.top + empty.bottom) / 2 }), L"over the empty cell");
+        Assert::IsNull (list.AsControl().GetCursorForPoint (POINT { last.left + 4, last.bottom + 40 }), L"below the rows");
     }
 
 
@@ -131,8 +131,8 @@ public:
         list.SetTextSelection (true);
         list.Layout           (RECT { 0, 0, 400, 300 }, scaler);
 
-        Assert::IsNull (list.GetCursorForPoint (At (list, 0, 0, 1)), L"over the heat strip");
-        Assert::IsTrue (list.GetCursorForPoint (At (list, 0, 1, 1)) == IDC_IBEAM, L"over LDA");
+        Assert::IsNull (list.AsControl().GetCursorForPoint (At (list, 0, 0, 1)), L"over the heat strip");
+        Assert::IsTrue (list.AsControl().GetCursorForPoint (At (list, 0, 1, 1)) == IDC_IBEAM, L"over LDA");
     }
 
 
@@ -151,7 +151,7 @@ public:
         ev.button      = DxuiMouseButton::Left;
         ev.positionDip = At (list, 0, 1, 1);
         ev.ctrl        = true;
-        (void) list.OnMouse (ev);
+        (void) list.AsControl().OnMouse (ev);
 
         Send (list, DxuiMouseEventKind::Move, At (list, 1, 0, 2));
         Send (list, DxuiMouseEventKind::Up,   At (list, 1, 0, 2));

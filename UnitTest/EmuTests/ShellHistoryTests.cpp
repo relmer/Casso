@@ -33,7 +33,7 @@ namespace ShellHistoryTests
             rig.RunFrames (kFrames);
 
             Assert::IsTrue (rig.shell->GetHistory().IsRecording(), L"history is recorded with no debugger attached");
-            Assert::IsTrue (rig.shell->GetHistory().GetReverseHost()->GetController().GetKeyframes().GetCount() > 0, L"and takes keyframes");
+            Assert::IsTrue (rig.shell->GetHistory().GetReverseHost()->GetController().GetKeyframes().GetArena().GetCount() > 0, L"and takes keyframes");
         }
 
 
@@ -45,20 +45,20 @@ namespace ShellHistoryTests
 
 
             rig.RunFrames (kFrames);
-            live = rig.shell->GetMachine().GetPosition();
+            live = rig.shell->GetMachine().GetRunner().GetPosition();
 
             rig.Reverse (ReverseCommand::StepBack);
 
             Assert::IsTrue (rig.shell->GetHistory().IsBehindLive(), L"a step back moves the machine into history");
-            Assert::AreEqual<uint64_t> (live - 1, rig.shell->GetMachine().GetPosition(), L"one instruction back");
+            Assert::AreEqual<uint64_t> (live - 1, rig.shell->GetMachine().GetRunner().GetPosition(), L"one instruction back");
 
-            rig.shell->GetHistory().UpdateReplayCaption();
-            Assert::IsFalse (rig.shell->GetHistory().GetReplayCaption().empty(), L"the caption notes the replay");
+            rig.shell->GetHistory().UpdateCaption();
+            Assert::IsFalse (rig.shell->GetHistory().GetCaption().empty(), L"the caption notes the replay");
 
             rig.Reverse (ReverseCommand::GoLive);
 
             Assert::IsFalse (rig.shell->GetHistory().IsBehindLive(), L"go live returns to the live end");
-            Assert::AreEqual<uint64_t> (live, rig.shell->GetMachine().GetPosition(), L"where it was");
+            Assert::AreEqual<uint64_t> (live, rig.shell->GetMachine().GetRunner().GetPosition(), L"where it was");
         }
 
 
@@ -84,13 +84,13 @@ namespace ShellHistoryTests
 
             rig.RunFrames (kFrames);
             rig.Reverse (ReverseCommand::StepBack);
-            rig.shell->GetHistory().UpdateReplayCaption();
+            rig.shell->GetHistory().UpdateCaption();
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, kBudgetMb));
+            rig.SetOptions (false);
 
             Assert::IsFalse (rig.shell->GetHistory().IsRecording(), L"recording stops");
             Assert::IsFalse (rig.shell->GetHistory().IsBehindLive(), L"the machine is live");
-            Assert::IsTrue  (rig.shell->GetHistory().GetReplayCaption().empty(), L"the caption note is gone");
+            Assert::IsTrue  (rig.shell->GetHistory().GetCaption().empty(), L"the caption note is gone");
         }
 
 
@@ -120,8 +120,8 @@ namespace ShellHistoryTests
 
         TEST_METHOD (InputHeldWhilePausedBehindLiveRunsTheReplay)
         {
-            ShellRig        rig (false);
-            ShellHistory &  history = rig.shell->GetHistory();
+            ShellRig              rig (false);
+            HistoryDivergence  &  divergence = rig.shell->GetDebugger().GetDivergence();
 
 
 
@@ -129,7 +129,7 @@ namespace ShellHistoryTests
             rig.Reverse (ReverseCommand::StepBack);
             rig.shell->GetCpuManager().SetPaused (true);
 
-            history.HoldInputBehindLive (HeldInput::MousePress);
+            divergence.HoldInput (HeldInput::MousePress);
 
             Assert::IsFalse (rig.shell->GetCpuManager().IsPaused(), L"the replay runs, so the guest reads the input");
         }
@@ -137,18 +137,19 @@ namespace ShellHistoryTests
 
         TEST_METHOD (ADebuggerEditBehindLiveForksWithNoQuestion)
         {
-            ShellRig        rig (false);
-            ShellHistory &  history = rig.shell->GetHistory();
-            DebugCommand    edit;
+            ShellRig              rig (false);
+            ShellHistory       &  history    = rig.shell->GetHistory();
+            HistoryDivergence  &  divergence = rig.shell->GetDebugger().GetDivergence();
+            DebugCommand          edit;
 
 
 
             rig.RunFrames (kFrames);
             rig.Reverse (ReverseCommand::StepBack);
 
-            Assert::IsTrue (history.GuardEdit (edit), L"the edit is made");
+            Assert::IsTrue (divergence.GuardEdit (edit), L"the edit is made");
             Assert::IsFalse (history.IsBehindLive(), L"live where it was made");
-            Assert::AreEqual<size_t> (1, history.GetReverseHost()->GetController().GetKeyframes().GetBranchCount(), L"the future left behind is a branch");
+            Assert::AreEqual<size_t> (1, history.GetReverseHost()->GetController().GetKeyframes().GetArena().GetBranchCount(), L"the future left behind is a branch");
         }
 
 
@@ -253,11 +254,11 @@ namespace ShellHistoryTests
             Assert::IsTrue (history.RunRewindFrame(), L"a first frame back");
             Assert::IsTrue (history.RunRewindFrame(), L"a second");
 
-            landed = rig.shell->GetMachine().GetPosition();
+            landed = rig.shell->GetMachine().GetRunner().GetPosition();
             history.StopRewind();
 
             Assert::IsTrue   (history.RunRewindFrame(), L"the frame after the release finishes the rewind");
-            Assert::AreEqual (landed, rig.shell->GetMachine().GetPosition(), L"without stepping back again");
+            Assert::AreEqual (landed, rig.shell->GetMachine().GetRunner().GetPosition(), L"without stepping back again");
             Assert::IsTrue   (rig.shell->GetCpuManager().IsPaused(), L"paused");
             Assert::IsFalse  (rig.shell->GetCpuManager().IsPaceForced(), L"paced as the speed sets again");
             Assert::IsFalse  (history.RunRewindFrame(), L"and the next frame runs as usual");
@@ -276,7 +277,7 @@ namespace ShellHistoryTests
 
 
             rig.RunFrames (kFrames);
-            oldest = history.GetReverseHost()->GetController().GetKeyframes().GetInfo (0).position;
+            oldest = history.GetReverseHost()->GetController().GetKeyframes().GetArena().GetInfo (0).position;
 
             history.StartRewind();
 
@@ -287,7 +288,7 @@ namespace ShellHistoryTests
 
             Assert::IsTrue   (frames < kMostFrames, L"the rewind ends");
             Assert::IsTrue   (rig.shell->GetCpuManager().IsPaused(), L"paused");
-            Assert::AreEqual (oldest, rig.shell->GetMachine().GetPosition(), L"at the oldest point");
+            Assert::AreEqual (oldest, rig.shell->GetMachine().GetRunner().GetPosition(), L"at the oldest point");
             Assert::IsFalse  (history.RunRewindFrame(), L"the key held down rewinds no further");
         }
 
@@ -317,7 +318,7 @@ namespace ShellHistoryTests
 
 
             rig.RunFrames (kFrames);
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, kBudgetMb));
+            rig.SetOptions (false);
 
             history.StartRewind();
 

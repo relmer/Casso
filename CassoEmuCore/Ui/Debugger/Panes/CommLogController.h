@@ -44,16 +44,21 @@ public:
     void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
     bool                          TryGetTipAt    (POINT clientPx, DxuiTip & tip);
 
+    //  The graph's zoom, apart from the panes' text.
+    bool                          ZoomContent      (float notches, std::optional<POINT> clientPx) override;
+    bool                          ResetContentZoom () override;
+
     void                          Zoom           (bool isIn);
     void                          ShowLane       (size_t lane, bool isShown);
 
 protected:
-    std::wstring                  GetModelText   (bool isSelectedOnly) const override;
-    std::string                   GetOptionsText () const override;
-    void                          SetOptionsText (const std::string & text) override;
-    void                          SetModelShown  (bool isShown) override;
-    size_t                        GetTextColumn  () const override;
-    void                          SetMenus       () override {}
+    std::wstring       GetModelText     (bool isSelectedOnly) const override;
+    std::string        GetOptionsText   () const override;
+    void               SetOptionsText   (const std::string & text) override;
+    void               SetModelShown    (bool isShown) override;
+    size_t             GetTextColumn    () const override;
+    void               SetMenus         () override {}
+    IEventLogFilter  * GetColumnFilters () const override;
 
 private:
     bool          IsNetwork      () const { return m_kind == DebugLogKind::Network; }

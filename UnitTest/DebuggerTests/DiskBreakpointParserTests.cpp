@@ -139,6 +139,9 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) 3, driver.command.value_or (9), L"FORMAT is the driver's command 3");
             Assert::AreEqual ((Word) 2, driver.block.value_or (0));
             Assert::IsFalse  (any.command.has_value() || any.track.has_value());
+            Assert::IsTrue   (dos.access == DiskSectorAccess::Read, L"read by default");
+            Assert::IsTrue   (ParseOk ("BPDISK DOS 11 F WRITTEN").access == DiskSectorAccess::Written);
+            Assert::IsTrue   (ParseOk ("BPDISK BLOCK 2 EITHER").access   == DiskSectorAccess::Either);
         }
 
         TEST_METHOD (MotorSelectInsertAndEject)
@@ -166,6 +169,7 @@ namespace DebuggerTests
         {
             for (const char * arguments : { "D1 READ 11 0", "READ * F PASSED", "ADDRESS 3 BADSUM", "HEAD T 11:12 BUMP", "HEAD HALF",
                                             "WRITE QT 10:20", "WRITE 11 0 ADDR D4 AA 96", "WRITE BLOCKED", "DOS 11 F", "BLOCK 2 PASSED",
+                                            "DOS 11 F WRITTEN", "BLOCK 2 EITHER PASSED",
                                             "RWTS 11 0 READ", "DRIVER BLOCK 2 FORMAT", "MOTOR STOPPED", "D2 SELECT EVERY", "INSERT", "EJECT",
                                             "READ 0 0 ADDR D4 AA ?? SECTORS 13" })
             {

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"
@@ -57,8 +58,6 @@ public:
 
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
-    static constexpr Word       kBootRomEntry        = 0xC600;
-    static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr size_t     kSentinelOffset      = 0x10;
     static constexpr Byte       kSentinelByte        = 0x5A;
     static constexpr size_t     kWozTrackBitCount    = 51200;
@@ -125,7 +124,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
     }
 
 
@@ -178,14 +177,14 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  MountAndJumpToSlot6Boot — Phase 11 helper, replicated here. Mounts
-    //  the supplied bytes through DiskImageStore, points the //e at the
-    //  slot 6 boot ROM, returns the store-owned DiskImage so callers can
-    //  inspect track state.
+    //  MountAndPowerOn: the Phase 11 helper, replicated here. Mounts the
+    //  supplied bytes through DiskImageStore, puts the //e's processor on
+    //  its reset vector so RESET boots slot 6, and returns the store-owned
+    //  DiskImage so callers can inspect track state.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    DiskImage * MountAndJumpToSlot6Boot (
+    DiskImage * MountAndPowerOn (
         MachineHost  &  machine,
         const string  &  virtualPath,
         DiskFormat       fmt,
@@ -204,8 +203,7 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-        machine.GetCpu()->SetPC (kBootRomEntry);
+        GuestSession::StartFromPowerOn (machine);
 
         return external;
     }
@@ -258,7 +256,7 @@ public:
         Assert::AreEqual (size_t (3), consumed,
             L"`GR` + Return must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"GR must engage graphics mode (TEXT off)");
@@ -303,7 +301,7 @@ public:
         Assert::AreEqual (size_t (4), consumed,
             L"`HGR` + Return must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR must engage graphics mode (TEXT off)");
@@ -318,7 +316,7 @@ public:
         Assert::IsTrue (consumed >= 18,
             L"HPLOT line must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
             machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
@@ -347,7 +345,7 @@ public:
         Assert::AreEqual (size_t (5), consumed,
             L"`HGR2` + Return must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR2 must engage graphics mode (TEXT off)");
@@ -394,7 +392,7 @@ public:
         AssertSucceeded (hr, L"BuildApple2e must succeed");
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
 
         // Engage HIRES + MIXED + 80COL via the documented soft-switch
         // surface. Drives the same flag state Applesoft would set after
@@ -493,17 +491,17 @@ public:
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.dsk", DiskFormat::Dsk, raw);
 
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
             L"DOS 3.3 .dsk mount must produce a nibblized track 0");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021)");
         Assert::IsTrue (bitsAfter > 0,
             L"DOS 3.3 boot ROM must read at least one nibble from track 0");
@@ -545,17 +543,17 @@ public:
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.po", DiskFormat::Po, raw);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"ProDOS boot ROM must read at least one nibble from a .po image");
@@ -602,7 +600,7 @@ public:
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
         AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "sample.woz", DiskFormat::Woz, woz);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
@@ -610,13 +608,13 @@ public:
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"WOZ nibble engine must advance through the bit stream (FR-022)");
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must spin up the drive on a WOZ mount");
     }
 
@@ -642,15 +640,15 @@ public:
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
         AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "copyprotected.woz", DiskFormat::Woz, woz);
 
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
             L"CP-style WOZ must preserve the non-standard 50000-bit track length");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");

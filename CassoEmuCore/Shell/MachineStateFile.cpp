@@ -126,7 +126,7 @@ HRESULT MachineStateFile::Build (
     savedAt.LowPart  = now.dwLowDateTime;
     savedAt.HighPart = now.dwHighDateTime;
 
-    hr = machine.SaveState (state);
+    hr = machine.GetStateStream().SaveState (state);
     CHRF (hr, outError = MakeError ("state not saved", "The machine's state could not be read."));
 
     for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
@@ -347,8 +347,8 @@ HRESULT MachineStateFile::Apply (
     hr = store.FlushAll();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = machine.SaveState (before);
-    CHRF (hr, outError = MakeError ("state not loaded", "The machine's own state could not be read, so it was left as it was."));
+    hr = machine.GetStateStream().SaveState (before);
+    CHRF (hr, outError = MakeError ("state not loaded", "The machine's state in the file could not be read, so nothing was loaded."));
 
     store.SetMediaRetention (true);
     isStaged = true;
@@ -356,14 +356,14 @@ HRESULT MachineStateFile::Apply (
     hr = RestoreDisks (machine, contents);
     CHRF (hr, outError = MakeError ("disk not restored", "A disk in the state file could not be mounted."));
 
-    hr      = machine.LoadStateOverMountedMedia (reader);
+    hr      = machine.GetStateStream().LoadStateOverMountedMedia (reader);
     isNewer = hr == HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH);
     CBRFEx (!isNewer, hr, outError = MakeError ("newer state format", "A device in the file was saved by a newer version of Casso."));
     CHRF   (hr,       outError = MakeError ("state not loaded", "The machine's state could not be read from the file."));
 
     // The host connections open when the state was saved are gone, and the
     // ones open now are from the state just replaced, so each is closed.
-    machine.DropHostConnections();
+    machine.GetHostInput().DropConnections();
 
 Error:
     if (FAILED (hr) && isStaged)
@@ -858,7 +858,7 @@ HRESULT MachineStateFile::RollBack (
         }
     }
 
-    hr = machine.LoadState (reader);
+    hr = machine.GetStateStream().LoadState (reader);
     CHRA (hr);
 
     for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)

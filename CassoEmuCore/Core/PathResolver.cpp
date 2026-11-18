@@ -198,6 +198,14 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
 
 
 
+    envLen = GetEnvironmentVariableW (kpszProfileVariable, env, MAX_PATH);
+    if (envLen > 0 && envLen < MAX_PATH)
+    {
+        result = fs::path (env);
+        fs::create_directories (result, ec);
+        return result;
+    }
+
     hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &pszPath);
     if (SUCCEEDED (hr) && pszPath != nullptr)
     {
@@ -233,6 +241,21 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsProfileFolderSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PathResolver::IsProfileFolderSet()
+{
+    return GetEnvironmentVariableW (kpszProfileVariable, nullptr, 0) > 0;
 }
 
 
@@ -318,4 +341,40 @@ std::wstring PathResolver::ResolveExeRelativePath (const std::wstring & storedPa
     return isRelative
                ? (GetExecutableDirectory() / stored).lexically_normal().wstring()
                : storedPath;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsNetworkPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PathResolver::IsNetworkPath (const std::wstring & path)
+{
+    std::wstring  root;
+
+
+
+    if (path.starts_with (L"\\\\?\\UNC\\"))
+    {
+        return true;
+    }
+
+    if (path.starts_with (L"\\\\"))
+    {
+        return !path.starts_with (L"\\\\?\\") && !path.starts_with (L"\\\\.\\");
+    }
+
+    if (path.size() < 2 || path[1] != L':')
+    {
+        return false;
+    }
+
+    root = path.substr (0, 2) + L"\\";
+
+    return GetDriveTypeW (root.c_str()) == DRIVE_REMOTE;
 }

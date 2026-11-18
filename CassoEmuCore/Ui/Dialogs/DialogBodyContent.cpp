@@ -12,12 +12,13 @@ static constexpr int      s_kIconGapDip    = 12;
 static constexpr int      s_kGlyphGapDip   = 12;
 static constexpr size_t   s_kWrapColumns   = 52;
 static constexpr int      s_kShellExecOk   = 0;     // ignored ShellExecute result reset value
+static constexpr float    s_kProseFontDip  = 13.0f; // the size DxuiLabel and a link DxuiButton draw at
 static constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
 static constexpr int      s_kColGapDip     = 10;   // each side of the arrow column
 static constexpr int      s_kArrowColDip   = 16;   // the arrow glyph's own column
 static constexpr int      s_kStripGapDip   = 8;    // between the pieces of a strip run
 static constexpr int      s_kLeadGapDip    = 8;    // between a leading picture and its text
-static constexpr int      s_kPicturePadDip = 3;    // above and below a run that carries a picture
+static constexpr int      s_kPicturePadDip = 3;    // above and below a run with a picture
 
 
 
@@ -96,6 +97,10 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
         else if (!run.strip.empty())
         {
             BuildStripRow (run, item);
+        }
+        else if (BuildLinkRow (run, item))
+        {
+            //  Built: prose around one linked part.
         }
         else if (!BuildLeadingRow (run, item))
         {
@@ -333,6 +338,8 @@ bool DialogBodyContent::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxu
     int      gapPx    = m_scaler.ToPx (s_kItemGapDip);
     int      runsW    = widthPx;
     int      iconTop  = 0;
+    int      besides  = 0;
+    int      besideW  = 0;
     int      runs     = 0;
     float    measureW = 0.0f;
     float    measureH = 0.0f;
@@ -340,7 +347,14 @@ bool DialogBodyContent::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxu
 
 
 
-    if (!m_iconPixels.empty() && m_iconSizeDip > 0)
+    //  A trailing picture is beside the runs, as Layout places it: the rows
+    //  level with it are narrower, and it is the floor for the height.
+    if (!m_iconPixels.empty() && m_iconSizeDip > 0 && m_placement == ImagePlacement::TrailingBeside)
+    {
+        besides = m_scaler.ToPx (m_iconSizeDip);
+        besideW = besides + m_scaler.ToPx (s_kIconGapDip);
+    }
+    else if (!m_iconPixels.empty() && m_iconSizeDip > 0)
     {
         iconTop = m_scaler.ToPx (m_iconSizeDip) + m_scaler.ToPx (s_kIconGapDip);
     }
@@ -354,14 +368,15 @@ bool DialogBodyContent::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxu
 
     for (Item & item : m_items)
     {
-        item.heightPx = item.lines * linePx;
+        //  A row of pictures is as tall as Layout lays it out.
+        item.heightPx = item.pictures.empty() ? item.lines * linePx : m_scaler.ToPx (GetItemHeightDip (item));
 
-        if (item.label != nullptr && !item.label->GetText().empty())
+        if (item.pictures.empty() && item.label != nullptr && !item.label->GetText().empty())
         {
             fontDip = (item.label->GetFontSizeDip() > 0.0f) ? item.label->GetFontSizeDip() : theme.BodyFont().sizeDip;
 
             hr = text.MeasureStringWrapped (item.label->GetText().c_str(), m_scaler.ToPxf (fontDip),
-                                            DxuiTheme::kBodyFace, (float) runsW, measureW, measureH);
+                                            DxuiTheme::kBodyFace, (float) ((runs < besides) ? runsW - besideW : runsW), measureW, measureH);
             CHR (hr);
 
             item.heightPx = std::max (linePx, (int) std::ceil (measureH));
@@ -375,7 +390,7 @@ bool DialogBodyContent::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxu
         runs = std::max (runs, m_scaler.ToPx (m_glyphSizeDip));
     }
 
-    heightPx = iconTop + runs;
+    heightPx = iconTop + (std::max) (runs, besides);
 
 Error:
     return SUCCEEDED (hr);
@@ -457,6 +472,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
 
     SetBounds (boundsPx);
+    m_scaler.SetDpi (scaler.GetDpi());
 
     m_scaler      = scaler;
     m_iconRectPx  = {};
@@ -499,7 +515,9 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     for (Item & item : m_items)
     {
-        int   hPx     = (item.heightPx > 0) ? item.heightPx : item.pictures.empty() ? item.lines * linePx : scaler.ToPx (GetItemHeightDip (item));
+        int   hPx     = (item.heightPx > 0)     ? item.heightPx
+                      : item.pictures.empty()   ? item.lines * linePx
+                                                : scaler.ToPx (GetItemHeightDip (item));
         int   rightPx = boundsPx.right;
         RECT  b       = {};
 
@@ -533,6 +551,17 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         else if (!item.strip.empty())
         {
             LayoutStripRow (item, y, hPx, runsLeft, rightPx, scaler);
+        }
+        else if (item.link != nullptr)
+        {
+            //  The whole row for now; PlaceLinkRows divides it once the
+            //  pieces can be measured.
+            item.rowPx = b;
+
+            if (item.linkBefore != nullptr) { item.linkBefore->Layout (b, scaler); }
+            if (item.linkAfter  != nullptr) { item.linkAfter->Layout  (b, scaler); }
+
+            item.link->Layout (b, scaler);
         }
         else if (item.leadingDip > 0 && item.widget != nullptr)
         {
@@ -603,6 +632,8 @@ void DialogBodyContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    PlaceLinkRows (text);
+
     for (const Item & item : m_items)
     {
         for (const Picture & picture : item.pictures)
@@ -623,6 +654,136 @@ void DialogBodyContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     }
 
     DxuiPanel::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::BuildLinkRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogBodyContent::BuildLinkRow (const DialogTextRun & run, Item & item)
+{
+    size_t          at     = run.linkText.empty() ? std::wstring::npos : run.text.find (run.linkText);
+    std::wstring    url    = run.hyperlinkUrl;
+    DxuiButton    * link   = nullptr;
+    DxuiLabel     * before = nullptr;
+    DxuiLabel     * after  = nullptr;
+
+
+
+    if (at == std::wstring::npos)
+    {
+        return false;
+    }
+
+    if (at > 0)
+    {
+        before = &Add<DxuiLabel>();
+        before->SetText      (run.text.substr (0, at));
+        before->SetTextRole  (DxuiTextRole::Body);
+        before->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    }
+
+    link = &Add<DxuiButton>();
+    link->SetLabel   (run.linkText);
+    link->SetVariant (DxuiButton::Variant::Link);
+    link->SetOnClick ([url] ()
+                      {
+                          INT_PTR  rc = (INT_PTR) ShellExecuteW (nullptr, L"open", url.c_str(),
+                                                                 nullptr, nullptr, SW_SHOWNORMAL);
+
+                          IGNORE_RETURN_VALUE (rc, s_kShellExecOk);
+                      });
+
+    if (at + run.linkText.size() < run.text.size())
+    {
+        after = &Add<DxuiLabel>();
+        after->SetText      (run.text.substr (at + run.linkText.size()));
+        after->SetTextRole  (DxuiTextRole::Body);
+        after->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    }
+
+    item.widget     = link;
+    item.link       = link;
+    item.linkBefore = before;
+    item.linkAfter  = after;
+    item.beforeText = run.text.substr (0, at);
+    item.linkText   = run.linkText;
+    item.lines      = 1;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::PlaceLinkRows
+//
+//  A string's width is measured with a bar after it and the bar's own width
+//  taken off again, so a trailing space -- the one between the text before
+//  the link and the link -- counts, as it does on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogBodyContent::PlaceLinkRows (IDxuiTextRenderer & text)
+{
+    HRESULT  hr     = S_OK;
+    float    fontPx = m_scaler.ToPxf (s_kProseFontDip);
+    float    barW   = 0.0f;
+    float    w      = 0.0f;
+    float    h      = 0.0f;
+    int      x      = 0;
+
+
+
+    hr = text.MeasureString (L"|", fontPx, DxuiTheme::GetUiFace(), barW, h);
+
+    if (FAILED (hr))
+    {
+        return;
+    }
+
+    for (Item & item : m_items)
+    {
+        if (item.link == nullptr)
+        {
+            continue;
+        }
+
+        x = item.rowPx.left;
+
+        if (item.linkBefore != nullptr)
+        {
+            hr = text.MeasureString ((item.beforeText + L"|").c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
+
+            if (SUCCEEDED (hr))
+            {
+                item.linkBefore->Layout (RECT { x, item.rowPx.top, x + (int) std::ceil (w - barW), item.rowPx.bottom }, m_scaler);
+                x += (int) std::lround (w - barW);
+            }
+        }
+
+        hr = text.MeasureString (item.linkText.c_str(), fontPx, DxuiTheme::GetUiFace(), w, h);
+
+        if (SUCCEEDED (hr))
+        {
+            item.link->Layout (RECT { x, item.rowPx.top, x + (int) std::ceil (w) + 1, item.rowPx.bottom }, m_scaler);
+            x += (int) std::lround (w);
+        }
+
+        if (item.linkAfter != nullptr)
+        {
+            item.linkAfter->Layout (RECT { x, item.rowPx.top, item.rowPx.right, item.rowPx.bottom }, m_scaler);
+        }
+    }
 }
 
 

@@ -88,12 +88,12 @@ public:
 
     TEST_METHOD (TheStepSpreadsTheCellsAndHoldsThroughSmallSwings)
     {
-        Assert::AreEqual<uint64_t> (300, HistoryThumbnailGrid::ChooseStep (900, 4, 0),   L"three steps over 900");
-        Assert::AreEqual<uint64_t> (300, HistoryThumbnailGrid::ChooseStep (800, 4, 300), L"a span a little shorter keeps the step");
-        Assert::AreEqual<uint64_t> (300, HistoryThumbnailGrid::ChooseStep (1100, 4, 300), L"a little longer keeps it too");
-        Assert::AreEqual<uint64_t> (400, HistoryThumbnailGrid::ChooseStep (1200, 4, 300), L"a quarter longer chooses afresh");
-        Assert::AreEqual<uint64_t> (200, HistoryThumbnailGrid::ChooseStep (600, 4, 300),  L"a third shorter chooses afresh");
-        Assert::AreEqual<uint64_t> (1,   HistoryThumbnailGrid::ChooseStep (0, 4, 0),      L"never zero");
+        Assert::AreEqual<uint64_t> (300, HistoryCellGrid::ChooseStep (900, 4, 0),   L"three steps over 900");
+        Assert::AreEqual<uint64_t> (300, HistoryCellGrid::ChooseStep (800, 4, 300), L"a span a little shorter keeps the step");
+        Assert::AreEqual<uint64_t> (300, HistoryCellGrid::ChooseStep (1100, 4, 300), L"a little longer keeps it too");
+        Assert::AreEqual<uint64_t> (400, HistoryCellGrid::ChooseStep (1200, 4, 300), L"a quarter longer chooses afresh");
+        Assert::AreEqual<uint64_t> (200, HistoryCellGrid::ChooseStep (600, 4, 300),  L"a third shorter chooses afresh");
+        Assert::AreEqual<uint64_t> (1,   HistoryCellGrid::ChooseStep (0, 4, 0),      L"never zero");
     }
 
 
@@ -109,7 +109,7 @@ public:
 
         Fill (store, 10);
 
-        HistoryThumbnailGrid::PlanCells (store, kCount, step, cells);
+        HistoryCellGrid::PlanCells (store, kCount, step, cells);
 
         Assert::AreEqual<size_t>   (kCount, cells.size(), L"one point per cell");
         Assert::AreEqual<uint64_t> (300,    step,              L"three steps over 0 to 900");
@@ -121,7 +121,7 @@ public:
         Assert::IsTrue  (cells[3].isLive, L"the last stands for live");
 
         step = 0;
-        HistoryThumbnailGrid::PlanCells (store, 3, step, cells);
+        HistoryCellGrid::PlanCells (store, 3, step, cells);
 
         Assert::AreEqual<uint64_t> (400, cells[1].position, L"the grid point is 450, so the keyframe before it");
     }
@@ -139,10 +139,10 @@ public:
         Fill (before, 10);
         Fill (after,  11);
 
-        HistoryThumbnailGrid::PlanCells (before, 4, step, cells);
+        HistoryCellGrid::PlanCells (before, 4, step, cells);
         Assert::AreEqual<uint64_t> (600, cells[2].position, L"the last grid point before");
 
-        HistoryThumbnailGrid::PlanCells (after, 4, step, cells);
+        HistoryCellGrid::PlanCells (after, 4, step, cells);
 
         Assert::AreEqual<uint64_t> (300,  step,              L"the step holds");
         Assert::AreEqual<uint64_t> (0,    cells[0].position, L"the first cell stays on the oldest keyframe");
@@ -185,11 +185,11 @@ public:
                 continue;
             }
 
-            HistoryThumbnailGrid::PlanCells (store, kCount, step, cells);
+            HistoryCellGrid::PlanCells (store, kCount, step, cells);
 
             Assert::AreEqual<size_t>   (kCount, cells.size(), L"every cell has a point");
-            Assert::AreEqual<uint64_t> (store.GetInfo (0).position, cells.front().position, L"the first cell is the oldest keyframe");
-            Assert::AreEqual<uint64_t> (store.GetInfo (store.GetCount() - 1).position, cells.back().position, L"the last is the newest");
+            Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (0).position, cells.front().position, L"the first cell is the oldest keyframe");
+            Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (store.GetArena().GetCount() - 1).position, cells.back().position, L"the last is the newest");
             Assert::IsTrue (cells.back().isLive, L"and stands for live");
 
             grown += (cells[1].position > cells.front().position) ? 1 : 0;
@@ -222,7 +222,7 @@ public:
         store.SetWallClock ([] () -> uint64_t { return kWall; });
         Prepare (thumbnails, queue, store, now);
 
-        thumbnails.SetLabeler ([&] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails.GetPlayhead().SetLabeler ([&] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
         {
             cycle     = c;
             wall      = w;
@@ -269,8 +269,8 @@ public:
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service lays out 0, 4000 and 8000 cycles");
 
-        thumbnails.SetPlayhead     (3 * s_kThumbStride, true);
-        thumbnails.SetPlayheadTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().SetPosition (3 * s_kThumbStride, true);
+        thumbnails.GetPlayhead().SetTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
 
         thumbnails.OnStripClicked (0, 0.0f);
         thumbnails.OnStripClicked (0, 0.25f);
@@ -319,8 +319,8 @@ public:
 
         Prepare (thumbnails, queue, store, now);
 
-        thumbnails.SetOnScrub ([&scrubs] (uint64_t cycle, bool isFinal) { (void) isFinal; scrubs.push_back (cycle); });
-        thumbnails.SetLabeler ([&labeled] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails.GetPlayhead().SetOnScrub ([&scrubs] (uint64_t cycle, bool isFinal) { (void) isFinal; scrubs.push_back (cycle); });
+        thumbnails.GetPlayhead().SetLabeler ([&labeled] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
         {
             (void) w;
             labeled   = c;
@@ -331,14 +331,14 @@ public:
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service lays out 0, 4000 and 8000 cycles");
 
-        thumbnails.SetPlayhead     (3 * s_kThumbStride, true);
-        thumbnails.SetPlayheadTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().SetPosition (3 * s_kThumbStride, true);
+        thumbnails.GetPlayhead().SetTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
 
         //  An earlier drop at the same point, landed, and the machine ran on.
         thumbnails.OnPlayheadDragged (kDropped, true);
-        thumbnails.SetPlayheadTime   (kLanded, 0, 9 * s_kThumbInterval);
-        thumbnails.NoteSeekLanded    (kDropCycle);
-        thumbnails.SetPlayheadTime   (kRanOn, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().SetTime (kLanded, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().NoteSeekLanded (kDropCycle);
+        thumbnails.GetPlayhead().SetTime (kRanOn, 0, 9 * s_kThumbInterval);
 
         isOn = thumbnails.TryGetPlayhead (offset, top, bottom);
         Assert::IsTrue (isOn, L"the line shows replaying");
@@ -354,27 +354,27 @@ public:
         Assert::AreEqual<uint64_t> (kDropCycle, labeled, L"labeled for the point it was dropped at");
 
         //  The seek made while the line moved lands late.
-        thumbnails.SetPlayheadTime (2 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
-        thumbnails.NoteSeekLanded  (2 * s_kThumbInterval);
+        thumbnails.GetPlayhead().SetTime (2 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().NoteSeekLanded (2 * s_kThumbInterval);
 
         thumbnails.TryGetPlayhead (offset, top, bottom);
         Assert::AreEqual (kDropped, offset, kTolerance, L"a seek elsewhere landing late does not move the line");
         Assert::AreEqual<uint64_t> (kDropCycle, labeled, L"nor its labels");
 
         //  The drop's own seek lands.
-        thumbnails.SetPlayheadTime (kLanded, 0, 9 * s_kThumbInterval);
-        thumbnails.NoteSeekLanded  (kDropCycle);
+        thumbnails.GetPlayhead().SetTime (kLanded, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().NoteSeekLanded (kDropCycle);
 
         thumbnails.TryGetPlayhead (offset, top, bottom);
         Assert::AreEqual<uint64_t> (kLanded, labeled, L"once landed, the labels are where the machine stands");
 
-        thumbnails.SetPlayheadTime (kRanOn, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().SetTime (kRanOn, 0, 9 * s_kThumbInterval);
         thumbnails.TryGetPlayhead  (offset, top, bottom);
         Assert::AreEqual (1.75f, offset, kTolerance, L"and the line follows the machine as it runs on");
 
         //  A seek that never lands lets the line go after a while.
         thumbnails.OnPlayheadDragged (kDropped, true);
-        now += (uint64_t) HistoryThumbnails::kSeekPatienceMs;
+        now += (uint64_t) HistoryPlayhead::kSeekPatienceMs;
 
         thumbnails.TryGetPlayhead (offset, top, bottom);
         Assert::AreEqual (1.75f, offset, kTolerance, L"a seek that never lands stops holding the line");
@@ -425,7 +425,7 @@ public:
         thumbnails.SetClock      ([&now] { return (double) now; });
         thumbnails.SetCellLayout (3, s_kThumbCell);
 
-        thumbnails.SetLabeler ([&] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails.GetPlayhead().SetLabeler ([&] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
         {
             cycle     = c;
             wall      = w;
@@ -436,24 +436,24 @@ public:
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service lays out 0, 4000 and 8000 cycles");
 
-        thumbnails.SetPlayhead     (3 * s_kThumbStride, true);
-        thumbnails.SetPlayheadTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
+        thumbnails.GetPlayhead().SetPosition (3 * s_kThumbStride, true);
+        thumbnails.GetPlayhead().SetTime (3 * s_kThumbInterval, 0, 9 * s_kThumbInterval);
 
         isShown = thumbnails.TryGetLabelsAt (1, 1.25f, top, bottom);
 
         Assert::IsTrue (isShown, L"a point has labels");
         Assert::AreEqual<uint64_t> (5000, cycle, L"its own cycle, a quarter of the way past the second cell");
-        Assert::AreEqual<uint64_t> (store.GetInfo (kAfterStop).wallTime, wall, L"the clock at the keyframe there, after the hour stopped");
+        Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (kAfterStop).wallTime, wall, L"the clock at the keyframe there, after the hour stopped");
 
         thumbnails.TryGetLabelsAt (1, 1.3f, top, bottom);
 
         Assert::AreEqual<uint64_t> (5200, cycle, L"a pixel on is a cycle of its own");
-        Assert::AreEqual<uint64_t> (HistoryStatus::GetWallTimeAt (store.GetInfo (kAfterStop).wallTime, 5000, 5200), wall, L"counted on from that keyframe");
+        Assert::AreEqual<uint64_t> (HistoryStatus::GetWallTimeAt (store.GetArena().GetInfo (kAfterStop).wallTime, 5000, 5200), wall, L"counted on from that keyframe");
 
         thumbnails.TryGetLabelsAt (0, 0.5f, top, bottom);
 
         Assert::AreEqual<uint64_t> (2000, cycle, L"halfway along the first cell");
-        Assert::AreEqual<uint64_t> (store.GetInfo (2).wallTime, wall, L"the clock at the keyframe there");
+        Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (2).wallTime, wall, L"the clock at the keyframe there");
     }
 
 
@@ -496,7 +496,7 @@ public:
         thumbnails.SetVisible     (true);
         thumbnails.SetHoveredCell (kHovered);
 
-        thumbnails.SetLabeler ([&cycle] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails.GetPlayhead().SetLabeler ([&cycle] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
         {
             (void) w;
             cycle     = c;
@@ -567,7 +567,7 @@ public:
         Assert::AreEqual (std::wstring (L"Running live"), thumbnails.GetTrailingTip(), L"Live's tip while live");
         Assert::IsFalse  (thumbnails.IsTrailingLabelClickable(), L"Live is no button while live");
 
-        thumbnails.SetPlayhead (400, true);
+        thumbnails.GetPlayhead().SetPosition (400, true);
         Assert::AreEqual (std::wstring (L"Return to live"), thumbnails.GetTrailingTip(), L"Live's tip while replaying");
         Assert::IsTrue   (thumbnails.IsTrailingLabelClickable(), L"Live is a button while replaying");
     }
@@ -654,12 +654,12 @@ public:
 
 
 
-        HistoryThumbnailGrid::PlanCells (store, 4, step, cells);
+        HistoryCellGrid::PlanCells (store, 4, step, cells);
         Assert::IsTrue (cells.empty(), L"no keyframes, no cells");
 
         Fill (store, 3);
 
-        HistoryThumbnailGrid::PlanCells (store, 0, step, cells);
+        HistoryCellGrid::PlanCells (store, 0, step, cells);
         Assert::IsTrue (cells.empty(), L"no room, no cells");
     }
 
@@ -1000,7 +1000,7 @@ public:
             now += s_kThumbTurnMs;
         }
 
-        Assert::IsTrue (store.GetInfo (0).position > 0, L"and the oldest keyframes were dropped along the way");
+        Assert::IsTrue (store.GetArena().GetInfo (0).position > 0, L"and the oldest keyframes were dropped along the way");
     }
 
 
@@ -1029,7 +1029,7 @@ public:
 
         Assert::IsNull (thumbnails.GetPreviewImage (kOldestCell).get(), L"the oldest point is asked for");
 
-        while (store.GetInfo (0).position == 0)
+        while (store.GetArena().GetInfo (0).position == 0)
         {
             AddInFlight (store, position, seed);
         }
@@ -1122,7 +1122,7 @@ public:
 
             if (round < kWarmUpRounds)
             {
-                dropped = store.GetInfo (0).position;
+                dropped = store.GetArena().GetInfo (0).position;
                 continue;
             }
 
@@ -1151,7 +1151,7 @@ public:
             Assert::IsNotNull (thumbnails.GetCellImage (kLiveCell).get(), L"the live end is drawn");
         }
 
-        Assert::IsTrue (store.GetInfo (0).position > dropped, L"the oldest kept being dropped");
+        Assert::IsTrue (store.GetArena().GetInfo (0).position > dropped, L"the oldest kept being dropped");
         Assert::IsTrue (ownGrid * kMostNumerator > checked * kMostDenominator, L"the grid points nearly always show their own pictures");
     }
 
@@ -1309,7 +1309,7 @@ public:
         thumbnails.SetClock     ([&now] { return (double) now; });
         thumbnails.SetVisible   (true);
 
-        thumbnails.SetLabeler ([&labeled] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails.GetPlayhead().SetLabeler ([&labeled] (uint64_t c, uint64_t w, std::wstring & outTop, std::wstring & outBottom)
         {
             (void) w;
             labeled   = c;
@@ -1399,12 +1399,12 @@ public:
         hr = thumbnails.Service (store);
         AssertSucceeded (hr, L"Service lays out 0, 400 and 800");
 
-        thumbnails.SetPlayhead (800, false);
-        Assert::IsFalse (thumbnails.IsBehindLive(), L"live");
+        thumbnails.GetPlayhead().SetPosition (800, false);
+        Assert::IsFalse (thumbnails.GetPlayhead().IsBehindLive(), L"live");
         Assert::AreEqual (2, thumbnails.GetMarkedCell(), L"live: the live end");
 
-        thumbnails.SetPlayhead (450, true);
-        Assert::IsTrue (thumbnails.IsBehindLive(), L"replaying");
+        thumbnails.GetPlayhead().SetPosition (450, true);
+        Assert::IsTrue (thumbnails.GetPlayhead().IsBehindLive(), L"replaying");
         Assert::AreEqual (1, thumbnails.GetMarkedCell(), L"behind live: the point at or before");
     }
 
@@ -1422,14 +1422,14 @@ public:
 
         thumbnails.SetOnSeek ([&] (const HistoryThumbnailCell & cell) { asked = cell; seeks++; });
 
-        thumbnails.SetPlayhead (800, false);
+        thumbnails.GetPlayhead().SetPosition (800, false);
         Assert::AreEqual (std::wstring (L"Live"), thumbnails.GetTrailingLabel(), L"the label");
         Assert::IsTrue   (thumbnails.IsTrailingLabelAccented(),                  L"accented while live");
 
         thumbnails.OnTrailingLabelClicked();
         Assert::AreEqual (0, seeks, L"live has nowhere to go");
 
-        thumbnails.SetPlayhead (450, true);
+        thumbnails.GetPlayhead().SetPosition (450, true);
         Assert::AreEqual (std::wstring (L"Live"), thumbnails.GetTrailingLabel(), L"the same label replaying");
         Assert::IsFalse  (thumbnails.IsTrailingLabelAccented(),                  L"plain while replaying");
 
@@ -1543,14 +1543,14 @@ private:
         thumbnails.SetVisible (true);
         DrawAll (thumbnails, queue, store, now);
 
-        newest = store.GetInfo (store.GetCount() - 1).position;
+        newest = store.GetArena().GetInfo (store.GetArena().GetCount() - 1).position;
 
         hr = store.DropAfterPosition (newest - 1);
         AssertSucceeded (hr, L"DropAfterPosition");
 
         state[0] = kNewTag;
 
-        hr = store.Add (newest, store.GetInfo (store.GetCount() - 1).cycle + s_kThumbInterval, state);
+        hr = store.Add (newest, store.GetArena().GetInfo (store.GetArena().GetCount() - 1).cycle + s_kThumbInterval, state);
         AssertSucceeded (hr, L"Add");
 
         DrawAll (thumbnails, queue, store, now);
@@ -1661,7 +1661,7 @@ private:
 
 
 
-        for (j = 0; j < KeyframeStore::kBufferCount; j++)
+        for (j = 0; j < KeyframeLayout::kJobCount; j++)
         {
             for (i = 0; i < state.size(); i++)
             {

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Ui/Debugger/ColorLegend.h"
 
 #include "Debugger/CallStack.h"
@@ -65,7 +66,7 @@ void CallStackPane::Configure()
     {
         std::string  mechanism = GetNextMechanism (m_mechanism);
 
-        m_run ([mechanism] (CommandMode mode) { return DebuggerActions::GetCallStackMode (mechanism, mode); });
+        m_run ([mechanism] (CommandMode mode) { return SessionActions::GetCallStackMode (mechanism, mode); });
     });
 }
 
@@ -106,9 +107,15 @@ void CallStackPane::Apply (const CallStackData & data, const std::vector<BasicFr
     m_list->SetRows (std::move (cells));
 
     //  New frames size the columns to themselves again, narrower as well as
-    //  wider, rather than keeping the widest text the pane has ever shown.
+    //  wider, rather than staying at the widest text the pane has ever had or
+    //  a width the user dragged.
     if (changed)
     {
+        for (size_t column = 0; column < m_list->GetColumnCount(); column++)
+        {
+            m_list->SetColumnOverrideWidthPx (column, -1);
+        }
+
         m_list->ResetAutoFit();
     }
 
@@ -208,7 +215,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetBasicRows (const std::vector<B
         row.routine   = (frame.kind == BasicFrameKind::Gosub)
                       ? std::wstring (L"GOSUB")
                       : TextEncoding::NarrowToWide (std::format ("FOR {} TO {} STEP {}", frame.variable, frame.limit, frame.step));
-        row.foundBy   = L"Applesoft's stack";
+        row.foundBy   = L"BASIC stack";
         row.basicLine = frame.line;
         rows.push_back (row);
     }

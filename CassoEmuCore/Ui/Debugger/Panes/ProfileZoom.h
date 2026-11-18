@@ -68,10 +68,10 @@ public:
     //  A new state after the current one, dropping any the current one was
     //  gone back from; Replace changes the current one in place, as each
     //  notch of one turn of the wheel does.
-    void  Push    (const State & state);
-    void  Replace (const State & state);
-    bool  Back    ();
-    bool  Forward ();
+    void  Push         (const State & state);
+    void  Replace      (const State & state);
+    bool  Back         ();
+    bool  Forward      ();
     bool  CanGoBack    () const { return m_at > 0; }
     bool  CanGoForward () const { return m_at + 1 < m_states.size(); }
 

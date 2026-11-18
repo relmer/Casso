@@ -46,9 +46,9 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue   (rig.controller.GetSession().GetCurrentDirectory().empty());
-            Assert::AreEqual (Expected (L"out.bin"), rig.controller.GetSession().ResolvePath ("out.bin"));
-            Assert::AreEqual (Expected (L"out.bin"), rig.controller.GetSession().ResolvePath ("\"out.bin\""));
+            Assert::IsTrue   (rig.controller.GetSession().GetHostFiles().GetCurrentDirectory().empty());
+            Assert::AreEqual (Expected (L"out.bin"), rig.controller.GetSession().GetHostFiles().ResolvePath ("out.bin"));
+            Assert::AreEqual (Expected (L"out.bin"), rig.controller.GetSession().GetHostFiles().ResolvePath ("\"out.bin\""));
         }
 
         TEST_METHOD (NoDirectory_ReplyGivesTheResolvedPath)

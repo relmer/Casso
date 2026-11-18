@@ -66,8 +66,8 @@ namespace ReverseForkTests
             for (uint64_t slice = 0; slice < cycles / kSlice; slice++)
             {
                 ReverseSessionRig::Feed (machine, static_cast<size_t> (slice));
-                machine.SampleHostInputs();
-                machine.RunCycles (kSlice);
+                machine.GetHostInput().Sample();
+                machine.GetRunner().RunCycles (kSlice);
             }
         }
 
@@ -112,7 +112,7 @@ namespace ReverseForkTests
 
             Record (machine, host);
 
-            liveEnd  = machine.GetPosition();
+            liveEnd  = machine.GetRunner().GetPosition();
             checksum = ReverseSessionRig::Checksum (machine);
             forkAt   = liveEnd - kBack;
 
@@ -123,7 +123,7 @@ namespace ReverseForkTests
 
             Run (machine, kBranchCycles);
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
 
             Assert::AreEqual<size_t>   (1, branches.size(), L"the future left behind is a branch");
             Assert::AreEqual<uint64_t> (forkAt, branches[0].forkPosition, L"forked where the change was made");
@@ -132,10 +132,10 @@ namespace ReverseForkTests
             Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
 
             Assert::IsFalse            (host.IsBehindLive(), L"live at the branch's end");
-            Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"at the old live end");
+            Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"at the old live end");
             Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
 
             Assert::AreEqual<size_t>   (1, branches.size(), L"the path left is now the branch");
             Assert::AreEqual<uint64_t> (forkAt, branches[0].forkPosition, L"forked at the same position");
@@ -156,7 +156,7 @@ namespace ReverseForkTests
 
             Record (machine, host);
 
-            liveEnd = machine.GetPosition();
+            liveEnd = machine.GetRunner().GetPosition();
             target  = liveEnd - kBack / 2;
 
             Execute (host, ReverseCommand::Seek, target);
@@ -169,17 +169,17 @@ namespace ReverseForkTests
 
             Run (machine, kBranchCycles);
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
             Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
 
             Execute (host, ReverseCommand::Seek, target);
 
-            Assert::AreEqual<uint64_t> (target, machine.GetPosition(), L"a seek into the branch lands");
+            Assert::AreEqual<uint64_t> (target, machine.GetRunner().GetPosition(), L"a seek into the branch lands");
             Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"on the machine as it was there, replayed from before the fork");
 
             Execute (host, ReverseCommand::GoLive);
 
-            Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"and going live returns to the branch's live end");
+            Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"and going live returns to the branch's live end");
         }
 
 
@@ -200,27 +200,27 @@ namespace ReverseForkTests
 
             Record (machine, host);
 
-            liveEnd  = machine.GetPosition();
+            liveEnd  = machine.GetRunner().GetPosition();
             checksum = ReverseSessionRig::Checksum (machine);
 
-            Execute (host, ReverseCommand::Seek, host.GetController().GetOldestPosition());
+            Execute (host, ReverseCommand::Seek, host.GetController().GetSeeker().GetOldestPosition());
 
             hr = host.Fork();
             AssertSucceeded (hr, L"Fork");
 
             Run (machine, kBranchCycles);
-            newEnd = machine.GetPosition();
+            newEnd = machine.GetRunner().GetPosition();
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
             Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
 
-            Assert::AreEqual<uint64_t> (liveEnd,  machine.GetPosition(),                L"at the old live end");
+            Assert::AreEqual<uint64_t> (liveEnd,  machine.GetRunner().GetPosition(),                L"at the old live end");
             Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
             Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
 
-            Assert::AreEqual<uint64_t> (newEnd, machine.GetPosition(), L"back at the end of the path left");
+            Assert::AreEqual<uint64_t> (newEnd, machine.GetRunner().GetPosition(), L"back at the end of the path left");
         }
 
 
@@ -240,18 +240,18 @@ namespace ReverseForkTests
 
             Record (machine, host);
 
-            liveEnd  = machine.GetPosition();
+            liveEnd  = machine.GetRunner().GetPosition();
             checksum = ReverseSessionRig::Checksum (machine);
 
-            Execute (host, ReverseCommand::Seek, host.GetController().GetOldestPosition());
+            Execute (host, ReverseCommand::Seek, host.GetController().GetSeeker().GetOldestPosition());
 
             hr = host.Fork();
             AssertSucceeded (hr, L"Fork");
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
             Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
 
-            Assert::AreEqual<uint64_t> (liveEnd,  machine.GetPosition(),                L"at the old live end");
+            Assert::AreEqual<uint64_t> (liveEnd,  machine.GetRunner().GetPosition(),                L"at the old live end");
             Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
         }
 
@@ -269,21 +269,21 @@ namespace ReverseForkTests
 
             Record (machine, host);
 
-            Execute (host, ReverseCommand::Seek, machine.GetPosition() - kBack);
+            Execute (host, ReverseCommand::Seek, machine.GetRunner().GetPosition() - kBack);
 
             hr = host.Fork();
             AssertSucceeded (hr, L"Fork");
 
             Run (machine, kBranchCycles);
 
-            host.GetController().GetKeyframes().GetBranches (branches);
+            host.GetController().GetKeyframes().GetArena().GetBranches (branches);
             Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
 
             hr = host.Execute (ReverseCommand::ReverseContinue, 0, &neverStops, result);
             AssertSucceeded (hr, L"ReverseContinue over the whole active path");
 
             Assert::IsTrue             (result.outcome == ReverseOutcome::AtHistoryStart, L"it reached the start, every keyframe matched");
-            Assert::AreEqual<uint64_t> (host.GetController().GetOldestPosition(), machine.GetPosition(), L"at the oldest position");
+            Assert::AreEqual<uint64_t> (host.GetController().GetSeeker().GetOldestPosition(), machine.GetRunner().GetPosition(), L"at the oldest position");
         }
 
         TEST_METHOD (MovesStayOnTheActivePath)
@@ -298,7 +298,7 @@ namespace ReverseForkTests
 
             Record (machine, host);
 
-            forkAt = machine.GetPosition() - kBack;
+            forkAt = machine.GetRunner().GetPosition() - kBack;
 
             Execute (host, ReverseCommand::Seek, forkAt);
 
@@ -306,12 +306,12 @@ namespace ReverseForkTests
             AssertSucceeded (hr, L"Fork");
 
             Run (machine, kBranchCycles / 4);
-            newEnd = machine.GetPosition();
+            newEnd = machine.GetRunner().GetPosition();
 
             Execute (host, ReverseCommand::Seek, forkAt + 10);
             Execute (host, ReverseCommand::GoLive);
 
-            Assert::AreEqual<uint64_t> (newEnd, machine.GetPosition(), L"going live lands at the active path's end, not the branch's");
+            Assert::AreEqual<uint64_t> (newEnd, machine.GetRunner().GetPosition(), L"going live lands at the active path's end, not the branch's");
         }
     };
 }

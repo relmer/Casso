@@ -198,11 +198,11 @@ namespace Disk2State
     //
     //  StateProbeController
     //
-    //  The controller with its state opened up. Its engines are filled by
-    //  loading a blob saved from a filled StateProbeEngine, and compared by
-    //  their saved blobs, which match exactly when every engine field does.
-    //  The address-mark watcher is filled by feeding it nibbles and compared
-    //  the same way.
+    //  The controller with each part filled from a seed through the part's
+    //  restore methods. Its engines are filled by loading a blob saved from a
+    //  filled StateProbeEngine, and compared by their saved blobs, which match
+    //  exactly when every engine field does. The address-mark watcher is
+    //  filled by feeding it nibbles and compared the same way.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -226,26 +226,24 @@ namespace Disk2State
 
 
 
-            m_phases                  = static_cast<uint8_t> (seed & kPhaseMask);
-            m_phase                   = seed & kPhaseIndex;
-            m_quarterTrack[0]         = kTrackBase + seed % kTrackBase;
-            m_quarterTrack[1]         = kTrackBase + (seed + 7) % kTrackBase;
-            m_motorOn                 = (seed & 0x01) != 0;
-            m_activeDrive             = (seed & 0x02) != 0 ? 1 : 0;
-            m_q6                      = (seed & 0x04) != 0;
-            m_q7                      = (seed & 0x08) != 0;
-            m_busySinceIdleCallback   = (seed & 0x01) == 0;
-            m_motorSpindownCycles     = kSpindownBase + seed;
-            m_motorSpinupRemaining    = kSpinupBase + seed;
-            m_iwmModeReg              = static_cast<Byte> (seed + 5);
-            m_cyclesSinceIdleCallback = kIdleBase + seed;
-            m_lastCpuSync             = kSyncBase + seed;
+            GetLines().Restore (static_cast<uint8_t> (seed & kPhaseMask),
+                                seed & kPhaseIndex,
+                                (seed & 0x01) != 0,
+                                (seed & 0x02) != 0 ? 1 : 0,
+                                (seed & 0x04) != 0,
+                                (seed & 0x08) != 0);
+
+            GetDrive (0).SetQuarterTrack (kTrackBase + seed % kTrackBase);
+            GetDrive (1).SetQuarterTrack (kTrackBase + (seed + 7) % kTrackBase);
+            GetCard().Restore (kSpindownBase + seed, kSpinupBase + seed);
+            GetSignals().SetIdleWindow (kIdleBase + seed, (seed & 0x01) == 0);
+            GetClock().SetLastSync (kSyncBase + seed);
 
             for (drive = 0; drive < kDriveCount; drive++)
             {
                 engine.Fill (static_cast<Byte> (seed + drive * 0x10));
 
-                hr = LoadFrom (m_engine[drive], SavePart (engine));
+                hr = LoadFrom (GetDrive (drive).GetEngine(), SavePart (engine));
                 Assert::AreEqual (S_OK, hr);
             }
 
@@ -257,75 +255,81 @@ namespace Disk2State
         // marks a disk change on one drive.
         void FillRecord (Byte seed)
         {
-            int  i = 0;
+            Disk2NibbleRecord  & record = GetRecorder().GetNibbleRecord();
+            int                  i      = 0;
 
 
 
             for (i = 0; i < seed + 3; i++)
             {
-                m_nibbleRecord.Add (i & 1, static_cast<Byte> (seed + i), static_cast<Byte> (i & 0x0E), static_cast<Word> (seed * 0x100 + i));
+                record.Add (i & 1, static_cast<Byte> (seed + i), static_cast<Byte> (i & 0x0E), static_cast<Word> (seed * 0x100 + i));
             }
 
-            m_nibbleRecord.NoteDiskChange (seed & 1);
+            record.NoteDiskChange (seed & 1);
         }
 
         // Steps the watcher to the seed's quarter track, counts the seed's
         // nibbles toward a stall, and opens a written data field.
         void FillWatcher (Byte seed)
         {
-            Byte  i = 0;
+            Disk2AddressMarkWatcher  & watcher = GetRecorder().GetWatcher();
+            Byte                       i       = 0;
 
 
 
-            m_addrMarkWatcher.NoteHeadMoved (seed);
+            watcher.NoteHeadMoved (seed);
 
             for (i = 0; i < seed; i++)
             {
-                m_addrMarkWatcher.ObserveNibble (0xFF);
+                watcher.ObserveNibble (0xFF);
             }
 
-            m_addrMarkWatcher.ObserveWrittenNibble (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
-            m_addrMarkWatcher.ObserveWrittenNibble (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
+            watcher.ObserveWrittenNibble (Disk2AddressMarkWatcher::kAddrMarkPrologue0);
+            watcher.ObserveWrittenNibble (Disk2AddressMarkWatcher::kAddrMarkPrologue1);
         }
 
         const Disk2AddressMarkWatcher & GetWatcher() const
         {
-            return m_addrMarkWatcher;
+            return GetRecorder().GetWatcher();
         }
 
         std::vector<Byte> SaveEngine (int drive) const
         {
-            return SavePart (m_engine[drive]);
+            return SavePart (GetDrive (drive).GetEngine());
         }
 
         void AssertSameState (const StateProbeController & other) const
         {
-            int  drive = 0;
+            const Disk2Lines          & lines      = GetLines();
+            const Disk2Lines          & otherLines = other.GetLines();
+            int                         drive      = 0;
 
 
 
-            Assert::AreEqual (m_phases,                  other.m_phases,                  L"phases");
-            Assert::AreEqual (m_phase,                   other.m_phase,                   L"phase");
-            Assert::AreEqual (m_quarterTrack[0],         other.m_quarterTrack[0],         L"drive 1's quarter track");
-            Assert::AreEqual (m_quarterTrack[1],         other.m_quarterTrack[1],         L"drive 2's quarter track");
-            Assert::AreEqual (m_motorOn,                 other.m_motorOn,                 L"motor on");
-            Assert::AreEqual (m_activeDrive,             other.m_activeDrive,             L"active drive");
-            Assert::AreEqual (m_q6,                      other.m_q6,                      L"Q6");
-            Assert::AreEqual (m_q7,                      other.m_q7,                      L"Q7");
-            Assert::AreEqual (m_busySinceIdleCallback,   other.m_busySinceIdleCallback,   L"busy since idle callback");
-            Assert::AreEqual (m_motorSpindownCycles,     other.m_motorSpindownCycles,     L"spindown cycles");
-            Assert::AreEqual (m_motorSpinupRemaining,    other.m_motorSpinupRemaining,    L"spin-up remaining");
-            Assert::AreEqual (m_iwmModeReg,              other.m_iwmModeReg,              L"IWM mode register");
-            Assert::AreEqual (m_cyclesSinceIdleCallback, other.m_cyclesSinceIdleCallback, L"cycles since idle callback");
-            Assert::AreEqual (m_lastCpuSync,             other.m_lastCpuSync,             L"last CPU sync");
+            Assert::AreEqual (lines.GetPhases(),      otherLines.GetPhases(),      L"phases");
+            Assert::AreEqual (lines.GetPhase(),       otherLines.GetPhase(),       L"phase");
+            Assert::AreEqual (lines.IsMotorOn(),      otherLines.IsMotorOn(),      L"motor on");
+            Assert::AreEqual (lines.GetActiveDrive(), otherLines.GetActiveDrive(), L"active drive");
+            Assert::AreEqual (lines.IsQ6(),           otherLines.IsQ6(),           L"Q6");
+            Assert::AreEqual (lines.IsQ7(),           otherLines.IsQ7(),           L"Q7");
+
+            Assert::AreEqual (GetDrive (0).GetQuarterTrack(), other.GetDrive (0).GetQuarterTrack(), L"drive 1's quarter track");
+            Assert::AreEqual (GetDrive (1).GetQuarterTrack(), other.GetDrive (1).GetQuarterTrack(), L"drive 2's quarter track");
+
+            Assert::AreEqual (GetCard().GetMotorSpindownCycles(),  other.GetCard().GetMotorSpindownCycles(),  L"spindown cycles");
+            Assert::AreEqual (GetCard().GetMotorSpinupRemaining(), other.GetCard().GetMotorSpinupRemaining(), L"spin-up remaining");
+
+            Assert::AreEqual (GetSignals().IsBusySinceIdle(),    other.GetSignals().IsBusySinceIdle(),    L"busy since idle callback");
+            Assert::AreEqual (GetSignals().GetCyclesSinceIdle(), other.GetSignals().GetCyclesSinceIdle(), L"cycles since idle callback");
+            Assert::AreEqual (GetClock().GetLastSync(),          other.GetClock().GetLastSync(),          L"last CPU sync");
 
             for (drive = 0; drive < kDriveCount; drive++)
             {
                 Assert::IsTrue (SaveEngine (drive) == other.SaveEngine (drive), L"engine state");
             }
 
-            Assert::IsTrue (SaveWatcher (m_addrMarkWatcher) == SaveWatcher (other.m_addrMarkWatcher), L"watcher state");
-            Assert::IsTrue (SaveRecord  (m_nibbleRecord)    == SaveRecord  (other.m_nibbleRecord),    L"the recent nibbles");
+            Assert::IsTrue (SaveWatcher (GetWatcher())                   == SaveWatcher (other.GetWatcher()),                   L"watcher state");
+            Assert::IsTrue (SaveRecord  (GetRecorder().GetNibbleRecord()) == SaveRecord  (other.GetRecorder().GetNibbleRecord()), L"the recent nibbles");
         }
     };
 
@@ -609,10 +613,10 @@ namespace Disk2State
                     hr = LoadFrom (*target, MakeOldState (version, kQuarterTrack, activeDrive));
                     Assert::AreEqual (S_OK, hr);
 
-                    Assert::AreEqual ((int) kQuarterTrack, target->GetQuarterTrack (0), L"drive 1's head");
-                    Assert::AreEqual ((int) kQuarterTrack, target->GetQuarterTrack (1), L"drive 2's head");
-                    Assert::AreEqual ((int) kQuarterTrack, target->GetEngine (activeDrive ^ 1).GetCurrentTrack(), L"the other drive's engine");
-                    Assert::AreEqual ((uint64_t) 0,        target->GetNibbleRecord().GetCount(), L"no recent nibbles");
+                    Assert::AreEqual ((int) kQuarterTrack, target->GetDrive (0).GetQuarterTrack(), L"drive 1's head");
+                    Assert::AreEqual ((int) kQuarterTrack, target->GetDrive (1).GetQuarterTrack(), L"drive 2's head");
+                    Assert::AreEqual ((int) kQuarterTrack, target->GetDrive (activeDrive ^ 1).GetEngine().GetCurrentTrack(), L"the other drive's engine");
+                    Assert::AreEqual ((uint64_t) 0,        target->GetRecorder().GetNibbleRecord().GetCount(), L"no recent nibbles");
                 }
             }
         }
@@ -780,7 +784,7 @@ namespace Disk2State
         {
             constexpr int       kWritesBeforeSave = 100;
             auto                controller        = std::make_unique<Disk2Controller> (kSlot);
-            DiskImage         * disk              = controller->GetDisk (0);
+            DiskImage         * disk              = controller->GetDrive (0).GetDisk();
             std::vector<Byte>   savedDisk;
             std::vector<Byte>   savedController;
             std::vector<Byte>   firstRun;
@@ -801,7 +805,7 @@ namespace Disk2State
             controller->Read (kQ7Low);
             WriteBytes (*controller, kWritesBeforeSave);
 
-            Assert::IsTrue (controller->GetEngine (0).IsOnFluxTrack(), L"the head is over the flux track");
+            Assert::IsTrue (controller->GetDrive (0).GetEngine().IsOnFluxTrack(), L"the head is over the flux track");
 
             savedDisk       = SavePart (*disk);
             savedController = SavePart (*controller);
@@ -959,7 +963,7 @@ namespace Disk2State
         TEST_METHOD (ControllerAndDiskRunTheSameAfterLoad)
         {
             auto                controller = std::make_unique<Disk2Controller> (kSlot);
-            DiskImage         * disk       = controller->GetDisk (0);
+            DiskImage         * disk       = controller->GetDrive (0).GetDisk();
             DiskTrackSnapshot   snapshot;
             std::vector<Byte>   saved;
             std::vector<Byte>   firstRun;
@@ -990,7 +994,7 @@ namespace Disk2State
             secondRun   = RunScript (*controller);
             secondMedia = SavePart (*disk);
 
-            Assert::IsTrue (controller->GetEngine (0).GetWriteNibbles() > 0, L"the script wrote to the disk");
+            Assert::IsTrue (controller->GetDrive (0).GetEngine().GetWriteNibbles() > 0, L"the script wrote to the disk");
             Assert::IsTrue (firstRun   == secondRun,   L"latch values after load");
             Assert::IsTrue (firstMedia == secondMedia, L"disk bits after load");
         }

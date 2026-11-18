@@ -49,6 +49,7 @@ public:
     void  SetDurationMs   (int64_t durationMs)                  { m_durationMs = durationMs; }
     void  SetScrimOpacity (float opacity)                       { m_scrim.SetOpacity (opacity); }
     void  SetSeverity     (DxuiInfoBanner::Severity severity)   { m_banner.SetSeverity (severity); }
+    void  SetOverContent  (bool isOverContent)                  { m_banner.SetOverContent (isOverContent); }
     void  SetDpi          (UINT dpi)                            { m_banner.SetDpi (dpi); }
 
     const std::wstring &  GetText () const { return m_banner.GetText(); }

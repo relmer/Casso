@@ -30,7 +30,8 @@ enum class RecordedTextKind
     FillRect,
     PushClipRect,
     PopClipRect,
-    DrawFramebuffer,      // text carries nothing; width and height are the destination
+    DrawFramebuffer,      // text is unused; width and height are the destination
+    DrawLine,             // x and y are the start, width and height the end
 };
 
 
@@ -44,9 +45,23 @@ struct RecordedTextCall
     float             height       = 0.0f;
     uint32_t          argb         = 0;
     float             fontSizeDip  = 0.0f;
+    std::wstring      fontFamily;
     DxuiTextHAlign    hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign    vAlign       = DxuiTextVAlign::Top;
     DxuiFontWeight    weight       = DxuiFontWeight::Normal;
+    bool              wrap         = true;
+};
+
+
+
+struct RecordedVectorIconCall
+{
+    const DxuiVectorIcon  * icon       = nullptr;
+    float                   x          = 0.0f;
+    float                   y          = 0.0f;
+    float                   size       = 0.0f;
+    uint32_t                foreground = 0;
+    uint32_t                accent     = 0;
 };
 
 
@@ -57,11 +72,14 @@ public:
     MockDxuiTextRenderer  () = default;
     ~MockDxuiTextRenderer() override = default;
 
-    const std::vector<RecordedTextCall> &  Calls() const { return m_calls; }
-    void  Reset() { m_calls.clear(); m_iconCalls.clear(); }
+    const std::vector<RecordedTextCall>  & Calls () const { return m_calls; }
+    void                                   Reset () { m_calls.clear(); m_iconCalls.clear(); m_vectorIconCalls.clear(); }
 
     //  DrawIconBitmap's destinations, apart from the other calls.
     const std::vector<RecordedTextCall> &  IconCalls() const { return m_iconCalls; }
+
+    //  FillVectorIcon's calls, apart from the other calls.
+    const std::vector<RecordedVectorIconCall> &  VectorIconCalls() const { return m_vectorIconCalls; }
 
     void  SetCannedMetrics  (const std::wstring & text, SIZE sizeDip);
 
@@ -70,6 +88,11 @@ public:
     // behavior observed during a live resize, used to verify the
     // menu bar reuses its cached item widths instead of collapsing.
     void  SetMeasureReturnsZero (bool returnsZero) { m_measureReturnsZero = returnsZero; }
+
+    //  Test knob: a bold measurement's glyph width, so text measured bold is
+    //  wider than the same text measured regular. Zero measures bold as
+    //  regular.
+    void  SetBoldGlyphWidth (float widthDip) { m_boldGlyphWidthDip = widthDip; }
 
     HRESULT  DrawString    (const wchar_t      * text,
                             float                xDip,
@@ -88,12 +111,22 @@ public:
     HRESULT  PopClipRect   () override;
 
     HRESULT  FillRect      (float xDip, float yDip, float widthDip, float heightDip, uint32_t argbColor) override;
+    HRESULT  DrawLine      (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
+
+    HRESULT  FillVectorIcon (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override;
 
     HRESULT  MeasureString (const wchar_t * text,
                             float           fontSizeDip,
                             const wchar_t * fontFamily,
                             float         & outWidthDip,
                             float         & outHeightDip) override;
+
+    HRESULT  MeasureStringWeighted (const wchar_t * text,
+                                    float           fontSizeDip,
+                                    const wchar_t * fontFamily,
+                                    DxuiFontWeight  weight,
+                                    float         & outWidthDip,
+                                    float         & outHeightDip) override;
 
     //  Wrapped measurement, modeled rather than laid out, but broken at WORDS
     //  the way a real renderer breaks. Canned metrics still win outright -- a
@@ -132,11 +165,17 @@ public:
     int  GetLastFramebufferWidth  () const { return m_lastFramebufferW; }
     int  GetLastFramebufferHeight () const { return m_lastFramebufferH; }
 
+    //  The face the last MeasureString call measured in.
+    const std::wstring &  GetLastMeasureFamily() const { return m_lastMeasureFamily; }
+
 private:
     std::vector<RecordedTextCall>          m_calls;
     std::vector<RecordedTextCall>          m_iconCalls;
+    std::vector<RecordedVectorIconCall>    m_vectorIconCalls;
     std::map<std::wstring, SIZE>           m_cannedMetrics;
+    std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;
+    float                                  m_boldGlyphWidthDip  = 0.0f;
     int                                    m_lastFramebufferW   = 0;
     int                                    m_lastFramebufferH   = 0;
 };

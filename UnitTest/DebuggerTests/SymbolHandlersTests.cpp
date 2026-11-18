@@ -132,14 +132,14 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("Loaded 1 symbols into user and 1 source lines from C:\\Work\\prog.dbg."),
                               rig.RunOk ("SYMUSER LOAD \"prog.dbg\"").text.at (0));
-            Assert::IsTrue   (rig.session.HasDebugFile());
-            Assert::AreEqual (4, rig.session.GetLineTable().GetPositionsAt (0x0302).at (0).line);
+            Assert::IsTrue   (rig.session.GetFiles().HasDebugFile());
+            Assert::AreEqual (4, rig.session.GetFiles().GetLineTable().GetPositionsAt (0x0302).at (0).line);
             Assert::AreEqual (std::string ("$0300 start (user)"), rig.RunOk ("SYM start").text.at (0));
 
             rig.RunOk ("SYMUSER LOAD \"prog.dbg\",1000");
-            Assert::AreEqual (4, rig.session.GetLineTable().GetPositionsAt (0x1302).at (0).line, L"the offset moves the lines too");
-            Assert::IsTrue   (rig.session.GetLineTable().GetPositionsAt (0x0302).empty());
-            Assert::AreEqual ((uint32_t) 0x1300, rig.session.GetDebugFile().symbols.at (0).value,
+            Assert::AreEqual (4, rig.session.GetFiles().GetLineTable().GetPositionsAt (0x1302).at (0).line, L"the offset moves the lines too");
+            Assert::IsTrue   (rig.session.GetFiles().GetLineTable().GetPositionsAt (0x0302).empty());
+            Assert::AreEqual ((uint32_t) 0x1300, rig.session.GetFiles().GetDebugFile().symbols.at (0).value,
                               L"the offset moves the file's labels, which the call stack reads, too");
         }
 
@@ -190,11 +190,11 @@ namespace DebuggerTests
 
             rig.RunOk ("SYMUSER LOAD \"prog.dbg\"");
             rig.RunOk ("SYMUSER2 LOAD \"other.sym\"");
-            Assert::IsTrue (rig.session.HasDebugFile(), L"another table leaves the debug file");
+            Assert::IsTrue (rig.session.GetFiles().HasDebugFile(), L"another table leaves the debug file");
 
             rig.RunOk ("SYMUSER LOAD \"other.sym\"");
-            Assert::IsFalse (rig.session.HasDebugFile(), L"its own table drops it");
-            Assert::IsTrue  (rig.session.GetLineTable().GetPositionsAt (0x0302).empty(), L"and its lines");
+            Assert::IsFalse (rig.session.GetFiles().HasDebugFile(), L"its own table drops it");
+            Assert::IsTrue  (rig.session.GetFiles().GetLineTable().GetPositionsAt (0x0302).empty(), L"and its lines");
         }
 
 
@@ -207,7 +207,7 @@ namespace DebuggerTests
 
             rig.files.WriteAllText (L"C:\\Work\\bad.dbg", "version\tmajor=2,minor=0\nline\tid=0,file=5,line=1,span=0\n");
             rig.RunFails ("SYMUSER LOAD \"bad.dbg\"", "not a debug file");
-            Assert::IsFalse (rig.session.HasDebugFile());
+            Assert::IsFalse (rig.session.GetFiles().HasDebugFile());
         }
 
 
@@ -228,9 +228,9 @@ namespace DebuggerTests
                 "   START   =$8000\n");
 
             rig.RunOk ("SYMUSER LOAD \"prog.lst\"");
-            Assert::IsTrue   (rig.session.HasDebugFile(), L"a listing with bytes is a debug file");
-            Assert::AreEqual (std::string ("prog.lst"), rig.session.GetDebugFile().files.at (0).name);
-            Assert::AreEqual (1, rig.session.GetLineTable().GetPositionsAt (0x8000).at (0).line);
+            Assert::IsTrue   (rig.session.GetFiles().HasDebugFile(), L"a listing with bytes is a debug file");
+            Assert::AreEqual (std::string ("prog.lst"), rig.session.GetFiles().GetDebugFile().files.at (0).name);
+            Assert::AreEqual (1, rig.session.GetFiles().GetLineTable().GetPositionsAt (0x8000).at (0).line);
             Assert::AreEqual (std::string ("$8000 START (user)"), rig.RunOk ("SYM START").text.at (0));
         }
 
@@ -401,11 +401,11 @@ namespace DebuggerTests
             rig.RunOk ("SYMSRC LOAD \"prog.dbg\"");
 
             rig.RunOk ("SYMUSER CLEAR");
-            Assert::IsTrue (rig.session.HasDebugFile(), L"another table's clear leaves the file");
+            Assert::IsTrue (rig.session.GetFiles().HasDebugFile(), L"another table's clear leaves the file");
 
             rig.RunOk ("SYMSRC CLEAR");
-            Assert::IsFalse (rig.session.HasDebugFile());
-            Assert::IsTrue  (rig.session.GetLineTable().GetPositionsAt (0x0302).empty());
+            Assert::IsFalse (rig.session.GetFiles().HasDebugFile());
+            Assert::IsTrue  (rig.session.GetFiles().GetLineTable().GetPositionsAt (0x0302).empty());
         }
 
 
@@ -428,10 +428,10 @@ namespace DebuggerTests
                 "scope\tid=0,name=\"\",mod=0\n");
 
             rig.RunOk ("SYMUSER LOAD \"far.dbg\"");
-            Assert::AreEqual ((size_t) 1, rig.session.GetLineTable().GetPositionsAt (0x0300).size(), L"the far segment does not fold into bank 0");
+            Assert::AreEqual ((size_t) 1, rig.session.GetFiles().GetLineTable().GetPositionsAt (0x0300).size(), L"the far segment does not fold into bank 0");
 
             rig.RunOk ("SYMUSER LOAD \"far.dbg\",1000");
-            Assert::AreEqual ((size_t) 1, rig.session.GetLineTable().GetPositionsAt (0x1300).size());
+            Assert::AreEqual ((size_t) 1, rig.session.GetFiles().GetLineTable().GetPositionsAt (0x1300).size());
         }
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/TracePaneController.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerCommands.h"
@@ -352,7 +353,7 @@ void TracePaneController::Save()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (DebuggerActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
 
 Error:
     return;
@@ -370,11 +371,20 @@ Error:
 
 bool TracePaneController::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
-    (void) row;
+    std::optional<Word>  pc;
+
+
 
     if (list != m_list)
     {
         return false;
+    }
+
+    pc = m_model->GetRowPc (row);
+
+    if (pc.has_value())
+    {
+        m_host.AddBookmarkItem (*pc, items);
     }
 
     items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });

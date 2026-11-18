@@ -5,6 +5,8 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DroppedFiles.h"
+#include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellTapeDeck.h"
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
@@ -22,7 +24,8 @@ namespace DebuggerLooseSourceTests
     //  LooseSourceHost
     //
     //  A host whose files are a map of path to content, which keeps the
-    //  commands it was given. No dropped file matches a debug file record.
+    //  commands it was given. A dropped file matches the record `match`, or
+    //  none at -1.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +89,7 @@ namespace DebuggerLooseSourceTests
 
             if (found != files.end())
             {
+                index       = match;
                 lookup.path = path;
                 lookup.text = found->second;
             }
@@ -97,6 +101,7 @@ namespace DebuggerLooseSourceTests
 
         std::map<std::wstring, std::string>  files;
         std::map<std::string, std::string>   sources;
+        int                                  match = -1;   // the record a dropped file matches
         std::vector<std::string>             commands;
         std::vector<DebugVerb>               verbs;
         FakeHostDialogs                      dialogs;
@@ -184,6 +189,12 @@ namespace DebuggerLooseSourceTests
             GetDockSite()->SetPaneLayout (layout);
             Layout (RECT { 0, 0, 1400, 900 }, scaler);
         }
+
+
+        //  The focus on the first document or the first disassembly view, as
+        //  a click there puts it, for the pane a step is taken from.
+        void  FocusDocument()    { FocusControl (GetSourceGroup().GetDocument (0).GetView()); }
+        void  FocusDisassembly() { FocusControl (GetCodeList (0)); }
 
 
         //  A pane's tab brought to the front of its group.
@@ -291,6 +302,79 @@ namespace DebuggerLooseSourceTests
         }
 
 
+        //  A listing saved with another extension, such as .bas.txt, is distinguished
+        //  from an AppleWin symbol file, whose "ADDR NAME" lines it otherwise
+        //  passes for, by its rising line numbers and its statements.
+        TEST_METHOD (ABasicListingOpensAsBasicWhateverItsExtension)
+        {
+            std::string  listing  = "1  REM ======\n2  REM  SWITCH TEST\n\n10 TEXT : HOME : D$ = CHR$ (4)\n20 SW = PEEK (49248)\n30 PRINT\n";
+            std::string  symbols  = "C000 KBD\nC010 KBDSTRB\nFDED COUT\n";
+            std::string  shuffled = "20 PRINT\n10 HOME\n";
+
+
+
+            Assert::IsTrue  (DroppedFiles::IsBasicListing (listing));
+            Assert::IsTrue  (DroppedFiles::GetOpening (listing) == DroppedFiles::Opening::Basic, L"loaded as a BASIC program, not as symbols");
+            Assert::IsFalse (DroppedFiles::IsBasicListing (symbols), L"an AppleWin symbol file");
+            Assert::IsTrue  (DroppedFiles::GetOpening (symbols) == DroppedFiles::Opening::Symbols);
+            Assert::IsFalse (DroppedFiles::IsBasicListing (shuffled), L"line numbers that don't rise");
+            Assert::IsFalse (DroppedFiles::IsBasicListing ("10 20\n30 40\n"), L"numbers with no statement");
+        }
+
+        //  The emulator window takes a listing by its name, an AppleSingle
+        //  file, and a CiderPress #fc file; a listing is tokenized, and a #fc
+        //  file's bytes are the program as they are.
+        TEST_METHOD (TheEmulatorWindowTakesBasicProgramFiles)
+        {
+            std::string        listing = "10 PRINT \"HI\"\n20 GOTO 10\n";
+            std::vector<Byte>  bytes (listing.begin(), listing.end());
+            std::vector<Byte>  tokenized;
+            std::vector<Byte>  raw     = { 0x07, 0x08, 0x0A, 0x00, 0xBA, 0x00, 0x00, 0x00 };
+            std::string        error;
+
+
+
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\Game.BAS"));
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\Game.bas.txt"));
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\Game.as"));
+            Assert::IsTrue  (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\HELLO#fc0801"));
+            Assert::IsFalse (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\notes.txt"));
+            Assert::IsFalse (DroppedFiles::IsBasicProgramFile (L"C:\\Work\\game.dsk"));
+
+            Assert::IsTrue   (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\Game.bas", bytes, tokenized, error));
+            Assert::AreEqual ((Byte) 0xBA, tokenized[4], L"PRINT tokenized after the first line's link and number");
+
+            Assert::IsTrue   (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\HELLO#fc0801", raw, tokenized, error));
+            Assert::IsTrue   (tokenized == raw, L"the #fc file's bytes as they are");
+
+            bytes.assign ({ '7', '0', '0', '0', '0', ' ', 'P', 'R', 'I', 'N', 'T', '\n' });
+            Assert::IsFalse  (DroppedFiles::TryGetBasicProgram (L"C:\\Work\\Bad.bas", bytes, tokenized, error));
+            Assert::IsFalse  (error.empty(), L"the reason");
+        }
+
+        //  On the emulator window a BASIC program loads wherever it lands but
+        //  the recorder; a disk mounts only on a drive, so one that misses the
+        //  drives mounts nothing; a tape goes only into the recorder.
+        TEST_METHOD (TheEmulatorWindowSendsEachDropToWhatTakesIt)
+        {
+            using Action = EmulatorShell::DropAction;
+
+            constexpr int  kDrive  = 0;
+            constexpr int  kScreen = EmulatorShell::kScreenDropTag;
+            constexpr int  kTape   = ShellTapeDeck::kTapeDropTag;
+
+
+
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\HELLO.as")     == Action::LoadBasic);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\HELLO#fc0801") == Action::LoadBasic);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kDrive,  L"C:\\Work\\Game.bas")     == Action::LoadBasic);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kTape,   L"C:\\Work\\Game.bas")     == Action::None);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kDrive,  L"C:\\Work\\game.dsk")     == Action::MountDisk);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\game.dsk")     == Action::None);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kTape,   L"C:\\Work\\game.wav")     == Action::InsertTape);
+            Assert::IsTrue (EmulatorShell::GetDropAction (kScreen, L"C:\\Work\\notes.txt")    == Action::None);
+        }
+
         TEST_METHOD (DroppingASourceWithNoDebugFileOpensIt)
         {
             CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
@@ -365,6 +449,51 @@ namespace DebuggerLooseSourceTests
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\main.dbg\""), host.commands[0]);
         }
 
+
+        //  A source opened before the debug file beside it loads is matched to
+        //  its record once it does, in the document it is already in: no
+        //  second document opens, and none is left with no symbols.
+        TEST_METHOD (TheDebugFileBesideASourceTakesOverItsDocument)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            LooseSourceHost    host;
+            LooseSourceWindow  window (theme, host);
+            auto               snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebugSourceFile    file;
+            int                slot     = -1;
+            int                open     = 0;
+
+
+
+            host.files[L"C:\\Work\\main.a65"] = "start   lda #$41\n";
+            host.files[L"C:\\Work\\main.dbg"] = "version\tmajor=2,minor=0\n";
+            host.sources["main.a65"]          = "start   lda #$41\n";
+
+            window.GetSourceGroup().OpenSourcePath (L"C:\\Work\\main.a65");
+            slot = window.GetShownSlot();
+            Assert::IsTrue (window.GetSourceGroup().IsLoose (slot), L"on its own while the debug file loads");
+
+            file.id   = 0;
+            file.name = "main.a65";
+
+            snapshot->source                = DebuggerViewSnapshot::SourceState();
+            snapshot->source->debugFilePath = L"C:\\Work\\main.dbg";
+            snapshot->source->programKey    = "key";
+            snapshot->source->files.push_back (file);
+            host.match = 0;
+
+            window.TakeSnapshot (snapshot);
+
+            for (int each = 0; each < SourceDocuments::kMaxDocuments; each++)
+            {
+                open += window.GetSourceGroup().IsOpen (each) ? 1 : 0;
+            }
+
+            Assert::AreEqual (1, open, L"one document");
+            Assert::IsTrue   (window.GetSourceGroup().IsOpen (slot), L"in the slot it was in");
+            Assert::IsFalse  (window.GetSourceGroup().IsLoose (slot), L"with the record's file");
+            Assert::AreEqual (0, window.GetSourceGroup().GetDocument (slot).GetModel().GetFile());
+        }
 
         TEST_METHOD (AnUnknownFileThatReadsAsSymbolsLoads)
         {
@@ -531,6 +660,7 @@ namespace DebuggerLooseSourceTests
 
             host.sources["game.s"] = LooseSourceWindow::MakeGameSource();
             window.TabCodeWithSource();
+            window.FocusDocument();
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 5, false));
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 6, false));
             Assert::IsFalse (window.IsCodeShown(), L"the stop at a line did not bring the document forward");
@@ -538,6 +668,27 @@ namespace DebuggerLooseSourceTests
             window.ShowNextStatement();
 
             Assert::IsTrue (window.IsCodeShown(), L"the document is in front");
+        }
+
+
+        //  A step from the disassembly, a tab of the document's group, leaves
+        //  the disassembly in front at a stop at a line.
+        TEST_METHOD (AStepFromTheDisassemblyKeepsItInFront)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            LooseSourceHost    host;
+            LooseSourceWindow  window (theme, host);
+
+
+
+            host.sources["game.s"] = LooseSourceWindow::MakeGameSource();
+            window.TabCodeWithSource();
+            window.Activate (DebuggerLayout::GetCodePaneId (0));
+            window.FocusDisassembly();
+            window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 5, true));
+            window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 6, true));
+
+            Assert::IsTrue (window.IsCodeShown(), L"the document was brought over the disassembly");
         }
 
 
@@ -554,6 +705,7 @@ namespace DebuggerLooseSourceTests
 
             host.sources["game.s"] = LooseSourceWindow::MakeGameSource();
             window.TabCodeWithSource();
+            window.FocusDocument();
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 5, true));
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 6, true));
             Assert::IsFalse (window.IsCodeShown(), L"the stop at a line did not bring the document forward");

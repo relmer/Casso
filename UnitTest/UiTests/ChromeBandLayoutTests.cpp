@@ -49,6 +49,49 @@ public:
     }
 
 
+    TEST_METHOD (UnderTheDeskScene_DrivesOnTheBar_GetABandAtTheWindowScale)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        inputs.crtMonitorActive    = true;
+        inputs.drivesOnBar         = true;
+        inputs.hasDiskController   = false;
+        inputs.driveBarThicknessDp = 180;
+        inputs.chromeSceneScale    = 0.4f;
+
+        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+                          L"hard disks alone get the bar, at the window's scale, not the zoomed-out scene's");
+    }
+
+
+    TEST_METHOD (CompactTheme_DrivesOnTheBar_GetABandWithNoDiskController)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        inputs.crtMonitorActive    = false;
+        inputs.drivesOnBar         = true;
+        inputs.hasDiskController   = false;
+        inputs.driveBarThicknessDp = 180;
+
+        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+                          L"a //c Plus's drives on the bar get a band without a Disk ][ controller");
+    }
+
+
+    TEST_METHOD (WithAutoHideOnTheDriveBandCollapses)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        Assert::AreNotEqual (0, ChromeBandLayout::DriveBandDp (inputs), L"the typical machine has a band to collapse");
+
+        inputs.drivesOnStrip = true;
+
+        Assert::AreEqual (0, ChromeBandLayout::DriveBandDp (inputs));
+        Assert::AreEqual (0, ChromeBandLayout::Compute (inputs, At (96)).drive,
+                          L"the drives slide up over the picture, so they reserve no room");
+    }
+
+
     TEST_METHOD (TheDriveBandZoomsWithTheScene)
     {
         ChromeBandInputs  inputs = Typical();

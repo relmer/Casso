@@ -292,14 +292,97 @@ public:
         down.kind        = DxuiMouseEventKind::Down;
         down.button      = DxuiMouseButton::Left;
         down.positionDip = POINT { bar.barX + 2, (int) bar.thumbTop + 2 };
-        list.OnMouse (down);
+        list.AsControl().OnMouse (down);
         Assert::IsTrue (list.IsInteracting());
 
         move.kind        = DxuiMouseEventKind::Move;
         move.button      = DxuiMouseButton::None;
         move.positionDip = POINT { bar.barX + 2, (int) bar.thumbTop + 40 };
-        list.OnMouse (move);
+        list.AsControl().OnMouse (move);
         Assert::IsFalse (list.IsInteracting());
     }
 };
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLabelRequiredTests
+//
+//  A required field's label has a red * just past its text, in the theme's
+//  error color; a label that isn't required, or is disabled, doesn't have one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiLabelRequiredTests)
+{
+public:
+
+    TEST_METHOD (ARequiredLabelHasARedMarkPastItsText)
+    {
+        DxuiLabel                 label (L"Address");
+        MockDxuiPainter           painter;
+        MockDxuiTextRenderer      text;
+        MockDxuiTheme             theme;
+        DxuiDpiScaler             scaler;
+        const RecordedTextCall  * mark = nullptr;
+        const RecordedTextCall  * name = nullptr;
+
+
+
+        scaler.SetDpi (96);
+        label.Layout      (RECT { 10, 0, 200, 20 }, scaler);
+        label.SetRequired (true);
+        label.Paint       (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            mark = (call.kind == RecordedTextKind::DrawString && call.text == DxuiLabel::kRequiredMark) ? &call : mark;
+            name = (call.kind == RecordedTextKind::DrawString && call.text == L"Address")               ? &call : name;
+        }
+
+        Assert::IsNotNull (name, L"the text is drawn");
+        Assert::IsNotNull (mark, L"the mark is drawn");
+        Assert::AreEqual  (theme.ErrorForeground(), mark->argb, L"in the error color");
+        Assert::IsTrue    (mark->x > name->x, L"past the text");
+
+        text.Reset();
+        label.SetRequired (false);
+        label.Paint       (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            Assert::IsTrue (call.text != DxuiLabel::kRequiredMark, L"a label not required has no mark");
+        }
+    }
+
+    TEST_METHOD (TheRequiredMarkHasATip)
+    {
+        DxuiLabel                 label (L"Address");
+        MockDxuiPainter           painter;
+        MockDxuiTextRenderer      text;
+        MockDxuiTheme             theme;
+        DxuiDpiScaler             scaler;
+        DxuiTip                   tip;
+        const RecordedTextCall  * mark = nullptr;
+
+
+
+        scaler.SetDpi (96);
+        label.Layout      (RECT { 10, 0, 200, 20 }, scaler);
+        label.SetRequired (true);
+        label.Paint       (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            mark = (call.kind == RecordedTextKind::DrawString && call.text == DxuiLabel::kRequiredMark) ? &call : mark;
+        }
+
+        Assert::IsNotNull (mark, L"the mark is drawn");
+        Assert::IsTrue    (label.TryGetTip (POINT { (LONG) mark->x + 1, 10 }, tip), L"over the mark");
+        Assert::AreEqual  (std::wstring (DxuiLabel::kRequiredTip), tip.text);
+        Assert::IsFalse   (label.TryGetTip (POINT { 11, 10 }, tip), L"not over the text");
+    }
+};

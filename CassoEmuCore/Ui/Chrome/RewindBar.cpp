@@ -5,7 +5,7 @@
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/HistoryTimelineClick.h"
 #include "Debugger/Reverse/ReverseCommand.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellHistory.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Video/MachineFrameRenderer.h"
 
@@ -35,11 +35,11 @@ RewindBar::RewindBar()
     m_command->label = L"History";
     m_command->tip   = L"History";
 
-    entry.command       = m_command;
-    entry.custom        = &m_strip;
-    entry.group         = kStripGroup;
-    entry.neverOverflow = true;
-    entry.fill          = true;
+    entry.command = m_command;
+    entry.custom  = &m_strip;
+    entry.group   = kStripGroup;
+    entry.pinned  = true;
+    entry.fill    = true;
 
     m_strip.SetAspect      ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
     m_strip.SetLabelRoomDp (kLabelRoomDp);
@@ -190,10 +190,10 @@ void RewindBar::Configure (
     m_strip.SetTextRenderer (text);
     m_bar.SetTextRenderer   (text);
 
-    thumbnails.SetOnSeek  ([this] (const HistoryThumbnailCell & cell) { OnSeek (cell); });
-    thumbnails.SetOnScrub ([this] (uint64_t cycle, bool isFinal) { OnScrub (cycle, isFinal); });
+    thumbnails.SetOnSeek                ([this] (const HistoryThumbnailCell & cell) { OnSeek (cell); });
+    thumbnails.GetPlayhead().SetOnScrub ([this] (uint64_t cycle, bool isFinal) { OnScrub (cycle, isFinal); });
 
-    thumbnails.SetLabeler ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
+    thumbnails.GetPlayhead().SetLabeler ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
     {
         outTop    = DebuggerStatusText::FormatWallClock (wallTime, LOCALE_NAME_USER_DEFAULT);
         outBottom = DebuggerStatusText::GetPowerText (cycle, LOCALE_NAME_USER_DEFAULT);

@@ -63,7 +63,7 @@ public:
 
         machine.PowerCycle();
 
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (ReverseSessionRig::kDiskDrive) ==
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (ReverseSessionRig::kDiskDrive).GetDisk() ==
                         machine.GetDiskStore().GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive),
                         L"drive 1 reads the disk in its bay after the power cycle");
     }
@@ -86,23 +86,23 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kPowerCycleWarmupCycles);
+        machine.GetRunner().RunCycles (s_kPowerCycleWarmupCycles);
 
-        machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::PowerCycle, 0, 0, {});
         machine.PowerCycle();
 
-        machine.RunCycles (s_kPowerCycleAfterCycles);
+        machine.GetRunner().RunCycles (s_kPowerCycleAfterCycles);
 
-        keyframes = controller.GetKeyframes().GetCount();
-        oldest    = controller.GetOldestPosition();
+        keyframes = controller.GetKeyframes().GetArena().GetCount();
+        oldest    = controller.GetSeeker().GetOldestPosition();
 
-        hr = controller.ReverseContinue (neverStops, result);
+        hr = controller.GetSeeker().ReverseContinue (neverStops, result);
         AssertSucceeded (hr, L"ReverseContinue over the whole history");
 
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, L"the replay matched every keyframe after the power cycle");
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"nothing stopped it, so it reached the start");
-        Assert::AreEqual<uint64_t> (oldest, machine.GetPosition(), L"at the oldest position");
-        Assert::AreEqual<size_t>   (keyframes + 1, controller.GetKeyframes().GetCount(), L"no keyframe was dropped, and the live end was kept");
+        Assert::AreEqual<uint64_t> (oldest, machine.GetRunner().GetPosition(), L"at the oldest position");
+        Assert::AreEqual<size_t>   (keyframes + 1, controller.GetKeyframes().GetArena().GetCount(), L"no keyframe was dropped, and the live end was kept");
     }
 
 
@@ -124,24 +124,24 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kPowerCycleWarmupCycles);
+        machine.GetRunner().RunCycles (s_kPowerCycleWarmupCycles);
 
-        machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::PowerCycle, 0, 0, {});
         machine.PowerCycle();
-        machine.RunCycles (KeyframeSettings::kFrameCycles);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
         machine.NoteDebuggerEdit();
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
-        edited = machine.GetPosition();
+        edited = machine.GetRunner().GetPosition();
 
-        machine.RunCycles (s_kPowerCycleAfterCycles);
+        machine.GetRunner().RunCycles (s_kPowerCycleAfterCycles);
 
-        hr = controller.SeekToPosition (edited, result);
+        hr = controller.GetSeeker().SeekToPosition (edited, result);
         AssertSucceeded (hr, L"SeekToPosition back past the edit");
 
-        Assert::AreEqual<uint64_t> (edited, machine.GetPosition(), L"history after the edit is there to go back into");
-        Assert::IsTrue (controller.GetOldestPosition() < edited, L"and starts before it");
+        Assert::AreEqual<uint64_t> (edited, machine.GetRunner().GetPosition(), L"history after the edit is there to go back into");
+        Assert::IsTrue (controller.GetSeeker().GetOldestPosition() < edited, L"and starts before it");
     }
 
 
@@ -169,32 +169,32 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kPowerCycleWarmupCycles);
+        machine.GetRunner().RunCycles (s_kPowerCycleWarmupCycles);
         before = machine.GetCpu()->GetHistoryCycles();
-        cycled = machine.GetPosition();
+        cycled = machine.GetRunner().GetPosition();
 
-        machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::PowerCycle, 0, 0, {});
         machine.PowerCycle();
 
         Assert::AreEqual<uint64_t> (0, machine.GetCpu()->GetTotalCycles(), L"the CPU's count starts again");
         Assert::IsTrue (machine.GetCpu()->GetHistoryCycles() >= before, L"history's does not");
 
-        machine.RunCycles (s_kPowerCycleWarmupCycles * 2);
+        machine.GetRunner().RunCycles (s_kPowerCycleWarmupCycles * 2);
 
-        for (i = 0; i < keyframes.GetCount(); i++)
+        for (i = 0; i < keyframes.GetArena().GetCount(); i++)
         {
-            after += keyframes.GetInfo (i).position > cycled ? 1 : 0;
-            Assert::IsTrue (i == 0 || keyframes.GetInfo (i).cycle > keyframes.GetInfo (i - 1).cycle, L"the keyframes' cycles only go up");
+            after += keyframes.GetArena().GetInfo (i).position > cycled ? 1 : 0;
+            Assert::IsTrue (i == 0 || keyframes.GetArena().GetInfo (i).cycle > keyframes.GetArena().GetInfo (i - 1).cycle, L"the keyframes' cycles only go up");
         }
 
         Assert::IsTrue (after > 0, L"keyframes are taken after the power cycle");
-        Assert::IsTrue (controller.GetOldestPosition() < cycled, L"and history before it is kept");
+        Assert::IsTrue (controller.GetSeeker().GetOldestPosition() < cycled, L"and history before it is kept");
 
-        hr = controller.SeekToCycle (before - KeyframeSettings::kFrameCycles, result);
+        hr = controller.GetSeeker().SeekToCycle (before - KeyframeSettings::kFrameCycles, result);
         AssertSucceeded (hr, L"SeekToCycle before the power cycle");
-        Assert::IsTrue (machine.GetPosition() < cycled, L"a seek by cycle lands before the power cycle");
+        Assert::IsTrue (machine.GetRunner().GetPosition() < cycled, L"a seek by cycle lands before the power cycle");
 
-        hr = controller.ReverseContinue (neverStops, result);
+        hr = controller.GetSeeker().ReverseContinue (neverStops, result);
         AssertSucceeded (hr, L"ReverseContinue across the power cycle");
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"back to history's start");
     }

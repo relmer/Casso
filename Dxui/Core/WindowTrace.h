@@ -36,7 +36,7 @@ public:
     //  `who` names the window (main, debugger); `event` names what happened
     //  (create.request, create.actual, move.end, save, restore.hit ...).
     static void  Log     (const char * event, const char * who, const std::string & note);
-    static void  LogRect  (const char * event, const char * who, const RECT & rect, const std::string & note);
+    static void  LogRect (const char * event, const char * who, const RECT & rect, const std::string & note);
     static void  LogRect  (const char * event, const char * who, long x, long y, long w, long h,
                            const std::string & note);
 

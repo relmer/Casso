@@ -8,13 +8,22 @@
 //
 //  OperandResultTip
 //
-//  A disassembly row's operand and result shown whole where the pane cuts
-//  them off, laid over their cell as Explorer lays a cut-off name over its
-//  row. The text starts exactly where the cell's does, in the cell's face,
-//  size and colors on the cell's own fill, so the tip reads as the cell grown
-//  to fit: the operand wrapped over as many lines as it needs, then the
-//  result from the start of a line of its own, wrapped the same way, each
-//  line a row high.
+//  A code row's text drawn whole where its view cuts it off, laid over the
+//  row as Explorer lays a cut-off name over its row. Each line of the tip
+//  is filled with the row's highlight from the row's start to the tip's
+//  right edge, so the tip reads as the row and more rows below it, all
+//  highlighted.
+//
+//  The first line is the row's text, each part where the view draws
+//  it, run on past the view's edge to the end of whatever the view cuts
+//  off. The lines below it are the operand and then the result, under the
+//  row's code. An operand in view but cut off stays on the first line, and
+//  its result then starts under it. A source line's comment, at the end of
+//  its operand and result, stays on the first line in their place.
+//
+//  Text wraps only at the screen's right edge: a source or data line under
+//  its comment's first character where the break is in the comment, and
+//  four characters right of its code's start otherwise.
 //
 //  Pure layout in the window's pixels, so the window only shows what this
 //  gives it.
@@ -24,93 +33,153 @@
 class OperandResultTip
 {
 public:
-    //  Where the list draws the cell, and how.
+    //  A part of the row's text as the view draws it: its characters and
+    //  their colors, where the view starts them and where its drawing of
+    //  them is clipped. The operand and result part has the result's start
+    //  in its text and the comment's, the length of the text where it has
+    //  none.
+    struct Segment
+    {
+        std::wstring           text;
+        std::vector<uint32_t>  colors;
+        float                  leftPx      = 0.0f;
+        float                  clipRightPx = 0.0f;
+        bool                   isItalic    = false;
+        bool                   isWholeLine = false;   // a source or data line, which wraps by its comment
+        bool                   isBelowLine = false;   // an operand and result after a source line in one cell, which lie below the line
+        int                    resultAt    = -1;
+        int                    commentAt   = -1;
+    };
+
+    //  The row in the window's pixels and how its view draws it.
     struct Placement
     {
-        RECT              textRect          = {};        // left is where the text starts, right the column's edge; top and bottom are its row's
-        int               visibleLeft       = 0;         // the pane's edges, past which the list draws nothing
-        int               visibleRight      = 0;
-        int               padLeftPx         = 0;         // the cell's room either side of its text
-        int               padRightPx        = 0;
-        float             fontPx            = 0.0f;
-        const wchar_t   * face              = nullptr;
-        uint32_t          contentBackground = 0;         // the list's fill
-        uint32_t          rowFill           = 0;         // the row's own over it: the selection's, the hover's, or none
-        uint32_t          ink               = 0;         // the text's color where the cell gives none
-        uint32_t          border            = 0;
-        RECT              workArea          = {};        // the monitor's work area, in the same pixels
-        UINT              dpi               = DxuiDpiScaler::kBaseDpi;   // the scale the tip's popup is sized at
+        RECT                    row          = {};        // left is where the row's highlight starts, right the view's edge
+        int                     visibleLeft  = 0;         // the view's text area's left, which a part starting before is out of sight of
+        float                   codeLeftPx   = 0.0f;      // where the row's code starts, which the lines below line up under
+        std::vector<Segment>    segments;
+        int                     operand      = -1;        // the operand and result part, or -1 for none
+        std::wstring            symbol;                   // the operand's symbol as "name = $value", drawn as another operand value
+        uint32_t                symbolInk    = 0;         // the operand's color, which the symbol is drawn in
+        bool                    isInline     = false;     // the operand belongs on the row's line, as in a source document, and goes below only for a comment
+        int                     padLeftPx    = 0;         // the room either side of a part's text
+        int                     padRightPx   = 0;
+        float                   fontPx       = 0.0f;
+        const wchar_t         * face         = nullptr;
+        uint32_t                fill         = 0;         // the row's highlight over the view's fill, opaque
+        RECT                    workArea     = {};        // the work area of the monitor the row starts on, in the same pixels
+        UINT                    dpi          = DxuiDpiScaler::kBaseDpi;
     };
 
-    //  One line of the tip: a run of the cell's text.
-    struct Line
+    //  A run of text on one of the tip's lines, line 0 being the row's line,
+    //  starting at `leftPx` in the window's pixels.
+    struct Run
     {
-        int  start  = 0;
-        int  length = 0;
+        int                    line     = 0;
+        float                  leftPx   = 0.0f;
+        std::wstring           text;
+        std::vector<uint32_t>  colors;
+        bool                   isItalic = false;
 
-        bool operator== (const Line & other) const = default;
+        bool operator== (const Run & other) const = default;
     };
 
-    //  The tip in the window's pixels, and all its paint needs.
-    //  A tip of more than one line covers the lines after its first from the
-    //  pane's left edge, so a wrapped line shows only the tip's text and not
-    //  the address, bytes and mnemonic of the row it lies on. Its first line
-    //  starts at the cell, leaving its own row's columns in view: the tip is
-    //  an L, `rect` its bounds and `firstLeft` where its first line starts.
+    //  The tip in the window's pixels. The row's line is filled from
+    //  `firstLeft`, and every line below it from the rect's left, the row's
+    //  start, to the rect's right.
     struct Layout
     {
-        RECT                     rect       = {};
-        int                      firstLeft  = 0;
-        POINT                    textOrigin = {};
-        int                      lineHeight = 0;
-        float                    fontPx     = 0.0f;
-        const wchar_t          * face       = nullptr;
-        uint32_t                 fill       = 0;
-        uint32_t                 border     = 0;
-        std::wstring             text;
-        std::vector<uint32_t>    colors;
-        std::vector<Line>        lines;
+        RECT                   rect       = {};
+        int                    rowTop     = 0;
+        int                    firstLeft  = 0;
+        int                    lineHeight = 0;
+        int                    lineCount  = 0;
+        float                  fontPx     = 0.0f;
+        const wchar_t        * face       = nullptr;
+        uint32_t               fill       = 0;
+        bool                   hasSymbol  = false;
+        std::vector<Run>       runs;
     };
 
-    //  The tip is never narrower than this many characters, past the pane if
-    //  it must be, so a cell scrolled nearly out of sight is not wrapped a
-    //  character or two to a line; only the edge of the screen makes it
-    //  narrower.
-    static constexpr int  kMinWrapChars = 24;
-    static constexpr int  kBorderPx     = 1;
+    //  A wrapped source line's lines after its first start this many
+    //  characters right of its code, where the break is not in a comment.
+    static constexpr int  kCodeIndentChars     = 4;
 
-    //  False where the cell's text fits where the list draws it, and where
-    //  there is no text, its start is out of sight or off the screen, it
-    //  cannot be measured, or it does not fit on the screen below its row.
-    static bool  TryMakeLayout (const DxuiListView::Cell & cell, const Placement & placement, IDxuiTextRenderer & text, Layout & out);
+    //  An indented line has at least this many characters of room; with
+    //  less, it starts at the part's left.
+    static constexpr int  kMinIndentRoomChars  = 8;
+
+    //  False where everything fits where the view draws it, and where there
+    //  is no text, it cannot be measured, the row's start is off its screen,
+    //  or the tip does not fit on that screen.
+    static bool  TryMakeLayout (const Placement & placement, IDxuiTextRenderer & text, Layout & out);
 
     //  Whether two layouts draw the same thing in the same place.
     static bool  IsSame        (const Layout & a, const Layout & b);
 
-    //  The tip's outline and lines, its top left at the origin, as a popup's
-    //  content is drawn. An L-shaped tip also draws its own fill, on a popup
-    //  cleared to transparent.
+    //  The tip's fills and text, its top left at the origin, as a popup's
+    //  content is drawn on a popup cleared to transparent.
     static void  Paint         (const Layout & layout, IDxuiPainter & painter, IDxuiTextRenderer & text);
-
-    //  Whether the tip is an L rather than a rectangle: its first line starts
-    //  right of the lines after it.
-    static bool  IsShaped      (const Layout & layout) { return layout.firstLeft > layout.rect.left; }
 
     //  The size, in pixels, of a popup sized `px` pixels once that size has
     //  been through DIPs and back at `dpi`, as an in-place tip's is.
     static int   GetPopupPx    (int px, UINT dpi);
 
 private:
-    static float                  MeasurePx       (IDxuiTextRenderer & text, const std::wstring & chars, float fontPx, const wchar_t * face);
-    static float                  MeasureWidestPx (IDxuiTextRenderer & text, const Layout & layout);
-    static int                    GetBottomPx     (const Layout & layout);
-    static bool                   TryWrapOnScreen (IDxuiTextRenderer & text, const Placement & placement, float paneRoomPx, Layout & layout, float & widestPx);
-    static RECT                   PlaceRect       (const Placement & placement, const Layout & layout, int cellRight, float widestPx);
-    static int                    FitPopupPx      (int px, int limitPx, UINT dpi);
-    static uint32_t               MakeFill        (const DxuiListView::Cell & cell, uint32_t rowFill, uint32_t contentBackground);
-    static std::vector<uint32_t>  MakeColors      (const DxuiListView::Cell & cell, uint32_t ink, uint32_t fill);
-    static void                   WrapCell        (IDxuiTextRenderer & text, Layout & layout, float maxWidthPx);
-    static void                   WrapRun         (IDxuiTextRenderer & text, Layout & layout, int first, int end, float maxWidthPx);
-    static int                    FindFitEnd      (IDxuiTextRenderer & text, const Layout & layout, int first, int end, float maxWidthPx);
-    static void                   PaintLine       (const Layout & layout, const Line & line, float x, float y, float widthPx, IDxuiTextRenderer & text);
+    //  How much of a part the view draws.
+    enum class Clip
+    {
+        Whole,
+        Cut,
+        PastRight,
+        PastLeft,
+        StartHidden,
+    };
+
+    //  Where the lines after a run's first start: past `commentAt`, the
+    //  comment's indent, and before it the code's.
+    struct Indent
+    {
+        int    commentAt = INT_MAX;
+        float  codePx    = 0.0f;
+        float  commentPx = 0.0f;
+    };
+
+    //  A run before it is wrapped: its text and colors, its left, where the
+    //  view draws its part, and whether it wraps as a source line does.
+    struct Piece
+    {
+        std::wstring           text;
+        std::vector<uint32_t>  colors;
+        float                  leftPx      = 0.0f;
+        float                  viewLeftPx  = 0.0f;
+        bool                   isItalic    = false;
+        bool                   isWholeLine = false;
+    };
+
+    //  The tip's pieces: those on the row's line, and those below it.
+    struct Pieces
+    {
+        std::vector<Piece>  first;
+        std::vector<Piece>  below;
+    };
+
+    static float   MeasurePx       (IDxuiTextRenderer & text, const std::wstring & chars, float fontPx, const wchar_t * face);
+    static Clip    GetClip         (const Segment & segment, float textPx, const Placement & placement);
+    static bool    TryGetPieces    (const Placement & placement, IDxuiTextRenderer & text, Pieces & out, bool & hasSymbol);
+    static void    AddOperand      (const Placement & placement, const Segment & segment, Clip clip, float inPlacePx, bool isSplit, Pieces & pieces);
+    static Piece   MakePiece       (const Segment & segment, int first, int end, float leftPx);
+    static void    WrapFirst       (const Placement & placement, IDxuiTextRenderer & text, std::vector<Piece> & pieces, Layout & layout);
+    static void    WrapPiece       (const Placement & placement, IDxuiTextRenderer & text, const Piece & piece, Layout & layout);
+    static void    WrapPieceAt     (const Placement & placement, IDxuiTextRenderer & text, Piece piece, int line, Layout & layout);
+    static float   GetRoomPx       (const Placement & placement, float leftPx);
+    static Indent  MakeIndent      (const Piece & piece, IDxuiTextRenderer & text, const Layout & layout, float roomPx);
+    static int     FindCommentText (const std::wstring & chars, int first);
+    static void    WrapRun         (IDxuiTextRenderer & text, const Piece & piece, Layout & layout, float maxWidthPx, const Indent & indent);
+    static int     FindFitEnd      (IDxuiTextRenderer & text, const Layout & layout, const std::wstring & chars, int first, int end, float maxWidthPx);
+    static float   MeasureRightPx  (IDxuiTextRenderer & text, const Layout & layout);
+    static RECT    PlaceRect       (const Placement & placement, Layout & layout, float rightPx);
+    static int     FitPopupPx      (int px, int limitPx, UINT dpi);
+    static void    MakeReadable    (Layout & layout);
+    static void    PaintRun        (const Layout & layout, const Run & run, float x, float y, IDxuiTextRenderer & text);
 };

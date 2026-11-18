@@ -1,0 +1,112 @@
+#include "Pch.h"
+
+#include "CassoExplorer/WozPropertiesPage.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::Init
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesPage::Init (std::vector<AppleFilePropertiesPanel::Row> rows, std::function<void (IDxuiControl *)> onPressed)
+{
+    m_rows.Init              (std::move (rows));
+    m_rows.SetOnChildPressed (std::move (onPressed));
+
+    Adopt (m_rows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::SetRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesPage::SetRows (std::vector<AppleFilePropertiesPanel::Row> rows)
+{
+    m_rows.SetRows (std::move (rows));
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::Relayout
+//
+//  Laid out again where it last was, after its rows or their heights
+//  changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesPage::Relayout()
+{
+    if (m_laidOut.right > m_laidOut.left)
+    {
+        Layout (m_laidOut, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    m_laidOut = boundsDip;
+    m_scaler  = scaler;
+
+    SetBounds (boundsDip);
+
+    m_rows.Layout (boundsDip, scaler);
+
+    SetContentHeightPx (scaler.ToPx (m_rows.GetRequiredHeightDip()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozPropertiesPage::OnMouse (const DxuiMouseEvent & ev)
+{
+    return m_rows.OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::OnApply
+//
+//  The page that saves the image saves both pages' fields.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozPropertiesPage::OnApply()
+{
+    return m_onApply ? m_onApply() : true;
+}

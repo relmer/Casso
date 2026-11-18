@@ -10,6 +10,280 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Disassembler::FormatHexByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Disassembler::FormatHexByte (Byte value)
+{
+    return std::format ("{:02X}", (unsigned) value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::FormatHexWord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Disassembler::FormatHexWord (Word value)
+{
+    return std::format ("{:04X}", (unsigned) value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::FormatLine
+//
+//  Address, up to three bytes padded to a fixed column, mnemonic, operand.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Disassembler::FormatLine (const DisassembledInstruction & line)
+{
+    constexpr size_t  kBytesColumnWidth = 9;   // "AA BB CC "
+
+
+
+    std::string  text = FormatHexWord (line.address) + "  ";
+    std::string  hex;
+
+
+
+    for (Byte value : line.bytes)
+    {
+        hex += FormatHexByte (value);
+        hex += ' ';
+    }
+
+    while (hex.size() < kBytesColumnWidth)
+    {
+        hex += ' ';
+    }
+
+    text += hex;
+    text += ' ';
+    text += line.mnemonic;
+
+    if (!line.operand.empty())
+    {
+        text += ' ';
+        text += line.operand;
+    }
+
+    if (!line.comment.empty())
+    {
+        text += "  ; ";
+        text += line.comment;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::Disassemble
+//
+//  One line per instruction, or per byte the table cannot place. An operand
+//  the buffer ends inside is not guessed at: the bytes that remain become one
+//  undefined line, so the tail of the file is visible without being described
+//  as something it is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disassembler::Disassemble (
+    std::span<const Byte>                   bytes,
+    Word                                    origin,
+    const Microcode                       * instructionSet,
+    std::vector<DisassembledInstruction>  & outLines,
+    const DisassemblyContext              & options)
+{
+    size_t  at    = 0;
+    size_t  count = bytes.size();
+
+
+
+    outLines.clear();
+
+    if (instructionSet == nullptr)
+    {
+        return;
+    }
+
+    while (at < count)
+    {
+        DisassembledInstruction               line;
+        Byte                                  opcode       = bytes[at];
+        const Microcode                     & microcode    = instructionSet[opcode];
+        const UndocumentedOpcode            * undocumented = (!microcode.isLegal && options.nmosUndocumented) ? FindUndocumented (opcode) : nullptr;
+        GlobalAddressingMode::AddressingMode  mode         = (undocumented != nullptr) ? undocumented->mode : microcode.globalAddressingMode;
+        size_t                                operandSize  = OpcodeTable::GetOperandSize (mode);
+        size_t                                length       = 1 + operandSize;
+        bool                                  fits         = (at + length) <= count;
+
+        line.address = (Word) (origin + at);
+
+        if (!microcode.isLegal && undocumented == nullptr)
+        {
+            line.bytes.push_back (opcode);
+            line.mnemonic  = kUndefinedMnemonic;
+            line.isDefined = false;
+            outLines.push_back (line);
+            at++;
+            continue;
+        }
+
+        if (!fits)
+        {
+            line.bytes.assign (bytes.begin() + (ptrdiff_t) at, bytes.end());
+            line.mnemonic  = kUndefinedMnemonic;
+            line.isDefined = false;
+            outLines.push_back (line);
+            break;
+        }
+
+        line.bytes.assign (bytes.begin() + (ptrdiff_t) at, bytes.begin() + (ptrdiff_t) (at + length));
+        line.mnemonic   = (undocumented != nullptr) ? undocumented->mnemonic : microcode.instructionName;
+        line.isDefined  = true;
+        line.documented = undocumented == nullptr && !microcode.assemblerHidden;
+
+        FormatOperand (mode, line.address, bytes.subspan (at, length), line);
+
+        if (options.symbols != nullptr)
+        {
+            ApplySymbol (line, mode, *options.symbols);
+        }
+
+        outLines.push_back (line);
+        at += length;
+
+        //  The MLI returns past its call number and parameter list's address,
+        //  so the three bytes after its JSR are data.
+        if (opcode == s_kJsrOpcode && options.mliEntry.has_value() && at + 3 <= count &&
+            (Word) (line.bytes[1] | (line.bytes[2] << 8)) == *options.mliEntry)
+        {
+            DisassembledInstruction  call;
+            DisassembledInstruction  parameters;
+
+            call.address   = (Word) (origin + at);
+            call.bytes     = { bytes[at] };
+            call.mnemonic  = kByteDirective;
+            call.operand   = "$" + FormatHexByte (bytes[at]);
+            call.isDefined = true;
+
+            if (options.mliCalls != nullptr && options.mliCalls->contains (bytes[at]))
+            {
+                call.comment = options.mliCalls->at (bytes[at]);
+            }
+
+            parameters.address   = (Word) (origin + at + 1);
+            parameters.bytes     = { bytes[at + 1], bytes[at + 2] };
+            parameters.mnemonic  = kWordDirective;
+            parameters.operand   = "$" + FormatHexWord ((Word) (bytes[at + 1] | (bytes[at + 2] << 8)));
+            parameters.isDefined = true;
+
+            outLines.push_back (call);
+            outLines.push_back (parameters);
+            at += 3;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::FindUndocumented
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Disassembler::UndocumentedOpcode * Disassembler::FindUndocumented (Byte opcode)
+{
+    for (const UndocumentedOpcode & entry : s_kUndocumentedOpcodes)
+    {
+        if (entry.opcode == opcode)
+        {
+            return &entry;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disassembler::ApplySymbol
+//
+//  An absolute operand at a known address is written as the address's name,
+//  with its index or indirection in place: `STA TXTCLR`, `JMP (SOFTEV)`,
+//  `LDA KBD,X`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disassembler::ApplySymbol (DisassembledInstruction & line, GlobalAddressingMode::AddressingMode mode, const std::map<Word, std::string> & symbols)
+{
+    Word                                         target = 0;
+    std::string                                  number;
+    size_t                                       at     = 0;
+    std::map<Word, std::string>::const_iterator  found;
+
+
+
+    switch (mode)
+    {
+        case GlobalAddressingMode::Absolute:
+        case GlobalAddressingMode::JumpAbsolute:
+        case GlobalAddressingMode::AbsoluteX:
+        case GlobalAddressingMode::AbsoluteY:
+        case GlobalAddressingMode::AbsoluteXIndirect:
+        case GlobalAddressingMode::JumpIndirect:
+        case GlobalAddressingMode::JumpIndirectCmos:
+            break;
+
+        default:
+            return;
+    }
+
+    target = (Word) (line.bytes[1] | (line.bytes[2] << 8));
+    found  = symbols.find (target);
+
+    if (found == symbols.end())
+    {
+        return;
+    }
+
+    number = "$" + FormatHexWord (target);
+    at     = line.operand.find (number);
+
+    if (at != std::string::npos)
+    {
+        line.operand.replace (at, number.size(), found->second);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Disassembler::Disassembler
 //
 //  The table is borrowed, not copied: it belongs to the CPU whose memory is
@@ -124,107 +398,6 @@ void Disassembler::Decode (
     {
         FormatOperand (microcode.globalAddressingMode, address, bytes, instruction);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Disassembler::Disassemble
-//
-//  One line per instruction, or per byte the table cannot place. An operand
-//  the buffer ends inside is not guessed at: the bytes that remain become one
-//  undefined line, so the tail of the file is visible without being described
-//  as something it is not.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disassembler::Disassemble (
-    std::span<const Byte>                   bytes,
-    Word                                    origin,
-    const Microcode                       * instructionSet,
-    std::vector<DisassembledInstruction>  & outLines)
-{
-    Disassembler  decoder (instructionSet);
-    size_t        at    = 0;
-    size_t        count = bytes.size();
-
-
-
-    outLines.clear();
-
-    if (instructionSet == nullptr)
-    {
-        return;
-    }
-
-    while (at < count)
-    {
-        DisassembledInstruction  line;
-        size_t                   length = decoder.GetLength (bytes[at]);
-        Word                     where  = (Word) (origin + at);
-
-        if (at + length > count)
-        {
-            line.address  = where;
-            line.bytes.assign (bytes.begin() + (ptrdiff_t) at, bytes.end());
-            line.mnemonic = kUndefinedMnemonic;
-            outLines.push_back (line);
-            break;
-        }
-
-        decoder.Decode (where, bytes.subspan (at, length), line);
-        outLines.push_back (line);
-        at += length;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Disassembler::FormatLine
-//
-//  Address, up to three bytes padded to a fixed column, mnemonic, operand.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string Disassembler::FormatLine (const DisassembledInstruction & line)
-{
-    constexpr size_t  kBytesColumnWidth = 9;   // "AA BB CC "
-
-
-
-    std::string  text = std::format ("{:04X}  ", (unsigned) line.address);
-    std::string  hex;
-
-
-
-    for (Byte value : line.bytes)
-    {
-        hex += std::format ("{:02X} ", (unsigned) value);
-    }
-
-    while (hex.size() < kBytesColumnWidth)
-    {
-        hex += ' ';
-    }
-
-    text += hex;
-    text += ' ';
-    text += line.mnemonic;
-
-    if (!line.operand.empty())
-    {
-        text += ' ';
-        text += line.operand;
-    }
-
-    return text;
 }
 
 

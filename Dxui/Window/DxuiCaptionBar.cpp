@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiCaptionBar.h"
+#include "Core/DxuiTextElide.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -119,11 +120,12 @@ void DxuiCaptionBar::SetSystemHwnd (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCaptionBar::SetTitle (const std::wstring & title)
+void DxuiCaptionBar::SetTitle (const std::wstring & title, size_t markAt)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_title = title;
+    m_title  = title;
+    m_markAt = (markAt <= title.size()) ? markAt : std::wstring::npos;
 }
 
 
@@ -318,6 +320,28 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTooltipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiCaptionBar::GetTooltipAt (POINT clientPx, RECT & anchorPx) const
+{
+    if (!m_titleCut || !PtInRect (&m_titleRectPx, clientPx))
+    {
+        return nullptr;
+    }
+
+    anchorPx = m_titleRectPx;
+
+    return m_title.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Host-owned mode: gradient fill + app icon + title text, then the
@@ -335,19 +359,19 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 
-    RECT   b             = {};
-    float  xPx           = 0.0f;
-    float  yPx           = 0.0f;
-    float  wPx           = 0.0f;
-    float  hPx           = 0.0f;
-    float  iconPadPx     = 0.0f;
-    float  iconSizePx    = 0.0f;
-    float  textLeftPx    = 0.0f;
-    float  textOffsetPx  = 0.0f;
-    float  titleWidthPx  = 0.0f;
-    float  fontPx        = 0.0f;
-    float  buttonStripPx = 0.0f;
-    int    buttonCount   = 0;
+    RECT          b             = {};
+    float         xPx           = 0.0f;
+    float         yPx           = 0.0f;
+    float         wPx           = 0.0f;
+    float         hPx           = 0.0f;
+    float         iconPadPx     = 0.0f;
+    float         iconSizePx    = 0.0f;
+    float         textLeftPx    = 0.0f;
+    float         textOffsetPx  = 0.0f;
+    float         titleWidthPx  = 0.0f;
+    float         fontPx        = 0.0f;
+    float         buttonStripPx = 0.0f;
+    int           buttonCount   = 0;
 
 
 
@@ -355,6 +379,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (!m_renderCaption)
     {
+        m_titleCut = false;
         DxuiPanel::Paint (painter, text, theme);
         return;
     }
@@ -395,21 +420,128 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     fontPx = m_scaler.ToPxf (kTitleFontDip);
 
-    {
-        HRESULT  hrText = text.DrawString (m_title.c_str(),
-                                           textLeftPx,
-                                           yPx,
-                                           titleWidthPx,
-                                           hPx,
-                                           theme.CaptionForeground(),
-                                           fontPx,
-                                           kTitleFamily,
-                                           DxuiTextHAlign::Left,
-                                           DxuiTextVAlign::Center);
-        IGNORE_RETURN_VALUE (hrText, S_OK);
-    }
+    PaintTitle (painter, text, theme, RECT { std::lround (textLeftPx), std::lround (yPx), std::lround (textLeftPx + titleWidthPx), std::lround (yPx + hPx) }, fontPx);
 
     DxuiPanel::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintTitle
+//
+//  One line, as Windows draws a caption. The unsaved-changes dot at
+//  m_markAt always has its room. A title too long for the rest is cut in
+//  the middle with an ellipsis: first the text before the dot, then, if
+//  the title is too wide after that, the text after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCaptionBar::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx)
+{
+    constexpr float  kDotFraction = 0.45f;
+    constexpr float  kGapFraction = 0.35f;
+
+
+
+    bool          isMarked = m_markAt != std::wstring::npos;
+    float         leftPx   = (float) areaPx.left;
+    float         topPx    = (float) areaPx.top;
+    float         widthPx  = (float) (areaPx.right - areaPx.left);
+    float         heightPx = (float) (areaPx.bottom - areaPx.top);
+    float         dotPx    = fontPx * kDotFraction;
+    float         markPx   = isMarked ? fontPx * kGapFraction + dotPx : 0.0f;
+    float         roomPx   = std::max (0.0f, widthPx - markPx);
+    std::wstring  head     = isMarked ? m_title.substr (0, m_markAt) : m_title;
+    std::wstring  tail     = isMarked ? m_title.substr (m_markAt) : std::wstring();
+    float         headPx   = MeasureTitle (text, head, fontPx);
+    float         tailPx   = MeasureTitle (text, tail, fontPx);
+    HRESULT       hr       = S_OK;
+
+
+
+    if (headPx + tailPx > roomPx)
+    {
+        head   = FitTitle (text, head, fontPx, roomPx - tailPx);
+        headPx = MeasureTitle (text, head, fontPx);
+        tail   = FitTitle (text, tail, fontPx, roomPx - headPx);
+    }
+
+    m_titleCut    = head + tail != m_title;
+    m_titleRectPx = areaPx;
+
+    hr = text.DrawString (head.c_str(), leftPx, topPx, widthPx, heightPx, theme.CaptionForeground(), fontPx, kTitleFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (isMarked)
+    {
+        painter.FillCircle (leftPx + headPx + markPx - dotPx / 2.0f, topPx + heightPx / 2.0f, dotPx / 2.0f, theme.ErrorForeground());
+
+        hr = text.DrawString (tail.c_str(), leftPx + headPx + markPx, topPx, std::max (0.0f, widthPx - headPx - markPx), heightPx, theme.CaptionForeground(), fontPx, kTitleFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiCaptionBar::MeasureTitle (IDxuiTextRenderer & text, const std::wstring & value, float fontPx)
+{
+    float    widthPx  = 0.0f;
+    float    heightPx = 0.0f;
+    HRESULT  hr       = S_OK;
+
+
+
+    if (!value.empty())
+    {
+        hr = text.MeasureString (value.c_str(), fontPx, kTitleFamily, widthPx, heightPx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    return widthPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FitTitle
+//
+//  Part of the title cut in the middle to the room, or only the ellipsis
+//  when the room is narrower than that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiCaptionBar::FitTitle (IDxuiTextRenderer & text, const std::wstring & value, float fontPx, float roomPx)
+{
+    static constexpr wchar_t  kEllipsis[] = L"\x2026";
+
+
+
+    std::wstring  fitted = value;
+
+
+
+    if (!value.empty() && MeasureTitle (text, value, fontPx) > roomPx)
+    {
+        fitted = (roomPx <= MeasureTitle (text, kEllipsis, fontPx)) ? std::wstring (kEllipsis)
+                                                                    : DxuiTextElide::ToWidth (text, value, fontPx, kTitleFamily, roomPx, DxuiElide::Middle);
+    }
+
+    return fitted;
 }
 
 

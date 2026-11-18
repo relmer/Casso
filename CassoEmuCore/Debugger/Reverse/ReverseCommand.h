@@ -13,6 +13,8 @@
 //  with it; ScrubCycle is the same seek made while a drag of the history
 //  timeline goes on, which a later seek will follow. GoLive returns to the
 //  end of history; StepForward replays the recorded future one instruction.
+//  SeekBack goes to the first instruction a number of milliseconds of
+//  emulated time before the end of history.
 //  ReverseContinue goes back to the latest position a stop test fires at.
 //  RewindFrame goes back one video frame's cycles, as a held rewind key does
 //  each frame. SkipBack and SkipForward move ReverseController::kSkipCycles,
@@ -33,6 +35,7 @@ enum class ReverseCommand
     SeekCycle,
     ScrubCycle,
     GoLive,
+    SeekBack,
     RewindFrame,
     SkipBack,
     SkipForward,

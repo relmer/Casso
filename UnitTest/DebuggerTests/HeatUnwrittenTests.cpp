@@ -259,18 +259,18 @@ namespace DebuggerTests
 
             reply = rig.RunOk ("BRKUNINIT");
             Assert::AreEqual (std::string ("Break on read before written: off"),          reply.text.at (0));
-            Assert::AreEqual (std::string ("The heat map is off, so no reads are seen."), reply.text.at (1));
+            Assert::AreEqual (std::string ("The heat map is off, so reads aren't tracked."), reply.text.at (1));
 
             LoadReadThenStore (rig);
             rig.RunOk ("T 1");
 
             reply = rig.RunOk ("BRKUNINIT ON");
-            Assert::AreEqual (std::string ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start."), reply.text.at (1));
+            Assert::AreEqual (std::string ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start tracking."), reply.text.at (1));
 
             rig.RunFails ("BRKUNINIT MAYBE", "invalid arguments");
 
             rig.RunOk ("BPC *");
-            Assert::IsFalse (rig.session.HasUnwrittenBreak(), L"BPC * clears it with the rest");
+            Assert::IsFalse (rig.session.GetStops().HasUnwrittenBreak(), L"BPC * clears it with the rest");
         }
 
 
@@ -376,7 +376,7 @@ namespace DebuggerTests
             rig.target.SetHeatMapOn (true);
 
             status = rig.target.GetUnwrittenStatus();
-            Assert::IsFalse  (rig.session.HasUnwrittenBreak(), L"the break goes with the machine's other breakpoints");
+            Assert::IsFalse  (rig.session.GetStops().HasUnwrittenBreak(), L"the break goes with the machine's other breakpoints");
             Assert::IsFalse  (status.isTracking);
             Assert::AreEqual ((uint64_t) 0, status.reads);
             Assert::AreEqual ((uint64_t) 0, rig.Fold().GetTotal (HeatSpace::Cpu, HeatKind::Write, kStored), L"the counts started over");

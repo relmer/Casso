@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/WatchEdits.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 #include "Ui/Debugger/StackHistory.h"
 #include "Ui/Debugger/WatchHistory.h"
@@ -86,14 +89,14 @@ namespace PaneUndoHistoryTests
         TEST_METHOD (UndoThenRedoRunsTheEditAgain)
         {
             WatchHistory                                history;
-            DebuggerViewState::WatchUndo                undo;
+            WatchEdits::WatchUndo                       undo;
             DebuggerViewSnapshot                        now;
             std::optional<std::vector<DebuggerAction>>  actions;
 
 
 
-            undo.actions = { DebuggerActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
-            history.Record (undo, { DebuggerActions::GetEnterWord (0x0300, (Word) 0x2222, CommandMode::AppleWin) });
+            undo.actions = { MemoryActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
+            history.Record (undo, { MemoryActions::GetEnterWord (0x0300, (Word) 0x2222, CommandMode::AppleWin) });
 
             actions = history.TryUndo (now, CommandMode::AppleWin);
             Assert::IsTrue   (actions.has_value());
@@ -102,7 +105,7 @@ namespace PaneUndoHistoryTests
 
             actions = history.TryRedo();
             Assert::IsTrue   (actions.has_value());
-            Assert::AreEqual (DebuggerActions::GetEnterWord (0x0300, (Word) 0x2222, CommandMode::AppleWin).echo, (*actions)[0].echo);
+            Assert::AreEqual (MemoryActions::GetEnterWord (0x0300, (Word) 0x2222, CommandMode::AppleWin).echo, (*actions)[0].echo);
             Assert::IsTrue   (history.CanUndo());
             Assert::IsFalse  (history.CanRedo());
         }
@@ -110,13 +113,13 @@ namespace PaneUndoHistoryTests
 
         TEST_METHOD (ANewEditClearsTheRedo)
         {
-            WatchHistory                  history;
-            DebuggerViewState::WatchUndo  undo;
-            DebuggerViewSnapshot          now;
+            WatchHistory           history;
+            WatchEdits::WatchUndo  undo;
+            DebuggerViewSnapshot   now;
 
 
 
-            undo.actions = { DebuggerActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
+            undo.actions = { MemoryActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
             history.Record (undo, {});
             (void) history.TryUndo (now, CommandMode::AppleWin);
             history.Record (undo, {});
@@ -127,9 +130,9 @@ namespace PaneUndoHistoryTests
 
         TEST_METHOD (AMovedWatchIsUndoneButNotRedone)
         {
-            WatchHistory                  history;
-            DebuggerViewState::WatchUndo  undo;
-            DebuggerViewSnapshot          now;
+            WatchHistory           history;
+            WatchEdits::WatchUndo  undo;
+            DebuggerViewSnapshot   now;
 
 
 
@@ -153,8 +156,8 @@ namespace PaneUndoHistoryTests
         {
             WatchHistory                                history;
             WatchHistory                                read;
-            DebuggerViewState::WatchUndo                undo;
-            DebuggerViewState::WatchUndo                moved;
+            WatchEdits::WatchUndo                       undo;
+            WatchEdits::WatchUndo                       moved;
             DebuggerViewSnapshot                        now;
             std::optional<std::vector<DebuggerAction>>  actions;
             DebuggerAction                              action;
@@ -165,11 +168,11 @@ namespace PaneUndoHistoryTests
             moved.restoreText  = "0300";
             moved.movedFromIds = { 1, 3 };
             moved.movedToId    = 4;
-            history.Record (moved, { DebuggerActions::GetClearWatch (3, CommandMode::AppleWin), DebuggerActions::GetAddWatch ("A:B", CommandMode::AppleWin) },
+            history.Record (moved, { WatchActions::GetClearWatch (3, CommandMode::AppleWin), WatchActions::GetAddWatch ("A:B", CommandMode::AppleWin) },
                             L"moved watch 3");
 
-            undo.actions = { DebuggerActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
-            history.Record (undo, { DebuggerActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg) }, L"changed watch 3");
+            undo.actions = { MemoryActions::GetEnterWord (0x0300, (Word) 0x1111, CommandMode::AppleWin) };
+            history.Record (undo, { MemoryActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg) }, L"changed watch 3");
             (void) history.TryUndo (now, CommandMode::AppleWin);
 
             read.FromText (history.ToText());
@@ -183,8 +186,8 @@ namespace PaneUndoHistoryTests
             Assert::IsTrue   (action.command.verb == DebugVerb::EnterWords);
             Assert::AreEqual ((int) 0x0300, (int) action.command.a1);
             Assert::AreEqual (std::string ("LABEL+1"), action.operand);
-            Assert::AreEqual (DebuggerActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg).echo, action.echo);
-            Assert::AreEqual (DebuggerActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg).command.sourceName, action.command.sourceName);
+            Assert::AreEqual (MemoryActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg).echo, action.echo);
+            Assert::AreEqual (MemoryActions::GetEnterWord (0x0300, "LABEL+1", CommandMode::WinDbg).command.sourceName, action.command.sourceName);
 
             (void) read.TryUndo (now, CommandMode::AppleWin);
             now.watches = { { 4, 0x0400, "00", true } };
@@ -244,7 +247,7 @@ namespace PaneUndoHistoryTests
                 }
 
                 model.SetContents (0x0300, bytes, regions);
-                model.SetOnPatch ([this] (Word address, std::span<const Byte> data, std::span<const Byte>) { lines.push_back (DebuggerActions::GetPatch (address, data, CommandMode::AppleWin).echo); });
+                model.SetOnPatch ([this] (Word address, std::span<const Byte> data, std::span<const Byte>) { lines.push_back (MemoryActions::GetPatch (address, data, CommandMode::AppleWin).echo); });
             }
 
             bool  Write (Word address, std::initializer_list<uint8_t> bytes)

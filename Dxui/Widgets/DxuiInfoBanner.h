@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
+#include "Widgets/DxuiButton.h"
 
 
 
@@ -14,8 +15,14 @@
 //  DxuiInfoBanner
 //
 //  A bounded, bordered notice strip: a leading info glyph and a run of body text
-//  that wraps within the banner. Distinct from a button (not clickable, no raised
-//  surface) and from a tooltip (inline, not a popup). Colors come from the
+//  that wraps within the banner. Distinct from a button (the strip itself is not
+//  clickable, no raised surface) and from a tooltip (inline, not a popup).
+//
+//  ONE WIDGET FOR EVERY NOTICE, SET UP BY FLAGS. A notice that offers something
+//  to do has buttons along its trailing edge (SetActions), and one the user may
+//  put away has a close box there (SetDismissible). Without either it is the
+//  plain strip. A close box rather than a Dismiss button: a labeled button is
+//  for an action, and putting a notice away is not one. Colors come from the
 //  theme's InfoBanner* accessors -- a subtle accent-tinted fill, an accent border
 //  that stands out, and readable body text -- so it stays themed everywhere.
 //
@@ -29,13 +36,18 @@
 class DxuiInfoBanner : public IDxuiControl
 {
 public:
-    //  Info states something; Warning cautions about a consequence. The
-    //  difference is the badge and the tint, not the layout.
+    //  Info states something; Warning cautions about a consequence; Error
+    //  reports damage or a failure. The difference is the badge and the
+    //  tint, not the layout.
     enum class Severity
     {
         Info,
-        Warning
+        Warning,
+        Error
     };
+
+    using ActionFn  = std::function<void (size_t index)>;
+    using DismissFn = std::function<void ()>;
 
     DxuiInfoBanner  () = default;
     explicit DxuiInfoBanner  (std::wstring text) : m_text (std::move (text)) {}
@@ -45,8 +57,12 @@ public:
 
     void  SetSeverity (Severity severity) { m_severity = severity; }
 
-    Severity  GetSeverity () const { return m_severity; }
-    const std::wstring & GetText () const { return m_text; }
+    //  For a banner drawn over other content: the theme's panel fill is
+    //  painted under the tint, so the content under it isn't visible through it.
+    void  SetOverContent (bool isOverContent) { m_isOverContent = isOverContent; }
+
+    Severity              GetSeverity () const { return m_severity; }
+    const std::wstring  & GetText     () const { return m_text; }
 
     //  Width at the trailing edge the text must not run into, in PIXELS of
     //  the caller's layout space.
@@ -88,6 +104,45 @@ public:
 
     const wchar_t * GetIconGlyph () const { return m_iconGlyph; }
 
+    //  Buttons along the trailing edge, for a notice that offers something to
+    //  do. Replaced rather than added to, so a notice set again has one of
+    //  each. None by default.
+    void          SetActions     (const std::vector<std::wstring> & labels);
+    size_t        GetActionCount () const { return m_actions.size(); }
+    DxuiButton *  GetAction      (size_t index);
+
+    //  Called with the index of the action that was pressed.
+    void  SetOnAction (ActionFn action) { m_onAction = std::move (action); }
+
+    //  Each action's width, in DIPs, for a label longer than the default
+    //  width fits; unset, each action is as wide as its label, and no
+    //  narrower than the default.
+    void  SetActionWidthDip (float widthDip) { m_actionWidthDip = widthDip; m_isActionWidthSet = true; }
+
+    //  The actions move onto a row under the text, at the trailing edge,
+    //  while beside them the text would be narrower than this many DIPs. For
+    //  a banner in a pane the user can make narrow. With zero, the default,
+    //  they are beside the text at any width.
+    void  SetStackBelowDip (float textDip) { m_stackBelowDip = textDip; }
+
+    //  The actions always on a row under the text, at the trailing edge, so
+    //  the text runs the banner's whole width. Off by default.
+    void  SetActionsBelow  (bool isBelow) { m_isActionsBelow = isBelow; }
+    bool  IsStacked        (float widthPx, const DxuiDpiScaler & scaler) const;
+
+    //  A close box at the trailing edge, an X as on a tab, for a notice the
+    //  user may put away. A click on it calls SetOnDismiss's function, and the
+    //  caller hides the banner, since hiding a banner in a band changes the
+    //  band's layout. Off by default.
+    void  SetDismissible   (bool dismissible) { m_dismissible = dismissible; }
+    bool  IsDismissible    () const           { return m_dismissible; }
+    void  SetOnDismiss     (DismissFn dismiss) { m_onDismiss = std::move (dismiss); }
+    RECT  GetDismissBounds () const           { return m_dismissRect; }
+
+    //  How much of the trailing edge the actions and the close box take, the
+    //  gap to the text included; zero with neither.
+    float  GetControlColumnPx (const DxuiDpiScaler & scaler) const;
+
     void  SetRect (const RECT & rect) { SetBounds (rect); }
     void  SetDpi  (UINT dpi) { m_scaler.SetDpi (dpi); }   // the fit cache keys off the dpi itself
 
@@ -107,19 +162,16 @@ public:
                                 float                  widthPx,
                                 const DxuiDpiScaler &  scaler) const;
 
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
-    {
-        SetBounds (boundsDip);
-        m_scaler.SetDpi (scaler.GetDpi());
-    }
-
-    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
 private:
-    Severity  m_severity = Severity::Info;
+    Severity  m_severity      = Severity::Info;
+    bool      m_isOverContent = false;
 
     // Geometry (DIP; scaled into the layout space via the scaler).
     static constexpr float  s_kPadXDip      = 12.0f;   // left / right inner padding
@@ -130,6 +182,18 @@ private:
     static constexpr float  s_kFontDip      = 13.0f;
     static constexpr float  s_kLineHeightEm = 1.38f;   // body line height, in ems
     static constexpr float  s_kEstGlyphEm   = 0.55f;   // avg glyph width (generous -> no clip)
+
+    // The trailing controls: buttons, the close box, and the X drawn in it.
+    static constexpr float  s_kActionWidthDip  = 96.0f;   // the narrowest an action is; a longer label widens it
+    static constexpr float  s_kActionHeightDip = 26.0f;
+    static constexpr float  s_kActionGapDip    = 8.0f;
+    static constexpr float  s_kEdgePadDip      = 10.0f;
+    static constexpr float  s_kCloseBoxDip     = 26.0f;
+    static constexpr float  s_kCloseGlyphDip   = 10.0f;
+
+    //  An action's width: its label's, as a dialog button's, but no narrower
+    //  than s_kActionWidthDip, or the width SetActionWidthDip set.
+    float  GetActionWidthDip (const DxuiButton & action) const;
 
     // The info badge's pen, as a fraction of the icon box: one weight for the
     // ring and the "i", which is what makes the mark read as monoline.
@@ -182,6 +246,20 @@ private:
     static void  StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                float radiusPx, float strokePx, uint32_t argb);
 
+    // The text's trailing reserve at a width: the caller's, and the controls'
+    // column unless they are stacked under the text.
+    float  GetTextReservePx (float widthPx, const DxuiDpiScaler & scaler) const;
+
+    // The controls' height, edge padding included; zero with none.
+    float  GetControlHeightPx (const DxuiDpiScaler & scaler) const;
+
+    // The box height for text of a height at a width: the text and the icon
+    // padded, beside the controls or above their row when stacked.
+    float  GetBoxHeightPx (float textH, float widthPx, const DxuiDpiScaler & scaler) const;
+
+    // The close box's X, over a wash while the pointer is on it.
+    void  PaintCloseBox (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
     // Draws the icon-font glyph set by SetIconGlyph, filling the icon box.
     void  PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme & theme,
                           float iconLeft, float iconTop, float iconBox) const;
@@ -198,6 +276,21 @@ private:
 
     //  See SetIconGlyph.
     const wchar_t * m_iconGlyph = nullptr;
+
+    //  See SetActionWidthDip and SetStackBelowDip.
+    float           m_actionWidthDip   = s_kActionWidthDip;
+    bool            m_isActionWidthSet = false;
+    float           m_stackBelowDip    = 0.0f;
+    bool            m_isActionsBelow   = false;
+
+    //  See SetActions and SetDismissible.
+    std::vector<std::unique_ptr<DxuiButton>>  m_actions;
+    ActionFn                                  m_onAction;
+    bool                                      m_dismissible    = false;
+    DismissFn                                 m_onDismiss;
+    RECT                                      m_dismissRect    = {};
+    bool                                      m_dismissHover   = false;
+    bool                                      m_dismissPressed = false;
 
     //  What ResolveCenteredBoxPx last worked out, and the three inputs it
     //  depends on. Mutable because the height queries are const and are the

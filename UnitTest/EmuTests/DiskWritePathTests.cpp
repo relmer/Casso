@@ -304,7 +304,7 @@ public:
         }
 
         machine.GetCpu()->SetPC (kCodeOrg);
-        machine.RunCycles (200'000ULL);
+        machine.GetRunner().RunCycles (200'000ULL);
 
         // Frame track 0 back into nibbles and search for the payload.
         nibbles = FrameTrack (*img, 0);

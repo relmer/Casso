@@ -75,8 +75,8 @@ namespace DebuggerTests
             }
 
             rig.Load (kOrigin, {}, program.Symbol (start));
-            rig.session.SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "callstack.a65", 0 } } }), L"C:\\Work\\callstack.dbg");
-            rig.session.SetCallRecording (true);
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "callstack.a65", 0 } } }), L"C:\\Work\\callstack.dbg");
+            rig.session.GetCallRecords().SetRecording (true);
             return program;
         }
 
@@ -103,7 +103,7 @@ namespace DebuggerTests
 
             do
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
                 ++steps;
             }
             while (rig.machine.GetCpu()->GetPC() != address && steps < kStepLimit);
@@ -668,7 +668,7 @@ namespace DebuggerTests
             rig.Load (0x0910,  { 0xA9, (Byte) (kLanding - 1), 0x48, 0xEA, 0x68, 0x60 }, kCaller); // LDA; PHA; NOP; PLA; RTS
             rig.Load (kMoved,  { 0x60 }, kCaller);                                           // RTS
             rig.Load (kLanding, { 0x4C, (Byte) (kLanding & 0xFF), (Byte) (kLanding >> 8) }, kCaller);   // JMP to itself
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
             rig.session.SetBudget (100'000);
         }
 
@@ -760,8 +760,8 @@ namespace DebuggerTests
 
             //  Two calls made before the debugger attached.
             RunTo (rig, program.Symbol ("two"));
-            rig.session.SetCallRecording (false);
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (false);
+            rig.session.GetCallRecords().SetRecording (true);
 
             RunTo (rig, program.Symbol ("threein"));
             data = Calls (rig);
@@ -842,10 +842,10 @@ namespace DebuggerTests
             rig.target.TryPoke (kHandler + 1, kRti);
             rig.target.TryPoke (kIrqUserVector,     (Byte) (kHandler & 0xFF));
             rig.target.TryPoke (kIrqUserVector + 1, (Byte) (kHandler >> 8));
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
 
             FreeRunTo (rig, kLoop);
-            rig.machine.RunCycles (kSpinCycles);
+            rig.machine.GetRunner().RunCycles (kSpinCycles);
             interrupted = rig.machine.GetCpu()->GetPC();
             Assert::AreNotEqual (kLoop, interrupted, L"the interrupt lands on an instruction the recorder was not shown");
 
@@ -871,12 +871,12 @@ namespace DebuggerTests
 
 
 
-            rig.session.SetCallRecording (true);
-            Assert::IsNull (rig.machine.GetDebugHook(), L"the CPU reports what the record needs");
+            rig.session.GetCallRecords().SetRecording (true);
+            Assert::IsNull (rig.machine.GetRunner().GetDebugHook(), L"the CPU reports what the record needs");
 
             rig.session.GetBreakpoints().AddAddress (0x1234, 0x1234);
             rig.session.OnStopConditionsChanged();
-            Assert::IsNotNull (rig.machine.GetDebugHook());
+            Assert::IsNotNull (rig.machine.GetRunner().GetDebugHook());
             Assert::IsFalse   (filter.everyInstruction);
             Assert::IsTrue    (filter.pages[0x12]);
             Assert::IsFalse   (filter.pages[0x13], L"only the breakpoint's page is asked about");
@@ -887,7 +887,7 @@ namespace DebuggerTests
             Assert::IsTrue (filter.pages[0x13]);
 
             rig.session.ClearAllBreakpoints();
-            Assert::IsNull (rig.machine.GetDebugHook());
+            Assert::IsNull (rig.machine.GetRunner().GetDebugHook());
         }
 
 
@@ -940,10 +940,10 @@ namespace DebuggerTests
 
 
 
-                rig.session.SetCallRecording (isRecording);
+                rig.session.GetCallRecords().SetRecording (isRecording);
                 rig.session.GetBreakpoints().AddAddress (stop, stop);
                 rig.session.OnStopConditionsChanged();
-                rig.machine.RunCycles (kBudget);
+                rig.machine.GetRunner().RunCycles (kBudget);
 
                 Assert::AreEqual (stop, rig.machine.GetCpu()->GetPC(), L"the free run stopped at the breakpoint");
 

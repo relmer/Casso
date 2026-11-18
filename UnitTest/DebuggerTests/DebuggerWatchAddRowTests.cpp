@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
@@ -92,6 +94,8 @@ namespace DebuggerWatchAddRowTests
         using DebuggerWindow::RouteMappedKey;
         using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
+        using DebuggerWindow::FocusControl;
+        using DebuggerWindow::OnWindowEnabled;
 
         void  Press (WPARAM vk)
         {
@@ -129,6 +133,24 @@ namespace DebuggerWatchAddRowTests
     TEST_CLASS (AddRowTests)
     {
     public:
+
+        //  A symbol is a symbol in the Type column whether the instruction
+        //  touched it or it was typed: memory shown by a symbol's name, or a
+        //  watch typed by one.
+        TEST_METHOD (AnAutomaticAndATypedSymbolWatchHaveOneType)
+        {
+            DebuggerViewSnapshot::WatchLine  watch;
+
+
+
+            watch.expression = "count.b";
+            watch.address    = 0x60C1;
+
+            Assert::AreEqual (std::wstring (L"Symbol"),   WatchesPane::GetAutoType ("M:60C1", "count $60C1"));
+            Assert::AreEqual (std::wstring (L"Memory"),   WatchesPane::GetAutoType ("M:0300", "$0300"));
+            Assert::AreEqual (std::wstring (L"Register"), WatchesPane::GetAutoType ("R:A", "A"));
+            Assert::AreEqual (std::wstring (L"Symbol"),   WatchesPane::GetWatchType (watch));
+        }
 
         TEST_METHOD (TheLastRowAddsAWatchTypedInPlace)
         {
@@ -171,6 +193,43 @@ namespace DebuggerWatchAddRowTests
             Assert::IsTrue   (host.commands.front().find ("400") != std::string::npos, L"the typed expression is watched");
         }
 
+
+        //  Enter on the add row with nothing typed ends the add and runs no
+        //  command; on a watch whose expression was erased, it removes the
+        //  watch.
+        TEST_METHOD (EnterOnAnEmptyEditEndsTheAddOrRemovesTheWatch)
+        {
+            CassoTheme                       theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                host;
+            WatchWindow                      window   (theme, host);
+            DxuiDpiScaler                    scaler;
+            DxuiEditableGrid               * grid     = BeginAdd (window, scaler);
+            auto                             snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine  watch;
+
+
+
+            window.Press (VK_RETURN);
+            Assert::IsFalse  (grid->IsEditing(), L"the add ends");
+            Assert::IsTrue   (host.commands.empty(), L"with nothing added");
+
+            watch.id          = 0;
+            watch.address     = 0x0300;
+            watch.expression  = "300";
+            watch.value       = "0000";
+            watch.enabled     = true;
+            snapshot->watches = { watch };
+            window.TakeSnapshot (snapshot);
+
+            window.GetWatchesPane().BeginEdit (0, 0);
+            window.Press (VK_BACK);
+            window.Press (VK_BACK);
+            window.Press (VK_BACK);
+            window.Press (VK_RETURN);
+
+            Assert::AreEqual ((size_t) 1, host.actions.size(), L"one action");
+            Assert::AreEqual (WatchActions::GetClearWatch (0, CommandMode::AppleWin).echo, host.commands[0], L"the watch is removed");
+        }
 
         //  A window with an empty watch grid whose columns have widths, as after a
         //  paint, and its add row's edit begun.
@@ -248,8 +307,9 @@ namespace DebuggerWatchAddRowTests
         }
 
 
-        //  An empty name takes neither Enter nor Tab.
-        TEST_METHOD (AnEmptyNameTakesNeitherEnterNorTab)
+        //  An empty name adds nothing: Tab moves on to the value, and Enter
+        //  ends the add.
+        TEST_METHOD (AnEmptyNameAddsNothing)
         {
             CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost   host;
@@ -260,11 +320,14 @@ namespace DebuggerWatchAddRowTests
 
 
             window.Press (VK_TAB);
+
+            Assert::IsTrue   (grid->IsEditing(), L"the edit stays open");
+            Assert::AreEqual (1, grid->GetEditColumn(), L"Tab moved to the value");
+
             window.Press (VK_RETURN);
 
             Assert::IsTrue   (host.commands.empty());
-            Assert::IsTrue   (grid->IsEditing(), L"the edit closed");
-            Assert::AreEqual (1, grid->GetEditColumn(), L"Tab moved to the value");
+            Assert::IsFalse  (grid->IsEditing(), L"Enter ends the add");
         }
 
 
@@ -354,7 +417,7 @@ namespace DebuggerWatchAddRowTests
             Assert::IsTrue (grid->GetCellTextRectPx (last, 2, cell), L"the add row's cell is in view");
 
             click.button      = DxuiMouseButton::Left;
-            click.positionDip = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+            click.positionDip = { grid->GetBounds().left + (cell.left + cell.right) / 2, grid->GetBounds().top + (cell.top + cell.bottom) / 2 };
             click.kind        = DxuiMouseEventKind::Down;
             (void) grid->OnMouse (click);
             click.kind        = DxuiMouseEventKind::Up;
@@ -386,12 +449,64 @@ namespace DebuggerWatchAddRowTests
             window.TakeSnapshot (snapshot);
 
             Assert::AreEqual (4, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
-            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check.has_value(), L"no check box on the watch");
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check != DxuiListView::Cell::Check::None, L"no check box on the watch");
             Assert::AreEqual (std::wstring (L"0"),   window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].text, L"the watch's number is its ID");
             Assert::AreEqual (std::wstring (L"ZP1"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
             Assert::AreEqual (std::wstring (L"$06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
             Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[3].text);
-            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.has_value(), L"nor on the pointer");
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check != DxuiListView::Cell::Check::None, L"nor on the pointer");
+        }
+
+        //  Stopped in a BASIC statement, its variables are Auto rows at the top
+        //  of the pane, also with the PC in a slot's firmware, as during a
+        //  PRINT on a //c.
+        TEST_METHOD (TheStatementsBasicVariablesAreAutoRows)
+        {
+            for (Word pc : { (Word) 0xD7D2, (Word) 0xC305 })
+            {
+                CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+                QuietDebuggerHost                       host;
+                WatchWindow                             window   (theme, host);
+                DxuiDpiScaler                           scaler;
+                auto                                    snapshot = std::make_shared<DebuggerViewSnapshot>();
+                DebuggerViewSnapshot::BasicState        basic;
+                BasicLine                               line;
+                DxuiListView                          * list     = nullptr;
+                std::wstring                            at       = std::format (L"PC ${:04X}", pc);
+
+
+
+                scaler.SetDpi (96);
+                window.OnCreate();
+                window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+                line.address = 0x0801;
+                line.number  = 10;
+                line.pieces  = { "A", " = ", "A", " + ", "1" };
+                line.text    = "A = A + 1";
+
+                basic.isApplesoft = true;
+                basic.hasProgram  = true;
+                basic.hasValues   = true;
+                basic.lines       = { line };
+                basic.line        = 10;
+                basic.textPointer = (Word) (line.address + 4);
+                basic.variables   = { { "A", BasicType::Real, 0, "1.5" } };
+
+                snapshot->isPaused = true;
+                snapshot->pc       = pc;
+                snapshot->cycles   = 1000;
+                snapshot->basic    = basic;
+                window.TakeSnapshot (snapshot);
+
+                list = window.GetWatchesPane().GetLists()[0];
+
+                Assert::IsTrue   (list->GetRowCount() > 1,                                      at.c_str());
+                Assert::AreEqual (std::wstring (L"Auto"),  list->GetCellsOfRow (0)[1].text,       at.c_str());
+                Assert::AreEqual (std::wstring (L"A (BASIC)"), list->GetCellsOfRow (0)[2].text,   at.c_str());
+                Assert::AreEqual (std::wstring (L"1.5"),   list->GetCellsOfRow (0)[3].text,       at.c_str());
+                Assert::AreEqual (std::wstring (L"BASIC"), list->GetCellsOfRow (0)[4].text,       at.c_str());
+            }
         }
     };
 
@@ -451,6 +566,101 @@ namespace DebuggerWatchAddRowTests
 
             window.GetWatchesPane().Undo (true);
             Assert::IsTrue   (host.actions.back().command.verb == DebugVerb::ClearWatch, L"the redo removes it again");
+        }
+
+
+        //  Shift or Ctrl selects several watches, and Delete removes them all
+        //  in one step: the higher id first, so the clear of one doesn't move
+        //  the other. The undo adds both back, the lower id first. An
+        //  automatic watch in the selection is left alone.
+        TEST_METHOD (DeleteRemovesEverySelectedWatchInOneStep)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine   first;
+            DebuggerViewSnapshot::WatchLine   second;
+            DxuiListView                    * list     = nullptr;
+            size_t                            before   = 0;
+
+
+
+            first.id          = 1;
+            first.expression  = "X";
+            first.isRegister  = true;
+            first.value       = "00";
+            second            = first;
+            second.id         = 3;
+            second.expression = "Y";
+            snapshot->watches = { first, second };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            list = window.GetWatchesPane().GetList();
+
+            Assert::IsTrue (list->IsMultiSelect(), L"the watches take a selection of several rows");
+
+            list->SetSelectedRows ({ FindRow (window, L"1"), FindRow (window, L"3") }, FindRow (window, L"1"));
+            window.FocusControl (list);
+
+            before = host.actions.size();
+            window.Press (VK_DELETE);
+
+            Assert::AreEqual (before + 2, host.actions.size(), L"a clear for each watch");
+            Assert::IsTrue   (host.actions[before].command.verb == DebugVerb::ClearWatch);
+            Assert::AreEqual ((uint32_t) 3, host.actions[before].command.count, L"the higher id first");
+            Assert::AreEqual ((uint32_t) 1, host.actions[before + 1].command.count, L"then the lower");
+
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
+            before = host.actions.size();
+            window.GetWatchesPane().Undo (false);
+
+            Assert::AreEqual (before + 2, host.actions.size(), L"one undo adds both back");
+            Assert::AreEqual (std::string ("X"), host.actions[before].operand, L"the lower id first");
+            Assert::AreEqual (std::string ("Y"), host.actions[before + 1].operand);
+        }
+
+
+        //  An action is placed where its reply goes: over the pane it came
+        //  from, or, for one run right after a modal dialog closed, in a
+        //  message box.
+        TEST_METHOD (AnActionsReplyGoesToItsPaneOrAfterADialogToABox)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine   watch;
+
+
+
+            watch.id          = 3;
+            watch.expression  = "X";
+            watch.isRegister  = true;
+            watch.value       = "00";
+            snapshot->watches = { watch };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+            window.FocusControl (window.GetWatchesPane().GetList());
+
+            RunMenuItem (window, FindRow (window, L"3"), L"Remove");
+
+            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), host.actions.back().replyPane, L"over the Watches pane");
+            Assert::IsFalse  (host.actions.back().isReplyBoxed);
+
+            window.OnWindowEnabled (true);
+            RunMenuItem (window, FindRow (window, L"3"), L"Remove");
+
+            Assert::IsTrue (host.actions.back().isReplyBoxed, L"in a box after a dialog");
         }
 
 

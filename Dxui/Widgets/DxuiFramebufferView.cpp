@@ -33,6 +33,33 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
     m_pixels.assign (bgra, bgra + count);
     m_width  = width;
     m_height = height;
+
+    m_display.clear();
+    m_displayW   = 0;
+    m_displayH   = 0;
+    m_displayPad = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::SetDisplayImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiFramebufferView::SetDisplayImage (std::vector<uint32_t> bgra, int width, int height, int margin)
+{
+    bool  whole = width > 0 && height > 0 && margin >= 0 && bgra.size() == (size_t) width * (size_t) height;
+
+
+
+    m_display    = whole ? std::move (bgra) : std::vector<uint32_t>();
+    m_displayW   = whole ? width  : 0;
+    m_displayH   = whole ? height : 0;
+    m_displayPad = whole ? margin : 0;
 }
 
 
@@ -48,8 +75,12 @@ void DxuiFramebufferView::SetFramebuffer (const uint32_t * bgra, int width, int 
 void DxuiFramebufferView::Clear()
 {
     m_pixels.clear();
-    m_width  = 0;
-    m_height = 0;
+    m_display.clear();
+    m_width      = 0;
+    m_height     = 0;
+    m_displayW   = 0;
+    m_displayH   = 0;
+    m_displayPad = 0;
 }
 
 
@@ -424,9 +455,20 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                             (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawFramebuffer (m_pixels.data(), m_width, m_height,
-                               (float) dest.left, (float) dest.top,
-                               (float) (dest.right - dest.left), (float) (dest.bottom - dest.top));
+    //  The host's drawing of the picture at this size, when it has one, with
+    //  its margin around the picture.
+    if (!m_display.empty() && m_displayW == dest.right - dest.left + 2 * m_displayPad && m_displayH == dest.bottom - dest.top + 2 * m_displayPad)
+    {
+        hr = text.DrawFramebuffer (m_display.data(), m_displayW, m_displayH,
+                                   (float) (dest.left - m_displayPad), (float) (dest.top - m_displayPad), (float) m_displayW, (float) m_displayH);
+    }
+    else
+    {
+        hr = text.DrawFramebuffer (m_pixels.data(), m_width, m_height,
+                                   (float) dest.left, (float) dest.top,
+                                   (float) (dest.right - dest.left), (float) (dest.bottom - dest.top));
+    }
+
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.PopClipRect();
@@ -438,4 +480,45 @@ void DxuiFramebufferView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
         m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiFramebufferView::GetScrollbarMenu
+//
+//  A bar's position is where the picture's middle is, as a drag on it sets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiFramebufferView::GetScrollbarMenu (POINT pt)
+{
+    auto  pan = [this] (int, int)
+    {
+        int  destW = 0;
+        int  destH = 0;
+
+        GetScaledSize (destW, destH);
+
+        m_panY = m_vertScroll.GetScrollPos() - (destH - (int) (m_boundsDip.bottom - m_boundsDip.top)) / 2;
+        m_panX = m_horzScroll.GetScrollPos() - (destW - (int) (m_boundsDip.right - m_boundsDip.left)) / 2;
+        ClampPan();
+    };
+
+
+
+    if (!IsOverScrollbar (pt))
+    {
+        return {};
+    }
+
+    SyncScrollbars();
+
+    m_vertScroll.SetOnScroll (pan);
+    m_horzScroll.SetOnScroll (pan);
+
+    return m_vertScroll.HitTest (pt.x, pt.y) ? m_vertScroll.BuildContextMenu (pt.x, pt.y) : m_horzScroll.BuildContextMenu (pt.x, pt.y);
 }

@@ -46,11 +46,11 @@ namespace DebuggerTests
 
             Assert::IsFalse (rig.target.hookInstalled, L"FR-064: no debugger interest, no hook");
 
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
             Assert::IsFalse   (rig.target.hookInstalled, L"recording needs no hook: the CPU reports the opcodes it needs");
             Assert::IsNotNull (rig.target.watchedOpcodes);
 
-            rig.session.SetCallRecording (false);
+            rig.session.GetCallRecords().SetRecording (false);
             Assert::IsNull    (rig.target.watchedOpcodes);
         }
 
@@ -63,7 +63,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("Call stack: HYBRID"), rig.RunOk ("CALLS MODE").text.at (0));
             Assert::AreEqual (std::string ("Call stack: WALK"),   rig.RunOk ("CALLS MODE WALK").text.at (0));
-            Assert::IsTrue   (rig.session.GetCallMechanism() == CallStackMechanism::Walk);
+            Assert::IsTrue   (rig.session.GetCallRecords().GetMechanism() == CallStackMechanism::Walk);
 
             rig.RunOk ("MODE MONITOR");
             Assert::AreEqual (std::string ("Call stack: RECORDED"), rig.RunOk ("/calls mode recorded").text.at (0));

@@ -1,17 +1,16 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/BreakpointGroupHandlers.h"
+#include "Debugger/Handlers/BrkHandlers.h"
 
 #include "Config/IFileSystem.h"
-#include "Debugger/AppleWinFormatter.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/ConditionContext.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/Handlers/BasicHandlers.h"
-#include "Microcode.h"
-#include "OpcodeTable.h"
 
 
 
@@ -31,27 +30,30 @@ bool BreakpointHandlers::TryExecute (DebugSession & session, const DebugCommand 
 
     switch (command.verb)
     {
-    case DebugVerb::SetBreakpoint:              SetAddress    (session, command, reply);                         return true;
-    case DebugVerb::SetSourceBreakpoint:        SetSourceLine (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpoint:              SetAddress                     (session, command, reply);                         return true;
+    case DebugVerb::SetSourceBreakpoint:        SetSourceLine                  (session, command, reply);                         return true;
     case DebugVerb::SetConditionalBreakpoint:
-    case DebugVerb::SetRegisterBreakpoint:      SetCondition  (session, command, reply);                         return true;
-    case DebugVerb::SetBreakpointAndWatchpoint: SetBoth       (session, command, reply);                         return true;
-    case DebugVerb::SetMemoryWatchpoint:        SetWatchpoint (session, command, WatchAccess::ReadWrite, reply); return true;
-    case DebugVerb::SetReadWatchpoint:          SetWatchpoint (session, command, WatchAccess::Read,      reply); return true;
-    case DebugVerb::SetWriteWatchpoint:         SetWatchpoint (session, command, WatchAccess::Write,     reply); return true;
-    case DebugVerb::SetValueBreakpoint:         SetValue      (session, command, reply);                         return true;
-    case DebugVerb::BreakOnBrk:                 SetBrk        (session, command, reply);                         return true;
-    case DebugVerb::BreakOnOpcode:              SetOpcode     (session, command, reply);                         return true;
-    case DebugVerb::BreakOnInterrupt:           SetInterrupt  (session, command, reply);                         return true;
-    case DebugVerb::BreakOnUnwrittenRead:       SetUnwritten  (session, command, reply);                         return true;
-    case DebugVerb::SetDiskBreakpoint:          SetDisk       (session, command, reply);                         return true;
-    case DebugVerb::ClearBreakpoint:            Clear         (session, command, reply);                         return true;
-    case DebugVerb::DisableBreakpoint:          Enable        (session, command, false, reply);                  return true;
-    case DebugVerb::EnableBreakpoint:           Enable        (session, command, true,  reply);                  return true;
-    case DebugVerb::EditBreakpoint:             Edit          (session, command, reply);                         return true;
-    case DebugVerb::ChangeBreakpoint:           Change        (session, command, reply);                         return true;
-    case DebugVerb::SaveBreakpoints:            Save          (session, command, reply);                         return true;
-    case DebugVerb::SetBreakpointName:          SetName       (session, command, reply);                         return true;
+    case DebugVerb::SetRegisterBreakpoint:      SetCondition                   (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpointAndWatchpoint: SetBoth                        (session, command, reply);                         return true;
+    case DebugVerb::SetMemoryWatchpoint:        SetWatchpoint                  (session, command, WatchAccess::ReadWrite, reply); return true;
+    case DebugVerb::SetReadWatchpoint:          SetWatchpoint                  (session, command, WatchAccess::Read,      reply); return true;
+    case DebugVerb::SetWriteWatchpoint:         SetWatchpoint                  (session, command, WatchAccess::Write,     reply); return true;
+    case DebugVerb::SetValueBreakpoint:         SetValue                       (session, command, reply);                         return true;
+    case DebugVerb::BreakOnBrk:                 BrkHandlers::SetBrk            (session, command, reply);                         return true;
+    case DebugVerb::BreakOnOpcode:              BrkHandlers::SetOpcode         (session, command, reply);                         return true;
+    case DebugVerb::BreakOnInterrupt:           BrkHandlers::SetInterrupt      (session, command, reply);                         return true;
+    case DebugVerb::BreakOnUnwrittenRead:       BrkHandlers::SetUnwritten      (session, command, reply);                         return true;
+    case DebugVerb::SetDiskBreakpoint:          SetDisk                        (session, command, reply);                         return true;
+    case DebugVerb::ClearBreakpoint:            Clear                          (session, command, reply);                         return true;
+    case DebugVerb::DisableBreakpoint:          Enable                         (session, command, false, reply);                  return true;
+    case DebugVerb::EnableBreakpoint:           Enable                         (session, command, true,  reply);                  return true;
+    case DebugVerb::EditBreakpoint:             Edit                           (session, command, reply);                         return true;
+    case DebugVerb::ChangeBreakpoint:           Change                         (session, command, reply);                         return true;
+    case DebugVerb::SaveBreakpoints:            Save                           (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpointName:          SetName                        (session, command, reply);                         return true;
+    case DebugVerb::SetBreakpointLog:           SetLog                         (session, command, reply);                         return true;
+    case DebugVerb::ListBreakpointLogs:         ListLogs                       (session, command, reply);                         return true;
+    case DebugVerb::GroupBreakpoints:           BreakpointGroupHandlers::Group (session, command, reply);                         return true;
 
     case DebugVerb::ListBreakpoints:
         ListAll (session, list);
@@ -90,7 +92,7 @@ void BreakpointHandlers::ListAll (DebugSession & session, BreakpointListData & l
     std::sort (list.breakpoints.begin(), list.breakpoints.end(),
                [] (const BreakpointInfo & a, const BreakpointInfo & b) { return a.id < b.id; });
 
-    list.videoBreak = session.GetVideoBreak();
+    list.videoBreak = session.GetStops().GetBeamBreaks().GetVideoBreak();
 }
 
 
@@ -122,6 +124,8 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Breakpoint & entry)
     info.hits      = entry.hits;
     info.symbol    = entry.symbol;
     info.name      = entry.name;
+    info.log       = entry.log;
+    info.group     = entry.group;
     info.disk      = entry.disk;
     info.resolved  = entry.resolved;
     info.basicName = entry.basicName;
@@ -156,6 +160,8 @@ BreakpointInfo BreakpointHandlers::MakeInfo (const Watchpoint & entry)
     info.stops     = entry.stops;
     info.hits      = entry.hits;
     info.name      = entry.name;
+    info.log       = entry.log;
+    info.group     = entry.group;
     return info;
 }
 
@@ -351,61 +357,84 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
 
 void BreakpointHandlers::SetSourceLine (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    const DebugFile                     & file    = session.GetDebugFile();
     int                                   line    = (int) command.count;
-    std::optional<int>                    fileId;
-    std::optional<int>                    target;
+    int                                   target  = 0;
     std::vector<std::pair<Word, Word>>    ranges;
     MessageData                           message;
 
 
 
-    if (!session.HasDebugFile())
-    {
-        reply.SetError (CommandStatus::Error, "no debug file", "A source breakpoint needs a debug file. Use SYM LOAD to load one.");
-        return;
-    }
-
-    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    if (!TryValidateCondition (session, command.expression, false, false, reply) || !TryResolveSourceLine (session, command, target, ranges, reply))
     {
         return;
     }
-
-    fileId = FindSourceFile (file, command.text);
-
-    if (!fileId.has_value())
-    {
-        reply.SetError (CommandStatus::Error, "no such file", std::format ("The debug file has no source file {}.", command.text));
-        return;
-    }
-
-    if (command.count <= (uint32_t) INT_MAX)
-    {
-        target = session.GetLineTable().GetNextLineWithCode (*fileId, line);
-    }
-
-    if (!target.has_value())
-    {
-        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} produced code.", command.count, command.text));
-        return;
-    }
-
-    ranges = session.GetLineTable().GetRanges (*fileId, *target);
 
     for (const std::pair<Word, Word> & range : ranges)
     {
         int  id = session.GetBreakpoints().AddAddress (range.first, range.first, command.expression);
 
-        message.lines.push_back (std::format ("Breakpoint #{} at ${:04X}, {} line {}.", id, range.first, command.text, *target));
+        message.lines.push_back (std::format ("Breakpoint #{} at ${:04X}, {} line {}.", id, range.first, command.text, target));
     }
 
-    if (*target != line)
+    if (target != line)
     {
-        message.lines.push_back (std::format ("Line {} produced no code. The breakpoint is on line {}.", line, *target));
+        message.lines.push_back (std::format ("Line {} has no code, so the breakpoint is on line {}.", line, target));
     }
 
     session.OnStopConditionsChanged();
     reply.data = message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::TryResolveSourceLine
+//
+//  A source line definition's file and line as the line with code from that
+//  one on, and the ranges of addresses that line produced; false with the
+//  reason in the reply.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::TryResolveSourceLine (DebugSession & session, const DebugCommand & command, int & target, std::vector<std::pair<Word, Word>> & ranges, Reply & reply)
+{
+    std::optional<int>  fileId;
+    std::optional<int>  found;
+
+
+
+    if (!session.GetFiles().HasDebugFile())
+    {
+        reply.SetError (CommandStatus::Error, "no debug file", "There is no debug file to set a source breakpoint by. Load one with SYM LOAD.");
+        return false;
+    }
+
+    fileId = FindSourceFile (session.GetFiles().GetDebugFile(), command.text);
+
+    if (!fileId.has_value())
+    {
+        reply.SetError (CommandStatus::Error, "no such file", std::format ("The debug file has no source file {}.", command.text));
+        return false;
+    }
+
+    if (command.count <= (uint32_t) INT_MAX)
+    {
+        found = session.GetFiles().GetLineTable().GetNextLineWithCode (*fileId, (int) command.count);
+    }
+
+    if (!found.has_value())
+    {
+        reply.SetError (CommandStatus::Error, "no code", std::format ("No line from {} onward in {} has code.", command.count, command.text));
+        return false;
+    }
+
+    target = *found;
+    ranges = session.GetFiles().GetLineTable().GetRanges (*fileId, target);
+
+    return !ranges.empty();
 }
 
 
@@ -622,501 +651,6 @@ void BreakpointHandlers::SetBoth (DebugSession & session, const DebugCommand & c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointHandlers::SetBrk
-//
-//  BRK [0|1|2|3|ALL] [ON|OFF]. 0 is the BRK opcode; 1, 2 and 3 are the
-//  invalid opcodes of that length, each of which becomes an opcode entry.
-//  With no ON or OFF the current setting is reported.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & command, Reply & reply)
-{
-    int                  selector    = kBrkSelector;
-    std::optional<bool>  isOn;
-    std::string          error;
-    BreakpointListData   added;
-    Breakpoint           entry;
-    int                  firstLength = 1;
-    int                  lastLength  = kMaxLength;
-
-
-
-    if (!TryParseBrkArguments (command.text, selector, isOn, error))
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments", error);
-        return;
-    }
-
-    if (!TryValidateCondition (session, command.expression, false, false, reply))
-    {
-        return;
-    }
-
-    if (!isOn.has_value())
-    {
-        ReportBrk (session, reply);
-        return;
-    }
-
-    if (selector == kAllSelector)
-    {
-        firstLength = kBrkSelector;
-    }
-    else
-    {
-        firstLength = selector;
-        lastLength  = selector;
-    }
-
-    for (int length = firstLength; length <= lastLength; ++length)
-    {
-        if (length == kBrkSelector && *isOn && !session.GetBreakpoints().HasBrk())
-        {
-            session.GetBreakpoints().TryFind (session.GetBreakpoints().AddBrk(), entry);
-            session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
-            entry.condition = command.expression;
-            added.breakpoints.push_back (MakeInfo (entry));
-        }
-        else if (length == kBrkSelector && *isOn)
-        {
-            //  BRK ON again, with or without IF, sets the condition, and a
-            //  condition that changed is reported with the entry.
-            for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
-            {
-                entry = (existing.kind == BreakpointKind::Brk) ? existing : entry;
-            }
-
-            if (entry.condition.text != command.expression.text)
-            {
-                session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
-                entry.condition = command.expression;
-                added.breakpoints.push_back (MakeInfo (entry));
-            }
-        }
-        else if (length == kBrkSelector && !*isOn)
-        {
-            session.GetBreakpoints().ClearKind (BreakpointKind::Brk);
-            RemoveBrkOpcodes (session);
-        }
-        else if (length != kBrkSelector && *isOn)
-        {
-            AddInvalidOpcodes (session, length, added);
-        }
-        else if (length != kBrkSelector)
-        {
-            RemoveInvalidOpcodes (session, length);
-        }
-    }
-
-    session.OnStopConditionsChanged();
-
-    if (*isOn && added.breakpoints.empty())
-    {
-        reply.data = MessageData { { "Nothing to add: the setting was already on, or this CPU has no invalid opcodes of that length." } };
-    }
-    else if (*isOn)
-    {
-        reply.data = added;
-    }
-    else
-    {
-        ReportBrk (session, reply);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::TryParseBrkArguments
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BreakpointHandlers::TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error)
-{
-    std::istringstream  stream (text);
-    std::string         token;
-
-
-
-    while (stream >> token)
-    {
-        if      (token == "ON")                                     { isOn = true; }
-        else if (token == "OFF")                                    { isOn = false; }
-        else if (token == "ALL")                                    { selector = kAllSelector; }
-        else if (token.size() == 1 && token[0] >= '0' && token[0] <= '3') { selector = token[0] - '0'; }
-        else
-        {
-            error = "BRK takes 0, 1, 2, 3 or ALL, then ON or OFF.";
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::AddInvalidOpcodes
-//
-//  One opcode entry per invalid opcode of the length, skipping any already
-//  present.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::AddInvalidOpcodes (DebugSession & session, int length, BreakpointListData & added)
-{
-    Breakpoint  entry;
-
-
-
-    for (int opcode = 0; opcode < kOpcodeCount; ++opcode)
-    {
-        if (!IsInvalidOfLength (session, (Byte) opcode, length) || session.GetBreakpoints().HasOpcode ((Byte) opcode))
-        {
-            continue;
-        }
-
-        session.GetBreakpoints().TryFind (session.GetBreakpoints().AddOpcode ((Byte) opcode), entry);
-        added.breakpoints.push_back (MakeInfo (entry));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::RemoveInvalidOpcodes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::RemoveInvalidOpcodes (DebugSession & session, int length)
-{
-    std::vector<int>  ids;
-
-
-
-    for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
-    {
-        if (entry.kind == BreakpointKind::Opcode && IsInvalidOfLength (session, entry.opcode, length))
-        {
-            ids.push_back (entry.id);
-        }
-    }
-
-    for (int id : ids)
-    {
-        session.GetBreakpoints().TryClear (id);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::RemoveBrkOpcodes
-//
-//  Opcode entries on BRK stop exactly as the BRK entry does, so BRK 0 OFF
-//  clears them too.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::RemoveBrkOpcodes (DebugSession & session)
-{
-    std::vector<int>  ids;
-
-
-
-    for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
-    {
-        if (entry.kind == BreakpointKind::Opcode && entry.opcode == kBrkOpcode)
-        {
-            ids.push_back (entry.id);
-        }
-    }
-
-    for (int id : ids)
-    {
-        session.GetBreakpoints().TryClear (id);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::IsInvalidOfLength
-//
-//  An undocumented opcode of the given length on the target's CPU.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BreakpointHandlers::IsInvalidOfLength (DebugSession & session, Byte opcode, int length)
-{
-    const Microcode  * set = session.GetTarget().GetInstructionSet();
-
-
-
-    if (set == nullptr)
-    {
-        return false;
-    }
-
-    return GetInvalidLength (set, opcode) == length;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::GetInvalidLength
-//
-//  The length of an undocumented opcode, or 0 for a documented one.
-//
-//  An opcode the table executes but hides from the assembler (the stable
-//  NMOS undocumented opcodes, the 65C02's NOP fill) takes the length of its
-//  addressing mode. Of the opcodes the table leaves undefined, those in
-//  column 2 are the NMOS JAMs, which halt the CPU and count as one byte. The
-//  rest are the unstable NMOS opcodes: they decode their operand the way the
-//  ALU instruction in the same row and column group does ($9B as $99, $AB
-//  as $A9), so they take that instruction's length.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int BreakpointHandlers::GetInvalidLength (const Microcode * set, Byte opcode)
-{
-    constexpr Byte     kColumnMask = 0x0F;
-    constexpr Byte     kJamColumn  = 0x02;
-    constexpr Byte     kGroupMask  = 0x03;
-    constexpr Byte     kAluGroup   = 0x01;
-    const Microcode  & entry       = set[opcode];
-    Byte               sibling     = (Byte) ((opcode & ~kGroupMask) | kAluGroup);
-
-
-
-    if (entry.isLegal)
-    {
-        return entry.assemblerHidden ? 1 + OpcodeTable::GetOperandSize (entry.globalAddressingMode) : 0;
-    }
-
-    if ((opcode & kColumnMask) == kJamColumn || !set[sibling].isLegal)
-    {
-        return 1;
-    }
-
-    return 1 + OpcodeTable::GetOperandSize (set[sibling].globalAddressingMode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::ReportBrk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::ReportBrk (DebugSession & session, Reply & reply)
-{
-    MessageData  message;
-    std::string  invalid = "Invalid opcodes:";
-
-
-
-    message.lines.push_back (std::string ("BRK opcode: ") + (session.GetBreakpoints().HasBrk() || session.GetBreakpoints().HasOpcode (kBrkOpcode) ? "on" : "off"));
-
-    for (int length = 1; length <= kMaxLength; ++length)
-    {
-        bool  isAnyPresent = false;
-        bool  isAnyMissing = false;
-
-
-
-        for (int opcode = 0; opcode < kOpcodeCount; ++opcode)
-        {
-            if (IsInvalidOfLength (session, (Byte) opcode, length))
-            {
-                isAnyPresent |= session.GetBreakpoints().HasOpcode ((Byte) opcode);
-                isAnyMissing |= !session.GetBreakpoints().HasOpcode ((Byte) opcode);
-            }
-        }
-
-        invalid += std::format (" {}-byte {}", length, isAnyPresent && !isAnyMissing ? "on" : (isAnyPresent ? "partial" : "off"));
-    }
-
-    message.lines.push_back (invalid);
-    reply.data = message;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::SetOpcode
-//
-//  BRKOP with opcodes, or mnemonics, adds an entry for each opcode, every
-//  opcode of a mnemonic on this CPU; alone, it lists the opcode entries, or
-//  reports that there are none. An unknown mnemonic adds nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand & command, Reply & reply)
-{
-    BreakpointListData        list;
-    std::istringstream        mnemonics (command.text);
-    std::string               mnemonic;
-    std::vector<Byte>         opcodes   = command.values;
-    std::vector<Byte>         found;
-
-
-
-    if (!TryValidateCondition (session, command.expression, false, false, reply))
-    {
-        return;
-    }
-
-    while (mnemonics >> mnemonic)
-    {
-        if (!TryFindOpcodes (session, mnemonic, found))
-        {
-            reply.SetError (CommandStatus::Error, "unknown mnemonic", std::format ("{} is no instruction of this CPU.", mnemonic));
-            return;
-        }
-
-        opcodes.insert (opcodes.end(), found.begin(), found.end());
-    }
-
-    std::ranges::sort (opcodes);
-    opcodes.erase (std::ranges::unique (opcodes).begin(), opcodes.end());
-
-    for (Byte opcode : opcodes)
-    {
-        AddOpcodeEntry (session, opcode, command.expression, list);
-    }
-
-    session.OnStopConditionsChanged();
-
-    if (opcodes.empty())
-    {
-        for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
-        {
-            if (existing.kind == BreakpointKind::Opcode)
-            {
-                list.breakpoints.push_back (MakeInfo (existing));
-            }
-        }
-
-        if (list.breakpoints.empty())
-        {
-            reply.data = MessageData { { "No opcode breakpoints." } };
-            return;
-        }
-    }
-
-    reply.data = list;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::AddOpcodeEntry
-//
-//  An opcode's entry, added unless one is there; the BRK opcode is the BRK
-//  breakpoint, so BRKOP 00 and BRK ON make the same one entry.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, const Expression & condition, BreakpointListData & list)
-{
-    BreakpointTable  & table = session.GetBreakpoints();
-    Breakpoint         entry;
-    int                id    = -1;
-
-
-
-    for (const Breakpoint & existing : table.GetAll())
-    {
-        bool  isSame = (opcode == kBrkOpcode) ? existing.kind == BreakpointKind::Brk
-                                              : existing.kind == BreakpointKind::Opcode && existing.opcode == opcode;
-
-        id = (isSame && id < 0) ? existing.id : id;
-    }
-
-    if (id < 0)
-    {
-        id = (opcode == kBrkOpcode) ? table.AddBrk() : table.AddOpcode (opcode);
-    }
-
-    table.TrySetCondition (id, condition);
-
-    if (table.TryFind (id, entry))
-    {
-        list.breakpoints.push_back (MakeInfo (entry));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::TryFindOpcodes
-//
-//  Every opcode whose instruction is the mnemonic on the target's CPU,
-//  ignoring case; false when there is none.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BreakpointHandlers::TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes)
-{
-    const Microcode  * instructionSet = session.GetTarget().GetInstructionSet();
-    int                opcode         = 0;
-
-
-
-    opcodes.clear();
-
-    for (opcode = 0; instructionSet != nullptr && opcode < kOpcodeCount; opcode++)
-    {
-        const char  * name = instructionSet[opcode].instructionName;
-
-        if (name != nullptr && _stricmp (name, mnemonic.c_str()) == 0)
-        {
-            opcodes.push_back ((Byte) opcode);
-        }
-    }
-
-    return !opcodes.empty();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BreakpointHandlers::SetDisk
 //
 //  BPDISK on a machine with a Disk II controller, with the user's IF alone
@@ -1147,166 +681,6 @@ void BreakpointHandlers::SetDisk (DebugSession & session, const DebugCommand & c
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::SetInterrupt
-//
-//  BRKINT [ON|OFF]; alone, it reports the setting.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::SetInterrupt (DebugSession & session, const DebugCommand & command, Reply & reply)
-{
-    Breakpoint  entry;
-
-
-
-    if (!TryValidateCondition (session, command.expression, false, false, reply))
-    {
-        return;
-    }
-
-    if (command.text == "ON")
-    {
-        if (!HasInterrupt (session))
-        {
-            session.GetBreakpoints().AddInterrupt();
-            session.OnStopConditionsChanged();
-        }
-
-        for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
-        {
-            if (existing.kind == BreakpointKind::Interrupt)
-            {
-                entry = existing;
-            }
-        }
-
-        session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
-        entry.condition = command.expression;
-
-        reply.data = BreakpointSetData { MakeInfo (entry) };
-    }
-    else if (command.text == "OFF")
-    {
-        session.GetBreakpoints().ClearKind (BreakpointKind::Interrupt);
-        session.OnStopConditionsChanged();
-        reply.data = MessageData { { "Break on interrupt: off" } };
-    }
-    else if (command.text.empty())
-    {
-        reply.data = MessageData { { std::string ("Break on interrupt: ") + (HasInterrupt (session) ? "on" : "off") } };
-    }
-    else
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "BRKINT takes ON or OFF.");
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::HasInterrupt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BreakpointHandlers::HasInterrupt (DebugSession & session)
-{
-    const std::vector<Breakpoint> & entries = session.GetBreakpoints().GetAll();
-
-
-
-    return std::any_of (entries.begin(), entries.end(), [] (const Breakpoint & entry) { return entry.kind == BreakpointKind::Interrupt; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::SetUnwritten
-//
-//  BRKUNINIT [ON|OFF]: stop after a read of RAM nothing has written since
-//  power-on. Each form reports the setting and what the heat map has seen.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::SetUnwritten (DebugSession & session, const DebugCommand & command, Reply & reply)
-{
-    bool  isOn  = command.text == "ON";
-    bool  isOff = command.text == "OFF";
-
-
-
-    if (!isOn && !isOff && !command.text.empty())
-    {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "BRKUNINIT takes ON or OFF.");
-        return;
-    }
-
-    if (isOn || isOff)
-    {
-        session.SetUnwrittenBreak (isOn);
-    }
-
-    ReportUnwritten (session, reply);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointHandlers::ReportUnwritten
-//
-//  The setting; whether the heat map knows which RAM has been written, which
-//  it learns only at a power cycle unless it was on from power-on; and the
-//  reads before written it counted outside the ranges left out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointHandlers::ReportUnwritten (DebugSession & session, Reply & reply)
-{
-    HeatUnwrittenStatus  status  = session.GetTarget().GetUnwrittenStatus();
-    MessageData          message;
-    std::string          counted;
-
-
-
-    message.lines.push_back (std::string ("Break on read before written: ") + (session.HasUnwrittenBreak() ? "on" : "off"));
-
-    if (!status.isOn)
-    {
-        message.lines.push_back ("The heat map is off, so no reads are seen.");
-    }
-    else if (!status.isTracking)
-    {
-        message.lines.push_back ("Not tracking yet: the heat map started after power-on. Power-cycle the machine to start.");
-    }
-    else
-    {
-        counted = std::format ("Reads before written counted: {} at {} address{}", status.reads, status.addresses, status.addresses == 1 ? "" : "es");
-
-        if (status.ignoredSpans > 0)
-        {
-            counted += std::format (", outside {} range{} left out", status.ignoredSpans, status.ignoredSpans == 1 ? "" : "s");
-        }
-
-        message.lines.push_back (counted + ".");
-    }
-
-    reply.data = message;
 }
 
 
@@ -1410,8 +784,11 @@ void BreakpointHandlers::Enable (DebugSession & session, const DebugCommand & co
 //  BreakpointHandlers::Edit
 //
 //  BPEDIT # definition: the definition is parsed as its own line and must be
-//  one of the setting commands. The old entry is removed and the new one
-//  takes its id, enabled state and flags, with its hit count at zero.
+//  one of the setting commands. An edit from the debugger window has the
+//  definition as a command, and nothing is parsed. A source line's definition is the address
+//  its line's code starts at, the first where a macro body line has several.
+//  The old entry is removed and the new one takes its id, enabled state and
+//  flags, with its hit count at zero.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1428,22 +805,51 @@ void BreakpointHandlers::Edit (DebugSession & session, const DebugCommand & comm
 
 
 
-    if (command.text == "*" || !TryFindInfo (session, id, old))
+    if ((command.definition == nullptr && command.text == "*") || !TryFindInfo (session, id, old))
     {
         SetNoSuch (session, reply, id);
         return;
     }
 
-    parsed = AppleWinParser::Parse (command.text, session);
-
-    if (parsed.status != ParseStatus::Ok)
+    if (command.definition != nullptr)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", parsed.error.empty() ? "BPEDIT # takes the breakpoint's new definition." : parsed.error);
-        return;
+        parsed.command = *command.definition;
+    }
+    else
+    {
+        parsed = AppleWinParser::Parse (command.text, session);
+
+        if (parsed.status != ParseStatus::Ok)
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", parsed.error.empty() ? "BPEDIT # takes the breakpoint's new definition." : parsed.error);
+            return;
+        }
+    }
+
+    if (parsed.command.verb == DebugVerb::SetSourceBreakpoint)
+    {
+        int                                 target = 0;
+        std::vector<std::pair<Word, Word>>  ranges;
+
+        if (!TryResolveSourceLine (session, parsed.command, target, ranges, reply))
+        {
+            return;
+        }
+
+        parsed.command.verb  = DebugVerb::SetBreakpoint;
+        parsed.command.a1    = ranges.front().first;
+        parsed.command.a2    = ranges.front().first;
+        parsed.command.hasA2 = false;
     }
 
     if (!TryMakeEntry (parsed.command, id, old, breakpoint, watchpoint, isWatchpoint))
     {
+        if (command.definition != nullptr)
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("Breakpoint #{} can't be changed to this type.", id));
+            return;
+        }
+
         reply.SetError (CommandStatus::Error, "invalid arguments",
                         "BPEDIT # takes one definition as BP, BPX, BPR, BPM, BPMR, BPMW, BPMV, BPDISK, BPBASIC, BPBASICVAR or BRKOP would take it, "
                         "or BRK ON, BRKINT ON or BRKBASIC ON.");
@@ -1505,11 +911,15 @@ bool BreakpointHandlers::TryMakeEntry (
     breakpoint.temporary = old.temporary;
     breakpoint.stops     = old.stops;
     breakpoint.name      = old.name;
+    breakpoint.log       = old.log;
+    breakpoint.group     = old.group;
     watchpoint.id        = id;
     watchpoint.enabled   = old.enabled;
     watchpoint.temporary = old.temporary;
     watchpoint.stops     = old.stops;
     watchpoint.name      = old.name;
+    watchpoint.log       = old.log;
+    watchpoint.group     = old.group;
     watchpoint.first     = definition.a1;
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
@@ -1548,8 +958,8 @@ bool BreakpointHandlers::TryMakeEntry (
 
     case DebugVerb::BreakOnBrk:
         breakpoint.kind   = BreakpointKind::Brk;
-        breakpoint.opcode = kBrkOpcode;
-        return IsBrkOn (definition.text);
+        breakpoint.opcode = BrkHandlers::kBrkOpcode;
+        return BrkHandlers::IsBrkOn (definition.text);
 
     case DebugVerb::BreakOnInterrupt:
         breakpoint.kind = BreakpointKind::Interrupt;
@@ -1591,36 +1001,6 @@ bool BreakpointHandlers::TryMakeEntry (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointHandlers::IsBrkOn
-//
-//  BRK's arguments as a definition: ON, alone or after the BRK selector 0.
-//  Any other selector adds an entry per invalid opcode, and a definition
-//  replaces exactly one entry.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BreakpointHandlers::IsBrkOn (const std::string & text)
-{
-    int                  selector = kBrkSelector;
-    std::optional<bool>  isOn;
-    std::string          error;
-
-
-
-    if (!TryParseBrkArguments (text, selector, isOn, error))
-    {
-        return false;
-    }
-
-    return selector == kBrkSelector && isOn == true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BreakpointHandlers::SetName
 //
 //  BPNAME # "text", for a breakpoint or a watchpoint; no text returns it to
@@ -1642,6 +1022,112 @@ void BreakpointHandlers::SetName (DebugSession & session, const DebugCommand & c
 
     reply.data = MessageData { { command.text.empty() ? std::format ("Breakpoint #{}: name cleared.", id)
                                                        : std::format ("Breakpoint #{}: name set to \"{}\".", id, command.text) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::SetLog
+//
+//  BPLOG # "text": each hit writes the text to the console, with each
+//  {expression} evaluated. GO before the text makes a hit run on rather than
+//  stop; CLEAR takes the message off and makes hits stop again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::SetLog (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    int          id      = (int) command.count;
+    std::string  text    = command.text;
+    std::string  upper   = text;
+    bool         isGo    = false;
+    bool         isClear = false;
+    bool         isFound = false;
+
+
+
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) toupper ((unsigned char) ch); });
+
+    isClear = upper == "CLEAR" || text.empty();
+    isGo    = upper.starts_with ("GO ");
+
+    if (isGo)
+    {
+        text = text.substr (3);
+
+        if (text.size() >= 2 && text.front() == '"' && text.back() == '"')
+        {
+            text = text.substr (1, text.size() - 2);
+        }
+    }
+
+    if (isClear)
+    {
+        text.clear();
+    }
+
+    isFound = session.GetBreakpoints().TrySetLog (id, text);
+
+    if (isFound)
+    {
+        session.GetBreakpoints().TrySetFlags (id, false, !isGo);
+    }
+    else if (session.GetWatchpoints().TrySetLog (id, text))
+    {
+        session.GetWatchpoints().TrySetFlags (id, false, !isGo);
+        isFound = true;
+    }
+
+    if (!isFound)
+    {
+        SetNoSuch (session, reply, id);
+        return;
+    }
+
+    session.OnStopConditionsChanged();
+
+    reply.data = MessageData { { isClear ? std::format ("Breakpoint #{}: log cleared.", id)
+                                         : std::format ("Breakpoint #{}: logs \"{}\" and {}.", id, text, isGo ? "runs on" : "stops") } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::ListLogs
+//
+//  BPLOGS [n]: the last n messages logging breakpoints wrote, oldest first,
+//  for a client that doesn't receive them as they are written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointHandlers::ListLogs (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    static constexpr size_t   kDefaultCount = 20;
+    std::string               text          = command.text;
+    size_t                    count         = kDefaultCount;
+    std::vector<std::string>  logs;
+
+
+
+    text.erase (0, std::min (text.size(), text.find_first_not_of (" \t")));
+    text.erase (text.find_last_not_of (" \t") + 1);
+
+    if (!text.empty() &&
+        (std::from_chars (text.data(), text.data() + text.size(), count).ec != std::errc() || count == 0 || count > DebugSession::kRecentHitLogs ||
+         text.find_first_not_of ("0123456789") != std::string::npos))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("BPLOGS takes a count from 1 to {}.", DebugSession::kRecentHitLogs));
+        return;
+    }
+
+    logs       = session.GetRecentHitLogs (count);
+    reply.data = BreakpointMessagesData { logs };
 }
 
 
@@ -1716,7 +1202,7 @@ void BreakpointHandlers::Change (DebugSession & session, const DebugCommand & co
 
 void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem       * files = session.GetFileSystem();
+    IFileSystem       * files = session.GetHostFiles().GetFileSystem();
     BreakpointListData  list;
     HRESULT             hr    = S_OK;
 
@@ -1734,16 +1220,16 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
         return;
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), MakeScript (session));
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), MakeScript (session));
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
     ListAll (session, list);
-    reply.data = MessageData { { std::format ("Saved {} breakpoint{}{}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", session.GetPathEcho (command.text, "to")) } };
+    reply.data = MessageData { { std::format ("Saved {} breakpoint{}{}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", session.GetHostFiles().GetPathEcho (command.text, "to", reply)) } };
 }
 
 
@@ -1791,7 +1277,7 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
         }
     }
 
-    if (session.HasUnwrittenBreak())
+    if (session.GetStops().HasUnwrittenBreak())
     {
         script += "BRKUNINIT ON\n";
     }
@@ -1903,11 +1389,13 @@ void BreakpointHandlers::SetState (DebugSession & session, int id, const Breakpo
     {
         session.GetBreakpoints().TrySetFlags (id, info.temporary, info.stops);
         session.GetBreakpoints().TrySetName  (id, info.name);
+        session.GetBreakpoints().TrySetGroup (id, info.group);
     }
     else if (session.GetWatchpoints().TrySetEnabled (id, info.enabled))
     {
         session.GetWatchpoints().TrySetFlags (id, info.temporary, info.stops);
         session.GetWatchpoints().TrySetName  (id, info.name);
+        session.GetWatchpoints().TrySetGroup (id, info.group);
     }
 
     session.OnStopConditionsChanged();

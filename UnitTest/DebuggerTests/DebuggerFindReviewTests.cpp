@@ -157,7 +157,7 @@ namespace DebuggerFindReviewTests
     {
     public:
 
-        TEST_METHOD (MatchesTakeThePcRowColorAndTheCurrentOneThePcArrowYellow)
+        TEST_METHOD (MatchesTakeADarkYellowAndTheCurrentOneThePcArrowYellow)
         {
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
             FindWidgetHost    host;
@@ -175,12 +175,12 @@ namespace DebuggerFindReviewTests
 
             view  = window.GetConsolePane().GetOutput().GetView();
             dark  = DebuggerTextColors::IsDark (theme.ContentBackground());
-            row   = DebuggerTextColors::Make (theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent()).pcRow;
             arrow = dark ? 0xFFFFE34Du : 0xFFA88300u;
+            row   = DxuiColor::Darken (arrow, 0.5f);
 
             Assert::AreEqual ((size_t) 2, view->GetFindHighlights().size());
             Assert::AreEqual (arrow, view->GetFindFillOf (view->GetFindHighlights()[0], theme), L"the match the search is at: the PC arrow's yellow");
-            Assert::AreEqual (row,   view->GetFindFillOf (view->GetFindHighlights()[1], theme), L"every other match: the PC row's color");
+            Assert::AreEqual (row,   view->GetFindFillOf (view->GetFindHighlights()[1], theme), L"every other match: the yellow at half its brightness");
 
             window.Press (VK_RETURN);
 

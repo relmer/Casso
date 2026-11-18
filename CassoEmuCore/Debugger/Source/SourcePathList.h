@@ -33,8 +33,8 @@ public:
     //  both lists.
     void  AddFound (const std::string & programKey, const std::wstring & folder);
 
-    static std::wstring  Utf8ToWide  (const std::string & text);
-    static std::string   WideToUtf8  (const std::wstring & text);
+    static std::wstring  Utf8ToWide   (const std::string & text);
+    static std::string   WideToUtf8   (const std::wstring & text);
     static bool          IsSameFolder (const std::wstring & a, const std::wstring & b);
 
 private:

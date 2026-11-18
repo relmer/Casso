@@ -43,15 +43,21 @@ public:
     void                           BeginEdit      (int row, int column);
     void                           EndEdit        (bool commit);
 
-    void                           Configure      () override;
-    std::vector<IDxuiControl *>    GetControls    () const override;
-    void                           Apply          (const DebuggerViewSnapshot & snapshot) override;
-    bool                           RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    bool                           RouteContentMouse (const DxuiMouseEvent & ev) override;
-    bool                           AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
-    bool                           CanUndo        (bool redo) const override;
-    std::wstring                   GetUndoText    (bool redo) const override;
-    void                           Undo           (bool redo) override;
+    void                         Configure         () override;
+    std::vector<IDxuiControl *>  GetControls       () const override;
+    IDxuiFindTarget            * GetFindView       () const override { return m_list; }
+    DebuggerPaneFrame          * GetFindFrame      () const override { return m_frame.get(); }
+    void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
+    bool                         RouteEditKey      (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
+    bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;
+    bool                         AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                         CanUndo           (bool redo) const override;
+    std::wstring                 GetUndoText       (bool redo) const override;
+    void                         Undo              (bool redo) override;
+
+    //  The Type column's text for an automatic watch and for a typed one.
+    static std::wstring          GetAutoType       (const std::string & key, const std::string & label = {});
+    static std::wstring          GetWatchType      (const DebuggerViewSnapshot::WatchLine & watch);
 
 protected:
     DxuiListView *                 CreateList     () override;
@@ -83,15 +89,24 @@ private:
     static constexpr int  kEditMaxChars     = 64;
     static constexpr int  kFirstFieldColumn = 1;      // the ID column comes before the watch's cells
     static constexpr int  kAddedWaitMs      = 2000;   // the milliseconds after a Tab's add before its value edit is dropped
+    static constexpr int  kDeleteId         = 3;      // the bar's Delete, after UndoBarCommands' ids
 
     std::vector<DxuiListView::Cell>  MakeHeading    (const std::wstring & title) const;
     DxuiListView::Cell               MakeIdCell     (const std::wstring & text) const;
     DxuiListView::Cell               MakeTypeCell   (const std::wstring & text) const;
-    static std::wstring              GetAutoType    (const std::string & key);
-    static std::wstring              GetWatchType   (const DebuggerViewSnapshot::WatchLine & watch);
     static bool                      IsInRom        (Word pc);
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
-    void                             RemoveSelected ();
+
+    //  The selected rows a user can remove: the watches and the zero-page
+    //  pointers. Delete, the bar's Delete and the menu's Remove remove every
+    //  one of them, in one undoable step.
+    std::vector<Row>                 GetRemovableSelection () const;
+    void                             RemoveSelected        ();
+    void                             RemoveRows            (const std::vector<Row> & rows);
+
+    //  The menu's Remove on a row in a selection of several removes the
+    //  selection; on any other row, that row.
+    void                             RemoveFromMenu        (const Row & row);
 
     //  A watch or a zero-page pointer removed, as an undoable step: the undo
     //  adds it back where it was, and the redo removes it again.
@@ -111,15 +126,16 @@ private:
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
     void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
-    WatchHistory         m_history;
-    DxuiEditableGrid   * m_grid                     = nullptr;
-    std::vector<int>     m_idsBeforeAdd;
-    bool                 m_isValueEditAfterAdd      = false;
-    ULONGLONG            m_addedBy                  = 0;        // when the value edit after an add is dropped
-    std::string          m_addedText;                           // an add whose undo step waits for a snapshot with its id
-    Clock                m_clock                    = [] { return GetTickCount64(); };
-    std::vector<Row>     m_rows;
-    Edit                 m_edit;
-    bool                 m_isBasicVariablesExpanded = false;
-    BasicAutoWatches     m_basicAutos;
+    WatchHistory                   m_history;
+    std::shared_ptr<DxuiCommand>   m_deleteCommand;
+    DxuiEditableGrid             * m_grid                     = nullptr;
+    std::vector<int>               m_idsBeforeAdd;
+    bool                           m_isValueEditAfterAdd      = false;
+    ULONGLONG                      m_addedBy                  = 0;        // when the value edit after an add is dropped
+    std::string                    m_addedText;                           // an add whose undo step waits for a snapshot with its id
+    Clock                          m_clock                    = [] { return GetTickCount64(); };
+    std::vector<Row>               m_rows;
+    Edit                           m_edit;
+    bool                           m_isBasicVariablesExpanded = false;
+    BasicAutoWatches               m_basicAutos;
 };

@@ -5,6 +5,7 @@
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "Core/TextEncoding.h"
+#include "Core/AppleSingleCodec.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -271,7 +272,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("\xA9\x41\x60", 3), rig.files.PeekContent (L"C:\\Work\\out.bin"));
             rig.RunFails ("BSAVE out.bin", "invalid arguments");
 
-            rig.session.SetFileSystem (nullptr);
+            rig.session.GetHostFiles().SetFileSystem (nullptr);
             rig.RunFails ("BLOAD prog.bin 300", "no file access");
         }
 
@@ -314,8 +315,11 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) (end & 0xFF), rig.target.memory[0x6D], L"STREND");
             Assert::AreEqual ((Byte) 0x96,         rig.target.memory[0x70], L"FRETOP at MEMSIZ");
 
-            rig.RunOk ("BASICSAVE out.bas");
+            Assert::AreEqual (std::string ("Loaded 2 lines, 20 bytes, as the BASIC program from C:\\Work\\prog.bas."), reply.text.at (0), L"the relative name's full path");
+
+            reply = rig.RunOk ("BASICSAVE out.bas");
             Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\out.bas").find ("20  GOTO 10") != std::string::npos, L"the listing saved");
+            Assert::IsTrue (reply.text.at (0).ends_with ("bytes to C:\\Work\\out.bas."), L"the relative name's full path");
 
             rig.RunFails ("BASICLOAD missing.bas", "file not found");
 
@@ -323,6 +327,79 @@ namespace DebuggerTests
             rig.RunFails ("BASICLOAD bad.bas", "file not loadable");
         }
 
+
+        //  An AppleSingle BAS file and a CiderPress #fc file are the program as
+        //  they are, and load as a listing does; an AppleSingle file of
+        //  another type is not a program.
+        TEST_METHOD (BASICLOAD_TakesAppleSingleAndCiderPressFiles)
+        {
+            Rig                    rig;
+            Reply                  reply;
+            std::vector<Byte>      bytes;
+            std::vector<Byte>      packed;
+            AppleSingleFile        single;
+            ApplesoftListingError  error;
+            HRESULT                hr      = S_OK;
+
+
+
+            hr = ApplesoftTokenizer::Tokenize ("10 PRINT \"HI\"\n20 GOTO 10\n", bytes, error);
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            rig.target.memory[0x73] = 0x00;
+            rig.target.memory[0x74] = 0x96;
+
+            single.data          = bytes;
+            single.hasProDosInfo = true;
+            single.fileType      = 0xFC;
+            single.auxType       = 0x0801;
+            AppleSingleCodec::Encode (single, packed);
+            rig.files.WriteAllText (L"C:\\Work\\HELLO.as", std::string (packed.begin(), packed.end()));
+
+            reply = rig.RunOk ("BASICLOAD HELLO.as");
+            Assert::IsTrue   (reply.text.at (0).starts_with ("Loaded 2 lines, 20 bytes"), TextEncoding::NarrowToWide (reply.text.at (0)).c_str());
+            Assert::AreEqual (bytes[4], rig.target.memory[0x0805], L"the program's bytes at $0801");
+
+            rig.target.memory[0x0805] = 0;
+            rig.files.WriteAllText (L"C:\\Work\\HELLO#fc0801", std::string (bytes.begin(), bytes.end()));
+            reply = rig.RunOk ("BASICLOAD HELLO#fc0801");
+            Assert::IsTrue   (reply.text.at (0).starts_with ("Loaded 2 lines"));
+            Assert::AreEqual (bytes[4], rig.target.memory[0x0805], L"the #fc file's bytes as they are");
+
+            single.fileType = 0x06;
+            AppleSingleCodec::Encode (single, packed);
+            rig.files.WriteAllText (L"C:\\Work\\BIN.as", std::string (packed.begin(), packed.end()));
+            rig.RunFails ("BASICLOAD BIN.as", "file not loadable");
+        }
+
+
+        //  BASICCLEAR writes the empty program NEW writes, at TXTTAB, with the
+        //  variables and strings empty after it.
+        TEST_METHOD (BASICCLEAR_WritesTheEmptyProgramNewWrites)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            rig.target.memory[0x73] = 0x00;
+            rig.target.memory[0x74] = 0x96;
+            rig.files.WriteAllText (L"C:\\Work\\prog.bas", "10 PRINT \"HI\"\n20 GOTO 10\n");
+            rig.RunOk ("BASICLOAD prog.bas");
+
+            reply = rig.RunOk ("BASICCLEAR");
+            Assert::AreEqual (std::string ("Cleared the BASIC program."), reply.text.at (0));
+
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0801], L"a zero link at TXTTAB");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0802]);
+            Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x69], L"VARTAB after it");
+            Assert::AreEqual ((Byte) 0x08, rig.target.memory[0x6A]);
+            Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x6B], L"ARYTAB");
+            Assert::AreEqual ((Byte) 0x03, rig.target.memory[0x6D], L"STREND");
+            Assert::AreEqual ((Byte) 0x96, rig.target.memory[0x70], L"FRETOP at MEMSIZ");
+
+            rig.RunFails ("BASICSAVE out.bas", "no program");
+        }
 
 
         //  The reply gives the address loaded at, and the path only when it
@@ -429,7 +506,7 @@ namespace DebuggerTests
             reply = rig.RunOk ("BLOAD prog.bin 300");
             Assert::AreEqual ((size_t) 2, reply.text.size(), L"the debug file, not both");
             Assert::AreEqual (std::string ("Loaded 1 symbols into user and 1 source lines from C:\\Work\\prog.dbg."), reply.text.at (1));
-            Assert::IsTrue   (rig.session.HasDebugFile());
+            Assert::IsTrue   (rig.session.GetFiles().HasDebugFile());
 
             rig.files.WriteAllText (L"C:\\Work\\lone.bin", std::string ("\x60", 1));
             Assert::AreEqual ((size_t) 1, rig.RunOk ("BLOAD lone.bin 300").text.size(), L"nothing beside it, nothing more");

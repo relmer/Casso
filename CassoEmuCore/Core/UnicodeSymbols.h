@@ -14,22 +14,35 @@
 //  outside the basic ASCII range — never inline `\xNNNN` /
 //  `\uNNNN` escapes at the call site.
 //
-//  The glyphs Dxui's own widgets draw, such as the ellipsis, check marks and
-//  triangles, are Dxui's and come from Dxui/Core/DxuiUnicodeSymbols.h through
-//  Dxui.h.
+//  The ellipsis, check mark, the four triangles, and the Segoe MDL2 glyphs
+//  Dxui's widgets draw (Add, More, Cancel, ChevronDown, ChromeClose and
+//  WarningSolid) are Dxui's and come from Dxui/Core/DxuiUnicodeSymbols.h
+//  through Dxui.h.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr wchar_t s_kchBullet         = L'\x2022';       // U+2022 BULLET (•)
 static constexpr wchar_t s_kchWhiteCircle    = L'\x25CB';       // U+25CB WHITE CIRCLE
 static constexpr wchar_t s_kchEmDash         = L'\x2014';       // U+2014 EM DASH (—)
-static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for ranges
-static constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
+static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for rangesstatic constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
 static constexpr wchar_t s_kchDegree         = L'\x00B0';       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszDegree        = L"\x00B0";       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszHeatBlock     = L"\x25A0";       // U+25A0 BLACK SQUARE, a heat column's byte
+static constexpr LPCWSTR s_kpszEnDash        = L"\x2013";       // U+2013 EN DASH, for ranges
+static constexpr LPCWSTR s_kpszBullet        = L"\x2022";       // U+2022 BULLET, the mark of a chosen radio row
 static constexpr LPCWSTR s_kpszChevronRight  = L"\x203A";       // U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+static constexpr LPCWSTR s_kpszSmallTriangleRight = L"\x25B8";   // U+25B8 BLACK RIGHT-POINTING SMALL TRIANGLE, a closed row
+static constexpr LPCWSTR s_kpszSmallTriangleDown  = L"\x25BE";   // U+25BE BLACK DOWN-POINTING SMALL TRIANGLE, an open row
 static constexpr LPCWSTR s_kpszIdenticalTo   = L"\x2261";       // U+2261 IDENTICAL TO (three bars), find in selection
+static constexpr LPCWSTR s_kpszMicro         = L"\x00B5";       // U+00B5 MICRO SIGN (µ)
+static constexpr LPCWSTR s_kpszBallotX       = L"\x2717";       // U+2717 BALLOT X (✗)
+static constexpr LPCWSTR s_kpszEmptySet      = L"\x2205";       // U+2205 EMPTY SET (∅)
+static constexpr LPCWSTR s_kpszBlackCircle   = L"\x25CF";       // U+25CF BLACK CIRCLE (●)
+static constexpr LPCWSTR s_kpszBlackDiamond  = L"\x25C6";       // U+25C6 BLACK DIAMOND (◆)
+static constexpr LPCWSTR s_kpszMinus        = L"\x2212";       // U+2212 MINUS SIGN
+static constexpr LPCWSTR s_kpszEmDash       = L"\x2014";       // U+2014 EM DASH
+static constexpr LPCWSTR s_kpszMiddleDot    = L"\x00B7";       // U+00B7 MIDDLE DOT
+static constexpr LPCWSTR s_kpszPlusMinus    = L"\x00B1";       // U+00B1 PLUS-MINUS SIGN
 static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW
 static constexpr LPCWSTR s_kpszUpArrow       = L"\x2191";       // U+2191 UPWARDS ARROW
 static constexpr LPCWSTR s_kpszDownArrow     = L"\x2193";       // U+2193 DOWNWARDS ARROW
@@ -41,6 +54,7 @@ static constexpr wchar_t s_kchThinSpace      = L'\x2009';       // U+2009 THIN S
 static constexpr LPCWSTR s_kpszGreenCheck    = L"\x2705";       // U+2705 WHITE HEAVY CHECK MARK (✅, green via color-emoji font)
 static constexpr LPCWSTR s_kpszRedCross      = L"\x274C";       // U+274C CROSS MARK (❌, red via color-emoji font)
 static constexpr LPCWSTR s_kpszGrayQuestion  = L"\x2754";       // U+2754 WHITE QUESTION MARK ORNAMENT (❔, gray via color-emoji font)
+static constexpr LPCWSTR s_kpszSkull         = L"\x2620";       // U+2620 SKULL AND CROSSBONES, a cursed Wizardry item
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).
@@ -51,24 +65,40 @@ static constexpr LPCWSTR s_kpszMdl2Paste     = L"\xE77F";       // U+E77F Segoe 
 static constexpr LPCWSTR s_kpszMdl2Rename    = L"\xE8AC";       // U+E8AC Segoe MDL2 Rename (A in a text box)
 static constexpr LPCWSTR s_kpszMdl2Delete    = L"\xE74D";       // U+E74D Segoe MDL2 Delete (trash can)
 static constexpr LPCWSTR s_kpszMdl2Share     = L"\xE72D";       // U+E72D Segoe MDL2 Share (box with arrow)
+static constexpr LPCWSTR s_kpszMdl2ThisPc    = L"\xE7F4";       // U+E7F4 Segoe MDL2 TVMonitor (Explorer's This PC in the address bar)
 static constexpr LPCWSTR s_kpszMdl2Sort      = L"\xE8CB";       // U+E8CB Segoe MDL2 Sort (up and down arrows)
 static constexpr LPCWSTR s_kpszMdl2List      = L"\xE8FD";       // U+E8FD Segoe MDL2 BulletedList (Explorer's View)
 static constexpr LPCWSTR s_kpszMdl2Palette   = L"\xE790";       // U+E790 Segoe MDL2 Color (palette)
-static constexpr LPCWSTR s_kpszMdl2Info      = L"\xE946";       // U+E946 Segoe MDL2 Info (i in a circle)
+static constexpr LPCWSTR s_kpszMdl2Monitor   = L"\xE7F4";       // U+E7F4 Segoe MDL2 TVMonitor (a monitor and its base)
+static constexpr LPCWSTR s_kpszMdl2Info      = L"\xE946";       // U+E946 Segoe MDL2 Info ("i" in a ring)
+static constexpr LPCWSTR s_kpszMdl2Warning   = L"\xE7BA";       // U+E7BA Segoe MDL2 Warning (outlined triangle)
+static constexpr LPCWSTR s_kpszMdl2Download  = L"\xE896";       // U+E896 Segoe MDL2 Download (arrow down onto a line)
 static constexpr LPCWSTR s_kpszMdl2Back      = L"\xE72B";       // U+E72B Segoe MDL2 Back
 static constexpr LPCWSTR s_kpszMdl2Forward   = L"\xE72A";       // U+E72A Segoe MDL2 Forward
 static constexpr LPCWSTR s_kpszMdl2Up        = L"\xE74A";       // U+E74A Segoe MDL2 Up
 static constexpr LPCWSTR s_kpszMdl2Down      = L"\xE74B";       // U+E74B Segoe MDL2 Down
 static constexpr LPCWSTR s_kpszMdl2AlignLeft = L"\xE8E4";       // U+E8E4 Segoe MDL2 AlignLeft (lines, find in selection)
 static constexpr LPCWSTR s_kpszMdl2Refresh   = L"\xE72C";       // U+E72C Segoe MDL2 Refresh
-static constexpr LPCWSTR s_kpszMdl2Save      = L"\xE74E";       // U+E74E Segoe MDL2 Save (a floppy disk)
-static constexpr LPCWSTR s_kpszMdl2Add       = L"\xE710";       // U+E710 Segoe MDL2 Add
+static constexpr LPCWSTR s_kpszMdl2Restore   = L"\xE777";       // U+E777 Segoe MDL2 UpdateRestore (arrow turning back)
+static constexpr LPCWSTR s_kpszMdl2OpenFile        = L"\xE8E5";       // U+E8E5 OpenFile, Explorer's Open
+static constexpr LPCWSTR s_kpszMdl2OpenWith        = L"\xE7AC";       // U+E7AC OpenWith
+static constexpr LPCWSTR s_kpszMdl2CopyPath        = L"\xE62F";       // U+E62F, Explorer's Copy as path
+static constexpr LPCWSTR s_kpszMdl2Repair          = L"\xE90F";       // U+E90F Repair (wrench), Explorer's Properties
+static constexpr LPCWSTR s_kpszMdl2Lock            = L"\xE72E";       // U+E72E Lock (closed padlock)
+static constexpr LPCWSTR s_kpszMdl2Unlock          = L"\xE785";       // U+E785 Unlock (open padlock)
+static constexpr LPCWSTR s_kpszMdl2OpenInNewWindow = L"\xE8A7";       // U+E8A7 OpenInNewWindow
+static constexpr LPCWSTR s_kpszMdl2Save            = L"\xE74E";       // U+E74E Save (a floppy disk)
+static constexpr LPCWSTR s_kpszMdl2HardDrive       = L"\xEDA2";       // U+EDA2 HardDrive
+static constexpr LPCWSTR s_kpszMdl2BackToWindow    = L"\xE73F";       // U+E73F BackToWindow (arrows pointing in), Krunch
+static constexpr LPCWSTR s_kpszMdl2FullScreen      = L"\xE740";       // U+E740 FullScreen (arrows pointing out)
+static constexpr LPCWSTR s_kpszMdl2Setting         = L"\xE713";       // U+E713 Setting (gear)
+static constexpr LPCWSTR s_kpszMdl2Edit            = L"\xE70F";       // U+E70F Edit (pencil)
+static constexpr LPCWSTR s_kpszMdl2SaveAs          = L"\xE792";       // U+E792 SaveAs (a floppy disk and a pencil)
+static constexpr LPCWSTR s_kpszMdl2Code            = L"\xE943";       // U+E943 Code (braces)
+static constexpr LPCWSTR s_kpszMdl2Tag             = L"\xE8EC";       // U+E8EC Tag (a label tag)
+static constexpr LPCWSTR s_kpszMdl2Contrast        = L"\xE7A1";       // U+E7A1 Contrast (a half-filled circle)
 static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
-static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MDL2 ChevronRight
 static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)
-static constexpr LPCWSTR s_kpszMdl2Code   = L"\xE943";       // U+E943 Segoe MDL2 Code (braces)
-static constexpr LPCWSTR s_kpszMdl2Warning   = L"\xE7BA";       // U+E7BA Segoe MDL2 Warning (outlined triangle)
-static constexpr LPCWSTR s_kpszMdl2Download  = L"\xE896";       // U+E896 Segoe MDL2 Download (arrow down onto a line)
 
 // Xbox controller inputs, as Segoe MDL2 Assets draws them.
 static constexpr LPCWSTR s_kpszMdl2ButtonA       = L"\xF093";   // U+F093 Segoe MDL2 ButtonA (circled A)
@@ -97,8 +127,6 @@ static constexpr LPCWSTR s_kpszMdl2Import      = L"\xE8B5";   // U+E8B5 Segoe MD
 static constexpr LPCWSTR s_kpszMdl2ZoomIn      = L"\xE8A3";   // U+E8A3 Segoe MDL2 ZoomIn (magnifier with a plus)
 static constexpr LPCWSTR s_kpszMdl2ZoomOut     = L"\xE71F";   // U+E71F Segoe MDL2 ZoomOut (magnifier with a minus)
 static constexpr LPCWSTR s_kpszMdl2Power       = L"\xE7E8";   // U+E7E8 Segoe MDL2 PowerButton
-static constexpr LPCWSTR s_kpszMdl2Lock        = L"\xE72E";   // U+E72E Segoe MDL2 Lock (a padlock)
-static constexpr LPCWSTR s_kpszMdl2OpenFile    = L"\xE8E5";   // U+E8E5 Segoe MDL2 OpenFile (a page with an arrow)
 static constexpr LPCWSTR s_kpszMdl2Remove      = L"\xE738";   // U+E738 Segoe MDL2 Remove (a minus)
 static constexpr LPCWSTR s_kpszMdl2Shuffle     = L"\xE8B1";   // U+E8B1 Segoe MDL2 Shuffle (crossed arrows)
 
@@ -118,3 +146,45 @@ static constexpr LPCWSTR s_kpszClosedApple   = L"\xE001";       // U+E001 closed
 // would steal them.
 static constexpr uint32_t s_kSymbolFontFirst = 0xE000;
 static constexpr uint32_t s_kSymbolFontLast  = 0xE001;
+
+
+
+//  MouseText's 32 characters, $40 to $5F in the alternate set, as Unicode:
+//  the Symbols for Legacy Computing block where Unicode 13 added them, and
+//  the nearest earlier character elsewhere. The two apples are U+1F34E and
+//  U+1F34F, since the block doesn't have them.
+static constexpr const wchar_t *  s_kpszMouseText[] =
+{
+    L"\xD83C\xDF4E",
+    L"\xD83C\xDF4F",
+    L"\xD83E\xDFB0",
+    L"\x231B",
+    L"\x2713",
+    L"\xD83E\xDFB1",
+    L"\xD83E\xDFB4",
+    L"\xD83E\xDF81",
+    L"\x2190",
+    L"\x2026",
+    L"\x2193",
+    L"\x2191",
+    L"\x2594",
+    L"\x21B2",
+    L"\x2589",
+    L"\xD83E\xDFB5",
+    L"\xD83E\xDFB6",
+    L"\xD83E\xDFB7",
+    L"\xD83E\xDFB8",
+    L"\x2500",
+    L"\xD83E\xDF7C",
+    L"\x2192",
+    L"\x2592",
+    L"\xD83E\xDF90",
+    L"\xD83E\xDFB9",
+    L"\xD83E\xDFBA",
+    L"\x2595",
+    L"\x25C6",
+    L"\xD83E\xDF80",
+    L"\xD83E\xDFBB",
+    L"\xD83E\xDFBC",
+    L"\x258F",
+};

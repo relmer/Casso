@@ -575,6 +575,42 @@ namespace DxuiDockSiteTests
         }
 
 
+        //  A press on a docked pane's title bar focuses the pane, as a press
+        //  on a floating pane's caption activates its window.
+        TEST_METHOD (APressOnATitleBarFocusesThePane)
+        {
+            Rig             rig;
+            DxuiTabGroup  * console   = nullptr;
+            RECT            title     = {};
+            std::wstring    requested;
+
+
+
+            rig.site.SetDocumentFn ([] (const std::wstring & pane) { return pane == L"code"; });
+            rig.site.SetOnFocusRequested ([&requested] (const std::wstring & pane) { requested = pane; });
+            rig.site.Relayout();
+            rig.site.SetFocusedPane (L"code");
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                console = (rig.site.GetGroup (i)->IndexOf (&rig.console) >= 0) ? rig.site.GetGroup (i) : console;
+            }
+
+            if (console == nullptr)
+            {
+                Assert::Fail (L"the rig has a console group");
+                return;
+            }
+
+            title = console->GetTitleRect();
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, POINT { title.left + 4, (title.top + title.bottom) / 2 }));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   POINT { title.left + 4, (title.top + title.bottom) / 2 }));
+
+            Assert::AreEqual (std::wstring (L"console"), requested, L"the focus handler is called for the pane");
+            Assert::IsTrue   (console->HasFocusedLook(),             L"its group has the focus outline");
+        }
+
+
         TEST_METHOD (ASlidOutPaneLiesOverTheOthersBelowATitleBar)
         {
             Rig           rig;

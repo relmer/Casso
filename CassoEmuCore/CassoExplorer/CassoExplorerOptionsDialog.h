@@ -1,0 +1,372 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "Config/CrtTypes.h"
+#include "Ui/Settings/ColorPickerOverlay.h"
+#include "Ui/ThemeLoader.h"
+
+
+class DisplayPage;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerGeneralPage
+//
+//  Automatic preview, its description below its box, then the disk image
+//  types, File Explorer's raw copy menu item, and automatic thumbnails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerGeneralPage : public DxuiPropertyPage
+{
+public:
+    explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
+                   DxuiCheckbox & autoThumbnails);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kNoteHeightDip = 40;
+    static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
+
+private:
+    DxuiLabel     * m_previewNote  = nullptr;
+    DxuiCheckbox  * m_autoPreview  = nullptr;
+    DxuiCheckbox  * m_enterExpands = nullptr;
+    DxuiCheckbox  * m_register     = nullptr;
+    DxuiCheckbox  * m_rawCopyMenu  = nullptr;
+    DxuiCheckbox  * m_thumbnails   = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerHostNamesPage
+//
+//  The host file name style: its description above its choices.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerHostNamesPage : public DxuiPropertyPage
+{
+public:
+    explicit CassoExplorerHostNamesPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & namingNote, DxuiRadioGroup & naming);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kNoteHeightDip         = 124;
+    static constexpr int  kOptionLabelHeightDip  = 20;
+    static constexpr int  kOptionDescHeightDip   = 18;
+    static constexpr int  kOptionGapDip          = 10;
+
+private:
+    DxuiRadioGroup  * m_naming     = nullptr;
+    DxuiLabel       * m_namingNote = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerFullSendPage
+//
+//  A Full Send's folder, with its Browse button, its image type, in a list
+//  with the selected type's description below it, and the checkbox for a
+//  disk whose volume the image type can't store, with its note. A Full Send
+//  starts from the Apple's keyboard, so these are set here ahead of time; the
+//  file name prefix is typed on the Apple.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerFullSendPage : public DxuiPropertyPage
+{
+public:
+    //  The format list, its description, and the volume checkbox and note.
+    struct FormatParts
+    {
+        DxuiLabel     label;
+        DxuiComboBox  list;
+        DxuiLabel     note;
+        DxuiCheckbox  volume;
+        DxuiLabel     volumeNote;
+    };
+
+    explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, FormatParts & format);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kNoteHeightDip        = 60;
+    static constexpr int  kBrowseWidthDip       = 100;
+    static constexpr int  kSoundsWidthDip       = 360;
+    static constexpr int  kSoundsHeightDip      = 30;
+    static constexpr int  kLabelHeightDip       = 24;
+    static constexpr int  kOptionDescHeightDip  = 18;
+    static constexpr int  kCommonFormatCount    = 3;
+
+private:
+    DxuiLabel             * m_note        = nullptr;
+    DxuiLabel             * m_folderLabel = nullptr;
+    DxuiLabel             * m_folder      = nullptr;
+    DxuiButton            * m_browse      = nullptr;
+    DxuiLabel             * m_soundsLabel = nullptr;
+    DxuiSegmentedControl  * m_sounds      = nullptr;
+    FormatParts           * m_format      = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerProtectionPage
+//
+//  Copy-protected disks: a note, a checkbox for each condition, and the
+//  choice for a disk with any of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerProtectionPage : public DxuiPropertyPage
+{
+public:
+    struct Parts
+    {
+        DxuiLabel                    note;
+        std::array<DxuiCheckbox, 4>  conditions;
+        DxuiLabel                    actionLabel;
+        DxuiRadioGroup               action;
+    };
+
+    explicit CassoExplorerProtectionPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (Parts & parts);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kNoteHeightDip         = 60;
+    static constexpr int  kLabelHeightDip        = 24;
+    static constexpr int  kOptionLabelHeightDip  = 20;
+    static constexpr int  kOptionGapDip          = 4;
+
+private:
+    Parts  * m_parts = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerVerifyPage
+//
+//  Verified transfers: a toggle for reads, writes and automatic verification, in
+//  one column after their labels, each with a note, and notes on overriding them
+//  and what they can't do. The rows are stacked by their notes' heights.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerVerifyPage : public DxuiPropertyPage
+{
+public:
+    struct Row
+    {
+        DxuiLabel   label;
+        DxuiToggle  toggle;
+        DxuiLabel   state;
+        DxuiLabel   note;
+    };
+
+    explicit CassoExplorerVerifyPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & intro, std::array<Row, 3> & rows, DxuiLabel & overrideHead, DxuiLabel & overrideNote, DxuiLabel & limitHead, DxuiLabel & limitNote);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kIntroHeightDip  = 84;
+    static constexpr int  kRowHeightDip    = 26;
+    static constexpr int  kToggleColDip    = 290;
+    static constexpr int  kToggleWidthDip  = 44;
+    static constexpr int  kStateWidthDip   = 40;
+    static constexpr int  kNoteHeightDip   = 64;
+    static constexpr int  kShortNoteDip    = 34;
+    static constexpr int  kHeadHeightDip   = 24;
+    static constexpr int  kOverrideDip     = 64;
+    static constexpr int  kLimitDip        = 64;
+    static constexpr int  kNoteGapDip      = 8;
+
+    //  A note's wrapped height at the page's width plus a gap below it, and no
+    //  less than its minimum; the Full Send page's intro is measured alike.
+    static int  GetNoteHeightPx (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler, int minDip);
+
+private:
+
+    DxuiLabel           * m_intro        = nullptr;
+    std::array<Row, 3>  * m_rows         = nullptr;
+    DxuiLabel           * m_overrideHead = nullptr;
+    DxuiLabel           * m_overrideNote = nullptr;
+    DxuiLabel           * m_limitHead    = nullptr;
+    DxuiLabel           * m_limitNote    = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog
+//
+//  CassoExplorer's settings: the form a copy out of an image takes on the
+//  host, Casso's file types, and, on Casso's own Display page, the monitor
+//  and effects picture previews are drawn with, and the custom monitor's
+//  color, picked with Casso's color picker. A Display change is drawn in
+//  the preview as it is made; OK saves every choice, and Cancel, Escape and
+//  the close box put them all back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerOptionsDialog : public DxuiPropertySheet
+{
+public:
+    struct Choices
+    {
+        //  An index into GetNamingOptions.
+        int   hostNaming = 0;
+
+        //  Whether Casso is the program for its disk image types, and whether
+        //  it runs from an installed package, whose manifest declares them.
+        bool  registered  = false;
+        bool  rawCopyMenu = true;    // CassoExplorerPrefs::rawCopyMenu
+        bool  packaged    = false;
+
+        //  Whether the preview pane opens and closes for the selected file, and
+        //  whether Enter on a file expands its preview.
+        bool  autoPreview  = true;
+        bool  enterExpands = false;
+
+        //  Whether a disk image in view with no thumbnail is booted for one.
+        bool  autoThumbnails = true;
+
+        //  A Full Send's folder and its extension, each empty for the default.
+        std::wstring  fullSendFolder;
+        std::string   fullSendExtension;
+        int           bootSoundPlace = 0;     // a CassoExplorerPrefs::BootSoundPlace
+
+        //  Verified transfers.
+        bool          verifyReads  = false;
+        bool          verifyWrites = false;
+        bool          autoVerify   = true;
+
+        //  The Copy protection page, and the Full Send page's volume checkbox.
+        FullSendProtectionChoices  fullSendProtection;
+
+
+        //  The preview's monitor, as a PicturePreview::Monitor, the custom
+        //  monitor's color, and the effects changed on each monitor, by its
+        //  name in CassoExplorerPrefs::kMonitorNames.
+        int                                  monitor    = 1;
+        uint32_t                             customArgb = PicturePreview::kDefaultCustomArgb;
+        std::map<std::string, CrtOverrides>  crtOverrides;
+    };
+
+    //  What the Display page draws on: the theme's effects, which may be
+    //  null, and where each change goes to be drawn in the preview.
+    struct DisplayHost
+    {
+        const ThemeCrtDefaults *                themeDefaults = nullptr;
+        std::function<void (const Choices &)>  preview;
+
+        //  The folder picker over the dialog; ioFolder changes when one is picked.
+        std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
+    };
+
+    //  The host file name forms, in the order the setting stores them.
+    static std::vector<DxuiRadioOption>  GetNamingOptions ();
+
+
+    //  Runs the dialog modally over `owner`. False when it was canceled or
+    //  could not open; `inOutChoices` changes only on OK.
+    static bool  Ask (HWND owner, const IDxuiTheme * theme, const DisplayHost & display, Choices & inOutChoices);
+
+protected:
+    void     OnBuildPages () override;
+    HRESULT  OnOk         () override;
+    void     OnCancel     () override;
+
+    //  The color picker, modal over the sheet while it is open.
+    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    bool     HasModalOverlay   () const override;
+    void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnOverlayMouse    (const DxuiMouseEvent & ev) override;
+    bool     OnOverlayChar     (wchar_t ch) override;
+    bool     OnOverlayKey      (WPARAM vk) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+
+private:
+    CrtOverrides &  GetOverrides    ();
+    void            SeedDisplay     ();
+    void            WireDisplay     ();
+    void            WireColorPicker ();
+    void            WireFullSend    ();
+    void            WireProtection  ();
+    void            WireVerify      ();
+    void            SetCustomColor  (uint32_t argb);
+    void            PreviewChoices  ();
+
+    //  The image type list has the Esoterica heading as a row after the
+    //  common types, so its rows are the formats' indexes with it skipped.
+    static int      GetFormatIndex  (int row);
+    static int      GetFormatRow    (int format);
+
+    const IDxuiTheme                             * m_theme               = nullptr;
+    DisplayHost                                    m_display;
+    Choices                                        m_original;
+    Choices                                        m_choices;
+    bool                                           m_confirmed           = false;
+    DxuiRadioGroup                                 m_naming;
+    DxuiLabel                                      m_namingNote;
+    DxuiLabel                                      m_previewNote;
+    DxuiCheckbox                                   m_autoPreview;
+    DxuiCheckbox                                   m_enterExpands;
+    DxuiCheckbox                                   m_autoThumbnails;
+    DxuiCheckbox                                   m_register;
+    DxuiCheckbox                                   m_rawCopyMenu;
+    DxuiLabel                                      m_fullSendNote;
+    DxuiLabel                                      m_fullSendFolderLabel;
+    DxuiLabel                                      m_fullSendFolder;
+    DxuiButton                                     m_fullSendBrowse;
+    DxuiLabel                                      m_fullSendSoundsLabel;
+    DxuiSegmentedControl                           m_fullSendSounds;
+    CassoExplorerFullSendPage::FormatParts         m_fullSendFormat;
+    CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
+    CassoExplorerProtectionPage::Parts             m_fullSendProtection;
+    CassoExplorerProtectionPage                  * m_protectionPage      = nullptr;
+    DxuiLabel                                      m_verifyIntro;
+    std::array<CassoExplorerVerifyPage::Row, 3>    m_verifyRows;
+    DxuiLabel                                      m_verifyOverrideHead;
+    DxuiLabel                                      m_verifyOverrideNote;
+    DxuiLabel                                      m_verifyLimitHead;
+    DxuiLabel                                      m_verifyLimitNote;
+    CassoExplorerVerifyPage                      * m_verifyPage          = nullptr;
+    ColorPickerOverlay                             m_colorPicker;
+    CassoExplorerGeneralPage                     * m_general             = nullptr;
+    CassoExplorerHostNamesPage                   * m_hostNames           = nullptr;
+    DisplayPage                                  * m_displayPage         = nullptr;
+};

@@ -36,6 +36,8 @@ struct Breakpoint
     uint32_t             hits      = 0;
     std::string          symbol;                  // the symbol an address breakpoint was set by
     std::string          name;                    // BPNAME's; empty for the default
+    std::string          log;                     // BPLOG's message; empty for none
+    std::string          group;                   // BPGROUP's group; empty for none
 
     // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
     // breakpoint stops at now, absent while its vector has no target.
@@ -97,11 +99,19 @@ public:
     bool  TrySetFlags      (int id, bool temporary, bool stops);
     bool  TrySetSymbol     (int id, const std::string & symbol);
     bool  TrySetName       (int id, const std::string & name);
+    bool  TrySetLog        (int id, const std::string & log);
+
     bool  TrySetCondition  (int id, const Expression & condition);
     bool  TryMove          (int id, Word first);
     bool  TrySetResolved   (int id, std::optional<Word> routine);
     bool  HasBrk           () const;
     bool  HasOpcode        (Byte opcode) const;
+
+    //  Puts a breakpoint in a group, or with an empty name in none, the name
+    //  written as given; BreakpointGroupHandlers::SetGroup matches it to a group
+    //  first. A group's name matches without regard to case.
+    bool         TrySetGroup (int id, const std::string & group);
+    static bool  IsSameGroup (const std::string & left, const std::string & right);
 
     //  Inserts an entry under the id it carries, for BPEDIT, which keeps a
     //  breakpoint's id across its new definition. Fails if the id is taken.
@@ -114,8 +124,17 @@ public:
 
     const std::vector<Breakpoint> &  GetAll () const { return m_entries; }
 
+    //  The messages logging breakpoints wrote at their hits since the last
+    //  call, oldest first.
+    std::vector<std::string>          TakeLogs () { return std::exchange (m_logs, {}); }
+    const std::vector<std::string> &  GetLogs  () const { return m_logs; }
+
+    //  A logging breakpoint's message at a hit: each {expression} evaluated
+    //  and written in hex, or as {?expression} when it can't be.
+    static std::string  FormatLog (int id, const std::string & log, const IDebugExpressionContext & context);
+
     bool  HasEnabledStopCondition () const;
-    bool  IsAddressHit     (Word pc) const { return m_addressBits[pc]; }
+    bool  IsAddressHit            (Word pc) const { return m_addressBits[pc]; }
 
     //  True when an enabled entry stops before the instruction at pc, whose
     //  opcode is given, or absent when it cannot be read (no opcode or BRK
@@ -178,13 +197,16 @@ private:
     static constexpr size_t  kAddressCount = 0x10000;
     static constexpr Byte    kBrkOpcode    = 0x00;
 
-    int   Add              (Breakpoint entry);
+    int   Add                (Breakpoint entry);
     void  RebuildAddressBits ();
     bool  TryMatchEntry    (const Breakpoint & entry, std::optional<Word> routine, Word pc, std::optional<Byte> opcode,
                             const IDebugExpressionContext & context, std::optional<int32_t> & conditionValue) const;
 
     int                     & m_nextId;
     std::vector<Breakpoint>   m_entries;
+    std::vector<std::string>  m_logs;
+
+    void  NoteLog (const Breakpoint & entry, const IDebugExpressionContext & context);
     std::vector<bool>         m_addressBits = std::vector<bool> (kAddressCount, false);
     std::optional<int32_t>    m_lastConditionValue;
 };

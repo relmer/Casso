@@ -23,7 +23,7 @@ public:
     ShrinkableEntry (int widthPx, int minPx) : m_widthPx (widthPx), m_minPx (minPx) {}
 
     int              GetWidthPx    (bool, const DxuiDpiScaler &, IDxuiTextRenderer *) const override { return m_widthPx; }
-    int              GetMinWidthPx (const DxuiDpiScaler &) const                             override { return m_minPx; }
+    int              GetMinWidthPx (bool, const DxuiDpiScaler &, IDxuiTextRenderer *) const override { return m_minPx; }
     void             Layout        (const RECT &, bool, const DxuiDpiScaler &)              override {}
     void             Paint         (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &, bool, bool, bool) override {}
     const wchar_t *  GetTooltipAt  (int, int, RECT &) const                                 override { return nullptr; }
@@ -70,7 +70,7 @@ public:
         }
 
         entries[0].custom        = custom;
-        entries[0].neverOverflow = true;
+        entries[0].pinned        = true;
 
         return entries;
     }
@@ -126,7 +126,7 @@ public:
             if (entry.custom == &address)
             {
                 found = true;
-                Assert::IsTrue (entry.neverOverflow, L"the Address box stays on the strip");
+                Assert::IsTrue (entry.pinned, L"the Address box stays on the strip");
             }
         }
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
@@ -33,7 +34,7 @@ namespace BreakpointUndoAddTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Undo()
@@ -41,7 +42,7 @@ namespace BreakpointUndoAddTests
             BreakpointStep  step;
 
             step.kind = BreakpointStep::Kind::Undo;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()
@@ -85,7 +86,7 @@ namespace BreakpointUndoAddTests
             rig.Run (std::format ("BPCHANGE {} eTs", before.id));
             before = rig.List().at (0);
 
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
             lines = rig.Undo();
 
             for (const std::string & line : lines)
@@ -116,7 +117,7 @@ namespace BreakpointUndoAddTests
             rig.Run ("BP 0300:0310 IF X=2");
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
             lines = rig.Undo();
 
             for (const std::string & line : lines)

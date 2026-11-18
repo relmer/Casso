@@ -4,6 +4,8 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceBannerText.h"
+#include "Ui/Debugger/SourceRows.h"
 
 #include "CppUnitTest.h"
 
@@ -41,14 +43,14 @@ namespace DebuggerTests
             file.spans = { { 0, 0, 0, 2 } };
             file.lines = { { 0, 0, 2, DebugLineType::Asm, 0, { 0 } } };
 
-            rig.controller.GetSession().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
+            rig.controller.GetSession().GetFiles().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
         }
 
 
 
         TEST_METHOD (NoFile_ShowsNoNotFoundBanner)
         {
-            std::wstring  text = SourcePane::GetBannerText (SourceMatch::NotFound, "", false, 0, false, "", 0);
+            std::wstring  text = SourceBannerText::GetBannerText (SourceMatch::NotFound, "", false, 0, false, "", 0);
 
 
 
@@ -57,7 +59,7 @@ namespace DebuggerTests
 
         TEST_METHOD (AFileThatIsGone_StillShowsTheBanner)
         {
-            std::wstring  text = SourcePane::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0);
+            std::wstring  text = SourceBannerText::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0);
 
 
 
@@ -66,17 +68,17 @@ namespace DebuggerTests
 
         TEST_METHOD (AFileFoundBesideTheDebugFile_SaysNothingMore)
         {
-            Assert::IsTrue (SourcePane::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"C:\\Work\\main.a65").empty());
-            Assert::IsTrue (SourcePane::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"").empty());
+            Assert::IsTrue (SourceBannerText::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"C:\\Work\\main.a65").empty());
+            Assert::IsTrue (SourceBannerText::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"").empty());
         }
 
         //  The file renamed away beside the debug file, and an identical copy
         //  in another search folder: its text is shown, and the banner says so.
         TEST_METHOD (ACopyInAnotherFolder_IsSaidToBeACopy)
         {
-            ControllerRig         rig;
-            DxuiTextView          view;
-            DxuiActionBanner      banner;
+            ControllerRig   rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &)
                                         {
@@ -97,13 +99,49 @@ namespace DebuggerTests
 
             Assert::IsTrue (banner.GetText().find (L"Source file main.a65 was not found with the debug file ") != std::wstring::npos && banner.GetText().find (L". Showing the copy in C:\\Other.") != std::wstring::npos,
                             banner.GetText().c_str());
+            Assert::IsTrue (banner.GetText().find (L"Its contents are the ones the program was built from.") != std::wstring::npos, L"the hash matched");
+            Assert::IsNull (banner.GetAction (0), L"a copy with the debug file's hash has no Browse");
+        }
+
+        //  A copy whose hash isn't the debug file's may be the wrong copy, so
+        //  the banner offers Browse... to pick another.
+        TEST_METHOD (ACopyThatIsNotVerified_OffersBrowse)
+        {
+            ControllerRig   rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
+            bool            browsed = false;
+            SourcePane            pane (&view, &banner,
+                                        [] (const DebugSourceFile &, const std::wstring &, const std::string &)
+                                        {
+                                            SourceLookup  lookup;
+
+                                            lookup.match = SourceMatch::Unverified;
+                                            lookup.path  = L"C:\\Other\\main.a65";
+                                            lookup.text  = "; main\n        lda #$41\n";
+                                            return lookup;
+                                        },
+                                        [] (const DebuggerActionBuilder &) {});
+
+
+
+            pane.SetOnBrowse ([&browsed] { browsed = true; });
+
+            LoadDebugFile (rig);
+            pane.SetFile (0);
+            pane.Apply   (rig.view.Build (rig.controller.GetSession()));
+
+            Assert::IsTrue    (banner.GetText().find (L". Showing the copy in C:\\Other.") != std::wstring::npos, banner.GetText().c_str());
+            Assert::IsTrue    (banner.GetText().find (L"built from") == std::wstring::npos, L"nothing about its contents");
+            Assert::IsNotNull (banner.GetAction (0));
+            Assert::AreEqual  (std::wstring (L"Browse..."), banner.GetAction (0)->GetAccessibleName());
         }
 
         TEST_METHOD (APaneWithNoFile_ShowsNoBanner)
         {
-            ControllerRig     rig;
-            DxuiTextView      view;
-            DxuiActionBanner  banner;
+            ControllerRig   rig;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
             SourcePane        pane (&view, &banner,
                                     [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
                                     [] (const DebuggerActionBuilder &) {});
@@ -120,9 +158,9 @@ namespace DebuggerTests
         {
             std::unique_ptr<ControllerRig>  rig = std::make_unique<ControllerRig>();
 
-            DxuiTextView          view;
-            DxuiActionBanner      banner;
-            bool                  onDisk   = true;
+            DxuiTextView    view;
+            DxuiInfoBanner  banner;
+            bool            onDisk = true;
             SourcePane            pane (&view, &banner,
                                         [&] (const DebugSourceFile &, const std::wstring &, const std::string &)
                                         {
@@ -147,7 +185,7 @@ namespace DebuggerTests
 
             pane.SetFile (0);
             pane.Apply   (snapshot);
-            lines = SourcePane::GetRowLines (view.GetRows());
+            lines = SourceRows::GetRowLines (view.GetRows());
             Assert::AreEqual ((ptrdiff_t) 2, std::count_if (lines.begin(), lines.end(), [] (int line) { return line > 0; }), L"the file was found");
 
             pane.SetFile (-1);

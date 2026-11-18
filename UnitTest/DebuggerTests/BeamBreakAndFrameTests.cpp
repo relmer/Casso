@@ -39,11 +39,11 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("Breakpoint set at video scanline $10, cycle $20. It clears after it fires."), rig.RunOk ("BPBEAM 10 20").text.at (0));
-            Assert::IsTrue   (rig.session.HasBeamBreak());
+            Assert::AreEqual (std::string ("Breakpoint set at video scanline $10, cycle $20. It is removed after its first stop."), rig.RunOk ("BPBEAM 10 20").text.at (0));
+            Assert::IsTrue   (rig.session.GetStops().GetBeamBreaks().HasBeamBreak());
             Assert::IsTrue   (rig.target.hookInstalled);
 
-            Assert::AreEqual (std::string ("Breakpoint set at the start of vertical blank, scanline $C0. It clears after it fires."), rig.RunOk ("BPBEAM vbl").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint set at the start of vertical blank, scanline $C0. It is removed after its first stop."), rig.RunOk ("BPBEAM vbl").text.at (0));
         }
 
 
@@ -56,7 +56,7 @@ namespace DebuggerTests
 
             rig.RunFails ("BPBEAM 106 0", "invalid arguments");
             rig.RunFails ("BPBEAM 10 41", "invalid arguments");
-            Assert::IsFalse (rig.session.HasBeamBreak());
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasBeamBreak());
             Assert::AreNotEqual ((int) CommandStatus::Ok, (int) rig.Run ("BPBEAM 10").status, L"a scanline needs its cycle");
             Assert::AreNotEqual ((int) CommandStatus::Ok, (int) rig.Run ("BPBEAM").status);
         }
@@ -81,7 +81,7 @@ namespace DebuggerTests
             Assert::IsTrue  (rig.session.ShouldStopBefore (0x0300), L"past the target");
 
             rig.target.Stop (StopEvent { StopReason::Breakpoint, 0x0300 });
-            Assert::IsFalse (rig.session.HasBeamBreak(), L"a beam break clears when it fires");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasBeamBreak(), L"a beam break clears when it fires");
             Assert::IsFalse (rig.target.hookInstalled);
         }
 
@@ -132,7 +132,7 @@ namespace DebuggerTests
 
             rig.RunOk ("BPBEAM 10 0");
             rig.session.ClearAllBreakpoints();
-            Assert::IsFalse (rig.session.HasBeamBreak());
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasBeamBreak());
             Assert::IsFalse (rig.target.hookInstalled);
         }
 
@@ -160,7 +160,7 @@ namespace DebuggerTests
 
             Assert::IsTrue  (ran >= VideoTiming::kCyclesPerFrame, std::to_wstring (ran).c_str());
             Assert::IsTrue  (ran <  VideoTiming::kCyclesPerFrame + kLongestInstruction, std::to_wstring (ran).c_str());
-            Assert::IsFalse (rig.session.HasBeamBreak(), L"the frame break goes with the stop");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasBeamBreak(), L"the frame break goes with the stop");
         }
 
 
@@ -189,7 +189,7 @@ namespace DebuggerTests
             ran = rig.target.GetCycleCount() - before;
 
             Assert::IsTrue  (ran < VideoTiming::kCyclesPerFrame, std::format (L"{} cycles, a whole frame", ran).c_str());
-            Assert::IsFalse (rig.session.HasBeamBreak(), L"the beam break fired and the frame break went with the stop");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasBeamBreak(), L"the beam break fired and the frame break went with the stop");
         }
 
 
@@ -239,7 +239,7 @@ namespace DebuggerTests
 
             Assert::AreEqual ((int) 0x0310, (int) rig.target.GetRegisters().pc);
             Assert::IsTrue   (rig.target.GetCycleCount() - before < VideoTiming::kCyclesPerFrame);
-            Assert::IsFalse  (rig.session.HasBeamBreak(), L"the frame break goes with the stop");
+            Assert::IsFalse  (rig.session.GetStops().GetBeamBreaks().HasBeamBreak(), L"the frame break goes with the stop");
         }
     };
 }

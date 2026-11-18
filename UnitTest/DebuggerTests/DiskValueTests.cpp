@@ -113,12 +113,12 @@ namespace DebuggerTests
 
 
             Assert::AreEqual ((Word) 1,      values.Calc ("DISK.DRIVE"));
-            Assert::AreEqual ((Word) values.Controller().GetQuarterTrack(),  values.Calc ("DISK.QTRACK"));
-            Assert::AreEqual ((Word) values.Controller().GetQuarterTrack (0), values.Calc ("DISK.QTRACK1"));
-            Assert::AreEqual ((Word) values.Controller().GetQuarterTrack (1), values.Calc ("DISK.QTRACK2"));
+            Assert::AreEqual ((Word) values.Controller().GetLines().GetQuarterTrack(),  values.Calc ("DISK.QTRACK"));
+            Assert::AreEqual ((Word) values.Controller().GetDrive (0).GetQuarterTrack(), values.Calc ("DISK.QTRACK1"));
+            Assert::AreEqual ((Word) values.Controller().GetDrive (1).GetQuarterTrack(), values.Calc ("DISK.QTRACK2"));
             Assert::AreEqual ((Word) 0,      values.Calc ("DISK.MOTOR"));
             Assert::AreEqual ((Word) 0,      values.Calc ("DISK.WRITING"));
-            Assert::AreEqual ((Word) (values.Controller().GetDisk (0)->IsWriteProtected() ? 1 : 0), values.Calc ("DISK.PROTECTED"));
+            Assert::AreEqual ((Word) (values.Controller().GetDrive (0).GetDisk()->IsWriteProtected() ? 1 : 0), values.Calc ("DISK.PROTECTED"));
             Assert::AreEqual ((Word) 1,      values.Calc ("DISK.INSERTED"));
             Assert::AreEqual ((Word) 0xFFFF, values.Calc ("DISK.ATRACK"), L"no field read yet");
 
@@ -170,6 +170,9 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x11, target.Resolve ("DISK.ATRACK"));
             Assert::AreEqual ((Word) 0x05, target.Resolve ("DISK.ASECTOR"));
             Assert::AreEqual ((Word) 0xFE, target.Resolve ("DISK.AVOLUME"));
+            Assert::AreEqual ((Word) 0x11, target.Resolve ("DISK.ADDR.TRACK"),  L"the address field's words");
+            Assert::AreEqual ((Word) 0x05, target.Resolve ("disk.addr.sector"), L"in any case");
+            Assert::AreEqual ((Word) 0xFE, target.Resolve ("DISK.ADDR.VOLUME"));
 
             target.state.selectedDrive = 1;
             Assert::AreEqual ((Word) 0x22, target.Resolve ("DISK.ATRACK"));
@@ -224,9 +227,9 @@ namespace DebuggerTests
             values.rig.RunOk ("BPDISK READ 0 0");
             values.rig.RunOk ("G");
 
-            count = values.Controller().GetNibbleRecord().GetCount();
-            isQ6  = values.Controller().IsQ6();
-            isQ7  = values.Controller().IsQ7();
+            count = values.Controller().GetRecorder().GetNibbleRecord().GetCount();
+            isQ6  = values.Controller().GetLines().IsQ6();
+            isQ7  = values.Controller().GetLines().IsQ7();
 
             for (const char * name : { "DISK.DRIVE", "DISK.QTRACK", "DISK.QTRACK1", "DISK.QTRACK2", "DISK.MOTOR", "DISK.WRITING",
                                        "DISK.PROTECTED", "DISK.INSERTED", "DISK.ATRACK", "DISK.ASECTOR", "DISK.AVOLUME" })
@@ -234,9 +237,9 @@ namespace DebuggerTests
                 values.Calc (name);
             }
 
-            Assert::AreEqual (count, values.Controller().GetNibbleRecord().GetCount());
-            Assert::AreEqual (isQ6,  values.Controller().IsQ6());
-            Assert::AreEqual (isQ7,  values.Controller().IsQ7());
+            Assert::AreEqual (count, values.Controller().GetRecorder().GetNibbleRecord().GetCount());
+            Assert::AreEqual (isQ6,  values.Controller().GetLines().IsQ6());
+            Assert::AreEqual (isQ7,  values.Controller().GetLines().IsQ7());
         }
 
         TEST_METHOD (WithNoControllerTheNamesAreUnknown)

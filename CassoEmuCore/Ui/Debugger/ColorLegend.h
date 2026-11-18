@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/HeatMapOptions.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 
 
@@ -52,7 +53,6 @@ public:
         MapSlotRom,
         MapIo,
         HeatCode,
-        HeatOperand,
         HeatRead,
         HeatWrite,
         HeatSelfModifying,
@@ -75,12 +75,14 @@ public:
     };
 
     //  How a meaning's swatch is drawn: a filled square for a fill or a
-    //  bar, a sample of text on a row's fill, a sample of text in a text
-    //  color, the PC's arrow, a dot, a ring, a short line, or a square's
+    //  bar, a square shaded across from a heat color's faintest shade to its
+    //  full color, a sample of text on a row's fill, a sample of text in a
+    //  text color, the PC's arrow, a dot, a ring, a short line, or a square's
     //  outline.
     enum class Swatch
     {
         Fill,
+        Ramp,
         Row,
         Text,
         Italic,         // a sample in the text's own color, in italics
@@ -121,6 +123,10 @@ public:
         Memory,
         MemoryMap,
         HeatMap,
+        HeatMapBlend,
+        HeatMapCode,
+        HeatMapData,
+        HeatMapChanged,
         DiskHead,
         Breakpoints,
         StatusBar,
@@ -136,24 +142,34 @@ public:
 
     //  The legend's lines, grouped by the pane they are seen in, in the order
     //  the panes are listed; one pane's alone; and a pane's title.
-    static const std::vector<Entry> &  GetEntries    ();
+    static const std::vector<Entry>  & GetEntries    ();
     static std::vector<Entry>          GetEntriesFor (Pane pane);
-    static const wchar_t *             GetPaneTitle  (Pane pane);
+    static const wchar_t             * GetPaneTitle  (Pane pane);
+
+    //  The heat map's legend for a view and Blend: only the colors that view
+    //  can draw. HeatMap is the All view without Blend; HeatMapBlend adds the
+    //  self-modifying color, and Code, Data and Changed list the colors they
+    //  draw.
+    static Pane  GetHeatMapPane (HeatMapOptions::View view, bool isBlend);
 
     //  The one-line meaning, which is also the tip over what it colors.
     static const wchar_t *  GetText (Meaning meaning);
 
+    //  The sentence up to its colon, for a place with room for a few words:
+    //  "Value changed" for "Value changed: a write that stored a different
+    //  value". A sentence without a colon is whole.
+    static std::wstring  GetLabel (Meaning meaning);
+
     //  The meaning's color in a palette.
     static uint32_t  GetArgb (Meaning meaning, const Palette & palette);
 
-    //  The tip over the PC's branch arrow: whether the branch is taken, and,
-    //  for a branch on a flag, which flag it tests and how that flag stands,
-    //  "Branch taken: BNE branches while Z is clear, and Z is clear".
-    static std::wstring  GetBranchTip (const std::string & instruction, bool isTaken, std::optional<Byte> p);
+    //  The tip over the PC's branch arrow, whether it will be taken: "This
+    //  branch will be taken", "This call will be taken".
+    static std::wstring  GetBranchTip (const std::string & instruction, bool isTaken);
 
-    //  The dotted arrow's: the branch, jump or call the last step took to the
-    //  PC, by its instruction where it is known and its address.
-    static std::wstring  GetTakenBranchTip (const std::string & instruction, Word from);
+    //  The dotted arrow's, of the one the last step took: "This branch was
+    //  taken".
+    static std::wstring  GetTakenBranchTip (const std::string & instruction);
 
     //  The tip over the status bar's history meter, whose colors are fixed.
     static const wchar_t *  GetHistoryMeterTip();
@@ -163,7 +179,15 @@ public:
     //  smoothed, so it scales down cleanly.
     static constexpr int  kSwatchPx = 48;
 
-    static std::shared_ptr<DxuiIconImage>  MakeSwatchIcon (Swatch swatch, uint32_t argb);
+    //  A Ramp runs from `fromArgb` at the left to `argb` at the right.
+    static std::shared_ptr<DxuiIconImage>  MakeSwatchIcon (Swatch swatch, uint32_t argb, uint32_t fromArgb = 0);
+
+    //  A heat color's faintest shade, the left end of its Ramp swatch.
+    static uint32_t  GetFaintest (Meaning meaning, uint32_t argb, const Palette & palette);
+
+    //  A Ramp's colors, faintest to full, where the heat map draws a meaning
+    //  on a scale of more than two stops; empty for the rest.
+    static std::vector<uint32_t>  GetRampStops (Meaning meaning, const Palette & palette);
     //  Lines joined one to a line, empty ones left out.
     static std::wstring  JoinLines (const std::vector<std::wstring> & lines);
 
@@ -171,4 +195,7 @@ public:
     //  ahead of a deep one, and gray, black or white for one with little
     //  color, "Blue", "Dark green".
     static std::wstring  GetColorName (uint32_t argb);
+
+private:
+    static const wchar_t *  GetTransferNoun (const std::string & instruction);
 };

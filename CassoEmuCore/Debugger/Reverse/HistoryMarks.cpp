@@ -74,25 +74,25 @@ uint64_t HistoryMarks::EstimateCycle (
 
 
 
-    if (keyframes.GetCount() == 0)
+    if (keyframes.GetArena().GetCount() == 0)
     {
         return endCycle;
     }
 
-    isFound = keyframes.TryFindByPosition (position, index);
+    isFound = keyframes.GetArena().TryFindByPosition (position, index);
 
     if (!isFound)
     {
-        return keyframes.GetInfo (0).cycle;
+        return keyframes.GetArena().GetInfo (0).cycle;
     }
 
-    fromPosition = keyframes.GetInfo (index).position;
-    fromCycle    = keyframes.GetInfo (index).cycle;
+    fromPosition = keyframes.GetArena().GetInfo (index).position;
+    fromCycle    = keyframes.GetArena().GetInfo (index).cycle;
 
-    if (index + 1 < keyframes.GetCount())
+    if (index + 1 < keyframes.GetArena().GetCount())
     {
-        toPosition = keyframes.GetInfo (index + 1).position;
-        toCycle    = keyframes.GetInfo (index + 1).cycle;
+        toPosition = keyframes.GetArena().GetInfo (index + 1).position;
+        toCycle    = keyframes.GetArena().GetInfo (index + 1).cycle;
     }
 
     if (toPosition <= fromPosition || toCycle <= fromCycle || position <= fromPosition)
@@ -155,9 +155,9 @@ bool HistoryMarks::Update (
         outMarks.push_back (mark);
     }
 
-    for (i = 0; i < keyframes.GetCount(); i++)
+    for (i = 0; i < keyframes.GetArena().GetCount(); i++)
     {
-        const KeyframeInfo  & info = keyframes.GetInfo (i);
+        const KeyframeInfo  & info = keyframes.GetArena().GetInfo (i);
 
 
 
@@ -289,7 +289,7 @@ bool HistoryMarks::DropOutside (
     const KeyframeStore  & keyframes,
     const InputJournal   & journal)
 {
-    uint64_t  oldest    = (keyframes.GetCount() > 0) ? keyframes.GetInfo (0).position : UINT64_MAX;
+    uint64_t  oldest    = (keyframes.GetArena().GetCount() > 0) ? keyframes.GetArena().GetInfo (0).position : UINT64_MAX;
     bool      isChanged = false;
 
 
@@ -318,9 +318,9 @@ bool HistoryMarks::DropOutside (
 
 bool HistoryMarks::HasKeyframeMoved (const KeyframeStore & keyframes)
 {
-    size_t    count   = keyframes.GetCount();
-    uint64_t  oldest  = (count > 0) ? keyframes.GetInfo (0).position : 0;
-    uint64_t  newest  = (count > 0) ? keyframes.GetInfo (count - 1).position : 0;
+    size_t    count   = keyframes.GetArena().GetCount();
+    uint64_t  oldest  = (count > 0) ? keyframes.GetArena().GetInfo (0).position : 0;
+    uint64_t  newest  = (count > 0) ? keyframes.GetArena().GetInfo (count - 1).position : 0;
     bool      isMoved =count != m_keyframeCount || oldest != m_oldest || newest != m_newest;
 
 
@@ -352,7 +352,7 @@ bool HistoryMarks::HaveBranchesMoved (const KeyframeStore & keyframes)
 
 
 
-    keyframes.GetBranches (branches);
+    keyframes.GetArena().GetBranches (branches);
 
     isMoved = branches.size() != m_branches.size();
 

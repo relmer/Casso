@@ -28,7 +28,8 @@ struct DxuiTip
     //  AtAnchor:      after the open delay, against the anchor.
     //  FollowPointer: at once, against the pointer's pixel rather than the
     //                 anchor, and moved along with the pointer, as a hex
-    //                 view's address is.
+    //                 view's address is; after the open delay with
+    //                 isDelayed.
     enum class Placement
     {
         AtPointer,
@@ -56,6 +57,14 @@ struct DxuiTip
     int                                 timedMs      = 0;
     bool                                isMonospace  = false;
 
+    //  Opened on the first move over it rather than after the open delay, by
+    //  the pointer, and fixed there while the text is the same.
+    bool                                isImmediate  = false;
+
+    //  A tip that follows the pointer opens after the open delay, as other
+    //  tips do, and then follows it.
+    bool                                isDelayed    = false;
+
     //  What the tip lists is being read: a tip that is up stays as it is,
     //  and no other opens.
     bool                                isPending    = false;
@@ -67,6 +76,12 @@ struct DxuiTip
     std::vector<std::vector<uint32_t>>  lineScales;
     std::vector<uint32_t>               gradient;
     float                               gradientMark = -1.0f;
+
+    //  DxuiTooltip::SetFrame and SetCornerTag; empty for none.
+    std::wstring                        frameLabel;
+    uint32_t                            frameArgb     = 0;
+    std::wstring                        cornerTag;
+    uint32_t                            cornerTagArgb = 0;
 
     //  The tip is what a color means, as a list cell's is. Placed under an
     //  in-place tip that is up, such as a cut-off cell's whole text.

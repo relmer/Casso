@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/GoToAddressText.h"
 #include "resource.h"
 
 #include "CppUnitTest.h"
@@ -97,6 +98,7 @@ namespace DebuggerMenuBarTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::GetDockSite;
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::SetWindowMenus;
@@ -105,8 +107,6 @@ namespace DebuggerMenuBarTests
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::kDialectEntry;
 
@@ -414,7 +414,7 @@ namespace DebuggerMenuBarTests
         }
 
 
-        //  File's Unload symbol file lists each symbol file loaded, by its
+        //  File's Unload symbol or debug file lists each symbol file loaded, by its
         //  file name, and a row clears its table; with none loaded the row
         //  is disabled.
         TEST_METHOD (UnloadSymbolFileListsEachLoadedFile)
@@ -430,7 +430,7 @@ namespace DebuggerMenuBarTests
 
             window.OnCreate();
 
-            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol file");
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol or debug file");
             Assert::IsNotNull (row);
             Assert::IsFalse   (row->command->isEnabled(), L"on with no file loaded");
 
@@ -440,11 +440,12 @@ namespace DebuggerMenuBarTests
             window.SetSnapshotForTest (snapshot);
             window.SetWindowMenus();
 
-            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol file");
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol or debug file");
             Assert::IsNotNull (row);
             Assert::IsTrue    (row->kind == DxuiPopupMenuItem::Kind::Submenu, L"no submenu of files");
             Assert::AreEqual  ((size_t) 1, row->children.size(), L"a machine table's file is listed");
             Assert::AreEqual  (std::wstring (L"symbols-demo.dbg"), row->children[0].command->label);
+            Assert::IsFalse   ((bool) row->children[0].command->isChecked, L"a row that can't be checked, so the submenu has no check gutter");
 
             row->children[0].command->dispatch();
             Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::ClearSymbols);
@@ -466,14 +467,14 @@ namespace DebuggerMenuBarTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
 
             reset = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Reset window layout");
             Assert::IsNotNull (reset);
             reset->command->dispatch();
 
-            Assert::IsFalse (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
-            Assert::IsTrue  (window.GetPaneLayout().IsDocked   (DebuggerLayout::kWatches));
+            Assert::IsFalse (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
+            Assert::IsTrue  (window.GetDockSite()->GetPaneLayout().IsDocked   (DebuggerLayout::kWatches));
         }
 
 
@@ -626,9 +627,46 @@ namespace DebuggerMenuBarTests
             Assert::IsTrue   (window.GetConsolePane().GetModeBar().GetSlot().GetBar()->IsVisible(), L"the bar shows with the console");
         }
     };
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  GoToParseTests
+    //
+    //  Ctrl+G's address: hex with or without a dollar sign, PC, or a symbol's
+    //  name in any case.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    struct GoToProbe : public DebuggerWindow
+    {
+    };
+
+    TEST_CLASS (GoToParseTests)
+    {
+    public:
+
+        TEST_METHOD (AGoToTakesHexPcOrASymbol)
+        {
+            DebuggerViewSnapshot  snapshot;
+            auto                  symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState>();
+            Word                  address = 0;
+
+
+
+            snapshot.pc = 0x1234;
+            symbols->symbols.push_back (SymbolInfo { "TXTPTR", 0x00B8 });
+            snapshot.symbols = symbols;
+
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"0300", &snapshot, address));
+            Assert::AreEqual ((Word) 0x0300, address);
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L" $FD1B ", &snapshot, address));
+            Assert::AreEqual ((Word) 0xFD1B, address);
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"pc", &snapshot, address));
+            Assert::AreEqual ((Word) 0x1234, address);
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"txtptr", &snapshot, address));
+            Assert::AreEqual ((Word) 0x00B8, address);
+            Assert::IsFalse  (GoToAddressText::TryParseGoTo (L"NOSUCH", &snapshot, address));
+            Assert::IsFalse  (GoToAddressText::TryParseGoTo (L"12345", &snapshot, address), L"more than four digits");
+        }
+    };
 }
-
-
-
-
-

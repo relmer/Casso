@@ -103,8 +103,6 @@ namespace DebuggerResetLayoutTests
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::kDialectEntry;
         using DebuggerWindow::ClosePane;

@@ -19,12 +19,12 @@ class IFloatingPanesHost
 public:
     virtual ~IFloatingPanesHost() = default;
 
-    virtual HWND                           GetFloatOwner     () const = 0;
-    virtual HINSTANCE                      GetFloatInstance  () const = 0;
-    virtual DxuiDockSite *                 GetFloatDockSite  () const = 0;
-    virtual const DxuiTheme *              GetTheme          () const = 0;
-    virtual const DxuiKeyMap *             GetFloatKeyMap    () const = 0;
-    virtual const DxuiDpiScaler &          GetFloatScaler    () const = 0;
+    virtual HWND                   GetFloatOwner    () const = 0;
+    virtual HINSTANCE              GetFloatInstance () const = 0;
+    virtual DxuiDockSite         * GetFloatDockSite () const = 0;
+    virtual const DxuiTheme      * GetTheme         () const = 0;
+    virtual const DxuiKeyMap     * GetFloatKeyMap   () const = 0;
+    virtual const DxuiDpiScaler  & GetFloatScaler   () const = 0;
 
     virtual std::vector<IDxuiControl *>    GetPaneControls   (const std::wstring & pane) const = 0;
     virtual IDxuiControl *                 GetPaneContent    (const std::wstring & pane) const = 0;
@@ -116,7 +116,7 @@ public:
 
     //  The pane the event being routed came from, empty for the debugger
     //  window itself.
-    const std::wstring &  GetRoutingPane () const { return m_routingPane; }
+    const std::wstring  & GetRoutingPane  () const { return m_routingPane; }
     bool                  IsRoutedToFloat () const { return !m_routingPane.empty() && Contains (m_routingPane); }
 
     //  Whether an event now being routed is passed to a control in `pane`,
@@ -145,21 +145,23 @@ public:
     void            ForgetFocus     (const std::vector<IDxuiControl *> & controls);
 
     //  A pane's window, or a window by its key.
-    bool                Contains    (const std::wstring & pane) const { return !GetWindowOf (pane).empty(); }
-    DxuiDockedWindow *  Find        (const std::wstring & pane) const;
-    DxuiDockSite *      FindSite    (const std::wstring & pane) const;
+    bool                Contains (const std::wstring & pane) const { return !GetWindowOf (pane).empty(); }
+    DxuiDockedWindow  * Find     (const std::wstring & pane) const;
+    DxuiDockSite      * FindSite (const std::wstring & pane) const;
 
     //  The layout's floating places change; the windows match it at the next
     //  Sync, run from the frame.
     void  MarkSyncNeeded () { m_isSyncNeeded = true; m_host.RequestFloatSync(); }
     void  Sync           ();
 
-    void  RequestFloat (const std::wstring & pane, POINT clientPx);
-    void  TearOff      (const std::wstring & pane, POINT clientPx);
-    void  TearOffGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
-    void  CarryTornOff ();
-    void  DockBack     (const std::wstring & pane);
-    void  Show         (const std::wstring & pane);
+    void  RequestFloat      (const std::wstring & pane, POINT clientPx);
+    void  RequestFloatGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
+    void  TearOff           (const std::wstring & pane, POINT clientPx);
+    void  TearOffGroup      (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx);
+    void  CarryTornOff      ();
+    void  ActivateMoved     ();
+    void  DockBack          (const std::wstring & pane);
+    void  Show              (const std::wstring & pane);
 
     //  Each floating window's place, read back into the layout, since moving
     //  or sizing one is not a layout operation.
@@ -167,10 +169,10 @@ public:
 
     //  A tooltip and its tip service by their key, a pane's or the floating
     //  command bar's.
-    void              SetTip    (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip);
-    void              EraseTip  (const std::wstring & key);
-    DxuiTooltip *     FindTip   (const std::wstring & key) const;
-    DxuiTipService *  FindTips  (const std::wstring & key) const;
+    void              SetTip   (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip);
+    void              EraseTip (const std::wstring & key);
+    DxuiTooltip     * FindTip  (const std::wstring & key) const;
+    DxuiTipService  * FindTips (const std::wstring & key) const;
 
     //  Every floating window at once.
     void  ApplyTheme       (const DxuiTheme * theme);
@@ -187,21 +189,23 @@ private:
     //  window is taken to be.
     static constexpr POINT  s_kOffSite = { INT_MIN / 2, INT_MIN / 2 };
 
-    void          Float          (const std::wstring & window);
-    void          Dock           (const std::wstring & window);
-    void          PlaceUnderGrab (const std::wstring & pane);
-    void          OnDrag         (const std::wstring & window, POINT screenPx, bool ended);
+    void          Float               (const std::wstring & window);
+    void          Dock                (const std::wstring & window);
+    void          PlaceUnderGrab      (const std::wstring & pane);
+    void          OnDrag              (const std::wstring & window, POINT screenPx, bool ended);
     bool          IsOverAnotherWindow (const std::wstring & window, POINT screenPx) const;
-    void          ShowDragMarks  ();
-    void          HideDragMarks  ();
-    void          DropCarriedTab (const std::wstring & pane);
-    void          SetFade        (const std::wstring & pane, bool on);
-    void          TearOut        (const std::wstring & window, const std::wstring & pane, POINT windowPx);
-    void          DockBackWindow (const std::wstring & window);
-    RECT          GetTearOffRect (const std::wstring & pane, POINT clientPx) const;
-    std::wstring  GetWindowOf    (const std::wstring & pane) const;
-    std::wstring  GetKeyOf       (const std::wstring & pane) const;
-    std::wstring  GetActivePane  (const std::wstring & window) const;
+    void          ActivateIfFloating  (const std::wstring & window);
+    void          RememberPlace       (const std::wstring & window);
+    void          ShowDragMarks       ();
+    void          HideDragMarks       ();
+    void          DropCarriedTab      (const std::wstring & pane);
+    void          SetFade             (const std::wstring & pane, bool on);
+    void          TearOut             (const std::wstring & window, const std::wstring & pane, POINT windowPx);
+    void          DockBackWindow      (const std::wstring & window);
+    RECT          GetTearOffRect      (const std::wstring & pane, POINT clientPx) const;
+    std::wstring  GetWindowOf         (const std::wstring & pane) const;
+    std::wstring  GetKeyOf            (const std::wstring & pane) const;
+    std::wstring  GetActivePane       (const std::wstring & window) const;
 
     IFloatingPanesHost                                         & m_host;
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>    m_windows;
@@ -212,6 +216,8 @@ private:
     DxuiDragOverlay                                              m_dragOverlay;
     std::wstring                                                 m_routingPane;
     std::wstring                                                 m_tornOffPane;
+    std::wstring                                                 m_movedPane;     // floated by Move to new window, to activate once its window is up
+    std::map<std::wstring, RECT>                                 m_lastFloat;     // each pane's floating place when it last came to rest, by pane
     POINT                                                        m_tearGrab    = {};
     bool                                                         m_tearFromTab = false;
     bool                                                         m_isSyncNeeded = false;

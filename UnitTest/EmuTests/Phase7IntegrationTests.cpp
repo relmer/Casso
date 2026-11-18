@@ -44,7 +44,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -155,7 +155,7 @@ public:
         Assert::AreEqual (size_t (14), consumed2,
             L"PRINT \"HELLO\" + Return should be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         rows = TextScreenScraper::Scrape (machine);
 
@@ -212,7 +212,7 @@ public:
         Assert::AreEqual (size_t (5), consumed,
             L"PR#3 + Return should be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue (machine.GetRefs().iieSoftSwitches->Is80ColMode(),
             L"PR#3 must engage 80-col mode (Is80ColMode==true)");
@@ -247,7 +247,7 @@ public:
         consumed = KeystrokeInjector::InjectLine (machine, "PR#3");
         Assert::AreEqual (size_t (5), consumed);
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue (machine.GetRefs().iieSoftSwitches->Is80ColMode(),
             L"80-col must be active before the long PRINT");
@@ -259,7 +259,7 @@ public:
         Assert::IsTrue (consumed >= 60,
             L"Long PRINT line must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         rows = TextScreenScraper::Scrape (machine);
 

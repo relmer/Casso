@@ -70,8 +70,8 @@ namespace DebuggerTests
             Rig()
             {
                 handlers.Attach (session);
-                session.SetFileSystem       (&files);
-                session.SetCurrentDirectory (L"C:\\Work");
+                session.GetHostFiles().SetFileSystem (&files);
+                session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
 
                 //  Into Monitor mode the way a reader gets there.
                 session.ExecuteLine ("MODE MONITOR");
@@ -116,9 +116,9 @@ namespace DebuggerTests
 
 
             Assert::AreEqual ((int) CommandStatus::Error, (int) read.status);
-            Assert::IsTrue   (read.error.detail.find ("type R in the guest's own Monitor") != std::string::npos, Widen (read.error.detail).c_str());
+            Assert::IsTrue   (read.error.detail.find ("type R in the guest's Monitor") != std::string::npos, Widen (read.error.detail).c_str());
             Assert::AreEqual ((int) CommandStatus::Error, (int) write.status);
-            Assert::IsTrue   (write.error.detail.find ("type W in the guest's own Monitor") != std::string::npos, Widen (write.error.detail).c_str());
+            Assert::IsTrue   (write.error.detail.find ("type W in the guest's Monitor") != std::string::npos, Widen (write.error.detail).c_str());
         }
 
 
@@ -411,7 +411,7 @@ namespace DebuggerTests
 
 
 
-            rig.session.SetFileSystem (nullptr);
+            rig.session.GetHostFiles().SetFileSystem (nullptr);
             reply = rig.Run ("300.301W out.bin");
 
             Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
@@ -881,7 +881,7 @@ namespace DebuggerTests
                 target.SetRegisters (registers);
 
                 handlers.Attach (session);
-                session.SetFileSystem (&files);
+                session.GetHostFiles().SetFileSystem (&files);
 
                 //  No test may run unbounded. A run that does not reach its
                 //  stop hangs the whole suite rather than failing, which is a
@@ -930,10 +930,10 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
             rig.target.TryPeek (0x0310, value);
             Assert::AreEqual ((int) 0x42, (int) value);
-            Assert::IsTrue   (rig.session.IsAssembling(), L"a $ command leaves the assembler active");
+            Assert::IsTrue   (rig.session.GetInterpreter().IsAssembling(), L"a $ command leaves the assembler active");
 
             rig.Run ("");
-            Assert::IsFalse (rig.session.IsAssembling());
+            Assert::IsFalse (rig.session.GetInterpreter().IsAssembling());
         }
 
 
@@ -1286,7 +1286,7 @@ namespace DebuggerTests
 
             reply = rig.Run ("/RUN C:\\Work\\asm.txt");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
-            Assert::IsFalse  (rig.session.IsAssembling(), L"the blank line ended the block");
+            Assert::IsFalse  (rig.session.GetInterpreter().IsAssembling(), L"the blank line ended the block");
 
             rig.target.TryPeek (0x0300, value);
             Assert::AreEqual ((int) 0xA9, (int) value);

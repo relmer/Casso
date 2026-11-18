@@ -61,15 +61,19 @@ public:
     //  one; empty for a row of View itself.
     static std::optional<int>         GetViewMenuRank  (const std::wstring & pane);
     static std::wstring               GetViewMenuGroup (const std::wstring & pane);
-    static constexpr int              kDevicePanelRank = 200;
+    static constexpr int              kDevicePanelRank = 310;
+
+    //  A device panel's place among the panels, by its device as the logs are
+    //  ordered: disk, input, video, sound, serial and network, then the rest.
+    static int                        GetDevicePanelOrder (const std::string & id);
 
     //  The BASIC program pane and the tool panes stay closed until each is
     //  first opened; the open-views text has " open=" and the pane once it
     //  is.
-    static bool         IsBasicPane       (const std::wstring & pane);
-    static bool         IsOpenedLater     (const std::wstring & pane);
-    static std::string  FormatBasicOpened (const std::set<std::wstring> & opened);
-    static std::set<std::wstring>  ParseBasicOpened (const std::string & text);
+    static bool                    IsBasicPane       (const std::wstring & pane);
+    static bool                    IsOpenedLater     (const std::wstring & pane);
+    static std::string             FormatBasicOpened (const std::set<std::wstring> & opened);
+    static std::set<std::wstring>  ParseBasicOpened  (const std::string & text);
 
     //  Memory windows are "memory1" to "memory4".
     static std::wstring    GetMemoryPaneId (int window);
@@ -91,10 +95,10 @@ public:
         const wchar_t  * title;
     };
 
-    static std::span<const DiagnosticsPanel>  GetDiagnosticsPanels   ();
-    static std::wstring                       GetDiagnosticsPaneId   (const std::string & id);
-    static bool                               TryGetDiagnosticsId    (const std::wstring & pane, std::string & id);
-    static DxuiPaneLayout  MakeDefault ();
+    static std::span<const DiagnosticsPanel>  GetDiagnosticsPanels ();
+    static std::wstring                       GetDiagnosticsPaneId (const std::string & id);
+    static bool                               TryGetDiagnosticsId  (const std::wstring & pane, std::string & id);
+    static DxuiPaneLayout                     MakeDefault          ();
 
     //  A saved arrangement: panes this version does not have are dropped and
     //  panes it has that the text lacks are added, so a layout saved by an

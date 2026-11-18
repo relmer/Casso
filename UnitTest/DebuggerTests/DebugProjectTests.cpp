@@ -4,6 +4,7 @@
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/Project/DebugProject.h"
 #include "Debugger/Project/DebugProjectStore.h"
+#include "Debugger/Project/ProjectSwitchGuard.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -56,6 +57,39 @@ namespace DebuggerTests
         }
 
 
+        //  Two projects that each open the other switch back and forth until
+        //  the guard pauses switching; a scope outside them ends the pause.
+        TEST_METHOD (SwitchesBackAndForthAreHeld)
+        {
+            ProjectSwitchGuard  guard;
+            ProjectScope        demo;
+            ProjectScope        machine;
+            ProjectScope        other;
+            uint64_t            now     = 1000;
+            int                 allowed = 0;
+
+
+
+            demo.kind    = ProjectScopeKind::DebugFile;
+            demo.key     = "demo";
+            machine.kind = ProjectScopeKind::Machine;
+            machine.key  = "Apple //e Enhanced";
+            other.kind   = ProjectScopeKind::DebugFile;
+            other.key    = "other";
+
+            for (int i = 0; i < 20; i++, now += 16)
+            {
+                allowed += guard.TryAllow ((i % 2 == 0) ? machine : demo, now) ? 1 : 0;
+            }
+
+            Assert::AreEqual ((int) ProjectSwitchGuard::kMaxSwitches, allowed, L"a few switches, then none");
+            Assert::IsTrue   (guard.IsHeld());
+            Assert::IsFalse  (guard.TryAllow (demo, now + 10 * ProjectSwitchGuard::kWindowMs), L"paused however long it lasts");
+            Assert::IsTrue   (guard.TryAllow (other, now), L"a new debug file ends the pause");
+            Assert::IsFalse  (guard.IsHeld());
+            Assert::IsTrue   (guard.TryAllow (demo, now + 1), L"and the old scopes switch again");
+        }
+
         //  Breakpoints with a name and a disabled one, a watch, a zero-page
         //  pointer, a bookmark, a data block, a step filter and a symbol file
         //  set in one session are all there in the next, through the JSON.
@@ -104,7 +138,40 @@ namespace DebuggerTests
             Assert::IsTrue   (List (second, "WL").find ("0300") != std::string::npos);
             Assert::IsTrue   (List (second, "DB").find ("TABLE") != std::string::npos);
             Assert::IsTrue   (List (second, "SKIP").find ("0A00") != std::string::npos);
-            Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
+            Assert::AreEqual ((size_t) 1, second.rig.session.GetFiles().GetSymbolLoads().size());
+        }
+
+        //  Loading another debug file switches to its project, and the project
+        //  switched from is saved after that load, so a debug file's project neither
+        //  saves another debug file nor loads one again: two projects that did
+        //  loaded each other's file over and over.
+        TEST_METHOD (ADebugFilesProjectNeitherSavesNorLoadsAnotherDebugFile)
+        {
+            std::unique_ptr<SessionRig>    held     = std::make_unique<SessionRig>();   // heap: the rig overflows the frame (C6262)
+            SessionRig                   & s        = *held;
+            DebugProject                   one;
+            DebugProject                   two;
+            std::vector<std::string>       failures;
+
+
+
+            s.rig.files.WriteAllText (L"C:\\Work\\one.dbg", "version\tmajor=2,minor=0\nsym\tid=0,name=\"ONE\",addrsize=absolute,val=0x6000,type=lab\n");
+            s.rig.files.WriteAllText (L"C:\\Work\\two.dbg", "version\tmajor=2,minor=0\nsym\tid=0,name=\"TWO\",addrsize=absolute,val=0x7000,type=lab\n");
+
+            s.rig.RunOk ("SYMUSER LOAD one.dbg");
+            one.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetFiles().GetDebugFileKey(), "one.dbg" };
+            s.rig.RunOk ("SYMUSER LOAD two.dbg");
+            two.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetFiles().GetDebugFileKey(), "two.dbg" };
+
+            one.CaptureEngine (s.rig.session);
+            Assert::IsTrue (one.symbolFiles.empty(), L"one.dbg's project, saved with two.dbg loaded, doesn't list two.dbg");
+
+            two.CaptureEngine (s.rig.session);
+            Assert::AreEqual ((size_t) 1, two.symbolFiles.size(), L"two.dbg's project lists its own debug file");
+
+            two.symbolFiles = { { SymbolTableId::User, L"C:\\Work\\one.dbg", 0 } };
+            two.ApplyEngine (s.rig.session, failures);
+            Assert::IsTrue (s.rig.session.GetFiles().GetDebugFilePath() == L"C:\\Work\\two.dbg", L"a project saved that way doesn't load the other file");
         }
 
         //  A load replaces its table, so the session has one load a table
@@ -113,11 +180,13 @@ namespace DebuggerTests
         //  programs among them; its BASIC programs are passed over.
         TEST_METHOD (OnlyATablesLastSymbolFileIsLoadedAgain)
         {
-            SessionRig                  first;
-            SessionRig                  second;
-            DebugProject                project;
-            std::vector<std::string>    failures;
-            Word                        address = 0;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();   // heap: two rigs overflow the frame (C6262)
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            Word                           address   = 0;
 
 
 
@@ -125,7 +194,7 @@ namespace DebuggerTests
             first.rig.files.WriteAllText (L"C:\\Work\\two.sym", "0A00 SECOND\n");
             first.rig.RunOk ("SYMUSER LOAD one.sym");
             first.rig.RunOk ("SYMUSER LOAD two.sym");
-            Assert::AreEqual ((size_t) 1, first.rig.session.GetSymbolLoads().size(), L"the second load replaced the first");
+            Assert::AreEqual ((size_t) 1, first.rig.session.GetFiles().GetSymbolLoads().size(), L"the second load replaced the first");
 
             second.rig.files.WriteAllText (L"C:\\Work\\one.sym",  "0900 FIRST\n");
             second.rig.files.WriteAllText (L"C:\\Work\\game.bas", "10 HOME\n20 VTAB 5\n30 END\n");
@@ -219,6 +288,92 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("five"), list.breakpoints[1].name);
         }
 
+        //  A number in a project's line too large to be an index is no
+        //  breakpoint's, rather than an exception.
+        TEST_METHOD (AnOversizedBreakpointNumberIsNoBreakpoints)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            project.engineScript = { "BPC *", "BP 0400", "BPD 99999999999999999999999" };
+            project.ApplyEngine (session.rig.session, failures);
+
+            BreakpointHandlers::ListAll (session.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::IsTrue   (list.breakpoints[0].enabled, L"no breakpoint was disabled");
+        }
+
+        //  A logging breakpoint's message and its running on come back with
+        //  the project, through its JSON.
+        TEST_METHOD (ABreakpointsLogComesBackWithTheProject)
+        {
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            first.rig.RunOk ("BP 0300");
+            first.rig.RunOk (std::format ("BPLOG {} GO \"A={{A}}\"", first.rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+
+            BreakpointHandlers::ListAll (second.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::AreEqual (std::string ("A={A}"), list.breakpoints[0].log);
+            Assert::IsFalse  (list.breakpoints[0].stops, L"GO runs on");
+        }
+
+        //  A breakpoint's group comes back with the project, and a project
+        //  with no groups loads with none.
+        TEST_METHOD (ABreakpointsGroupComesBack)
+        {
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            first.rig.RunOk ("BP 0300");
+            first.rig.RunOk (std::format ("BPGROUP Loop {}", first.rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+
+            BreakpointHandlers::ListAll (second.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::AreEqual (std::string ("Loop"), list.breakpoints[0].group);
+
+            read.breakpointGroups.clear();
+            Assert::IsTrue (DebugProject::TryParse (read.ToJson (L"C:\\Work"), L"C:\\Work", project, error), L"a project with no groups");
+            Assert::IsTrue (project.breakpointGroups.empty());
+        }
+
         //  The session's other state comes back too: a symbol table turned
         //  off, the CD directory, the stopwatch, the profiler, the command
         //  mode and the trip count's mark; and the window's states by name.
@@ -243,7 +398,7 @@ namespace DebuggerTests
             first.rig.RunOk ("MODE MONITOR");
 
             project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
-            project.windowStrings = { { "console", "BP 300\nG\n" }, { "focusedPane", "watches" } };
+            project.windowStrings = { { "console", "BP 300\nG\n" }, { "heatMapOptions", "reads" } };
 
             Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
             read.ApplyEngine (second.rig.session, failures);
@@ -251,12 +406,38 @@ namespace DebuggerTests
             Assert::IsTrue   (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
             Assert::IsFalse  (second.rig.session.GetSymbols().IsEnabled (SymbolTableId::Dos33), L"the table stays off");
             Assert::IsTrue   (second.rig.session.GetSymbols().IsEnabled (SymbolTableId::Main));
-            Assert::IsTrue   (second.rig.session.GetCurrentDirectory() == L"C:\\Work");
+            Assert::IsTrue   (second.rig.session.GetHostFiles().GetCurrentDirectory() == L"C:\\Work");
             Assert::IsTrue   (second.rig.session.GetMode() == CommandMode::Monitor);
             Assert::AreEqual ((uint64_t) 1234, second.rig.session.GetCycleMarker());
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("STOPWATCH 0300 0310")) != read.engineScript.end());
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("PROFILE ON")) != read.engineScript.end());
             Assert::IsTrue   (read.windowStrings == project.windowStrings, L"the window's states through the JSON");
+        }
+
+        //  The window's layout is the window's: a project doesn't write it,
+        //  and one saved with it loads without it.
+        TEST_METHOD (TheLayoutIsNeitherSavedNorRestored)
+        {
+            DebugProject  project;
+            DebugProject  read;
+            DebugProject  older;
+            std::string   error;
+            std::string   text;
+            std::string   olderText = "{\"format\":\"casso-debug-project\",\"window\":{\"layout\":\"split\",\"openViews\":\"panel=mmu\",\"closedPanes\":\"watches\","
+                                      "\"focusedPane\":\"mmu\",\"commandBarDock\":\"left\",\"timelineDock\":\"bottom\",\"console\":\"G\"}}";
+
+
+
+            project.windowStrings = { { "console", "G" }, { "focusedPane", "mmu" }, { "closedPanes", "watches" } };
+            text = project.ToJson (L"C:\\Work");
+
+            Assert::IsTrue (text.find ("focusedPane") == std::string::npos, TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (text.find ("closedPanes") == std::string::npos, TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (DebugProject::TryParse (text, L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            Assert::IsTrue (read.windowStrings == std::map<std::string, std::string> { { "console", "G" } }, L"only the console's text is read back");
+
+            Assert::IsTrue (DebugProject::TryParse (olderText, L"C:\\Work", older, error), TextEncoding::NarrowToWide (error).c_str());
+            Assert::IsTrue (older.windowStrings == std::map<std::string, std::string> { { "console", "G" } }, L"an older project's layout is left out");
         }
 
         //  Every breakpoint, watchpoint, watch and bookmark comes back under

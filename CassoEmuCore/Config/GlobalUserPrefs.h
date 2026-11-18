@@ -7,6 +7,7 @@
 
 #include "Core/JsonValue.h"
 #include "Config/CrtTypes.h"
+#include "Config/DiskInspectorPrefs.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/ColorUtil.h"
 
@@ -45,6 +46,20 @@ struct GlobalUserPrefs
     // compact themes never draw the scene regardless. (Replaces the retired
     // skeuoMonitorFrame / deskScene keys, both ignored when loading.)
     bool         crtMonitor          = true;
+
+    // Whether the drives collapse off the bottom of the window until the
+    // pointer comes near the bottom edge, the way they do in fullscreen. While
+    // collapsed they reserve no space, and the picture takes the room. Every
+    // theme, flat or desk scene.
+    bool         autoHideDrives      = false;
+
+    // Where the floppy drives and the hard disks go: "auto", "desk" or
+    // "bar" (DeskDrivePlan::ParsePlace).
+    std::string  deskFloppies        = "auto";
+    std::string  deskHardDisks       = "auto";
+
+    // Two floppies on the desk stack beside the monitor rather than under it.
+    bool         deskFloppyPairBeside = false;
 
     // The frames-per-second readout over the picture.
     //
@@ -284,6 +299,11 @@ struct GlobalUserPrefs
     std::string   pendingUpdateKind;
     int           pendingUpdateFailure     = 0;
 
+    // Sets the update check and pending update fields above to those of `other`.
+    void  CopyUpdateFieldsFrom (const GlobalUserPrefs & other);
+    // The disk inspector window's state (FR-080).
+    DiskInspectorPrefs  diskInspector;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
@@ -313,6 +333,11 @@ struct GlobalUserPrefs
 
     static std::wstring  GetFilePath (const std::wstring & baseDir);
 
+    //  One monitor and mode's overrides, as the prefs file has them; Casso
+    //  Explorer saves its own in the same form.
+    static JsonValue    CrtOverridesToJson   (const CrtOverrides & o);
+    static void         CrtOverridesFromJson (const JsonValue & obj, CrtOverrides & o);
+
 
 private:
     static bool         TryGetBoolOpt   (const JsonValue   & obj,
@@ -328,15 +353,13 @@ private:
                                       const std::string & key,
                                       const std::string & fallback);
 
-    static JsonValue    CrtOverridesToJson (const CrtOverrides & o);
-    static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
-    static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
-    static JsonValue    RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
+    static JsonValue  PlacementsToJson      (const std::map<std::string, WindowBounds> & placements);
+    static JsonValue  RecentDisksToJson     (const std::vector<std::string> & recentDisks);
+    static JsonValue  RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
 
     static const char *           ColorTextModeToString   (ColorMonitorTextMode mode);
     static ColorMonitorTextMode   ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback);
 
-    static void         CrtOverridesFromJson (const JsonValue & obj, CrtOverrides & o);
     static void         ReadCrtOverrides     (const JsonValue & v,
                                               std::map<std::string, CrtOverrides> & out);
     static void         PlacementsFromJson  (const JsonValue                     & placementsObj,

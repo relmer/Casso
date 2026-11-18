@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "../Dxui/MockDxuiPainter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -204,7 +205,7 @@ namespace DebuggerTests
 
             Assert::IsFalse (snapshot.branchedFrom.has_value(), L"no transfer to $0300");
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (snapshot.branchedFrom == std::optional<Word> (0x0300), L"the BEQ was taken to the PC");
@@ -221,17 +222,100 @@ namespace DebuggerTests
 
             //  A run of two instructions with no build between, as a run that
             //  a breakpoint stops: the JMP brought the machine to $0320.
-            rig.machine.StepOne();
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((int) 0x0320, (int) snapshot.pc);
             Assert::IsTrue   (snapshot.branchedFrom == std::optional<Word> (0x0311), L"the JMP, found with no stop at it");
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse (snapshot.branchedFrom.has_value(), L"the PC moved on in order from the JMP's target, so nothing is marked");
+        }
+
+        //  At a stop the snapshot has where the PC's instruction goes, and
+        //  whether the flags take it, for a view whose lines don't have the PC.
+        TEST_METHOD (TheSnapshotHasThePcsTarget)
+        {
+            ControllerRig         rig;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0xF0);    // BEQ $0310
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x0E);
+            rig.machine.GetMemoryBus().WriteByte (0x0302, 0xEA);    // NOP
+
+            r.pc = 0x0300;
+            r.p  = (Byte) (r.p & ~0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue  (snapshot.pcTarget == std::optional<Word> (0x0310));
+            Assert::IsFalse (snapshot.isPcTargetTaken, L"Z is clear, so the BEQ won't be taken");
+
+            r.p = (Byte) (r.p | 0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue  (snapshot.isPcTargetTaken, L"Z is set");
+
+            r.pc = 0x0302;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.pcTarget.has_value(), L"a NOP goes nowhere");
+        }
+
+        //  The PC's line's glyph has the line's dot, or nothing, in its left
+        //  square and the arrow in its right, so the arrow never covers the dot.
+        TEST_METHOD (ThePcsArrowIsBesideTheBreakpointsDot)
+        {
+            constexpr int  kMiddle = GutterGlyph::kSizePx / 2;
+            auto           dot     = GutterGlyph::MakeDot   (0xFFFF0000, true);
+            auto           arrow   = GutterGlyph::MakeArrow (0xFFFFE34D);
+            auto           marked  = GutterGlyph::MakeMarked (dot, arrow);
+            auto           alone   = GutterGlyph::MakeMarked (nullptr, arrow);
+            auto           at      = [] (const DxuiIconImage & image, int x, int y) { return image.bgraPremul[(size_t) (y * image.width + x)]; };
+
+
+
+            Assert::AreEqual (GutterGlyph::kSizePx * 2, marked->width, L"two squares across");
+            Assert::AreEqual (at (*dot, kMiddle, kMiddle),   at (*marked, kMiddle, kMiddle), L"the dot in the left square");
+            Assert::AreEqual (at (*arrow, kMiddle, kMiddle), at (*marked, GutterGlyph::kSizePx + kMiddle, kMiddle), L"the arrow in the right");
+            Assert::AreEqual (0u, at (*alone, kMiddle, kMiddle), L"no dot: the left square is empty");
+            Assert::AreEqual (at (*arrow, kMiddle, kMiddle), at (*alone, GutterGlyph::kSizePx + kMiddle, kMiddle), L"and the arrow in the same place");
+            Assert::IsTrue   (GutterGlyph::MakeMarked (dot, nullptr) == dot, L"no arrow: the dot alone");
+        }
+
+        //  The stepped arrow ends at the PC's row and the PC's starts there, each
+        //  a little to the side of its other end; run the same way, the PC's is
+        //  moved out a lane, so the two lines are apart.
+        TEST_METHOD (TwoArrowsMeetingAtThePcAreSetApart)
+        {
+            BranchArrow::Input  stepped = MakeInput (200.0f, 100.0f,       false);
+            BranchArrow::Input  pc      = MakeInput (100.0f, std::nullopt, true);
+            float               stub    = pc.stubPx;
+
+
+
+            DisassemblyCells::SeparateArrows (stepped, pc);
+
+            Assert::IsTrue (IsNear (*stepped.targetY, 100.0f + DisassemblyCells::kArrowSplitDip), L"the stepped one, from below, ends low on the row");
+            Assert::IsTrue (IsNear (*pc.sourceY,      100.0f - DisassemblyCells::kArrowSplitDip), L"the PC's starts high on it");
+            Assert::IsTrue (IsNear (pc.stubPx,        stub + DisassemblyCells::kArrowLaneDip),    L"both run below the row: the PC's is moved out a lane");
+
+            stepped = MakeInput (50.0f,  100.0f,       true);
+            pc      = MakeInput (100.0f, std::nullopt, true);
+
+            DisassemblyCells::SeparateArrows (stepped, pc);
+
+            Assert::IsTrue (IsNear (*stepped.targetY, 100.0f - DisassemblyCells::kArrowSplitDip), L"from above, it ends high on the row");
+            Assert::IsTrue (IsNear (*pc.sourceY,      100.0f + DisassemblyCells::kArrowSplitDip));
+            Assert::IsTrue (IsNear (pc.stubPx,        stub), L"one above the row and one below share the lane");
         }
 
 

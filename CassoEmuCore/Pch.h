@@ -3,6 +3,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <dbghelp.h>
 #include <aclapi.h>
 
 //
@@ -13,6 +16,10 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <netfw.h>
+#include <netlistmgr.h>
+#include <sddl.h>
+#include <userenv.h>
 
 // <winnt.h> aliases these to the _bittest intrinsics, and CpuOperations::BitTest
 // is the 6502 BIT instruction. CassoCore/Pch.h is where that actually bites --
@@ -25,17 +32,25 @@
 #undef BitTestAndComplement
 
 #include <mmdeviceapi.h>
+
+//  PlaySound, for CassoLink's cassette bootstrap. With WIN32_LEAN_AND_MEAN,
+//  windows.h does not include mmsystem.h.
+#include <mmsystem.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
 #include <mferror.h>
 #include <propvarutil.h>
 #include <shlobj.h>
+#include <cfapi.h>
+#include <shlwapi.h>
+#include <cfapi.h>
 #include <knownfolders.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <numeric>
 #include <array>
 #include <atomic>
 #include <bitset>
@@ -61,6 +76,7 @@
 #include <numbers>
 #include <optional>
 #include <random>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <span>
@@ -98,7 +114,14 @@
 #include <dcomp.h>
 #include <crtdbg.h>
 #include <shellapi.h>
+#include <winioctl.h>
 #include <shobjidl.h>
+#include <xmllite.h>
+#include <searchapi.h>
+#include <filter.h>
+#include <filterr.h>
+#include <oledb.h>
+#include <oledberr.h>
 #include <commoncontrols.h>
 #include <ole2.h>
 #include <oleidl.h>
@@ -109,6 +132,8 @@
 #include <eventtoken.h>
 #include <windows.foundation.h>
 #include <windows.graphics.printing.h>
+#include <windows.storage.h>
+#include <windows.applicationmodel.datatransfer.h>
 #include <printmanagerinterop.h>
 #include <documentsource.h>
 #include <documenttarget.h>

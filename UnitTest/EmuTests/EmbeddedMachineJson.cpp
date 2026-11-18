@@ -37,7 +37,7 @@ std::string EmbeddedMachineJson::Load (int resourceId)
 
     Assert::IsTrue (size > 0 && data != nullptr, L"a machine configuration is embedded but empty");
 
-    return std::string (static_cast<const char *> (data), size);
+    return (data != nullptr) ? std::string (static_cast<const char *> (data), size) : std::string();
 }
 
 

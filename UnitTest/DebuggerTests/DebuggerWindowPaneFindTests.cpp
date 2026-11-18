@@ -184,6 +184,28 @@ namespace DebuggerPaneFindTests
         }
 
 
+        //  Escape closes the pane's find bar with the focus back in the pane,
+        //  as after a click in the document.
+        TEST_METHOD (EscapeInThePaneClosesItsFindBar)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            PaneFindHost    host;
+            PaneFindWindow  window (theme, host);
+
+
+
+            window.Build();
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
+            window.Press ('F', true);
+            window.Type  (L"sta");
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
+
+            Assert::IsTrue  (window.GetFindWidgets().IsOpen(), L"the bar is open, the focus in the document");
+            Assert::IsTrue  (window.Press (VK_ESCAPE), L"Escape");
+            Assert::IsFalse (window.GetFindWidgets().IsOpen(), L"hides the bar");
+        }
+
+
         TEST_METHOD (CtrlFInTheConsoleOpensTheConsolesOwnWidget)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();

@@ -200,17 +200,17 @@ private:
         for (const char * c = keys; *c != '\0'; c++)
         {
             KeystrokeInjector::InjectKey (machine, static_cast<Byte> (*c));
-            machine.RunCycles (kKeyGapCycles);
+            machine.GetRunner().RunCycles (kKeyGapCycles);
         }
 
         while (!found && spent < kCeilingCycles)
         {
-            spent += machine.RunCycles (kPollCycles);
+            spent += machine.GetRunner().RunCycles (kPollCycles);
             found  = GuestSession::AnyRowContains (ReadScreen (machine), prompt);
         }
 
         Assert::IsTrue (found, (what + L": no row contains " + Widen (prompt) + L" after " + Widen (keys) + L": " + Widen (JoinRows (ReadScreen (machine)))).c_str());
 
-        machine.RunCycles (kSettleCycles);
+        machine.GetRunner().RunCycles (kSettleCycles);
     }
 };

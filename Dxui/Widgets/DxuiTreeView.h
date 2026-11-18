@@ -64,10 +64,27 @@ struct DxuiTreeNode
     bool                       childrenLoaded = true;           // false: ask the provider on first expand
     bool                       dimmed         = false;          // drawn in the muted color
     bool                       dividerAbove   = false;          // a divider row separates it from the row before
+    bool                       pinned         = false;          // a pin at the row's right, as on Explorer's Quick access
     std::vector<DxuiTreeNode>  children;
 
     //  Drawn before the label, as Explorer draws a folder's; none draws none.
     std::shared_ptr<const DxuiIconImage>  icon;
+
+    //  The icon drawn at half opacity, as Explorer draws a hidden item's.
+    bool                       iconGhosted    = false;
+
+    //  A red badge on the icon, for an item that cannot be opened.
+    bool                       iconBroken     = false;
+
+    //  The theme's amber warning mark on the icon, for an item that opens
+    //  but has a problem, with the cause in the item's tip.
+    bool                       iconWarning    = false;
+
+    //  A pulsing dot on the icon, for an item with a transfer running.
+    bool                       iconActivity   = false;
+
+    //  A count at the row's right, for new items in it. Zero for none.
+    int                        countBadge     = 0;
 };
 
 
@@ -84,6 +101,13 @@ public:
     void  SetOnSelect       (SelectFn fn)        { m_onSelect       = std::move (fn); }
     void  SetOnExpand       (ExpandFn fn)        { m_onExpand       = std::move (fn); }
 
+    //  A row wider than the tree scrolls it sideways; without the bar, the
+    //  row is cut off at the tree's edge instead.
+    void  SetHorizontalScrollEnabled (bool enabled) { m_hScrollEnabled = enabled; }
+
+    //  The rows' font size; zero restores the default.
+    void  SetFontDip (float dip) { m_fontDip = (dip > 0.0f) ? dip : s_kDefaultFontDip; }
+
     bool  IsShowingCheckboxes () const { return m_showCheckboxes; }
 
     //  Whether a row can open: it has children, or has not been asked yet.
@@ -99,20 +123,28 @@ public:
     //  Moves the highlight and scrolls to it without reporting a selection.
     void  HighlightRow (int flatRow) { m_highlight = flatRow; EnsureRowVisible (flatRow); }
 
+    //  Merge fresh nodes into those already there, keeping what is open, the
+    //  highlight and what is on screen. ReplaceChildren returns false when no
+    //  row shows the node.
+    bool  ReplaceChildren (const std::wstring & id, std::vector<DxuiTreeNode> children);
+    void  ReplaceRoots    (std::vector<DxuiTreeNode> roots);
+
     int                   FindRowById      (const std::wstring & id) const;
     std::wstring          GetHighlightedId () const;
     const DxuiTreeNode *  FindNodeById     (const std::wstring & id) const;
     int                   GetParentRow     (int flatRow) const;
 
-    // One nesting step. The settings pages indent a child setting's label by
-    // the same amount, so it reads as nested the way a child row here does.
+    // One nesting step, unless SetIndentDip changes it. The settings pages
+    // indent a child setting's label by the same amount, so it reads as nested
+    // the way a child row here does.
     static constexpr int  kIndentDip = 18;
 
     DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
 
-    void  SetRect      (const RECT & rect) { SetBounds (rect); }
-    void  SetRowHeight (int px) { m_rowHeightPx = px; }
+    void  SetRect          (const RECT & rect) { SetBounds (rect); }
+    void  SetRowHeight     (int px) { m_rowHeightPx = px; }
+    void  SetActivityPulse (float pulse) { m_activityPulse = pulse; }   // 0 to 1, the brightness of iconActivity's dot
 
     //  True while a scrollbar thumb drag is in progress, even with the pointer
     //  outside the tree. The host routes mouse input to the widget that started
@@ -126,37 +158,64 @@ public:
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
 
     //  Explorer's navigation pane, measured at 120 dpi: forty pixels a row.
-    static constexpr int  s_kRowHeightDip = 32;
-    static constexpr int  s_kIconDip      = 16;
-    static constexpr int  s_kIconGapDip   = 6;
+    static constexpr int    s_kRowHeightDip     = 32;
+    static constexpr float  s_kDefaultFontDip   = 13.0f;
+    static constexpr int    s_kIconDip          = 16;
+    static constexpr int    s_kIconGapDip       = 6;
+    static constexpr int    s_kLabelTipPadDip   = 4;    // a clipped name's tip starts this far before the icon
+
+    //  How opaque a ghosted icon is: Explorer's hidden items, measured.
+    static constexpr float  s_kGhostedIconAlpha = 0.5f;
+
+    //  Explorer's Quick access pin, measured at 150%: about 10.5 DIPs, its
+    //  right edge 7 DIPs in from the pane's, and dimmer than the muted ink.
+    static constexpr float  s_kPinDip           = 10.5f;
+    static constexpr float  s_kPinAlpha         = 0.72f;
+    static constexpr float  s_kPinRightDip      = 7.0f;
     void  SetNodes     (std::vector<DxuiTreeNode> nodes) { m_nodes = std::move (nodes); RebuildFlatRows(); }
     void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused   (bool focused) { m_focused = focused; }
     void  SetOnToggle  (ToggleFn fn) { m_toggle = std::move (fn); }
+
+    //  How far each level sits in from its parent.
+    void  SetIndentDip (int dip) { m_indentDip = dip; m_indentPx = m_scaler.ToPx (dip); }
+
+    //  How far the icon sits past the twisty, and the label past the icon.
+    void  SetIconLeadDip (float dip) { m_iconLeadDip = dip; }
+    void  SetIconGapDip  (float dip) { m_iconGapDip  = dip; }
+
+    //  Room between the tree's left edge and its top level.
+    void  SetLeftPadDip  (float dip) { m_leftPadDip  = dip; }
+    int   GetLeftPadPx   () const    { return (int) std::lround (m_scaler.ToPxf (m_leftPadDip)); }
     void  SetDpi       (UINT dpi)
     {
         m_scaler.SetDpi (dpi);
         m_rowHeightPx = m_scaler.ToPx (s_kRowHeightDip);
-        m_indentPx    = m_scaler.ToPx (kIndentDip);
+        m_indentPx    = m_scaler.ToPx (m_indentDip);
         m_checkboxPx  = m_scaler.ToPx (16);
         m_twistyPx    = m_scaler.ToPx (16);
     }
 
-    const std::vector<DxuiTreeNode> & GetNodes        () const { return m_nodes; }
-    int                           GetHighlight    () const { return m_highlight; }
-    int                           GetRowHeight    () const { return m_rowHeightPx; }
-    int                           GetVisibleCount () const { return (int) m_flatRows.size(); }
-    int                           GetHoverRow     () const { return m_hoverRow; }
+    const std::vector<DxuiTreeNode>  & GetNodes        () const { return m_nodes; }
+    int                                GetHighlight    () const { return m_highlight; }
+    int                                GetRowHeight    () const { return m_rowHeightPx; }
+    int                                GetVisibleCount () const { return (int) m_flatRows.size(); }
+    int                                GetHoverRow     () const { return m_hoverRow; }
+
+    //  The row a drag would drop onto, drawn as a selected row other than the
+    //  keyboard's; -1 for none.
+    void                          SetDropRow      (int row) { m_dropRow = row; }
+    int                           GetDropRow      () const  { return m_dropRow; }
     void                          SetHoverRow     (int row)  { m_hoverRow = row; }
     bool                          IsEnabled       () const { return m_enabled; }
     bool                          IsFocused       () const { return m_focused; }
 
     // Returns the path-stack indices used to address the highlight
     // node within the nested tree. Empty if highlight is invalid.
-    std::vector<int>  GetPath   (int flatIndex) const;
-    bool              IsInteractive (int flatIndex) const;
-    const DxuiTreeNode *  GetNodeAt (int flatIndex) const;
-    DxuiTreeNode       *  GetNodeAtMutable (int flatIndex);
+    std::vector<int>      GetPath          (int flatIndex) const;
+    bool                  IsInteractive    (int flatIndex) const;
+    const DxuiTreeNode  * GetNodeAt        (int flatIndex) const;
+    DxuiTreeNode        * GetNodeAtMutable (int flatIndex);
 
     // HitTestRow maps (x, y) to a row, or -1 past the last one. Within a
     // row, HitTestTwisty finds the twisty, and HitTestToggle the checkbox
@@ -166,18 +225,31 @@ public:
     bool  HitTestToggle   (int x, int y, int flatRow) const;
 
     void  SetMouseHover   (int x, int y);
-    bool  OnLButtonDown   (int x, int y);
-    bool  OnLButtonUp     (int x, int y);
-    bool  OnKey           (WPARAM vk);
+
+    //  A row whose label runs past the pane's edge: the box from just before
+    //  its icon to the label's end, in client pixels. False when the whole
+    //  label shows, or before the tree has painted.
+    bool  GetClippedLabelRect (int flatRow, RECT & outRect) const;
+
+    //  Where the row's label text is drawn, past its icon, in client pixels.
+    //  False for a row scrolled out of view, or before the tree has painted.
+    bool  GetLabelTextRect    (int flatRow, RECT & outRect) const;
+
+    //  The row's icon and label as the row draws them, the box's top-left at
+    //  the origin; and the fill behind them, opaque.
+    void      PaintLabel   (int flatRow, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    uint32_t  GetLabelFill (int flatRow, const IDxuiTheme & theme) const;    bool  OnLButtonDown   (int x, int y);
+    bool      OnLButtonUp  (int x, int y);
+    bool      OnKey        (WPARAM vk);
 
     //  Scrolling. The tree scrolls by whole rows, so the first row drawn is
     //  the unit the scrollbar and the wheel both move.
-    int   GetTopRow        () const  { return m_topRow; }
-    void  SetTopRow        (int row);
-    void  ScrollRows       (int delta)  { SetTopRow (m_topRow + delta); }
-    void  EnsureRowVisible (int flatRow);
-    int   GetRowCap        () const;
-    int   GetMaxTopRow     () const;
+    int   GetTopRow          () const  { return m_topRow; }
+    void  SetTopRow          (int row);
+    void  ScrollRows         (int delta)  { SetTopRow (m_topRow + delta); }
+    void  EnsureRowVisible   (int flatRow);
+    int   GetRowCap          () const;
+    int   GetMaxTopRow       () const;
     bool  IsScrollbarVisible () const;
 
     //  Horizontal scrolling, as in Explorer's navigation pane when nesting is
@@ -195,9 +267,14 @@ public:
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
-    bool                OnKey             (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
+
+    //  Windows' scrollbar menu when the point is on one of the bars, in the
+    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
+    bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
+    bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+    void                            OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole              GetAccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
 
     // Force the flat-rows cache to repopulate. Public so tests can
     // mutate node state via NodeAtMutable then re-flatten.
@@ -212,9 +289,25 @@ private:
     };
 
 
-    void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
-    void  ToggleRow        (int flatRow);
-    int   SkipDividers     (int flatRow, int step) const;
+    //  The rows the view tracks, by the ids of the nodes on them.
+    struct RowIds
+    {
+        std::vector<std::wstring>  highlight;   // the node, then its ancestors
+        std::wstring               top;
+        std::wstring               hover;
+        std::wstring               pressed;
+        std::wstring               lastClick;
+    };
+
+
+    void          FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
+    RowIds        GetRowIds        () const;
+    void          RestoreRowIds    (const RowIds & ids);
+    std::wstring  GetRowId         (int flatRow) const;
+
+    static void  MergeNodes   (std::vector<DxuiTreeNode> & current, std::vector<DxuiTreeNode> fresh);
+    void         ToggleRow    (int flatRow);
+    int          SkipDividers (int flatRow, int step) const;
 
     static const DxuiTreeNode *  FindNodeRecursive (const std::vector<DxuiTreeNode> & nodes, const std::wstring & id);
 
@@ -241,15 +334,24 @@ private:
     static constexpr int  s_kHorzStepDip       = 24;
 
     bool                       m_showCheckboxes = true;
+    bool                       m_hScrollEnabled = true;
+    float                      m_activityPulse  = 1.0f;
+    float                      m_fontDip        = s_kDefaultFontDip;
     ChildProviderFn            m_childProvider;
     SelectFn                   m_onSelect;
     ExpandFn                   m_onExpand;
+    std::wstring               m_openWhenFilled;   // asked open before its children were read
     int                        m_rowHeightPx    = 22;
+    int                        m_indentDip      = kIndentDip;
     int                        m_indentPx       = kIndentDip;
     int                        m_checkboxPx     = 16;
     int                        m_twistyPx       = 16;
+    float                      m_iconLeadDip    = 4.0f;
+    float                      m_iconGapDip     = (float) s_kIconGapDip;
+    float                      m_leftPadDip     = 0.0f;
     int                        m_highlight      = -1;
     int                        m_hoverRow       = -1;
+    int                        m_dropRow        = -1;
     int                        m_pressedRow     = -1;
     int                        m_lastClickRow   = -1;
     ULONGLONG                  m_lastClickMs    = 0;
@@ -257,12 +359,14 @@ private:
     bool                       m_focused        = false;
     std::vector<DxuiTreeNode>  m_nodes;
     std::vector<FlatRow>       m_flatRows;
-    std::vector<int>           m_labelRightPx;   // where each row's label ended when last painted
     ToggleFn                   m_toggle;
     DxuiDpiScaler              m_scaler;
     int                        m_topRow         = 0;
     int                        m_leftPx         = 0;
     int                        m_rowsExtentPx   = 0;
+    float                      m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
+    float                      m_wheelPx        = 0.0f;   // the same, sideways
+    std::vector<POINT>         m_labelSpans;   // per flat row: icon start, label end, unscrolled
     mutable DxuiScrollbar      m_vertScroll;
     mutable DxuiScrollbar      m_horzScroll;
 };

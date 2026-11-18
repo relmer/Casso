@@ -20,6 +20,21 @@
 
 std::vector<ProgramCheck::Entry> ProgramCheck::GetDebugFileEntries (const DebugFile & file, const std::map<int, std::vector<std::string>> & sources)
 {
+    return Sample (GetDebugFileLineEntries (file, sources));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProgramCheck::GetDebugFileLineEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ProgramCheck::Entry> ProgramCheck::GetDebugFileLineEntries (const DebugFile & file, const std::map<int, std::vector<std::string>> & sources)
+{
     std::vector<Entry>                   entries;
     std::map<int, const DebugSpan *>     spans;
     std::map<int, const DebugSegment *>  segments;
@@ -58,6 +73,8 @@ std::vector<ProgramCheck::Entry> ProgramCheck::GetDebugFileEntries (const DebugF
         }
 
         entry.address = (Word) address;
+        entry.file    = line.file;
+        entry.line    = line.line;
 
         if (!span->second->bytes.empty())
         {
@@ -76,7 +93,7 @@ std::vector<ProgramCheck::Entry> ProgramCheck::GetDebugFileEntries (const DebugF
         }
     }
 
-    return Sample (std::move (entries));
+    return entries;
 }
 
 
@@ -183,6 +200,39 @@ bool ProgramCheck::IsMatch (const std::vector<Entry> & entries, const PeekFn & p
     }
 
     return matched * 4 >= entries.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProgramCheck::GetUnmatchedLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<std::pair<int, int>> ProgramCheck::GetUnmatchedLines (const std::vector<Entry> & entries, const PeekFn & peek, const Microcode * instructionSet)
+{
+    std::optional<Disassembler>    disassembler;
+    std::set<std::pair<int, int>>  unmatched;
+
+
+
+    if (instructionSet != nullptr)
+    {
+        disassembler.emplace (instructionSet);
+    }
+
+    for (const Entry & entry : entries)
+    {
+        if (entry.file >= 0 && !IsEntryMatch (entry, peek, disassembler.has_value() ? &*disassembler : nullptr))
+        {
+            unmatched.insert ({ entry.file, entry.line });
+        }
+    }
+
+    return unmatched;
 }
 
 

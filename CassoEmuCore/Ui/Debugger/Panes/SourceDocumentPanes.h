@@ -28,13 +28,13 @@ public:
     SourceDocumentPane (IDebuggerPaneHost & host, SourceDocumentGroup & group, int slot);
     ~SourceDocumentPane() override;
 
-    SourcePane                     & GetModel       () const { return *m_model; }
-    DxuiTextView                   * GetView        () const { return m_view; }
-    DxuiToolbar                    * GetBar         () const { return m_bar.GetBar(); }
-    DxuiActionBanner               * GetBanner      () const { return m_banner; }
-    DebuggerPaneFrame              * GetFrame       () const { return m_frame.get(); }
-    bool                             IsShown        () const { return m_isShown; }
-    bool                             IsBannerShown  () const { return m_isBannerShown; }
+    SourcePane         & GetModel      () const { return *m_model; }
+    DxuiTextView       * GetView       () const { return m_view; }
+    DxuiToolbar        * GetBar        () const { return m_bar.GetBar(); }
+    DxuiInfoBanner     * GetBanner     () const { return m_banner; }
+    DebuggerPaneFrame  * GetFrame      () const { return m_frame.get(); }
+    bool                 IsShown       () const { return m_isShown; }
+    bool                 IsBannerShown () const { return m_isBannerShown; }
 
     //  Takes the snapshot with the file, the macro level and the heat the
     //  group has now, and updates the tab; true when the document or its
@@ -44,30 +44,30 @@ public:
     //  Whether the text or the banner is under a point while visible.
     bool                             Contains       (POINT atDip) const;
 
-    const std::wstring             & GetId          () const override;
-    std::wstring                     GetTitle       () const override { return m_title; }
-    void                             CreateControls () override;
-    void                             Configure      () override;
-    bool                             TryGetOpened   (bool & isOpened) const override { isOpened = m_isShown; return true; }
-    bool                             IsFixed        () const override { return false; }
-    std::optional<int>               GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const override;
-    void                             AddToDock      (DxuiDockSite & dock) override;
-    IDxuiControl                   * GetContent     () const override;
-    std::vector<IDxuiControl *>      GetControls    () const override;
-    DxuiTextView                   * GetFindView    () const override { return m_view; }
-    DebuggerPaneFrame              * GetFindFrame   () const override { return m_frame.get(); }
-    std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
-    std::optional<PaneColorKeySpec>  GetColorKey    () const override;
-    void                             SetTextZoom    (float zoom) override;
-    void                             PlaceBar       () override { m_bar.Place(); }
-    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    bool                             TryGetHeatTip  (POINT clientPx, DxuiTip & tip) const;
+    const std::wstring               & GetId           () const override;
+    std::wstring                       GetTitle        () const override { return m_title; }
+    void                               CreateControls  () override;
+    void                               Configure       () override;
+    bool                               TryGetOpened    (bool & isOpened) const override { isOpened = m_isShown; return true; }
+    bool                               IsFixed         () const override { return false; }
+    std::optional<int>                 GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const override;
+    void                               AddToDock       (DxuiDockSite & dock) override;
+    IDxuiControl                     * GetContent      () const override;
+    std::vector<IDxuiControl *>        GetControls     () const override;
+    DxuiTextView                     * GetFindView     () const override { return m_view; }
+    DebuggerPaneFrame                * GetFindFrame    () const override { return m_frame.get(); }
+    std::vector<DxuiToolbar *>         GetBars         () const override { return { m_bar.GetBar() }; }
+    std::optional<PaneColorKeySpec>    GetColorKey     () const override;
+    void                               SetTextZoom     (float zoom) override;
+    void                               PlaceBar        () override { m_bar.Place(); }
+    bool                               RouteBarMouse   (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    bool                               TryGetHeatTip   (POINT clientPx, DxuiTip & tip) const;
 
     //  Whether the tab has the PC's marker: at a stop, whether the PC is in
     //  the file; while running, as at the last stop, so a running machine
     //  doesn't change the tab's width or move the tabs after it.
-    static bool  HasPcMark (bool hadMark, bool isPaused, bool isPcInFile) { return isPaused ? isPcInFile : hadMark; }
-    void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    static bool  HasPcMark           (bool hadMark, bool isPaused, bool isPcInFile) { return isPaused ? isPcInFile : hadMark; }
+    void         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
     SourceDocumentGroup                 & m_group;
@@ -75,7 +75,7 @@ private:
     std::wstring                          m_id;
     PaneBarSlot                           m_bar;
     DxuiTextView                        * m_view          = nullptr;
-    DxuiActionBanner                    * m_banner        = nullptr;
+    DxuiInfoBanner                      * m_banner        = nullptr;
     std::unique_ptr<SourcePane>           m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
     bool                                  m_isShown       = false;
@@ -83,6 +83,8 @@ private:
     bool                                  m_hasPcMark     = false;
     std::wstring                          m_bannerKey;
     std::wstring                          m_title         = L"Source";
+    uint32_t                              m_pcArrowArgb   = 0;
+    std::shared_ptr<const DxuiIconImage>  m_pcArrow;
 };
 
 
@@ -129,6 +131,8 @@ public:
     //  group with `activate`, and scrolled so `line` is at its top when one
     //  is given; and a document closed.
     void                             Open           (int fileId, int line, bool activate);
+    void                             Activate       (int slot);
+    bool                             IsFocusKept    (int slot) const;
     void                             Close          (int slot);
 
     //  A disassembly line was selected: its source line is selected in its
@@ -161,6 +165,7 @@ public:
     void                             OpenLooseFile  (const std::wstring & path, const std::string & text, bool isSource);
     void                             ShowDropped    (const std::wstring & path);
     void                             LoadSymbolsFor (int slot);
+    void                             BrowseForSource();
     bool                             IsLoose        (int slot) const;
 
     //  One choice for every document: the body's file comes forward, or the
@@ -173,6 +178,10 @@ private:
     void                             FollowPc       (const DebuggerViewSnapshot & snapshot);
     void                             Restore        (const DebuggerViewSnapshot & snapshot);
     int                              GetSlotAt      (POINT atDip) const;
+    void                             HoverGutters   (POINT atDip, int dragSlot);
+
+    //  The document of a file open on its own, given to the record it matched.
+    void                             TakeOverLoose  (const std::wstring & path, int fileId);
 
     IDebuggerPaneHost                    & m_host;
     std::vector<SourceDocumentPane *>      m_documents;

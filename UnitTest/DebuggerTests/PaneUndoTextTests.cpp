@@ -43,10 +43,10 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring(), model.GetUndoText());
             Assert::IsTrue   (model.WriteBytes (0x0300, data));
-            Assert::AreEqual (std::wstring (L"Undo change 2 bytes at $0300"), DebuggerWindow::GetUndoLabel (false, model.GetUndoText()));
+            Assert::AreEqual (std::wstring (L"Undo change 2 bytes at $0300"), DebuggerWindowText::GetUndoLabel (false, model.GetUndoText()));
 
             Assert::IsTrue   (model.Undo());
-            Assert::AreEqual (std::wstring (L"Redo change 2 bytes at $0300"), DebuggerWindow::GetUndoLabel (true, model.GetRedoText()));
+            Assert::AreEqual (std::wstring (L"Redo change 2 bytes at $0300"), DebuggerWindowText::GetUndoLabel (true, model.GetRedoText()));
         }
 
 
@@ -72,7 +72,7 @@ namespace DebuggerTests
 
 
             history.Record ("S", 0xF0, 0x80, 0x0300);
-            Assert::AreEqual (std::wstring (L"Undo change register S"), DebuggerWindow::GetUndoLabel (false, history.GetUndoText()));
+            Assert::AreEqual (std::wstring (L"Undo change register S"), DebuggerWindowText::GetUndoLabel (false, history.GetUndoText()));
         }
 
 
@@ -94,8 +94,8 @@ namespace DebuggerTests
 
         TEST_METHOD (NothingToSayLeavesTheBareVerb)
         {
-            Assert::AreEqual (std::wstring (L"Undo"), DebuggerWindow::GetUndoLabel (false, L""));
-            Assert::AreEqual (std::wstring (L"Redo"), DebuggerWindow::GetUndoLabel (true,  L""));
+            Assert::AreEqual (std::wstring (L"Undo"), DebuggerWindowText::GetUndoLabel (false, L""));
+            Assert::AreEqual (std::wstring (L"Redo"), DebuggerWindowText::GetUndoLabel (true,  L""));
         }
 
 

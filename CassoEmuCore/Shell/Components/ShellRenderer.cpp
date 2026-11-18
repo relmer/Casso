@@ -1,6 +1,8 @@
 #include "Pch.h"
 #include "Shell/Components/ShellInput.h"
 
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/StateThumbnail.h"
 #include "Capture/CapturedImage.h"
@@ -11,6 +13,7 @@
 #include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -29,6 +32,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -234,12 +238,9 @@ HRESULT ShellRenderer::InitializeRenderer()
                 hrComposite = m_shell.m_scene->RenderMonitor (m_shell.m_host->GetBackBufferRtv(), displaySrv, uv,
                                                               kFramebufferWidth, kFramebufferHeight);
 
-                // Fullscreen drive overlay strip: the slid band TickStrip
-                // composed, or the hidden strip's activity glimmer (FR-015).
-                if (m_d3dRenderer.IsFullscreen())
-                {
-                    m_shell.m_scene->RenderStripOverlay (m_shell.m_host->GetBackBufferRtv(), bbW, bbH);
-                }
+                // Drive overlay strip, in fullscreen or with auto-hide on, and the
+                // hidden strip's activity glimmer (FR-015).
+                m_shell.m_scene->RenderStripOverlay (m_shell.m_host->GetBackBufferRtv(), bbW, bbH);
 
                 m_shell.m_scene->DrawLayoutDebug (bbW, bbH);
             }
@@ -290,11 +291,11 @@ HRESULT ShellRenderer::InitializeRenderer()
             return;
         }
 
-        if (m_d3dRenderer.IsFullscreen())
+        if (m_shell.AreDrivesOnStrip())
         {
-            // Fullscreen without the monitor: the picture owns the client and
-            // the drives live in the slide-up overlay strip, same as they do
-            // with the monitor on.
+            // Fullscreen without the monitor, or auto-hide on: the drives
+            // live in the slide-up overlay strip, same as they do with the
+            // monitor on.
             m_shell.m_scene->RenderStripOverlay (rtv, bbW, bbH);
         }
         else
@@ -529,6 +530,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
     m_shell.m_disks->ExpireChangeBannerIfDue();
     m_shell.m_serialCard->Tick();
+    m_shell.m_networkCard->Tick();
 
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
@@ -704,10 +706,18 @@ bool ShellRenderer::TryPresentUiFrame()
         }
     }
 
+    // Refresh the drive bar's labels and lamps, in the desk theme and in a
+    // compact one.
+    if (m_shell.m_chrome->TickDriveBar())
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // The 3D scene's drive visuals, recorder and labels.
     m_shell.m_scene->SyncDeviceVisuals (badgeMoved);
 
-    // The fullscreen drive overlay strip (FR-015).
+    // The drive overlay strip, in fullscreen or with auto-hide on, and the
+    // desk's slide (FR-015).
     m_shell.m_scene->TickStrip (anyDriveLive);
 
     // Keep presenting while the drives' visible state is CHANGING, plus the
@@ -741,6 +751,8 @@ bool ShellRenderer::TryPresentUiFrame()
 
     hr = m_shell.m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_shell.RenderDiskInspectors();
 
     if (m_shell.m_chrome->GetMainMenu().IsOpen())
     {

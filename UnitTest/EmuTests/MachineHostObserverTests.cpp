@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Core/MemoryBus.h"
+#include "Devices/BlockDevice/BlockDeviceEventRing.h"
+#include "Devices/Floppy35/Floppy35EventRing.h"
 #include "Devices/IInputEventSink.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
@@ -111,7 +113,7 @@ public:
         RecordingInputSink  panel;
 
         BuildKeyboard (host);
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
 
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
@@ -126,11 +128,11 @@ public:
         RecordingInputSink  panel;
 
         BuildKeyboard (host);
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
         //  Closing the panel.
-        host.AttachObservers ({});
+        host.GetObserverWiring().AttachObservers ({});
         host.GetRefs().keyboard->BeginKeyRepeat ('B');
 
         Assert::AreEqual (1, panel.GetKeyDowns(),
@@ -145,7 +147,7 @@ public:
         RecordingInputSink  panel;
 
         BuildKeyboard (host);
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
         //  What a machine switch does: every device is destroyed and built
@@ -158,11 +160,58 @@ public:
             L"the new keyboard starts unwatched -- this is the silence the "
             L"re-attach exists to prevent");
 
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('C');
 
         Assert::AreEqual (2, panel.GetKeyDowns(),
             L"and re-attaching puts the same panel back on the new machine");
+    }
+
+
+    //  Stands in for a block device and a 3.5-inch mechanism, and records the
+    //  sinks it is pointed at.
+    class RecordingSource : public IBlockDeviceEventSource, public IFloppy35EventSource
+    {
+    public:
+        void SetBlockDeviceEventSink (IBlockDeviceEventSink * sink) override { blockSink = sink; }
+        void SetFloppy35EventSink    (IFloppy35EventSink    * sink) override { floppySink = sink; }
+
+        IBlockDeviceEventSink  * blockSink  = nullptr;
+        IFloppy35EventSink     * floppySink = nullptr;
+    };
+
+
+    //  EVERY BLOCK DEVICE AND 3.5-INCH MECHANISM IS POINTED AT THE OBSERVERS'
+    //  SINKS, and detaching points them at none.
+    TEST_METHOD (BlockAndFloppySourcesGetTheObserversSinks)
+    {
+        MachineHost           host;
+        RecordingSource       first;
+        RecordingSource       second;
+        auto                  blockRing  = std::make_unique<BlockDeviceEventRing>();
+        auto                  floppyRing = std::make_unique<Floppy35EventRing>();
+        MachineObservers      observers;
+
+
+
+        host.GetRefs().blockDeviceSources = { &first, &second };
+        host.GetRefs().floppy35Sources    = { &second };
+
+        observers.blockDevice = blockRing.get();
+        observers.floppy35    = floppyRing.get();
+        host.GetObserverWiring().AttachObservers (observers);
+
+        Assert::IsTrue (first.blockSink   == blockRing.get());
+        Assert::IsTrue (second.blockSink  == blockRing.get());
+        Assert::IsTrue (second.floppySink == floppyRing.get());
+        Assert::IsTrue (first.floppySink  == nullptr, L"a source not in the floppy list is left alone");
+
+        host.GetObserverWiring().AttachObservers ({});
+
+        Assert::IsTrue (first.blockSink   == nullptr);
+        Assert::IsTrue (second.floppySink == nullptr);
+
+        host.GetRefs() = {};
     }
 
 
@@ -176,7 +225,7 @@ public:
         //  The Input panel is useful on its own. Attaching used to return
         //  early when no disk panel was open, so someone running only this
         //  one saw it go quiet after a machine switch and stay quiet.
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
         Assert::AreEqual (1, panel.GetKeyDowns(),
@@ -191,8 +240,8 @@ public:
 
         //  Panels can be open across the window in which a machine has been
         //  torn down and not yet rebuilt.
-        host.AttachObservers ({ nullptr, &panel });
-        host.AttachObservers ({});
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({});
     }
 
 

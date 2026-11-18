@@ -1,6 +1,6 @@
 // Wrapper translation unit for the vendored stb_vorbis.c. This file is
 // the *only* place in the codebase that includes stb_vorbis.c, and it
-// is built with PCH disabled and EnableCodeAnalysis=false so the
+// is built with EnableCodeAnalysis=false so the
 // upstream library's well-known false positives (documented and
 // rejected upstream for ~15 years) stay quarantined here. See
 // spec/005-disk-ii-audio Q5 for the rationale.

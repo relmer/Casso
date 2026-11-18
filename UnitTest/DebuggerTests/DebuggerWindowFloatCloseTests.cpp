@@ -91,10 +91,9 @@ namespace DebuggerFloatCloseTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::GetDockSite;
         using DebuggerWindow::Layout;
         using DebuggerWindow::CloseFloatingPane;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
     };
 
 
@@ -128,13 +127,13 @@ namespace DebuggerFloatCloseTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (pane, L"monitor", RECT { 100, 100, 500, 400 }), L"memory 2 is in the layout");
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (pane, L"monitor", RECT { 100, 100, 500, 400 }), L"memory 2 is in the layout");
 
             window.CloseFloatingPane (pane);
 
             Assert::AreEqual ((size_t) 1, host.closedMemory.size(), L"the memory window closed");
             Assert::AreEqual (2, host.closedMemory[0]);
-            Assert::IsTrue   (window.GetPaneLayout().IsFloating (pane), L"it opens floating again");
+            Assert::IsTrue   (window.GetDockSite()->GetPaneLayout().IsFloating (pane), L"it opens floating again");
         }
 
 
@@ -152,11 +151,11 @@ namespace DebuggerFloatCloseTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (pane, L"monitor", RECT { 100, 100, 500, 400 }));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (pane, L"monitor", RECT { 100, 100, 500, 400 }));
 
             window.CloseFloatingPane (pane);
 
-            Assert::IsTrue (window.GetPaneLayout().IsFloating (pane), L"the View menu opens it floating again");
+            Assert::IsTrue (window.GetDockSite()->GetPaneLayout().IsFloating (pane), L"the View menu opens it floating again");
         }
     };
 }

@@ -3,7 +3,8 @@
 This page is for an AI agent, or any automated tool, that drives a Casso the
 user already has running: it starts the debug channel, sends debugger commands
 in a chosen command mode through `CassoCli debug --attach`, and reads the
-replies. The commands themselves are in [Debugger.md](Debugger.md) and
+replies. The commands themselves are in
+[Debugger-Reference.md](Debugger-Reference.md) and
 [Debugger-Commands.md](Debugger-Commands.md); the wire protocol underneath is in
 [DebugChannel.md](DebugChannel.md).
 
@@ -143,7 +144,8 @@ CassoCli debug --attach 20044 --json ^
 The `stopped` record has the reason `disk` and a `disk` object with the field's
 track, sector, volume and checksums and the instructions that read it;
 [DebugChannel.md](DebugChannel.md) lists its fields, and
-[Debugger.md](Debugger.md) the other disk events `BPDISK` takes.
+[Debugger-Reference.md](Debugger-Reference.md#disk-breakpoints) the other disk
+events `BPDISK` takes.
 
 
 ## Through an MCP client
@@ -176,6 +178,7 @@ the only one running.
 | `run`, `resume`, `pause`, `step` | `run` runs to a stop, the address given, its cycle budget or its timeout, and pauses a run past the timeout; `resume` lets a paused machine run on and returns at once |
 | `registers`, `read_memory`, `write_memory`, `disassemble` | the CPU and memory |
 | `set_breakpoint`, `clear_breakpoint`, `list_breakpoints` | breakpoints, by address, symbol or `file:line` |
+| `breakpoint_messages` | the last messages logging breakpoints (`BPLOG`) wrote, as `BPLOGS` lists them; the structured result has them as `data.messages`, oldest first |
 | `reset`, `type_text`, `press_keys` | Ctrl+Reset or a power cycle, text typed as a paste, and keys by name, `Ctrl+Reset` among them |
 | `insert_disk`, `eject_disk` | the disk drives |
 | `read_screen`, `screenshot` | the text screen, and the picture as a PNG image |
@@ -195,3 +198,54 @@ A session that types in and runs a program, as GSSquared's demo does:
    `10 GR`, `20 FOR I = 0 TO 15`, `30 COLOR= I`, `40 VLIN 0,39 AT I * 2 + 4`,
    `50 NEXT`.
 4. `wait` a few seconds, then `screenshot`.
+
+### Host files
+
+A command from the channel that reads or writes a file on the host, such as
+`BLOAD`, `BSAVE`, `W`, `R`, `SYM LOAD`, `DISK INSERT`, `SCREENSHOT`, `SAVE` or
+`CD`, can access only these folders:
+
+- the folders of the mounted disk images;
+- the folders of the loaded debug and symbol files;
+- `Documents\Casso`;
+- each folder given with `--allow-path`.
+
+The path is checked after `.`, `..`, relative parts, links and junctions are
+resolved, so a link inside an allowed folder that points out of it fails. These
+always fail:
+
+- a UNC or network path (`\\server\share`, `\\?\UNC\...`, or a mapped drive),
+  or a device path (`\\.\`, `\\?\`);
+- a write of a file with an extension Windows runs or opens as a program:
+  `.exe`, `.dll`, `.com`, `.bat`, `.cmd`, `.ps1`, `.psm1`, `.vbs`, `.vbe`,
+  `.js`, `.jse`, `.wsf`, `.wsh`, `.hta`, `.lnk`, `.url`, `.pif`, `.scr`,
+  `.cpl`, `.msi`, `.msc` or `.reg`; or a write into a Startup folder;
+- a write over a file that exists, unless the `command` tool's `overwrite`
+  argument is `true`.
+
+A command that runs a file of commands (`RUN`, `LOAD`, `STARTUP`) is allowed.
+Reading the file is a read access, and each line in it is limited as a line
+from the channel is.
+
+A failure is an error result with the label `file access denied` and the
+reason as its detail, such as `C:\Games\x.bin is outside the allowed folders.`
+Every access adds a line to the console in Casso's debugger window with the
+client's name and the full path, and a failure adds a line with the reason.
+
+To let the client work in a project folder:
+
+```json
+{
+  "mcpServers": {
+    "casso": {
+      "command": "C:\\Program Files\\Casso\\CassoCli.exe",
+      "args": ["mcp", "--allow-path", "C:\\Work\\Game"]
+    }
+  }
+}
+```
+
+A relative `--allow-path` is taken from the directory the server starts in.
+The rules apply to every command from the channel, so `CassoCli debug --attach`
+has them too, with no extra folders. Commands typed in Casso's
+console, and scripts run from it, have none of them.

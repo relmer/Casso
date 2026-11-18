@@ -84,5 +84,5 @@ settings. Turning history off deletes all of the machine's history, in memory
 and saved, after a confirmation.
 
 History covers the Uthernet II in use, as the debugger's history does; see
-[Debugger.md](Debugger.md) for what happens to its connections on a resume
+[Debugger-Reference.md](Debugger-Reference.md#the-network-in-history) for what happens to its connections on a resume
 from the past.

@@ -50,7 +50,7 @@ public:
     static constexpr int  kCustomId = 1;
 
 
-    static std::vector<DxuiToolbar::Entry> MakeEntries (IDxuiToolbarCustomEntry * custom, bool neverOverflow)
+    static std::vector<DxuiToolbar::Entry> MakeEntries (IDxuiToolbarCustomEntry * custom, bool pinned)
     {
         std::vector<DxuiToolbar::Entry>  entries (3);
 
@@ -66,7 +66,7 @@ public:
         }
 
         entries[0].custom        = custom;
-        entries[0].neverOverflow = neverOverflow;
+        entries[0].pinned = pinned;
 
         return entries;
     }

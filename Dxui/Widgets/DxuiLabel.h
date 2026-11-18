@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -55,6 +56,19 @@ public:
     void  SetFontFace    (const std::wstring & face) { m_fontFace = face; }
     void  SetTextAlign   (DxuiTextHAlign h, DxuiTextVAlign v) { m_hAlign = h; m_vAlign = v; }
     void  SetFontWeight  (DxuiFontWeight w) { m_weight = w; }
+
+    //  A field's label that the field must be filled in for: a red * follows
+    //  the text, in the theme's error color. A dialog marks its required
+    //  fields only when it also has fields that may be left empty.
+    static constexpr const wchar_t *  kRequiredMark = L" *";
+    static constexpr const wchar_t *  kRequiredTip  = L"This field is required";
+
+    void  SetRequired    (bool isRequired) { m_isRequired = isRequired; }
+    bool  IsRequired     () const { return m_isRequired; }
+
+    //  One line, cut to the label's width as the elision says, rather than
+    //  wrapped onto lines below; None, the default, wraps.
+    void  SetElide       (DxuiElide elide) { m_elide = elide; }
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     //
@@ -64,10 +78,13 @@ public:
     //
     void  SetColor       (DxuiArgb color) { m_argb = color; m_useThemeRole = false; }
 
-    const RECT         & GetRect () const { return m_boundsDip; }
-    const std::wstring & GetText () const { return m_text; }
-    float                GetFontSizeDip () const { return m_fontDip; }
-    DxuiTextHAlign       GetHAlign      () const { return m_hAlign; }
+    const RECT          & GetRect        () const { return m_boundsDip; }
+    const std::wstring  & GetText        () const { return m_text; }
+    float                 GetFontSizeDip () const { return m_fontDip; }
+    DxuiTextHAlign        GetHAlign      () const { return m_hAlign; }
+
+    //  The height of the text wrapped at a width, as Paint lays it out.
+    HRESULT  MeasureWrappedDip (float widthDip, float & outHeightDip) const;
 
     // Legacy theme-less paint; draws with the color pinned by SetColor.
     void  Paint (IDxuiTextRenderer & text) const;
@@ -89,14 +106,18 @@ public:
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Label; }
 
+    //  Over the required mark, a tip that the field is required.
+    bool  TryGetTip (POINT pointPx, DxuiTip & tip) const override;
+
 private:
-    void  DrawResolved (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
+    void  DrawResolved     (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
+    void  DrawRequiredMark (IDxuiTextRenderer & text, uint32_t argb, float fontDip) const;
 
 
     static constexpr float  s_kFallbackFontDip = 13.0f;
 
     std::wstring    m_text;
-    std::wstring    m_fontFace     = DxuiTheme::kBodyFace;
+    std::wstring    m_fontFace     = DxuiTheme::GetUiFace();
     // Only reachable through SetColor or the theme-less Paint overload; a
     // themed paint resolves the role instead.
     uint32_t        m_argb         = 0xFFFFFFFF;
@@ -104,7 +125,10 @@ private:
     DxuiTextHAlign  m_hAlign       = DxuiTextHAlign::Left;
     DxuiTextVAlign  m_vAlign       = DxuiTextVAlign::Center;
     DxuiFontWeight  m_weight       = DxuiFontWeight::Normal;
+    DxuiElide       m_elide        = DxuiElide::None;
     DxuiTextRole    m_role         = DxuiTextRole::Body;
+    bool            m_isRequired   = false;
+    mutable RECT    m_markRect     = {};
 
     // Theme resolution is the DEFAULT, including for the default-constructed
     // label. It was once opt-in, set only by the text-taking constructor and

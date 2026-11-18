@@ -10,7 +10,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 static constexpr uint64_t  s_kDiskWarmupCycles  = 60000;
 static constexpr uint64_t  s_kDiskAfterCycles   = 30000;
-static constexpr uint64_t  s_kPastSpindown      = Disk2Controller::kMotorSpindownCycles + 100000;
+static constexpr uint64_t  s_kPastSpindown      = Disk2CardSequencer::kMotorSpindownCycles + 100000;
 static constexpr size_t    s_kNibPattern        = 29;
 static constexpr Byte      s_kHighBit           = 0x80;
 
@@ -59,9 +59,9 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kPastSpindown);
+        machine.GetRunner().RunCycles (s_kPastSpindown);
 
-        Assert::IsFalse (controller.IsInHistory(), L"the machine is live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"the machine is live");
         Assert::AreEqual<size_t> (1, log.count, L"the motor stopped and the file was written");
         Assert::IsFalse (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"nothing is left unwritten");
     }
@@ -85,14 +85,14 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         liveCount = log.count;
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
-        Assert::IsTrue (controller.IsInHistory(), L"the machine is behind live");
+        Assert::IsTrue (controller.GetSpan().IsInHistory(), L"the machine is behind live");
 
         hr = machine.GetDiskStore().FlushAllUnlessHeld();
         AssertSucceeded (hr, L"FlushAllUnlessHeld behind live");
@@ -120,23 +120,23 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         Assert::AreEqual<size_t> (0, log.count, L"the motor has not stopped yet");
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the disk");
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
 
         hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (atLive);
         AssertSucceeded (hr, L"Serialize at the live position");
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition back to live");
 
-        Assert::IsFalse (controller.IsInHistory(), L"the machine is live again");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"the machine is live again");
 
         hr = machine.GetDiskStore().FlushAllUnlessHeld();
         AssertSucceeded (hr, L"FlushAllUnlessHeld at live");
@@ -164,18 +164,18 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kPastSpindown);
+        machine.GetRunner().RunCycles (s_kPastSpindown);
 
-        liveEnd   = machine.GetPosition();
+        liveEnd   = machine.GetRunner().GetPosition();
         liveCount = log.count;
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition forward past the motor stopping");
 
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::AreEqual<size_t>   (liveCount, log.count, L"the replay wrote nothing to the file");
     }
 
@@ -198,26 +198,26 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the disk");
 
-        machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::PowerCycle, 0, 0, {});
         machine.PowerCycle();
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        liveEnd   = machine.GetPosition();
+        liveEnd   = machine.GetRunner().GetPosition();
         liveCount = log.count;
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition forward past the power cycle");
 
         Assert::AreEqual<size_t>   (liveCount, log.count, L"the replayed power cycle wrote nothing to the file");
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::AreEqual<size_t>   (1, liveCount, L"the live power cycle wrote once, as it does without history");
     }
 
@@ -250,42 +250,42 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the disk");
 
-        resetAt = machine.GetPosition();
+        resetAt = machine.GetRunner().GetPosition();
 
-        machine.RecordInput (InputKind::Reset, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::Reset, 0, 0, {});
         machine.SoftReset();
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        liveEnd   = machine.GetPosition();
+        liveEnd   = machine.GetRunner().GetPosition();
         checksum  = ReverseSessionRig::Checksum (machine);
         liveCount = log.count;
         isSaved   = !machine.GetDiskStore().GetImage (6, 0)->IsDirty();
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
         //  The live end is a keyframe, so the replay stops one instruction
         //  short of it and steps onto it.
-        hr = controller.SeekToPosition (liveEnd - 1, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd - 1, result);
         AssertSucceeded (hr, L"SeekToPosition forward past the reset");
 
-        isFound = controller.GetKeyframes().TryFindByPosition (liveEnd - 1, keyframe);
+        isFound = controller.GetKeyframes().GetArena().TryFindByPosition (liveEnd - 1, keyframe);
 
-        Assert::IsTrue             (isFound && controller.GetKeyframes().GetInfo (keyframe).position < resetAt, L"the replay starts before the reset");
+        Assert::IsTrue             (isFound && controller.GetKeyframes().GetArena().GetInfo (keyframe).position < resetAt, L"the replay starts before the reset");
         Assert::AreEqual<size_t>   (1, liveCount, L"the live reset wrote once, through the store");
         Assert::IsTrue             (isSaved, L"and the live disk has nothing left unsaved");
         Assert::AreEqual<size_t>   (liveCount, log.count, L"the replayed reset wrote nothing through the store");
         Assert::IsTrue             (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"nor around it: the replayed writes are still unsaved");
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
 
-        hr = controller.StepForward (result);
+        hr = controller.GetSeeker().StepForward (result);
         AssertSucceeded (hr, L"StepForward onto the live end");
 
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
     }
 
@@ -312,7 +312,7 @@ public:
 
         RunUntilPc (machine, ReverseSessionRig::kWriteRoutine);
 
-        before  = machine.GetPosition();
+        before  = machine.GetRunner().GetPosition();
         oldBits = CopyTracks (machine);
 
         RunUntilPc (machine, ReverseSessionRig::kReturnSite);
@@ -321,7 +321,7 @@ public:
 
         Assert::IsFalse (oldBits == newBits, L"the routine wrote to the disk");
 
-        hr = controller.SeekToPosition (before, result);
+        hr = controller.GetSeeker().SeekToPosition (before, result);
         AssertSucceeded (hr, L"SeekToPosition before the write");
 
         Assert::IsTrue (oldBits == CopyTracks (machine), L"the track bits from before the write");
@@ -348,12 +348,12 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        start = machine.GetPosition();
+        start = machine.GetRunner().GetPosition();
 
         hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (atStart);
         AssertSucceeded (hr, L"Serialize at the start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (atEnd);
         AssertSucceeded (hr, L"Serialize at the end");
@@ -366,7 +366,7 @@ public:
         Assert::AreEqual<size_t> (1, log.count, L"the commit at the end wrote once");
         Assert::IsTrue (atEnd == log.last, L"and wrote the disk as it stood there");
 
-        hr = controller.SeekToPosition (start, result);
+        hr = controller.GetSeeker().SeekToPosition (start, result);
         AssertSucceeded (hr, L"SeekToPosition to the start");
 
         hr = machine.GetDiskStore().FlushAll();
@@ -399,36 +399,36 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
-        before   = machine.GetPosition();
+        before   = machine.GetRunner().GetPosition();
         checksum = ReverseSessionRig::Checksum (machine);
 
         // A change made at a position replaces what the machine held there.
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         Eject (machine);
 
         Assert::AreEqual<size_t> (1, log.count, L"an eject saves the disk by default");
 
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        liveEnd      = machine.GetPosition();
+        liveEnd      = machine.GetRunner().GetPosition();
         liveChecksum = ReverseSessionRig::Checksum (machine);
         liveCount    = log.count;
 
-        hr = controller.SeekToPosition (before, result);
+        hr = controller.GetSeeker().SeekToPosition (before, result);
         AssertSucceeded (hr, L"SeekToPosition before the eject");
 
         Assert::IsTrue (machine.GetDiskStore().IsMounted (6, 0), L"the disk is back in the drive");
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == machine.GetDiskStore().GetImage (6, 0), L"and the drive reads it");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (0).GetDisk() == machine.GetDiskStore().GetImage (6, 0), L"and the drive reads it");
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was before the eject");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition past the eject");
 
         Assert::IsFalse (machine.GetDiskStore().IsMounted (6, 0), L"the replay took the disk out again");
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::AreEqual<uint64_t> (liveChecksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was at the live end");
         Assert::AreEqual<size_t> (liveCount, log.count, L"and wrote nothing to the file");
     }
@@ -455,36 +455,36 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         Eject (machine);
 
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        empty = machine.GetPosition();
+        empty = machine.GetRunner().GetPosition();
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         Mount (machine, "second.nib");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the second disk");
 
-        liveEnd   = machine.GetPosition();
+        liveEnd   = machine.GetRunner().GetPosition();
         checksum  = ReverseSessionRig::Checksum (machine);
         liveCount = log.count;
 
-        hr = controller.SeekToPosition (empty, result);
+        hr = controller.GetSeeker().SeekToPosition (empty, result);
         AssertSucceeded (hr, L"SeekToPosition to the empty drive");
 
         Assert::IsFalse (machine.GetDiskStore().IsMounted (6, 0), L"the drive is empty there");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition past the mount");
 
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::IsTrue             (machine.GetDiskStore().IsMounted (6, 0), L"the replay mounted the disk again");
         Assert::AreEqual<std::string> ("second.nib", machine.GetDiskStore().GetSourcePath (6, 0));
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with what it held at the live end");
@@ -583,7 +583,7 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start, as the new machine starts recording");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the remounted disk");
 
@@ -618,31 +618,31 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
-        before = machine.GetPosition();
+        before = machine.GetRunner().GetPosition();
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         Reset (machine);
 
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        liveEnd      = machine.GetPosition();
+        liveEnd      = machine.GetRunner().GetPosition();
         liveCycles   = machine.GetCpu()->GetTotalCycles();
         liveChecksum = ReverseSessionRig::Checksum (machine);
         live         = machine.GetCpu()->GetCpu6502()->GetRegisters();
 
-        hr = controller.SeekToPosition (before, result);
+        hr = controller.GetSeeker().SeekToPosition (before, result);
         AssertSucceeded (hr, L"SeekToPosition back before the reset");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition forward across the reset");
 
         replayed = machine.GetCpu()->GetCpu6502()->GetRegisters();
 
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::AreEqual<uint64_t> (liveCycles, machine.GetCpu()->GetTotalCycles(), L"at the live run's cycle");
         Assert::AreEqual<Word>     (live.pc, replayed.pc, L"the live run's PC");
         Assert::AreEqual<Byte>     (live.a,  replayed.a,  L"the live run's A");
@@ -687,13 +687,13 @@ public:
         hr = controller.Start (MakeSettings());
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
-        before   = machine.GetPosition();
+        before   = machine.GetRunner().GetPosition();
         checksum = ReverseSessionRig::Checksum (machine);
         outgoing = store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         //  Saved first, so taking up the file is a reload rather than a
         //  conflict with the guest's writes.
@@ -710,23 +710,23 @@ public:
 
         Assert::AreNotEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the changed file was taken up");
 
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        liveEnd      = machine.GetPosition();
+        liveEnd      = machine.GetRunner().GetPosition();
         liveChecksum = ReverseSessionRig::Checksum (machine);
 
-        hr = controller.SeekToPosition (before, result);
+        hr = controller.GetSeeker().SeekToPosition (before, result);
         AssertSucceeded (hr, L"SeekToPosition back before the reload");
 
         Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"and the drive reads it");
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was before the reload");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition forward across the reload");
 
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"back at the live end");
         Assert::AreEqual<uint64_t> (liveChecksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was at the live end");
     }
 
@@ -762,24 +762,24 @@ public:
         });
 
         //  As the machine builder installs it, noting each time it runs.
-        machine.GetRefs().diskController->SetIdleCallback ([&store, &hasIdled] ()
+        machine.GetRefs().diskController->GetSignals().SetIdleCallback ([&store, &hasIdled] ()
         {
             hasIdled = true;
             store.ApplyPendingReload();
         });
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
         //  On from one run of the callback to the last instructions before
         //  the next.
         while (!hasIdled)
         {
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
 
-        while (sinceIdle + kLongestInstruction < Disk2Controller::kIdleCallbackCycles)
+        while (sinceIdle + kLongestInstruction < Disk2Signals::kIdleCallbackCycles)
         {
-            sinceIdle += machine.StepOne();
+            sinceIdle += machine.GetRunner().StepOne();
         }
 
         //  Saved first, so taking up the file is a reload rather than a
@@ -806,23 +806,23 @@ public:
             hr = controller.Start (MakeSettings());
             AssertSucceeded (hr, L"Start");
 
-            start = machine.GetPosition();
+            start = machine.GetRunner().GetPosition();
 
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
 
         Assert::AreNotEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the instruction's tick took up the changed file");
 
         //  The next instruction start takes the keyframe after the reload.
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
-        Assert::AreEqual<uint64_t> (start, controller.GetOldestPosition(), L"the keyframe from before the reload is the oldest");
+        Assert::AreEqual<uint64_t> (start, controller.GetSeeker().GetOldestPosition(), L"the keyframe from before the reload is the oldest");
 
-        hr = controller.SeekToPosition (start, result);
+        hr = controller.GetSeeker().SeekToPosition (start, result);
         AssertSucceeded (hr, L"SeekToPosition back to the keyframe before the reload");
 
         Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"and the drive reads it");
     }
 
 
@@ -858,9 +858,9 @@ private:
         store.SetImageReader    (ReadPatternImage);
         store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
 
-        store.SetBayChangeSink ([&machine] (int slot, int drive, BayChange)
+        store.SetBayChangeSink ([&machine] (int slot, int drive, BayChange change)
         {
-            if (slot == ReverseSessionRig::kDiskSlot)
+            if (slot == ReverseSessionRig::kDiskSlot && change != BayChange::Restored)
             {
                 machine.GetRefs().diskController->SetExternalDisk (drive, machine.GetDiskStore().GetImage (slot, drive));
             }
@@ -948,7 +948,7 @@ private:
 
 
 
-        machine.RecordInput (InputKind::DiskMount, 0, 0, path);
+        machine.GetHostInput().Record (InputKind::DiskMount, 0, 0, path);
 
         hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, path);
         AssertSucceeded (hr, L"Mount");
@@ -979,7 +979,7 @@ private:
     //  Ejects slot 6 drive 1 as the CPU thread does.
     static void Eject (TestMachine & machine)
     {
-        machine.RecordInput (InputKind::DiskEject, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::DiskEject, 0, 0, {});
         machine.GetDiskStore().Eject (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
     }
 
@@ -992,7 +992,7 @@ private:
 
 
 
-        machine.RecordInput (InputKind::Reset, 0, 0, {});
+        machine.GetHostInput().Record (InputKind::Reset, 0, 0, {});
 
         hr = machine.GetDiskStore().Mount (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, "history.nib");
         AssertSucceeded (hr, L"Mount, reading the disk back");
@@ -1014,18 +1014,18 @@ private:
 
 
 
-        machine.RunCycles (s_kDiskWarmupCycles);
+        machine.GetRunner().RunCycles (s_kDiskWarmupCycles);
 
-        middle = machine.GetPosition();
+        middle = machine.GetRunner().GetPosition();
 
-        machine.RunCycles (s_kDiskAfterCycles);
+        machine.GetRunner().RunCycles (s_kDiskAfterCycles);
 
-        hr = controller.SeekToPosition (middle, result);
+        hr = controller.GetSeeker().SeekToPosition (middle, result);
         AssertSucceeded (hr, L"SeekToPosition back into history");
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
-        Assert::IsTrue (controller.IsInHistory(), L"the step left the machine behind live");
+        Assert::IsTrue (controller.GetSpan().IsInHistory(), L"the step left the machine behind live");
         Assert::IsTrue (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the disk holds the guest's writes");
     }
 
@@ -1037,11 +1037,11 @@ private:
 
 
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         while (machine.GetCpu()->GetPC() != pc && steps < kMaxSteps)
         {
-            machine.StepOne();
+            machine.GetRunner().StepOne();
             steps++;
         }
 

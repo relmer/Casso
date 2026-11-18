@@ -99,7 +99,7 @@ namespace DebuggerTests
             }
 
             rig.Load (0x0300, {}, start);
-            rig.session.SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
             return program;
         }
 
@@ -223,6 +223,23 @@ namespace DebuggerTests
         }
 
 
+        //  SRC CLEAR unloads the debug file; a second one with no file loaded succeeds.
+        TEST_METHOD (SrcClearUnloadsTheDebugFile)
+        {
+            Rig      rig;
+            Program  program = Load (rig);
+
+
+
+            (void) program;
+
+            Assert::IsTrue  (rig.session.GetFiles().HasDebugFile(), L"loaded");
+            rig.RunOk ("SRC CLEAR");
+            Assert::IsFalse (rig.session.GetFiles().HasDebugFile(), L"unloaded");
+            rig.RunOk ("SRC CLEAR");
+        }
+
+
         TEST_METHOD (SourceStepIntoEntersAMacroBodyLineByLine)
         {
             Rig      rig;
@@ -288,7 +305,7 @@ namespace DebuggerTests
             }
 
             rig.Load (0x0300, {}, 0x0300);
-            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "pull.a65", 0 } } }), L"C:\\Work\\pull.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (result, { { "", { "pull.a65", 0 } } }), L"C:\\Work\\pull.dbg");
             rig.RunOk ("SRC ON");
 
             Step (rig, "P");
@@ -407,8 +424,8 @@ namespace DebuggerTests
                 "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
                 "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
                 "scope\tid=0,name=\"\",mod=0\n", debugFile, error));
-            rig.session.SetDebugFile (debugFile, L"C:\\Work\\syms.dbg");
-            Assert::IsTrue   (rig.session.HasDebugFile());
+            rig.session.GetFiles().SetDebugFile (debugFile, L"C:\\Work\\syms.dbg");
+            Assert::IsTrue   (rig.session.GetFiles().HasDebugFile());
 
             Assert::AreEqual (std::string ("The debug file has no source lines."),                     rig.RunOk ("SRC").text.at (0));
             Assert::AreEqual (std::string ("Source mode. The debug file has no source lines, so steps go by instruction."), rig.RunOk ("SRC ON").text.at (1));
@@ -426,14 +443,14 @@ namespace DebuggerTests
 
 
             result = Assembler (cpu.GetInstructionSet(), opts).Assemble (s_kProgram);
-            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
 
             lines = rig.RunOk ("BP prog.a65:10").text;
             Assert::IsTrue   (lines.at (0).ends_with (" at $0309, prog.a65 line 10."));
 
             lines = rig.RunOk ("BP src/prog.a65:5").text;
             Assert::AreEqual ((size_t) 2, lines.size(), L"the macro's closing line moves to the next line with code");
-            Assert::AreEqual (std::string ("Line 5 produced no code. The breakpoint is on line 6."), lines.at (1));
+            Assert::AreEqual (std::string ("Line 5 has no code, so the breakpoint is on line 6."), lines.at (1));
 
             lines = rig.RunOk ("BP prog.a65:3").text;
             Assert::IsTrue   (lines.at (0).ends_with (" at $0307, prog.a65 line 3."), L"a macro body line, where its expansion put it");
@@ -442,6 +459,30 @@ namespace DebuggerTests
             Assert::IsTrue   (rig.RunFails ("BP prog.a65:3000000000", "no code").error.detail.find ("3000000000") != std::string::npos,
                               L"a line past the last one has no code, whatever its size");
             Assert::IsTrue   (rig.RunOk ("BP 300:302").text.at (0).find ("$0300") != std::string::npos, L"an address range still parses as one");
+        }
+
+
+        //  The breakpoint dialog changes a source line breakpoint's line with
+        //  BPEDIT and the line's definition, which moves it to that line's
+        //  address under the same id.
+        TEST_METHOD (BpeditMovesABreakpointToAnotherSourceLine)
+        {
+            MachineHandlerRig<BreakpointHandlers>  rig;
+            AssemblyResult                         result;
+            TestCpu                                cpu;
+            AssemblerOptions                       opts;
+
+
+
+            result = Assembler (cpu.GetInstructionSet(), opts).Assemble (s_kProgram);
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+
+            (void) rig.RunOk ("BP prog.a65:3");
+            (void) rig.RunOk ("BPEDIT 0 BP prog.a65:10");
+
+            Assert::AreEqual ((size_t) 1,     rig.session.GetBreakpoints().GetAll().size());
+            Assert::AreEqual (0,              rig.session.GetBreakpoints().GetAll()[0].id,    L"the same id");
+            Assert::AreEqual ((Word) 0x0309,  rig.session.GetBreakpoints().GetAll()[0].first, L"line 10's address");
         }
     };
 }

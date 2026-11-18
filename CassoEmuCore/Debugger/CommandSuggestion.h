@@ -32,13 +32,13 @@ public:
 
 private:
     static bool         TryDescribeOtherModesWord (const std::string & word, const std::string & arguments, CommandMode mode, const IDebugExpressionContext & context, Reply & reply);
-    static bool         TryFindOwner    (const std::string & word, CommandMode mode, CommandMode & owner, std::string & cassoNames);
-    static bool         TryFindEquivalent (const std::string & cassoNames, const std::string & arguments, CommandMode mode, const IDebugExpressionContext & context, std::string & word, bool & argumentsFit);
-    static bool         TryParseAs      (const std::string & line, CommandMode mode, const IDebugExpressionContext & context, DebugVerb & verb);
-    static bool         IsRunnable      (CommandMode mode, const std::string & cassoName, const std::string & typed);
-    static std::string  FindClosest     (const std::string & word, CommandMode mode);
-    static std::string  FindUsage       (const std::string & word, CommandMode mode);
-    static size_t       GetDistance     (const std::string & a, const std::string & b);
-    static std::string  MatchCase       (const std::string & name, const std::string & typed);
-    static std::string  ToLower         (const std::string & text);
+    static bool         TryFindOwner              (const std::string & word, CommandMode mode, CommandMode & owner, std::string & cassoNames);
+    static bool         TryFindEquivalent         (const std::string & cassoNames, const std::string & arguments, CommandMode mode, const IDebugExpressionContext & context, std::string & word, bool & argumentsFit);
+    static bool         TryParseAs                (const std::string & line, CommandMode mode, const IDebugExpressionContext & context, DebugVerb & verb);
+    static bool         IsRunnable                (CommandMode mode, const std::string & cassoName, const std::string & typed);
+    static std::string  FindClosest               (const std::string & word, CommandMode mode);
+    static std::string  FindUsage                 (const std::string & word, CommandMode mode);
+    static size_t       GetDistance               (const std::string & a, const std::string & b);
+    static std::string  MatchCase                 (const std::string & name, const std::string & typed);
+    static std::string  ToLower                   (const std::string & text);
 };

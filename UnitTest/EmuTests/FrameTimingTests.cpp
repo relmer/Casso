@@ -60,7 +60,7 @@ public:
                     machine.SoftReset();
                 }
 
-                machine.RunCycles (kChunks[i]);
+                machine.GetRunner().RunCycles (kChunks[i]);
 
                 AssertBeamMatchesCycles (machine, wideId);
                 checked++;
@@ -118,7 +118,7 @@ public:
         RunPass (machine, kNominal);
         frame = machine.GetCpu()->GetTotalCycles() / kNominal;
 
-        machine.RunCycles (kStoppedAfter);
+        machine.GetRunner().RunCycles (kStoppedAfter);
         RunPass (machine, kNominal);
 
         AssertAtFrameTop (machine, L"after the stop");
@@ -137,7 +137,7 @@ public:
 
 
 
-        machine.RunCycles (kNominal / 3);
+        machine.GetRunner().RunCycles (kNominal / 3);
 
         for (uint32_t pass = 0; pass < kPasses; pass++)
         {
@@ -190,7 +190,7 @@ private:
         while (executed < target)
         {
             slice     = std::min (target - executed, FrameCycleBudget::kSliceCycles);
-            executed += (uint32_t) machine.RunCycles (slice);
+            executed += (uint32_t) machine.GetRunner().RunCycles (slice);
         }
     }
 };

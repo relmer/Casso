@@ -89,7 +89,7 @@ private:
     //  before.
     void    AddEntries     (uint64_t from, uint64_t to, std::vector<TraceRecord> & entries) const;
 
-    static TraceRecord  MakeRecord (const Cpu::TraceEntry & entry);
+    static TraceRecord  MakeRecord (const CpuTrace::Entry & entry);
 
     MachineHost    & m_host;
     ITraceHistory  * m_history      = nullptr;

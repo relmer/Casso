@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -300,6 +302,28 @@ void DebuggerWindow::ActivatePaneTab (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsSameTabGroup
+//
+//  Two panes in one group lie in the same rectangle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsSameTabGroup (const std::wstring & a, const std::wstring & b) const
+{
+    RECT  first  = {};
+    RECT  second = {};
+
+
+
+    return m_dockSite->TryGetPaneGroupRect (a, first) && m_dockSite->TryGetPaneGroupRect (b, second) && EqualRect (&first, &second) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RelayoutDock
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -476,13 +500,14 @@ DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
 
 void DebuggerWindow::AddZeroPagePointer()
 {
-    std::optional<Byte>  address = RunByteDialog (L"Add zero-page pointer", L"Zero-page address");
+    std::optional<Byte>  address = ByteDialog::RunModal (GetRoutingHwnd(), m_theme, L"Add pointer watch", L"Zero-page address", ByteDialog::kPointerWatchText,
+                                                         [this] (Byte value) { return ByteDialog::FormatPointerExample (value, (m_snapshot != nullptr) ? m_snapshot->memoryImage.get() : nullptr); });
 
 
 
     if (address.has_value())
     {
-        RunAction (DebuggerActions::GetAddZeroPagePointer (*address, GetMode()));
+        RunAction (WatchActions::GetAddZeroPagePointer (*address, GetMode()));
     }
 }
 
@@ -516,7 +541,7 @@ void DebuggerWindow::ApplyBreakpoints()
 
 void DebuggerWindow::ShowBasicLine (Word line)
 {
-    m_basicProgram->ShowLine (line);
+    m_basicProgram->ShowLine (line, true);
 }
 
 
@@ -712,7 +737,7 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
 bool DebuggerWindow::TryGetBranchTip (POINT clientPx, DxuiTip & tip) const
 {
     tip = DxuiTip();
-    return m_code->TryGetBranchTip (clientPx, tip.anchor, tip.text);
+    return m_code->GetArrows().TryGetBranchTip (clientPx, tip.anchor, tip.text);
 }
 
 
@@ -905,7 +930,7 @@ void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -933,7 +958,7 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -1065,7 +1090,7 @@ void DebuggerWindow::EditStepFilters()
 
     for (const StepFilterEntry & entry : m_snapshot->stepFilters)
     {
-        before.push_back (TextEncoding::NarrowToWide (DebuggerActions::GetRemoveSkip (entry, GetMode()).command.text));
+        before.push_back (TextEncoding::NarrowToWide (RunActions::GetRemoveSkip (entry, GetMode()).command.text));
     }
 
     after = RunStepFiltersDialog (before, [&findSymbol] (const std::wstring & text, std::wstring & error)
@@ -1087,7 +1112,7 @@ void DebuggerWindow::EditStepFilters()
     {
         if (std::ranges::find (*after, before[i]) == after->end())
         {
-            actions.push_back (DebuggerActions::GetRemoveSkip (m_snapshot->stepFilters[i], GetMode()));
+            actions.push_back (RunActions::GetRemoveSkip (m_snapshot->stepFilters[i], GetMode()));
         }
     }
 
@@ -1106,11 +1131,11 @@ void DebuggerWindow::EditStepFilters()
 
         if (StepFiltersDialog::TryParseRange (text, first, last))
         {
-            actions.push_back (DebuggerActions::GetSkipRange (first, last, GetMode()));
+            actions.push_back (RunActions::GetSkipRange (first, last, GetMode()));
         }
         else if (address = findSymbol (text); address.has_value())
         {
-            actions.push_back (DebuggerActions::GetSkipRoutine (TextEncoding::WideToNarrow (text), *address, GetMode()));
+            actions.push_back (RunActions::GetSkipRoutine (TextEncoding::WideToNarrow (text), *address, GetMode()));
         }
     }
 
@@ -1128,7 +1153,8 @@ void DebuggerWindow::EditStepFilters()
 //
 //  DebuggerWindow::GetCursorAddress
 //
-//  The selected disassembly line's address, or the PC's.
+//  In a source document that has the keyboard, the address of its selected
+//  line; otherwise the selected disassembly line's address, or the PC's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1137,6 +1163,18 @@ Word DebuggerWindow::GetCursorAddress() const
     int  line = GetCodeLineOfRow (m_code->GetActive(), m_code->GetCodeList (m_code->GetActive())->GetSelectedRow());
 
 
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+        std::optional<Word>         address  = (document.GetView() != nullptr && GetFocused() == document.GetView()) ? document.GetModel().GetFocusAddress()
+                                                                                                                      : std::nullopt;
+
+        if (address.has_value())
+        {
+            return *address;
+        }
+    }
 
     if (line >= 0)
     {
@@ -1166,8 +1204,8 @@ void DebuggerWindow::ToggleBookmarkAtCursor()
 
 
 
-    RunAction (bookmark != m_snapshot->bookmarks.end() ? DebuggerActions::GetClearBookmark (bookmark->id, GetMode())
-                                                       : DebuggerActions::GetAddBookmark (at, GetMode()));
+    RunAction (bookmark != m_snapshot->bookmarks.end() ? WatchActions::GetClearBookmark (bookmark->id, GetMode())
+                                                       : WatchActions::GetAddBookmark (at, GetMode()));
 }
 
 

@@ -29,7 +29,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MemoryPane
+class MemoryPane : public IDxuiFindTarget
 {
 public:
     using  MoveFn   = std::function<void (int id, Word first)>;
@@ -42,8 +42,8 @@ public:
     MemoryPane (const MemoryPane &)             = delete;
     MemoryPane & operator= (const MemoryPane &) = delete;
 
-    int            GetId    () const { return m_id; }
-    DxuiHexView *  GetView  () const { return m_view; }
+    int            GetId       () const { return m_id; }
+    DxuiHexView  * GetView     () const { return m_view; }
     int            GetGrouping () const { return m_grouping; }
     int            GetColumns  () const { return m_columns; }
 
@@ -63,6 +63,9 @@ public:
     void  SetHeatOn (bool isOn) { m_isHeatOn = isOn; }
     void  SetHeat   (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const HeatMapView::Palette & palette);
 
+    //  The heat fills' colors, for a theme chosen between snapshots.
+    void  SetHeatPalette (const HeatMapView::Palette & palette) { m_heatPalette = palette; }
+
     //  A byte's tint: its heat map color mixed halfway toward the page, or
     //  0 for a byte nothing touched.
     static uint32_t  GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette);
@@ -74,6 +77,12 @@ public:
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }
 
+    //  The card in each slot, which labels the slot's outlined ranges, and
+    //  the model's directory name, which labels the parts of its ROM.
+    void  SetSlotCards (const MemoryRegionKeys::SlotCards & cards) { m_model.SetSlotCards (cards); }
+    void  SetMachineId (const std::string & machineId)             { m_model.SetMachineId (machineId); }
+    void  SetSymbols   (std::shared_ptr<const std::vector<SymbolInfo>> symbols) { m_model.SetSymbols (std::move (symbols)); }
+
     //  The bytes the snapshot read for this window. The first one places the
     //  view there; later ones leave the view where the user has it.
     void  Apply (const DebuggerViewSnapshot::MemoryWindow & window);
@@ -84,8 +93,8 @@ public:
     //  Scrolls to an address and asks for a read there.
     void  GoTo (Word address);
 
-    //  One, two, four bytes a value, and round again. Returns the new grouping.
-    int   CycleGrouping ();
+    //  The grouping and columns the hex view's menu set.
+    void  SyncFromView  ();
 
     //  One, two or four bytes a value.
     void  SetGrouping (int bytesPerValue);
@@ -96,15 +105,44 @@ public:
     //  Asks again for the bytes the window last read.
     void  Refresh ();
 
+    //  The 64K the find box searches, from the latest snapshot.
+    void  SetMemoryImage (std::shared_ptr<const DebugMemoryImage> image) { m_image = std::move (image); }
+
+    //  Where a find's needle is in memory: bytes, as "A9 00" or "$A9 $00",
+    //  or else text, matched by its low seven bits as the screen shows it.
+    //  outLength is a hit's length in bytes.
+    static std::vector<Word>  FindHits (const DebugMemoryImage & image, const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, size_t & outLength);
+
+    //  The little-endian word a byte and the byte after it make, as a pointer
+    //  there reads; none where either byte wasn't read.
+    static std::optional<Word>  GetWordAt (const DebugMemoryImage & image, Word address);
+
+    //  The find box's searches, over all of memory.
+    IDxuiControl    * GetFindControl          () override;
+    RECT              GetFindBounds           () const override;
+    bool              IsFindVisible           () const override;
+    std::wstring      GetSelectionText        () const override { return std::wstring(); }
+    DxuiFindResult    SelectMatch             (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
+    DxuiFindResult    SelectMatchInView       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
+    void              SetFindScopeToSelection () override {}
+    void              ClearFindScope          () override {}
+    void              ClearFindHighlights     () override { m_findHits.clear(); m_findCurrent = -1; SetFindMarks(); }
+    void              SetFindColors           (uint32_t matchArgb, uint32_t currentArgb) override { m_matchArgb = matchArgb; m_currentArgb = currentArgb; }
+    void              SetFindCoveredPx        (int coveredPx) override { m_findCoveredPx = coveredPx; }
+
+    //  The last find's hits, and the one selected; -1 for none.
+    const std::vector<Word> &  GetFindHits    () const { return m_findHits; }
+    int                        GetFindCurrent () const { return m_findCurrent; }
+
     //  The address of the byte under a point, if any.
     std::optional<Word>  GetAddressAt (POINT clientDip) const;
 
     //  Neither writes over a byte that changed since the step; a line with
     //  that byte's address goes to the console instead.
-    bool  Undo    () { return UndoOrRedo (false); }
-    bool  Redo    () { return UndoOrRedo (true); }
-    bool  CanUndo () const { return m_view->IsEditable() && m_model.CanUndo(); }
-    bool  CanRedo () const { return m_view->IsEditable() && m_model.CanRedo(); }
+    bool  Undo         () { return UndoOrRedo (false); }
+    bool  Redo         () { return UndoOrRedo (true); }
+    bool  CanUndo      () const { return m_view->IsEditable() && m_model.CanUndo(); }
+    bool  CanRedo      () const { return m_view->IsEditable() && m_model.CanRedo(); }
     void  ClearHistory () { m_model.ClearHistory(); }
 
     std::string  GetHistoryText () const                       { return m_model.GetHistoryText(); }
@@ -147,6 +185,9 @@ public:
     static constexpr int  kDefaultColumns = 0;
 
 private:
+    void  ShowFindHit  (Word address);
+    void  SetFindMarks ();
+
     static constexpr int  kBytesPerRow = DebuggerViewState::kMemoryRowBytes;
 
     void  NoteRefusal (uint64_t offset) const;
@@ -167,9 +208,16 @@ private:
     uint32_t               m_ioArgb      = 0xFF909090;
     uint32_t               m_unreadArgb  = 0xFF707070;
     uint32_t               m_differsArgb = 0xFFE8A317;
-    bool                   m_isHeatOn    = false;
+    bool                   m_isHeatOn    = true;
 
     //  The heat the bytes are tinted by while Heat is on.
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heatLevels;
     HeatMapView::Palette                                           m_heatPalette;
+    std::shared_ptr<const DebugMemoryImage>                        m_image;
+    std::vector<Word>                                              m_findHits;
+    size_t                                                         m_findLength    = 0;
+    int                                                            m_findCurrent   = -1;
+    int                                                            m_findCoveredPx = 0;
+    uint32_t                                                       m_matchArgb     = 0;
+    uint32_t                                                       m_currentArgb   = 0;
 };

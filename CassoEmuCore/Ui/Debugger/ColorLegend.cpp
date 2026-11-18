@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Core/TextEncoding.h"
 
 
@@ -20,65 +21,96 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
 {
     static const std::vector<Entry>  kEntries =
     {
-        { Pane::Disassembly, Meaning::PcMarker,           Swatch::Marker  },
-        { Pane::Disassembly, Meaning::PcRow,              Swatch::Row     },
-        { Pane::Disassembly, Meaning::NavigatedRow,       Swatch::Row     },
-        { Pane::Disassembly, Meaning::TargetRow,          Swatch::Row     },
-        { Pane::Disassembly, Meaning::BranchTaken,        Swatch::Line    },
-        { Pane::Disassembly, Meaning::BranchNotTaken,     Swatch::Line    },
-        { Pane::Disassembly, Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { Pane::Disassembly, Meaning::BreakpointDisabled, Swatch::Ring    },
-        { Pane::Disassembly, Meaning::BreakpointHover,    Swatch::Dot     },
-        { Pane::Disassembly, Meaning::Changed,            Swatch::Text    },
-        { Pane::Disassembly, Meaning::Annotation,         Swatch::Text    },
-        { Pane::Disassembly, Meaning::Result,             Swatch::Text    },
-        { Pane::Source,      Meaning::PcRow,              Swatch::Row     },
-        { Pane::Source,      Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { Pane::Source,      Meaning::BreakpointDisabled, Swatch::Ring    },
-        { Pane::Source,      Meaning::Result,             Swatch::Text    },
-        { Pane::Registers,   Meaning::Changed,            Swatch::Text    },
-        { Pane::Watch,       Meaning::Changed,            Swatch::Text    },
-        { Pane::Watch,       Meaning::PreviousAutoWatch,  Swatch::Italic  },
-        { Pane::Watch,       Meaning::PreviousStatement,  Swatch::Italic  },
-        { Pane::Watch,       Meaning::DisabledWatch,      Swatch::Text    },
-        { Pane::Stack,       Meaning::Changed,            Swatch::Text    },
-        { Pane::CallStack,   Meaning::UnverifiedFrame,    Swatch::Text    },
-        { Pane::CallStack,   Meaning::LastReturn,         Swatch::Text    },
-        { Pane::Memory,      Meaning::Changed,            Swatch::Text    },
-        { Pane::Memory,      Meaning::RomByte,            Swatch::Text    },
-        { Pane::Memory,      Meaning::IoByte,             Swatch::Text    },
-        { Pane::Memory,      Meaning::MemoryUnread,       Swatch::Text    },
-        { Pane::Memory,      Meaning::LcBank1Box,         Swatch::Outline },
-        { Pane::Memory,      Meaning::LcBank2Box,         Swatch::Outline },
-        { Pane::Memory,      Meaning::AuxBox,             Swatch::Outline },
-        { Pane::MemoryMap,   Meaning::MapMain,            Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapAux,             Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapLcBank1,         Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapLcBank2,         Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapRom,             Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapSlotRom,         Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapIo,              Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatCode,           Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatOperand,        Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatRead,           Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatWrite,          Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatSelfModifying,  Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatSymbol,         Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatPc,             Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatStack,          Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatBreakpoint,     Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatReadWatch,      Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatWriteWatch,     Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatUnwritten,      Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatChanged,        Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::HeadMotorOff,       Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::HeadMoving,         Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::HeadSettled,        Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::LampLit,            Swatch::Fill    },
-        { Pane::Breakpoints, Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { Pane::Breakpoints, Meaning::BreakpointDisabled, Swatch::Ring    },
-        { Pane::StatusBar,   Meaning::HistoryEmpty,       Swatch::Fill    },
-        { Pane::StatusBar,   Meaning::HistoryFull,        Swatch::Fill    },
+        { Pane::Disassembly,    Meaning::PcMarker,          Swatch::Marker  },
+        { Pane::Disassembly,    Meaning::PcRow,             Swatch::Row     },
+        { Pane::Disassembly,    Meaning::NavigatedRow,      Swatch::Row     },
+        { Pane::Disassembly,    Meaning::TargetRow,         Swatch::Row     },
+        { Pane::Disassembly,    Meaning::BranchTaken,       Swatch::Line    },
+        { Pane::Disassembly,    Meaning::BranchNotTaken,    Swatch::Line    },
+        { Pane::Disassembly,    Meaning::BreakpointEnabled, Swatch::Dot     },
+        { Pane::Disassembly,    Meaning::BreakpointDisabled,Swatch::Ring    },
+        { Pane::Disassembly,    Meaning::BreakpointHover,   Swatch::Dot     },
+        { Pane::Disassembly,    Meaning::Changed,           Swatch::Text    },
+        { Pane::Disassembly,    Meaning::Annotation,        Swatch::Text    },
+        { Pane::Disassembly,    Meaning::Result,            Swatch::Text    },
+        { Pane::Source,         Meaning::PcRow,             Swatch::Row     },
+        { Pane::Source,         Meaning::BreakpointEnabled, Swatch::Dot     },
+        { Pane::Source,         Meaning::BreakpointDisabled,Swatch::Ring    },
+        { Pane::Source,         Meaning::Result,            Swatch::Text    },
+        { Pane::Registers,      Meaning::Changed,           Swatch::Text    },
+        { Pane::Watch,          Meaning::Changed,           Swatch::Text    },
+        { Pane::Watch,          Meaning::PreviousAutoWatch, Swatch::Italic  },
+        { Pane::Watch,          Meaning::PreviousStatement, Swatch::Italic  },
+        { Pane::Watch,          Meaning::DisabledWatch,     Swatch::Text    },
+        { Pane::Stack,          Meaning::Changed,           Swatch::Text    },
+        { Pane::CallStack,      Meaning::UnverifiedFrame,   Swatch::Text    },
+        { Pane::CallStack,      Meaning::LastReturn,        Swatch::Text    },
+        { Pane::Memory,         Meaning::Changed,           Swatch::Text    },
+        { Pane::Memory,         Meaning::RomByte,           Swatch::Text    },
+        { Pane::Memory,         Meaning::IoByte,            Swatch::Text    },
+        { Pane::Memory,         Meaning::MemoryUnread,      Swatch::Text    },
+        { Pane::Memory,         Meaning::LcBank1Box,        Swatch::Outline },
+        { Pane::Memory,         Meaning::LcBank2Box,        Swatch::Outline },
+        { Pane::Memory,         Meaning::AuxBox,            Swatch::Outline },
+        { Pane::MemoryMap,      Meaning::MapMain,           Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapAux,            Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapLcBank1,        Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapLcBank2,        Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapRom,            Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapSlotRom,        Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapIo,             Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatCode,          Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatRead,          Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatWrite,         Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatUnwritten,     Swatch::Ramp    },
+        { Pane::HeatMap,        Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatCode,          Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatRead,          Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatWrite,         Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatSelfModifying, Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatUnwritten,     Swatch::Ramp    },
+        { Pane::HeatMapBlend,   Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatCode,          Swatch::Ramp    },
+        { Pane::HeatMapCode,    Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapCode,    Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatRead,          Swatch::Ramp    },
+        { Pane::HeatMapData,    Meaning::HeatWrite,         Swatch::Ramp    },
+        { Pane::HeatMapData,    Meaning::HeatUnwritten,     Swatch::Ramp    },
+        { Pane::HeatMapData,    Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapData,    Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatChanged,       Swatch::Ramp    },
+        { Pane::HeatMapChanged,Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapChanged,Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::DiskHead,       Meaning::HeadMotorOff,      Swatch::Fill    },
+        { Pane::DiskHead,       Meaning::HeadMoving,        Swatch::Fill    },
+        { Pane::DiskHead,       Meaning::HeadSettled,       Swatch::Fill    },
+        { Pane::DiskHead,       Meaning::LampLit,           Swatch::Fill    },
+        { Pane::Breakpoints,    Meaning::BreakpointEnabled, Swatch::Dot     },
+        { Pane::Breakpoints,    Meaning::BreakpointDisabled,Swatch::Ring    },
+        { Pane::StatusBar,      Meaning::HistoryEmpty,      Swatch::Fill    },
+        { Pane::StatusBar,      Meaning::HistoryFull,       Swatch::Fill    },
     };
 
 
@@ -135,7 +167,11 @@ const wchar_t * ColorLegend::GetPaneTitle (Pane pane)
     case Pane::CallStack:   return L"Call stack";
     case Pane::Memory:      return L"Memory";
     case Pane::MemoryMap:   return L"Memory map";
-    case Pane::HeatMap:     return L"Heat map";
+    case Pane::HeatMap:
+    case Pane::HeatMapBlend:
+    case Pane::HeatMapCode:
+    case Pane::HeatMapData:
+    case Pane::HeatMapChanged: return L"Heat map";
     case Pane::DiskHead:    return L"Disk head";
     case Pane::Breakpoints: return L"Breakpoints";
     case Pane::StatusBar:   return L"Status bar";
@@ -143,6 +179,34 @@ const wchar_t * ColorLegend::GetPaneTitle (Pane pane)
     }
 
     return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetHeatMapPane
+//
+//  Blend changes the colors only in the All view, where an address both run
+//  as code and written takes the self-modifying color. The Code view draws
+//  executes alone, Data reads and writes, and Changed the writes that stored
+//  a different value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ColorLegend::Pane ColorLegend::GetHeatMapPane (HeatMapOptions::View view, bool isBlend)
+{
+    switch (view)
+    {
+    case HeatMapOptions::View::Code:    return Pane::HeatMapCode;
+    case HeatMapOptions::View::Data:    return Pane::HeatMapData;
+    case HeatMapOptions::View::Changed: return Pane::HeatMapChanged;
+    case HeatMapOptions::View::All:     break;
+    }
+
+    return isBlend ? Pane::HeatMapBlend : Pane::HeatMap;
 }
 
 
@@ -189,7 +253,6 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::MapSlotRom:         return L"Slot ROM";
     case Meaning::MapIo:              return L"I/O";
     case Meaning::HeatCode:           return L"Run as code";
-    case Meaning::HeatOperand:        return L"Run as code, but only ever as an instruction's operand";
     case Meaning::HeatRead:           return L"Read";
     case Meaning::HeatWrite:          return L"Written";
     case Meaning::HeatSelfModifying:  return L"Self-modifying: run as code and written, with Blend on";
@@ -212,6 +275,26 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     }
 
     return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ColorLegend::GetLabel (Meaning meaning)
+{
+    std::wstring  text  = GetText (meaning);
+    size_t        colon = text.find (L':');
+
+
+
+    return (colon == std::wstring::npos) ? text : text.substr (0, colon);
 }
 
 
@@ -257,12 +340,11 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::MapRom:             return palette.text.mapRom;
     case Meaning::MapSlotRom:         return palette.text.mapSlotRom;
     case Meaning::MapIo:              return palette.text.mapIo;
-    case Meaning::HeatCode:           return palette.text.syntax.mnemonic;
-    case Meaning::HeatOperand:        return DxuiColor::Mix (palette.text.syntax.mnemonic | 0xFF000000u, palette.text.heatCold | 0xFF000000u, HeatMapView::kOperandDim);
-    case Meaning::HeatRead:           return palette.text.annotation;
-    case Meaning::HeatWrite:          return palette.text.changed;
+    case Meaning::HeatCode:
+    case Meaning::HeatRead:
+    case Meaning::HeatWrite:          return GetRampStops (meaning, palette).back();
     case Meaning::HeatSelfModifying:  return palette.text.heatSelfModifying;
-    case Meaning::HeatSymbol:         return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, palette.text.syntax.symbol | 0xFF000000u, HeatMapView::kSymbolTint);
+    case Meaning::HeatSymbol:         return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, palette.text.syntax.symbol | 0xFF000000u, HeatMapCells::kSymbolTint);
     case Meaning::HeatPc:             return palette.pcMarker;
     case Meaning::HeatStack:          return palette.text.heatStack;
     case Meaning::HeatBreakpoint:     return palette.breakpoint;
@@ -291,39 +373,44 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
 //
 //  ColorLegend::GetBranchTip
 //
-//  Whether the instruction at the PC will go to its target: the eight
-//  branches on a flag with which flag and its state, BBR and BBS, which
-//  test a bit of a byte rather than a flag, with which bit, and a branch or
-//  jump that always goes with that.
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool isTaken)
+{
+    return std::format (L"This {} {}", GetTransferNoun (instruction), isTaken ? L"will be taken" : L"won't be taken");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetTakenBranchTip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool isTaken, std::optional<Byte> p)
+std::wstring ColorLegend::GetTakenBranchTip (const std::string & instruction)
 {
-    struct FlagBranch
-    {
-        const char  * mnemonic = nullptr;
-        wchar_t       flag     = 0;
-        Byte          bit      = 0;
-        bool          whenSet  = false;
-    };
+    return std::format (L"This {} was taken", GetTransferNoun (instruction));
+}
 
-    static constexpr FlagBranch  kBranches[] =
-    {
-        { "BPL", L'N', 0x80, false },
-        { "BMI", L'N', 0x80, true  },
-        { "BVC", L'V', 0x40, false },
-        { "BVS", L'V', 0x40, true  },
-        { "BCC", L'C', 0x01, false },
-        { "BCS", L'C', 0x01, true  },
-        { "BNE", L'Z', 0x02, false },
-        { "BEQ", L'Z', 0x02, true  },
-    };
 
-    constexpr size_t  kBitBranchLength = 4;
-    std::string       mnemonic;
-    std::wstring      wide;
-    const wchar_t   * head = isTaken ? L"Will branch" : L"Won't branch";
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetTransferNoun
+//
+//  "jump" for JMP, "call" for JSR, and "branch" for the rest, including an
+//  instruction not known because its line is out of view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ColorLegend::GetTransferNoun (const std::string & instruction)
+{
+    std::string  mnemonic;
 
 
 
@@ -342,65 +429,12 @@ std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool is
         mnemonic += (char) std::toupper ((unsigned char) ch);
     }
 
-    wide = TextEncoding::NarrowToWide (mnemonic);
-
-    for (const FlagBranch & branch : kBranches)
-    {
-        if (mnemonic != branch.mnemonic)
-        {
-            continue;
-        }
-
-        if (!p.has_value())
-        {
-            return std::format (L"{}: {} branches while {} is {}", head, wide, branch.flag, branch.whenSet ? L"set" : L"clear");
-        }
-
-        return std::format (L"{}: {} branches while {} is {}, and {} is {}", head, wide, branch.flag, branch.whenSet ? L"set" : L"clear",
-                            branch.flag, (*p & branch.bit) != 0 ? L"set" : L"clear");
-    }
-
-    if (mnemonic.size() == kBitBranchLength && (mnemonic.starts_with ("BBR") || mnemonic.starts_with ("BBS")))
-    {
-        return std::format (L"{}: {} branches while bit {} of its byte is {}", head, wide, wide.back(), mnemonic[2] == 'S' ? L"set" : L"clear");
-    }
-
-    if (mnemonic == "BRA")
-    {
-        return L"Will branch: BRA always branches";
-    }
-
     if (mnemonic == "JMP")
     {
-        return L"Will jump: JMP always goes to its target";
+        return L"jump";
     }
 
-    if (mnemonic == "JSR")
-    {
-        return L"Will call: JSR always calls its target";
-    }
-
-    return head;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ColorLegend::GetTakenBranchTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ColorLegend::GetTakenBranchTip (const std::string & instruction, Word from)
-{
-    if (instruction.empty())
-    {
-        return std::format (L"Taken by the last step, from ${:04X}", from);
-    }
-
-    return std::format (L"Taken by the last step: {} at ${:04X}", TextEncoding::NarrowToWide (instruction), from);
+    return (mnemonic == "JSR") ? L"call" : L"branch";
 }
 
 
@@ -428,11 +462,12 @@ const wchar_t * ColorLegend::GetHistoryMeterTip()
 //
 //  Each pixel's coverage of the shape, worked out from its distance to the
 //  shape's edge, is its alpha: a dot and a ring are measured from the
-//  center, a square, its outline and a line from their sides.
+//  center, a square, its outline and a line from their sides. A Ramp is the
+//  square, its color mixed across from `fromArgb` to `argb`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint32_t argb)
+std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint32_t argb, uint32_t fromArgb)
 {
     constexpr float  kRadius  = 20.0f;
     constexpr float  kRing    = 5.0f;
@@ -452,12 +487,13 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
     {
         for (int x = 0; x < kSwatchPx; x++)
         {
-            float  dx    = x + kEdge - half;
-            float  dy    = y + kEdge - half;
-            float  round = std::hypot (dx, dy);
-            float  box   = (std::max) (std::fabs (dx), std::fabs (dy));
-            float  a     = 0.0f;
-            auto   ch    = [&a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
+            float     dx    = x + kEdge - half;
+            float     dy    = y + kEdge - half;
+            float     round = std::hypot (dx, dy);
+            float     box   = (std::max) (std::fabs (dx), std::fabs (dy));
+            float     a     = 0.0f;
+            uint32_t  color = (swatch == Swatch::Ramp) ? DxuiColor::Mix (fromArgb, argb, std::clamp ((dx + kRadius) / (2.0f * kRadius), 0.0f, 1.0f)) : argb;
+            auto      ch    = [&a] (uint32_t c) { return (uint32_t) std::lround ((float) (c & 0xFF) * a); };
 
             switch (swatch)
             {
@@ -469,11 +505,71 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
             }
 
             image->bgraPremul[(size_t) (y * kSwatchPx + x)] = ((uint32_t) std::lround (a * kOpaque) << 24) |
-                                                              (ch (argb >> 16) << 16) | (ch (argb >> 8) << 8) | ch (argb);
+                                                              (ch (color >> 16) << 16) | (ch (color >> 8) << 8) | ch (color);
         }
     }
 
     return image;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetFaintest
+//
+//  As the heat map draws the least touched address: the color mixed from
+//  the cold gray by HeatMapCells::kFaintest, or kUnwrittenFaintest for a
+//  read before written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ColorLegend::GetFaintest (Meaning meaning, uint32_t argb, const Palette & palette)
+{
+    float  floor = (meaning == Meaning::HeatUnwritten) ? HeatMapCells::kUnwrittenFaintest : HeatMapCells::kFaintest;
+
+
+
+    return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, argb | 0xFF000000u, floor) | 0xFF000000u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetRampStops
+//
+//  The heat column's scale for code, an operand, a read and a write, as the
+//  heat map draws those cells; none for the other meanings, whose Ramp runs
+//  from GetFaintest to GetArgb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> ColorLegend::GetRampStops (Meaning meaning, const Palette & palette)
+{
+    std::vector<uint32_t>  stops;
+    HeatStrip::Kind        kind  = HeatStrip::Kind::Run;
+
+
+
+    switch (meaning)
+    {
+    case Meaning::HeatCode:  kind = HeatStrip::Kind::Run;   break;
+    case Meaning::HeatRead:  kind = HeatStrip::Kind::Read;  break;
+    case Meaning::HeatWrite: kind = HeatStrip::Kind::Write; break;
+    default:                 return stops;
+    }
+
+    for (uint32_t stop : HeatStrip::GetScaleStops (kind))
+    {
+        stops.push_back (stop);
+    }
+
+    return stops;
 }
 
 

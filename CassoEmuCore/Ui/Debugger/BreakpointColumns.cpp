@@ -59,7 +59,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 
     cells[(size_t) Column::Name]      = info.name.empty() ? GetName (bp, sourceLine) : info.name;
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
-    cells[(size_t) Column::HitCount]  = TextEncoding::WideToNarrow (DebuggerStatusText::FormatCount (info.hits)) + (info.stops ? "" : " (count only)");
+    cells[(size_t) Column::HitCount]  = TextEncoding::WideToNarrow (DebuggerStatusText::FormatCount (info.hits)) + (info.stops ? "" : " (don't break)");
     cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
     cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
     cells[(size_t) Column::Symbol]    = HasRoutine (info) ? bp.label : !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);
@@ -167,8 +167,8 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
 {
     static constexpr const char *  kTexts[] = { "Execute", "Execute", "Read", "Write", "Read or write", "Value",
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
-                                                "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
-                                                "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",
+                                                "Read sector", "Read address", "Move head", "Write disk", "Access sector", "Access block",
+                                                "Call RWTS", "Call driver", "Switch motor", "Select drive", "Insert disk", "Eject disk",
                                                 "Line", "Variable change", "Error", "Uninitialized", "Scanline", "Beam position" };
 
 
@@ -573,7 +573,7 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::MemoryValue:   return std::format ("{} = ${:02X}", named, info.value.value_or (0));
     case BreakpointKind::Memory:        return named;
     case BreakpointKind::Disk:          return GetDiskName (info);
-    case BreakpointKind::BasicLine:     return std::format ("Line {}", info.address);
+    case BreakpointKind::BasicLine:     return std::format ("Line {}{}", info.address, bp.isAbsent ? " (not in the program)" : "");
     case BreakpointKind::BasicVariable: return info.basicName;
     case BreakpointKind::BasicError:    return "BASIC errors";
     case BreakpointKind::UnwrittenRead: return info.isTracking ? "Reading uninitialized memory" : "Reading uninitialized memory, from the next power cycle";
@@ -710,6 +710,12 @@ std::string BreakpointColumns::GetRange (const BreakpointInfo & info)
 
 std::string BreakpointColumns::GetWhenHit (const BreakpointInfo & info)
 {
+    //  A logging breakpoint's message, as Visual Studio lists its actions.
+    if (!info.log.empty())
+    {
+        return std::format ("Log \"{}\"{}", info.log, info.stops ? " and break" : std::string());
+    }
+
     if (!info.stops)
     {
         return "Count";

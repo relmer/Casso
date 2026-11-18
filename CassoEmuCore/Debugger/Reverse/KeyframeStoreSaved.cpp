@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/KeyframeStore.h"
+#include "Debugger/Reverse/InputJournal.h"
 
 
 
@@ -21,10 +22,9 @@ HRESULT KeyframeStore::Export (
     const InputJournal  & journal,
     SavedKeyframes      & outSaved)
 {
-    HRESULT               hr       = S_OK;
-    bool                  isCopied = false;
-    size_t                i        = 0;
-    SavedKeyframeSegment  segment;
+    HRESULT  hr       = S_OK;
+    bool     isCopied = false;
+    bool     hasAny   = false;
 
 
 
@@ -33,66 +33,20 @@ HRESULT KeyframeStore::Export (
     hr = WaitForPending();
     CHR (hr);
 
-    CBRA (m_count > 0);
+    hasAny = m_arena.GetCount() > 0;
+    CBRA (hasAny);
 
-    outSaved.settings     = m_settings;
-    outSaved.nextBranchId = m_nextBranchId;
-    outSaved.arena.reserve (m_storedBytes + m_branchBytes);
+    outSaved.settings = m_settings;
 
-    segment.firstJournalIndex = journal.GetBeginIndex();
+    m_arena.Export (outSaved);
 
-    isCopied = journal.TryCopyRecords (segment.firstJournalIndex, UINT64_MAX, segment.records);
+    outSaved.segments[0].firstJournalIndex = journal.GetBeginIndex();
+
+    isCopied = journal.TryCopyRecords (outSaved.segments[0].firstJournalIndex, UINT64_MAX, outSaved.segments[0].records);
     CBRA (isCopied);
-
-    for (i = 0; i < m_count; i++)
-    {
-        ExportEntry (GetEntry (i), segment, outSaved.arena);
-    }
-
-    outSaved.segments.push_back (std::move (segment));
-
-    for (const Branch & branch : m_branches)
-    {
-        segment                   = SavedKeyframeSegment();
-        segment.info              = branch.info;
-        segment.firstJournalIndex = branch.firstJournalIndex;
-        segment.records           = branch.records;
-
-        for (const Entry & entry : branch.entries)
-        {
-            ExportEntry (entry, segment, outSaved.arena);
-        }
-
-        outSaved.segments.push_back (std::move (segment));
-    }
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExportEntry
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void KeyframeStore::ExportEntry (
-    const Entry           & entry,
-    SavedKeyframeSegment  & segment,
-    std::vector<Byte>     & arena) const
-{
-    const Byte  * start = m_arena.get() + entry.offset;
-
-
-
-    segment.infos.push_back   (entry.info);
-    segment.offsets.push_back (arena.size());
-
-    arena.insert (arena.end(), start, start + entry.info.storedBytes);
 }
 
 
@@ -117,18 +71,11 @@ HRESULT KeyframeStore::Import (
     const SavedKeyframes  & saved,
     InputJournal          & journal)
 {
-    HRESULT   hr         = S_OK;
-    size_t    budget     = m_settings.budgetBytes;
-    size_t    slotCount  = 0;
-    size_t    arenaBytes = 0;
-    size_t    offset     = 0;
-    size_t    i          = 0;
-    size_t    s          = 0;
-    bool      isValid    = IsValidSaved (saved);
-    bool      isPlaced   = false;
-    Byte    * arena      = nullptr;
-    Entry     entry;
-    Branch    branch;
+    HRESULT  hr         = S_OK;
+    size_t   budget     = m_settings.budgetBytes;
+    size_t   slotCount  = 0;
+    size_t   arenaBytes = 0;
+    bool     isValid    = IsValidSaved (saved);
 
 
 
@@ -142,71 +89,22 @@ HRESULT KeyframeStore::Import (
     m_settings             = saved.settings;
     m_settings.budgetBytes = budget;
 
-    m_arena = AllocateArena (saved.arena.size());
-    arena   = m_arena.get();
-    CPRA (arena);
-
-    memcpy (arena, saved.arena.data(), saved.arena.size());
-
-    m_arenaBytes = saved.arena.size();
-
-    m_entries.assign (saved.segments[0].infos.size(), Entry());
-    m_first = 0;
-
-    for (i = 0; i < saved.segments[0].infos.size(); i++)
-    {
-        entry.info   = saved.segments[0].infos[i];
-        entry.offset = saved.segments[0].offsets[i];
-
-        m_entries[i]   = entry;
-        m_storedBytes += entry.info.storedBytes;
-        m_sideBytes   += entry.info.sideBytes;
-    }
-
-    m_count = saved.segments[0].infos.size();
-
-    for (s = 1; s < saved.segments.size(); s++)
-    {
-        const SavedKeyframeSegment  & segment = saved.segments[s];
-
-
-
-        branch                    = Branch();
-        branch.info               = segment.info;
-        branch.info.keyframeCount = segment.infos.size();
-        branch.firstJournalIndex  = segment.firstJournalIndex;
-        branch.records            = segment.records;
-
-        for (i = 0; i < segment.infos.size(); i++)
-        {
-            entry.info   = segment.infos[i];
-            entry.offset = segment.offsets[i];
-
-            branch.entries.push_back (entry);
-            m_branchBytes += entry.info.storedBytes;
-        }
-
-        m_branches.push_back (std::move (branch));
-    }
-
-    m_nextBranchId = saved.nextBranchId;
+    hr = m_arena.Import (saved);
+    CHR (hr);
 
     journal.LoadRecords (saved.segments[0].firstJournalIndex, saved.segments[0].records);
-
-    m_extents.Reset (m_arenaBytes, GetExtentRoom());
-
-    isPlaced = m_extents.TryAllocate (m_arenaBytes, offset);
-    CBRA (isPlaced && offset == 0);
 
     hr = ReloadLatestWhole();
     CHR (hr);
 
-    ComputeLayout (m_wholeBytes, slotCount, arenaBytes);
+    m_packQueue.Reserve (m_arena.GetWholeBytes());
 
-    hr = Relayout (slotCount, arenaBytes);
+    ComputeLayout (m_arena.GetWholeBytes(), slotCount, arenaBytes);
+
+    hr = m_arena.Relayout (slotCount, arenaBytes, m_settings.budgetBytes);
     CHR (hr);
 
-    ScheduleAfter (GetEntry (m_count - 1).info.cycle);
+    ScheduleAfter (m_arena.GetNewestInfo().cycle);
 
 Error:
     if (FAILED (hr))

@@ -1,8 +1,11 @@
 #include "Pch.h"
 
 #include "Core/Prng.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/MachineHost.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
@@ -180,13 +183,83 @@ public:
 
         machine.SetPrng (std::make_unique<Prng> (kFormerlyHangingSeed));
         machine.PowerCycle();
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
 
         rows = TextScreenScraper::Scrape (machine);
 
         Assert::IsTrue (rows[0].find ("Apple //e") != std::string::npos,
             std::format (L"row 0 must show the banner, got '{}'",
                          TextEncoding::NarrowToWide (rows[0])).c_str());
+    }
+
+
+    //  A store flush updates the bay's identity with the file's new size and
+    //  time. A reset that wrote a dirty disk past the store left the file
+    //  looking changed by another program, and the next flush saved the
+    //  guest's disk as a spare copy beside it.
+    TEST_METHOD (ASoftResetFlushesADirtyDiskThroughTheStore)
+    {
+        static constexpr const char *  kPath = "Z:\\casso-no-such-folder\\reset.dsk";
+
+        TestMachine        machine ("Apple2e");
+        DiskImageStore &   store   = machine.GetDiskStore();
+        std::vector<Byte>  disk (143360, 0);
+        int                writes  = 0;
+        ImageIdentity      identity;
+
+
+
+        identity.recorded           = true;
+        identity.stamp.sizeBytes    = disk.size();
+        identity.stamp.modifiedUnix = 1;
+
+        store.SetImageReader    ([&disk] (const std::string &, std::vector<Byte> & bytes) -> HRESULT { bytes = disk; return S_OK; });
+        store.SetIdentityReader ([&identity] (const std::string &) -> ImageIdentity { return identity; });
+        store.SetFlushSink      ([&writes, &identity] (const std::string & path, const std::vector<Byte> &) -> HRESULT
+        {
+            Assert::AreEqual (std::string (kPath), path);
+            writes++;
+            identity.stamp.modifiedUnix++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.Mount (6, 0, kPath));
+
+        store.GetImage (6, 0)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        store.GetImage (6, 0)->SetLoadedForTest (true, true);
+
+        machine.SoftReset();
+
+        Assert::AreEqual (1, writes, L"the reset's write goes through the store");
+        Assert::IsFalse (store.GetImage (6, 0)->IsDirty());
+        Assert::IsTrue (store.GetSharedState (6, 0)->GetIdentity().Matches (identity),
+                        L"and the bay's identity matches the file it wrote");
+    }
+
+
+    //  Disk2Controller::PowerCycle selects the controller's internal empty
+    //  disks. A disk mounted from memory has no file for the shell to remount
+    //  afterward, so unless the host points the drives back at the store, the
+    //  machine powers on with an empty drive while the store reports a
+    //  mounted disk.
+    TEST_METHOD (APowerCycleLeavesTheDrivesReadingTheMountedDisks)
+    {
+        TestMachine        machine ("Apple2e");
+        DiskImageStore &   store      = machine.GetDiskStore();
+        Disk2Controller *  controller = machine.GetRefs().diskController;
+        std::vector<Byte>  disk (143360, 0);
+
+
+
+        Assert::IsNotNull (controller);
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "one.dsk", DiskFormat::Dsk, disk));
+        AssertSucceeded (store.MountFromBytes (6, 1, "two.dsk", DiskFormat::Dsk, disk));
+
+        machine.PowerCycle();
+
+        Assert::IsTrue (controller->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"drive 1 reads the store's disk");
+        Assert::IsTrue (controller->GetDrive (1).GetDisk() == store.GetImage (6, 1), L"drive 2 reads the store's disk");
     }
 
 
@@ -202,14 +275,14 @@ public:
         pc = host.GetCpu()->GetPC();
         Assert::AreEqual<Word> (s_kEntryPoint, pc);
 
-        cycles = host.StepOne();
+        cycles = host.GetRunner().StepOne();
 
         Assert::AreEqual<Word> (static_cast<Word> (s_kEntryPoint + 1), host.GetCpu()->GetPC(),
             L"NOP is one byte, so the program counter advances by one");
         Assert::AreEqual<Byte> (2, cycles,
             L"and costs two cycles");
 
-        cycles = host.StepOne();
+        cycles = host.GetRunner().StepOne();
 
         Assert::AreEqual<Word> (static_cast<Word> (s_kEntryPoint + 2), host.GetCpu()->GetPC(),
             L"INX is also one byte");
@@ -227,7 +300,7 @@ public:
 
         before = host.GetCpu()->GetTotalCycles();
 
-        host.StepOne();
+        host.GetRunner().StepOne();
 
         //  The clock is what the //e video timing and the //c mouse measure
         //  themselves against. A step that ticked the disk controller but
@@ -246,7 +319,7 @@ public:
         Build (host);
         host.SoftReset();
 
-        spent = host.RunCycles (100);
+        spent = host.GetRunner().RunCycles (100);
 
         //  The machine cannot stop mid-opcode, so the budget is a floor and
         //  the overshoot is bounded by the longest instruction. Callers
@@ -266,8 +339,8 @@ public:
 
         //  Nothing built. Every lifecycle entry point is reachable from the
         //  menu before a machine finishes coming up, so each has to answer.
-        Assert::AreEqual<Byte> (0, host.StepOne());
-        Assert::AreEqual<uint64_t> (0, host.RunCycles (100));
+        Assert::AreEqual<Byte> (0, host.GetRunner().StepOne());
+        Assert::AreEqual<uint64_t> (0, host.GetRunner().RunCycles (100));
 
         host.SoftReset();
         host.PowerCycle();

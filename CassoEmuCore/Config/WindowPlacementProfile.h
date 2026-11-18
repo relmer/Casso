@@ -115,11 +115,11 @@ private:
     static constexpr uint64_t  kFnvPrime     = 1099511628211ull;
     static constexpr int       kHashHexChars = 16;
 
-    static uint64_t      HashFNV1a64        (const std::wstring & text);
-    static void          SortMonitors       (std::vector<MonitorSnapshot> & monitors);
+    static uint64_t                  HashFNV1a64                  (const std::wstring & text);
+    static void                      SortMonitors                 (std::vector<MonitorSnapshot> & monitors);
     static std::vector<std::string>  BuildEarlierTopologyKeysFrom (const std::vector<MonitorSnapshot> & monitors);
-    static bool          TryParseLong       (const std::wstring & text, LONG & outValue);
-    static BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam);
+    static bool                      TryParseLong                 (const std::wstring & text, LONG & outValue);
+    static BOOL CALLBACK             CollectMonitorsProc          (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam);
 
     GlobalUserPrefs  * m_prefs;
 };

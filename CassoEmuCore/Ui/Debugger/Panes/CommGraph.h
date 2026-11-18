@@ -95,7 +95,7 @@ public:
     //  Each shown lane's state at `cycle`, a line each: "TxD: space, start bit of $41".
     static std::wstring  GetTip (const std::vector<CommLane> & lanes, const std::vector<bool> & shown, uint64_t cycle);
 
-    static const wchar_t *  GetSerialLaneName (size_t lane);
+    static const wchar_t  * GetSerialLaneName  (size_t lane);
     static std::wstring     GetSocketStateName (Byte status);
 
     //  The level a lane's segment covering `cycle` has, or its rest level.

@@ -252,7 +252,7 @@ namespace BreakpointColumnsTests
 
             Assert::AreEqual (std::string ("Break once"),       Cell (snapshot, 0, Column::WhenHit));
             Assert::AreEqual (std::string ("Count"),            Cell (snapshot, 1, Column::WhenHit));
-            Assert::AreEqual (std::string ("5 (count only)"),   Cell (snapshot, 1, Column::HitCount));
+            Assert::AreEqual (std::string ("5 (don't break)"),   Cell (snapshot, 1, Column::HitCount));
         }
 
 

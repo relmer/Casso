@@ -4,7 +4,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellHistory.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/MachineStateFile.h"
@@ -213,7 +213,9 @@ Error:
 //  this build can load it, and history starts again at the loaded point
 //  when it cannot. A
 //  state with no history is a marked point in the history recording, which
-//  forks there behind live. The debugger is notified of a machine replaced.
+//  forks there behind live. The debugger is notified of a state loaded: its
+//  breakpoints and watchpoints stay, since the machine is the kind that
+//  saved the state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,9 +292,9 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
         speaker->BeginFrame();
     }
 
-    m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string());
+    m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string(), true);
 
-    m_debugger->MarkViewDirty();
+    m_debugger->GetViewModel().MarkDirty();
 
     m_renderer->RenderFramebuffer();
     m_renderer->PublishFramebuffer();

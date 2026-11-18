@@ -213,6 +213,25 @@ public:
     }
 
 
+    //  Bytes whose region isn't known yet, as rows not read while a window
+    //  scrolls, are drawn in the nearest known region, so no edge or label
+    //  opens where the known bytes begin and closes once the rest arrive.
+    TEST_METHOD (UnknownBytesTakeTheNearestRegion)
+    {
+        RegionHexSource  source (256, { { 0, 32, IDxuiHexSource::kRegionUnknown }, { 32, 64, 1 } });
+        DxuiHexView      view;
+
+
+
+        view.SetSource      (&source);
+        view.SetShowRegions (true);
+        LayOut (view);
+
+        Assert::AreEqual (0,         view.GetLaneAbove (2), L"no edge where the known bytes begin");
+        Assert::AreEqual (kEdgeLane, view.GetLaneAbove (4), L"the edge below the region");
+    }
+
+
     TEST_METHOD (RowsMoveDownPastEachLane)
     {
         RegionHexSource  source (256, { { 32, 64, 1 } });
@@ -341,6 +360,21 @@ public:
         Assert::AreEqual (13, segment.last);
         Assert::AreEqual (kEdgeLane, view.GetLaneAbove (2), L"the first row's top kept a label lane");
         Assert::IsTrue   (view.GetLaneAbove (3) > kEdgeLane, L"no label lane where the label went");
+    }
+
+
+    //  A label is centered on its segment when it fits there. One wider than
+    //  its segment starts a lead past the segment's left, so a bit of the edge
+    //  leads into it, and may extend right past the segment; at the row's right
+    //  it moves back, never left of the row's first value plus the lead.
+    TEST_METHOD (ALabelStaysInsideTheRowWithTheEdgeLeadingIntoIt)
+    {
+        constexpr float  kLead = 6.0f;
+
+        Assert::AreEqual (40.0f,  DxuiHexRegions::PlaceLabel (20.0f, 120.0f, 60.0f, kLead, 10.0f, 400.0f), L"centered when it fits");
+        Assert::AreEqual (16.0f,  DxuiHexRegions::PlaceLabel (10.0f, 40.0f, 200.0f, kLead, 10.0f, 400.0f), L"a lead past the segment's left");
+        Assert::AreEqual (200.0f, DxuiHexRegions::PlaceLabel (300.0f, 380.0f, 200.0f, kLead, 10.0f, 400.0f), L"back from the row's right");
+        Assert::AreEqual (16.0f,  DxuiHexRegions::PlaceLabel (10.0f, 40.0f, 500.0f, kLead, 10.0f, 400.0f), L"never left of the row");
     }
 
 

@@ -64,7 +64,7 @@ public:
 
     void  ConfigureButtons (Buttons buttons);
     void  SetSystemHwnd    (HWND hwnd);
-    void  SetTitle         (const std::wstring & title);
+    void  SetTitle         (const std::wstring & title, size_t markAt = std::wstring::npos);
     void  SetAppIcon       (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     void  SetMaximized     (bool maximized);
 
@@ -91,15 +91,27 @@ public:
                   const IDxuiTheme    & theme) override;
 
     DxuiHitTestKind     ClassifyHit       (POINT clientDip) const override;
-    DxuiAccessibleRole  GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
+
+    // The full title when the last paint cut it short and the point, in
+    // client pixels, is over it; null otherwise, so a title that fits shows
+    // no tip. The anchor is the title's rect.
+    const wchar_t       * GetTooltipAt      (POINT clientPx, RECT & anchorPx) const;
+    DxuiAccessibleRole    GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
     static constexpr int      kButtonWidthDip   = 46;
     static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
 
+    void                 PaintTitle   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
+    static float         MeasureTitle (IDxuiTextRenderer & text, const std::wstring & value, float fontPx);
+    static std::wstring  FitTitle     (IDxuiTextRenderer & text, const std::wstring & value, float fontPx, float roomPx);
+
     bool                                 m_renderCaption     = false;
     Buttons                              m_buttons           = Buttons::None;
     std::wstring                         m_title;
+    size_t                               m_markAt            = std::wstring::npos;
+    bool                                 m_titleCut          = false;
+    RECT                                 m_titleRectPx       = {};
     std::vector<uint32_t>                m_iconPixels;
     int                                  m_iconW             = 0;
     int                                  m_iconH             = 0;

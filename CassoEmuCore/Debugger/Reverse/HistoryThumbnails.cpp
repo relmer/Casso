@@ -4,7 +4,6 @@
 #include "Video/ImageShrink.h"
 #include "Debugger/Reverse/IHistoryFrameRenderer.h"
 #include "Debugger/Reverse/KeyframeStore.h"
-#include "Core/UnicodeSymbols.h"
 
 
 
@@ -319,7 +318,7 @@ void HistoryThumbnails::OnCellClicked (int index)
 
 std::wstring HistoryThumbnails::GetTrailingTip()
 {
-    return IsBehindLive() ? L"Return to live" : L"Running live";
+    return m_playhead.IsBehindLive() ? L"Return to live" : L"Running live";
 }
 
 
@@ -359,7 +358,7 @@ void HistoryThumbnails::OnTrailingLabelClicked()
 
 
 
-    if (!IsBehindLive() || !m_onSeek)
+    if (!m_playhead.IsBehindLive() || !m_onSeek)
     {
         return;
     }
@@ -459,12 +458,12 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     BAIL_OUT_IF (copy != KeyframeCopy::Copied, S_OK);
 
     //  The snapshot the picture is of, so a cell showing it gives its time.
-    isHeld = HistoryThumbnailGrid::TryFindAtOrBefore (keyframes, position, index);
+    isHeld = HistoryCellGrid::TryFindAtOrBefore (keyframes, position, index);
     CBRA (isHeld);
 
-    m_job.point.position = keyframes.GetInfo (index).position;
-    m_job.point.cycle    = keyframes.GetInfo (index).cycle;
-    m_job.point.wallTime = keyframes.GetInfo (index).wallTime;
+    m_job.point.position = keyframes.GetArena().GetInfo (index).position;
+    m_job.point.cycle    = keyframes.GetArena().GetInfo (index).cycle;
+    m_job.point.wallTime = keyframes.GetArena().GetInfo (index).wallTime;
 
     m_job.position  = position;
     m_job.isPreview = isPreview;
@@ -549,7 +548,7 @@ void HistoryThumbnails::LayOutCells (const KeyframeStore & keyframes)
 
 
 
-    m_wallTimes.Sync (keyframes);
+    m_playhead.GetWallTimes().Sync (keyframes);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -557,7 +556,7 @@ void HistoryThumbnails::LayOutCells (const KeyframeStore & keyframes)
         count = m_count;
     }
 
-    m_grid.Plan (keyframes, count, cells);
+    HistoryCellGrid::PlanCells (keyframes, count, m_step, cells);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -607,9 +606,9 @@ void HistoryThumbnails::Clear()
         m_useStandIns = false;
     }
 
-    m_wallTimes.Clear();
+    m_playhead.GetWallTimes().Clear();
 
-    m_grid.Reset();
+    m_step = 0;
 
     Bump();
 }
@@ -664,13 +663,13 @@ void HistoryThumbnails::OnKeyframeDrop (KeyframeDrop drop)
     {
         ForgetPictures (0);
     }
-    else if (drop == KeyframeDrop::Newest && m_keyframes != nullptr && m_keyframes->GetCount() > 0)
+    else if (drop == KeyframeDrop::Newest && m_keyframes != nullptr && m_keyframes->GetArena().GetCount() > 0)
     {
-        ForgetPictures (m_keyframes->GetInfo (m_keyframes->GetCount() - 1).position);
+        ForgetPictures (m_keyframes->GetArena().GetInfo (m_keyframes->GetArena().GetCount() - 1).position);
     }
     else if (drop == KeyframeDrop::PathChanged && m_keyframes != nullptr)
     {
-        ForgetPictures (m_keyframes->GetPathChangePosition());
+        ForgetPictures (m_keyframes->GetArena().GetPathChangePosition());
     }
 }
 
@@ -1192,93 +1191,11 @@ HistoryThumbnails::Image HistoryThumbnails::MakeBase (const Image & full)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HistoryThumbnails::SetPlayhead
-//
-//  Machine thread, every turn: where the machine stands, and whether that
-//  is behind live.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetPlayhead (
-    uint64_t  position,
-    bool      isBehindLive)
-{
-    m_playhead.store     (position,     std::memory_order_release);
-    m_isBehindLive.store (isBehindLive, std::memory_order_release);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::SetPlayheadTime
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetPlayheadTime (
-    uint64_t  cycle,
-    uint64_t  wallTime,
-    uint64_t  endCycle)
-{
-    m_cycle.store    (cycle,    std::memory_order_release);
-    m_wallTime.store (wallTime, std::memory_order_release);
-    m_endCycle.store (endCycle, std::memory_order_release);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::SetBegin
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetBegin (
-    uint64_t  cycle,
-    uint64_t  wallTime)
-{
-    m_beginCycle.store (cycle,    std::memory_order_release);
-    m_beginWall.store  (wallTime, std::memory_order_release);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::NoteSeekLanded
-//
-//  Machine thread, after SetPlayheadTime has given where the seek landed, so
-//  the UI thread, seeing the landing, reads that cycle and not the one
-//  before it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::NoteSeekLanded (uint64_t cycle)
-{
-    m_landedCycle.store (cycle, std::memory_order_release);
-    m_landings.fetch_add (1, std::memory_order_acq_rel);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HistoryThumbnails::TryGetPlayhead
 //
-//  Behind live, the line stands where the machine does among the points,
-//  labeled by the labeler. Live, there is none and the live end is marked.
-//  A line dragged and let go stands where it was dropped, labeled for that
-//  point, until the seek there lands, so it never springs back to where
-//  the machine stood before; the hold is checked first, so a landing seen
-//  comes with the cycle it landed on.
+//  Behind live, the line is at the playhead's cycle among the points,
+//  labeled by the labeler. Live, the strip has no line, and the live end is
+//  marked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1287,13 +1204,14 @@ bool HistoryThumbnails::TryGetPlayhead (
     std::wstring  & outTop,
     std::wstring  & outBottom)
 {
-    bool      isHeld = IsHoldingDrop();
-    uint64_t  cycle  = isHeld ? m_heldCycle : m_cycle.load (std::memory_order_acquire);
-    uint64_t  wall   = isHeld ? m_wallTimes.GetWallTimeAt (cycle) : m_wallTime.load (std::memory_order_acquire);
+    uint64_t  cycle = 0;
+    uint64_t  wall  = 0;
 
 
 
-    if (!IsBehindLive())
+    m_playhead.GetLineTime (GetNowMs(), cycle, wall);
+
+    if (!m_playhead.IsBehindLive())
     {
         return false;
     }
@@ -1301,7 +1219,7 @@ bool HistoryThumbnails::TryGetPlayhead (
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
-        outOffset = HistoryThumbnailGrid::GetPlayheadOffset (m_cells, cycle, m_endCycle.load (std::memory_order_acquire));
+        outOffset = HistoryCellGrid::GetPlayheadOffset (m_cells, cycle, m_playhead.GetEndCycle());
     }
 
     if (outOffset < 0.0f)
@@ -1309,53 +1227,9 @@ bool HistoryThumbnails::TryGetPlayhead (
         return false;
     }
 
-    outTop.clear();
-    outBottom.clear();
-
-    if (m_labeler)
-    {
-        m_labeler (cycle, wall, outTop, outBottom);
-    }
+    (void) m_playhead.Label (cycle, wall, outTop, outBottom);
 
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::IsHoldingDrop
-//
-//  UI thread: whether the playhead line still stands where it was dragged.
-//  The hold ends once a seek to that cycle has run since the line last
-//  moved; a seek elsewhere landing late, as one made while the line was
-//  still moving, does not end it. A seek that never runs, as one dropped
-//  with the machine it was for, ends it after kSeekPatienceMs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool HistoryThumbnails::IsHoldingDrop()
-{
-    uint64_t  landings  = 0;
-    bool      hasLanded = false;
-    bool      isOverdue = false;
-
-
-
-    if (!m_isHeld)
-    {
-        return false;
-    }
-
-    landings  = m_landings.load (std::memory_order_acquire);
-    hasLanded = landings != m_heldLandings && m_landedCycle.load (std::memory_order_acquire) == m_heldCycle;
-    isOverdue = GetNowMs() - m_heldAtMs >= kSeekPatienceMs;
-
-    m_isHeld = !hasLanded && !isOverdue;
-
-    return m_isHeld;
 }
 
 
@@ -1382,46 +1256,10 @@ void HistoryThumbnails::OnPlayheadDragged (
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
-        cycle = HistoryThumbnailGrid::GetCycleAtOffset (m_cells, offset, m_endCycle.load (std::memory_order_acquire));
+        cycle = HistoryCellGrid::GetCycleAtOffset (m_cells, offset, m_playhead.GetEndCycle());
     }
 
-    m_isHeld       = true;
-    m_heldCycle    = cycle;
-    m_heldLandings = m_landings.load (std::memory_order_acquire);
-    m_heldAtMs     = GetNowMs();
-
-    if (m_onScrub)
-    {
-        m_onScrub (cycle, isFinal);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetLeadingLabel
-//
-//  Where history begins, by the labeler's top line, which moves on as the
-//  oldest history is dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring HistoryThumbnails::GetLeadingLabel()
-{
-    std::wstring  top;
-    std::wstring  bottom;
-
-
-
-    if (m_labeler)
-    {
-        m_labeler (m_beginCycle.load (std::memory_order_acquire), m_beginWall.load (std::memory_order_acquire), top, bottom);
-    }
-
-    return top;
+    m_playhead.DropLine (cycle, isFinal, GetNowMs());
 }
 
 
@@ -1440,7 +1278,7 @@ int HistoryThumbnails::GetMarkedCell()
 
 
 
-    return HistoryThumbnailGrid::FindPlayheadCell (m_cells, m_playhead.load (std::memory_order_acquire), IsBehindLive());
+    return HistoryCellGrid::FindPlayheadCell (m_cells, m_playhead.GetPosition(), m_playhead.IsBehindLive());
 }
 
 
@@ -1521,14 +1359,7 @@ bool HistoryThumbnails::TryGetCellLabels (
     outTop.clear();
     outBottom.clear();
 
-    if (!isCell || !m_labeler)
-    {
-        return false;
-    }
-
-    m_labeler (cell.cycle, cell.wallTime, outTop, outBottom);
-
-    return !outTop.empty() || !outBottom.empty();
+    return isCell && m_playhead.Label (cell.cycle, cell.wallTime, outTop, outBottom);
 }
 
 
@@ -1565,14 +1396,7 @@ bool HistoryThumbnails::TryGetLabelsAt (
     outTop.clear();
     outBottom.clear();
 
-    if (!isPoint || !m_labeler)
-    {
-        return false;
-    }
-
-    m_labeler (point.cycle, m_wallTimes.GetWallTimeAt (point.cycle), outTop, outBottom);
-
-    return !outTop.empty() || !outBottom.empty();
+    return isPoint && m_playhead.LabelAt (point.cycle, outTop, outBottom);
 }
 
 
@@ -1625,7 +1449,7 @@ bool HistoryThumbnails::TryGetPointAt (
     HistoryThumbnailCell  & outPoint)
 {
     std::lock_guard<std::mutex>  held (m_lock);
-    uint64_t                     end  = m_endCycle.load (std::memory_order_acquire);
+    uint64_t                     end  = m_playhead.GetEndCycle();
 
 
 
@@ -1636,7 +1460,7 @@ bool HistoryThumbnails::TryGetPointAt (
         return false;
     }
 
-    outPoint.cycle  = HistoryThumbnailGrid::GetCycleAtOffset (m_cells, offset, end);
+    outPoint.cycle  = HistoryCellGrid::GetCycleAtOffset (m_cells, offset, end);
     outPoint.isLive = outPoint.cycle >= std::max (end, m_cells.back().cycle);
 
     return true;

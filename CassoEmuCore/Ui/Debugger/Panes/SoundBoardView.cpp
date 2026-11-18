@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SoundBoardView.h"
-
 #include "Core/TextEncoding.h"
 #include "Devices/Ay8910.h"
 #include "Devices/Ssi263.h"
@@ -52,33 +51,14 @@ void SoundBoardView::SetBoard (const DiagnosticsSoundBoard & board)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SoundBoardView::GetVoiceHeight
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SoundBoardView::GetVoiceHeight() const
-{
-    int  rows = kValueCount / GetValueColumns();
-
-
-
-    return m_scaler.ToPx (kPadDip + kTitleDip + kPhonemeDip + kGapDip + kStripHeadDip + kStripDip + kHistoryDip + kGapDip + rows * kRegisterDip + kPadDip);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SoundBoardView::GetHalfHeight
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int SoundBoardView::GetHalfHeight() const
 {
-    return m_scaler.ToPx (kPadDip + kTitleDip + DiagnosticsSoundPsg::kChannelCount * (kChannelDip + kChannelGapDip)
-                          + kEnvelopeDip + kGapDip + kRegisterRows * kRegisterDip + kPadDip);
+    return m_scaler.ToPx (SoundBoardInk::kPadDip + SoundBoardInk::kTitleDip + DiagnosticsSoundPsg::kChannelCount * (kChannelDip + kChannelGapDip)
+                          + kEnvelopeDip + SoundBoardInk::kGapDip + kRegisterRows * SoundBoardInk::kRegisterDip + SoundBoardInk::kPadDip);
 }
 
 
@@ -93,7 +73,7 @@ int SoundBoardView::GetHalfHeight() const
 
 int SoundBoardView::GetClientWidth() const
 {
-    int  gaps = 2 * m_scaler.ToPx (kGapDip);
+    int  gaps = 2 * m_scaler.ToPx (SoundBoardInk::kGapDip);
     int  bar  = m_hasScrollbar ? m_scaler.ToPx (kScrollbarDip) : 0;
 
 
@@ -117,7 +97,7 @@ int SoundBoardView::GetClientWidth() const
 
 void SoundBoardView::Reflow()
 {
-    int               gap     = m_scaler.ToPx (kGapDip);
+    int               gap     = m_scaler.ToPx (SoundBoardInk::kGapDip);
     int               height  = (int) (m_boundsDip.bottom - m_boundsDip.top) - 2 * gap;
     int               voice   = 0;
     int               columns = 1;
@@ -129,7 +109,7 @@ void SoundBoardView::Reflow()
     for (bool hasBar : { false, true })
     {
         m_hasScrollbar = hasBar;
-        voice          = m_board.voice.has_value() ? GetVoiceHeight() + gap : 0;
+        voice          = m_board.voice.has_value() ? m_voice.GetHeight (GetValueColumns()) + gap : 0;
         columns        = SoundBoardLayout::GetColumnCount (GetClientWidth(), m_scaler.ToPx (kLeastCardDip), gap, (int) heights.size());
         m_halfCards    = heights.empty() ? std::vector<RECT>() : SoundBoardLayout::PlaceCards (heights, columns, GetClientWidth(), gap, below);
 
@@ -181,11 +161,11 @@ void SoundBoardView::SyncScrollbar()
 
 
 
-    m_scrollTop = std::clamp (m_scrollTop, 0, std::max (0, m_contentHeight + 2 * m_scaler.ToPx (kGapDip) - page));
+    m_scrollTop = std::clamp (m_scrollTop, 0, std::max (0, m_contentHeight + 2 * m_scaler.ToPx (SoundBoardInk::kGapDip) - page));
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
-    info.nMax  = m_contentHeight + 2 * m_scaler.ToPx (kGapDip);
+    info.nMax  = m_contentHeight + 2 * m_scaler.ToPx (SoundBoardInk::kGapDip);
     info.nPage = (UINT) page;
     info.nPos  = m_scrollTop;
 
@@ -216,26 +196,6 @@ void SoundBoardView::ScrollTo (int top)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SoundBoardView::ScrollPhonemes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::ScrollPhonemes (int count)
-{
-    size_t  oldest = (m_board.voice.has_value() && !m_board.voice->recent.empty()) ? m_board.voice->recent.size() - 1 : 0;
-    int     back   = (int) m_phonemesBack + count;
-
-
-
-    m_phonemesBack = (size_t) std::clamp (back, 0, (int) oldest);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SoundBoardView::IsOverPhonemeStrip
 //
 //  The strip and its row of labels.
@@ -253,7 +213,7 @@ bool SoundBoardView::IsOverPhonemeStrip (POINT clientPx) const
         return false;
     }
 
-    strip = ToClient (GetStripArea (m_voiceCard));
+    strip = ToClient (m_voice.GetStripArea (m_voiceCard));
     return PtInRect (&strip, clientPx) != FALSE;
 }
 
@@ -270,7 +230,7 @@ bool SoundBoardView::IsOverPhonemeStrip (POINT clientPx) const
 RECT SoundBoardView::ToClient (const RECT & content) const
 {
     RECT  placed = content;
-    int   gap    = m_scaler.ToPx (kGapDip);
+    int   gap    = m_scaler.ToPx (SoundBoardInk::kGapDip);
 
 
 
@@ -290,8 +250,8 @@ RECT SoundBoardView::ToClient (const RECT & content) const
 
 RECT SoundBoardView::GetChannelRect (const RECT & card, int channel) const
 {
-    int  pad = m_scaler.ToPx (kPadDip);
-    int  top = card.top + pad + m_scaler.ToPx (kTitleDip) + channel * m_scaler.ToPx (kChannelDip + kChannelGapDip);
+    int  pad = m_scaler.ToPx (SoundBoardInk::kPadDip);
+    int  top = card.top + pad + m_scaler.ToPx (SoundBoardInk::kTitleDip) + channel * m_scaler.ToPx (kChannelDip + kChannelGapDip);
 
 
 
@@ -317,27 +277,6 @@ RECT SoundBoardView::GetMuteOfChannel (const RECT & row) const
 
 
     return { row.left, top, row.left + side, top + side };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::GetMuteOfVoice
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT SoundBoardView::GetMuteOfVoice (const RECT & card) const
-{
-    constexpr int  kMuteDip = 24;
-    int            side     = m_scaler.ToPx (kMuteDip);
-    int            pad      = m_scaler.ToPx (kPadDip);
-
-
-
-    return { card.right - pad - side, card.top + pad, card.right - pad, card.top + pad + side };
 }
 
 
@@ -414,7 +353,7 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
     constexpr int             kChannels = DiagnosticsSoundPsg::kChannelCount;
     constexpr int             kRegsEach = 2;
     RECT                      envelope  = GetEnvelopeRect (card);
-    int                       pad       = m_scaler.ToPx (kPadDip);
+    int                       pad       = m_scaler.ToPx (SoundBoardInk::kPadDip);
 
 
 
@@ -437,7 +376,7 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
     AddRegion (envelope, std::format (L"The envelope period is ${:04X} (R11 and R12), its pattern ${:02X} (R13), and the noise period ${:02X} (R6).",
                                       half.psg.envelopePeriod, half.psg.envelopeRegister, half.psg.noisePeriod));
 
-    AddRegion ({ card.left, card.top, card.right, card.top + pad + m_scaler.ToPx (kTitleDip) },
+    AddRegion ({ card.left, card.top, card.right, card.top + pad + m_scaler.ToPx (SoundBoardInk::kTitleDip) },
                std::format (L"The 6522's interrupt flags are ${:02X} and its interrupt enable ${:02X}.", half.via.ifr, half.via.ier));
 
     AddRegion ({ envelope.left, envelope.bottom, envelope.right, card.bottom },
@@ -456,9 +395,9 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
 
 void SoundBoardView::BuildVoiceRegions (const DiagnosticsSoundVoice & voice, const RECT & card)
 {
-    AddRegion (GetMuteOfVoice (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", kVoiceMuteChannel);
+    AddRegion (m_voice.GetMuteRect (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", SoundVoiceCard::kVoiceMuteChannel);
 
-    AddRegion (GetStripArea (card), SoundBoardTips::GetVoice (L"Recent phonemes", voice));
+    AddRegion (m_voice.GetStripArea (card), SoundBoardTips::GetVoice (L"Recent phonemes", voice));
 
     AddRegion (card, std::format (L"The registers' fields: phoneme ${:02X}, duration ${:X}, rate ${:X}, inflection ${:03X}, articulation ${:X}, amplitude ${:X} and filter ${:02X}.",
                                   voice.phonemeCode, voice.durationSelect, voice.rateSelect, voice.inflection, voice.articulation, voice.amplitude, voice.filterRegister));
@@ -508,21 +447,6 @@ bool SoundBoardView::TryGetTipAt (POINT clientPx, std::wstring & outTip) const
     }
 
     return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::AddSpot
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::AddSpot (const Painting & p, const RECT & rect, std::wstring tip)
-{
-    p.spots.push_back ({ rect, std::move (tip) });
 }
 
 
@@ -628,7 +552,7 @@ bool SoundBoardView::OnMouse (const DxuiMouseEvent & ev)
     //  the left, or Shift with the wheel up, goes back to them.
     if (ev.kind == DxuiMouseEventKind::Wheel && (ev.wheelHorizontal || ev.shift) && IsOverPhonemeStrip (at))
     {
-        ScrollPhonemes ((int) std::lround ((ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta) * (float) kPhonemesPerNotch));
+        m_voice.ScrollPhonemes ((int) std::lround ((ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta) * (float) kPhonemesPerNotch));
         return true;
     }
 
@@ -736,7 +660,7 @@ bool SoundBoardView::IsChannelMuted (int channel) const
 
 
 
-    if (channel == kVoiceMuteChannel)
+    if (channel == SoundVoiceCard::kVoiceMuteChannel)
     {
         return m_board.voice.has_value() && m_board.voice->isMuted;
     }
@@ -905,7 +829,7 @@ bool SoundBoardView::OnKey (const DxuiKeyEvent & ev)
 void SoundBoardView::RevealFocusedMute()
 {
     std::vector<int>  mutes = GetMuteChannels();
-    int               gap   = m_scaler.ToPx (kGapDip);
+    int               gap   = m_scaler.ToPx (SoundBoardInk::kGapDip);
     int               page  = (int) (m_boundsDip.bottom - m_boundsDip.top) - 2 * gap;
 
 
@@ -952,102 +876,12 @@ std::wstring SoundBoardView::GetAccessibleName() const
     {
         if (focused >= 0 && region.muteChannel == focused)
         {
-            return (focused == kVoiceMuteChannel) ? std::format (L"Mockingboard, {} button", region.tip)
+            return (focused == SoundVoiceCard::kVoiceMuteChannel) ? std::format (L"Mockingboard, {} button", region.tip)
                                                   : std::format (L"Mockingboard, {} of AY #{} button", region.tip, focused / DiagnosticsSoundPsg::kChannelCount + 1);
         }
     }
 
     return L"Mockingboard";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintMuteButton
-//
-//  A mute is a button: an edge around its fill, a brighter fill under the
-//  pointer, and the focus ring while the keyboard has it, so it doesn't
-//  read as a label.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintMuteButton (const Painting & p, const RECT & rect, int channel, bool isMuted, uint32_t color) const
-{
-    constexpr float  kRadiusDip   = 4.0f;
-    constexpr float  kEdgeDip     = 1.0f;
-    constexpr float  kRingGapDip  = 2.0f;
-    constexpr float  kFillAlpha   = 0.16f;
-    constexpr float  kHoverAlpha  = 0.32f;
-    constexpr float  kEdgeAlpha   = 0.60f;
-    float            radius       = m_scaler.ToPxf (kRadiusDip);
-    float            x            = (float) rect.left;
-    float            y            = (float) rect.top;
-    float            w            = (float) (rect.right - rect.left);
-    float            h            = (float) (rect.bottom - rect.top);
-    float            ring         = m_scaler.ToPxf (kRingGapDip);
-    uint32_t         ink          = isMuted ? p.theme.ErrorForeground() : color;
-
-
-
-    p.painter.FillRoundedRect    (x, y, w, h, radius, WithAlpha (ink, channel == m_hoverMute ? kHoverAlpha : kFillAlpha));
-    p.painter.OutlineRoundedRect (x, y, w, h, radius, m_scaler.ToPxf (kEdgeDip), WithAlpha (ink, kEdgeAlpha));
-
-    if (channel == GetFocusedMute())
-    {
-        p.painter.OutlineRoundedRect (x - ring, y - ring, w + 2.0f * ring, h + 2.0f * ring, radius + ring,
-                                      m_scaler.ToPxf (p.theme.FocusRingWidthDip()), p.theme.FocusRing());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::Mix
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t SoundBoardView::Mix (uint32_t from, uint32_t to, float amount)
-{
-    uint32_t  out = 0;
-
-
-
-    for (int shift = 0; shift <= 24; shift += 8)
-    {
-        float  a = (float) ((from >> shift) & 0xFF);
-        float  b = (float) ((to   >> shift) & 0xFF);
-
-        out |= (uint32_t) std::lround (a + (b - a) * amount) << shift;
-    }
-
-    return out;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::WithAlpha
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t SoundBoardView::WithAlpha (uint32_t argb, float alpha)
-{
-    constexpr uint32_t  kRgbMask    = 0x00FFFFFF;
-    constexpr int       kAlphaShift = 24;
-    constexpr float     kFull       = 255.0f;
-
-
-
-    return (argb & kRgbMask) | ((uint32_t) std::lround (alpha * kFull) << kAlphaShift);
 }
 
 
@@ -1068,9 +902,9 @@ void SoundBoardView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     constexpr uint32_t  kBlack       = 0xFF000000;
     uint32_t            background   = theme.TextViewBackground();
     Painting          p            = { painter, text, theme,
-                                       Mix (background, kBlack, DebuggerTextColors::IsDark (background) ? kScreenDark : kScreenLight),
-                                       Mix (theme.ContentBackground(), theme.Foreground(), kCardLift),
-                                       theme.ContentEdge(), m_spots };
+                                       SoundBoardInk::Mix (background, kBlack, DebuggerTextColors::IsDark (background) ? kScreenDark : kScreenLight),
+                                       SoundBoardInk::Mix (theme.ContentBackground(), theme.Foreground(), kCardLift),
+                                       theme.ContentEdge(), m_spots, m_board.sampleRate, m_hoverMute, GetFocusedMute() };
 
 
 
@@ -1086,7 +920,7 @@ void SoundBoardView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     if (m_board.voice.has_value())
     {
-        PaintVoice (p, *m_board.voice, ToClient (m_voiceCard));
+        m_voice.Paint (p, *m_board.voice, ToClient (m_voiceCard), GetValueColumns());
     }
 
     for (size_t i = 0; i < m_board.halves.size() && i < m_halfCards.size(); i++)
@@ -1100,266 +934,6 @@ void SoundBoardView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     {
         m_scrollbar.Paint (painter, theme.ForegroundMuted());
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintString
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintString (
-    const Painting        & p,
-    const std::wstring    & value,
-    const RECT            & rect,
-    uint32_t                color,
-    const DxuiFontHandle  & font,
-    DxuiTextHAlign          align) const
-{
-    HRESULT  hr = p.text.DrawString (value.c_str(), (float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top),
-                                     color, m_scaler.ToPxf (font.sizeDip), font.face, align, DxuiTextVAlign::Center, font.weight, false);
-
-
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintCard
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintCard (const Painting & p, const RECT & card, const std::wstring & title, const std::wstring & detail) const
-{
-    constexpr float  kRadiusDip = 7.0f;
-    constexpr float  kEdgeDip   = 1.0f;
-    constexpr int    kTitleWide = 90;
-    float            radius     = m_scaler.ToPxf (kRadiusDip);
-    float            x          = (float) card.left;
-    float            y          = (float) card.top;
-    float            w          = (float) (card.right - card.left);
-    float            h          = (float) (card.bottom - card.top);
-    int              pad        = m_scaler.ToPx (kPadDip);
-    int              left       = card.left + pad;
-    int              top        = card.top + pad;
-    int              bottom     = top + m_scaler.ToPx (kTitleDip);
-    int              split      = left + m_scaler.ToPx (kTitleWide);
-
-
-
-    p.painter.FillRoundedRect    (x, y, w, h, radius, p.card);
-    p.painter.OutlineRoundedRect (x, y, w, h, radius, m_scaler.ToPxf (kEdgeDip), p.edge);
-
-    PaintString (p, title,  { left,  top, split,                 bottom }, p.theme.HeadingForeground(), p.theme.BodyBoldFont());
-    PaintString (p, detail, { split, top, card.right - pad,      bottom }, p.theme.ForegroundMuted(),   p.theme.CaptionFont());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintLamp
-//
-//  An unlit lamp is an outline. A lit one has a halo around it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintLamp (const Painting & p, float x, float y, const wchar_t * label, bool isOn, uint32_t color, float width) const
-{
-    constexpr float  kRadiusDip    = 4.0f;
-    constexpr float  kHaloDip      = 8.0f;
-    constexpr float  kHaloAlpha    = 0.28f;
-    constexpr float  kUnlitAlpha   = 0.35f;
-    constexpr float  kLabelGapDip  = 8.0f;
-    float            radius        = m_scaler.ToPxf (kRadiusDip);
-    float            cx            = x + radius;
-    float            labelX        = cx + radius + m_scaler.ToPxf (kLabelGapDip);
-
-
-
-    if (isOn)
-    {
-        p.painter.FillCircle (cx, y, m_scaler.ToPxf (kHaloDip), WithAlpha (color, kHaloAlpha));
-        p.painter.FillCircle (cx, y, radius, color);
-    }
-    else
-    {
-        p.painter.FillCircle (cx, y, radius, WithAlpha (p.theme.ForegroundMuted(), kUnlitAlpha));
-    }
-
-    PaintString (p, label,
-                 { (long) labelX, (long) (y - m_scaler.ToPxf (kRegisterDip / 2.0f)), (long) (x + width), (long) (y + m_scaler.ToPxf (kRegisterDip / 2.0f)) },
-                 isOn ? p.theme.Foreground() : p.theme.ForegroundMuted(), p.theme.CaptionFont());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintValue
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintValue (const Painting & p, const RECT & rect, const std::wstring & label, const std::wstring & value, int labelDip) const
-{
-    int  split = std::min (rect.left + m_scaler.ToPx (labelDip), (rect.left + rect.right) / 2);
-
-
-
-    PaintString (p, label, { rect.left, rect.top, split,      rect.bottom }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
-    PaintString (p, value, { split,     rect.top, rect.right, rect.bottom }, p.theme.Foreground(),      p.theme.MonospaceFont());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintTrace
-//
-//  Wide faint passes under a thin bright one make the phosphor's glow. Each
-//  segment is a line with round ends, so two overlap at the point they
-//  share, and a pass drawn see-through was twice as bright there, which
-//  dotted the curve. Each pass is drawn solid instead, in the color it blends
-//  to over the screen and the passes under it: the same color, with no
-//  overlap to see.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintTrace (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color, TraceLayer layer) const
-{
-    struct Pass
-    {
-        float  widthDip;
-        float  alpha;
-    };
-
-    static constexpr Pass  kPasses[]   = { { 5.0f, 0.10f }, { 3.0f, 0.22f }, { 1.3f, 1.0f } };
-    constexpr int          kAlphaShift = 24;
-    constexpr uint32_t     kOpaque     = 0xFF000000;
-    constexpr float        kFull       = 255.0f;
-    constexpr size_t       kCore       = std::size (kPasses) - 1;
-    float                  strength    = (float) (color >> kAlphaShift) / kFull;
-    uint32_t               under       = p.screen | kOpaque;
-
-
-
-    for (size_t pass = 0; pass < std::size (kPasses); pass++)
-    {
-        bool  isDrawn = (pass == kCore) ? layer != TraceLayer::Glow : layer != TraceLayer::Core;
-
-        under = Mix (under, color | kOpaque, kPasses[pass].alpha * strength);
-
-        for (size_t i = 1; i < points.size() && isDrawn; i++)
-        {
-            p.painter.DrawLine (points[i - 1].first, points[i - 1].second, points[i].first, points[i].second, m_scaler.ToPxf (kPasses[pass].widthDip), under);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintScope
-//
-//  An AY channel's samples run from 0 to its top level, so a quiet channel is a
-//  small trace. A speech chip's run either side of 0 and fill the screen.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintScope (const Painting & p, const std::vector<float> & scope, const RECT & rect, uint32_t color, double hz, bool isBipolar) const
-{
-    constexpr float                       kRadiusDip   = 4.0f;
-    constexpr float                       kInsetDip    = 4.0f;
-    constexpr float                       kGridAlpha   = 0.10f;
-    constexpr float                       kLeastPeak   = 0.02f;
-    constexpr int                         kGridColumns = 8;
-    constexpr int                         kColumnDip   = 2;
-    float                                 x            = (float) rect.left;
-    float                                 y            = (float) rect.top;
-    float                                 w            = (float) (rect.right - rect.left);
-    float                                 h            = (float) (rect.bottom - rect.top);
-    float                                 inset        = m_scaler.ToPxf (kInsetDip);
-    float                                 low          = 0.0f;
-    float                                 high         = 1.0f;
-    size_t                                window       = SoundBoardLayout::GetScopeWindow (hz, m_board.sampleRate);
-    size_t                                first        = 0;
-    std::vector<std::pair<float, float>>  points;
-
-
-
-    p.painter.FillRoundedRect (x, y, w, h, m_scaler.ToPxf (kRadiusDip), p.screen);
-
-    for (int g = 1; g < kGridColumns; g++)
-    {
-        float  gx = x + w * (float) g / (float) kGridColumns;
-
-        p.painter.DrawLine (gx, y, gx, y + h, 1.0f, WithAlpha (p.theme.ForegroundMuted(), kGridAlpha));
-    }
-
-    p.painter.DrawLine (x, y + h * 0.5f, x + w, y + h * 0.5f, 1.0f, WithAlpha (p.theme.ForegroundMuted(), kGridAlpha * 2.0f));
-
-    if (scope.empty())
-    {
-        return;
-    }
-
-    if (isBipolar)
-    {
-        for (float sample : scope)
-        {
-            high = std::max (high == 1.0f ? kLeastPeak : high, std::abs (sample));
-        }
-
-        low = -high;
-    }
-
-    first = SoundBoardLayout::FindTrigger (scope, window);
-
-    //  A speech chip's waveform is a curve, so it's a line through each
-    //  pixel's mean. An AY's is a square wave or noise, so each column has
-    //  its lowest and highest sample, so a square wave's edges are drawn
-    //  upright.
-    if (isBipolar)
-    {
-        std::vector<float>  trace = SoundBoardLayout::GetScopeTrace (scope, first, window, std::max (2, (int) (w - 2.0f * inset)), low, high);
-
-        for (size_t c = 0; c < trace.size(); c++)
-        {
-            points.emplace_back (x + inset + (float) c, y + h - inset - trace[c] * (h - 2.0f * inset));
-        }
-    }
-    else
-    {
-        for (const SoundBoardLayout::ScopeColumn & column : SoundBoardLayout::GetScopeColumns (scope, first, window, std::max (1, (int) (w - 2.0f * inset) / m_scaler.ToPx (kColumnDip)), low, high))
-        {
-            float  cx = x + inset + (float) points.size() / 2.0f * (float) m_scaler.ToPx (kColumnDip);
-
-            points.emplace_back (cx, y + h - inset - column.high * (h - 2.0f * inset));
-            points.emplace_back (cx, y + h - inset - column.low  * (h - 2.0f * inset));
-        }
-    }
-
-    p.painter.PushClip (x, y, w, h);
-    PaintTrace (p, points, color);
-    p.painter.PopClip();
 }
 
 
@@ -1390,7 +964,7 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundPsg
     constexpr float                  kPeakDim     = 0.8f;
     constexpr float                  kSilentAlpha = 0.35f;
     RECT                             mute         = GetMuteOfChannel (row);
-    uint32_t                         color        = channel.isMuted ? Mix (m_palette.channels[index], p.theme.ForegroundMuted(), kMuteMix) : m_palette.channels[index];
+    uint32_t                         color        = channel.isMuted ? SoundBoardInk::Mix (m_palette.channels[index], p.theme.ForegroundMuted(), kMuteMix) : m_palette.channels[index];
     int                              gap          = m_scaler.ToPx (kGapPartDip);
     int                              noteLeft     = mute.right + gap;
     int                              noteRight    = noteLeft + m_scaler.ToPx (kNoteDip);
@@ -1413,8 +987,8 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundPsg
 
     big.sizeDip *= 1.25f;
 
-    PaintMuteButton (p, mute, muteChannel, channel.isMuted, color);
-    PaintString (p, kNames[index], mute, channel.isMuted ? p.theme.ErrorForeground() : color, p.theme.BodyBoldFont(), DxuiTextHAlign::Center);
+    m_ink.PaintMuteButton (p, mute, muteChannel, channel.isMuted, color);
+    m_ink.PaintString (p, kNames[index], mute, channel.isMuted ? p.theme.ErrorForeground() : color, p.theme.BodyBoldFont(), DxuiTextHAlign::Center);
 
     if (channel.isMuted)
     {
@@ -1423,30 +997,30 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundPsg
 
     if (isSilent)
     {
-        PaintString (p, L"Silent", { noteLeft, row.top, noteRight, row.bottom }, p.theme.ForegroundDisabled(), p.theme.BodyFont());
+        m_ink.PaintString (p, L"Silent", { noteLeft, row.top, noteRight, row.bottom }, p.theme.ForegroundDisabled(), p.theme.BodyFont());
     }
     else
     {
-        PaintString (p, note, { noteLeft, middle - m_scaler.ToPx (kNoteRowDip), noteRight, middle }, p.theme.Foreground(), big);
-        PaintString (p, SoundBoardLayout::GetFrequencyText (channel.frequencyHz), { noteLeft, middle, noteRight, middle + m_scaler.ToPx (kNoteRowDip) }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
+        m_ink.PaintString (p, note, { noteLeft, middle - m_scaler.ToPx (kNoteRowDip), noteRight, middle }, p.theme.Foreground(), big);
+        m_ink.PaintString (p, SoundBoardLayout::GetFrequencyText (channel.frequencyHz), { noteLeft, middle, noteRight, middle + m_scaler.ToPx (kNoteRowDip) }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
     }
 
-    AddSpot (p, { noteLeft, row.top, noteRight, row.bottom }, SoundBoardTips::GetNote (index, channel));
-    AddSpot (p, { meterLeft, row.top, meterRight, row.bottom }, SoundBoardTips::GetLevel (index, channel, amplitude));
-    AddSpot (p, { meterRight + gap, row.top, row.right, row.bottom }, SoundBoardTips::GetScope (index));
+    SoundBoardInk::AddSpot (p, { noteLeft, row.top, noteRight, row.bottom }, SoundBoardTips::GetNote (index, channel));
+    SoundBoardInk::AddSpot (p, { meterLeft, row.top, meterRight, row.bottom }, SoundBoardTips::GetLevel (index, channel, amplitude));
+    SoundBoardInk::AddSpot (p, { meterRight + gap, row.top, row.right, row.bottom }, SoundBoardTips::GetScope (index));
 
     for (int s = 0; s < 2; s++)
     {
         bool  isOn = (s == 0) ? channel.isToneOn : channel.isNoiseOn;
         RECT  pill = { sourceLeft, middle - source + s * (source + 2), sourceRight, middle + s * (source + 2) };
 
-        AddSpot (p, pill, SoundBoardTips::GetSource (index, s == 1, channel, psg.mixer));
+        SoundBoardInk::AddSpot (p, pill, SoundBoardTips::GetSource (index, s == 1, channel, psg.mixer));
 
-        p.painter.FillRoundedRect ((float) pill.left, (float) pill.top, (float) source, (float) source, radius, isOn ? WithAlpha (color, kPillAlpha * 2.0f) : WithAlpha (p.theme.ForegroundMuted(), kPillAlpha / 2.0f));
-        PaintString (p, (s == 0) ? L"T" : L"N", pill, isOn ? color : p.theme.ForegroundDisabled(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
+        p.painter.FillRoundedRect ((float) pill.left, (float) pill.top, (float) source, (float) source, radius, isOn ? SoundBoardInk::WithAlpha (color, kPillAlpha * 2.0f) : SoundBoardInk::WithAlpha (p.theme.ForegroundMuted(), kPillAlpha / 2.0f));
+        m_ink.PaintString (p, (s == 0) ? L"T" : L"N", pill, isOn ? color : p.theme.ForegroundDisabled(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
     }
 
-    PaintString (p, channel.usesEnvelope ? std::format (L"{:>2} env", channel.level) : std::format (L"{:>2}", channel.level),
+    m_ink.PaintString (p, channel.usesEnvelope ? std::format (L"{:>2} env", channel.level) : std::format (L"{:>2}", channel.level),
                  { meterLeft, middle - m_scaler.ToPx (kNoteRowDip), meterRight, middle }, p.theme.Foreground(), p.theme.MonospaceFont());
 
     for (int s = 0; s < kSegments; s++)
@@ -1454,13 +1028,13 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundPsg
         float  sx     = (float) meterLeft + (float) s * segmentWide;
         bool   isLit  = s < channel.level;
         bool   isPeak = !isLit && (int) peak == s + 1 && !channel.isMuted;
-        uint32_t  fill  = isLit ? Mix (color, 0xFFFFFFFF, (float) s / (float) kSegments * 0.35f)
-                                : (isPeak ? WithAlpha (color, kPeakDim) : WithAlpha (p.theme.ForegroundMuted(), kUnlitAlpha));
+        uint32_t  fill  = isLit ? SoundBoardInk::Mix (color, 0xFFFFFFFF, (float) s / (float) kSegments * 0.35f)
+                                : (isPeak ? SoundBoardInk::WithAlpha (color, kPeakDim) : SoundBoardInk::WithAlpha (p.theme.ForegroundMuted(), kUnlitAlpha));
 
         p.painter.FillRect (sx, meterTop, segmentWide - m_scaler.ToPxf (1.5f), meterHigh, fill);
     }
 
-    PaintScope (p, channel.scope, { meterRight + gap, row.top, row.right, row.bottom }, isSilent ? WithAlpha (color, kSilentAlpha) : color, channel.isToneOn && !channel.isNoiseOn ? channel.frequencyHz : 0.0, false);
+    m_ink.PaintScope (p, channel.scope, { meterRight + gap, row.top, row.right, row.bottom }, isSilent ? SoundBoardInk::WithAlpha (color, kSilentAlpha) : color, channel.isToneOn && !channel.isNoiseOn ? channel.frequencyHz : 0.0, false);
 }
 
 
@@ -1512,18 +1086,18 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
         points.emplace_back (x + inset + point.x * (w - 2.0f * inset), y + h - inset - point.y * (h - 2.0f * inset));
     }
 
-    PaintTrace (p, points, color);
-    p.painter.DrawLine (x + inset, markY, x + w - inset, markY, 1.0f, WithAlpha (p.theme.Foreground(), kMarkAlpha));
+    m_ink.PaintTrace (p, points, color);
+    p.painter.DrawLine (x + inset, markY, x + w - inset, markY, 1.0f, SoundBoardInk::WithAlpha (p.theme.Foreground(), kMarkAlpha));
     p.painter.FillCircle (x + inset + GetEnvelopeMarkX (psg) * (w - 2.0f * inset), markY, m_scaler.ToPxf (3.0f), p.theme.Foreground());
 
-    PaintValue (p, { textLeft, rect.top, textMiddle, rect.top + line }, L"Ramp", SoundBoardLayout::GetMillisecondsText (psg.envelopeRampMs));
-    PaintValue (p, { textMiddle, rect.top, rect.right, rect.top + line }, L"R13", std::format (L"${:02X} ({})", psg.envelopeRegister, psg.envelopeRegister));
-    PaintValue (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, L"Noise", SoundBoardLayout::GetFrequencyText (psg.noiseHz));
+    m_ink.PaintValue (p, { textLeft, rect.top, textMiddle, rect.top + line }, L"Ramp", SoundBoardLayout::GetMillisecondsText (psg.envelopeRampMs));
+    m_ink.PaintValue (p, { textMiddle, rect.top, rect.right, rect.top + line }, L"R13", std::format (L"${:02X} ({})", psg.envelopeRegister, psg.envelopeRegister));
+    m_ink.PaintValue (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, L"Noise", SoundBoardLayout::GetFrequencyText (psg.noiseHz));
 
-    AddSpot (p, { rect.left, rect.top, pictureRight, rect.bottom }, SoundBoardTips::GetEnvelopePicture (psg));
-    AddSpot (p, { textLeft, rect.top, textMiddle, rect.top + line }, SoundBoardTips::GetRamp (psg));
-    AddSpot (p, { textMiddle, rect.top, rect.right, rect.top + line }, SoundBoardTips::GetShape (psg));
-    AddSpot (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, SoundBoardTips::GetNoise (psg));
+    SoundBoardInk::AddSpot (p, { rect.left, rect.top, pictureRight, rect.bottom }, SoundBoardTips::GetEnvelopePicture (psg));
+    SoundBoardInk::AddSpot (p, { textLeft, rect.top, textMiddle, rect.top + line }, SoundBoardTips::GetRamp (psg));
+    SoundBoardInk::AddSpot (p, { textMiddle, rect.top, rect.right, rect.top + line }, SoundBoardTips::GetShape (psg));
+    SoundBoardInk::AddSpot (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, SoundBoardTips::GetNoise (psg));
 
     for (int b = 0; b < 4; b++)
     {
@@ -1532,9 +1106,9 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
         RECT  pill  = { left, rect.top + 2 * line + 2, left + m_scaler.ToPx (kBitDip) - 4, rect.bottom - 2 };
 
         p.painter.FillRoundedRect ((float) pill.left, (float) pill.top, (float) (pill.right - pill.left), (float) (pill.bottom - pill.top), m_scaler.ToPxf (kRadiusDip),
-                                   isSet ? WithAlpha (color, kPillAlpha) : WithAlpha (p.theme.ForegroundMuted(), kPillAlpha / 3.0f));
-        PaintString (p, kBits[b], pill, isSet ? color : p.theme.ForegroundDisabled(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
-        AddSpot     (p, pill, SoundBoardTips::GetShapeBit (b, psg.envelopeRegister));
+                                   isSet ? SoundBoardInk::WithAlpha (color, kPillAlpha) : SoundBoardInk::WithAlpha (p.theme.ForegroundMuted(), kPillAlpha / 3.0f));
+        m_ink.PaintString (p, kBits[b], pill, isSet ? color : p.theme.ForegroundDisabled(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
+        SoundBoardInk::AddSpot     (p, pill, SoundBoardTips::GetShapeBit (b, psg.envelopeRegister));
     }
 }
 
@@ -1595,7 +1169,7 @@ void SoundBoardView::PaintVia (const Painting & p, const DiagnosticsSoundHalf & 
     constexpr int                kColumns = 4;
     const DiagnosticsSoundVia  & via      = half.via;
     const DiagnosticsSoundPsg  & psg      = half.psg;
-    int                          row      = m_scaler.ToPx (kRegisterDip);
+    int                          row      = m_scaler.ToPx (SoundBoardInk::kRegisterDip);
     int                          wide     = (rect.right - rect.left) / kColumns;
     uint32_t                     lit      = m_palette.voice;
     float                        lampY    = (float) rect.top + (float) row * 4.5f;
@@ -1607,13 +1181,13 @@ void SoundBoardView::PaintVia (const Painting & p, const DiagnosticsSoundHalf & 
     auto                         word     = [] (int value) { return std::format (L"${:04X}", value); };
     auto                         field    = [&] (const RECT & at, const wchar_t * label, const std::wstring & value)
     {
-        PaintValue (p, at, label, value);
-        AddSpot    (p, at, SoundBoardTips::GetVia (label, half));
+        m_ink.PaintValue (p, at, label, value);
+        SoundBoardInk::AddSpot    (p, at, SoundBoardTips::GetVia (label, half));
     };
     auto                         lamp     = [&] (int x, const wchar_t * label, bool isOn)
     {
-        PaintLamp (p, (float) (rect.left + x * wide), lampY, label, isOn, lit, (float) wide);
-        AddSpot   (p, { rect.left + x * wide, rect.top + 4 * row, rect.left + (x + 1) * wide, rect.top + 5 * row }, SoundBoardTips::GetVia (label, half));
+        m_ink.PaintLamp (p, (float) (rect.left + x * wide), lampY, label, isOn, lit, (float) wide);
+        SoundBoardInk::AddSpot   (p, { rect.left + x * wide, rect.top + 4 * row, rect.left + (x + 1) * wide, rect.top + 5 * row }, SoundBoardTips::GetVia (label, half));
     };
 
 
@@ -1672,8 +1246,8 @@ void SoundBoardView::PaintRegisters (const Painting & p, const DiagnosticsSoundP
     {
         RECT  at = { rect.left + (r % kPerRow) * wide, rect.top + (r / kPerRow) * row, rect.left + (r % kPerRow + 1) * wide, rect.top + (r / kPerRow + 1) * row };
 
-        PaintValue (p, at, std::format (L"R{}", r), std::format (L"{:02X}", psg.registers[(size_t) r]), kNameDip);
-        AddSpot    (p, at, SoundBoardTips::GetRegister (r, psg.registers[(size_t) r]));
+        m_ink.PaintValue (p, at, std::format (L"R{}", r), std::format (L"{:02X}", psg.registers[(size_t) r]), kNameDip);
+        SoundBoardInk::AddSpot    (p, at, SoundBoardTips::GetRegister (r, psg.registers[(size_t) r]));
     }
 }
 
@@ -1692,15 +1266,15 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
     constexpr int     kChannels = DiagnosticsSoundPsg::kChannelCount;
     constexpr int     kLampDip  = 56;
     RECT              envelope  = GetEnvelopeRect (card);
-    int               pad       = m_scaler.ToPx (kPadDip);
+    int               pad       = m_scaler.ToPx (SoundBoardInk::kPadDip);
     float             lampX     = (float) (card.right - pad - m_scaler.ToPx (kLampDip));
-    float             lampY     = (float) card.top + (float) pad + m_scaler.ToPxf (kTitleDip / 2.0f);
+    float             lampY     = (float) card.top + (float) pad + m_scaler.ToPxf (SoundBoardInk::kTitleDip / 2.0f);
 
 
 
-    PaintCard (p, card, std::format (L"AY #{}", half.index + 1), std::format (L"6522 #{}, slot {}, ${:04X}", half.index + 1, m_board.slot, half.baseAddress));
-    PaintLamp (p, lampX, lampY, L"IRQ", half.via.isIrq, p.theme.ErrorForeground(), (float) m_scaler.ToPx (kLampDip));
-    AddSpot   (p, { (long) lampX, card.top + pad, card.right - pad, card.top + pad + m_scaler.ToPx (kTitleDip) }, SoundBoardTips::GetVia (L"IRQ", half));
+    m_ink.PaintCard (p, card, std::format (L"AY #{}", half.index + 1), std::format (L"6522 #{}, slot {}, ${:04X}", half.index + 1, m_board.slot, half.baseAddress));
+    m_ink.PaintLamp (p, lampX, lampY, L"IRQ", half.via.isIrq, p.theme.ErrorForeground(), (float) m_scaler.ToPx (kLampDip));
+    SoundBoardInk::AddSpot   (p, { (long) lampX, card.top + pad, card.right - pad, card.top + pad + m_scaler.ToPx (SoundBoardInk::kTitleDip) }, SoundBoardTips::GetVia (L"IRQ", half));
 
     for (int c = 0; c < kChannels; c++)
     {
@@ -1708,534 +1282,10 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
     }
 
     PaintEnvelope (p, half.psg, envelope);
-    PaintVia (p, half, { envelope.left, envelope.bottom + m_scaler.ToPx (kGapDip), envelope.right, card.bottom - pad });
+    PaintVia (p, half, { envelope.left, envelope.bottom + m_scaler.ToPx (SoundBoardInk::kGapDip), envelope.right, card.bottom - pad });
 }
 
 
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintStrip
-//
-//  Each block is as wide as its phoneme lasted, at a fixed scale, so its
-//  width doesn't change as it ages and moves left. No block is narrower than
-//  the widest phoneme's label, so every block has its label. The oldest block
-//  drawn is cut off at the strip's left end, with its label centered in the
-//  part drawn, and a block longer than the strip fills it. The newest
-//  phoneme is brightest while it sounds, and each older one fainter. A pause,
-//  which falls between words, is a line in a slot as narrow as the label
-//  row's rather than a block.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintStrip (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const
-{
-    constexpr float       kRadiusDip    = 4.0f;
-    constexpr float       kGapDip2      = 3.0f;
-    constexpr float       kLabelPadDip  = 8.0f;
-    constexpr float       kDipPerSecond = 250.0f;
-    constexpr float       kOldest       = 0.10f;
-    constexpr float       kNewest       = 0.45f;
-    const DxuiFontHandle  font          = p.theme.CaptionFont();
-    float                 least         = GetWidestPhonemeLabel (p, font) + m_scaler.ToPxf (kLabelPadDip);
-    std::vector<float>    seconds;
-    std::vector<float>    widths;
-
-
-
-    //  A pause is a word break, as narrow as the label row's whatever its
-    //  length: a rest between sung phrases left a wide black gap.
-    for (const DiagnosticsSoundVoice::Phoneme & phoneme : recent)
-    {
-        seconds.push_back (phoneme.isPause ? 0.0f : phoneme.seconds);
-        widths.push_back  (phoneme.isPause ? m_scaler.ToPxf (kWordBreakDip) : least);
-    }
-
-    p.painter.FillRoundedRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), p.screen);
-
-    auto  placed = SoundBoardLayout::PlaceByDuration (seconds, widths,(float) (rect.right - rect.left), m_scaler.ToPxf (kGapDip2), m_scaler.ToPxf (kDipPerSecond));
-
-    p.painter.PushClip ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top));
-
-    for (size_t i = 0; i < placed.size(); i++)
-    {
-        const SoundBoardLayout::StripPlace      & place   = placed[i];
-        const DiagnosticsSoundVoice::Phoneme    & phoneme = recent[place.index];
-        bool                                      isLast  = i + 1 == placed.size();
-        float                                     age     = placed.size() > 1 ? (float) i / (float) (placed.size() - 1) : 1.0f;
-        float                                     alpha   = kOldest + (kNewest - kOldest) * age;
-        float                                     x       = (float) rect.left + place.x;
-        float                                     shown   = std::max (x, (float) rect.left);
-        float                                     end     = std::min (x + place.width, (float) rect.right);
-        uint32_t                                  fill    = (isLast && isSounding) ? m_palette.voice : WithAlpha (m_palette.voice, alpha);
-        uint32_t                                  ink     = (isLast && isSounding) ? p.theme.Background() : p.theme.Foreground();
-
-        AddSpot (p, { (long) shown, rect.top, (long) end + 1, rect.bottom }, SoundBoardTips::GetPhoneme (phoneme));
-
-        if (phoneme.isPause)
-        {
-            PaintWordBreak (p, (shown + end) * 0.5f, (float) rect.top, (float) rect.bottom);
-            continue;
-        }
-
-        p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
-        PaintString (p, TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' '))),
-                     { (long) shown, rect.top, (long) end, rect.bottom }, ink, font, DxuiTextHAlign::Center);
-    }
-
-    p.painter.PopClip();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::GetWidestPhonemeLabel
-//
-//  The widest of the speech chip's phoneme symbols in a font, measured again
-//  only when the font's size changes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float SoundBoardView::GetWidestPhonemeLabel (const Painting & p, const DxuiFontHandle & font) const
-{
-    float  size = m_scaler.ToPxf (font.sizeDip);
-
-
-
-    if (size == m_widestLabelSizePx)
-    {
-        return m_widestLabelPx;
-    }
-
-    m_widestLabelSizePx = size;
-    m_widestLabelPx     = 0.0f;
-
-    for (int code = 0; code < (int) Ssi263::kPhonemeCount; code++)
-    {
-        std::string   symbol = Ssi263::GetPhonemeName ((Byte) code);
-        std::wstring  name   = TextEncoding::NarrowToWide (symbol.substr (0, symbol.find (' ')));
-        float         wide   = 0.0f;
-        float         high   = 0.0f;
-        HRESULT       hr     = p.text.MeasureString (name.c_str(), size, font.face, wide, high);
-
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        m_widestLabelPx = std::max (m_widestLabelPx, wide);
-    }
-
-    return m_widestLabelPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintWordBreak
-//
-//  A pause between words: a line the speech chip's color, from top to
-//  bottom.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintWordBreak (const Painting & p, float x, float top, float bottom) const
-{
-    constexpr float  kWidthDip = 2.0f;
-    float            snapped   = std::floor (x) + 0.5f;
-
-
-
-    p.painter.DrawLine (snapped, top, snapped, bottom, m_scaler.ToPxf (kWidthDip), m_palette.voice);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintHistory
-//
-//  The recent phonemes' labels in order along a row, newest at the right, as
-//  many as fit, with an arrow under the newest while it sounds, so a
-//  consonant can be read after it has passed. A pause is a line in place of
-//  its label, between the words. Returns how many are drawn.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t SoundBoardView::PaintHistory (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const
-{
-    constexpr float            kGapDip2   = 10.0f;
-    constexpr float            kArrowDip  = 5.0f;
-    const DxuiFontHandle       font       = p.theme.MonospaceFont();
-    float                      gap        = m_scaler.ToPxf (kGapDip2);
-    float                      arrow      = m_scaler.ToPxf (kArrowDip);
-    float                      textBottom = (float) rect.bottom - arrow * 2.0f;
-    std::vector<std::wstring>  names;
-    std::vector<float>         widths;
-    size_t                     count      = 0;
-    float                      x          = (float) rect.right;
-
-
-
-    for (const DiagnosticsSoundVoice::Phoneme & phoneme : recent)
-    {
-        std::wstring  name = TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' ')));
-        float         wide = 0.0f;
-        float         high = 0.0f;
-        HRESULT       hr   = p.text.MeasureString (name.c_str(), m_scaler.ToPxf (font.sizeDip), font.face, wide, high);
-
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        names.push_back (std::move (name));
-        widths.push_back (phoneme.isPause ? m_scaler.ToPxf (kWordBreakDip) : wide);
-    }
-
-    count = SoundBoardLayout::FitHistory (widths, (float) (rect.right - rect.left), gap);
-
-    for (size_t i = names.size(); i > names.size() - count; i--)
-    {
-        bool      isActive = i == names.size() && isSounding;
-        uint32_t  ink      = isActive ? m_palette.voice : p.theme.Foreground();
-        float     left     = x - widths[i - 1];
-
-        if (recent[i - 1].isPause)
-        {
-            PaintWordBreak (p, left + widths[i - 1] * 0.5f, (float) rect.top, textBottom);
-        }
-        else
-        {
-            PaintString (p, names[i - 1], { (long) left, rect.top, (long) x + 1, (long) textBottom }, ink, font, DxuiTextHAlign::Left);
-        }
-
-        AddSpot (p, { (long) left, rect.top, (long) x + 1, rect.bottom }, SoundBoardTips::GetPhoneme (recent[i - 1]));
-
-        if (isActive)
-        {
-            float  mid = left + widths[i - 1] * 0.5f;
-
-            p.painter.FillConvexQuad (mid,         textBottom,
-                                      mid + arrow, textBottom + arrow * 1.5f,
-                                      mid - arrow, textBottom + arrow * 1.5f,
-                                      mid,         textBottom,
-                                      m_palette.voice);
-        }
-
-        x = left - gap;
-    }
-
-    return count;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::GetStripArea
-//
-//  The strip's heading, the strip and the history row under it, as
-//  PaintVoice places them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT SoundBoardView::GetStripArea (const RECT & card) const
-{
-    int  pad    = m_scaler.ToPx (kPadDip);
-    int  top    = card.top + pad + m_scaler.ToPx (kTitleDip) + m_scaler.ToPx (kPhonemeDip) + m_scaler.ToPx (kGapDip);
-
-
-
-    return RECT { card.left + pad, top, card.right - pad, top + m_scaler.ToPx (kStripHeadDip + kStripDip + kHistoryDip) };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintFormants
-//
-//  The tract's response as a glowing curve over a filled area, on a logarithmic
-//  axis, with the pitch's harmonics rising under it as a comb. A voiced vowel
-//  reads as the comb under the three peaks. The glow goes under the fill and
-//  the comb, and the bright line over them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintFormants (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const
-{
-    static constexpr double               kAxisHz[]  = { 200.0, 500.0, 1000.0, 2000.0, 5000.0 };
-    constexpr float                       kRadiusDip = 4.0f;
-    constexpr float                       kInsetDip  = 6.0f;
-    constexpr int                         kLabelDip  = 16;
-    constexpr int                         kColumnDip = 3;
-    constexpr float                       kTopAlpha  = 0.45f;
-    constexpr float                       kGridAlpha = 0.12f;
-    constexpr float                       kCombAlpha = 0.55f;
-    constexpr double                      kCombLeast = 60.0;
-    float                                 x          = (float) rect.left;
-    float                                 y          = (float) rect.top;
-    float                                 w          = (float) (rect.right - rect.left);
-    float                                 h          = (float) (rect.bottom - rect.top);
-    float                                 inset      = m_scaler.ToPxf (kInsetDip);
-    float                                 label      = (float) m_scaler.ToPx (kLabelDip);
-    float                                 plotW      = w - 2.0f * inset;
-    float                                 plotH      = h - inset - label;
-    float                                 base       = y + inset + plotH;
-    int                                   columns    = std::max (2, (int) plotW / m_scaler.ToPx (kColumnDip));
-    float                                 step       = plotW / (float) (columns - 1);
-    auto                                  curve      = SoundBoardLayout::GetFormantCurve (voice.formantsHz, columns);
-    uint32_t                              color      = m_palette.voice;
-    float                                 fade       = voice.isSounding ? 1.0f : 0.45f;
-    std::vector<std::pair<float, float>>  points;
-
-
-
-    p.painter.FillRoundedRect (x, y, w, h, m_scaler.ToPxf (kRadiusDip), p.screen);
-
-    for (int c = 0; c < columns; c++)
-    {
-        points.emplace_back (x + inset + (float) c * step, base - curve[(size_t) c] * plotH);
-    }
-
-    PaintTrace (p, points, voice.isSounding ? color : WithAlpha (color, fade), TraceLayer::Glow);
-
-    for (double hz : kAxisHz)
-    {
-        float  ax = x + inset + SoundBoardLayout::GetFormantX (hz) * plotW;
-
-        p.painter.DrawLine (ax, y + inset, ax, base, 1.0f, WithAlpha (p.theme.ForegroundMuted(), kGridAlpha));
-        PaintString (p, (hz >= 1000.0) ? std::format (L"{:.0f}k", hz / 1000.0) : std::format (L"{:.0f}", hz),
-                     { (long) ax - m_scaler.ToPx (kLabelDip), (long) base, (long) ax + m_scaler.ToPx (kLabelDip), (long) (y + h) },
-                     p.theme.ForegroundMuted(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
-    }
-
-    //  Under the line, a column at a time: a slanted band from the line at the
-    //  column's left edge to the line at its right, over a fading fill from
-    //  the lower of the two down. A fill with a flat top at each column's left
-    //  height rose past the line in steps.
-    for (int c = 0; c + 1 < columns; c++)
-    {
-        float     left    = x + inset + (float) c * step;
-        float     right   = left + step;
-        float     atLeft  = base - curve[(size_t) c] * plotH;
-        float     atRight = base - curve[(size_t) c + 1] * plotH;
-        float     lower   = std::max (atLeft, atRight);
-        uint32_t  top     = WithAlpha (color, kTopAlpha * fade);
-
-        p.painter.FillConvexQuad (left, atLeft, right, atRight, right, lower, left, lower, top);
-        p.painter.FillGradientRect (left, lower, step, base - lower, top, WithAlpha (color, 0.02f));
-    }
-
-    if (voice.pitchHz >= kCombLeast && voice.isSounding)
-    {
-        for (double hz = voice.pitchHz; hz < SoundBoardLayout::kFormantMaxHz; hz += voice.pitchHz)
-        {
-            float   cx    = SoundBoardLayout::GetFormantX (hz);
-            size_t  index = std::min ((size_t) (cx * (float) (columns - 1)), curve.size() - 1);
-            float   gx    = x + inset + cx * plotW;
-
-            p.painter.DrawLine (gx, base, gx, base - curve[index] * plotH, 1.0f, WithAlpha (p.theme.Foreground(), kCombAlpha));
-        }
-    }
-
-    PaintTrace (p, points, voice.isSounding ? color : WithAlpha (color, fade), TraceLayer::Core);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::GetValueColumns
-//
-//  Four where the mode's name fits in the first column and the rest beside it,
-//  two where two first columns fit, and one where they don't, so no value runs
-//  into the next one's label.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SoundBoardView::GetValueColumns() const
-{
-    int  inner = GetClientWidth() - 2 * m_scaler.ToPx (kPadDip);
-
-
-
-    if (inner >= m_scaler.ToPx (kValueFirstDip + 3 * kValueCellDip))
-    {
-        return 4;
-    }
-
-    return (inner >= m_scaler.ToPx (2 * kValueFirstDip)) ? 2 : 1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::GetValueCell
-//
-//  A speech chip value's place, by its index in the order they are painted,
-//  row by row under the strip of recent phonemes. The first column is the
-//  widest, for the mode's name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT SoundBoardView::GetValueCell (const RECT & card, int index) const
-{
-    int  pad     = m_scaler.ToPx (kPadDip);
-    int  left    = card.left + pad;
-    int  inner   = card.right - pad - left;
-    int  columns = GetValueColumns();
-    int  row     = index / columns;
-    int  column  = index % columns;
-    int  first   = (columns == 4) ? inner / 3 : inner / columns;
-    int  other   = (columns > 1) ? (inner - first) / (columns - 1) : 0;
-    int  from    = (column == 0) ? left : left + first + (column - 1) * other;
-    int  to      = (column == 0) ? left + first : from + other;
-    int  high    = m_scaler.ToPx (kRegisterDip);
-    int  top     = card.top + pad + m_scaler.ToPx (kTitleDip + kPhonemeDip + kGapDip + kStripHeadDip + kStripDip + kHistoryDip + kGapDip);
-
-
-
-    return RECT { from, top + row * high, to, top + (row + 1) * high };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SoundBoardView::PaintVoice
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const
-{
-    constexpr int                                    kLeftDip     = 190;
-    constexpr int                                    kLampWideDip = 86;
-    constexpr int                                    kLampsDip    = 3 * kLampWideDip + 36;
-    constexpr int                                    kBigDip      = 58;
-    constexpr int                                    kWordDip     = 22;
-    constexpr int                                    kCodeDip     = 20;
-    constexpr int                                    kSegments    = 15;
-    constexpr float                                  kBigScale    = 2.6f;
-    constexpr float                                  kUnlitAlpha  = 0.18f;
-    int                                              pad          = m_scaler.ToPx (kPadDip);
-    int                                              gap          = m_scaler.ToPx (kGapDip);
-    int                                              top          = card.top + pad + m_scaler.ToPx (kTitleDip);
-    int                                              mainBottom   = top + m_scaler.ToPx (kPhonemeDip);
-    int                                              stripTop     = mainBottom + gap + m_scaler.ToPx (kStripHeadDip);
-    int                                              captionHigh  = m_scaler.ToPx (kStripHeadDip);
-    int                                              stripBottom  = stripTop + m_scaler.ToPx (kStripDip);
-    int                                              historyEnd   = stripBottom + m_scaler.ToPx (kHistoryDip);
-    size_t                                           back         = 0;
-    std::span<const DiagnosticsSoundVoice::Phoneme>  older;
-    int                                              left         = card.left + pad;
-    int                                              right        = card.right - pad;
-    int                                              inner        = right - left;
-    int                                              leftWide     = std::min (m_scaler.ToPx (kLeftDip), inner / 3);
-    int                                              scopeLeft    = left + leftWide + gap;
-    int                                              rest         = right - scopeLeft;
-    int                                              scopeRight   = scopeLeft + (rest - gap) / 2;
-    RECT                                             mute         = GetMuteOfVoice (card);
-    size_t                                           space        = voice.phoneme.find (' ');
-    std::wstring                                     name         = TextEncoding::NarrowToWide (voice.phoneme.substr (0, space));
-    std::wstring                                     word         = (space == std::string::npos) ? std::wstring() : TextEncoding::NarrowToWide (voice.phoneme.substr (space + 1));
-    DxuiFontHandle                                   big          = p.theme.HeadingFont();
-    uint32_t                                         color        = voice.isMuted ? p.theme.ForegroundMuted() : m_palette.voice;
-    float                                            lampY        = (float) card.top + (float) pad + m_scaler.ToPxf (kTitleDip / 2.0f) - m_scaler.ToPxf (2.0f);
-    float                                            lampX        = (float) (mute.left - m_scaler.ToPx (kLampsDip));
-    float                                            segmentWide  = (float) leftWide / (float) kSegments;
-    float                                            meterTop     = (float) (top + m_scaler.ToPx (kBigDip + kWordDip + kCodeDip)) + m_scaler.ToPxf (4.0f);
-    float                                            meterHigh    = m_scaler.ToPxf (14.0f);
-    float                                            radius       = m_scaler.ToPxf (4.0f);
-    int                                              litSegments  = (int) std::lround (voice.level * kSegments);
-    auto                                             cell         = [&] (int index) { return GetValueCell (card, index); };
-
-
-
-    big.sizeDip *= kBigScale;
-
-    PaintCard (p, card, L"SSI-263", std::format (L"Speech chip, slot {}", m_board.slot));
-
-    PaintLamp (p, lampX,                                         lampY, L"Power",      !voice.isPoweredDown, m_palette.voice, (float) m_scaler.ToPx (kLampWideDip));
-    PaintLamp (p, lampX + (float) m_scaler.ToPx (kLampWideDip),  lampY, L"Sounding",   voice.isSounding,     m_palette.voice, (float) m_scaler.ToPx (kLampWideDip));
-    PaintLamp (p, lampX + (float) m_scaler.ToPx (2 * kLampWideDip), lampY, L"Request", voice.isRequesting,   m_palette.voice, (float) m_scaler.ToPx (kLampWideDip));
-
-    PaintMuteButton (p, mute, kVoiceMuteChannel, voice.isMuted, m_palette.voice);
-    PaintString (p, L"M", mute, voice.isMuted ? p.theme.ErrorForeground() : m_palette.voice, p.theme.BodyBoldFont(), DxuiTextHAlign::Center);
-
-    if (voice.isMuted)
-    {
-        p.painter.DrawLine ((float) mute.left + radius, (float) mute.bottom - radius, (float) mute.right - radius, (float) mute.top + radius, m_scaler.ToPxf (1.5f), p.theme.ErrorForeground());
-    }
-
-    PaintString (p, name, { left, top, left + leftWide, top + m_scaler.ToPx (kBigDip) }, voice.isSounding ? color : p.theme.ForegroundMuted(), big);
-    PaintString (p, word, { left, top + m_scaler.ToPx (kBigDip), left + leftWide, top + m_scaler.ToPx (kBigDip + kWordDip) }, p.theme.Foreground(), p.theme.BodyFont());
-    PaintString (p, std::format (L"${:02X}", voice.phonemeCode),
-                 { left, top + m_scaler.ToPx (kBigDip + kWordDip), left + leftWide, top + m_scaler.ToPx (kBigDip + kWordDip + kCodeDip) }, p.theme.ForegroundMuted(), p.theme.MonospaceFont());
-
-    for (int s = 0; s < kSegments; s++)
-    {
-        bool  isLit = s < litSegments;
-
-        p.painter.FillRect ((float) left + (float) s * segmentWide, meterTop, segmentWide - m_scaler.ToPxf (1.5f), meterHigh,
-                            isLit ? Mix (color, 0xFFFFFFFF, (float) s / (float) kSegments * 0.35f) : WithAlpha (p.theme.ForegroundMuted(), kUnlitAlpha));
-    }
-
-    //  Each graph under a caption.
-    PaintString   (p, L"Waveform", { scopeLeft, top, scopeRight, top + captionHigh }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
-    PaintString   (p, L"Formants", { scopeRight + gap, top, right, top + captionHigh }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
-    PaintScope    (p, voice.scope, { scopeLeft, top + captionHigh, scopeRight, mainBottom }, color, 0.0, true);
-    PaintFormants (p, voice, { scopeRight + gap, top + captionHigh, right, mainBottom });
-    //  The wheel over the strip scrolls it back through the history, and the
-    //  newest phoneme there isn't sounding.
-    back  = std::min (m_phonemesBack, voice.recent.size() > 0 ? voice.recent.size() - 1 : 0);
-    older = std::span<const DiagnosticsSoundVoice::Phoneme> (voice.recent).first (voice.recent.size() - back);
-
-    PaintString (p, (back == 0) ? std::wstring (L"Recent phonemes") : std::format (L"Recent phonemes, {} back", back),
-                 { left, mainBottom + gap, right, stripTop }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
-
-    (void) PaintHistory (p, older, voice.isSounding && back == 0, { left, stripBottom, right, historyEnd });
-    PaintStrip (p, older, voice.isSounding && back == 0, { left, stripTop, right, stripBottom });
-
-    PaintValue (p, cell (0), L"Mode",         TextEncoding::NarrowToWide (voice.mode), kVoiceLabelDip);
-    PaintValue (p, cell (1), L"Duration",     std::format (L"{:.1f} ms", voice.durationMs), kVoiceLabelDip);
-    PaintValue (p, cell (2), L"Frame",        std::format (L"{:.1f} ms", voice.frameMs), kVoiceLabelDip);
-    PaintValue (p, cell (3), L"Pitch",        SoundBoardLayout::GetFrequencyText (voice.pitchHz), kVoiceLabelDip);
-    PaintValue (p, cell (4), L"Formants",     std::format (L"{:.0f}, {:.0f}, {:.0f}", voice.formantsHz[0], voice.formantsHz[1], voice.formantsHz[2]), kVoiceLabelDip);
-    PaintValue (p, cell (5), L"Articulation", std::format (L"${:X}", voice.articulation), kVoiceLabelDip);
-    PaintValue (p, cell (6), L"Amplitude",    std::format (L"${:X}", voice.amplitude), kVoiceLabelDip);
-    PaintValue (p, cell (7), L"Filter",       SoundBoardLayout::GetFrequencyText (voice.filterHz), kVoiceLabelDip);
-
-    //  What each part means, at the place it is drawn.
-    for (const auto & [at, label] : std::initializer_list<std::pair<RECT, const wchar_t *>>
-         {
-             { cell (0), L"Mode" },     { cell (1), L"Duration" },     { cell (2), L"Frame" },     { cell (3), L"Pitch" },
-             { cell (4), L"Formants" }, { cell (5), L"Articulation" }, { cell (6), L"Amplitude" }, { cell (7), L"Filter" },
-             { RECT { left, top, left + leftWide, (long) meterTop }, L"Phoneme" },
-             { RECT { left, (long) meterTop, left + leftWide, mainBottom }, L"Level" },
-             { RECT { scopeLeft, top, scopeRight, mainBottom }, L"Waveform" },
-             { RECT { scopeRight + gap, top, right, mainBottom }, L"Formants" },
-             { RECT { left, mainBottom + gap, right, stripTop }, L"Recent phonemes" },
-             { RECT { (long) lampX, card.top + pad, (long) lampX + m_scaler.ToPx (kLampWideDip), top }, L"Power" },
-             { RECT { (long) lampX + m_scaler.ToPx (kLampWideDip), card.top + pad, (long) lampX + m_scaler.ToPx (2 * kLampWideDip), top }, L"Sounding" },
-             { RECT { (long) lampX + m_scaler.ToPx (2 * kLampWideDip), card.top + pad, (long) lampX + m_scaler.ToPx (3 * kLampWideDip), top }, L"Request" },
-         })
-    {
-        AddSpot (p, at, SoundBoardTips::GetVoice (label, voice));
-    }
-}

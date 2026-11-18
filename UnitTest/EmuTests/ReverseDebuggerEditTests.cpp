@@ -52,7 +52,7 @@ public:
         PrepareRecording (machine, host);
         StepBack (machine, host);
 
-        here = machine.GetPosition();
+        here = machine.GetRunner().GetPosition();
 
         Assert::IsTrue (host.IsBehindLive(), L"behind live before the edit");
 
@@ -64,7 +64,7 @@ public:
         hr = host.Execute (ReverseCommand::StepForward, 0, nullptr, result);
         AssertSucceeded (hr, L"StepForward");
 
-        Assert::AreEqual<uint64_t> (here, machine.GetPosition(), L"nothing recorded ahead to step into");
+        Assert::AreEqual<uint64_t> (here, machine.GetRunner().GetPosition(), L"nothing recorded ahead to step into");
     }
 
 
@@ -81,7 +81,7 @@ public:
         PrepareRecording (machine, host);
         StepBack (machine, host);
 
-        here      = machine.GetPosition();
+        here      = machine.GetRunner().GetPosition();
         registers = target.GetRegisters();
         registers.a = s_kEditA;
 
@@ -104,7 +104,7 @@ public:
         PrepareRecording (machine, host);
         StepBack (machine, host);
 
-        here = machine.GetPosition();
+        here = machine.GetRunner().GetPosition();
 
         target.WriteIo (kTextOff, 0);
 
@@ -130,19 +130,19 @@ public:
 
         PrepareRecording (machine, host);
 
-        keyframes = host.GetController().GetKeyframes().GetCount();
+        keyframes = host.GetController().GetKeyframes().GetArena().GetCount();
 
         for (i = 0; i < s_kEditPokes; i++)
         {
             target.TryPoke (static_cast<Word> (s_kEditAddress + i), s_kEditValue);
         }
 
-        Assert::AreEqual (keyframes, host.GetController().GetKeyframes().GetCount(), L"no keyframe per poke");
+        Assert::AreEqual (keyframes, host.GetController().GetKeyframes().GetArena().GetCount(), L"no keyframe per poke");
 
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBack");
 
-        Assert::AreEqual (keyframes + 1, host.GetController().GetKeyframes().GetCount(), L"the pokes became one boundary");
+        Assert::AreEqual (keyframes + 1, host.GetController().GetKeyframes().GetArena().GetCount(), L"the pokes became one boundary");
 
         hr = host.Execute (ReverseCommand::GoLive, 0, nullptr, result);
         AssertSucceeded (hr, L"GoLive");
@@ -168,7 +168,7 @@ private:
         AssertSucceeded (hr, L"StartRecording");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kEditWarmupCycles);
+        machine.GetRunner().RunCycles (s_kEditWarmupCycles);
     }
 
 
@@ -179,7 +179,7 @@ private:
 
 
 
-        hr = host.Execute (ReverseCommand::Seek, machine.GetPosition() - s_kEditStepsBack, nullptr, result);
+        hr = host.Execute (ReverseCommand::Seek, machine.GetRunner().GetPosition() - s_kEditStepsBack, nullptr, result);
         AssertSucceeded (hr, L"Seek back");
     }
 
@@ -190,11 +190,11 @@ private:
     static void CheckLiveAfterEdit (TestMachine & machine, ReverseHost & host, uint64_t here)
     {
         Assert::IsFalse (host.IsBehindLive(), L"the edit made the machine live");
-        Assert::AreEqual<uint64_t> (here, machine.GetPosition(), L"where it stood");
-        Assert::AreEqual<uint64_t> (here, host.GetController().GetLiveEndPosition(), L"history now ends here");
+        Assert::AreEqual<uint64_t> (here, machine.GetRunner().GetPosition(), L"where it stood");
+        Assert::AreEqual<uint64_t> (here, host.GetController().GetSeeker().GetLiveEndPosition(), L"history now ends here");
 
         host.SyncInputGate();
 
-        Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"host input flows again");
+        Assert::IsFalse (machine.GetHostInput().GetGate().IsHeld(), L"host input flows again");
     }
 };

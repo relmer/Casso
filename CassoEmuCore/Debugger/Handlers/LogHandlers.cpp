@@ -175,7 +175,7 @@ void LogHandlers::FormatTitle (const IoLogEntries & listing, std::vector<std::st
 
 void LogHandlers::Save (DebugSession & session, IIoEventSource & source, IoLogKind kind, const std::string & name, Reply & reply)
 {
-    IFileSystem               * files = session.GetFileSystem();
+    IFileSystem               * files = session.GetHostFiles().GetFileSystem();
     std::vector<std::string>    lines;
     std::string                 text;
     HRESULT                     hr    = S_OK;
@@ -200,13 +200,13 @@ void LogHandlers::Save (DebugSession & session, IIoEventSource & source, IoLogKi
         text += line + "\n";
     }
 
-    hr = files->WriteAllText (session.ResolvePath (name), text);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (name), text);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the log{}.", session.GetPathEcho (name, "to")) } };
+    reply.data = MessageData { { std::format ("Saved the log{}.", session.GetHostFiles().GetPathEcho (name, "to", reply)) } };
 }

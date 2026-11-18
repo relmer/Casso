@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MachineHandlers.h"
 
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/IMachineControl.h"
 
@@ -249,8 +250,14 @@ void MachineHandlers::Screenshot (DebugSession & session, const DebugCommand & c
         name = GetDefaultScreenshotName (now);
     }
 
-    path = session.ResolvePath (name);
-    hr   = control->SaveScreenshot (path, shot.width, shot.height);
+    path = session.GetHostFiles().ResolvePath (name);
+
+    if (!session.GetHostFiles().CheckHostAccess (path, HostAccess::Write, reply))
+    {
+        return;
+    }
+
+    hr = control->SaveScreenshot (path, shot.width, shot.height);
 
     if (FAILED (hr))
     {
@@ -259,6 +266,7 @@ void MachineHandlers::Screenshot (DebugSession & session, const DebugCommand & c
     }
 
     shot.path  = TextEncoding::WideToNarrow (path);
+    reply.files.push_back (shot.path);
     reply.data = std::move (shot);
 }
 

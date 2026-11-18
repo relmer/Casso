@@ -2,192 +2,15 @@
 
 #include "Pch.h"
 
-#include "Debugger/Reverse/ArenaExtents.h"
-#include "Debugger/Reverse/InputJournal.h"
-#include "Debugger/Reverse/SnapshotCompressor.h"
+#include "Debugger/Reverse/KeyframeArena.h"
+#include "Debugger/Reverse/KeyframePackQueue.h"
+#include "Debugger/Reverse/KeyframeTypes.h"
 
 class MachineHost;
 class StateWriter;
 class IWorkQueue;
 struct PackedKeyframe;
 class KeyframeUnpacker;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KeyframeSettings
-//
-//  How often a keyframe is taken, how many keyframes share one whole
-//  snapshot, and how much memory the store may hold.
-//
-//  A group holds at least wholeEvery keyframes. Past that, it goes on while
-//  its differences together pack smaller than its whole snapshot, up to
-//  longestGroup keyframes, so a machine that changes little does not pay for
-//  a whole snapshot, most of it unchanged disk tracks, every few seconds.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct KeyframeSettings
-{
-    static constexpr uint64_t  kFrameCycles         = 17030;
-    static constexpr uint64_t  kDefaultFrames       = 10;
-    static constexpr uint32_t  kDefaultWholeEvery   = 30;
-    static constexpr uint32_t  kDefaultLongestGroup = 1800;
-    static constexpr size_t    kDefaultBudgetBytes  = 64ull * 1024 * 1024;
-
-    uint64_t  intervalCycles = kFrameCycles * kDefaultFrames;
-    uint32_t  wholeEvery     = kDefaultWholeEvery;
-    uint32_t  longestGroup   = kDefaultLongestGroup;
-    size_t    budgetBytes    = kDefaultBudgetBytes;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KeyframeInfo
-//
-//  What the store knows about one keyframe without unpacking it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct KeyframeInfo
-{
-    uint64_t  position     = 0;      // instructions retired when it was taken
-    uint64_t  cycle        = 0;      // CPU cycle count when it was taken
-    size_t    journalIndex = 0;      // input journal end index when it was taken
-    uint64_t  checksum     = 0;      // of the whole state: RAM, CPU, devices, disk media
-    size_t    stateBytes   = 0;      // unpacked size
-    size_t    storedBytes  = 0;      // packed size held in memory, side bytes included
-    size_t    sideBytes    = 0;      // of storedBytes, what was kept beside the snapshot
-    uint64_t  wallTime     = 0;      // host clock when it was taken, UTC FILETIME; not part of the state
-    uint64_t  gapStart     = 0;      // with hasGapBefore: where recording paused before it
-    bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
-    bool      isBoundary   = false;  // the state does not follow from the one before: a replay loads it
-    bool      isLiveEnd    = false;  // taken where the machine left live for history: a branch switch loads it
-    bool      hasGapBefore = false;  // recording paused between gapStart and this keyframe
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KeyframeCopy
-//
-//  What KeyframeStore::CopyPacked found at a position: the keyframe copied,
-//  one still being packed, or none held any more.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class KeyframeCopy
-{
-    Copied,
-    Pending,
-    Gone,
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KeyframeDrop
-//
-//  Which keyframes KeyframeStore is about to drop: the oldest, the newest,
-//  or every one; or that the active path has changed past
-//  KeyframeStore::GetPathChangePosition, after a switch to another branch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class KeyframeDrop
-{
-    Oldest,
-    Newest,
-    All,
-    PathChanged,
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KeyframeBranch
-//
-//  A branch of history left behind by a fork: where it forks from, by the
-//  position and the history cycle there on the path it forks from (parent 0
-//  for the active path, else another branch's id), its live end, and when
-//  the user left it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct KeyframeBranch
-{
-    uint32_t  id              = 0;
-    uint32_t  parent          = 0;
-    uint64_t  forkPosition    = 0;
-    uint64_t  forkCycle       = 0;
-    uint64_t  liveEndPosition = 0;
-    uint64_t  liveEndCycle    = 0;
-    uint64_t  leftAtWallTime  = 0;
-    size_t    keyframeCount   = 0;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SavedKeyframeSegment
-//
-//  A stretch of history as a saved file has it: the active path, or a
-//  branch left behind. Each keyframe is at an offset into the saved arena,
-//  and the input journal's entries along the stretch start at
-//  firstJournalIndex.
-//  The active path's branch fields are zero but its live end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct SavedKeyframeSegment
-{
-    KeyframeBranch             info;
-    size_t                     firstJournalIndex = 0;
-    std::vector<KeyframeInfo>  infos;
-    std::vector<size_t>        offsets;
-    std::vector<InputRecord>   records;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SavedKeyframes
-//
-//  A whole history laid out for a file: the settings it was taken with, the
-//  active path and then the branches left behind, oldest first, and the
-//  stored bytes of every keyframe, end to end in that order.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct SavedKeyframes
-{
-    KeyframeSettings                   settings;
-    std::vector<SavedKeyframeSegment>  segments;
-    std::vector<Byte>                  arena;
-    uint32_t                           nextBranchId = 1;
-};
 
 
 
@@ -214,8 +37,8 @@ struct SavedKeyframes
 //  or ejected) starts a new group.
 //
 //  The memory is taken once, on the first Add: a table of keyframes and one
-//  arena the packed snapshots are laid into, each in the first free extent
-//  it fits (ArenaExtents), so recording seldom allocates again: only a table that fills while much of
+//  arena the packed snapshots are laid into end to end, wrapping around, so
+//  recording seldom allocates again: only a table that fills while much of
 //  the arena is free is laid out again, with slots sized to the keyframes
 //  held, so small keyframes use the budget. Over the byte budget, or out of
 //  room in the table or the arena, the oldest group is dropped whole, oldest first,
@@ -239,27 +62,11 @@ struct SavedKeyframes
 //  is called before each keyframe goes, while its side bytes can still be
 //  read.
 //
-//  History branches. The table is the active path, the keyframes a step or
-//  a seek moves through, and every index is of a keyframe on it. A fork at
-//  a position moves the keyframes from there on, and the input journal's
-//  records from the fork's journal index on, into a branch left behind;
-//  their packed bytes stay where they are in the arena, and a difference in
-//  the branch stays against its group's whole snapshot, which is on the path
-//  before the fork. A switch to a branch forks the active path where the
-//  branch begins and moves the branch's keyframes and records onto it, one
-//  segment at a time along the branch's ancestors. Room is made by trimming
-//  the oldest group of the oldest branch with none forked from it, before
-//  any keyframe on the active path; the active path's oldest group is
-//  dropped only with no branch left, so every branch's whole snapshots
-//  stay. More than kMaxBranches branches drops the oldest whole.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 class KeyframeStore
 {
 public:
-    static constexpr size_t  kBufferCount = 2;
-
     //  Reads the host's clock as a UTC FILETIME; tests substitute their own.
     using WallClock = uint64_t (*)();
 
@@ -267,11 +74,11 @@ public:
     //  every one is.
     using DropListener = std::function<void (KeyframeDrop drop)>;
 
-              KeyframeStore     () = default;
-              ~KeyframeStore    ();
+    KeyframeStore ();
+    ~KeyframeStore();
 
-              KeyframeStore     (const KeyframeStore &) = delete;
-    KeyframeStore & operator=   (const KeyframeStore &) = delete;
+    KeyframeStore             (const KeyframeStore &) = delete;
+    KeyframeStore & operator= (const KeyframeStore &) = delete;
 
     void      Configure         (const KeyframeSettings & settings);
     HRESULT   ChangeBudget      (size_t budgetBytes, uint64_t keepPosition = UINT64_MAX);
@@ -293,28 +100,23 @@ public:
     HRESULT   RestoreAtPosition (uint64_t position, std::vector<Byte> & outState, bool & outIsFound);
     HRESULT   CopyPacked        (uint64_t position, const KeyframeUnpacker & unpacker, PackedKeyframe & outPacked, KeyframeCopy & outCopy);
     HRESULT   CopyBranchEnd     (uint32_t branchId, const KeyframeUnpacker & unpacker, PackedKeyframe & outPacked, KeyframeCopy & outCopy);
-    bool      TryFindAtOrBefore (uint64_t cycle, size_t & outIndex) const;
-    bool      TryFindByPosition (uint64_t position, size_t & outIndex) const;
     bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state);
     HRESULT   TruncateAfter     (uint64_t cycle);
     HRESULT   DropAfterPosition (uint64_t position);
-    void      MarkNewestBoundary()                    { GetEntry (m_count - 1).info.isBoundary = true; }
+    void      MarkNewestBoundary()                                 { m_arena.GetNewestInfo().isBoundary = true; }
     void      MarkNewestGap     (uint64_t gapStart);
-    void      MarkNewestLiveEnd ()                    { GetEntry (m_count - 1).info.isLiveEnd = true; }
+    void      SetNewestActivity (const StretchActivity & activity) { m_arena.GetNewestInfo().activity = activity; }
+    void      MarkNewestLiveEnd ()                                 { m_arena.GetNewestInfo().isLiveEnd = true; }
 
     //  Branches: a fork at position, with the journal's records from
-    //  journalIndex on and the history cycle there; a switch to a branch;
-    //  the branches left behind, oldest first; and the branches forked after
-    //  a cut, dropped.
-    static constexpr size_t  kMaxBranches = 8;
+    //  journalIndex on and the history cycle there; a switch to a branch,
+    //  after which PathChanged goes to the listeners; and the branches forked
+    //  after a cut, dropped. The arena has the branches left behind.
+    static constexpr size_t  kMaxBranches = KeyframeArena::kMaxBranches;
 
     HRESULT   Fork                    (uint64_t position, uint64_t cycle, InputJournal & journal, size_t journalIndex);
     HRESULT   SwitchTo                (uint32_t branchId, InputJournal & journal);
-    void      GetBranches             (std::vector<KeyframeBranch> & outBranches) const;
-    void      DropBranchesForkedAfter (uint64_t position);
-    size_t    GetBranchCount          () const { return m_branches.size(); }
-    bool      HasBranch               (uint32_t id) const { return FindBranch (id) < m_branches.size(); }
-    uint64_t  GetPathChangePosition   () const { return m_pathChangePosition; }
+    void      DropBranchesForkedAfter (uint64_t position) { m_arena.DropBranchesForkedAfter (position); }
 
     //  Saved history: the store and the input journal's entries laid out
     //  for a file, and the store and the journal rebuilt from them. Import
@@ -323,157 +125,44 @@ public:
     HRESULT   Export            (const InputJournal & journal, SavedKeyframes & outSaved);
     HRESULT   Import            (const SavedKeyframes & saved, InputJournal & journal);
 
-    size_t                    GetCount        () const { return m_count; }
-    size_t                    GetPendingCount () const { return m_pendingCount; }
-    const KeyframeInfo      & GetInfo         (size_t index) const { return GetEntry (index).info; }
+    //  The keyframes stored, and their facts.
+    const KeyframeArena     & GetArena        () const { return m_arena; }
+
     void                      GetSide         (size_t index, const Byte *& outData, size_t & outSize) const;
-    size_t                    GetSideByteCount() const { return m_sideBytes; }
-    size_t                    GetByteCount    () const { return m_storedBytes + m_branchBytes + m_wholeBytes; }
-    size_t                    GetUsedBytes    () const;
-    bool                      IsFull          () const { return m_isFull; }
     size_t                    GetReservedBytes() const;
-    size_t                    GetCapacity     () const { return m_entries.size(); }
-    size_t                    GetArenaBytes   () const { return m_arenaBytes; }
     const KeyframeSettings  & GetSettings     () const { return m_settings; }
     uint64_t                  GetNextDueCycle () const { return m_nextDueCycle; }
 
-    static uint64_t  ComputeChecksum (const Byte * data, size_t size);
-    static void      XorBytes        (const Byte * a, const Byte * b, Byte * out, size_t count);
-
 private:
-    //  Each table slot is charged this much of the budget, which sets how
-    //  many keyframes the table holds: at the default budget, hours of them.
-    static constexpr size_t  kBudgetPerEntry = 1024;
-
-    //  The packed size bound is a state plus an eighth plus the slack, and a
-    //  state may grow by a sixteenth without a new buffer.
-    static constexpr size_t  kPackSlack      = 4096;
-    static constexpr size_t  kPackOverhead   = 8;
-    static constexpr size_t  kStateGrowth    = 16;
-
     //  A full table regrows from the arena while more than this fraction of
     //  the arena (one part in kArenaSpareParts) is still free.
     static constexpr size_t  kArenaSpareParts = 4;
 
-    //  The arena's pages come straight from the system, which zeroes each one
-    //  the first time it is touched. From the heap, a debug build filled the
-    //  whole arena, 64 MB by default, at every start of recording.
-    struct ArenaFree
-    {
-        void  operator() (Byte * arena) const noexcept { VirtualFree (arena, 0, MEM_RELEASE); }
-    };
-
-    using ArenaPtr = std::unique_ptr<Byte[], ArenaFree>;
-
-    struct Entry
-    {
-        KeyframeInfo  info;
-        size_t        offset = 0;      // where its packed bytes start in the arena
-    };
-
-    //  A branch left behind: its keyframes, oldest first, and the journal's
-    //  records from its fork on, the first at firstJournalIndex.
-    struct Branch
-    {
-        KeyframeBranch             info;
-        std::vector<Entry>         entries;
-        std::vector<InputRecord>   records;
-        size_t                     firstJournalIndex = 0;
-    };
-
-    //  One keyframe's work: the state handed over, and what packing it gave;
-    //  the side bytes ride along untouched by the work.
-    struct Job
-    {
-        KeyframeStore      * store    = nullptr;
-        std::vector<Byte>    state;
-        std::vector<Byte>    packed;
-        std::vector<Byte>    side;
-        uint64_t             checksum = 0;
-        bool                 isWhole  = false;
-        HRESULT              hr       = S_OK;
-        std::atomic<bool>    isDone   = false;
-    };
-
-    Entry       & GetEntry          (size_t index)       { return m_entries[(m_first + index) % m_entries.size()]; }
-    const Entry & GetEntry          (size_t index) const { return m_entries[(m_first + index) % m_entries.size()]; }
+    using Job = KeyframePackQueue::Job;
 
     HRESULT   Reserve           (size_t stateBytes);
     void      ComputeLayout     (size_t stateBytes, size_t & outSlotCount, size_t & outArenaBytes) const;
-    void      ComputeFitLayout  (size_t & outSlotCount, size_t & outArenaBytes) const;
-    size_t    GetGroupSlots     () const;
-    size_t    GetExtentRoom     () const { return 2 * m_entries.size(); }
-    bool      IsGroupDone       () const;
-    size_t    GetLeastArena     (size_t stateBytes) const;
-    HRESULT   Relayout          (size_t slotCount, size_t arenaBytes, uint64_t keepPosition = UINT64_MAX, bool isDropping = true);
     HRESULT   TryGrowTable      (bool & outGrew);
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
     HRESULT   Collect           ();
     HRESULT   DropPending       ();
-    HRESULT   Place             (const std::vector<Byte> & packed, const std::vector<Byte> & side, size_t & outOffset);
-    void      NotifyDrop        (KeyframeDrop drop);
-
-    const Job      & GetPendingJob  (size_t pendingIndex) const;
-    static size_t    GetPackedBytes (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }
-    void      Pack              (Job & job);
     HRESULT   ReloadLatestWhole ();
     HRESULT   DropNewerThan     (bool isByPosition, uint64_t limit);
-    size_t    FindGroupStart    (size_t index) const;
-    bool      TryDropOldestGroup(uint64_t keepPosition = UINT64_MAX);
-    void      DropOldestGroups  ();
-    void      PopOldest         ();
-    HRESULT   MoveTailToBranch  (uint64_t position, uint64_t cycle, InputJournal & journal, size_t journalIndex);
-    HRESULT   MoveBranchOnPath  (size_t branchIndex, InputJournal & journal);
-    bool      TryTrimBranch     ();
-    void      DropBranch        (size_t branchIndex);
-    void      CapBranches       ();
-    bool      HasChildBranch    (uint32_t id) const;
-    size_t    FindOldestLeaf    () const;
-    size_t    FindBranch        (uint32_t id) const;
-    void      ResetGroup        ();
-    void      ExportEntry       (const Entry & entry, SavedKeyframeSegment & segment, std::vector<Byte> & arena) const;
-
     void      ScheduleAfter     (uint64_t cycle);
+    void      NotifyDrop        (KeyframeDrop drop);
+    HRESULT   FinishPathChange  ();
 
+    static uint64_t  ReadWallClock();
     static bool      IsValidSaved  (const SavedKeyframes & saved);
     static bool      IsRootedSaved (const SavedKeyframes & saved, size_t s);
-    static uint64_t  ReadWallClock ();
-    static void      RunJob        (void * context);
-    static ArenaPtr  AllocateArena (size_t bytes);
 
-    KeyframeSettings               m_settings;
-    std::vector<Entry>             m_entries;              // the table, used as a ring; sized once by Reserve
-    size_t                         m_first        = 0;     // slot of the oldest keyframe
-    size_t                         m_count        = 0;
-    ArenaPtr                       m_arena;                // packed snapshots, one to an extent
-    size_t                         m_arenaBytes   = 0;
-    ArenaExtents                   m_extents;              // the arena's free space
-    size_t                         m_storedBytes  = 0;
-    size_t                         m_sideBytes    = 0;     // of m_storedBytes, the side bytes
-    size_t                         m_groupLength  = 0;     // keyframes in the newest group
-    size_t                         m_wholeBytes   = 0;     // size of the newest whole snapshot
-    size_t                         m_groupWhole   = 0;     // packed size of the newest collected whole snapshot
-    size_t                         m_groupDiffs   = 0;     // packed size of the differences collected against it
-    bool                           m_isFull       = false; // the oldest have been dropped for room since the store last had room to spare
-    uint64_t                       m_nextDueCycle = 0;
-    IWorkQueue                   * m_queue        = nullptr;
-    WallClock                      m_wallClock    = &ReadWallClock;
-    std::array<Job, kBufferCount>  m_jobs;
-    size_t                         m_nextJob      = 0;     // the job the next Add takes
-    size_t                         m_pendingCount = 0;     // jobs handed over and not yet collected, the newest entries
+    KeyframeSettings                                     m_settings;
+    KeyframeArena                                        m_arena;
+    KeyframePackQueue                                    m_packQueue;
+    uint64_t                                             m_nextDueCycle = 0;
+    WallClock                                            m_wallClock    = &ReadWallClock;
 
     //  Each owner's drop listener, in the order they were set.
-    std::vector<std::pair<const void *, DropListener>>  m_dropListeners;
-
-    std::vector<Branch>            m_branches;                     // the branches left behind, oldest first
-    size_t                         m_branchBytes        = 0;       // the stored bytes of their keyframes
-    uint32_t                       m_nextBranchId       = 1;
-    uint64_t                       m_pathChangePosition = 0;       // where the active path changed at the last switch
-
-    // Used by the work, so touched by the caller's thread only while none is in flight.
-    std::vector<Byte>              m_latestWhole;          // unpacked copy of the newest whole snapshot
-    std::vector<Byte>              m_scratch;
-    std::vector<Byte>              m_olderWhole;           // an older group's whole snapshot, unpacked by Restore
-    SnapshotCompressor             m_compressor;
+    std::vector<std::pair<const void *, DropListener>>   m_dropListeners;
 };

@@ -98,6 +98,23 @@ public:
     }
 
 
+    TEST_METHOD (Below_TooTallForEitherSide_OpensBelowShiftedOnScreen)
+    {
+        RECT  anchor = MakeRect (100, 200, 300, 230);
+        RECT  work   = MakeRect (0, 0, 1000, 800);
+        SIZE  size   = MakeSize (200, 700);
+
+        RECT  placed = DxuiPopupHost::ComputePlacementForTest (anchor,
+                                                               work,
+                                                               DxuiPopupPlacement::Below,
+                                                               size,
+                                                               true);
+
+        Assert::AreEqual ((LONG) 100, placed.top,    L"more room below, so below, shifted up to fit");
+        Assert::AreEqual ((LONG) 800, placed.bottom);
+    }
+
+
     TEST_METHOD (Above_PlacesPopupAboveAnchor)
     {
         RECT  anchor = MakeRect (100, 400, 300, 430);
@@ -462,6 +479,18 @@ public:
 
         Assert::IsFalse (DxuiPopupHost::TryMakeRepost (nullptr, true,  kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"no window");
         Assert::IsFalse (DxuiPopupHost::TryMakeRepost (target,  false, kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"another thread's window");
+    }
+
+
+    //  A pass-through popup, such as an in-place tip, is never hit, so the
+    //  window beneath doesn't receive WM_MOUSELEAVE while the pointer is over the
+    //  popup. An interactive popup is hit on its card only.
+    TEST_METHOD (APassThroughPopupIsNeverHit)
+    {
+        Assert::IsTrue  (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::PassThrough, true),  L"a pass-through popup's card is hit");
+        Assert::IsTrue  (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::PassThrough, false), L"a pass-through popup's shadow is hit");
+        Assert::IsFalse (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::Interactive, true),  L"an interactive popup's card is not hit");
+        Assert::IsTrue  (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::Interactive, false), L"an interactive popup's shadow is hit");
     }
 
 

@@ -64,8 +64,7 @@ namespace IoPeekTests
     //
     //  IoPeekTests
     //
-    //  A peek returns the byte a read returns, and a switch a read operates
-    //  has no peek.
+    //  A peek returns the byte a read returns.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +77,7 @@ namespace IoPeekTests
         //  every kind of machine.
         TEST_METHOD (EachPeekReturnsTheByteAReadReturns)
         {
-            for (const char * id : { "Apple2Plus", "Apple2e", "Apple2eEnhanced", "Apple2c" })
+            for (const char * id : { "Apple2Plus", "Apple2e", "Apple2eEnhanced", "Apple2c", "Apple2cPlus" })
             {
                 TestMachine  machine (id, TestMachine::Slots::AsShipped);
                 MemoryBus  & bus     = machine.GetMemoryBus();
@@ -137,7 +136,7 @@ namespace IoPeekTests
         {
             TestMachine            machine ("Apple2e", TestMachine::Slots::Empty);
             MemoryBus            & bus     = machine.GetMemoryBus();
-            TapeDeck             & deck    = machine.GetTapeDeck();
+            TapeDeck             & deck    = machine.GetTape().GetDeck();
             NullTapeAudioDecoder   mp3;
             TapeImage              image;
             std::vector<Byte>      wav;

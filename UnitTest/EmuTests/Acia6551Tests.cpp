@@ -619,6 +619,35 @@ namespace Acia6551TestNs
         }
 
 
+        //  The data sheet's program reset clears overrun and no other status
+        //  bit: a received byte is still there to read.
+        TEST_METHOD (ProgramResetClearsOverrunOnly)
+        {
+            const Byte  bytes[] = { 0x11, 0x22 };
+            Acia6551    acia (kBase);
+            uint32_t    charCycles = 0;
+
+
+
+            acia.Write (kAddrCtrl, kCtrl9600);
+            acia.Write (kAddrCmd,  kCmdPolled);
+            charCycles = static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles()));
+
+            acia.EnqueueReceivedBytes (bytes, size (bytes));
+            acia.Tick (1);
+            acia.Tick (charCycles);
+            acia.Tick (charCycles);
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) != 0);
+
+            acia.Write (kAddrStatus, 0x00);
+
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) == 0, L"overrun is cleared");
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusRxFull) != 0,  L"RDRF is not");
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusTxEmpty) != 0, L"nor TDRE");
+            Assert::AreEqual<Byte> (0x22, acia.Read (kAddrData));
+        }
+
+
         TEST_METHOD (HardwareResetClearsRegistersButNotTheQueue)
         {
             const Byte  bytes[] = { 0x01 };

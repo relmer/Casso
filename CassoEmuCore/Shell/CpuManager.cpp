@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/ThreadName.h"
+
 #include "CpuManager.h"
 
 #include "Core/MachineConfig.h"
@@ -83,7 +84,7 @@ HRESULT CpuManager::Start (
 
     m_running.store (true, std::memory_order_release);
 
-    m_thread = std::thread (&CpuManager::ThreadProc, this);
+    m_thread = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso CPU"); IGNORE_RETURN_VALUE (hrName, S_OK); ThreadProc(); });
 
 Error:
     return hr;
@@ -143,11 +144,40 @@ void CpuManager::Stop()
 
 void CpuManager::PostCommand (WORD id, const std::string & payload)
 {
-    TimePoint  postedAt = m_now();
+    Enqueue ({ id, payload, m_now(), nullptr });
+}
 
 
 
-    if (m_gate && !m_gate (id, payload))
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PostCommand
+//
+//  A debugger request as the call the CPU thread makes. The gate is called
+//  with its id, as for a command with a payload.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::PostCommand (WORD id, DebugCall call)
+{
+    Enqueue ({ id, std::string(), m_now(), std::move (call) });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Enqueue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::Enqueue (EmulatorCommand command)
+{
+    if (m_gate && !m_gate (command.id, command.payload))
     {
         return;
     }
@@ -157,7 +187,7 @@ void CpuManager::PostCommand (WORD id, const std::string & payload)
 
 
 
-        m_commandQueue.push_back ({ id, payload, postedAt });
+        m_commandQueue.push_back (std::move (command));
     }
 
     {

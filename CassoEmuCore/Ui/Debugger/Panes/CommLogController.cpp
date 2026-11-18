@@ -63,7 +63,7 @@ void CommLogController::CreateControls()
 
     m_graph = m_host.GetControlParent().CreateChild<CommSignalGraph>();
     m_graph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
-    m_model = std::make_unique<CommLogPane> (m_list, [this] (const std::string & request)
+    m_model = std::make_unique<CommLogPane> (m_list, [this] (const DebugLogRequest & request)
     {
         if (GetWindowHost() != nullptr)
         {
@@ -85,6 +85,7 @@ void CommLogController::CreateControls()
 void CommLogController::Configure()
 {
     m_model->Configure();
+    ConfigureColumnFilters();
     (void) LoadOptions();
 
     ConfigureBar();
@@ -191,6 +192,58 @@ void CommLogController::Zoom (bool isIn)
 
     UpdateGraph();
     m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommLogController::ZoomContent
+//
+//  Ctrl+wheel anywhere over the pane, or Ctrl+Plus and Ctrl+Minus while it
+//  has the focus, zooms the graph as Zoom in and Zoom out do, a step for
+//  each event whatever its notches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommLogController::ZoomContent (float notches, std::optional<POINT> clientPx)
+{
+    (void) clientPx;
+
+    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->IsVisible())
+    {
+        return false;
+    }
+
+    Zoom (notches > 0.0f);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommLogController::ResetContentZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommLogController::ResetContentZoom()
+{
+    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->IsVisible())
+    {
+        return false;
+    }
+
+    m_span         = kDefaultSpan;
+    m_graphedCount = SIZE_MAX;
+
+    UpdateGraph();
+    m_host.Repaint();
+    return true;
 }
 
 
@@ -366,3 +419,4 @@ std::string  CommLogController::GetOptionsText() const                    { retu
 void         CommLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
 void         CommLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
 size_t       CommLogController::GetTextColumn() const                     { return CommLogPane::kHex; }
+IEventLogFilter * CommLogController::GetColumnFilters() const { return m_model.get(); }

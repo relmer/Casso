@@ -109,9 +109,9 @@ private:
     static constexpr int   kDefaultCursorHeightPx  = 32;
     static constexpr UINT  kDefaultCaretBlinkMs    = 530;
 
-    bool  ReadFlag  (UINT action, bool fallback) const;
-    int   ReadUint  (UINT action, int fallback) const;
-    int   ReadWheel (UINT action, int fallback) const;
+    bool  ReadFlag   (UINT action, bool fallback) const;
+    int   ReadUint   (UINT action, int fallback) const;
+    int   ReadWheel  (UINT action, int fallback) const;
     int   ReadMetric (int index, int fallback) const;
 
     bool  m_animations        = kDefaultAnimations;

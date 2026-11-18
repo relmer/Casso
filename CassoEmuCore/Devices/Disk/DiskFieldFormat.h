@@ -59,6 +59,10 @@ public:
     static Byte             Decode44               (Byte odd, Byte even);
     static Byte             ComputeAddressChecksum (Byte volume, Byte track, Byte sector);
 
+    //  Where a sector byte's bits are in the data field's body, as nibble
+    //  indexes from the body's start: its high bits, then its low bits.
+    static void             GetByteNibbles         (DiskFieldKind kind, int byte, int & outHigh, std::vector<int> & outLow);
+
     static void             EncodeData             (DiskFieldKind          kind,
                                                     std::span<const Byte>  bytes,
                                                     std::vector<Byte>    & outBody,

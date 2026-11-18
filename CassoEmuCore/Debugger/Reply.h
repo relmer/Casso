@@ -101,6 +101,13 @@ struct MessageData
     std::vector<std::string>  lines;
 };
 
+// BPLOGS: the messages logging breakpoints wrote, oldest first; none is an
+// empty list.
+struct BreakpointMessagesData
+{
+    std::vector<std::string>  messages;
+};
+
 struct RegistersData
 {
     Cpu6502Registers  registers = {};
@@ -174,6 +181,8 @@ struct BreakpointInfo
     uint32_t             hits      = 0;
     std::string          symbol;                    // the symbol an address breakpoint was set by
     std::string          name;                      // BPNAME's; empty for the default
+    std::string          log;                       // BPLOG's message; empty for none
+    std::string          group;                     // BPGROUP's group; empty for none
 
     // Kind Disk: what BPDISK was given, and the routine an RWTS or driver
     // breakpoint stops at now, absent while its vector has no target.
@@ -676,7 +685,8 @@ using ReplyData = std::variant<MessageData,
                                BasicStackData,
                                ProjectData,
                                TextScreenData,
-                               ScreenshotData>;
+                               ScreenshotData,
+                               BreakpointMessagesData>;
 
 
 
@@ -722,6 +732,11 @@ struct Reply
     //  The text has a line about how the command ran that is listed in the
     //  console even for an action that isn't echoed.
     bool                      hasNotice   = false;
+
+    //  The full paths in the text, each a file the command read or wrote. The
+    //  console draws each as its file's name, linked to the file; the text
+    //  itself, as the debug channel and a batch run write it, has the path.
+    std::vector<std::string>  files;
 
     void SetError (CommandStatus errorStatus, const std::string & label, const std::string & detail)
     {

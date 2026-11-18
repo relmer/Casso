@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/CpuManagerRunDriver.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "Debugger/IRunObserver.h"
 #include "Shell/CpuManager.h"
@@ -82,7 +83,7 @@ namespace EmulatorDebugWiringTests
             while (executed < target)
             {
                 slice     = driver.LimitSlice (std::min (target - executed, FrameCycleBudget::kSliceCycles));
-                actual    = (uint32_t) machine.RunCycles (slice);
+                actual    = (uint32_t) machine.GetRunner().RunCycles (slice);
                 executed += actual;
 
                 if (driver.OnSliceExecuted (actual))
@@ -479,11 +480,11 @@ namespace EmulatorDebugWiringTests
             request.untilPc    = 0x0302;
             rig.StartOk (request);
 
-            ran = rig.machine.RunCycles (4);
+            ran = rig.machine.GetRunner().RunCycles (4);
             Assert::AreEqual ((uint64_t) 4, ran, L"two NOPs fill the first slice and stop short of $0302");
             Assert::IsFalse (rig.driver.OnSliceExecuted ((uint32_t) ran));
 
-            ran = rig.machine.RunCycles (1023);
+            ran = rig.machine.GetRunner().RunCycles (1023);
             Assert::AreEqual ((uint64_t) 0, ran, L"the next slice stops before its first instruction");
             Assert::IsTrue  (rig.driver.OnSliceExecuted ((uint32_t) ran), L"and its zero ends the run");
             Assert::IsFalse (rig.driver.IsRunning());
@@ -1013,7 +1014,7 @@ namespace EmulatorDebugWiringTests
             {
                 for (int i = 0; i < slices && !cpuManager.IsPaused(); i++)
                 {
-                    uint32_t  actual = (uint32_t) machine.RunCycles (1000);
+                    uint32_t  actual = (uint32_t) machine.GetRunner().RunCycles (1000);
 
 
 
@@ -1630,7 +1631,7 @@ namespace EmulatorDebugWiringTests
         {
             for (int i = 0; i < slices && !rig.cpuManager.IsPaused(); i++)
             {
-                uint32_t  actual = (uint32_t) rig.machine.RunCycles (1000);
+                uint32_t  actual = (uint32_t) rig.machine.GetRunner().RunCycles (1000);
 
 
 
@@ -1713,9 +1714,9 @@ namespace EmulatorDebugWiringTests
             Assert::IsTrue (SUCCEEDED (hr));
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Run ("MODE GSSQUARED").status);
 
-            lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(),
-                                                 DebuggerViewState::GetRunToCursorLine (0x0302),
-                                                 DebuggerViewState::kRunToCursorMode);
+            lines = rig.view.GetCommands().ExecuteConsoleLine (rig.controller.GetSession(),
+                                                               DebuggerCommandLines::GetRunToCursorLine (0x0302),
+                                                               DebuggerCommandLines::kRunToCursorMode);
             ControllerStepOutTests::RunFrames (rig, 50);
 
             Assert::AreEqual ((Word) 0x0302, target.GetRegisters().pc, L"stopped at the cursor");
@@ -1797,7 +1798,7 @@ namespace EmulatorDebugWiringTests
             {
                 for (int i = 0; i < slices && !shell->GetCpuManager().IsPaused(); i++)
                 {
-                    uint32_t  actual = (uint32_t) machine.RunCycles (1000);
+                    uint32_t  actual = (uint32_t) machine.GetRunner().RunCycles (1000);
 
 
 

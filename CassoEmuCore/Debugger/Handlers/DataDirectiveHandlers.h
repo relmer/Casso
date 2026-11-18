@@ -29,12 +29,18 @@ public:
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
     // Lines from first, until last or count lines, whichever comes first
-    // when both are given. The end address of the listing is returned.
-    static Word  Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data);
+    // when both are given. The end address of the listing is returned. With
+    // pc, an instruction that would run over it stops short of it, as bytes,
+    // so the PC always starts a line.
+    static Word  Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc = std::nullopt);
 
     // The symbol put in a line's operand: for an I/O address, the one for the
     // direction the opcode accesses it in.
     static void  ChooseOperandSymbol (DebugSession & session, DisassemblyLine & line);
+
+    // Whether an address has a symbol that could label code, where a
+    // listing cuts an instruction running over it.
+    static bool  IsCodeLabel (const DebugSession & session, Word address);
 
     // The directive's kind, items per line and bytes per item from its name.
     static bool  TryGetShape   (const std::string & name, DataBlockKind & kind, int & perLine, int & itemBytes);
@@ -54,16 +60,17 @@ private:
     static constexpr Byte  kFirstPrint     = 0x20;
     static constexpr Byte  kDelete         = 0x7F;
 
-    void         Define        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  Remove        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  ListBlocks    (DebugSession & session, Reply & reply);
-    void         List          (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         Define         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  Remove         (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  ListBlocks     (DebugSession & session, Reply & reply);
+    void         List           (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  EnterAssembler (DebugSession & session, const DebugCommand & command, Reply & reply);
 
-    static void  MakeDataLine  (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line);
-    static std::string  FormatItems (const DataBlockEntry & block, std::span<const Byte> bytes);
-    static double       DecodeFloat (std::span<const Byte> bytes);
-    static Byte         Peek        (IDebugTarget & target, Word address);
+    static void         MakeDataLine (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line);
+    static std::string  FormatItems  (const DataBlockEntry & block, std::span<const Byte> bytes);
+    static bool         IsControl    (Byte b);
+    static double       DecodeFloat  (std::span<const Byte> bytes);
+    static Byte         Peek         (IDebugTarget & target, Word address);
 
     Word  m_nextList = 0;
 };

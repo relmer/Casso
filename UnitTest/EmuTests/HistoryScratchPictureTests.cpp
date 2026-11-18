@@ -150,14 +150,14 @@ private:
 
 
         ReverseSessionRig::Prepare (machine);
-        machine.RunCycles (s_kPictureWarmupCycles);
+        machine.GetRunner().RunCycles (s_kPictureWarmupCycles);
 
         for (i = 0; i < kLetters; i++)
         {
             machine.GetMemoryBus().WriteByte (static_cast<Word> (s_kTextPage + i), static_cast<Byte> (kInverseA + i));
         }
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         outState = writer.GetBytes();

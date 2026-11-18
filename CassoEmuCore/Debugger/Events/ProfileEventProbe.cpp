@@ -78,7 +78,7 @@ HRESULT ProfileEventProbe::Attach (MachineHost & machine, std::vector<DebugEvent
         m_counts.routines.Seed (m_startCalls.at (cpu->GetHistoryCycles()), cpu->GetSP());
     }
 
-    machine.SetOpcodeWatch (m_opcodes.data(), this);
+    machine.GetRunner().SetOpcodeWatch (m_opcodes.data(), this);
 
 Error:
     return hr;
@@ -103,7 +103,7 @@ void ProfileEventProbe::Detach (MachineHost & machine)
 
 
 
-    machine.SetOpcodeWatch (nullptr, nullptr);
+    machine.GetRunner().SetOpcodeWatch (nullptr, nullptr);
 
     if (cpu != nullptr)
     {
@@ -112,7 +112,7 @@ void ProfileEventProbe::Detach (MachineHost & machine)
 
     if (m_entries != nullptr)
     {
-        m_entries->push_back ({ DebugEventEntryKind::Event, machine.GetPosition(), (cpu != nullptr) ? cpu->GetHistoryCycles() : 0,
+        m_entries->push_back ({ DebugEventEntryKind::Event, machine.GetRunner().GetPosition(), (cpu != nullptr) ? cpu->GetHistoryCycles() : 0,
                                 std::make_shared<const ProfileCounts> (m_counts), nullptr });
     }
 

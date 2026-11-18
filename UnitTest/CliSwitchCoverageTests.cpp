@@ -374,9 +374,17 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.formatName == "prodos"; },
               "--format picks the filesystem" },
 
+            { "disk", "filesystem", { "CassoCli", "disk", "list", "d.dsk", "--filesystem", "cpm" },
+              [] (const CommandLineOptions & o) { return o.disk.filesystem == "cpm"; },
+              "--filesystem selects CP/M for an image with no recognized file system" },
+
             { "disk", "volume", { "CassoCli", "disk", "create", "d.dsk", "--volume", "42" },
               [] (const CommandLineOptions & o) { return o.disk.volumeName == "42"; },
               "--volume names or numbers the volume" },
+
+            { "disk", "size", { "CassoCli", "disk", "create", "d.hdv", "--size", "5M" },
+              [] (const CommandLineOptions & o) { return o.disk.sizeName == "5M"; },
+              "--size sets a ProDOS volume's size" },
 
             { "disk", "bootable", { "CassoCli", "disk", "create", "d.dsk", "--bootable" },
               [] (const CommandLineOptions & o)
@@ -441,6 +449,9 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.force; },
               "--force removes locked entries with the rest" },
 
+            { "disk", "user", { "CassoCli", "disk", "get", "c.dsk", "A", "--user", "2" },
+              [] (const CommandLineOptions & o) { return o.disk.hasUser && o.disk.user == 2; },
+              "--user selects a CP/M user" },
             { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
               [] (const CommandLineOptions & o) { return o.disk.yes; },
               "--yes answers the confirmation in advance" },
@@ -507,6 +518,19 @@ namespace CliSwitchCoverageTests
             { "debug", "timeout", { "CassoCli", "debug", "--attach", "1234", "--command", "r", "--timeout", "9" },
               [] (const CommandLineOptions & o) { return o.debug.timeoutSeconds == 9; },
               "--timeout bounds the wait for a run" },
+
+            //
+            //  mcp
+            //
+            { "mcp", "allow-path", { "CassoCli", "mcp", "--allow-path", "C:\\Work" },
+              [] (const CommandLineOptions & o) { return o.mcp.allowPaths == std::vector<std::string> { "C:\\Work" }; },
+              "--allow-path adds a folder the client's commands may use" },
+            { "disk", "no-free-unowned", { "CassoCli", "disk", "repair", "d.dsk", "--no-free-unowned" },
+              [] (const CommandLineOptions & o) { return o.disk.noFreeUnowned; },
+              "--no-free-unowned keeps sectors not in any file marked as used in the copy" },
+            { "disk", "list", { "CassoCli", "disk", "repair", "d.dsk", "fixed.dsk", "--list" },
+              [] (const CommandLineOptions & o) { return o.disk.listOnly && o.disk.hostFile == "fixed.dsk"; },
+              "--list reports the changes without writing the copy" },
         };
     }
 
@@ -592,6 +616,13 @@ namespace CliSwitchCoverageTests
                 names.insert (Bare (option));
             }
         }
+        else if (mode == "mcp")
+        {
+            for (const char * option : CommandLineParser::GetMcpLongOptions())
+            {
+                names.insert (Bare (option));
+            }
+        }
 
         return names;
     }
@@ -599,7 +630,7 @@ namespace CliSwitchCoverageTests
 
 
 
-    static const char *  kModes[] = { "as65", "merlin", "run", "disk", "debug" };
+    static const char *  kModes[] = { "as65", "merlin", "run", "disk", "debug", "mcp" };
 
 
 
@@ -636,6 +667,7 @@ namespace CliSwitchCoverageTests
             Assert::IsTrue (GrammarSwitches ("run").size()    >= 8,  L"run");
             Assert::IsTrue (GrammarSwitches ("disk").size()   >= 12, L"disk");
             Assert::IsTrue (GrammarSwitches ("debug").size()  >= 8,  L"debug");
+            Assert::IsTrue (GrammarSwitches ("mcp").size()    >= 1,  L"mcp");
 
             Assert::IsTrue (Cases().size() >= 55, L"and the case table is populated");
         }
@@ -1450,6 +1482,12 @@ namespace CliSwitchCoverageTests
 
                 Assert::IsFalse (opts.refusalMessage.empty(),
                                  Widen (std::string (option) + " took a hex value").c_str());
+
+                //  A number too large for an int is an error, not an exception.
+                opts = ParseOf ({ "CassoCli", "disk", "sectorwrite", "d.dsk", "p.bin", option, "99999999999" });
+
+                Assert::IsFalse (opts.refusalMessage.empty(),
+                                 Widen (std::string (option) + " took a number too large for an int").c_str());
             }
 
             //  and its addresses are hex, written the way the message says.

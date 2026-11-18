@@ -51,9 +51,9 @@ void TraceController::On()
 
     bus.SetTraceSink     (this);
     bus.SetTraceAllPages (true);
-    cpu->EnableTrace     (kCapacity);
+    cpu->GetTrace().Enable (kCapacity);
 
-    m_ringFrom   = m_host.GetPosition();
+    m_ringFrom   = m_host.GetRunner().GetPosition();
     m_isOn       = true;
     m_hasEntries = true;
 }
@@ -85,7 +85,7 @@ void TraceController::Off()
 
     if (cpu != nullptr)
     {
-        cpu->GetCpu6502()->StopTrace();
+        cpu->GetCpu6502()->GetTrace().Stop();
     }
 
     bus.SetTraceAllPages (false);
@@ -144,7 +144,7 @@ size_t TraceController::GetSize() const
 
     if (m_history == nullptr)
     {
-        return m_hasEntries ? m_host.GetCpu()->GetCpu6502()->GetTraceSize() : 0;
+        return m_hasEntries ? m_host.GetCpu()->GetCpu6502()->GetTrace().GetSize() : 0;
     }
 
     GetSpans (spans);
@@ -170,16 +170,16 @@ size_t TraceController::GetSize() const
 bool TraceController::TryGetRingSpan (TraceSpan & outSpan) const
 {
     const Cpu  * cpu      = (m_host.GetCpu() != nullptr) ? m_host.GetCpu()->GetCpu6502() : nullptr;
-    uint64_t     position = m_host.GetPosition();
+    uint64_t     position = m_host.GetRunner().GetPosition();
     bool         isWhole  = false;
 
 
 
-    isWhole = m_hasEntries && cpu != nullptr && position >= m_ringFrom && cpu->GetTraceCount() == position - m_ringFrom && cpu->GetTraceSize() > 0;
+    isWhole = m_hasEntries && cpu != nullptr && position >= m_ringFrom && cpu->GetTrace().GetCount() == position - m_ringFrom && cpu->GetTrace().GetSize() > 0;
 
     if (isWhole)
     {
-        outSpan = { position - cpu->GetTraceSize(), position };
+        outSpan = { position - cpu->GetTrace().GetSize(), position };
     }
 
     return isWhole;
@@ -240,7 +240,7 @@ void TraceController::GetSpans (std::vector<TraceSpan> & outSpans) const
 void TraceController::GetWindow (size_t first, size_t count, std::vector<TraceRecord> & entries) const
 {
     const Cpu6502            * cpu    = m_host.GetCpu()->GetCpu6502();
-    Cpu::TraceEntry            entry  = {};
+    CpuTrace::Entry            entry  = {};
     std::vector<TraceSpan>     spans;
     uint64_t                   skip   = first;
     uint64_t                   wanted = count;
@@ -256,7 +256,7 @@ void TraceController::GetWindow (size_t first, size_t count, std::vector<TraceRe
 
 
 
-        for (size_t index = first; index < last && cpu->TryGetTraceEntry (index, entry); index++)
+        for (size_t index = first; index < last && cpu->GetTrace().TryGetEntry (index, entry); index++)
         {
             entries.push_back (MakeRecord (entry));
         }
@@ -314,7 +314,7 @@ void TraceController::AddEntries (uint64_t from, uint64_t to, std::vector<TraceR
     TraceSpan                         ring;
     uint64_t                          split   = to;
     std::vector<TraceHistoryEntry>    rebuilt;
-    Cpu::TraceEntry                   entry   = {};
+    CpuTrace::Entry                   entry   = {};
     uint64_t                          pos     = 0;
 
 
@@ -353,7 +353,7 @@ void TraceController::AddEntries (uint64_t from, uint64_t to, std::vector<TraceR
         }
     }
 
-    for (pos = split; pos < to && cpu->TryGetTraceEntry ((size_t) (pos - ring.from), entry); pos++)
+    for (pos = split; pos < to && cpu->GetTrace().TryGetEntry ((size_t) (pos - ring.from), entry); pos++)
     {
         entries.push_back (MakeRecord (entry));
     }
@@ -394,7 +394,7 @@ bool TraceController::TryFindCycle (uint64_t cycle, size_t & outIndex) const
         const Cpu6502    * cpu   = m_host.GetCpu()->GetCpu6502();
         size_t             low   = 0;
         size_t             high  = (size_t) (ring.to - ring.from);
-        Cpu::TraceEntry    entry = {};
+        CpuTrace::Entry    entry = {};
 
 
 
@@ -404,7 +404,7 @@ bool TraceController::TryFindCycle (uint64_t cycle, size_t & outIndex) const
 
 
 
-            if (cpu->TryGetTraceEntry (mid, entry) && entry.cycles < cycle)
+            if (cpu->GetTrace().TryGetEntry (mid, entry) && entry.cycles < cycle)
             {
                 low = mid + 1;
             }
@@ -445,7 +445,7 @@ bool TraceController::TryFindCycle (uint64_t cycle, size_t & outIndex) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TraceRecord TraceController::MakeRecord (const Cpu::TraceEntry & entry)
+TraceRecord TraceController::MakeRecord (const CpuTrace::Entry & entry)
 {
     TraceRecord  record;
 
@@ -461,7 +461,7 @@ TraceRecord TraceController::MakeRecord (const Cpu::TraceEntry & entry)
     record.y             = entry.y;
     record.sp            = entry.sp;
     record.p             = entry.p;
-    record.isInterrupt   = entry.intr != Cpu::kTraceIntrNone;
+    record.isInterrupt   = entry.intr != CpuTrace::kIntrNone;
     record.hasAccess     = entry.hasAccess;
     record.accessIsWrite = entry.accessIsWrite;
     record.accessData    = entry.accessData;
@@ -493,5 +493,5 @@ void TraceController::OnWatchedAccess (
         return;
     }
 
-    m_host.GetCpu()->GetCpu6502()->RecordTraceAccess (address, value, access == BusAccess::Write);
+    m_host.GetCpu()->GetCpu6502()->GetTrace().RecordAccess (address, value, access == BusAccess::Write, m_host.GetCpu()->GetPC());
 }

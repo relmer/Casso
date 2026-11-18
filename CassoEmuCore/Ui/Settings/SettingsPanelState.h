@@ -2,10 +2,17 @@
 
 #include "Pch.h"
 
+#include "Ui/Settings/SlotCards.h"
 #include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
+#include "Core/DeviceDisplayNames.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
+#include "Machines/Apple2/Common/SscSwitches.h"
+#include "Ui/Settings/SettingsConnectors.h"
+
+class IFileSystem;
+class UserConfigStore;
 
 
 
@@ -142,12 +149,29 @@ struct HardwareEntry
     // never had ports does not acquire an empty list by being looked at.
     std::vector<std::string>  ports;
 
+    // A hard disk's or 3.5-inch drive's image and real timing switch, by
+    // port, beside `ports`; written as the port's object form when either is
+    // set, so saving the tab keeps a card's images.
+    std::vector<std::string>  portImages;
+    std::vector<bool>         portRealTiming;
+
     // A Super Serial Card's DIP switches as "on off ..." text, and the host
     // file its first connector's attachment uses. Empty for every other card,
     // and BuildJson does not write the slot's keys while they are empty.
     std::string  switchesSw1;
     std::string  switchesSw2;
     std::string  portPath;
+
+    // A Super Serial Card's SW1 bank as it was before the ImageWriter II's
+    // connection set the card to printer mode; empty when the mode was not
+    // changed for the printer.
+    std::string  switchesSw1BeforePrinter;
+
+    // A Super Serial Card's connector and its file as they were before the
+    // ImageWriter II took the connector, put back when the printer moves
+    // away; empty while the printer does not have the card.
+    std::string  portBeforePrinter;
+    std::string  portPathBeforePrinter;
 
     // The network card's settings; defaults for every other device.
     NetworkCardSettings  network;
@@ -167,6 +191,10 @@ struct SettingsMachinePort
 {
     std::string  name;      // "disk", "serial1", "joystick"
     std::string  device;    // what is attached; empty for an unoccupied port
+
+    // The port object's other keys, such as a disk port's `chain`, written
+    // back as they were read.
+    std::vector<std::pair<std::string, JsonValue>>  otherKeys;
 };
 
 
@@ -184,6 +212,7 @@ struct SettingsMachineInfo
     std::string                          cpu;
     std::string                          cpuManufacturer;
     uint32_t                             clockSpeed    = 0;
+    uint32_t                             cpuClockSpeed = 0;   // the CPU's clock when an accelerator runs it faster than the machine; 0 when it doesn't
     std::string                          ramSummary;    // "128K RAM" total, ROM excluded
     std::vector<SettingsMemoryRegion>    memoryRegions;
     size_t                               devices       = 0;
@@ -216,23 +245,25 @@ class ISettingsApplySink
 public:
     virtual ~ISettingsApplySink() = default;
 
-    virtual void ApplySpeedMode      (SettingsSpeedMode mode)        = 0;
-    virtual void ApplyColorMode      (SettingsColorMode mode)        = 0;
-    virtual void ApplyFloppySound    (bool enabled)                  = 0;
-    virtual void ApplyMechanism      (const std::string & mechanism) = 0;
-    virtual void ApplyFastTapeLoading (bool enabled)                 = 0;
-    virtual void ApplyTapeVolume     (float gain)                    = 0;
-    virtual void ApplyTapeAutoStop   (bool enabled)                  = 0;
-    virtual void ApplyTapeIdleStop   (bool enabled)                  = 0;
-    virtual void ApplyTapeEightBit   (bool enabled)                  = 0;
-    virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
-    virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
-    virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
-    virtual void ApplyExternalDriveConnected (bool connected)        = 0;
-    virtual void ApplyMouseConnected         (bool connected)        = 0;
-    virtual void ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
-    virtual void ApplyNetworkCard    (const NetworkCardSettings & settings) = 0;
-    virtual void QueueMachineReset   ()                              = 0;
+    virtual void  ApplySpeedMode              (SettingsSpeedMode mode)        = 0;
+    virtual void  ApplyColorMode              (SettingsColorMode mode)        = 0;
+    virtual void  ApplyFloppySound            (bool enabled)                  = 0;
+    virtual void  ApplyMechanism              (const std::string & mechanism) = 0;
+    virtual void  ApplyFastTapeLoading        (bool enabled)                 = 0;
+    virtual void  ApplyTapeVolume             (float gain)                    = 0;
+    virtual void  ApplyTapeAutoStop           (bool enabled)                  = 0;
+    virtual void  ApplyTapeIdleStop           (bool enabled)                  = 0;
+    virtual void  ApplyTapeEightBit           (bool enabled)                  = 0;
+    virtual void  ApplyDriveVolumes           (float motor, float head, float door) = 0;
+    virtual void  ApplyDrivePan               (float driveOnePan, float driveTwoPan) = 0;
+    virtual void  ApplyWriteProtect           (int drive, bool wp)            = 0;
+    virtual void  ApplyExternalDriveConnected (bool connected)        = 0;
+    virtual void  ApplyMouseConnected         (bool connected)        = 0;
+    virtual void  ApplySerialPortDevice       (int port, const std::string & device, const std::string & path) = 0;
+    virtual void  ApplyParallelPrinter        (int slot, bool attached)       = 0;
+    virtual void  ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
+    virtual void  ApplyNetworkCard            (const NetworkCardSettings & settings) = 0;
+    virtual void  QueueMachineReset           ()                              = 0;
 };
 
 
@@ -251,10 +282,10 @@ public:
 //  means restoring the baseline rather than simply discarding a pending edit;
 //  without a saved copy there would be nothing to restore.
 //
-//  IsDirty and RequiresReset are separate questions. Dirty decides whether
+//  IsDirty and RequiresReset are separate questions. Dirty indicates whether
 //  anything needs saving; RequiresReset is narrower -- only a hardware ENABLE
-//  change needs a machine rebuild -- and it is what relabels OK to warn about
-//  the reboot.
+//  change requires a machine rebuild -- and it relabels OK to warn about the
+//  reboot.
 //
 //  HasDiskIIController drives the sheet's dynamic Disk tab (#84), and its
 //  banked-ROM special case is easy to mistake for a hack. The //c's drive is a
@@ -288,21 +319,26 @@ public:
     // changes are reverted on OK.
     void    RefreshMergedJson (const JsonValue & mergedJson);
 
+    // Loads the machine's saved settings over its default document, applies
+    // `edit` and saves them, through the same document Settings writes.
+    static HRESULT  EditSaved (UserConfigStore & store, IFileSystem & fs, const std::string & machineName, const JsonValue & defaultJson,
+                               const std::function<HRESULT (SettingsPanelState & state)> & edit);
+
     // The machine document as it would be saved now, for a caller that
     // changes a setting without a sheet -- the Storage menu's second drive.
     void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
-    JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
+    JsonValue  BuildCurrentJson         () const;
 
     bool IsDirty       () const;
     bool RequiresReset () const;          // a hardware enable or a serial attachment changed
 
     // Live (current) accessors / mutators
 
-    const std::string                & GetMachineName () const { return m_machineName; }
-    const SettingsMachineInfo        & GetMachineInfo() const { return m_machineInfo; }
-    const SettingsUiPrefs            & GetPrefs       () const { return m_current.prefs; }
-    const std::vector<HardwareEntry> & GetHardware    () const { return m_current.hardware; }
-    const JsonValue                  & GetDefaultJson () const { return m_defaultJson; }
+    const std::string                 & GetMachineName () const { return m_machineName; }
+    const SettingsMachineInfo         & GetMachineInfo () const { return m_machineInfo; }
+    const SettingsUiPrefs             & GetPrefs       () const { return m_current.prefs; }
+    const std::vector<HardwareEntry>  & GetHardware    () const { return m_current.hardware; }
+    const JsonValue                   & GetDefaultJson () const { return m_defaultJson; }
 
     // True when the (staged) hardware config includes an enabled Disk ][
     // controller (a slot whose device is "disk-ii"). Drives the settings
@@ -326,96 +362,96 @@ public:
         return false;
     }
 
-    void    SetSpeedMode       (SettingsSpeedMode mode);
-    void    SetColorMode       (SettingsColorMode mode);
-    void    SetWriteMode       (SettingsWriteMode mode);
-    void    SetFloppySound     (bool enabled);
-    void    SetMechanism       (const std::string & mechanism);
-    void    SetFastTapeLoading (bool enabled);
-    void    SetTapeVolume      (float gain);
-    void    SetTapeAutoStop    (bool enabled);
-    void    SetTapeIdleStop    (bool enabled);
-    void    SetTapeEightBit    (bool enabled);
-    void    SetDriveMotorVolume (float gain);
-    void    SetDriveHeadVolume  (float gain);
-    void    SetDriveDoorVolume  (float gain);
-    void    SetDriveOnePan      (float pan);
-    void    SetDriveTwoPan      (float pan);
-    void    SetWriteProtect    (int drive, bool wp);
-    void    SetExternalDriveConnected (bool connected);
+    void  SetSpeedMode              (SettingsSpeedMode mode);
+    void  SetColorMode              (SettingsColorMode mode);
+    void  SetWriteMode              (SettingsWriteMode mode);
+    void  SetFloppySound            (bool enabled);
+    void  SetMechanism              (const std::string & mechanism);
+    void  SetFastTapeLoading        (bool enabled);
+    void  SetTapeVolume             (float gain);
+    void  SetTapeAutoStop           (bool enabled);
+    void  SetTapeIdleStop           (bool enabled);
+    void  SetTapeEightBit           (bool enabled);
+    void  SetDriveMotorVolume       (float gain);
+    void  SetDriveHeadVolume        (float gain);
+    void  SetDriveDoorVolume        (float gain);
+    void  SetDriveOnePan            (float pan);
+    void  SetDriveTwoPan            (float pan);
+    void  SetWriteProtect           (int drive, bool wp);
+    void  SetExternalDriveConnected (bool connected);
 
     // The machine's SECOND DRIVE, wherever that machine keeps it: the //c's
     // back-panel disk port, or the Disk ][ card's second connector. One
     // question, two stores, because the hardware really is different -- the
     // //c's is an external unit on a cable and the //e's is a drive on the
     // card's other plug.
-    bool    HasSecondDriveStore () const;
-    bool    SecondDriveAttached () const;
-    void    SetSecondDriveAttached (bool attached);
-    void    SetMouseConnected         (bool connected);
+    bool  HasSecondDriveStore    () const;
+    bool  SecondDriveAttached    () const;
+    void  SetSecondDriveAttached (bool attached);
+    void  SetMouseConnected      (bool connected);
+
+    // The drives on the back-panel disk port's chain, each one's device in
+    // chain order. A drive added goes where the firmware looks for its kind:
+    // Apple 3.5 Drives first, UniDisks next, 5.25-inch drives last. `nth`
+    // counts the drives of that device, from 0.
+    std::vector<std::string>  GetDiskPortChain    () const;
+    void                      AddDiskPortDrive    (const std::string & device);
+    void                      RemoveDiskPortDrive (const std::string & device, size_t nth);
+
+    // What a //c serial port, 1 or 2, connects to, where the ImageWriter II is
+    // attached, the Super Serial Card and the Uthernet II: see
+    // SettingsConnectors.
+    bool                            HasSerialPorts          () const { return m_connectors.HasSerialPorts(); }
+    std::string                     GetSerialPortDevice     (int port) const { return m_connectors.GetSerialPortDevice (port); }
+    void                            SetSerialPortDevice     (int port, const std::string & device) { m_connectors.SetSerialPortDevice (port, device); }
+    std::vector<PrinterConnection>  GetPrinterChoices       () const { return m_connectors.GetPrinterChoices(); }
+    PrinterConnection               GetPrinterConnection    () const { return m_connectors.GetPrinterConnection(); }
+    void                            SetPrinterConnection    (const PrinterConnection & connection) { m_connectors.SetPrinterConnection (connection); }
+    std::wstring                    TakeNotice              () { return m_connectors.TakeNotice(); }
+    int                             FindSerialCard          () const { return m_connectors.FindSerialCard(); }
+    bool                            HasEnabledSerialCard    () const { return m_connectors.HasEnabledSerialCard(); }
+    HRESULT                         SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2) { return m_connectors.SetSerialCardSwitches (sw1, sw2); }
+    HRESULT                         SetSerialCardAttachment (const std::string & device, const std::string & path) { return m_connectors.SetSerialCardAttachment (device, path); }
+    const HardwareEntry *           GetNetworkCard          () const { return m_connectors.GetNetworkCard(); }
+    bool                            HasEnabledNetworkCard   () const { return m_connectors.HasEnabledNetworkCard(); }
+    HRESULT                         SetNetworkCardMac       (const std::string & text, std::string & outError) { return m_connectors.SetNetworkCardMac (text, outError); }
+    void                            SetNetworkLanAccess     (bool lanAccess) { m_connectors.SetNetworkLanAccess (lanAccess); }
+    HRESULT                         AddPortForward          (const PortForward & forward, std::string & outError) { return m_connectors.AddPortForward (forward, outError); }
+    HRESULT                         RemovePortForward       (size_t index) { return m_connectors.RemovePortForward (index); }
+    bool                            AreSerialPortsChanged   () const { return m_connectors.AreSerialPortsChanged(); }
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
-    // The staged Super Serial Card: its index in GetHardware(), or -1 when
-    // the machine lists none. HasEnabledSerialCard drives the Serial card
-    // page's presence, as HasDiskIIController drives the Storage page's.
-    int     FindSerialCard        () const;
-    bool    HasEnabledSerialCard  () const;
+    // A hard disk's real timing switch, by hardware entry and port. Fails on
+    // a port without a drive that has the switch.
+    HRESULT SetPortRealTiming (size_t index, size_t port, bool isOn);
 
-    // Stage the card's switches, or what is attached to its connector
-    // ("" for nothing, or one of the serial attachment devices) with the
-    // host file the file attachments use.
-    HRESULT SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2);
-    HRESULT SetSerialCardAttachment (const std::string & device, const std::string & path);
+    // The Machine tab's storage card edits; see SlotCards. Each takes a
+    // machine reset to apply.
+    std::vector<SlotCardChoice>  GetCardChoices   () const { return SlotCards::GetChoices (m_machineName); }
+    bool                         IsSlotFilled     (int slot) const { return SlotCards::FindSlot (m_current.hardware, slot) >= 0; }
+    HRESULT                      SetSlotCard      (int slot, const std::string & device, std::wstring & outError) { return SlotCards::SetCard (m_current.hardware, m_machineName, slot, device, outError); }
+    HRESULT                      SetPortImage     (size_t index, size_t port, const std::string & path) { return SlotCards::SetPortImage (m_current.hardware, index, port, path); }
+    HRESULT                      SetSlotPortImage (int slot, size_t port, const std::string & path);
+    HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
+    HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
+
+    // An image on a port of the machine rather than of a card, such as the
+    // //c Plus's internal 3.5-inch drive. Not found when the machine has no
+    // such port.
+    HRESULT  SetMachinePortImage (const std::string & name, const std::string & path);
 
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
     // administered one.
-    static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
-    static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
-
-    const HardwareEntry *  GetNetworkCard        () const;
-    bool                   HasEnabledNetworkCard () const;
-    HRESULT                SetNetworkCardMac     (const std::string & text, std::string & outError);
-    void                   SetNetworkLanAccess   (bool lanAccess);
-    HRESULT                AddPortForward        (const PortForward & forward, std::string & outError);
-    HRESULT                RemovePortForward     (size_t index);
+    static constexpr const char *  kpszNetworkCardDevice = DeviceDisplayNames::kpszNetworkCardDevice;
+    static constexpr const char *  kpszNetworkCardName   = DeviceDisplayNames::kpszNetworkCardName;
 
     // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
                    JsonValue          & outCurrentJson) const;
 
-    // Pure helpers (exposed for tests)
-
-    static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
-                                       std::vector<HardwareEntry> & outEntries);
-    static HRESULT ExtractMachineInfo (const std::string          & machineId,
-                                       const JsonValue            & mergedJson,
-                                       SettingsMachineInfo        & outInfo);
-    static HRESULT ExtractUiPrefs     (const JsonValue            & mergedJson,
-                                       SettingsUiPrefs            & outPrefs);
-
-    // The machine's own connectors, read from the root `ports` array. Absent
-    // leaves the list empty, which BuildJson takes as "this machine never had
-    // a back panel to write back".
-    static HRESULT ExtractMachinePorts (const JsonValue                       & mergedJson,
-                                        std::vector<SettingsMachinePort>      & outPorts);
-
-    static JsonValue BuildJson        (const JsonValue                        & mergedJson,
-                                       const std::vector<HardwareEntry>       & hw,
-                                       const SettingsUiPrefs                  & prefs,
-                                       const std::vector<SettingsMachinePort> & machinePorts = {});
-
-    // The stored spellings of the enumerated UI prefs. Public because the
-    // panel is not the only writer: the command bar's monitor-color picker
-    // saves the same key, and both have to write the same word for it.
-    static const char *        SpeedToString       (SettingsSpeedMode s);
-    static SettingsSpeedMode   SpeedFromString     (const std::string & s, SettingsSpeedMode fallback);
-    static const char *        ColorToString       (SettingsColorMode c);
-    static SettingsColorMode   ColorFromString     (const std::string & s, SettingsColorMode fallback);
-    static const char *        WriteModeToString   (SettingsWriteMode mode);
-    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
 
 private:
 
@@ -425,17 +461,6 @@ private:
         std::vector<HardwareEntry>        hardware;
         std::vector<SettingsMachinePort>  machinePorts;
     };
-
-    // Appends every $cassoUiPrefs entry of `mergedJson` that `uiObj` does not
-    // already carry, so a preference this dialog knows nothing about survives
-    // a save.
-    static void CarryUnmanagedUiPrefs (
-        std::vector<std::pair<std::string, JsonValue>> & uiObj,
-        const JsonValue                               & mergedJson);
-
-    static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
-    static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,
-                                  const std::vector<HardwareEntry> & b);
 
     // JSON accessors and enum<->string mapping for the settings document.
     // Every reader is a SettingsPanelState method, so the block belongs to
@@ -447,60 +472,30 @@ private:
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszPortImageKey  = "image";
+    static constexpr const char *  kpszPortTimingKey = "realTiming";
+    static constexpr const char *  kpszPortBeforeKey = "beforePrinter";
+    static constexpr const char *  kpszPortPathBeforeKey = "pathBeforePrinter";
     static constexpr const char *  kpszSwitchesKey   = "switches";
     static constexpr const char *  kpszSw1Key        = "sw1";
     static constexpr const char *  kpszSw2Key        = "sw2";
+    static constexpr const char *  kpszSw1BeforeKey  = "sw1BeforePrinter";
     static constexpr const char *  kpszDiskPortName = "disk";
+    static constexpr const char *  kpszChainKey     = "chain";
+    static constexpr const char *  kpszSerialPortNames[] = { "serial1", "serial2" };
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
     static constexpr const char *  kpszDiskIiDevice = "disk-ii";
     static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
     static constexpr size_t        kSecondDrivePortIndex = 1;
     static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
 
-    static int  FindKey (
-        const std::vector<std::pair<std::string, JsonValue>> & entries,
-        const std::string                                    & key);
+    friend class SettingsJson;
+    friend class SettingsConnectors;
 
-    static bool  TryGetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback);
+    static int          GetChainRank   (const std::string & device);
+    static std::string  GetChainDevice (const JsonValue & entry);
 
-    static std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback);
-
-    static int  GetIntOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        int                 fallback);
-
-    static double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback);
-
-    static CapabilityFlag  ParseCapability (
-        const std::string & str,
-        CapabilityFlag      fallback);
-
-    static JsonValue  CloneJson (const JsonValue & v);
-
-    // Puts a shipped machine's internal device list into a working copy of its
-    // document. The document itself no longer carries one: what devices a
-    // machine has is stated in code, so the file describes only what an owner
-    // configures. The hardware tree still has to show them, and this is where
-    // they arrive rather than in each reader.
-    //
-    // A machine with no definition is left untouched -- its document is the
-    // only description of it there is.
-    static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
-
-    int   FindNetworkCard () const;
-
-    static MacAddress  MakeRandomMac ();
-
+    void  EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit);
 
     std::string          m_machineName;
     SettingsMachineInfo  m_machineInfo;
@@ -509,4 +504,6 @@ private:
 
     Snapshot     m_original;
     Snapshot     m_current;
+
+    SettingsConnectors  m_connectors { *this };
 };

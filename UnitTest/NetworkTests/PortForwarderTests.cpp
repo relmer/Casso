@@ -4,6 +4,7 @@
 #include "Devices/Network/TcpNat.h"
 #include "Devices/Network/UdpNat.h"
 #include "Devices/Network/VirtualSubnet.h"
+#include "Net/ListenGate.h"
 
 #include "FakeHostNetwork.h"
 #include "RecordingPacketSink.h"
@@ -139,6 +140,54 @@ namespace PortForwarderTests
                 Assert::AreEqual ((size_t) (lanAccess ? 2 : 1), sink.udp.size());
                 Assert::AreEqual (kGuestPort, sink.udp[0].guestPort);
             }
+        }
+
+
+        //  With LAN access on, a forward the firewall does not admit is deferred
+        //  rather than opened, so no Windows Firewall prompt appears for it. It opens
+        //  once the gate admits its port. With LAN access off it binds
+        //  127.0.0.1, which the firewall does not filter.
+        TEST_METHOD (AForwardTheGateRefuses_IsDeferredUntilAdmitted)
+        {
+            RecordingPacketSink        sink;
+            FakeHostNetwork            host;
+            TcpNat                     tcp (sink);
+            UdpNat                     udp (sink);
+            PortForwarder              forwarder (tcp, udp);
+            ListenGate                 gate;
+            FirewallProgram            program;
+            FirewallSnapshot           snapshot;
+            FirewallRule               rule;
+            std::vector<FirewallPort>  deferred;
+
+            program.path    = L"C:\\Casso\\Casso.exe";
+            snapshot.active = FirewallProfile::Private;
+            gate.Set (snapshot, program);
+            forwarder.SetListenGate (&gate);
+
+            forwarder.Start (&host, s_kTcpForward, false);
+            Assert::IsNotNull (host.FindBound (HostSocketKind::Tcp, kHostPort).get(), L"loopback is not deferred");
+
+            forwarder.Start (&host, s_kTcpForward, true);
+            forwarder.GetDeferredPorts (deferred);
+
+            Assert::IsTrue (deferred == std::vector<FirewallPort> { { HostSocketKind::Tcp, kHostPort } });
+            Assert::IsTrue (forwarder.IsActive(), L"the forwarder is pumped while a forward is deferred");
+
+            rule.application = program.path;
+            rule.anyProtocol = false;
+            rule.protocol    = HostSocketKind::Tcp;
+            rule.localPorts  = std::to_wstring (kHostPort);
+            rule.profiles    = FirewallProfile::Private;
+            snapshot.rules   = { rule };
+            gate.Set (snapshot, program);
+            forwarder.Pump (0, true);
+
+            deferred.clear();
+            forwarder.GetDeferredPorts (deferred);
+
+            Assert::IsTrue  (deferred.empty(), L"admitted, so no longer deferred");
+            Assert::AreEqual (VirtualSubnet::kAnyIp, host.FindBound (HostSocketKind::Tcp, kHostPort)->local.ipv4, L"and listening on the PC's addresses");
         }
     };
 }

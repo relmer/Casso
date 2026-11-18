@@ -71,9 +71,9 @@ public:
             ScreenDump (machine, L"a ][ powers on to the monitor's * prompt").c_str());
 
         machine.GetRefs().keyboard->PressKey (kCtrlB);
-        machine.RunCycles (kKeyCycles);
+        machine.GetRunner().RunCycles (kKeyCycles);
         machine.GetRefs().keyboard->PressKey (kReturn);
-        machine.RunCycles (kKeyCycles);
+        machine.GetRunner().RunCycles (kKeyCycles);
 
         Assert::IsTrue (FindPrompt (machine, s_kIntegerPrompt) >= 0,
             ScreenDump (machine, L"Ctrl+B from the monitor reaches Integer BASIC's > prompt").c_str());
@@ -169,7 +169,7 @@ public:
             machine.GetMemoryBus().WriteByte (0x0301, 0x80);
             machine.GetCpu()->SetPC (0x0300);
 
-            machine.StepOne();
+            machine.GetRunner().StepOne();
 
             Assert::AreEqual<Word> (static_cast<Word> (0x0300 + expected.pcAdvance),
                 machine.GetCpu()->GetPC(),
@@ -251,7 +251,7 @@ private:
     static void BootToPrompt (MachineHost & machine)
     {
         machine.PowerCycle();
-        machine.RunCycles (s_kColdBootCycles);
+        machine.GetRunner().RunCycles (s_kColdBootCycles);
     }
 
 

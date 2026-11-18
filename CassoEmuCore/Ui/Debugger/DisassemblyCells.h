@@ -24,8 +24,6 @@
 class DisassemblyCells
 {
 public:
-    static constexpr float   kGlyphCenterDip    = 8.4f;
-    static constexpr int     kGutterColumnDip   = 17;
     static constexpr size_t  kGutterColumn      = 0;
     static constexpr size_t  kHeatColumn        = 1;
     static constexpr size_t  kAddressColumn     = 2;
@@ -35,6 +33,42 @@ public:
     static constexpr size_t  kOperandColumn     = 6;
     static constexpr size_t  kColumnCount       = 7;
     static constexpr float   kDimMix            = 0.85f;
+    static constexpr float   kArrowSplitDip     = 3.0f;
+    static constexpr float   kArrowLaneDip      = 6.0f;
+
+    //  The narrowest the operand and result column gets in a narrow pane,
+    //  room for its heading.
+    static constexpr int     kOperandFloorDip   = 120;
+
+    //  Clear room at the right of a label cell for the branch arrow's
+    //  lanes, the outer one up to 21 DIPs left of the mnemonics, less the
+    //  list's 4 DIP padding on either side of the column edge, and a gap.
+    static constexpr int     kLabelTrailDip     = 15;
+
+    //  An arrow's ends by address: the branch, jump or call at `from`, where
+    //  it goes, and whether the current flags take it.
+    struct ArrowEnds
+    {
+        Word  from    = 0;
+        Word  goesTo  = 0;
+        bool  isTaken = true;
+    };
+
+    //  Where a source row's parts are in its cells: the column its code is
+    //  in and where the code starts in that cell's text; the column of its
+    //  operand and result and where they start in that cell's text; and
+    //  where the line's comment starts in the operand's cell, -1 for none.
+    //  A row with no operand has kNone for its column.
+    struct SourceParts
+    {
+        static constexpr size_t  kNone = SIZE_MAX;
+
+        size_t  codeColumn    = kNone;
+        int     codeChar      = 0;
+        size_t  operandColumn = kNone;
+        int     operandChar   = 0;
+        int     commentChar   = -1;
+    };
 
     //  The columns, the glyph margin and the text view's background.
     static void  Configure (DxuiListView & list);
@@ -52,10 +86,11 @@ public:
     //  label column is visible, the code stops at the comment, the operand
     //  and result are in their column, and the comment follows them. With
     //  the label column hidden, or a dragged instruction column too narrow
-    //  for the code, the operand and result follow the line.
-    static void  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
-                                const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
-                                const DxuiListView::Cell * operand = nullptr);
+    //  for the code, the operand and result follow the line. Returns where
+    //  the row's parts are in its cells.
+    static SourceParts  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
+                                       const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
+                                       const DxuiListView::Cell * operand = nullptr);
 
     //  The bytes a source row's instructions occupy: from the first
     //  instruction under it to the end of the last one from the same line,
@@ -88,14 +123,23 @@ public:
     //  Visual Studio's yellow, which reads on either background.
     static uint32_t  GetPcMarkerArgb (uint32_t background);
 
-    //  The PC's branch arrow over a list laid out and painted with these
-    //  rows; false when the PC's line has no target or the list has no room.
-    //  With branchedFrom, the arrow of the branch, jump or call there that a
-    //  step just took to the PC instead; a source out of the lines built for
-    //  the view enters from the edge it lies beyond.
+    //  The ends of the arrow of the line marked as the PC's; false when that
+    //  line has no target.
+    static bool  TryGetPcArrowEnds (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, ArrowEnds & ends);
+
+    //  The arrow between two addresses over a list laid out and painted with
+    //  these rows. An end not among the lines built for the view lies beyond
+    //  the edge its address is past, and the line enters from that edge.
+    //  False when no part of the arrow crosses the rows in view, or the list
+    //  has no room for it.
     static bool  TryGetBranchArrow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
-                                    const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken,
-                                    std::optional<Word> branchedFrom = std::nullopt);
+                                    const std::vector<DisassemblyOptions::Row> & rows, const ArrowEnds & ends, BranchArrow::Input & input);
+
+    //  The arrow of the branch a step took to the PC, which ends at the PC's
+    //  row, and the PC's arrow, which starts there: each is drawn to the row a
+    //  little to the side of its other end, and the PC's is moved a lane to the left when both run the
+    //  same way from the row, so neither is drawn over the other.
+    static void  SeparateArrows (BranchArrow::Input & stepped, BranchArrow::Input & pc);
 
     //  The arrow in takenArgb, or in notTakenArgb for a branch that the
     //  current flags do not take.
@@ -115,9 +159,11 @@ private:
     //  spaces after any text there.
     static void  AppendCell (DxuiListView::Cell & cell, const DxuiListView::Cell & added);
 
-    //  Where the first comment run at or after `from` starts, or the line's end.
-    static size_t  GetCommentStart (const std::vector<SourceSyntax::Run> & runs, size_t from, size_t end);
-
 
     static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);
+
+    //  The row of an address not among the lines: -1 for one before them,
+    //  the row count for one after; false for one inside their span that
+    //  isn't the start of any line.
+    static bool  GetOutsideRow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word address, int & row);
 };

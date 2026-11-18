@@ -188,7 +188,7 @@ namespace DebuggerTests
 
 
 
-            machine.RecordInput (InputKind::DiskMount, (Byte) drive, 0, name);
+            machine.GetHostInput().Record (InputKind::DiskMount, (Byte) drive, 0, name);
 
             hr = machine.GetDiskStore().MountRestored (kDiskSlot, drive, name, DiskFormat::Dsk, bytes);
             AssertSucceeded (hr, L"MountRestored");
@@ -199,7 +199,7 @@ namespace DebuggerTests
         //  The disk in a slot 6 drive taken out, journaled first as a mount is.
         static void EjectDisk (TestMachine & machine, int drive)
         {
-            machine.RecordInput (InputKind::DiskEject, (Byte) drive, 0, {});
+            machine.GetHostInput().Record (InputKind::DiskEject, (Byte) drive, 0, {});
             machine.GetDiskStore().Eject (kDiskSlot, drive);
         }
 
@@ -209,7 +209,7 @@ namespace DebuggerTests
         //  journaled, made, then reported to the debugger.
         static void Reset (MachineRig & rig, bool isPowerCycle)
         {
-            rig.machine.RecordInput (isPowerCycle ? InputKind::PowerCycle : InputKind::Reset, 0, 0, {});
+            rig.machine.GetHostInput().Record (isPowerCycle ? InputKind::PowerCycle : InputKind::Reset, 0, 0, {});
 
             if (isPowerCycle)
             {
@@ -272,7 +272,7 @@ namespace DebuggerTests
             //  requests its rebuild.
             void Attach()
             {
-                base.session.SetCallRecording (true);
+                base.session.GetCallRecords().SetRecording (true);
                 history.Service();
             }
 
@@ -308,7 +308,7 @@ namespace DebuggerTests
             {
                 LoadProgram (base);
                 RunTo (base.machine, recordFrom);
-                base.session.SetCallRecording (true);
+                base.session.GetCallRecords().SetRecording (true);
             }
         };
 
@@ -316,9 +316,9 @@ namespace DebuggerTests
 
         static void RunTo (TestMachine & machine, uint64_t position)
         {
-            while (machine.GetPosition() < position)
+            while (machine.GetRunner().GetPosition() < position)
             {
-                machine.StepOne();
+                machine.GetRunner().StepOne();
             }
         }
 
@@ -342,13 +342,13 @@ namespace DebuggerTests
 
             RunTo (rig.base.machine, after + 1);
 
-            while (rig.base.machine.GetCpu()->GetPC() != pc && rig.base.machine.GetPosition() < limit)
+            while (rig.base.machine.GetCpu()->GetPC() != pc && rig.base.machine.GetRunner().GetPosition() < limit)
             {
-                rig.base.machine.StepOne();
+                rig.base.machine.GetRunner().StepOne();
             }
 
             Assert::AreEqual (pc, rig.base.machine.GetCpu()->GetPC(), L"the program reaches the address");
-            return rig.base.machine.GetPosition();
+            return rig.base.machine.GetRunner().GetPosition();
         }
 
 
@@ -448,11 +448,11 @@ namespace DebuggerTests
         {
             const KeyframeStore  & keyframes = rig.controller.GetKeyframes();
             size_t                 index     = 0;
-            bool                   isFound   = keyframes.TryFindByPosition (position, index);
+            bool                   isFound   = keyframes.GetArena().TryFindByPosition (position, index);
 
 
 
-            return isFound && keyframes.GetInfo (index).position == position && keyframes.GetInfo (index).hasGapBefore;
+            return isFound && keyframes.GetArena().GetInfo (index).position == position && keyframes.GetArena().GetInfo (index).hasGapBefore;
         }
 
 
@@ -462,12 +462,12 @@ namespace DebuggerTests
         {
             const KeyframeStore  & keyframes = rig.controller.GetKeyframes();
             size_t                 index     = 0;
-            bool                   isFound   = keyframes.TryFindByPosition (position, index);
+            bool                   isFound   = keyframes.GetArena().TryFindByPosition (position, index);
 
 
 
             Assert::IsTrue (isFound, L"history holds a keyframe at or before the position");
-            return keyframes.GetInfo (index).position;
+            return keyframes.GetArena().GetInfo (index).position;
         }
 
 
@@ -486,8 +486,8 @@ namespace DebuggerTests
 
             for (i = 0; i < copies.GetCount() && areAt; i++)
             {
-                isFound = keyframes.TryFindByPosition (copies.GetPosition (i), index);
-                areAt   = isFound && keyframes.GetInfo (index).position == copies.GetPosition (i);
+                isFound = keyframes.GetArena().TryFindByPosition (copies.GetPosition (i), index);
+                areAt   = isFound && keyframes.GetArena().GetInfo (index).position == copies.GetPosition (i);
             }
 
             return areAt;
@@ -559,7 +559,7 @@ namespace DebuggerTests
             Assert::IsTrue (hasJob, L"the rebuilder took a job");
 
             result.generation = rebuilder.jobs.back()->generation;
-            result.position   = rig.base.machine.GetPosition();
+            result.position   = rig.base.machine.GetRunner().GetPosition();
             result.cycle      = rig.base.machine.GetCpu()->GetTotalCycles();
             result.registers  = rig.base.machine.GetCpu()->GetCpu6502()->GetRegisters();
 
@@ -579,8 +579,8 @@ namespace DebuggerTests
             ReverseSessionRig::Feed (machine,   slice);
             ReverseSessionRig::Feed (reference, slice);
 
-            machine.RunCycles   (KeyframeSettings::kFrameCycles);
-            reference.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
+            reference.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
 
@@ -653,14 +653,14 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 1, rig.queue.GetPendingCount(), L"far behind: continued on the worker");
 
-            rig.base.machine.RunCycles (kPassFrames * KeyframeSettings::kFrameCycles);
+            rig.base.machine.GetRunner().RunCycles (kPassFrames * KeyframeSettings::kFrameCycles);
             rig.queue.WaitAll();
             rig.history.Service();
 
             Assert::IsFalse  (rig.history.IsRebuilding(),            L"finished here after one round");
             Assert::AreEqual ((size_t) 0, rig.queue.GetPendingCount(), L"nothing left on the worker");
 
-            RunTo (reference.base.machine, rig.base.machine.GetPosition());
+            RunTo (reference.base.machine, rig.base.machine.GetRunner().GetPosition());
             AssertSameRecord (GetRecord (reference.base.session), GetRecord (rig.base.session));
         }
 
@@ -712,7 +712,7 @@ namespace DebuggerTests
 
             RunTo (reference.base.machine, stop);
             actual = GetRecord (rig.base.session);
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             AssertSameRecord (GetRecord (reference.base.session), actual, true);
 
@@ -770,7 +770,7 @@ namespace DebuggerTests
             RunTo (rig.base.machine, kAttachAt);
             rig.Attach();
 
-            rig.base.session.SetCallRecording (false);
+            rig.base.session.GetCallRecords().SetRecording (false);
             rig.history.Service();
 
             Assert::IsFalse (rig.history.IsRebuilding(), L"closing dropped it");
@@ -779,14 +779,14 @@ namespace DebuggerTests
             rig.queue.WaitAll();
             rig.history.Service();
 
-            Assert::IsFalse (rig.base.session.IsCallRecording(), L"no record was brought back by it");
+            Assert::IsFalse (rig.base.session.GetCallRecords().IsRecording(), L"no record was brought back by it");
 
             rig.Attach();
             Assert::IsTrue (rig.history.IsRebuilding(), L"opening again starts a rebuild of its own");
 
             rig.Drain();
 
-            RunTo (reference.base.machine, rig.base.machine.GetPosition());
+            RunTo (reference.base.machine, rig.base.machine.GetRunner().GetPosition());
             AssertSameRecord (GetRecord (reference.base.session), GetRecord (rig.base.session));
         }
 
@@ -815,7 +815,7 @@ namespace DebuggerTests
             rig.queue.WaitAll();
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue  (bottom.has_value() && bottom->kind == CallBreakKind::Reset, L"the record begins at the reset");
             Assert::IsFalse (rig.history.IsRebuilding(), L"and no rebuild came back");
@@ -841,9 +841,9 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (landing, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (landing, result);
             AssertSucceeded (hr, L"SeekToPosition");
-            Assert::AreEqual (landing, rig.base.machine.GetPosition(), L"the seek lands at the position given");
+            Assert::AreEqual (landing, rig.base.machine.GetRunner().GetPosition(), L"the seek lands at the position given");
 
             rig.history.OnMoved (false);
             rig.history.Service();
@@ -882,7 +882,7 @@ namespace DebuggerTests
             {
                 rig.history.OnMoving();
 
-                hr = rig.controller.SeekToPosition (at, result);
+                hr = rig.controller.GetSeeker().SeekToPosition (at, result);
                 AssertSucceeded (hr, L"SeekToPosition");
 
                 rig.history.OnMoved (true);
@@ -892,7 +892,7 @@ namespace DebuggerTests
                 Assert::IsTrue   (rig.base.session.GetCallStack().rebuildProgress.has_value(), L"though one is due");
             }
 
-            landing = rig.base.machine.GetPosition();
+            landing = rig.base.machine.GetRunner().GetPosition();
 
             rig.history.OnMoving();
             rig.history.OnMoved (false);
@@ -970,7 +970,7 @@ namespace DebuggerTests
 
             RunTo (rig.base.machine, kSwap);
 
-            rig.base.machine.RecordInput (InputKind::DiskEject, 0, 0, {});
+            rig.base.machine.GetHostInput().Record (InputKind::DiskEject, 0, 0, {});
             rig.base.machine.GetDiskStore().Eject (kDiskSlot, kDiskDrive);
             MountDisk (rig.base.machine, "second.dsk");
 
@@ -988,7 +988,7 @@ namespace DebuggerTests
             rig.Drain();
 
             RunTo (reference.base.machine, stop);
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"the record begins at the change of disk");
 
@@ -1122,7 +1122,7 @@ namespace DebuggerTests
             AssertSucceeded (hr, L"MakeJob");
 
             Assert::IsTrue (hasJob, L"history holds the run");
-            Assert::IsTrue (job.parts.front().startPosition > rig.controller.GetOldestPosition(), L"not from the oldest keyframe");
+            Assert::IsTrue (job.parts.front().startPosition > rig.controller.GetSeeker().GetOldestPosition(), L"not from the oldest keyframe");
             Assert::IsTrue (job.parts.front().startPosition <= kFarAhead,                      L"but from one before the power cycle");
 
             rig.Attach();
@@ -1154,21 +1154,21 @@ namespace DebuggerTests
             rig.Attach();
             rig.Drain();
 
-            rig.controller.SetCallerProbe ([] (uint64_t) { return true; });
+            rig.controller.GetStepper().SetCallerProbe ([] (uint64_t) { return true; });
 
-            generation = rig.base.session.GetCallRecordGeneration();
+            generation = rig.base.session.GetCallRecords().GetGeneration();
             before     = GetRecord (rig.base.session);
 
             rig.history.OnMoving();
 
-            hr = rig.controller.StepBackOut (result);
+            hr = rig.controller.GetStepper().StepBackOut (result);
             AssertSucceeded (hr, L"StepBackOut");
 
             rig.history.OnMoved (false);
             rig.history.Service();
 
             Assert::IsTrue   (result.outcome == ReverseOutcome::NoCaller,                  L"no caller: the machine stays");
-            Assert::AreEqual (generation, rig.base.session.GetCallRecordGeneration(),     L"the record did not start again");
+            Assert::AreEqual (generation, rig.base.session.GetCallRecords().GetGeneration(),     L"the record did not start again");
             Assert::IsFalse  (rig.history.IsRebuilding(),                                  L"and nothing is rebuilt");
             Assert::AreEqual ((size_t) 0, rig.queue.GetPendingCount(),                     L"nothing on the worker");
 
@@ -1197,26 +1197,26 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (kAttachAt, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (kAttachAt, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
             rig.Drain();
 
-            landing    = rig.base.machine.GetPosition();
-            generation = rig.base.session.GetCallRecordGeneration();
+            landing    = rig.base.machine.GetRunner().GetPosition();
+            generation = rig.base.session.GetCallRecords().GetGeneration();
             replayed   = rig.controller.GetReplayer().GetReplayedCount();
 
             rig.history.OnMoving();
 
-            hr = rig.controller.PrepareRecentSteps (result);
+            hr = rig.controller.GetStepper().PrepareRecentSteps (result);
             AssertSucceeded (hr, L"PrepareRecentSteps");
 
             rig.history.OnMoved (false);
 
-            Assert::AreEqual (landing, rig.base.machine.GetPosition(),                  L"the machine is put back");
+            Assert::AreEqual (landing, rig.base.machine.GetRunner().GetPosition(),                  L"the machine is put back");
             Assert::IsTrue   (rig.controller.GetReplayer().GetReplayedCount() > replayed, L"after a replay");
-            Assert::AreNotEqual (generation, rig.base.session.GetCallRecordGeneration(), L"so the record starts again");
+            Assert::AreNotEqual (generation, rig.base.session.GetCallRecords().GetGeneration(), L"so the record starts again");
         }
 
 
@@ -1258,7 +1258,7 @@ namespace DebuggerTests
             rig.Drain();
 
             RunTo (reference.base.machine, kAttachAt);
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"the record begins after the gap");
 
@@ -1373,12 +1373,12 @@ namespace DebuggerTests
                 rebuilder.results.push_back (result);
                 rig.history.Service();
 
-                bottom = rig.base.session.GetCallRecordBottom();
+                bottom = rig.base.session.GetCallRecords().GetBottom();
 
                 Assert::IsFalse (rig.history.IsRebuilding(), std::format (L"{}: the result was taken in", name).c_str());
                 Assert::IsTrue  (bottom.has_value() && bottom->kind == left, std::format (L"{}: and its record left, its bottom marking what it holds", name).c_str());
 
-                rig.base.session.RestartCallRecording();
+                rig.base.session.GetCallRecords().Restart();
                 rig.history.Service();
 
                 left = CallBreakKind::TrackingRestarted;
@@ -1387,7 +1387,7 @@ namespace DebuggerTests
             rebuilder.results.push_back (MakeHandFedResult (rig, rebuilder));
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue (bottom.has_value() && bottom->kind == CallBreakKind::PowerOn, L"the same state's record is taken");
         }
@@ -1413,16 +1413,16 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (rig.controller.GetOldestPosition(), result);
+            hr = rig.controller.GetSeeker().SeekToPosition (rig.controller.GetSeeker().GetOldestPosition(), result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
             rows   = CallStackPane::GetRows (rig.base.session.GetCallStack());
 
-            Assert::AreEqual (kHistoryStart, rig.base.machine.GetPosition(), L"at the start of history");
+            Assert::AreEqual (kHistoryStart, rig.base.machine.GetRunner().GetPosition(), L"at the start of history");
             Assert::IsFalse  (rig.history.IsRebuilding(), L"nothing to rebuild");
             Assert::IsTrue   (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"the record begins where history does");
 
@@ -1462,7 +1462,7 @@ namespace DebuggerTests
 
             ReverseSessionRig::Prepare (rig.machine);
             ReverseSessionRig::Prepare (reference.machine);
-            reference.session.SetCallRecording (true);
+            reference.session.GetCallRecords().SetRecording (true);
 
             hr = controller.Start (ReverseSessionRig::MakeSettings (1));
             AssertSucceeded (hr, L"Start");
@@ -1476,7 +1476,7 @@ namespace DebuggerTests
                 FeedSlice (rig.machine, reference.machine, slice);
             }
 
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
             history.Service();
 
             for (; slice < kAttachSlices + kRunOnSlices; slice++)
@@ -1497,10 +1497,10 @@ namespace DebuggerTests
             //  Inside the routine the counter calls, its call on the record.
             while (rig.machine.GetCpu()->GetPC() != ReverseSessionRig::kRoutinePla)
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
 
-            RunTo (reference.machine, rig.machine.GetPosition());
+            RunTo (reference.machine, rig.machine.GetRunner().GetPosition());
 
             do
             {
@@ -1553,12 +1553,12 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.StepBack (result);
+            hr = rig.controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
 
             rig.history.OnMoved (false);
 
-            landing  = rig.base.machine.GetPosition();
+            landing  = rig.base.machine.GetRunner().GetPosition();
             keyframe = GetKeyframeAtOrBefore (rig, landing);
 
             Assert::AreEqual (kLongRun - 1, landing, L"one instruction back");
@@ -1618,7 +1618,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (landing, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (landing, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
@@ -1683,27 +1683,27 @@ namespace DebuggerTests
             rig.Attach();
             rig.Drain();
 
-            while (rig.controller.GetOldestPosition() == 0 && rig.base.machine.GetPosition() < kRunLimit)
+            while (rig.controller.GetSeeker().GetOldestPosition() == 0 && rig.base.machine.GetRunner().GetPosition() < kRunLimit)
             {
-                rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles);
+                rig.base.machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
             }
 
-            Assert::IsTrue (rig.controller.GetOldestPosition() > 0,  L"history let its oldest keyframes go");
+            Assert::IsTrue (rig.controller.GetSeeker().GetOldestPosition() > 0,  L"history let its oldest keyframes go");
             Assert::IsTrue (rig.history.GetCopies().GetCount() > 0,  L"copies of the record are kept");
             Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"none where history no longer holds a keyframe");
-            Assert::IsTrue (rig.history.GetCopies().GetCount() <= rig.controller.GetKeyframes().GetCount(), L"at most one a keyframe");
+            Assert::IsTrue (rig.history.GetCopies().GetCount() <= rig.controller.GetKeyframes().GetArena().GetCount(), L"at most one a keyframe");
 
-            middle = (rig.controller.GetOldestPosition() + rig.base.machine.GetPosition()) / 2;
+            middle = (rig.controller.GetSeeker().GetOldestPosition() + rig.base.machine.GetRunner().GetPosition()) / 2;
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (middle, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (middle, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
             rig.Drain();
 
-            hr = rig.controller.OnMachineChanged();
+            hr = rig.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             isFound = rig.history.GetCopies().TryFindAtOrBefore (UINT64_MAX, newest);
@@ -1733,12 +1733,12 @@ namespace DebuggerTests
 
             Assert::IsTrue (rig.history.IsRebuilding(), L"the rebuild waits on the worker");
 
-            while (rig.controller.GetOldestPosition() == 0 && rig.base.machine.GetPosition() < kRunLimit)
+            while (rig.controller.GetSeeker().GetOldestPosition() == 0 && rig.base.machine.GetRunner().GetPosition() < kRunLimit)
             {
-                rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles);
+                rig.base.machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
             }
 
-            Assert::IsTrue (rig.controller.GetOldestPosition() > 0, L"history let keyframes the rebuild replays past go");
+            Assert::IsTrue (rig.controller.GetSeeker().GetOldestPosition() > 0, L"history let keyframes the rebuild replays past go");
 
             rig.Drain();
 
@@ -1761,24 +1761,24 @@ namespace DebuggerTests
 
             RunTo (rig.base.machine, kAttachAt);
             rig.Attach();
-            rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles * 60);
+            rig.base.machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * 60);
             rig.Drain();
 
-            forkAt = (rig.controller.GetOldestPosition() + rig.base.machine.GetPosition()) / 2;
+            forkAt = (rig.controller.GetSeeker().GetOldestPosition() + rig.base.machine.GetRunner().GetPosition()) / 2;
 
-            hr = rig.controller.SeekToPosition (forkAt, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (forkAt, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
-            hr = rig.controller.OnMachineChanged();
+            hr = rig.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged forks");
 
-            rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles * 30);
+            rig.base.machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * 30);
             rig.Drain();
 
-            rig.controller.GetKeyframes().GetBranches (branches);
+            rig.controller.GetKeyframes().GetArena().GetBranches (branches);
             Assert::AreEqual<size_t> (1, branches.size(), L"a branch left behind");
 
-            hr = rig.controller.SwitchBranch (branches[0].id, result);
+            hr = rig.controller.GetSeeker().SwitchBranch (branches[0].id, result);
             AssertSucceeded (hr, L"SwitchBranch");
 
             rig.Drain();
@@ -1811,7 +1811,7 @@ namespace DebuggerTests
             RunTo (rig.base.machine, kLongRun);
 
             count     = rig.history.GetCopies().GetCount();
-            keyframes = rig.controller.GetKeyframes().GetCapacity();
+            keyframes = rig.controller.GetKeyframes().GetArena().GetCapacity();
 
             Assert::IsTrue (count > 0, L"copies of the record are kept");
 
@@ -1854,7 +1854,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (kAttachAt, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (kAttachAt, result);
             AssertSucceeded (hr, L"SeekToPosition back");
 
             rig.history.OnMoved (false);
@@ -1862,7 +1862,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (rig.controller.GetLiveEndPosition(), result);
+            hr = rig.controller.GetSeeker().SeekToPosition (rig.controller.GetSeeker().GetLiveEndPosition(), result);
             AssertSucceeded (hr, L"SeekToPosition to the end");
 
             rig.history.OnMoved (false);
@@ -1870,7 +1870,7 @@ namespace DebuggerTests
 
             pc = rig.base.machine.GetCpu()->GetPC();
 
-            Assert::IsFalse (rig.controller.IsInHistory(), L"live again");
+            Assert::IsFalse (rig.controller.GetSpan().IsInHistory(), L"live again");
             Assert::IsTrue  (rig.history.IsRebuilding(),   L"its record being rebuilt");
 
             hr = rig.controller.SetRecordingPaused (true);
@@ -1881,7 +1881,7 @@ namespace DebuggerTests
             hr = rig.controller.SetRecordingPaused (false);
             AssertSucceeded (hr, L"SetRecordingPaused off");
 
-            gapEnd = rig.base.machine.GetPosition();
+            gapEnd = rig.base.machine.GetRunner().GetPosition();
 
             RunTo (rig.base.machine, gapEnd + kRunOn);
 
@@ -1890,7 +1890,7 @@ namespace DebuggerTests
             rig.queue.WaitAll();
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
             rows   = CallStackPane::GetRows (rig.base.session.GetCallStack());
 
             Assert::IsFalse (rig.history.IsRebuilding(), L"the rebuild is given up");
@@ -1936,23 +1936,23 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (kGapStart / 2, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (kGapStart / 2, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
             rig.Drain();
 
-            generation = rig.base.session.GetCallRecordGeneration();
+            generation = rig.base.session.GetCallRecords().GetGeneration();
 
             RunTo (rig.base.machine, stop);
 
-            Assert::IsTrue (rig.controller.IsInHistory(), L"still behind live");
+            Assert::IsTrue (rig.controller.GetSpan().IsInHistory(), L"still behind live");
 
             rig.Drain();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
-            Assert::AreNotEqual (generation, rig.base.session.GetCallRecordGeneration(), L"the record started again");
+            Assert::AreNotEqual (generation, rig.base.session.GetCallRecords().GetGeneration(), L"the record started again");
             Assert::IsTrue      (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"and begins after the gap");
 
             RunTo (reference.base.machine, stop);

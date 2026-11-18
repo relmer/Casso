@@ -100,6 +100,31 @@ public:
     }
 
 
+    //  A folder exists here while any file is under it.
+    bool    DirectoryExists      (const std::wstring & path) override
+    {
+        std::lock_guard<std::mutex>  lock   (m_mutex);
+        std::wstring                 prefix = Normalize (path);
+
+        if (!prefix.empty() && prefix.back() != L'/')
+        {
+            prefix += L'/';
+        }
+
+        return m_directories.contains (Normalize (path))
+            || std::any_of (m_files.begin(), m_files.end(), [&prefix] (const auto & kv) { return kv.first.compare (0, prefix.size(), prefix) == 0; });
+    }
+
+
+    HRESULT MakeDirectory        (const std::wstring & path) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        m_directories.insert (Normalize (path));
+        return S_OK;
+    }
+
+
     HRESULT Delete               (const std::wstring & path) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -174,6 +199,21 @@ public:
     HRESULT EnumerateEntries     (const std::wstring           & directory,
                                   std::vector<FileSystemEntry> & outEntries) override
     {
+        return ListEntries (directory, false, outEntries);
+    }
+
+
+    HRESULT EnumerateAllEntries  (const std::wstring           & directory,
+                                  std::vector<FileSystemEntry> & outEntries) override
+    {
+        return ListEntries (directory, true, outEntries);
+    }
+
+
+    HRESULT ListEntries          (const std::wstring           & directory,
+                                  bool                           includeHidden,
+                                  std::vector<FileSystemEntry> & outEntries)
+    {
         std::lock_guard<std::mutex>  lock   (m_mutex);
         std::wstring                 prefix = Normalize (directory);
         std::set<std::wstring>       dirs;
@@ -211,6 +251,14 @@ public:
                 entry.isFolder     = false;
                 entry.sizeBytes    = kv.second.content.size();
                 entry.modifiedUnix = kv.second.modifiedUnix;
+                entry.isHidden     = kv.second.hidden;
+                entry.isSystem     = kv.second.system;
+                entry.isCompressed = kv.second.compressed;
+
+                if (!includeHidden && (entry.isHidden || entry.isSystem))
+                {
+                    continue;
+                }
 
                 outEntries.push_back (std::move (entry));
             }
@@ -268,7 +316,37 @@ public:
     }
 
 
+    // A junction: `path` and everything under it resolves to `target`.
+    HRESULT ResolveFinalPath     (const std::wstring & path,
+                                  std::wstring       & outPath) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::wstring                 key  = Normalize (path);
+
+        outPath = path;
+
+        for (const auto & [from, to] : m_links)
+        {
+            bool  under = key == from || (key.size() > from.size() && key.compare (0, from.size(), from) == 0 && key[from.size()] == L'/');
+
+            if (under)
+            {
+                outPath = to + path.substr (from.size());
+            }
+        }
+
+        return S_OK;
+    }
+
+
     // Test-only helpers
+
+    void        AddLink     (const std::wstring & path, const std::wstring & target)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        m_links[Normalize (path)] = target;
+    }
+
 
     size_t      FileCount   ()
     {
@@ -314,6 +392,19 @@ public:
     }
 
 
+    void        SetAttributes (const std::wstring & path, bool hidden, bool system, bool compressed)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        auto                         it   = m_files.find (Normalize (path));
+        if (it != m_files.end())
+        {
+            it->second.hidden     = hidden;
+            it->second.system     = system;
+            it->second.compressed = compressed;
+        }
+    }
+
+
     void        Clear       ()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -329,6 +420,9 @@ private:
         bool          readOnly     = false;
         int64_t       modifiedUnix = 0;
         HRESULT       readError    = S_OK;
+        bool          hidden       = false;
+        bool          system       = false;
+        bool          compressed   = false;
     };
 
 
@@ -368,6 +462,8 @@ private:
     }
 
 
-    std::mutex                     m_mutex;
-    std::map<std::wstring, Entry>  m_files;
+    std::mutex                            m_mutex;
+    std::map<std::wstring, Entry>         m_files;
+    std::set<std::wstring>                m_directories;
+    std::map<std::wstring, std::wstring>  m_links;
 };

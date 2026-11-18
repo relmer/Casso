@@ -118,4 +118,5 @@ struct DebugSessionView
     uint64_t                                  compareSerial   = 0;
     IFileSystem                             * fileSystem      = nullptr;
     std::wstring                              currentDirectory;
+    int                                       nextId          = 0;    // the id the next breakpoint set takes
 };

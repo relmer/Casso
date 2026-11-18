@@ -48,7 +48,7 @@ public:
         hr = store.Add (10, s_kSideInterval, 0, MakeState (1), MakeSide (1));
         AssertSucceeded (hr, L"Add");
 
-        Assert::AreEqual ((size_t) 1, store.GetPendingCount(), L"still being packed");
+        Assert::AreEqual ((size_t) 1, store.GetArena().GetUnplacedCount(), L"still being packed");
         Assert::IsTrue   (ReadSide (store, 0) == MakeSide (1), L"in flight, the side bytes come from the job");
 
         queue.WaitAll();
@@ -89,9 +89,9 @@ public:
             AssertSucceeded (hr, L"Add with side bytes");
         }
 
-        Assert::AreEqual (kCount * s_kSideBytes, sided.GetSideByteCount(), L"the side bytes held");
-        Assert::AreEqual (bare.GetByteCount() + kCount * s_kSideBytes, sided.GetByteCount(), L"are held against the budget");
-        Assert::IsTrue   (sided.GetUsedBytes() > bare.GetUsedBytes(), L"and fill the meter");
+        Assert::AreEqual (kCount * s_kSideBytes, sided.GetArena().GetSideByteCount(), L"the side bytes held");
+        Assert::AreEqual (bare.GetArena().GetByteCount() + kCount * s_kSideBytes, sided.GetArena().GetByteCount(), L"are held against the budget");
+        Assert::IsTrue   (sided.GetArena().GetUsedBytes (sided.GetSettings().budgetBytes) > bare.GetArena().GetUsedBytes (bare.GetSettings().budgetBytes), L"and fill the meter");
 
         for (i = 0; i < kCount; i++)
         {
@@ -158,19 +158,19 @@ public:
             AssertSucceeded (hr, L"Add");
         }
 
-        for (i = 0; i < store.GetCount(); i++)
+        for (i = 0; i < store.GetArena().GetCount(); i++)
         {
-            packed += store.GetInfo (i).storedBytes;
+            packed += store.GetArena().GetInfo (i).storedBytes;
         }
 
-        Assert::AreEqual (kCount, store.GetCount(),                        L"nothing dropped under the default budget");
-        Assert::AreEqual (packed + s_kSideStateBytes, store.GetByteCount(), L"the packed bytes with their side bytes, and the whole snapshot's copy");
+        Assert::AreEqual (kCount, store.GetArena().GetCount(),                        L"nothing dropped under the default budget");
+        Assert::AreEqual (packed + s_kSideStateBytes, store.GetArena().GetByteCount(), L"the packed bytes with their side bytes, and the whole snapshot's copy");
 
-        tableBytes = store.GetUsedBytes() - store.GetByteCount();
+        tableBytes = store.GetArena().GetUsedBytes (store.GetSettings().budgetBytes) - store.GetArena().GetByteCount();
 
-        Assert::AreEqual ((size_t) 0, tableBytes % store.GetCapacity(),    L"the rest is whole table slots");
-        Assert::IsTrue   (tableBytes / store.GetCapacity() > 0 && tableBytes / store.GetCapacity() <= kMaxSlot, L"of a slot's size");
-        Assert::IsTrue   (store.GetUsedBytes() < settings.budgetBytes,      L"and the meter is short of full");
+        Assert::AreEqual ((size_t) 0, tableBytes % store.GetArena().GetCapacity(),    L"the rest is whole table slots");
+        Assert::IsTrue   (tableBytes / store.GetArena().GetCapacity() > 0 && tableBytes / store.GetArena().GetCapacity() <= kMaxSlot, L"of a slot's size");
+        Assert::IsTrue   (store.GetArena().GetUsedBytes (store.GetSettings().budgetBytes) < settings.budgetBytes,      L"and the meter is short of full");
     }
 
 
@@ -209,8 +209,8 @@ public:
         hr = store.ChangeBudget (kSmall);
         AssertSucceeded (hr, L"ChangeBudget");
 
-        Assert::AreEqual (kCount, store.GetCount(), L"the one group is the newest, so it stays");
-        Assert::IsTrue   (store.GetArenaBytes() >= store.GetSideByteCount(), L"the arena holds what it was given");
+        Assert::AreEqual (kCount, store.GetArena().GetCount(), L"the one group is the newest, so it stays");
+        Assert::IsTrue   (store.GetArena().GetArenaBytes() >= store.GetArena().GetSideByteCount(), L"the arena holds what it was given");
 
         std::fill (side.begin(), side.end(), static_cast<Byte> (kCount - 1));
         Assert::IsTrue (ReadSide (store, kCount - 1) == side, L"the last side bytes moved whole");
@@ -238,7 +238,7 @@ public:
 
         store.SetDropListener (&drops, [&] (KeyframeDrop drop)
         {
-            size_t  index = (drop == KeyframeDrop::Newest) ? store.GetCount() - 1 : 0;
+            size_t  index = (drop == KeyframeDrop::Newest) ? store.GetArena().GetCount() - 1 : 0;
 
 
 
@@ -258,9 +258,9 @@ public:
         drops.clear();
         sides.clear();
 
-        newest = store.GetCount() - 1;
+        newest = store.GetArena().GetCount() - 1;
 
-        hr = store.DropAfterPosition (store.GetInfo (newest - 2).position);
+        hr = store.DropAfterPosition (store.GetArena().GetInfo (newest - 2).position);
         AssertSucceeded (hr, L"DropAfterPosition");
 
         Assert::AreEqual ((size_t) 2, drops.size(), L"one notice for each of the two newest");

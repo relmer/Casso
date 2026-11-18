@@ -49,6 +49,9 @@ public:
     // (and the per-boot seed log) cover the cold-init path too.
     void    InitForEmulation (Prng & prng);
 
+    //  Each opcode's instruction length, from this CPU's instruction set.
+    std::array<uint8_t, 256>  MakeOpcodeLengths () const;
+
     // Phase 4 split-reset (FR-034 / FR-035).
     //
     // SoftReset matches the //e CPU's reaction to /RESET: I=1, SP=0xFD,
@@ -67,6 +70,12 @@ public:
     // trace ring and opcode watch are not state.
     HRESULT SaveState  (StateWriter & writer) const override;
     HRESULT LoadState  (StateReader & reader) override;
+
+    // The section without the RAM, for a CPU whose memory is all on its
+    // bus, such as a drive's: a version's registers, lines, counters and
+    // last instruction.
+    void    SaveRegisters (StateWriter & writer) const;
+    void    LoadRegisters (StateReader & reader, uint16_t version);
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', 'P', 'U', ' ');
     static constexpr uint16_t  kStateVersion = 3;

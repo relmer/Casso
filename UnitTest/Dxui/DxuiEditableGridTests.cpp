@@ -253,6 +253,27 @@ public:
 
 
 
+    //  When the first field adds the row, the hint row's other fields have
+    //  nothing to edit until it exists, so a click on one edits the first.
+    TEST_METHOD (AHintRowAddedOnItsFirstFieldEditsOnlyThatField)
+    {
+        Host  host;
+
+
+
+        host.grid.SetAddsOnFirstField (true);
+
+        Assert::IsTrue  (host.grid.IsCellEditable (3, 0), L"the first field");
+        Assert::IsFalse (host.grid.IsCellEditable (3, 1), L"a later field");
+        Assert::IsTrue  (host.grid.IsCellEditable (1, 1), L"each field of a row that exists");
+
+        host.Click (3, 1);
+        Assert::IsTrue   (host.grid.IsEditing());
+        Assert::AreEqual (0, host.grid.GetEditColumn(), L"the click on a later field edits the first");
+    }
+
+
+
     TEST_METHOD (AClickEditsACellAndEnterCommitsIt)
     {
         Host  host;

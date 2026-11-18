@@ -1,0 +1,111 @@
+#include "Pch.h"
+
+#include "Machines/Apple2/Common/Disk2IwmDriveBus.h"
+#include "Machines/Apple2/Common/Disk2Drive.h"
+#include "Machines/Apple2/Common/Disk2Lines.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2IwmDriveBus::Disk2IwmDriveBus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Disk2IwmDriveBus::Disk2IwmDriveBus (Disk2Lines & lines, Disk2Drive & drive, int index) :
+    m_lines (lines),
+    m_drive (drive),
+    m_index (index)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2IwmDriveBus::SetPhases
+//
+//  The IWM sets the phases of the drive it selected, so the drive becomes
+//  the controller's selected one, and each phase that changed steps its
+//  head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2IwmDriveBus::SetPhases (bool ph0, bool ph1, bool ph2, bool ph3)
+{
+    uint8_t  phases = static_cast<uint8_t> ((ph0 ? 1 : 0) | (ph1 ? 2 : 0) | (ph2 ? 4 : 0) | (ph3 ? 8 : 0));
+
+
+
+    m_lines.SelectDrive (m_index);
+    m_lines.SetPhases (phases);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2IwmDriveBus::GetSense
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2IwmDriveBus::GetSense() const
+{
+    return m_drive.IsWriteProtected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2IwmDriveBus::ReadCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Disk2IwmDriveBus::ReadCell (uint64_t cellEndNs)
+{
+    UNREFERENCED_PARAMETER (cellEndNs);
+
+    return m_drive.GetEngine().StepCell (false, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2IwmDriveBus::WriteCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2IwmDriveBus::WriteCell (Byte bit, uint64_t cellEndNs)
+{
+    UNREFERENCED_PARAMETER (cellEndNs);
+
+    (void) m_drive.GetEngine().StepCell (true, bit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2IwmDriveBus::SetEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2IwmDriveBus::SetEnabled (bool isEnabled)
+{
+    m_isEnabled = isEnabled;
+    m_drive.GetEngine().SetMotorOn (isEnabled);
+}

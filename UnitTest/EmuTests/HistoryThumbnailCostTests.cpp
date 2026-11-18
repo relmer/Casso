@@ -78,14 +78,14 @@ public:
         ReverseSessionRig::Prepare (machine);
         ShowHiRes (machine);
 
-        frameMs = TimeMs ([&] { machine.RunCycles (KeyframeSettings::kFrameCycles); });
+        frameMs = TimeMs ([&] { machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles); });
 
         for (i = 0; i < (size_t) s_kCostKeyframes; i++)
         {
-            machine.RunCycles (settings.intervalCycles);
+            machine.GetRunner().RunCycles (settings.intervalCycles);
             ScribbleHiRes (machine, i);
 
-            hr = store.Capture (machine, machine.GetPosition());
+            hr = store.Capture (machine, machine.GetRunner().GetPosition());
             AssertSucceeded (hr, L"Capture");
         }
 
@@ -93,15 +93,15 @@ public:
         //  keyframe is a difference in the third.
         oldWhole = 0;
         oldDiff  = s_kCostGroup / 2;
-        newDiff  = store.GetCount() - 1;
+        newDiff  = store.GetArena().GetCount() - 1;
 
-        Assert::IsTrue  (store.GetInfo (oldWhole).isWhole, L"the oldest keyframe is whole");
-        Assert::IsFalse (store.GetInfo (oldDiff).isWhole,  L"one in the oldest group is a difference");
-        Assert::IsFalse (store.GetInfo (newDiff).isWhole,  L"the newest is a difference in the newest group");
+        Assert::IsTrue  (store.GetArena().GetInfo (oldWhole).isWhole, L"the oldest keyframe is whole");
+        Assert::IsFalse (store.GetArena().GetInfo (oldDiff).isWhole,  L"one in the oldest group is a difference");
+        Assert::IsFalse (store.GetArena().GetInfo (newDiff).isWhole,  L"the newest is a difference in the newest group");
 
         log += std::format ("history thumbnail cost, {} build\n", IsDebugBuild() ? "Debug" : "Release");
         log += std::format ("  state {} bytes; whole packs to {}, a difference to {}\n",
-                            store.GetInfo (0).stateBytes, store.GetInfo (oldWhole).storedBytes, store.GetInfo (oldDiff).storedBytes);
+                            store.GetArena().GetInfo (0).stateBytes, store.GetArena().GetInfo (oldWhole).storedBytes, store.GetArena().GetInfo (oldDiff).storedBytes);
         log += std::format ("  emulating one frame (17,030 cycles)                {:8.3f} ms\n", frameMs);
 
         log += std::format ("  unpack, newest group (diff + XOR)                  {:8.3f} ms\n",
@@ -113,21 +113,21 @@ public:
         AssertSucceeded (hr, L"Restore");
 
         log += std::format ("  machine thread: copy packed, with the whole        {:8.4f} ms\n",
-                            TimeMs ([&] { unpacker.Forget(); hr = store.CopyPacked (store.GetInfo (oldDiff).position, unpacker, packed, copy); }));
+                            TimeMs ([&] { unpacker.Forget(); hr = store.CopyPacked (store.GetArena().GetInfo (oldDiff).position, unpacker, packed, copy); }));
         AssertSucceeded (hr, L"CopyPacked");
 
         hr = unpacker.Unpack (packed, state);
         AssertSucceeded (hr, L"Unpack");
 
         log += std::format ("  machine thread: copy packed, unpacker holds whole  {:8.4f} ms\n",
-                            TimeMs ([&] { hr = store.CopyPacked (store.GetInfo (oldDiff + 1).position, unpacker, packed, copy); }));
+                            TimeMs ([&] { hr = store.CopyPacked (store.GetArena().GetInfo (oldDiff + 1).position, unpacker, packed, copy); }));
         AssertSucceeded (hr, L"CopyPacked");
 
         log += std::format ("  worker: unpack, same group (diff + XOR)            {:8.3f} ms\n",
                             TimeMs ([&] { hr = unpacker.Unpack (packed, state); }));
         AssertSucceeded (hr, L"Unpack");
 
-        hr = store.CopyPacked (store.GetInfo (newDiff).position, unpacker, packed, copy);
+        hr = store.CopyPacked (store.GetArena().GetInfo (newDiff).position, unpacker, packed, copy);
         AssertSucceeded (hr, L"CopyPacked");
 
         log += std::format ("  worker: unpack, other group (whole + diff + XOR)   {:8.3f} ms\n",
@@ -137,7 +137,7 @@ public:
         other = state;
 
         log += std::format ("    of which the XOR alone                           {:8.3f} ms\n",
-                            TimeMs ([&] { KeyframeStore::XorBytes (state.data(), other.data(), state.data(), state.size()); }));
+                            TimeMs ([&] { KeyframeCodec::XorBytes (state.data(), other.data(), state.data(), state.size()); }));
 
         hr = unpacker.Unpack (packed, state);
         AssertSucceeded (hr, L"Unpack");

@@ -13,10 +13,7 @@
 //  The tokenized form Integer BASIC keeps in memory and DOS 3.3 stores in a
 //  type I file, rendered back as host text.
 //
-//  ONE DIRECTION ONLY. Nothing here tokenizes: an Integer listing arriving from
-//  the host is stored as text, because the machine that ran Integer BASIC
-//  never saved anything else and the guest would have to be booted into it to
-//  RUN the result.
+//  The other direction is IntegerBasicTokenizer.
 //
 //  THE STORED FORM, from the ROM's own conventions:
 //
@@ -31,7 +28,7 @@
 //
 //  A MALFORMED LINE REFUSES THE WHOLE PROGRAM rather than rendering what came
 //  before it. A partial listing reads as a short program, and a short program
-//  is a plausible thing to ship, so the refusal carries the offset the walk
+//  is a plausible thing to ship, so the refusal holds the offset the walk
 //  stopped at instead.
 //
 ////////////////////////////////////////////////////////////////////////////////

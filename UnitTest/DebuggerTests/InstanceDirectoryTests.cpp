@@ -34,6 +34,8 @@ namespace InstanceDirectoryTests
         std::deque<std::vector<std::string>>   answers;
         bool                                   closeAfterAnswers = false;
         std::vector<DWORD>                   * waits             = nullptr;   // each read's wait, when set
+        bool                                   isHelloAnswered   = true;      // a hello request gets a hello back at once, and isn't counted as sent
+        std::vector<std::string>               hellos;                        // the hello requests written
 
 
 
@@ -42,6 +44,13 @@ namespace InstanceDirectoryTests
             if (m_isClosed)
             {
                 return false;
+            }
+
+            if (isHelloAnswered && line.find (R"("type":"hello")") != std::string::npos)
+            {
+                hellos.push_back (line);
+                m_incoming.push_back (R"({"type":"hello","id":0,"protocol":1})");
+                return true;
             }
 
             sent.push_back (line);
@@ -126,8 +135,9 @@ namespace InstanceDirectoryTests
                 return nullptr;
             }
 
-            client        = std::make_unique<ScriptedClient>();
-            client->waits = &waits;
+            client                  = std::make_unique<ScriptedClient>();
+            client->waits           = &waits;
+            client->isHelloAnswered = false;    // the lister's hellos are the test's
 
             if (!found->second.empty())
             {
@@ -470,6 +480,31 @@ namespace InstanceDirectoryTests
             DebugAttachRunner::Run (client, Options ({ "r" }), "", result);
 
             Assert::AreEqual (DebugAttachRunner::kChannelClosed, result.exitStatus);
+        }
+
+
+
+        //  The runner's hello sets "logs", and each message is printed where
+        //  it arrives: after the line whose run wrote it, before the next line.
+        TEST_METHOD (BreakpointMessagesArePrintedAfterTheLineThatRan)
+        {
+            ScriptedClient     client;
+            DebugAttachResult  result;
+
+
+
+            client.answers.push_back ({ R"({"type":"reply","id":1,"status":"ok","command":"g","text":[],"running":true})",
+                                        R"({"type":"log","text":"Breakpoint #0: X=$01"})",
+                                        R"({"type":"stopped","reason":"breakpoint","pc":768,"causeId":1})" });
+            client.answers.push_back ({ R"({"type":"reply","id":2,"status":"ok","command":"r","text":["A:01"]})" });
+
+            DebugAttachRunner::Run (client, Options ({ "g", "r" }), "", result);
+
+            Assert::AreEqual ((size_t) 1, client.hellos.size(), L"one hello");
+            Assert::IsTrue   (client.hellos[0].find (R"("logs":true)") != std::string::npos, L"with logs set");
+            Assert::IsTrue   (result.output.find ("Breakpoint #0: X=$01") != std::string::npos, L"the message was printed");
+            Assert::IsTrue   (result.output.find ("Breakpoint #0: X=$01") < result.output.find (">r"), L"before the next line");
+            Assert::IsTrue   (result.output.find ("[hello]") == std::string::npos, L"the hello isn't printed");
         }
 
 

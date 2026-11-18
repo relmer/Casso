@@ -2,6 +2,7 @@
 
 #include "MemoryBusCpu.h"
 #include "Core/DramPowerOnPattern.h"
+#include "Disassembler.h"
 #include "Prng.h"
 #include "StateReader.h"
 #include "StateWriter.h"
@@ -46,9 +47,39 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
     // virtual ReadByteSlow into the bus.
     m_readPages = m_memoryBus.GetReadPageTable();
 
+    //  Each opcode fetch sets the fetched byte's bit; a write clears the bits
+    //  of the instructions it lands in, by their opcodes' lengths.
+    m_fetchTable = m_memoryBus.GetFetchTable();
+    m_memoryBus.SetOpcodeLengths (MakeOpcodeLengths());
+
     // The trace reads operand bytes from the pages the MMU mapped, which a
     // watched page keeps in the shadow table while the read table holds null.
     m_tracePeekPages = m_memoryBus.GetShadowReadPageTable();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeOpcodeLengths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<uint8_t, 256> MemoryBusCpu::MakeOpcodeLengths() const
+{
+    Disassembler              disassembler (GetInstructionSet());
+    std::array<uint8_t, 256>  lengths      = {};
+
+
+
+    for (int opcode = 0; opcode < 256; opcode++)
+    {
+        lengths[(size_t) opcode] = (uint8_t) disassembler.GetLength ((Byte) opcode);
+    }
+
+    return lengths;
 }
 
 
@@ -282,6 +313,25 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
 {
     writer.BeginSection (kStateTag, kStateVersion);
 
+    SaveRegisters (writer);
+
+    m_pages.Save (writer, memory.data(), kStateRamSize);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBusCpu::SaveRegisters (StateWriter & writer) const
+{
     writer.WriteWord   (PC);
     writer.WriteByte   (SP);
     writer.WriteByte   (A);
@@ -303,11 +353,6 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
     writer.WriteWord   (m_lastBranchTo);
     writer.WriteBool   (m_hasLastBranchTo);
     writer.WriteUInt64 (m_cycleBase);
-
-
-    m_pages.Save (writer, memory.data(), kStateRamSize);
-
-    return writer.EndSection();
 }
 
 
@@ -330,6 +375,31 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    LoadRegisters (reader, version);
+
+    reader.ReadBytes  (memory.data(), kStateRamSize);
+
+    m_pages.MarkAllWritten();
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBusCpu::LoadRegisters (StateReader & reader, uint16_t version)
+{
     reader.ReadWord   (PC);
     reader.ReadByte   (SP);
     reader.ReadByte   (A);
@@ -365,14 +435,4 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     {
         reader.ReadUInt64 (m_cycleBase);
     }
-
-    reader.ReadBytes  (memory.data(), kStateRamSize);
-
-    m_pages.MarkAllWritten();
-
-    hr = reader.EndSection();
-    CHR (hr);
-
-Error:
-    return hr;
 }

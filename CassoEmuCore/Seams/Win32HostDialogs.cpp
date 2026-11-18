@@ -53,9 +53,21 @@ HRESULT Win32HostDialogs::Configure (IFileDialog * dialog, const FileDialogSpec 
         IGNORE_RETURN_VALUE (hrFolder, S_OK);
     }
 
+    if (!spec.title.empty())
+    {
+        hr = dialog->SetTitle (spec.title.c_str());
+        CHR (hr);
+    }
+
     if (!spec.defaultFileName.empty())
     {
         hr = dialog->SetFileName (spec.defaultFileName.c_str());
+        CHR (hr);
+    }
+
+    if (!IsEqualGUID (spec.clientGuid, GUID_NULL))
+    {
+        hr = dialog->SetClientGuid (spec.clientGuid);
         CHR (hr);
     }
 
@@ -155,8 +167,9 @@ Error:
 HRESULT Win32HostDialogs::PickFileToSave (HWND owner, const FileDialogSpec & spec, std::filesystem::path & outPath,
                                           bool & outPicked)
 {
-    HRESULT                  hr = S_OK;
+    HRESULT                  hr      = S_OK;
     ComPtr<IFileSaveDialog>  dialog;
+    FILEOPENDIALOGOPTIONS    options = 0;
 
 
 
@@ -164,6 +177,15 @@ HRESULT Win32HostDialogs::PickFileToSave (HWND owner, const FileDialogSpec & spe
 
     hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&dialog));
     CHR (hr);
+
+    if (!spec.askToReplace)
+    {
+        hr = dialog->GetOptions (&options);
+        CHR (hr);
+
+        hr = dialog->SetOptions (options & ~FOS_OVERWRITEPROMPT);
+        CHR (hr);
+    }
 
     hr = Configure (dialog.Get(), spec);
     CHR (hr);

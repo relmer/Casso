@@ -43,8 +43,8 @@ enum class TapeCommand
 //  ICpuMachineCommands
 //
 //  What a command from the UI thread can ask of the machine as a whole: a
-//  switch, a reset, a power cycle, one instruction, the trace. The shell
-//  implements it.
+//  switch, a reset, a power cycle, one instruction, the trace, a serial
+//  port's device. The shell implements it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,10 +60,17 @@ public:
     virtual void     PowerCycle                ()                                  = 0;
     virtual void     StepInstruction           ()                                  = 0;
     virtual void     SaveTrace                 ()                                  = 0;
+    virtual HRESULT  ConnectSerialPort         (int port, const std::string & device, const std::string & path) = 0;
+    virtual HRESULT  ConnectParallelPrinter    (int slot, bool attached)          = 0;
+    virtual void     ServiceInspectorRequests  ()                                  = 0;
 
     //  Saves the whole machine to a state file, or loads one.
     virtual void     SaveMachineState          (const std::filesystem::path & path) = 0;
     virtual void     LoadMachineState          (const std::filesystem::path & path) = 0;
+
+    //  Makes a tokenized Applesoft program the one in memory, as BASICLOAD
+    //  does.
+    virtual void     LoadBasicProgram          (const std::vector<Byte> & tokenized) = 0;
 
     // The Super Serial Card's DIP switches, as "on off ..." text per bank.
     virtual void     SetSerialCardSwitches     (const std::string & sw1,
@@ -98,6 +105,15 @@ public:
     virtual HRESULT  ToggleImageWriteProtect  (int drive)                            = 0;
     virtual void     ResolvePendingChange     (int slot, int drive, int action,
                                                const std::string & savePath)        = 0;
+
+    //  A 3.5-inch drive's disk, by its card's slot and drive (MachineHost::
+    //  FindFloppy35).
+    virtual void     InsertFloppy35           (int slot, int drive, const std::string & path) = 0;
+    virtual void     EjectFloppy35            (int slot, int drive)                            = 0;
+
+    //  A hard disk's image, by its card's slot and the drive's SCSI ID (0 for
+    //  a ProFile) (MachineHost::AttachHardDisk).
+    virtual HRESULT  AttachHardDisk           (int slot, int drive, const std::string & path) = 0;
 };
 
 

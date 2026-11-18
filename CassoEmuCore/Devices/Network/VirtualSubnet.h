@@ -41,4 +41,7 @@ public:
     static uint32_t  HostToGuest (uint32_t ip) { return ip == kLoopbackIp ? kGatewayIp : ip; }
 
     static bool      IsLoopback  (uint32_t ip) { return (ip >> 24) == (kLoopbackIp >> 24); }
+
+    //  The limited broadcast address, or the subnet's own.
+    static bool      IsBroadcast (uint32_t ip) { return ip == kBroadcastIp || ip == ((kGatewayIp & kSubnetMask) | ~kSubnetMask); }
 };

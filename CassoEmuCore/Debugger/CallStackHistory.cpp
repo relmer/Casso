@@ -5,6 +5,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseController.h"
 #include "Shell/MachineHost.h"
+#include "Shell/MachineStorage.h"
 #include "Debugger/CallStackRebuildJob.h"
 
 
@@ -83,7 +84,7 @@ void CallStackHistory::Attach (
     {
         if (m_history != nullptr)
         {
-            m_history->SetKeyframeListener (this, nullptr);
+            m_history->GetCapturer().SetKeyframeListener (this, nullptr);
             m_history->GetKeyframes().SetDropListener (this, nullptr);
         }
 
@@ -91,7 +92,7 @@ void CallStackHistory::Attach (
 
         if (history != nullptr)
         {
-            history->SetKeyframeListener (this, [this] (uint64_t position) { OnKeyframeTaken (position); });
+            history->GetCapturer().SetKeyframeListener (this, [this] (uint64_t position) { OnKeyframeTaken (position); });
             history->GetKeyframes().SetDropListener (this, [this] (KeyframeDrop drop) { OnKeyframeDrop (drop); });
         }
     }
@@ -100,7 +101,7 @@ void CallStackHistory::Attach (
     m_rebuilder    = rebuilder;
     m_restoresSeen = GetRestoreCount();
 
-    m_session.SetCallRebuildProgress (std::nullopt);
+    m_session.GetCallRecords().SetRebuildProgress (std::nullopt);
 }
 
 
@@ -173,7 +174,7 @@ void CallStackHistory::OnMoved (bool isInterim)
 
     if (!isStill)
     {
-        m_session.RestartCallRecording();
+        m_session.GetCallRecords().Restart();
     }
 }
 
@@ -196,15 +197,15 @@ void CallStackHistory::OnMoved (bool isInterim)
 void CallStackHistory::Service()
 {
     uint64_t  record   = 0;
-    bool      isOn     = m_session.IsCallRecording();
-    bool      isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->IsRecording();
+    bool      isOn     = m_session.GetCallRecords().IsRecording();
+    bool      isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->GetSpan().IsRecording();
     bool      isOwed   = false;
 
 
 
     CheckLoads();
 
-    record = m_session.GetCallRecordGeneration();
+    record = m_session.GetCallRecords().GetGeneration();
 
     if (record != m_seenRecord)
     {
@@ -296,7 +297,7 @@ HRESULT CallStackHistory::MakeJob (
     hr = keyframes->WaitForPending();
     CHR (hr);
 
-    count = keyframes->GetCount();
+    count = keyframes->GetArena().GetCount();
     BAIL_OUT_IF (count == 0, S_OK);
 
     outJob.isContinued = isContinued;
@@ -310,13 +311,13 @@ HRESULT CallStackHistory::MakeJob (
         part.startPosition = from;
         outJob.inputsFrom  = journalCursor;
 
-        isFound = keyframes->TryFindByPosition (from, index);
-        index   = !isFound ? 0 : (keyframes->GetInfo (index).position == from) ? index : index + 1;
+        isFound = keyframes->GetArena().TryFindByPosition (from, index);
+        index   = !isFound ? 0 : (keyframes->GetArena().GetInfo (index).position == from) ? index : index + 1;
     }
     else
     {
         start    = FindFreshStart (*keyframes, target);
-        info     = keyframes->GetInfo (start);
+        info     = keyframes->GetArena().GetInfo (start);
         isSeeded = TryFindSeed (*keyframes, info.position, target, index);
 
         BAIL_OUT_IF (!isSeeded && info.position >= target, S_OK);
@@ -346,7 +347,7 @@ HRESULT CallStackHistory::MakeJob (
 
     for (; index < count; index++)
     {
-        info = keyframes->GetInfo (index);
+        info = keyframes->GetArena().GetInfo (index);
 
         if (info.position > target)
         {
@@ -372,10 +373,13 @@ HRESULT CallStackHistory::MakeJob (
 
     outJob.parts.back().endPosition = target;
 
-    isCopied = m_machine.GetInputJournal().TryCopyRecords (outJob.inputsFrom, target, outJob.inputs);
+    isCopied = m_machine.GetHostInput().GetJournal().TryCopyRecords (outJob.inputsFrom, target, outJob.inputs);
     BAIL_OUT_IF (!isCopied, S_OK);
 
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
+    CHR (hr);
+
+    hr = m_machine.GetStorage().CopyReplayMedia (outJob.blockMedia);
     CHR (hr);
 
     outHasJob = true;
@@ -431,7 +435,7 @@ void CallStackHistory::Abandon()
 {
     Stop();
 
-    m_session.MarkCallRecordUnrebuilt();
+    m_session.GetCallRecords().MarkUnrebuilt();
 }
 
 
@@ -455,8 +459,8 @@ void CallStackHistory::Request()
 {
     HRESULT                               hr         = S_OK;
     KeyframeStore                       & keyframes  = m_history->GetKeyframes();
-    uint64_t                              target     = m_machine.GetPosition();
-    uint64_t                              recorded   = m_history->GetRecordedEnd();
+    uint64_t                              target     = m_machine.GetRunner().GetPosition();
+    uint64_t                              recorded   = m_history->GetSeeker().GetRecordedEnd();
     uint64_t                              recordFrom = 0;
     size_t                                start      = 0;
     bool                                  hasJob     = false;
@@ -473,10 +477,10 @@ void CallStackHistory::Request()
     hr = keyframes.WaitForPending();
     CHR (hr);
 
-    if (keyframes.GetCount() > 0)
+    if (keyframes.GetArena().GetCount() > 0)
     {
         start     = FindFreshStart (keyframes, target);
-        isAtStart = keyframes.GetInfo (start).position == target;
+        isAtStart = keyframes.GetArena().GetInfo (start).position == target;
     }
 
     if (isAtStart)
@@ -571,7 +575,7 @@ void CallStackHistory::TakeResults()
 HRESULT CallStackHistory::Land (CallStackRebuildResult & result)
 {
     HRESULT   hr        = S_OK;
-    uint64_t  position  = m_machine.GetPosition();
+    uint64_t  position  = m_machine.GetRunner().GetPosition();
     bool      isUseful  = false;
     bool      isSettled = false;
 
@@ -625,8 +629,8 @@ HRESULT CallStackHistory::Continue (
 {
     HRESULT                               hr       = S_OK;
     const EmuCpu                        * cpu      = m_machine.GetCpu();
-    uint64_t                              target   = m_machine.GetPosition();
-    uint64_t                              recorded = m_history->GetRecordedEnd();
+    uint64_t                              target   = m_machine.GetRunner().GetPosition();
+    uint64_t                              recorded = m_history->GetSeeker().GetRecordedEnd();
     uint64_t                              cycle    = 0;
     uint64_t                              limit    = 0;
     bool                                  hasJob   = false;
@@ -712,12 +716,12 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
     }
 
     registers = cpu->GetCpu6502()->GetRegisters();
-    isSame    = result.position == m_machine.GetPosition() && result.cycle == cpu->GetHistoryCycles() &&
+    isSame    = result.position == m_machine.GetRunner().GetPosition() && result.cycle == cpu->GetHistoryCycles() &&
                 AreSameRegisters (result.registers, registers);
 
     if (isSame)
     {
-        m_session.AdoptCallRecord (result.record);
+        m_session.GetCallRecords().Adopt (result.record);
 
         NoteWhole();
         CommitCopies();
@@ -743,7 +747,7 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
 void CallStackHistory::NoteWhole()
 {
     m_isWhole     = true;
-    m_wholeRecord = m_session.GetCallRecordGeneration();
+    m_wholeRecord = m_session.GetCallRecords().GetGeneration();
 }
 
 
@@ -797,9 +801,9 @@ void CallStackHistory::CommitCopies()
             last = copy.packed;
         }
 
-        isSame = keyframes.TryFindByPosition (copy.position, index);
-        isSame = isSame && keyframes.GetInfo (index).position == copy.position && keyframes.GetInfo (index).cycle == copy.cycle &&
-                 keyframes.GetInfo (index).checksum == copy.checksum;
+        isSame = keyframes.GetArena().TryFindByPosition (copy.position, index);
+        isSame = isSame && keyframes.GetArena().GetInfo (index).position == copy.position && keyframes.GetArena().GetInfo (index).cycle == copy.cycle &&
+                 keyframes.GetArena().GetInfo (index).checksum == copy.checksum;
 
         if (!isSame || last.empty())
         {
@@ -843,7 +847,7 @@ void CallStackHistory::CheckLoads()
 
     m_session.ResolveDiskCalls();
     m_session.TakeBasicValues();
-    m_session.RestartCallRecording();
+    m_session.GetCallRecords().Restart();
 }
 
 
@@ -866,7 +870,7 @@ void CallStackHistory::OnRecordChanged (
     uint64_t  record,
     bool      isOn)
 {
-    std::optional<CallStackBreak>  bottom   = m_session.GetCallRecordBottom();
+    std::optional<CallStackBreak>  bottom   = m_session.GetCallRecords().GetBottom();
     bool                           hasKind  = bottom.has_value();
     CallBreakKind                  kind     = hasKind ? bottom->kind : CallBreakKind::TrackingBegan;
     bool                           isMidRun = hasKind && (kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::HistoryBegan);
@@ -880,7 +884,7 @@ void CallStackHistory::OnRecordChanged (
     m_wholeRecord = record;
     m_seenRecord  = record;
     m_isDue       = isOn && isMidRun;
-    m_began       = m_machine.GetPosition();
+    m_began       = m_machine.GetRunner().GetPosition();
 }
 
 
@@ -903,7 +907,7 @@ void CallStackHistory::OnKeyframeTaken (uint64_t position)
         return;
     }
 
-    CallRecordCopies::Pack (m_session.GetCallRecord(), m_packed);
+    CallRecordCopies::Pack (m_session.GetCallRecords().GetRecord(), m_packed);
 
     m_copies.SetBudget (m_history->GetKeyframes().GetSettings().budgetBytes / kCopyBudgetParts);
     m_copies.Set (position, m_packed);
@@ -930,11 +934,11 @@ void CallStackHistory::OnKeyframeDrop (KeyframeDrop drop)
     switch (drop)
     {
     case KeyframeDrop::Oldest:
-        m_copies.Drop (keyframes.GetInfo (0).position);
+        m_copies.Drop (keyframes.GetArena().GetInfo (0).position);
         break;
 
     case KeyframeDrop::Newest:
-        m_copies.Drop (keyframes.GetInfo (keyframes.GetCount() - 1).position);
+        m_copies.Drop (keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position);
         break;
 
     default:
@@ -958,8 +962,8 @@ void CallStackHistory::OnKeyframeDrop (KeyframeDrop drop)
 
 bool CallStackHistory::IsCopying() const
 {
-    return m_isWhole && m_history != nullptr && m_session.IsCallRecording() &&
-           m_session.GetCallRecordGeneration() == m_wholeRecord && GetRestoreCount() == m_restoresSeen;
+    return m_isWhole && m_history != nullptr && m_session.GetCallRecords().IsRecording() &&
+           m_session.GetCallRecords().GetGeneration() == m_wholeRecord && GetRestoreCount() == m_restoresSeen;
 }
 
 
@@ -980,7 +984,7 @@ HRESULT CallStackHistory::CopyPart (
     CallStackRebuildPart   & outPart)
 {
     HRESULT               hr   = S_OK;
-    const KeyframeInfo  & info = m_history->GetKeyframes().GetInfo (index);
+    const KeyframeInfo  & info = m_history->GetKeyframes().GetArena().GetInfo (index);
     KeyframeCopy          copy = KeyframeCopy::Gone;
 
 
@@ -1044,8 +1048,8 @@ bool CallStackHistory::TryFindSeed (
 
 
 
-    isFound = isFound && position >= from && keyframes.TryFindByPosition (position, outIndex);
-    isFound = isFound && keyframes.GetInfo (outIndex).position == position;
+    isFound = isFound && position >= from && keyframes.GetArena().TryFindByPosition (position, outIndex);
+    isFound = isFound && keyframes.GetArena().GetInfo (outIndex).position == position;
 
     return isFound;
 }
@@ -1072,9 +1076,9 @@ size_t CallStackHistory::FindFreshStart (
     const KeyframeStore  & keyframes,
     uint64_t               target) const
 {
-    const InputJournal  & journal  = m_machine.GetInputJournal();
+    const InputJournal  & journal  = m_machine.GetHostInput().GetJournal();
     const InputRecord   * record   = nullptr;
-    size_t                count    = keyframes.GetCount();
+    size_t                count    = keyframes.GetArena().GetCount();
     size_t                end      = journal.GetEndIndex();
     size_t                start    = 0;
     size_t                index    = 0;
@@ -1083,15 +1087,15 @@ size_t CallStackHistory::FindFreshStart (
 
 
 
-    for (index = 1; index < count && keyframes.GetInfo (index).position <= target; index++)
+    for (index = 1; index < count && keyframes.GetArena().GetInfo (index).position <= target; index++)
     {
-        if (keyframes.GetInfo (index).hasGapBefore)
+        if (keyframes.GetArena().GetInfo (index).hasGapBefore)
         {
             start = index;
         }
     }
 
-    for (index = (std::max) (keyframes.GetInfo (start).journalIndex, journal.GetBeginIndex()); index < end; index++)
+    for (index = (std::max) (keyframes.GetArena().GetInfo (start).journalIndex, journal.GetBeginIndex()); index < end; index++)
     {
         record = &journal.GetRecord (index);
 
@@ -1109,7 +1113,7 @@ size_t CallStackHistory::FindFreshStart (
 
     //  A keyframe taken before the power cycle was journaled holds an
     //  index no greater than the power cycle's.
-    for (index = start + 1; isCycled && index < count && keyframes.GetInfo (index).journalIndex <= cycled; index++)
+    for (index = start + 1; isCycled && index < count && keyframes.GetArena().GetInfo (index).journalIndex <= cycled; index++)
     {
         start = index;
     }
@@ -1140,7 +1144,7 @@ bool CallStackHistory::TryMarkMove (MoveMark & outMark) const
 
     if (isMarked)
     {
-        outMark.position = m_machine.GetPosition();
+        outMark.position = m_machine.GetRunner().GetPosition();
         outMark.cycle    = cpu->GetHistoryCycles();
         outMark.replayed = m_history->GetReplayer().GetReplayedCount();
         outMark.restores = m_history->GetReplayer().GetRestoreCount();
@@ -1202,7 +1206,7 @@ void CallStackHistory::Publish()
         progress = 0.0f;
     }
 
-    m_session.SetCallRebuildProgress (progress);
+    m_session.GetCallRecords().SetRebuildProgress (progress);
 }
 
 

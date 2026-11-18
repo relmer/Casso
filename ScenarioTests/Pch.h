@@ -21,5 +21,13 @@
 #include <cstring>
 #include <exception>
 #include <regex>
+#include <winioctl.h>
 
 #include <CppUnitTest.h>
+
+#include "../UnitTest/HResultAssert.h"
+
+//  Master's scenario tests take these through VolumeImage.h, which now
+//  declares them only.
+#include "Devices/Disk/MountDiagnosis.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"

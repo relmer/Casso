@@ -3,34 +3,31 @@
 #include "Pch.h"
 
 #include "Config/Win32FileSystem.h"
-#include "Core/ParallelWorkPool.h"
-#include "Core/ThreadPoolWorkQueue.h"
-#include "Debugger/DebugSessionView.h"
-#include "Debugger/Project/DebugProjectStore.h"
-#include "Debugger/Reverse/ReplayControl.h"
+#include "Debugger/Reverse/ReverseCommand.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/DebugEventLogs.h"
 #include "Shell/DebuggerSliceHooks.h"
-#include "Shell/IHistoryClient.h"
-#include "Shell/ScratchCallReplayer.h"
-#include "Shell/ScratchHeatReplayer.h"
+#include "Shell/DebugViewModel.h"
+#include "Shell/DebugWindowMailbox.h"
+#include "Shell/HistoryDivergence.h"
+#include "Shell/IShellDebugContext.h"
+#include "Shell/ShellDebugProject.h"
 #include "Shell/ShellDebuggerPrefs.h"
+#include "Shell/ShellDebugView.h"
+#include "Shell/ShellHistory.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DebuggerWindow.h"
-#include "Ui/Debugger/DebugViewPublisher.h"
 
 class CpuManager;
 class CpuManagerRunDriver;
 class DebuggerController;
 struct DebuggerSettings;
+struct HistorySettings;
 class DebugSession;
 struct DebugSourceFile;
-struct DebugViewInput;
 class IDebuggerHost;
-class IReverseStopTest;
 class MachineHost;
-class ShellHistory;
 struct SourceLookup;
 class Win32NamedPipeApi;
 class Win32PipeTransport;
@@ -43,21 +40,25 @@ class Win32PipeTransport;
 //
 //  ShellDebugger
 //
-//  The debugger in the emulator: its window and session, the replays of
-//  history its views are rebuilt from, and the debug channel. The machine's
-//  history is ShellHistory's; the debugger follows it as its IHistoryClient.
-//  The emulator's shell constructs one and accesses it through a narrow
-//  interface; per-instruction work stays in the machine and the session's
-//  hooks.
+//  The debugger the emulator has: its window and session, the debug channel,
+//  and the views built for the window. Its parts are components:
+//  DebugViewModel has the window's view state, DebugWindowMailbox what
+//  crosses to the UI thread, ShellHistory reverse execution and the replays
+//  of history, HistoryDivergence the forks and the input deferred behind
+//  live, ShellDebugProject the debug projects, and ShellDebugView the
+//  window's views. The parts use the
+//  debugger through IShellDebugContext. The emulator's shell has one and
+//  calls it through a narrow interface; per-instruction work stays in the
+//  machine and the session's hooks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellDebugger : public IDebugCommandTarget,
-                      public IHistoryClient,
-                      private IDebuggerWindowHost
+                      private IDebuggerWindowHost,
+                      private IShellDebugContext
 {
 public:
-    ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings, ShellHistory & history);
+    ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings, HistorySettings & historySettings);
     ~ShellDebugger() override;
 
     // Attaches the driver the slice loop reports to, or detaches it with null.
@@ -87,54 +88,34 @@ public:
     // Tells an attached session the machine was reset or replaced. CPU thread
     // only; each is a no-op when no session is attached.
     void NotifyDebugReset          (bool isPowerCycle);
-    void NotifyDebugMachineChanged (const std::string & machineName);
+    void NotifyDebugMachineChanged (const std::string & machineName, bool isStateLoaded = false);
 
-    // History's commands from the command queue, run by ShellHistory: a move
-    // through history, the options' settings, and the cut a change behind
-    // live makes. ReverseContinue stops where the stop test given to
-    // SetReverseStopTest fires; without one it fails and the machine stays
-    // where it is.
-    void  RunReverseCommand     (ReverseCommand command, uint64_t argument) override;
-    void  ApplyReverseOptions   (bool isRecording, int budgetMb) override;
-    void  DivergeHistory        () override;
-    void  SetReverseStopTest    (IReverseStopTest * stopTest) { m_reverseStopTest = stopTest; }
+    // A machine just built is power cycled with its drives empty and then
+    // has its disks mounted, so the disk now in drive 1 is the one it boots,
+    // and the project's scope.
+    void NotifyDebugDisksMounted   ();
 
-    // IHistoryClient: the debugger's views follow the machine's history.
-    void                OnHistoryRestarted (ReverseController * controller) override;
-    void                OnHistoryStopping  () override;
-    bool                HasNoCallSince     (uint64_t historyStartCycle) override;
-    void                GetCallerLinks     (std::vector<CallerLink> & outLinks) override;
-    IReverseStopTest  * GetReverseStopTest () override { return m_reverseStopTest; }
-    void                OnHistoryMoving    () override;
-    void                OnHistoryMoved     (ReverseCommand command) override;
-    void                OnHistoryLanded    (const ReverseResult & result) override;
-    bool                IsDebugStepRunning () override;
-    void                OnPauseChanged     (bool paused) override { NotifyDebugPauseChanged (paused); }
+    // The debugger's parts: the window's view state and its views, reverse
+    // execution's history, the forks and the input deferred behind live, and
+    // the debug projects.
+    DebugViewModel     & GetViewModel  () { return m_viewModel; }
+    ShellDebugView     & GetView       () { return m_view; }
+    ShellHistory       & GetHistory    () { return m_history; }
+    HistoryDivergence  & GetDivergence () { return m_divergence; }
+    ShellDebugProject  & GetProject    () { return m_project; }
 
-    // UI thread: the prompt to add the last project's items to a more
-    // specific project just opened.
-    void  OnConfirmProjectMerge ();
+    // IDebugCommandTarget: the reverse commands, Tools > Options' settings
+    // and the cut after a yes, on the CPU thread.
+    void  RunReverseCommand   (ReverseCommand command, uint64_t argument) override { m_history.RunCommand (command, argument); }
+    void  ApplyReverseOptions (bool isRecording, int budgetMb) override           { m_history.ApplyOptions (isRecording, budgetMb); }
+    void  DivergeHistory      () override                                          { m_divergence.Diverge(); }
 
     // CPU thread, once a frame: what the slice loop reads of the debugger.
-    DebuggerSliceHooks  GetSliceHooks       ();
+    DebuggerSliceHooks  GetSliceHooks ();
 
-    // CPU thread: a step of the attached session, as a main window's step
-    // key asks for; false when no session is attached. And the views built
-    // again on the next publish, after the machine changed under them.
+    // CPU thread: a step of the attached session, for the main window's step
+    // key; false when no session is attached.
     bool  StepSession      ();
-    void  MarkViewDirty    ()   { m_isDebugViewDirty = true; }
-
-    // The lock on the view state that the window's setters change and a
-    // build reads. Any thread.
-    std::mutex & GetViewStateLock () noexcept { return m_debugViewStateLock; }
-
-    //  The milliseconds a view build is timed by, which a test replaces with
-    //  a clock it moves on rather than sleeping; and how many views have been
-    //  sent to be built, so a test checks that a pass built nothing without
-    //  waiting out a timeout.
-    using Clock = std::function<uint64_t()>;
-    void      SetClock          (Clock clock)    { m_clock = std::move (clock); }
-    uint64_t  GetBuildsSubmitted () const noexcept { return m_buildsSubmitted; }
 
     // Whether the beam mark is drawn: turned on and the session stopped.
     bool  IsBeamMarkShown  ();
@@ -163,121 +144,125 @@ public:
     bool    IsDebuggerMessage  (const MSG & msg) const;
 
     // The window's requests, carried out on the CPU thread (ICpuCommandTarget).
-    void    OpenDebugChannel   () override;
-    void    CloseDebugChannel  (bool isDetach) override;
-    void    PauseDebugRun      () override;
-    void    SetDebugView       (const std::string & view, std::optional<Word> address) override;
-    void    SetDebugTraceView  (std::optional<uint64_t> first) override;
-    void    SetDebugEventLog   (DebugLogKind kind, const std::string & request) override;
-    void    GoToDebugMemory    (int window, const std::string & text) override;
-    void    ScrollDebugCode    (int lines, int view) override;
-    void    RunDebugActions    () override;
+    void    OpenDebugChannel     () override;
+    void    CloseDebugChannel    (bool isDetach) override;
+    void    PauseDebugRun        () override;
+    void    SetDebugFollowView   (int view) override                                 { m_viewModel.SetFollowView (view); }
+    void    CloseDebugCodeView   (int view) override                                 { m_viewModel.CloseCodeView (view); }
+    void    OpenDebugCodeViewAt  (int view, Word top) override                       { m_viewModel.OpenCodeViewAt (view, top); }
+    void    SetDebugCodeLines    (int lines, int view) override                      { m_viewModel.SetCodeLines (lines, view); }
+    void    SetDebugCodeShown    (int lines, int view) override                      { m_viewModel.SetCodeShown (lines, view); }
+    void    ShowDebugCode        (int view, std::optional<Word> address) override    { m_viewModel.ShowCode (view, address); }
+    void    SetDebugMemoryWindow (int id, std::optional<Word> address) override      { m_viewModel.SetMemoryWindow (id, address); }
+    void    SetDebugTraceView    (std::optional<uint64_t> first) override            { m_viewModel.SetTraceView (first); }
+    void    SetDebugEventLog     (DebugLogKind kind, const DebugLogRequest & request) override { m_eventLogs.ApplyRequest (kind, request); }
+    void    GoToDebugMemory      (int window, const std::string & text) override;
+    void    SelectDebugCode      (int view, Word address) override                   { m_viewModel.SelectCode (view, address); }
+    void    ScrollDebugCode      (int lines, int view) override                      { m_viewModel.ScrollCode (lines, view); }
+    void    HoldDebugCode        (bool isHeld, int view) override                    { m_viewModel.HoldCode (isHeld, view); }
+    void    RunDebugActions      () override;
 
     // Whether the heat map pane is shown, and so recording.
-    void    SetDebugHeatMapShown   (bool shown) override;
-    void    SetDebugHeatColumnsShown (bool shown) override;
-    void    SetDebugTraceShown       (bool shown) override;
-    void    SetDebugSoundMuted       (int channel, bool isMuted) override;
-    void    SetDebugBasicShown     (bool isVisible) override;
-    void    SetDebugHeatMapOptions (const std::string & text) override;
-    void    ResetDebugHeatMap      () override;
-    void    SetDebugHeatMapHover   (std::optional<Word> address) override;
-    void    RunDebugHeatMapAccess  (const HeatAccessRequest & request) override;
-    void    SetDebugHeatMapIgnore  (const std::vector<std::pair<Word, Word>> & spans) override;
+    void  SetDebugHeatMapShown     (bool shown) override                             { m_viewModel.SetHeatMapShown (shown); }
+    void  SetDebugHeatColumnsShown (bool shown) override                             { m_viewModel.SetHeatColumnsShown (shown); }
+    void  SetDebugTraceShown       (bool shown) override                             { m_viewModel.SetTraceShown (shown); }
+    void  SetDebugSoundMuted       (int channel, bool isMuted) override;
+    void  SetDebugBasicShown       (bool isVisible) override                         { m_viewModel.SetBasicShown (isVisible); }
+    void  SetDebugHeatMapOptions   (const HeatMapOptions & options) override         { m_viewModel.SetHeatMapOptions (options); }
+    void  ResetDebugHeatMap        () override;
+    void  SetDebugHeatMapHover     (std::optional<Word> address) override            { m_viewModel.SetHeatMapHover (address); }
+    void  RunDebugHeatMapAccess    (const HeatAccessRequest & request) override;
+    void  SetDebugHeatMapIgnore    (const std::vector<std::pair<Word, Word>> & spans) override;
 
     // Draws a stopped machine's picture again when the beam mark changed.
     void    RedrawDebugFrame     () override;
 
-    // Gathers what the window's next snapshot reads when it is showing and
-    // due, and hands it to be built off the CPU thread. CPU thread.
-    void    PublishDebuggerView  ();
-    void    GatherDebugView      (DebugViewInput & input, DebuggerViewSnapshot & live);
-
-    // A built snapshot, for the UI thread to take. Any thread.
-    void    PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
-
     // IDebuggerWindowHost, called by the window on the UI thread.
-    void    RunDebuggerCommand       (const std::string & line) override;
-    void    RunDebuggerCommandInMode (const std::string & line, CommandMode mode) override;
-    void    RunDebuggerAction        (const DebuggerAction & action) override;
-    void    PauseDebugger            () override;
-    void    RunEmulatorCommand       (int commandId) override;
-    SpeedMode  GetEmulatorSpeed      () override;
-    void    SetDebuggerCodeLines     (int lines, int view) override;
-    void    SetDebuggerCodeAddress   (std::optional<Word> address, int view) override;
-    void    SetDebuggerCodeTop       (Word top, int view) override;
-    void    SetDebuggerFollowView    (int view) override;
-    void    CloseDebuggerCodeView    (int view) override;
-    static std::string  GetCodeViewSuffix (int view);
-    void    SetDebuggerMemoryWindow  (int id, std::optional<Word> address) override;
-    void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
-    void    SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) override;
-    void    TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override;
-    std::string  GetDebuggerEventLogOptions (DebugLogKind kind) override { return m_prefs.GetDebuggerEventLogOptions (kind); }
-    void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) override { m_prefs.SetDebuggerEventLogOptions (kind, text); }
-    void    SetDebuggerHeatMapShown  (bool shown) override;
-    void    SetDebuggerHeatColumnsShown (bool shown) override;
-    void    SetDebuggerTraceShown       (bool shown) override;
-    void    SetDebuggerSoundMuted   (int channel, bool isMuted) override;
-    void    SetDebuggerBasicShown    (bool isVisible) override;
-    void    GoToDebuggerMemory       (int window, const std::string & text) override;
-    void    ScrollDebuggerCode       (int lines, int view) override;
-    void    OnDebuggerWindowClosed   () override;
-    void    DetachDebugger           () override;
-    std::string  GetDebuggerKeyScheme () override { return m_prefs.GetDebuggerKeyScheme(); }
-    void         SetDebuggerKeyScheme (const std::string & name) override { m_prefs.SetDebuggerKeyScheme (name); }
-    std::string  GetDebuggerTheme     () override { return m_prefs.GetDebuggerTheme(); }
-    bool         IsBeamOverlayOn      () override { return m_isBeamOverlayOn.load (memory_order_acquire); }
-    void         SetBeamOverlayOn     (bool on) override;
-    void         SetDebuggerTheme     (const std::string & name) override { m_prefs.SetDebuggerTheme (name); }
-    ReverseOptions  GetReverseOptions () override;
-    void            SetReverseOptions (const ReverseOptions & options) override;
-    bool            IsReplayingHistory () override;
-    ReplayProgress  GetReplayProgress  () override;
-    void            StopReplay         () override;
-    std::string  GetDebuggerLayout    () override { return m_prefs.GetDebuggerLayout(); }
-    void         SetDebuggerLayout    (const std::string & text) override { m_prefs.SetDebuggerLayout (text); }
-    std::string  GetDebuggerClosedPanes () override { return m_prefs.GetDebuggerClosedPanes(); }
-    void         SetDebuggerClosedPanes (const std::string & text) override { m_prefs.SetDebuggerClosedPanes (text); }
-    std::string  GetDebuggerCommandBarDock () override { return m_prefs.GetDebuggerCommandBarDock(); }
-    void         SetDebuggerCommandBarDock (const std::string & text) override { m_prefs.SetDebuggerCommandBarDock (text); }
-    std::string  GetDebuggerTimelineDock   () override { return m_prefs.GetDebuggerTimelineDock(); }
-    void         SetDebuggerTimelineDock   (const std::string & text) override { m_prefs.SetDebuggerTimelineDock (text); }
+    void                RunDebuggerCommand          (const std::string & line) override;
+    void                RunDebuggerCommandInMode    (const std::string & line, CommandMode mode) override;
+    void                RunDebuggerAction           (const DebuggerAction & action) override;
+    void                PauseDebugger               () override;
+    void                RunEmulatorCommand          (int commandId) override;
+    SpeedMode           GetEmulatorSpeed            () override;
+    void                SetDebuggerCodeLines        (int lines, int view) override;
+    void                SetDebuggerCodeShown        (int lines, int view) override;
+    void                SetDebuggerCodeAddress      (std::optional<Word> address, int view) override;
+    void                SetDebuggerCodeTop          (Word top, int view) override;
+    void                SetDebuggerFollowView       (int view) override;
+    void                CloseDebuggerCodeView       (int view) override;
+    void                SetDebuggerMemoryWindow     (int id, std::optional<Word> address) override;
+    void                SetDebuggerTraceTop         (std::optional<uint64_t> first) override;
+    void                SendDebuggerEventLogRequest (DebugLogKind kind, const DebugLogRequest & request) override;
+    void                TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override { m_mailbox.TakeEventLogs (deltas); }
+    std::string         GetDebuggerEventLogOptions  (DebugLogKind kind) override { return m_prefs.GetDebuggerEventLogOptions (kind); }
+    void                SetDebuggerEventLogOptions  (DebugLogKind kind, const std::string & text) override { m_prefs.SetDebuggerEventLogOptions (kind, text); }
+    void                SetDebuggerHeatMapShown     (bool shown) override;
+    void                SetDebuggerHeatColumnsShown (bool shown) override;
+    void                SetDebuggerTraceShown       (bool shown) override;
+    void                SetDebuggerSoundMuted       (int channel, bool isMuted) override;
+    void                SetDebuggerBasicShown       (bool isVisible) override;
+    void                GoToDebuggerMemory          (int window, const std::string & text) override;
+    void                SelectDebuggerCode          (int view, Word address) override;
+    void                ScrollDebuggerCode          (int lines, int view) override;
+    void                HoldDebuggerCode            (int view, bool isHeld) override;
+    void                OnDebuggerWindowClosed      () override;
+    void                DetachDebugger              () override;
+    std::string         GetDebuggerKeyScheme        () override { return m_prefs.GetDebuggerKeyScheme(); }
+    void                SetDebuggerKeyScheme        (const std::string & name) override { m_prefs.SetDebuggerKeyScheme (name); }
+    std::string         GetDebuggerTheme            () override { return m_prefs.GetDebuggerTheme(); }
+    bool                IsBeamOverlayOn             () override { return m_isBeamOverlayOn.load (memory_order_acquire); }
+    void                SetBeamOverlayOn            (bool on) override;
+    void                SetDebuggerTheme            (const std::string & name) override { m_prefs.SetDebuggerTheme (name); }
+    ReverseOptions      GetReverseOptions           () override;
+    void                SetReverseOptions           (const ReverseOptions & options) override;
+    bool                IsReplayingHistory          () override { return m_history.IsReplaying(); }
+    ReplayProgress      GetReplayProgress           () override { return m_history.GetReplayProgress(); }
+    void                StopReplay                  () override { m_history.StopReplay(); }
+    std::string         GetDebuggerLayout           () override { return m_prefs.GetDebuggerLayout(); }
+    void                SetDebuggerLayout           (const std::string & text) override { m_prefs.SetDebuggerLayout (text); }
+    std::string         GetDebuggerClosedPanes      () override { return m_prefs.GetDebuggerClosedPanes(); }
+    void                SetDebuggerClosedPanes      (const std::string & text) override { m_prefs.SetDebuggerClosedPanes (text); }
+    std::string         GetDebuggerCommandBarDock   () override { return m_prefs.GetDebuggerCommandBarDock(); }
+    void                SetDebuggerCommandBarDock   (const std::string & text) override { m_prefs.SetDebuggerCommandBarDock (text); }
+    std::string         GetDebuggerTimelineDock     () override { return m_prefs.GetDebuggerTimelineDock(); }
+    void                SetDebuggerTimelineDock     (const std::string & text) override { m_prefs.SetDebuggerTimelineDock (text); }
 
-    HistoryThumbnails *  GetHistoryThumbnails () override;
-    void                 SeekHistoryCycle     (uint64_t cycle, bool isInterim) override;
-    bool                 IsHistorySeekBusy    () const override;
-    std::string  GetDebuggerFocusedPane () override { return m_prefs.GetDebuggerFocusedPane(); }
-    void         SetDebuggerFocusedPane (const std::string & text) override { m_prefs.SetDebuggerFocusedPane (text); }
-    bool         IsDebuggerEchoingActions  () override { return m_prefs.IsDebuggerEchoingActions(); }
-    void         SetDebuggerEchoingActions (bool isEchoing) override { m_prefs.SetDebuggerEchoingActions (isEchoing); }
-    std::string  GetDebuggerWindowState (const std::string & name) override { return m_prefs.GetDebuggerWindowState (name); }
-    std::map<std::string, std::string>  GetProjectWindowStrings () const;
-    void         SetProjectWindowStrings (const std::map<std::string, std::string> & strings);
-    void         SetDebuggerWindowState (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
-    bool         IsDebuggerSkipNoticeShown  () override { return m_prefs.IsDebuggerSkipNoticeShown(); }
-    void         SetDebuggerSkipNoticeShown (bool isShown) override { m_prefs.SetDebuggerSkipNoticeShown (isShown); }
-    int          GetDebuggerTextZoomPercent () override { return m_prefs.GetDebuggerTextZoomPercent(); }
-    void         SetDebuggerTextZoomPercent (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
-    std::string  GetDebuggerDisassemblyOptions () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
-    void         SetDebuggerDisassemblyOptions (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
-    std::string  GetDebuggerHeatMapOptions () override { return m_prefs.GetDebuggerHeatMapOptions(); }
-    void         SetDebuggerHeatMapOptions (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
-    std::string  GetDebuggerDiskDrives     () override { return m_prefs.GetDebuggerDiskDrives(); }
-    void         SetDebuggerDiskDrives     (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
-    std::string  GetDebuggerProfilerPeriod () override { return m_prefs.GetDebuggerProfilerPeriod(); }
-    void         SetDebuggerProfilerPeriod (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
-    void         ResetDebuggerHeatMap      () override;
-    void         SendDebuggerHeatMapRequest (const std::string & words) override;
-    std::string  GetDebuggerHeatMapRanges  () override { return m_prefs.GetDebuggerHeatMapRanges(); }
-    void         SetDebuggerHeatMapRanges  (const std::string & text) override { m_prefs.SetDebuggerHeatMapRanges (text); }
-    std::string  GetDebuggerOpenViews () override { return m_prefs.GetDebuggerOpenViews(); }
-    void         SetDebuggerOpenViews (const std::string & text) override { m_prefs.SetDebuggerOpenViews (text); }
-    bool         TakeDebuggerProjectState () override;
-    bool         TryGetDebuggerProject    (DebugProject & project) override;
-    void         SetDebuggerStartupCommands (const std::vector<DebugProject::StartupCommand> & commands) override;
-    bool         TryGetDebuggerPlacement (RECT & rectPx) override { return m_prefs.TryGetDebuggerPlacement (rectPx); }
-    void         SetDebuggerPlacement    (const RECT & rectPx) override { m_prefs.SetDebuggerPlacement (rectPx); }
+    HistoryThumbnails                   * GetHistoryThumbnails             () override { return &m_history.GetThumbnails(); }
+    void                                  SeekHistoryCycle                 (uint64_t cycle, bool isInterim) override { m_history.SeekCycle (cycle, isInterim); }
+    bool                                  IsHistorySeekBusy                () const override { return m_history.IsSeekBusy(); }
+    std::string                           GetDebuggerFocusedPane           () override { return m_prefs.GetDebuggerFocusedPane(); }
+    void                                  SetDebuggerFocusedPane           (const std::string & text) override { m_prefs.SetDebuggerFocusedPane (text); }
+    bool                                  IsDebuggerEchoingActions         () override { return m_prefs.IsDebuggerEchoingActions(); }
+    void                                  SetDebuggerEchoingActions        (bool isEchoing) override { m_prefs.SetDebuggerEchoingActions (isEchoing); }
+    bool                                  IsDebuggerLinkingToFileExplorer  () override { return m_prefs.IsDebuggerLinkingToFileExplorer(); }
+    void                                  SetDebuggerLinkingToFileExplorer (bool isFileExplorer) override { m_prefs.SetDebuggerLinkingToFileExplorer (isFileExplorer); }
+    std::string                           GetDebuggerWindowState           (const std::string & name) override { return m_prefs.GetDebuggerWindowState (name); }
+    void                                  SetDebuggerWindowState           (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
+    bool                                  IsDebuggerSkipNoticeShown        () override { return m_prefs.IsDebuggerSkipNoticeShown(); }
+    void                                  SetDebuggerSkipNoticeShown       (bool isShown) override { m_prefs.SetDebuggerSkipNoticeShown (isShown); }
+    int                                   GetDebuggerTextZoomPercent       () override { return m_prefs.GetDebuggerTextZoomPercent(); }
+    void                                  SetDebuggerTextZoomPercent       (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
+    std::string                           GetDebuggerDisassemblyOptions    () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
+    void                                  SetDebuggerDisassemblyOptions    (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
+    std::string                           GetDebuggerHeatMapOptions        () override { return m_prefs.GetDebuggerHeatMapOptions(); }
+    void                                  SetDebuggerHeatMapOptions        (const HeatMapOptions & options) override { m_prefs.SetDebuggerHeatMapOptions (options); }
+    std::string                           GetDebuggerDiskDrives            () override { return m_prefs.GetDebuggerDiskDrives(); }
+    void                                  SetDebuggerDiskDrives            (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
+    std::string                           GetDebuggerProfilerPeriod        () override { return m_prefs.GetDebuggerProfilerPeriod(); }
+    void                                  SetDebuggerProfilerPeriod        (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
+    void                                  ResetDebuggerHeatMap             () override;
+    void                                  SetDebuggerHeatMapHover          (std::optional<Word> address) override;
+    void                                  RunDebuggerHeatMapAccess         (const HeatAccessRequest & request) override;
+    void                                  SetDebuggerHeatMapIgnore         (const std::vector<std::pair<Word, Word>> & spans) override;
+    std::string                           GetDebuggerHeatMapRanges         () override { return m_prefs.GetDebuggerHeatMapRanges(); }
+    void                                  SetDebuggerHeatMapRanges         (const std::string & text) override { m_prefs.SetDebuggerHeatMapRanges (text); }
+    std::string                           GetDebuggerOpenViews             () override { return m_prefs.GetDebuggerOpenViews(); }
+    void                                  SetDebuggerOpenViews             (const std::string & text) override { m_prefs.SetDebuggerOpenViews (text); }
+    bool                                  TakeDebuggerProjectState         () override { return m_project.TakeWindowState(); }
+    bool                                  TryGetDebuggerProject            (DebugProject & project) override { return m_project.TryGetCopy (project); }
+    void                                  SetDebuggerStartupCommands       (const std::vector<DebugProject::StartupCommand> & commands) override { m_project.SetStartupCommands (commands); }
+    bool                                  TryGetDebuggerPlacement          (RECT & rectPx) override { return m_prefs.TryGetDebuggerPlacement (rectPx); }
+    void                                  SetDebuggerPlacement             (const RECT & rectPx) override { m_prefs.SetDebuggerPlacement (rectPx); }
     SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                        const std::string & programKey) override
     {
@@ -297,9 +282,8 @@ public:
     //  Reachable by a test subclass, which drives the debugger and its call
     //  history as the CPU thread does and takes its views as the window
     //  does: the debug channel's lifecycle, the debugger attached over a
-    //  transport the test holds rather than the pipe OpenDebugger opens, the
-    //  call record's rebuilder, whose jobs a test runs on a queue of its own,
-    //  and what Initialize and the debugger window would set up otherwise --
+    //  transport the test has rather than the pipe OpenDebugger opens, and
+    //  what Initialize and the debugger window would set up otherwise --
     //  the framebuffers a reverse command draws into, and whether the window
     //  is showing, since its view is built only while it is.
 
@@ -311,28 +295,38 @@ public:
     void    ServiceDebugger ();
     bool    IsDebuggerOpen  () const { return m_debugController != nullptr; }
 
-    // IDebuggerWindowHost: the window's next view and console lines.
+    // IDebuggerWindowHost: the window's next view and console lines, and a
+    // file a console link opens.
     bool    TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
-                                std::vector<std::string>                     & consoleLines) override;
+                                std::vector<std::string>                     & consoleLines) override
+    {
+        return m_mailbox.TakeUpdate (snapshot, consoleLines);
+    }
+
+    void    OpenDebuggerFile   (const std::wstring & path) override;
 
     // Makes the controller the shell's debugger: the shell's debug pointers
     // at it, and the session's requests routed to the CPU thread.
     void                    AttachDebugger      (std::unique_ptr<DebuggerController> controller);
-    ScratchCallReplayer   & GetCallReplayer     ()             { return m_callReplayer; }
     void                    PrepareFramebuffers ();
-    void                    SetDebugWindowShown (bool isShown) { m_isDebugWindowShown.store (isShown); }
-    void                    SetProjectStore     (std::unique_ptr<DebugProjectStore> store) { m_projectStore = std::move (store); }
-    void                    ServiceProject      ();
-    void                    SaveProject         ();
-    bool                    HasMergeOffer       ();
+    void                    ServiceHitLogs      ();
 
 private:
+    // IShellDebugContext, for the parts.
+    DebuggerController   * GetDebugController () override { return m_debugController.get(); }
+    DebugSession         * GetDebugSession    () override { return m_debugSession; }
+    CpuManagerRunDriver  * GetDebugRunDriver  () override { return m_debugRunDriver; }
+    void                   AddConsoleLines    (const std::vector<std::string> & lines) override;
+    void                   GetQuestionOwner   (bool isActiveOnly, HWND & owner, const IDxuiTheme * & theme) override;
+
+    void         ServicePendingScript      ();
+    void         ServiceEventLogs          ();
 
     IDebuggerHost     & m_host;
     MachineHost       & m_machine;
     CpuManager        & m_cpuManager;
-    DebuggerSettings  & m_settings;   // the emulator's preferences hold it; saved through the host
-    ShellHistory      & m_history;    // the machine's history, which the debugger follows
+    DebuggerSettings  & m_settings;          // the emulator's preferences have it; saved through the host
+    HistorySettings   & m_historySettings;   // likewise
 
     // The driver of a debugger run, when one is attached. Null on a machine
     // nobody is debugging, which is what keeps the slice loop's cost to a
@@ -342,78 +336,21 @@ private:
     DebugCommandHandler    m_debugCommandHandler;
     uint32_t               m_debugCommandClient  = 0;   // the client of the command being run, for the history guard
 
-    // Reverse continue's stop test, the debugger's, or null. CPU thread only.
-    IReverseStopTest            * m_reverseStopTest       = nullptr;
-
-    // The fading heat map's rebuilds after a move through history, replayed
-    // on a scratch machine of its own. Declared before the debugger, whose
-    // heat map holds it.
-    ScratchHeatReplayer           m_heatReplayer;
-
-    // The heat map's look-ups of an address's last access in history, on a
-    // scratch machine of its own, replayed on the CPU thread when asked.
-    ScratchHeatReplayer           m_heatFinder;
-
-    // The debugger's call record, rebuilt from history when it starts
-    // mid-run, on a scratch machine of its own. Declared before the
-    // debugger, whose call history holds it.
-    ScratchCallReplayer           m_callReplayer;
+    // Reverse execution, with its scratch machines, declared before the
+    // debugger, whose heat map and call history have references to them;
+    // and the forks and input behind live.
+    ShellHistory                  m_history               { m_host, m_machine, m_cpuManager, m_historySettings, m_eventLogs, *this, m_viewModel };
+    HistoryDivergence             m_divergence            { m_host, m_machine, m_cpuManager, m_history, *this, m_viewModel };
 
     // The Disk II event log and the input log, recording from the start of
     // the session on the History slot. Declared after the history it reads,
     // so it lets go of it first.
     DebugEventLogs                m_eventLogs             { m_machine };
 
-    // Debug projects (FR-166 to FR-171), the CPU thread's: the store, the
-    // project open and its file's text as last written, and the disk drive 1
-    // had at the last power cycle. A project change is made on the service
-    // tick, outside any command. The window strings of a project just opened
-    // and the merge prompt's text are passed to the UI thread under the mutex.
-    std::unique_ptr<DebugProjectStore>                        m_projectStore;
-    DebugProject                                              m_project;
-    bool                                                      m_hasProject           = false;
-    bool                                                      m_isMergeOwed          = false;
-    std::optional<DebugProject>                               m_projectToOpen;
-    std::string                                               m_projectSaved;
-    std::wstring                                              m_bootDisk;
-    bool                                                      m_isBootDiskNoted      = false;
-    ULONGLONG                                                 m_projectCheckedAt     = 0;
-    std::mutex                                                m_projectMutex;
-    std::optional<DebugProject>                               m_projectWindowPending;
-    std::optional<DebugProject>                               m_projectCopy;   // a copy of the open project, for the window
-    std::optional<std::vector<DebugProject::StartupCommand>>  m_startupPending;
-    std::vector<std::string>                                  m_mergeLines;
-    std::string                                               m_mergeFrom;
-    std::string                                               m_mergeInto;
-
-    // The scope a project's own symbol files called for once it was applied,
-    // as when a machine's project loads a debug file. Switching to it is part
-    // of the same restore, so the user is not offered a merge.
-    std::optional<ProjectScope>                               m_restoredScope;
-
-    // The debugger window's preferences, written under the project mutex.
-    ShellDebuggerPrefs                                        m_prefs { m_host, m_cpuManager, m_settings, m_projectMutex };
-
-    void            OpenProjectStore    ();
-    ProjectScope    GetProjectScope     ();
-    void            NoteBootDisk        ();
-    void            SyncProject         ();
-    void            ApplyProject        (const DebugProject & project);
-    void            RunStartupCommands  ();
-    void            OfferProjectMerge   (const DebugProject & old);
-    static bool     HasMergeItems       (const DebugProject & project);
-    void            RunMergeLines       ();
-
-    static std::optional<int>  GetMergedId (const Reply & reply);
-
-    void            RunProjectRequest   (const std::string & text, Reply & reply);
-    void            CaptureProject      (DebugProject & project);
-    void            AddConsoleLines     (const std::vector<std::string> & lines);
-    void            PublishProject      ();
-
-    void            SyncHeatHistory         (bool isAttached);
-    void            ServiceCallHistory();
-    void            ServiceEventLogs();
+    // The debug projects, and the debugger window's preferences, written
+    // under the project lock.
+    ShellDebugProject             m_project               { m_host, m_machine, m_settings, m_debugFiles, *this, m_viewModel };
+    ShellDebuggerPrefs            m_prefs                 { m_host, m_cpuManager, m_settings, m_project.GetMutex() };
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -422,56 +359,19 @@ private:
     std::unique_ptr<Win32PipeTransport>   m_pipeTransport;
     std::unique_ptr<DebuggerController>   m_debugController;
 
-    // The debugger window and what it is shown. The view state and the build
-    // clock belong to the CPU thread; the snapshot and console lines cross to
-    // the UI thread under the mutex.
+    // The debugger window and its view state, which the CPU thread accesses;
+    // the snapshot and console lines cross to the UI thread
+    // through the mailbox.
     std::unique_ptr<DebuggerWindow>  m_debuggerWindow;
-    DebuggerViewState                m_debugViewState;
-    ULONGLONG                        m_debugViewBuiltAt      = 0;
-    bool                             m_isDebugViewDirty      = true;
-    bool                             m_wasPausedAtDebugBuild = false;
-    bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
-    bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record
-    bool                             m_wasStepping           = false;   // a step or a trace run was under way at the last pass
-    ULONGLONG                        m_steppingSince         = 0;       // the first pass during it
-    Clock                            m_clock                 = [] () -> uint64_t { return GetTickCount64(); };
-    uint64_t                         m_buildsSubmitted       = 0;
-
-    // While the window is closed and BRKUNINIT keeps the heat map on, how
-    // often it is folded, and when it last was.
-    static constexpr ULONGLONG       kHiddenHeatFoldMs       = 1000;
-    ULONGLONG                        m_heatFoldedAt          = 0;
-
-    std::atomic<bool>                              m_isDebugWindowShown { false };
-    bool                                           m_isDetachPending    = false;
-    std::mutex                                     m_debugViewMutex;
-    std::shared_ptr<const DebuggerViewSnapshot>    m_debugViewSnapshot;
-    bool                                           m_isDebugViewFresh   = false;
-    std::vector<std::string>                       m_debugConsolePending;
-    DebugLogDeltas                                 m_eventLogsPending;
-    std::vector<DebuggerAction>                    m_debugActionsPending;
-
-    // The panes are built off the CPU thread from what it gathers each frame.
-    // Each build holds the view state lock while it reads the view state, and
-    // so does every change the window makes to it on the CPU thread; the
-    // device panels and the heat map, which drive the live machine, are built
-    // on the CPU thread from members no build reads. The session view is kept
-    // between frames so the symbols and the debug file are shared until they
-    // change. The queue is declared last so it is destroyed first, waiting for
-    // a build still running.
-    static constexpr size_t                        kDebugBuildQueueCapacity = 2;
-    static constexpr DWORD                         kDebugBuildThreads       = 3;
-    std::mutex                                     m_debugViewStateLock;
-    DebugSessionView                               m_debugSessionView;
-    DebugViewPublisher                             m_debugViewPublisher { m_debugViewState, m_debugViewStateLock,
-                                                                          [this] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
-                                                                          {
-                                                                              PublishDebugSnapshot (std::move (snapshot));
-                                                                          } };
-    ParallelWorkPool                               m_debugBuildPool;
-    ThreadPoolWorkQueue                            m_debugBuildQueue;
+    DebugViewModel                   m_viewModel;
+    bool                             m_isDetachPending       = false;
+    DebugWindowMailbox               m_mailbox;
 
     // The debugger's mark of where the beam is, drawn over the picture
     // while the debugger has the machine stopped.
-    atomic<bool>                  m_isBeamOverlayOn{false};
+    atomic<bool>                     m_isBeamOverlayOn       {false};
+
+    // The window's views, built off the CPU thread. Declared last so it is
+    // destroyed first, which blocks until a running build finishes.
+    ShellDebugView                   m_view                  { m_machine, m_cpuManager, m_history, m_eventLogs, *this, m_viewModel, m_mailbox };
 };

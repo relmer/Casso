@@ -102,28 +102,30 @@ private:
     {
         std::optional<Event>           event;
         std::optional<DiskFieldEvent>  field;
-        size_t                         markSet  = 0;
-        uint16_t                       readMask = 0;     // the field's track's sectors read so far this visit, it included
-        uint16_t                       anyMask  = 0;     // and those passed over as well
+        size_t                         markSet   = 0;
+        uint16_t                       readMask  = 0;    // the field's track's sectors read so far this visit, it included
+        uint16_t                       anyMask   = 0;    // and those passed over as well
+        uint16_t                       writeMask = 0;    // the track's sectors written so far this visit, it included
     };
 
     //  A drive's visit to one track: the physical sectors whose data fields
     //  were read in full there, and those read or passed over.
     struct Visit
     {
-        int       track    = -1;
-        uint16_t  readMask = 0;
-        uint16_t  anyMask  = 0;
+        int       track     = -1;
+        uint16_t  readMask  = 0;
+        uint16_t  anyMask   = 0;
+        uint16_t  writeMask = 0;
     };
 
-    void  Queue          (Event event);
-    void  FindBlockedWrites (const Disk2NibbleRecord & record);
-    bool  IsMatch        (const Breakpoint & entry, const Candidate & candidate) const;
-    bool  IsFieldMatch   (const DiskBreakSpec & spec, const Candidate & candidate) const;
-    void  NoteVisit      (Candidate & candidate);
-    bool  IsEventMatch   (const DiskBreakSpec & spec, const Event & event) const;
-    void  MakeReport     (int id, const Candidate & candidate, const DebugDiskState & state);
-    size_t  FindMarkSet  (const DiskBreakSpec & spec) const;
+    void    Queue             (Event event);
+    void    FindBlockedWrites (const Disk2NibbleRecord & record);
+    bool    IsMatch           (const Breakpoint & entry, const Candidate & candidate) const;
+    bool    IsFieldMatch      (const DiskBreakSpec & spec, const Candidate & candidate) const;
+    void    NoteVisit         (Candidate & candidate);
+    bool    IsEventMatch      (const DiskBreakSpec & spec, const Event & event) const;
+    void    MakeReport        (int id, const Candidate & candidate, const DebugDiskState & state);
+    size_t  FindMarkSet       (const DiskBreakSpec & spec) const;
 
     static DiskFieldTracker::Marks  GetMarks     (const DiskBreakSpec & spec);
     static bool                     IsDrive      (const DiskBreakSpec & spec, int drive);

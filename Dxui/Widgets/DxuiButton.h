@@ -17,11 +17,11 @@ public:
     explicit DxuiButton  (const std::wstring & label) { m_focusable = true; SetLabel (label); }
     ~DxuiButton() override = default;
 
-    void  Layout            (const RECT & rect) { SetBounds (rect); }
-    void  SetLabel          (const std::wstring & label);
-    wchar_t  GetAccelerator () const { return m_accelerator; }
-    void  SetOnClick      (ClickFn click) { m_click = std::move (click); }
-    bool  HasClickHandler () const { return (bool) m_click; }
+    void     Layout          (const RECT & rect) { SetBounds (rect); }
+    void     SetLabel        (const std::wstring & label);
+    wchar_t  GetAccelerator  () const { return m_accelerator; }
+    void     SetOnClick      (ClickFn click) { m_click = std::move (click); }
+    bool     HasClickHandler () const { return (bool) m_click; }
 
     // Win32 command id (IDOK / IDCANCEL / IDYES / ...). A modal DxuiWindow
     // discovers its buttons by id: the default (Enter) button, the IDCANCEL
@@ -33,15 +33,23 @@ public:
 
     // Visual variant. Default uses the theme's neutral button tokens;
     // Primary fills with the theme accent (darkened to a WCAG 4.5:1
-    // contrast against its white label). Link renders as accent-colored
+    // contrast against its white label). Danger fills the same way with the
+    // theme's error color, for an action that destroys data. Link renders as accent-colored
     // text with no fill/border (a clickable hyperlink); the consumer wires
     // SetOnClick to open the URL. A button cannot be given an arbitrary,
     // non-theme color -- every fill/text derives from IDxuiTheme. Toolbar
     // is flat and borderless until hovered, pressed or emphasized, as a
     // toolbar's entries are; emphasis then reads as checked.
-    enum class Variant { Default, Primary, Link, Toolbar };
+    enum class Variant { Default, Primary, Danger, Link, Toolbar };
     void     SetVariant  (Variant variant) { m_variant = variant; }
     Variant  GetVariant  () const { return m_variant; }
+
+    // A Link's text color in place of the theme's accent, such as the error
+    // color for a link to a problem; 0 for the accent. And an underline under
+    // a Link's text while the pointer is on it, for a link that must read as
+    // one. Neither by default.
+    void  SetLinkColor        (uint32_t argb)   { m_linkColor = argb; }
+    void  SetUnderlineOnHover (bool isUnderlined) { m_isUnderlinedOnHover = isUnderlined; }
 
     // How the label is trimmed when it does not fit the button's box. Off by
     // default: most buttons are sized to their label, and a caller that has
@@ -50,23 +58,23 @@ public:
     void  SetElide    (DxuiElide mode)   { m_elide = mode; }
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.
-    void  SetEmphasis (bool on) { m_emphasis = on; }
+    void  SetEmphasis  (bool on) { m_emphasis = on; }
     bool  IsEmphasized () const { return m_emphasis; }
 
     //  The label's face and size in DIPs, for a label that is an icon font's
     //  glyph. Null and 0 keep the body face at 13.
     void  SetGlyphFont (const wchar_t * face, float sizeDip) { m_face = face; m_fontSizeDip = sizeDip; }
-    void  SetMouse    (int x, int y, bool down);
-    void  SetFocused  (bool focused) { m_focused = focused; }
-    bool  IsFocused   () const { return m_focused; }
-    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
-    bool  IsEnabled   () const { return m_enabled; }
-    void  SetVisible  (bool visible) { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
-    bool  IsVisible   () const { return m_visible; }
-    bool  HitTest     (int x, int y) const;
-    void  Click       ();
-    bool  OnKey       (WPARAM vk);
-    void  Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  SetMouse     (int x, int y, bool down);
+    void  SetFocused   (bool focused) { m_focused = focused; }
+    bool  IsFocused    () const { return m_focused; }
+    void  SetEnabled   (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
+    bool  IsEnabled    () const { return m_enabled; }
+    void  SetVisible   (bool visible) { IDxuiControl::SetVisible (visible); m_visible = visible; if (!visible) { m_hover = false; m_pressed = false; m_focused = false; } }
+    bool  IsVisible    () const { return m_visible; }
+    bool  HitTest      (int x, int y) const;
+    void  Click        ();
+    bool  OnKey        (WPARAM vk);
+    void  Paint        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     //
     //  IDxuiControl overrides — additive shims so DxuiButton slots
@@ -83,18 +91,20 @@ public:
 
 private:
     std::wstring     m_label;
-    wchar_t          m_accelerator = 0;
+    wchar_t          m_accelerator         = 0;
     ClickFn          m_click;
-    bool             m_hover       = false;
-    bool             m_pressed     = false;
-    bool             m_focused     = false;
-    bool             m_enabled     = true;
-    bool             m_visible     = true;
+    bool             m_hover               = false;
+    bool             m_pressed             = false;
+    bool             m_focused             = false;
+    bool             m_enabled             = true;
+    bool             m_visible             = true;
     DxuiDpiScaler    m_scaler;
-    Variant          m_variant     = Variant::Default;
-    DxuiElide        m_elide       = DxuiElide::None;
-    bool             m_emphasis    = false;
-    const wchar_t  * m_face        = nullptr;
-    float            m_fontSizeDip = 0.0f;
-    int              m_commandId   = 0;
+    Variant          m_variant             = Variant::Default;
+    uint32_t         m_linkColor           = 0;
+    bool             m_isUnderlinedOnHover = false;
+    DxuiElide        m_elide               = DxuiElide::None;
+    bool             m_emphasis            = false;
+    const wchar_t  * m_face                = nullptr;
+    float            m_fontSizeDip         = 0.0f;
+    int              m_commandId           = 0;
 };

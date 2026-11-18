@@ -223,8 +223,8 @@ public:
 
         now = *machine.GetCpu()->GetBusCyclePtr();
 
-        Assert::IsFalse (TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTapeDeck(), now, kClock));
-        Assert::IsFalse (machine.GetTapeDeck().HasBeenAccessed());
+        Assert::IsFalse (TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTape().GetDeck(), now, kClock));
+        Assert::IsFalse (machine.GetTape().GetDeck().HasBeenAccessed());
     }
 
 
@@ -251,24 +251,24 @@ public:
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "t.wav", false, mp3, image, error));
 
         machine.PowerCycle();
-        machine.RunCycles (5'000'000);
+        machine.GetRunner().RunCycles (5'000'000);
         KeystrokeInjector::InjectLine (machine, "CALL -151", 2'000'000);
-        machine.GetTapeDeck().Insert (std::move (image));
+        machine.GetTape().GetDeck().Insert (std::move (image));
         KeystrokeInjector::InjectLine (machine, "800.83FR", 1'000'000);
 
         clock = (double) machine.GetConfig().clockSpeed;
         total = (uint64_t) (clock * 8.0);
-        machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
+        machine.GetTape().GetDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
 
         for (cycles = 0; cycles < total; cycles += kSlice)
         {
-            machine.RunCycles (kSlice);
-            machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
-            wasOn = wasOn || TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTapeDeck(), *machine.GetCpu()->GetBusCyclePtr(), clock);
+            machine.GetRunner().RunCycles (kSlice);
+            machine.GetTape().GetDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+            wasOn = wasOn || TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTape().GetDeck(), *machine.GetCpu()->GetBusCyclePtr(), clock);
         }
 
         Assert::IsTrue  (wasOn, L"the override engaged during the load");
-        Assert::IsFalse (TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTapeDeck(), *machine.GetCpu()->GetBusCyclePtr(), clock),
+        Assert::IsFalse (TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTape().GetDeck(), *machine.GetCpu()->GetBusCyclePtr(), clock),
                          L"and released after the tape ran out");
     }
 
@@ -312,26 +312,26 @@ public:
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "t.wav", false, mp3, image, error));
 
         machine.PowerCycle();
-        machine.RunCycles (5'000'000);
+        machine.GetRunner().RunCycles (5'000'000);
         KeystrokeInjector::InjectLine (machine, "CALL -151", 2'000'000);
-        machine.GetTapeDeck().Insert (std::move (image));
+        machine.GetTape().GetDeck().Insert (std::move (image));
         KeystrokeInjector::InjectLine (machine, "800.47FFR", 1'000'000);
 
         clock = (double) machine.GetConfig().clockSpeed;
         total = (uint64_t) (clock * 200.0);
         QueryPerformanceFrequency (&freq);
-        machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
+        machine.GetTape().GetDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
 
-        for (cycles = 0; cycles < total && machine.GetTapeDeck().GetTransport() == TapeTransport::Playing; cycles += kSlice)
+        for (cycles = 0; cycles < total && machine.GetTape().GetDeck().GetTransport() == TapeTransport::Playing; cycles += kSlice)
         {
-            bool           isFast = TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTapeDeck(),
+            bool           isFast = TapeTurboGovernor::ShouldRunAtMaximum (true, machine.GetTape().GetDeck(),
                                                                            *machine.GetCpu()->GetBusCyclePtr(), clock);
             LARGE_INTEGER  t0     = {};
             LARGE_INTEGER  t1     = {};
 
             QueryPerformanceCounter (&t0);
-            machine.RunCycles (kSlice);
-            machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+            machine.GetRunner().RunCycles (kSlice);
+            machine.GetTape().GetDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
             QueryPerformanceCounter (&t1);
 
             hostSec += isFast ? (double) (t1.QuadPart - t0.QuadPart) / (double) freq.QuadPart

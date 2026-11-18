@@ -42,9 +42,9 @@ public:
 
     bool  IsNetwork () const { return m_isNetwork; }
 
-    void  SetLaneShown (size_t lane, bool isShown);
-    bool  IsLaneShown  (size_t lane) const { return lane < m_lanes.size() && m_lanes[lane]; }
-    const std::vector<bool> &  GetLanesShown () const { return m_lanes; }
+    void                       SetLaneShown  (size_t lane, bool isShown);
+    bool                       IsLaneShown   (size_t lane) const { return lane < m_lanes.size() && m_lanes[lane]; }
+    const std::vector<bool>  & GetLanesShown () const { return m_lanes; }
 
     std::string   GetOptionsText () const;
     void          SetOptionsText (const std::string & text);
@@ -57,11 +57,12 @@ public:
     static bool  IsDataRow (const IoEvent & event);
 
 protected:
-    ColumnSpecs  GetColumnSpecs () const override;
-    bool         Matches        (const Row & row, size_t index) const override;
-    void         MakeCells      (const Row & row, Cells & out) const override;
-    size_t       GetLabelColumn () const override { return kPort; }
-    size_t       GetTextColumn  () const override { return kHex; }
+    ColumnSpecs            GetColumnSpecs () const override;
+    bool                   Matches        (const Row & row, size_t index) const override;
+    IEventLogFilter::Kind  GetFilterKind  (size_t column) const override { return (column == kPort || column == kDirection) ? IEventLogFilter::Kind::Values : (column == kLength) ? IEventLogFilter::Kind::Compare : EventLogPane::GetFilterKind (column); }
+    void                   MakeCells      (const Row & row, Cells & out) const override;
+    size_t                 GetLabelColumn () const override { return kPort; }
+    size_t                 GetTextColumn  () const override { return kHex; }
 
 private:
     bool               m_isNetwork = false;

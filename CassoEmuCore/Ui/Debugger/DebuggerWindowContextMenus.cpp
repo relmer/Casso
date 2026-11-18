@@ -1,12 +1,15 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/GutterGlyph.h"
+#include "Ui/Debugger/SymbolComments.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Config/WindowPlacementProfile.h"
@@ -16,7 +19,7 @@
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
-#include "Cassque/CassquePromptDialog.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
@@ -105,7 +108,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 
         if (m_snapshot->followView != view)
         {
-            m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Follow PC", false, [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Follow PC", [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
             menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
@@ -140,7 +143,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             syntax.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Syntax", false, [] {}));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Syntax", [] {}));
         menu.push_back (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (syntax)));
         menu.push_back (DxuiPopupMenuItem::ForSeparator());
     }
@@ -153,7 +156,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             continue;
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (item.label, false, [action = item.action] { if (action) { (void) action(); } }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (item.label, [action = item.action] { if (action) { (void) action(); } }));
         m_menuCommands.back()->accelerator = item.accelerator;
         m_menuCommands.back()->isEnabled   = [enabled = item.enabled] { return enabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -181,11 +184,12 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     std::vector<std::pair<std::wstring, std::function<void()>>>  items;
     std::vector<DxuiPopupMenuItem>                               menu;
     int                                                          row    = -1;
+    int                                                          held   = -1;
     RECT                                                         bounds = {};
 
 
 
-    if (m_snapshot == nullptr || GetMenuHost() == nullptr)
+    if (m_snapshot == nullptr)
     {
         return false;
     }
@@ -221,12 +225,25 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
         row = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
 
+        for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+        {
+            held = (m_code->GetCodeList (view) == list) ? view : held;
+        }
+
         //  As in Explorer: a right-click on a selected row does not change
         //  the selection, so Copy copies every selected row; on any other
         //  row it selects that row alone.
         if (row >= 0 && !list->IsRowSelected (row))
         {
             list->SetSelectedRow (row);
+        }
+
+        //  And the list takes the focus, as Explorer's does, so the row the
+        //  menu acts on is drawn selected rather than in the faint color of a
+        //  selection in a list without the focus.
+        if (row >= 0)
+        {
+            SetFocusedControl (list);
         }
 
         AddListMenuItems (list, row, GetColumnAt (list, clientPx.x - bounds.left), items);
@@ -237,9 +254,12 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         FindPane (pane)->AddContentMenuItems (clientPx, items);
     }
 
-    if (items.empty())
+    AddGoToDefinition (clientPx, items);
+
+    //  The row and the focus are taken above whether or not a menu can open.
+    if (items.empty() || GetMenuHost() == nullptr)
     {
-        return false;
+        return !items.empty();
     }
 
     m_menuCommands.clear();
@@ -247,8 +267,229 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     menu = MakePaneMenuRows (items);
 
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu), [this] (bool) { HoldCodeView (-1); });
+    HoldCodeView (held);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HoldCodeView
+//
+//  While a code view's menu is open, the running machine doesn't move the
+//  view out from under it; -1 lets the view go. The menu is shared, so
+//  opening one closes the last, and its close lets the last view go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::HoldCodeView (int view)
+{
+    if (m_host == nullptr || view == m_heldCodeView)
+    {
+        return;
+    }
+
+    if (m_heldCodeView >= 0)
+    {
+        m_host->HoldDebuggerCode (m_heldCodeView, false);
+    }
+
+    m_heldCodeView = view;
+
+    if (view >= 0)
+    {
+        m_host->HoldDebuggerCode (view, true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddGoToDefinition
+//
+//  Insert Go to definition first on the menu when the point is over a
+//  symbol in a code view or a source document, or over a macro's name in a
+//  source document.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+{
+    Word  address = 0;
+    int   fileId  = -1;
+    int   line    = 0;
+
+
+
+    if (TryGetDefinitionAt (clientPx, address))
+    {
+        items.insert (items.begin(), { L"Go to definition", [this, address] { GoToDefinition (address); } });
+    }
+    else if (TryGetMacroDefinitionAt (clientPx, fileId, line))
+    {
+        items.insert (items.begin(), { L"Go to definition", [this, fileId, line] { m_sources->Open (fileId, line, true); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetMacroDefinitionAt
+//
+//  Over a macro's name in a source document, the file and line that define
+//  the macro: the document's file first, then the other files open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetMacroDefinitionAt (POINT clientPx, int & fileId, int & line) const
+{
+    std::wstring        name;
+    std::optional<int>  found;
+    int                 over = -1;
+
+
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments && over < 0; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+
+        if (document.IsShown() && document.GetView() != nullptr && DxuiDockSite::Contains (document.GetView()->GetBounds(), clientPx))
+        {
+            over = slot;
+            name = document.GetModel().GetWordAt (clientPx);
+        }
+    }
+
+    if (name.empty())
+    {
+        return false;
+    }
+
+    found = m_sources->GetDocument (over).GetModel().FindMacroLine (name);
+
+    if (found.has_value())
+    {
+        fileId = m_sources->GetDocument (over).GetModel().GetFile();
+        line   = *found;
+        return true;
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (slot == over || !m_sources->IsOpen (slot))
+        {
+            continue;
+        }
+
+        found = m_sources->GetDocument (slot).GetModel().FindMacroLine (name);
+
+        if (found.has_value())
+        {
+            fileId = m_sources->GetDocument (slot).GetModel().GetFile();
+            line   = *found;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetDefinitionAt
+//
+//  The address of the symbol at a point in a code view or a source
+//  document. A constant has no defining line to go to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetDefinitionAt (POINT clientPx, Word & address) const
+{
+    const SymbolInfo  * found = nullptr;
+    std::string         name;
+
+
+
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+    {
+        return false;
+    }
+
+    if (!m_code->GetSymbols().TryGetSymbolAt (clientPx, name, address))
+    {
+        for (int slot = 0; slot < SourceDocuments::kMaxDocuments && found == nullptr; slot++)
+        {
+            const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+
+            if (document.IsShown() && document.GetView() != nullptr && DxuiDockSite::Contains (document.GetView()->GetBounds(), clientPx))
+            {
+                found = document.GetModel().FindSymbolAt (clientPx, m_snapshot->symbols->symbols);
+            }
+        }
+
+        if (found == nullptr)
+        {
+            return false;
+        }
+
+        name    = found->name;
+        address = found->address;
+    }
+
+    return std::ranges::none_of (m_snapshot->symbols->symbols, [&name] (const SymbolInfo & symbol) { return symbol.name == name && symbol.isConstant; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GoToDefinition
+//
+//  The source line that defines the label at an address, in its document,
+//  when a debug file maps one there; otherwise the address in the
+//  disassembly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::GoToDefinition (Word address)
+{
+    std::optional<std::pair<int, int>>  place;
+
+
+
+    if (m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->lineAddresses != nullptr && m_host != nullptr)
+    {
+        m_symbolComments.SetSource (*m_snapshot->source);
+
+        place = m_symbolComments.FindLabelLine (address, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
+        {
+            return m_host->FindDebuggerSource (record, path, key);
+        });
+    }
+
+    if (place.has_value())
+    {
+        m_sources->Open (place->first, place->second, true);
+        return;
+    }
+
+    ShowCode (address);
 }
 
 
@@ -290,7 +531,7 @@ std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuI
     {
         if (!children.empty())
         {
-            m_menuCommands.push_back (DebuggerMenuCommand::Make (submenu, false, nullptr));
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (submenu, nullptr));
             addRow (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (children)));
         }
 
@@ -317,7 +558,7 @@ std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuI
             continue;
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (rowLabel), PaneMenu::IsChecked (rowLabel), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (rowLabel) ? DebuggerMenuCommand::Make (PaneMenu::GetText (rowLabel), true, action) : DebuggerMenuCommand::Make (rowLabel, action));
         m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
 
         if (parent.empty())
@@ -361,15 +602,42 @@ void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMe
 
     if (m_snapshot != nullptr && found != m_snapshot->stepFilters.end())
     {
-        items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (DebuggerActions::GetRemoveSkip (entry, GetMode())); } });
+        items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (RunActions::GetRemoveSkip (entry, GetMode())); } });
         return;
     }
 
     items.push_back ({ kpszLabel, [this, name, address]
     {
-        RunAction (DebuggerActions::GetSkipRoutine (name, address, GetMode()));
+        RunAction (RunActions::GetSkipRoutine (name, address, GetMode()));
         ShowSkipNotice (name.empty() ? std::format ("{:04X}", address) : name);
     } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddBookmarkItem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddBookmarkItem (Word address, PaneMenuItems & items)
+{
+    auto  found = (m_snapshot == nullptr) ? std::vector<DebuggerViewSnapshot::WatchLine>::const_iterator()
+                                          : std::ranges::find_if (m_snapshot->bookmarks, [address] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == address; });
+
+
+
+    if (m_snapshot != nullptr && found != m_snapshot->bookmarks.end())
+    {
+        items.push_back ({ L"Remove bookmark", [this, id = found->id] { RunAction (WatchActions::GetClearBookmark (id, GetMode())); } });
+    }
+    else
+    {
+        items.push_back ({ L"Add bookmark", [this, address] { RunAction (WatchActions::GetAddBookmark (address, GetMode())); } });
+    }
 }
 
 
@@ -481,7 +749,7 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
     if (!filter.empty())
     {
         std::ranges::copy (filterCommands, std::back_inserter (m_menuCommands));
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Filter", false, [] {}));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Filter", [] {}));
 
         if (!menu.empty())
         {
@@ -503,25 +771,34 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
 //
 //  DebuggerWindow::GetConsoleMenuCommands
 //
-//  The console output's rows after the edit rows: Clear, and whether the
-//  console lists the window's actions as commands.
+//  The console output's rows after the edit rows: Clear, whether the console
+//  lists the window's actions as commands, and whether its links open in File
+//  Explorer rather than Casso Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::shared_ptr<DxuiCommand>> DebuggerWindow::GetConsoleMenuCommands()
 {
-    bool  isEchoing = m_host != nullptr && m_host->IsDebuggerEchoingActions();
+    bool  isEchoing  = m_host != nullptr && m_host->IsDebuggerEchoingActions();
+    bool  isExplorer = m_host != nullptr && m_host->IsDebuggerLinkingToFileExplorer();
 
 
 
     return
     {
-        DebuggerMenuCommand::Make (L"Clear", false, [this] { m_consolePane->GetOutput().Clear(); }),
+        DebuggerMenuCommand::Make (L"Clear", [this] { m_consolePane->GetOutput().Clear(); }),
         DebuggerMenuCommand::Make (L"Show UI actions as commands", isEchoing, [this, isEchoing]
         {
             if (m_host != nullptr)
             {
                 m_host->SetDebuggerEchoingActions (!isEchoing);
+            }
+        }),
+        DebuggerMenuCommand::Make (L"Open links in File Explorer", isExplorer, [this, isExplorer]
+        {
+            if (m_host != nullptr)
+            {
+                m_host->SetDebuggerLinkingToFileExplorer (!isExplorer);
             }
         }),
     };
@@ -564,7 +841,7 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
             continue;
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
         m_menuCommands.back()->accelerator = accelerator;
         m_menuCommands.back()->isEnabled   = [control, command] { bool on = false; return control->QueryCommand (command, on) && on; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -581,7 +858,10 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    if (GetMenuHost() != nullptr)
+    {
+        DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    }
 }
 
 

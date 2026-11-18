@@ -145,10 +145,10 @@ namespace DebugEventLogScrollTests
             Logger::WriteMessage (std::format ("{} screens, {} rows; {} waited on a rebuild: median {:.1f} ms, slowest {:.1f} ms\n",
                                                screens, rowCount, waits.size(), waits[waits.size() / 2], waits.back()).c_str());
 
-#ifdef NDEBUG
+#if defined (NDEBUG) && !defined (__SANITIZE_ADDRESS__)
             Assert::IsTrue (waits.back() <= kScreenMs, std::format (L"slowest screen {:.1f} ms", waits.back()).c_str());
 #else
-            Logger::WriteMessage ("Debug build: the quarter second is checked in Release only\n");
+            Logger::WriteMessage ("Debug or sanitized build: the quarter second is checked in a plain Release build only\n");
 #endif
         }
     };

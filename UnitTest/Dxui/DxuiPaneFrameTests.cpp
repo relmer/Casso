@@ -895,5 +895,24 @@ namespace DxuiPaneFrameTests
                 Assert::AreEqual ((float) kInners[i], ring.radius - ring.thickness, (L"inside, " + at).c_str());
             }
         }
+
+
+        //  A pane is at a corner of the window when both of its edges at that
+        //  corner lie on the window's; a pane filling the window is at all
+        //  four.
+        TEST_METHOD (WindowCorners_AreWhereBothEdgesLieOnTheWindows)
+        {
+            constexpr RECT  kWindow = { 0, 0, 800, 600 };
+            constexpr UINT  kAll    = DxuiPaneFrame::kCornerTopLeft | DxuiPaneFrame::kCornerTopRight |
+                                      DxuiPaneFrame::kCornerBottomLeft | DxuiPaneFrame::kCornerBottomRight;
+
+
+
+            Assert::AreEqual (kAll, DxuiPaneFrame::GetWindowCorners (kWindow, kWindow));
+            Assert::AreEqual (DxuiPaneFrame::kCornerTopRight, DxuiPaneFrame::GetWindowCorners (RECT { 500, 0, 800, 300 }, kWindow));
+            Assert::AreEqual (DxuiPaneFrame::kCornerBottomLeft | DxuiPaneFrame::kCornerBottomRight,
+                              DxuiPaneFrame::GetWindowCorners (RECT { 0, 300, 800, 600 }, kWindow));
+            Assert::AreEqual (0u, DxuiPaneFrame::GetWindowCorners (RECT { 100, 100, 700, 500 }, kWindow), L"a pane off every edge");
+        }
     };
 }

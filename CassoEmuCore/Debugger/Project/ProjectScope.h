@@ -61,7 +61,7 @@ struct ProjectScope
     //  hex digits of the SHA-1 of the key, a name valid on any file system.
     std::wstring         GetFileName () const;
 
-    static const char  * GetKindName (ProjectScopeKind kind);
+    static const char  * GetKindName  (ProjectScopeKind kind);
     static bool          TryParseKind (const std::string & name, ProjectScopeKind & kind);
 
     bool operator== (const ProjectScope & other) const { return kind == other.kind && key == other.key; }

@@ -101,6 +101,33 @@ namespace DebuggerTests
 
 
 
+        //  BPLOGS's messages are a list in the data, for a client to read, and
+        //  with none, the list is empty and the text is "No breakpoint
+        //  messages."
+        TEST_METHOD (BreakpointMessages_AreAListInTheData)
+        {
+            JsonValue    root;
+            std::string  kind;
+
+
+
+            root = ParseRecord (ReplyJson::WriteReply (MakeOk (BreakpointMessagesData { { "#21: X=$01", "#21: X=$02" } }), 3));
+
+            const JsonValue & data = GetObjectMember (root, "data");
+
+            Assert::AreEqual (S_OK, data.GetString ("kind", kind));
+            Assert::AreEqual (std::string ("breakpointMessages"), kind);
+            Assert::AreEqual ((size_t) 2, GetArrayMember (data, "messages").GetArraySize());
+            Assert::AreEqual (std::string ("#21: X=$02"), GetArrayMember (data, "messages").GetArrayElement (1).GetString());
+
+            root = ParseRecord (ReplyJson::WriteReply (MakeOk (BreakpointMessagesData {}), 4));
+
+            Assert::AreEqual ((size_t) 0, GetArrayMember (GetObjectMember (root, "data"), "messages").GetArraySize(), L"no messages");
+            Assert::AreEqual (std::string ("No breakpoint messages."), GetArrayMember (root, "text").GetArrayElement (0).GetString());
+        }
+
+
+
         TEST_METHOD (Memory_UnreadableByteIsNull)
         {
             MemoryData  data;
@@ -429,7 +456,7 @@ namespace DebuggerTests
                 CompareData(), DataBlockListData(), VideoInfoData(), BranchRecordData(), ProfileData(), CalcData(), StepFilterData(),
                 CallStackData(), CallStackModeData(),
                 TraceData(), BasicVariablesData(), BasicStackData(), ProjectData(),
-                TextScreenData(), ScreenshotData(),
+                TextScreenData(), ScreenshotData(), BreakpointMessagesData(),
             };
 
             std::set<std::string>  names;

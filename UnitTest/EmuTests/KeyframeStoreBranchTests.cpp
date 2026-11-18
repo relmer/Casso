@@ -134,7 +134,7 @@ namespace KeyframeStoreBranchTests
 
 
 
-            store.GetBranches (branches);
+            store.GetArena().GetBranches (branches);
             return branches[index].id;
         }
 
@@ -145,9 +145,9 @@ namespace KeyframeStoreBranchTests
 
 
 
-            for (size_t i = 0; i < store.GetCount(); i++)
+            for (size_t i = 0; i < store.GetArena().GetCount(); i++)
             {
-                positions.push_back (store.GetInfo (i).position);
+                positions.push_back (store.GetArena().GetInfo (i).position);
             }
 
             return positions;
@@ -193,9 +193,9 @@ namespace KeyframeStoreBranchTests
 
 
 
-            for (size_t i = 0; i < store.GetCount() && !isFound; i++)
+            for (size_t i = 0; i < store.GetArena().GetCount() && !isFound; i++)
             {
-                isFound = store.GetInfo (i).hasGapBefore && store.GetInfo (i).gapStart == gapStart;
+                isFound = store.GetArena().GetInfo (i).hasGapBefore && store.GetArena().GetInfo (i).gapStart == gapStart;
             }
 
             return isFound;
@@ -211,17 +211,17 @@ namespace KeyframeStoreBranchTests
 
 
             rig.Fill (0, 900, 1);
-            bytes = rig.store.GetByteCount();
+            bytes = rig.store.GetArena().GetByteCount();
 
             rig.Fork (500);
-            rig.store.GetBranches (branches);
+            rig.store.GetArena().GetBranches (branches);
 
-            Assert::AreEqual<size_t>   (5,     rig.store.GetCount(), L"0 to 400 stay on the active path");
+            Assert::AreEqual<size_t>   (5,     rig.store.GetArena().GetCount(), L"0 to 400 stay on the active path");
             Assert::AreEqual<size_t>   (1,     branches.size(),      L"one branch");
             Assert::AreEqual<uint64_t> (500,   branches[0].forkPosition,    L"forked at 500");
             Assert::AreEqual<size_t>   (5,     branches[0].keyframeCount,   L"with 500 to 900");
             Assert::AreEqual<uint64_t> (900,   branches[0].liveEndPosition, L"ending at 900");
-            Assert::AreEqual           (bytes, rig.store.GetByteCount(),    L"nothing copied or dropped");
+            Assert::AreEqual           (bytes, rig.store.GetArena().GetByteCount(),    L"nothing copied or dropped");
             Assert::AreEqual<size_t>   (5, rig.journal.GetEndIndex(), L"the records from the fork on moved out of the journal");
         }
 
@@ -245,7 +245,7 @@ namespace KeyframeStoreBranchTests
             hr = rig.store.SwitchTo (rig.GetBranchId (0), rig.journal);
             AssertSucceeded (hr, L"SwitchTo");
 
-            rig.store.GetBranches (branches);
+            rig.store.GetArena().GetBranches (branches);
 
             Assert::IsTrue             (expected == rig.GetPositions(), L"the branch's keyframes follow the path before the fork");
             Assert::IsTrue             (rig.DoesRestore (700, 1), L"a difference in it restores against the whole snapshot before the fork");
@@ -298,7 +298,7 @@ namespace KeyframeStoreBranchTests
                 if (drop == KeyframeDrop::PathChanged)
                 {
                     isSent = true;
-                    from   = rig.store.GetPathChangePosition();
+                    from   = rig.store.GetArena().GetPathChangePosition();
                 }
             });
 
@@ -334,7 +334,7 @@ namespace KeyframeStoreBranchTests
 
             Assert::IsTrue           (rig.DoesRestore (900, 1), L"path 1's end");
             Assert::IsTrue           (rig.DoesRestore (400, 1), L"through the stretch from 300 to the fork at 500");
-            Assert::AreEqual<size_t> (2, rig.store.GetBranchCount(), L"paths 2 and 3 left behind");
+            Assert::AreEqual<size_t> (2, rig.store.GetArena().GetBranchCount(), L"paths 2 and 3 left behind");
         }
 
 
@@ -353,14 +353,14 @@ namespace KeyframeStoreBranchTests
             rig.Fork (1500);
             rig.Fill (1500, 2900, 3);
 
-            active = rig.store.GetCount();
+            active = rig.store.GetArena().GetCount();
 
-            hr = rig.store.ChangeBudget (rig.store.GetByteCount() - 6 * kStateBytes);
+            hr = rig.store.ChangeBudget (rig.store.GetArena().GetByteCount() - 6 * kStateBytes);
             AssertSucceeded (hr, L"ChangeBudget");
 
-            rig.store.GetBranches (branches);
+            rig.store.GetArena().GetBranches (branches);
 
-            Assert::AreEqual<size_t> (active, rig.store.GetCount(), L"every keyframe stays on the active path");
+            Assert::AreEqual<size_t> (active, rig.store.GetArena().GetCount(), L"every keyframe stays on the active path");
             Assert::IsTrue           (branches.size() <= 2, L"the room came from the branches");
         }
 
@@ -379,8 +379,8 @@ namespace KeyframeStoreBranchTests
             hr = rig.store.ChangeBudget (12 * kStateBytes);
             AssertSucceeded (hr, L"ChangeBudget");
 
-            Assert::AreEqual<size_t> (0, rig.store.GetBranchCount(), L"the branch went first");
-            Assert::IsTrue           (rig.store.GetInfo (0).position > 0, L"then the active path's oldest");
+            Assert::AreEqual<size_t> (0, rig.store.GetArena().GetBranchCount(), L"the branch went first");
+            Assert::IsTrue           (rig.store.GetArena().GetInfo (0).position > 0, L"then the active path's oldest");
             Assert::IsTrue           (rig.DoesRestore (2900, 2), L"the active path's newest stays");
         }
 
@@ -400,7 +400,7 @@ namespace KeyframeStoreBranchTests
                 rig.Fill (1000, 1000, static_cast<Byte> (seed + 1));
             }
 
-            rig.store.GetBranches (branches);
+            rig.store.GetArena().GetBranches (branches);
 
             Assert::AreEqual<size_t> (KeyframeStore::kMaxBranches, branches.size(), L"no more than the most");
             Assert::IsTrue           (std::none_of (branches.begin(), branches.end(), [] (const KeyframeBranch & each) { return each.id == 1; }), L"the first branch left is the one dropped");
@@ -419,10 +419,10 @@ namespace KeyframeStoreBranchTests
             rig.Fork (500);
             rig.Fill (500, 600, 2);
 
-            hr = rig.store.ChangeBudget (rig.store.GetByteCount() - 2 * kStateBytes);
+            hr = rig.store.ChangeBudget (rig.store.GetArena().GetByteCount() - 2 * kStateBytes);
             AssertSucceeded (hr, L"ChangeBudget");
 
-            rig.store.GetBranches (branches);
+            rig.store.GetArena().GetBranches (branches);
             Assert::AreEqual<size_t> (1, branches.size(), L"the branch is trimmed, not dropped");
 
             hr = rig.store.SwitchTo (branches[0].id, rig.journal);

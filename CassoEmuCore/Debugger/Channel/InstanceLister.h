@@ -56,8 +56,8 @@ public:
 
     //  Columns `pid title machine disk1 disk2`, a header then one row each.
     //  An empty title or drive prints as `-`, so every row has five fields.
-    static std::string                  Format (const std::vector<ListedInstance> & instances);
-    static std::string                  FormatJson (const std::vector<ListedInstance> & instances);
+    static std::string  Format     (const std::vector<ListedInstance> & instances);
+    static std::string  FormatJson (const std::vector<ListedInstance> & instances);
 
     //  The handshake reply read back into an instance. False for anything that
     //  is not a hello record.

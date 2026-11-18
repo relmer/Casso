@@ -16,29 +16,6 @@
 
 
 
-//  The words of an IDM_DEBUG_REVERSE payload. Seek is followed by its
-//  position in decimal, and SeekCycle by its cycle.
-static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
-{
-    { ReverseCommand::StepBack,        "back"       },
-    { ReverseCommand::StepBackOver,    "back-over"  },
-    { ReverseCommand::StepBackOut,     "back-out"   },
-    { ReverseCommand::ReverseContinue, "continue"   },
-    { ReverseCommand::StepForward,     "forward"    },
-    { ReverseCommand::Seek,            "seek"       },
-    { ReverseCommand::SeekCycle,       "seek-cycle" },
-    { ReverseCommand::ScrubCycle,      "scrub-cycle" },
-    { ReverseCommand::GoLive,          "live"       },
-    { ReverseCommand::RewindFrame,     "rewind"     },
-    { ReverseCommand::SkipBack,        "skip-back"  },
-    { ReverseCommand::SkipForward,     "skip-forward" },
-    { ReverseCommand::SwitchBranch,    "switch"     },
-};
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Dispatch
@@ -100,6 +77,15 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
         case IDM_DISK_INSERT2:
             hr = targets.disks.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);
             IGNORE_RETURN_VALUE (hr, S_OK);
+            break;
+
+        case IDM_FLOPPY35_INSERT:
+        case IDM_FLOPPY35_EJECT:
+            DispatchFloppy35 (cmd, targets.disks);
+            break;
+
+        case IDM_HARDDISK_ATTACH:
+            DispatchHardDiskAttach (cmd, targets);
             break;
 
         case IDM_DISK_EJECT1:
@@ -165,16 +151,22 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             break;
         }
 
+        //  A debugger request is the call it was posted with. One posted
+        //  with no call does nothing.
         case IDM_DEBUG_PAUSE_CHANGED:
-            targets.debug.NotifyDebugPauseChanged (cmd.payload == "1");
+        case IDM_DEBUG_CLOSE:
+        case IDM_DEBUG_VIEW:
+        case IDM_DEBUG_REVERSE:
+        case IDM_DEBUG_REVERSE_OPTIONS:
+            if (cmd.call)
+            {
+                cmd.call (targets.debug);
+            }
+
             break;
 
         case IDM_DEBUG_OPEN:
             targets.debug.OpenDebugChannel();
-            break;
-
-        case IDM_DEBUG_CLOSE:
-            targets.debug.CloseDebugChannel (cmd.payload == "detach");
             break;
 
         case IDM_DEBUG_PAUSE:
@@ -183,18 +175,6 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
 
         case IDM_DEBUG_ACTION:
             targets.debug.RunDebugActions();
-            break;
-
-        case IDM_DEBUG_VIEW:
-            DispatchDebugView (cmd.payload, targets.debug);
-            break;
-
-        case IDM_DEBUG_REVERSE:
-            DispatchReverse (cmd.payload, targets.debug);
-            break;
-
-        case IDM_DEBUG_REVERSE_OPTIONS:
-            DispatchReverseOptions (cmd.payload, targets.debug);
             break;
 
         case IDM_DEBUG_DIVERGE:
@@ -207,6 +187,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
 
         case IDM_FILE_LOAD_STATE:
             targets.machine.LoadMachineState (PayloadToPath (cmd.payload));
+            break;
+
+        case IDM_BASIC_LOAD:
+            targets.machine.LoadBasicProgram (std::vector<Byte> (cmd.payload.begin(), cmd.payload.end()));
             break;
 
         case IDM_TAPE_INSERT:
@@ -241,6 +225,18 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
 
         case IDM_TAPE_FASTFORWARD:
             targets.tape.ControlTape (TapeCommand::FastForward);
+            break;
+
+        case IDM_SERIAL_CONNECT:
+            DispatchSerialConnect (cmd.payload, targets.machine);
+            break;
+
+        case IDM_PRINTER_PARALLEL:
+            DispatchParallelPrinter (cmd.payload, targets.machine);
+            break;
+
+        case IDM_DISK_INSPECTOR_SERVICE:
+            targets.machine.ServiceInspectorRequests();
             break;
 
         default:
@@ -481,198 +477,28 @@ void CpuCommandDispatcher::DispatchDriveTest (const std::string & payload, ICpuD
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryGetCodeView
+//  DispatchSerialConnect
 //
-//  `base` names the first code view and `base` followed by 2 to 4 the others;
-//  index is 0 to 3.
+//  "port:device", the device as the machine's configuration has it, which
+//  may itself contain colons ("2:tcp:6502"), then optionally a tab and a
+//  host file's path. Only a port from 1 to 7 is passed on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuCommandDispatcher::TryGetCodeView (const std::string & view, const std::string & base, int & index)
+void CpuCommandDispatcher::DispatchSerialConnect (const std::string & payload, ICpuMachineCommands & machine)
 {
-    if (view == base)
+    HRESULT      hr     = S_OK;
+    bool         valid  = payload.size() >= 2 && payload[0] >= '1' && payload[0] <= '7' && payload[1] == ':';
+    size_t       tab    = payload.find ('\t');
+    std::string  device = valid ? payload.substr (2, (tab == std::string::npos) ? std::string::npos : tab - 2) : std::string();
+    std::string  path   = (valid && tab != std::string::npos) ? payload.substr (tab + 1) : std::string();
+
+
+
+    if (valid)
     {
-        index = 0;
-        return true;
-    }
-
-    if (view.size() == base.size() + 1 && view.starts_with (base) && view.back() >= '2' && view.back() <= '4')
-    {
-        index = view.back() - '1';
-        return true;
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetSoundMute
-//
-//  A channel's number, a space, and "on" or "off".
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryGetSoundMute (const std::string & where, int & channel, bool & isMuted)
-{
-    constexpr int  kDecimal = 10;
-    size_t         space    = where.find (' ');
-    int            value    = 0;
-    auto           parsed   = std::from_chars (where.data(), where.data() + std::min (space, where.size()), value, kDecimal);
-
-
-
-    if (space == std::string::npos || parsed.ec != std::errc() || parsed.ptr != where.data() + space || !TryGetHeatMapShown (where.substr (space + 1), isMuted))
-    {
-        return false;
-    }
-
-    channel = value;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetHeatMapShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryGetHeatMapShown (const std::string & where, bool & shown)
-{
-    if (where != "on" && where != "off")
-    {
-        return false;
-    }
-
-    shown = (where == "on");
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetHeatMapOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryGetHeatMapOptions (const std::string & where, std::string & text)
-{
-    static constexpr std::string_view  kPrefix = "options ";
-
-
-
-    if (!where.starts_with (kPrefix))
-    {
-        return false;
-    }
-
-    text = where.substr (kPrefix.size());
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetHeatMapHover
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryGetHeatMapHover (
-    const std::string     & where,
-    std::optional<Word>   & address)
-{
-    static constexpr std::string_view  kPrefix    = "hover ";
-    constexpr size_t                   kMaxDigits = 4;
-    std::string                        digits;
-
-
-
-    if (!where.starts_with (kPrefix))
-    {
-        return false;
-    }
-
-    digits = where.substr (kPrefix.size());
-
-    if (digits == "none")
-    {
-        address.reset();
-        return true;
-    }
-
-    if (digits.empty() || digits.size() > kMaxDigits || digits.find_first_not_of ("0123456789abcdefABCDEF") != std::string::npos)
-    {
-        return false;
-    }
-
-    address = (Word) std::stoul (digits, nullptr, 16);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetHeatMapIgnore
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryGetHeatMapIgnore (
-    const std::string                    & where,
-    std::vector<std::pair<Word, Word>>   & spans)
-{
-    static constexpr std::string_view  kPrefix = "ignore ";
-
-
-
-    spans.clear();
-
-    if (!where.starts_with (kPrefix))
-    {
-        return false;
-    }
-
-    return HeatMapRangeSets::TryParseSpanWords (where.substr (kPrefix.size()), spans);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetHeatMapIgnore
-//
-//  "ignore" and its spans after "heatmap" go to the target; any other words
-//  ask for nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCommandTarget & target)
-{
-    std::vector<std::pair<Word, Word>>  spans;
-
-
-
-    if (TryGetHeatMapIgnore (where, spans))
-    {
-        target.SetDebugHeatMapIgnore (spans);
+        hr = machine.ConnectSerialPort (payload[0] - '0', device, path);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -682,172 +508,17 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchDebugView
+//  IsSeek
 //
-//  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
-//  "memory2" to "memory4" with a hex address or "close" for the others, which
-//  is passed on as no address. "lines <hex>" is how many lines the code pane
-//  has room for. "trace <decimal>" and "trace end" place the trace pane, and
-//  "trace on" and "trace off" indicate whether it is on screen.
-//  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
-//  and "heatmap off" say whether the heat map pane is shown, "heatmap options
-//  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
-//  hover" gives the cell under the mouse, and the words HeatAccessJump makes
-//  ask about a cell's last access; "heatmap ignore" gives the spans whose
-//  reads before written are left out. "basic on" and "basic off" turn the
-//  reading of the Applesoft program for the BASIC panes on and off. "beam"
-//  is a request for the stopped picture to be drawn again with the beam mark turned on or off.
-//  "soundmute 3 on" and "soundmute 3 off" set a sound channel's mute on the host.
-//  Anything else asks for nothing: a pane moved to an address nobody meant is
-//  worse than a pane left where it was.
+//  The reverse commands with an argument: a position, a cycle, or the
+//  milliseconds back from live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebugCommandTarget & target)
+bool CpuCommandDispatcher::IsSeek (ReverseCommand command)
 {
-    static constexpr size_t  kMaxEntryDigits = 18;
-    size_t                   space           = payload.find (' ');
-    std::string              view            = payload.substr (0, space);
-    std::string              where           = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
-    bool                     isExtraWin = view == "memory2" || view == "memory3" || view == "memory4";
-    unsigned int             value      = 0;
-    size_t                   used       = 0;
-    int                      index      = 0;
-    bool                     isCode     = false;
-    bool                     isShown    = false;
-    std::string              options;
-    std::optional<Word>      hover;
-    HeatAccessRequest        access;
-    DebugLogKind             logKind    = DebugLogKind::Disk;
-
-
-
-    if (view == "basic" && TryGetHeatMapShown (where, isShown))
-    {
-        target.SetDebugBasicShown (isShown);
-    }
-    else if (view == "soundmute" && TryGetSoundMute (where, index, isShown))
-    {
-        target.SetDebugSoundMuted (index, isShown);
-    }
-    else if (view == "heatcolumns" && TryGetHeatMapShown (where, isShown))
-    {
-        target.SetDebugHeatColumnsShown (isShown);
-    }
-    else if (view == "heatmap")
-    {
-        if (TryGetHeatMapShown (where, isShown))
-        {
-            target.SetDebugHeatMapShown (isShown);
-        }
-        else if (TryGetHeatMapOptions (where, options))
-        {
-            target.SetDebugHeatMapOptions (options);
-        }
-        else if (where == "reset")
-        {
-            target.ResetDebugHeatMap();
-        }
-        else if (TryGetHeatMapHover (where, hover))
-        {
-            target.SetDebugHeatMapHover (hover);
-        }
-        else if (HeatAccessJump::TryParseWords (where, access))
-        {
-            target.RunDebugHeatMapAccess (access);
-        }
-        else
-        {
-            SetHeatMapIgnore (where, target);
-        }
-
-        return;
-    }
-
-    if (view == "beam")
-    {
-        target.RedrawDebugFrame();
-        return;
-    }
-
-    if (TryGetDebugLogKind (view, logKind))
-    {
-        target.SetDebugEventLog (logKind, where);
-        return;
-    }
-
-    if (view == "trace")
-    {
-        if (TryGetHeatMapShown (where, isShown))
-        {
-            target.SetDebugTraceShown (isShown);
-        }
-        else if (where == "end")
-        {
-            target.SetDebugTraceView (std::nullopt);
-        }
-        else if (!where.empty() && where.size() <= kMaxEntryDigits && where.find_first_not_of ("0123456789") == std::string::npos)
-        {
-            target.SetDebugTraceView (std::stoull (where));
-        }
-
-        return;
-    }
-
-    //  "codescroll[N] <signed decimal>": instructions to scroll a code view.
-    if (TryGetCodeView (view, "codescroll", index))
-    {
-        if (!where.empty() && where.size() <= 6 && where.find_first_not_of ("-0123456789") == std::string::npos && where.find ('-', 1) == std::string::npos)
-        {
-            target.ScrollDebugCode (std::stoi (where), index);
-        }
-
-        return;
-    }
-
-    //  "follow <N>" hands following the PC to code view N; "codeclose <N>"
-    //  closes view N, which is never the first.
-    if ((view == "follow" || view == "codeclose") && where.size() == 1 && where[0] >= (view == "follow" ? '1' : '2') && where[0] <= '4')
-    {
-        target.SetDebugView (view, (Word) (where[0] - '1'));
-        return;
-    }
-
-    //  "goto <window> <text>": the text is whatever was typed, resolved later.
-    if (view == "goto")
-    {
-        space = where.find (' ');
-
-        if (space == 1 && where[0] >= '1' && where[0] <= '4')
-        {
-            target.GoToDebugMemory (where[0] - '0', where.substr (2));
-        }
-
-        return;
-    }
-
-    //  "codetop[N] <hex>" opens a code view with that address on its top line,
-    //  as it was when Casso last closed, rather than centered on it.
-    isCode = TryGetCodeView (view, "code", index) || TryGetCodeView (view, "lines", index) || TryGetCodeView (view, "codetop", index);
-
-    if (view != "memory" && !isCode && !isExtraWin)
-    {
-        return;
-    }
-
-    if ((view.starts_with ("code") && where == "pc") || (isExtraWin && where == "close"))
-    {
-        target.SetDebugView (view, std::nullopt);
-        return;
-    }
-
-    if (where.empty() || where.size() > 4 || where.find_first_not_of ("0123456789abcdefABCDEF") != std::string::npos)
-    {
-        return;
-    }
-
-    value = std::stoul (where, &used, 16);
-    target.SetDebugView (view, (Word) value);
+    return command == ReverseCommand::Seek     || command == ReverseCommand::SeekCycle ||
+           command == ReverseCommand::ScrubCycle || command == ReverseCommand::SeekBack;
 }
 
 
@@ -856,215 +527,23 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HasReverseArgument
+//  DispatchParallelPrinter
 //
-//  Whether a reverse command's word is followed by a decimal argument: a
-//  seek's position or cycle, or a branch switch's branch.
+//  "slot:1" attaches the printer and "slot:0" takes it off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuCommandDispatcher::HasReverseArgument (ReverseCommand command)
+void CpuCommandDispatcher::DispatchParallelPrinter (const std::string & payload, ICpuMachineCommands & machine)
 {
-    return command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle || command == ReverseCommand::SwitchBranch;
-}
+    HRESULT  hr    = S_OK;
+    bool     valid = payload.size() == 3 && payload[0] >= '1' && payload[0] <= '7' && payload[1] == ':' && (payload[2] == '0' || payload[2] == '1');
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatReversePayload
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string CpuCommandDispatcher::FormatReversePayload (
-    ReverseCommand  command,
-    uint64_t        argument)
-{
-    std::string  payload;
-
-
-
-    for (const auto & entry : s_kReverseWords)
+    if (valid)
     {
-        if (entry.first == command)
-        {
-            payload = entry.second;
-        }
-    }
-
-    if (HasReverseArgument (command))
-    {
-        payload += std::format (" {}", argument);
-    }
-
-    return payload;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryParseReversePayload
-//
-//  A word from the table, and for a seek a decimal position or cycle after
-//  one space; anything else asks for nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryParseReversePayload (
-    const std::string  & payload,
-    ReverseCommand     & command,
-    uint64_t           & argument)
-{
-    size_t                  space    = payload.find (' ');
-    std::string             word     = payload.substr (0, space);
-    std::string             rest     = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
-    bool                    isFound  = false;
-    bool                    isSeek   = false;
-    std::from_chars_result  parsed   = {};
-
-
-
-    argument = 0;
-
-    for (const auto & entry : s_kReverseWords)
-    {
-        if (word == entry.second)
-        {
-            command = entry.first;
-            isFound = true;
-        }
-    }
-
-    if (!isFound)
-    {
-        return false;
-    }
-
-    isSeek = HasReverseArgument (command);
-
-    if (isSeek != !rest.empty())
-    {
-        return false;
-    }
-
-    if (!isSeek)
-    {
-        return true;
-    }
-
-    parsed = std::from_chars (rest.data(), rest.data() + rest.size(), argument);
-
-    return parsed.ec == std::errc() && parsed.ptr == rest.data() + rest.size();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DispatchReverse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CpuCommandDispatcher::DispatchReverse (const std::string & payload, IDebugCommandTarget & target)
-{
-    ReverseCommand  command  = ReverseCommand::StepBack;
-    uint64_t        argument = 0;
-
-
-
-    if (TryParseReversePayload (payload, command, argument))
-    {
-        target.RunReverseCommand (command, argument);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormatReverseOptionsPayload
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string CpuCommandDispatcher::FormatReverseOptionsPayload (
-    bool  isRecording,
-    int   budgetMb)
-{
-    return std::format ("{} {}", isRecording ? "on" : "off", budgetMb);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryParseReverseOptionsPayload
-//
-//  "on" or "off", one space, and a positive decimal budget in MB; anything
-//  else asks for nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CpuCommandDispatcher::TryParseReverseOptionsPayload (
-    const std::string  & payload,
-    bool               & isRecording,
-    int                & budgetMb)
-{
-    size_t                  space  = payload.find (' ');
-    std::string             word   = payload.substr (0, space);
-    std::string             rest   = (space == std::string::npos) ? std::string() : payload.substr (space + 1);
-    int                     budget = 0;
-    std::from_chars_result  parsed = {};
-
-
-
-    if ((word != "on" && word != "off") || rest.empty())
-    {
-        return false;
-    }
-
-    parsed = std::from_chars (rest.data(), rest.data() + rest.size(), budget);
-
-    if (parsed.ec != std::errc() || parsed.ptr != rest.data() + rest.size() || budget <= 0)
-    {
-        return false;
-    }
-
-    isRecording = word == "on";
-    budgetMb    = budget;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DispatchReverseOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CpuCommandDispatcher::DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target)
-{
-    bool  isRecording = false;
-    int   budgetMb    = 0;
-
-
-
-    if (TryParseReverseOptionsPayload (payload, isRecording, budgetMb))
-    {
-        target.ApplyReverseOptions (isRecording, budgetMb);
+        hr = machine.ConnectParallelPrinter (payload[0] - '0', payload[2] == '1');
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -1138,6 +617,79 @@ void CpuCommandDispatcher::DispatchNetworkConfigure (const std::string & payload
     CHR (hr);
 
     machine.ConfigureNetworkCard (settings);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchFloppy35
+//
+//  The payload is "slot drive" for an eject and "slot drive path" for an
+//  insert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchFloppy35 (const EmulatorCommand & cmd, ICpuDiskCommands & disks)
+{
+    int     slot     = 0;
+    int     drive    = 0;
+    int     consumed = 0;
+    int     fields   = sscanf_s (cmd.payload.c_str(), "%d %d %n", &slot, &drive, &consumed);
+
+
+
+    if (fields != 2)
+    {
+        return;
+    }
+
+    if (cmd.id == IDM_FLOPPY35_INSERT)
+    {
+        disks.InsertFloppy35 (slot, drive, cmd.payload.substr ((size_t) consumed));
+    }
+    else
+    {
+        disks.EjectFloppy35 (slot, drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchHardDiskAttach
+//
+//  The payload is "slot drive path". The guest registered the drive and read
+//  its volume when it booted, so an attached image restarts the machine, as
+//  a power cycle does. When the image doesn't attach, the machine runs on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchHardDiskAttach (const EmulatorCommand & cmd, const CpuCommandTargets & targets)
+{
+    HRESULT  hr       = S_OK;
+    int      slot     = 0;
+    int      drive    = 0;
+    int      consumed = 0;
+    int      fields   = sscanf_s (cmd.payload.c_str(), "%d %d %n", &slot, &drive, &consumed);
+
+
+
+    BAIL_OUT_IF (fields != 2, S_OK);
+
+    hr = targets.disks.AttachHardDisk (slot, drive, cmd.payload.substr ((size_t) consumed));
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    targets.machine.PowerCycle();
+    targets.disks.RemountDisks();
 
 Error:
     return;

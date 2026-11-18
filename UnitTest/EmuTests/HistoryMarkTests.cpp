@@ -128,8 +128,8 @@ public:
 
     bool Update()
     {
-        uint64_t  endPosition = (store.GetCount() > 0) ? store.GetInfo (store.GetCount() - 1).position : 0;
-        uint64_t  endCycle    = (store.GetCount() > 0) ? store.GetInfo (store.GetCount() - 1).cycle    : 0;
+        uint64_t  endPosition = (store.GetArena().GetCount() > 0) ? store.GetArena().GetInfo (store.GetArena().GetCount() - 1).position : 0;
+        uint64_t  endCycle    = (store.GetArena().GetCount() > 0) ? store.GetArena().GetInfo (store.GetArena().GetCount() - 1).cycle    : 0;
 
 
 
@@ -329,7 +329,7 @@ public:
         rig.Fork (500);
         rig.Fill (5, 5);
 
-        rig.store.GetBranches (branches);
+        rig.store.GetArena().GetBranches (branches);
 
         thumbnails.SetBranches   (branches);
         thumbnails.SetRowLabeler ([] (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt)
@@ -373,10 +373,10 @@ public:
         branches[1].leftAtWallTime = 300;
         branches[2].leftAtWallTime = 100;
 
-        thumbnails.SetBranches       (branches);
-        thumbnails.SetPlayheadTime   (9000, 0, 9000);
-        thumbnails.SetOnBranchSwitch ([&] (uint32_t id) { switched.push_back (id); });
-        thumbnails.SetRowLabeler     ([] (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt)
+        thumbnails.SetBranches             (branches);
+        thumbnails.GetPlayhead().SetTime   (9000, 0, 9000);
+        thumbnails.SetOnBranchSwitch       ([&] (uint32_t id) { switched.push_back (id); });
+        thumbnails.SetRowLabeler           ([] (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt)
         {
             outRanFor = std::to_wstring (branch.liveEndCycle - branch.forkCycle);
             outLeftAt = std::to_wstring (branch.id);
@@ -412,9 +412,9 @@ public:
         rig.Fill (10);
         rig.RecordAt (300, InputKind::Reset);
 
-        thumbnails.SetCellLayout   (4, s_kMarkCell);
-        thumbnails.SetPlayheadTime (9000, 0, 9000);
-        thumbnails.SetLabeler      ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails.SetCellLayout              (4, s_kMarkCell);
+        thumbnails.GetPlayhead().SetTime      (9000, 0, 9000);
+        thumbnails.GetPlayhead().SetLabeler   ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
         {
             (void) wallTime;
 
@@ -432,7 +432,7 @@ public:
         thumbnails.GetCells (cells);
 
         Assert::AreEqual<size_t> (1, strip.size(), L"one mark on the strip");
-        Assert::AreEqual (HistoryThumbnailGrid::GetPlayheadOffset (cells, 3000, 9000), strip[0].offset, L"at its cycle's offset");
+        Assert::AreEqual (HistoryCellGrid::GetPlayheadOffset (cells, 3000, 9000), strip[0].offset, L"at its cycle's offset");
         Assert::AreEqual (s_kpszMdl2Refresh[0], strip[0].glyph, L"a reset's glyph");
         Assert::AreEqual (std::wstring (L"Reset at 3000"), strip[0].tip, L"its text and the labeler's top line");
         Assert::IsFalse  (strip[0].hasRows, L"no flyout");

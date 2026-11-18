@@ -75,7 +75,7 @@ namespace DebuggerTests
             }
 
             rig.Load (0x0300, {}, 0x0302);
-            rig.session.SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
             rig.session.GetSymbols().Add (SymbolTableId::User, "INC2", program.Symbol ("inc2"));
             rig.session.GetSymbols().Add (SymbolTableId::User, "SPIN", program.Symbol ("spin"));
             return program;

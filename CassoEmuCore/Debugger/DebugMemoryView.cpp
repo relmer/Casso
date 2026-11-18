@@ -80,8 +80,8 @@ bool DebugMemoryView::TryPeek (Word address, Byte & value) const
 //  DebugMemoryView::CopyAll
 //
 //  The answers TryPeek and GetRegion give, page by page: a page the bus maps
-//  directly is copied whole, I/O is left unread, and only the slot ROM pages
-//  and any page no device maps directly are read a byte at a time.
+//  directly is copied whole, I/O is what TryPeekIo reads, and only the slot
+//  ROM pages and any page no device maps directly are read a byte at a time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +93,11 @@ void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
 
 
 
+    for (size_t address = 0; address < DebugMemoryImage::kBytes; address++)
+    {
+        image.fetched[address] = bus.IsFetched ((Word) address);
+    }
+
     for (size_t index = 0; index < DebugMemoryImage::kPages; index++)
     {
         first                = index * DebugMemoryImage::kPageBytes;
@@ -101,11 +106,9 @@ void DebugMemoryView::CopyAll (DebugMemoryImage & image) const
 
         if (first >= kIoFirst && first <= kIoLast)
         {
-            std::fill_n (image.bytes.begin() + first, DebugMemoryImage::kPageBytes, (Byte) 0);
-
             for (size_t offset = 0; offset < DebugMemoryImage::kPageBytes; offset++)
             {
-                image.readable[first + offset] = false;
+                image.readable[first + offset] = TryPeekIo ((Word) (first + offset), image.bytes[first + offset]);
             }
 
             continue;
@@ -351,6 +354,50 @@ MemoryRegion DebugMemoryView::GetRegion (Word address) const
     }
 
     return MemoryRegion::Rom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugMemoryView::TryPeekRom
+//
+//  The ROM a language card banks $D000-$FFFF over, else any ROM device
+//  covering the address, even where the bus maps RAM or another device
+//  there first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugMemoryView::TryPeekRom (Word address, Byte & value) const
+{
+    LanguageCard  * lc = m_host.GetRefs().languageCard;
+
+
+
+    value = 0;
+
+    if (lc != nullptr && address >= kLcFirst)
+    {
+        value = lc->ReadRom (address);
+        return true;
+    }
+
+    for (const BusEntry & entry : m_host.GetMemoryBus().GetEntries())
+    {
+        const RomDevice  * rom = dynamic_cast<const RomDevice *> (entry.device);
+
+
+
+        if (rom != nullptr && address >= entry.start && address <= entry.end)
+        {
+            value = rom->GetData()[address - entry.start];
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

@@ -58,23 +58,23 @@ public:
                           BinaryImage                 & image,
                           std::string                 & error);
 
-    static bool     TryGetFormatName (const std::string & word, BinaryFormat & format);
-    static const char * GetFormatName (BinaryFormat format);
+    static bool          TryGetFormatName (const std::string & word, BinaryFormat & format);
+    static const char  * GetFormatName    (BinaryFormat format);
 
 private:
     static constexpr size_t  kDosHeaderSize = 4;
 
-    static BinaryFormat  Detect        (std::span<const Byte> content, std::optional<BinaryFormat> explicitFormat);
-    static HRESULT  ReadRaw            (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
-    static HRESULT  ReadDos33          (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
-    static HRESULT  ReadAppleSingle    (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
-    static HRESULT  ReadIntelHex       (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
-    static HRESULT  ReadSRecord        (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
+    static BinaryFormat  Detect          (std::span<const Byte> content, std::optional<BinaryFormat> explicitFormat);
+    static HRESULT       ReadRaw         (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
+    static HRESULT       ReadDos33       (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
+    static HRESULT       ReadAppleSingle (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
+    static HRESULT       ReadIntelHex    (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
+    static HRESULT       ReadSRecord     (std::span<const Byte> content, std::optional<Word> address, BinaryImage & image, std::string & error);
 
-    static bool     LooksLikeIntelHex  (std::span<const Byte> content);
-    static bool     LooksLikeSRecord   (std::span<const Byte> content);
-    static void     SplitLines         (std::span<const Byte> content, std::vector<std::string> & lines);
-    static bool     TryReadHexBytes    (const std::string & text, std::vector<Byte> & bytes);
-    static void     AddBytes           (BinaryImage & image, uint32_t address, std::span<const Byte> bytes);
-    static std::string  FirstLine      (std::span<const Byte> content);
+    static bool         LooksLikeIntelHex (std::span<const Byte> content);
+    static bool         LooksLikeSRecord  (std::span<const Byte> content);
+    static void         SplitLines        (std::span<const Byte> content, std::vector<std::string> & lines);
+    static bool         TryReadHexBytes   (const std::string & text, std::vector<Byte> & bytes);
+    static void         AddBytes          (BinaryImage & image, uint32_t address, std::span<const Byte> bytes);
+    static std::string  FirstLine         (std::span<const Byte> content);
 };

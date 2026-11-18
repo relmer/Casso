@@ -152,13 +152,13 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     m_sink.SetJson    (options.json);
     m_sink.SetSession (&session);
     m_handlers.Attach (session);
-    session.SetFileSystem (&m_files);
+    session.GetHostFiles().SetFileSystem (&m_files);
 
     logs.Start (nullptr);
     session.SetIoEventSource (&logs);
 
     //  A batch run is the debugger attached from the first instruction.
-    session.SetCallRecording (true);
+    session.GetCallRecords().SetRecording (true);
 
     //  Set directly: a BUDGET command carries 32 bits, and --max-cycles 64.
     session.SetBudget ((options.maxCycles == 0) ? std::nullopt : std::optional<uint64_t> (options.maxCycles));
@@ -297,13 +297,13 @@ void DebugBatchRunner::RouteDiskIo (bool writeThrough)
 
 void DebugBatchRunner::FollowBays()
 {
-    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange change)
     {
         Disk2Controller * controller = m_host->GetRefs().diskController;
 
 
 
-        if (slot == kDiskSlot && controller != nullptr)
+        if (slot == kDiskSlot && controller != nullptr && change != BayChange::Restored)
         {
             controller->SetExternalDisk (drive, m_host->GetDiskStore().GetImage (slot, drive));
         }
@@ -384,7 +384,7 @@ HRESULT DebugBatchRunner::InsertTape (const std::string & path, DebugBatchResult
     hr = TapeImageLoader::Load (std::span<const Byte> ((const Byte *) content.data(), content.size()), path, true, mp3, image, error);
     CHR (hr);
 
-    m_host->GetTapeDeck().Insert (std::move (image));
+    m_host->GetTape().GetDeck().Insert (std::move (image));
 
 Error:
     if (FAILED (hr))
@@ -404,11 +404,13 @@ Error:
 //
 //  DebugBatchRunner::RunLines
 //
-//  Text mode echoes each line behind the mode's prompt, then its reply's
-//  text, then any notification the command caused. JSON mode prints the
-//  reply record, then the notification records. A blank line reaches the
-//  session only while the line assembler is active, where it ends the
-//  assembly; a ; line is a comment in both modes.
+//  In text mode, each line is echoed behind the mode's prompt, then its
+//  reply's text, the messages logging breakpoints wrote and any
+//  notification the command caused. In JSON mode, the reply's object is
+//  printed, then an object of type log for each message, then the
+//  notifications' objects. A blank line goes to the session only while the
+//  line assembler is active, where it ends the assembly; a ; line is a
+//  comment in both modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -429,7 +431,7 @@ void DebugBatchRunner::RunLines (
 
 
 
-        if (line.empty() && !session.IsAssembling())
+        if (line.empty() && !session.GetInterpreter().IsAssembling())
         {
             continue;
         }
@@ -457,6 +459,13 @@ void DebugBatchRunner::RunLines (
             {
                 result.output += text + "\n";
             }
+        }
+
+        //  A logging breakpoint's messages, from a run the line made, print
+        //  after its reply and before its stop.
+        for (const std::string & log : session.TakeHitLogs())
+        {
+            result.output += (options.json ? ReplyJson::WriteHitLog (log) : log) + "\n";
         }
 
         result.output += m_sink.TakePending();

@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -86,6 +87,8 @@ namespace DebuggerPaneFindButtonTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetSourceGroup;
+        using DebuggerWindow::GetCodeGroup;
+        using DebuggerWindow::FindPaneForTest;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::kFindEntry;
@@ -163,6 +166,52 @@ namespace DebuggerPaneFindButtonTests
 
             Assert::IsTrue   (window.GetFindWidgets().IsOpen());
             Assert::AreEqual (DebuggerLayout::GetSourcePaneId (1), window.GetFindWidgets().GetActivePane());
+        }
+
+
+        TEST_METHOD (DisassemblySearchButtonOpensThatViewsFindBar)
+        {
+            CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
+            FindButtonHost    host;
+            FindButtonWindow  window (theme, host);
+
+
+
+            window.OnCreate();
+
+            FindButtonWindow::PressFind (window.GetCodeGroup().GetView (0).GetBar());
+
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::AreEqual (window.GetCodeGroup().GetView (0).GetId(), window.GetFindWidgets().GetActivePane());
+        }
+
+
+        //  Ctrl+F opens the find bar in the pane with the focus when the
+        //  pane has a view to search and a frame for the bar.
+        TEST_METHOD (EveryListPaneHasAViewToSearch)
+        {
+            static constexpr const wchar_t *  s_kPanes[] =
+            {
+                DebuggerLayout::kBreakpoints, DebuggerLayout::kWatches,      DebuggerLayout::kStack,     DebuggerLayout::kCallStack,
+                DebuggerLayout::kTrace,       DebuggerLayout::kBasicProgram, DebuggerLayout::kBookmarks, DebuggerLayout::kDataBlocks,
+            };
+
+            CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
+            FindButtonHost    host;
+            FindButtonWindow  window (theme, host);
+
+
+
+            window.OnCreate();
+
+            for (const wchar_t * id : s_kPanes)
+            {
+                IDebuggerPane  * pane = window.FindPaneForTest (id);
+
+                Assert::IsNotNull (pane, id);
+                Assert::IsNotNull (pane->GetFindView(),  id);
+                Assert::IsNotNull (pane->GetFindFrame(), id);
+            }
         }
 
 

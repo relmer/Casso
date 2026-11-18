@@ -23,9 +23,9 @@ class ITooltipSources
 public:
     virtual ~ITooltipSources() = default;
 
-    virtual DxuiTipService &        GetRoutedTips   () = 0;
-    virtual bool                    IsAnyMenuOpen   () const = 0;
-    virtual OperandTipController &  GetOperandTips  () = 0;
+    virtual DxuiTipService        & GetRoutedTips  () = 0;
+    virtual bool                    IsAnyMenuOpen  () const = 0;
+    virtual OperandTipController  & GetOperandTips () = 0;
 
     //  The tip of the one control the routed window's hit test finds under
     //  the point: the front control there, in the order the window paints.

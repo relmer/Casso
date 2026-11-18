@@ -38,6 +38,7 @@
 #include <array>
 #include <atomic>
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <deque>
@@ -60,9 +61,22 @@
 #include "../Ehm/Ehm.h"
 #include "Core/DxuiInputState.h"
 #include "Core/DxuiDisplay.h"
+#include "Core/DxuiThread.h"
 
 #ifndef DXUI_COMPTR_ALIAS_DEFINED
 #define DXUI_COMPTR_ALIAS_DEFINED
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 #endif
+
+#include "Core/DxuiAnimation.h"
+#include "Core/DxuiDpiScaler.h"
+#include "Core/DxuiHitTester.h"
+#include "Core/DxuiInput.h"
+#include "Core/DxuiEvents.h"
+#include "Render/DxuiPainter.h"
+#include "Render/DxuiTextRenderer.h"
+#include "Theme/DxuiDwm.h"
+#include "Theme/DxuiWindowsThemeColors.h"
+#include "Theme/IDxuiTheme.h"
+#include "Window/DxuiDragDropTarget.h"

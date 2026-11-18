@@ -282,7 +282,8 @@ std::wstring DisassemblyOptions::GetSymbolsTip (const std::vector<std::string> &
 std::vector<DisassemblyOptions::Row> DisassemblyOptions::BuildRows (
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines,
     bool                                                 showSource,
-    const HasLineFn                                    & hasLine)
+    const HasLineFn                                    & hasLine,
+    const HasLineFn                                    & isLabelLine)
 {
     std::vector<Row>     rows;
     std::pair<int, int>  previous = { -1, 0 };
@@ -293,10 +294,22 @@ std::vector<DisassemblyOptions::Row> DisassemblyOptions::BuildRows (
     {
         const DebuggerViewSnapshot::CodeLine  & line  = lines[i];
         std::pair<int, int>                     place = { line.sourceFileId, line.sourceLine };
+        int                                     first = line.sourceLine;
 
         if (showSource && line.sourceFileId >= 0 && place != previous && hasLine && hasLine (line.sourceFileId, line.sourceLine))
         {
-            rows.push_back ({ -1, line.sourceFileId, line.sourceLine });
+            //  The label lines directly above the line, back to the line of
+            //  the instruction before it, go above it: a label alone on its
+            //  line produces no instruction of its own.
+            while (isLabelLine && first > 1 && (previous.first != line.sourceFileId || first - 1 > previous.second) && isLabelLine (line.sourceFileId, first - 1))
+            {
+                first--;
+            }
+
+            for (int each = first; each <= line.sourceLine; each++)
+            {
+                rows.push_back ({ -1, line.sourceFileId, each });
+            }
         }
 
         previous = place;
@@ -326,6 +339,30 @@ int DisassemblyOptions::GetLineOfRow (const std::vector<Row> & rows, int row)
     }
 
     return rows[(size_t) row].codeLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetLineAtOrBelow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyOptions::GetLineAtOrBelow (const std::vector<Row> & rows, int row)
+{
+    int  line = -1;
+
+
+
+    for (int each = std::max (0, row); each < (int) rows.size() && line < 0 && row >= 0; each++)
+    {
+        line = rows[(size_t) each].codeLine;
+    }
+
+    return line;
 }
 
 
@@ -397,6 +434,30 @@ bool DisassemblyOptions::IsFronted (const std::vector<Row> & rows, int row)
     at    = &rows[(size_t) row];
 
     return at->codeLine >= 0 && above->codeLine < 0 && above->fileId == at->fileId && above->sourceLine == at->sourceLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::CountShownLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyOptions::CountShownLines (const std::vector<Row> & rows, int capacity)
+{
+    int  count = 0;
+
+
+
+    for (size_t i = 0; i < rows.size() && (int) i < capacity; i++)
+    {
+        count += (rows[i].codeLine >= 0) ? 1 : 0;
+    }
+
+    return count;
 }
 
 

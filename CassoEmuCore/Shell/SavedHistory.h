@@ -37,7 +37,7 @@ struct SavedBayMedium
 //  SavedHistoryContents
 //
 //  A machine's history as a state file has it: the fingerprint of the build
-//  that saved it (MachineHost::ComputeStateFingerprint), the keyframes and
+//  that saved it (MachineStateStream::ComputeFingerprint), the keyframes and
 //  input journal entries of every segment, the media in the bays, and where
 //  the
 //  machine was when it was saved, which is the active path's live end

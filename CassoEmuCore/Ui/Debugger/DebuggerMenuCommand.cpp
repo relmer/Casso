@@ -27,3 +27,28 @@ std::shared_ptr<DxuiCommand> DebuggerMenuCommand::Make (const std::wstring & lab
 
     return command;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerMenuCommand::Make
+//
+//  An action row: without a check function, no check gutter is reserved for
+//  it, unless another row in the list has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiCommand> DebuggerMenuCommand::Make (const std::wstring & label, std::function<void()> chosen)
+{
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+
+
+    command->label    = label;
+    command->dispatch = std::move (chosen);
+
+    return command;
+}

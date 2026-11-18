@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Ui/Debugger/Panes/ConsolePanes.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
@@ -60,7 +61,7 @@ void DebuggerWindow::SaveProjectAs()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunAction (DebuggerActions::GetProject ("SAVEAS", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
+    RunAction (SessionActions::GetProject ("SAVEAS", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;
@@ -91,7 +92,7 @@ void DebuggerWindow::OpenProject()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunAction (DebuggerActions::GetProject ("OPEN", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
+    RunAction (SessionActions::GetProject ("OPEN", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;
@@ -138,23 +139,14 @@ void DebuggerWindow::EditProjectSettings()
 //
 //  DebuggerWindow::ReloadProjectState
 //
-//  Another project opened and its strings are the host's now: the panes
-//  laid out as it has them, its disassembly options, its heat map ranges,
-//  and its open views opened.
+//  Another project opened and its strings are the host's now: its
+//  disassembly options, its heat map ranges and its panes' states. The
+//  panes stay where they are, and the focus stays in its pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ReloadProjectState()
 {
-    std::wstring    savedText = ReadSavedLayout();
-    DxuiPaneLayout  restored  = DebuggerLayout::Restore (savedText);
-
-
-
-    restored.PlaceOnMonitors (GetMonitors());
-    m_dockSite->SetPaneLayout (restored);
-    m_floating->MarkSyncNeeded();
-
     m_code->SetOptions (DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions()));
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
@@ -164,7 +156,6 @@ void DebuggerWindow::ReloadProjectState()
 
     RestoreWindowState (true);
 
-    m_openViewsRestored = false;
     Invalidate();
 }
 
@@ -180,8 +171,7 @@ void DebuggerWindow::ReloadProjectState()
 //  pane, its options as letters (C for match case, W for whole word, R for
 //  regular expression) and its history, apart at the unit separator; and
 //  each sized list's columns as "pane=120,80,64;". A project's switch also
-//  brings back the heat map's and the event logs' options and the pane that
-//  had the focus.
+//  brings back the heat map's and the event logs' options.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,12 +278,6 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->OnProjectSwitched();
-    }
-
-
-    if (!GetSavedFocusPane().empty())
-    {
-        FocusPane (GetSavedFocusPane());
     }
 }
 
@@ -405,11 +389,39 @@ void DebuggerWindow::SaveColumnWidths()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsCodeList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCodeList (const DxuiListView * list) const
+{
+    bool  isCode = false;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        isCode = isCode || m_code->GetCodeList (view) == list;
+    }
+
+    return isCode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyColumnWidths
 //
 //  A width of zero, a hidden column's, is left to the list. The widths are
 //  dips, so Layout applies them again when the window's DPI is a different
 //  one, the first layout's included: the controls are built at the default.
+//  A disassembly view's Label column is fitted to its labels instead; its
+//  glyph margin and heat strip are as wide as a source document's,
+//  and its operand and result fill the rest of the pane, so a width saved
+//  for any of them is not applied.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -426,9 +438,16 @@ void DebuggerWindow::ApplyColumnWidths()
             continue;
         }
 
+        //  The list scales a width it has when its DPI changes, so it takes the
+        //  window's DPI first, and the widths in pixels at that DPI.
+        list->SetDpi (m_scaler.GetDpi());
+
         for (size_t c = 0; c < widths->second.size() && c < list->GetColumnCount(); c++)
         {
-            if (widths->second[c] > 0)
+            bool  isFitted = c == DisassemblyCells::kLabelColumn || c == DisassemblyCells::kGutterColumn || c == DisassemblyCells::kHeatColumn ||
+                             c == DisassemblyCells::kOperandColumn;
+
+            if (widths->second[c] > 0 && !(isFitted && IsCodeList (list)))
             {
                 list->SetColumnOverrideWidthPx (c, m_scaler.ToPx (widths->second[c]));
             }

@@ -9,7 +9,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/ShellDebugger.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellHistory.h"
 #include "HResultAssert.h"
 
 
@@ -32,8 +32,8 @@ namespace ShellHistoryTests
     //  ShellRig
     //
     //  A shell over a //e running a loop, with history on, driven as the CPU
-    //  thread drives it. The debugger can be detached from history, so a
-    //  test can check that history works with no debugger at all.
+    //  thread drives it. No debugger session is attached unless a test
+    //  attaches one, so history runs with no debugger at all.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,27 +81,32 @@ namespace ShellHistoryTests
 
             shell->GetDebugger().PrepareFramebuffers();
 
-            if (!isDebuggerAttached)
-            {
-                shell->GetHistory().SetClient (nullptr);
-            }
+            UNREFERENCED_PARAMETER (isDebuggerAttached);
 
-            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
+            SetOptions (true);
         }
 
 
 
         //  A command, dispatched as the CPU thread dispatches one.
-        void Dispatch (WORD id, const std::string & payload)
+        void Dispatch (WORD id, DebugCall call)
         {
             EmulatorCommand  command;
 
 
 
-            command.id      = id;
-            command.payload = payload;
+            command.id   = id;
+            command.call = std::move (call);
 
             shell->DispatchCpuCommand (command);
+        }
+
+
+
+        //  History turned on or off, at the rig's budget, as the options do.
+        void SetOptions (bool isRecording)
+        {
+            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [isRecording] (IDebugCommandTarget & target) { target.ApplyReverseOptions (isRecording, kBudgetMb); });
         }
 
 
@@ -115,7 +120,7 @@ namespace ShellHistoryTests
             for (i = 0; i < count; i++)
             {
                 shell->GetHistory().RecordFrame();
-                shell->GetMachine().RunCycles (kFrameCycles);
+                shell->GetMachine().GetRunner().RunCycles (kFrameCycles);
             }
         }
 
@@ -123,7 +128,7 @@ namespace ShellHistoryTests
 
         void Reverse (ReverseCommand command, uint64_t argument = 0)
         {
-            Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (command, argument));
+            Dispatch (IDM_DEBUG_REVERSE, [command, argument] (IDebugCommandTarget & target) { target.RunReverseCommand (command, argument); });
         }
     };
 }

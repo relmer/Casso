@@ -194,14 +194,13 @@ void CreateDiskBodyPanel::Relayout()
 //
 //  Dropdowns come first: an open menu must see every click, wherever it
 //  lands. The list consumes any press inside itself (scroll / select /
-//  column resize) and needs local coordinates; anything left over falls
-//  through to the bootable strip and the text input.
+//  column resize); anything left over falls through to the bootable strip
+//  and the text input.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    DxuiMouseEvent  listEv  = ev;
     IDxuiControl *  pressed = nullptr;
     bool            handled = false;
 
@@ -221,11 +220,8 @@ bool CreateDiskBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 
     if (!handled && m_kids.list != nullptr)
     {
-        RECT  lb = m_kids.list->GetBounds();
-
-        listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
-        handled            = m_kids.list->OnMouse (listEv);
-        pressed            = handled ? m_kids.list : nullptr;
+        handled = m_kids.list->AsControl().OnMouse (ev);
+        pressed = handled ? m_kids.list : nullptr;
     }
 
     if (!handled && m_kids.flux != nullptr)
@@ -281,10 +277,7 @@ LPCWSTR CreateDiskBodyPanel::GetCursorForPoint (POINT clientPx) const
 
     if (m_kids.list != nullptr)
     {
-        RECT   lb    = m_kids.list->GetBounds();
-        POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
-
-        cursor = m_kids.list->GetCursorForPoint (local);
+        cursor = m_kids.list->AsControl().GetCursorForPoint (clientPx);
     }
 
     return cursor;

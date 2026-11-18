@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Widgets/DxuiPopupMenu.h"
+
 class IDxuiPainter;
 
 
@@ -73,27 +75,27 @@ public:
 
     // Configuration. arrowStep is the position delta for an arrow-button
     // click (one line); track clicks page by the SCROLLINFO page extent.
-    void     Configure (Orientation orientation, int thicknessPx, int minThumbPx, int arrowStepPx);
-    void     SetTrack (const RECT & trackPx)  { m_track = trackPx; }
-    void     SetScrollInfo (const SCROLLINFO & info);
-    void     GetScrollInfo (SCROLLINFO & info) const;
-    void     SetScrollPos (int pos);
-    int      GetScrollPos() const             { return m_pos; }
-    int      GetMaxScrollPos() const;
+    void  Configure       (Orientation orientation, int thicknessPx, int minThumbPx, int arrowStepPx);
+    void  SetTrack        (const RECT & trackPx)  { m_track = trackPx; }
+    void  SetScrollInfo   (const SCROLLINFO & info);
+    void  GetScrollInfo   (SCROLLINFO & info) const;
+    void  SetScrollPos    (int pos);
+    int   GetScrollPos    () const             { return m_pos; }
+    int   GetMaxScrollPos () const;
 
     // Queries.
-    bool     IsVisible() const;
-    bool     IsDragging() const               { return m_dragging; }
-    Metrics  GetMetrics() const;
-    bool     HitTest (int xPx, int yPx) const;
+    bool     IsVisible  () const;
+    bool     IsDragging () const               { return m_dragging; }
+    Metrics  GetMetrics () const;
+    bool     HitTest    (int xPx, int yPx) const;
 
     // Input (widget-relative px). OnMouseDown classifies the press
     // (arrow / track / thumb) and acts; OnMouseMove drives an in-progress
     // thumb drag; OnMouseUp ends it. Each returns true when consumed and
     // fires onScroll if the position changed.
-    bool     OnMouseDown (int xPx, int yPx);
-    bool     OnMouseMove (int xPx, int yPx);
-    bool     OnMouseUp();
+    bool  OnMouseDown (int xPx, int yPx);
+    bool  OnMouseMove (int xPx, int yPx);
+    bool  OnMouseUp   ();
 
     //  For a host that runs the thumb drag itself: the puck's distance along
     //  the track while the drag lasts, or nothing once it ends. The puck is
@@ -102,13 +104,29 @@ public:
 
     void     Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const;
 
+    //  A find's matches, each as how far along the content it is, from 0 to
+    //  1, and whether it is the selected one. While there are marks, the bar
+    //  is drawn wide, as under the pointer, with a line across it for each
+    //  mark, so the matches can be seen across the whole content; with none,
+    //  it goes back to its resting width.
+    struct Mark
+    {
+        float  at        = 0.0f;
+        bool   isCurrent = false;
+    };
+
+    void                       SetMarks   (std::vector<Mark> marks, uint32_t matchArgb, uint32_t currentArgb);
+    void                       ClearMarks ()       { m_marks.clear(); }
+    bool                       HasMarks   () const { return !m_marks.empty(); }
+    const std::vector<Mark> &  GetMarks   () const { return m_marks; }
+
     //  Widened at once, as Windows widens a scrollbar the pointer is over: the
     //  puck thickens and the arrows come back. The grab band is the same
     //  either way.
     void     SetExpanded (bool expanded)      { m_expanded = expanded; m_hoverAmount = expanded ? 1.0f : 0.0f; }
 
     //  SetHover starts the bar widening or narrowing and notes the arrow under
-    //  the pointer. Tick carries the change out over a few frames, and reports
+    //  the pointer. Tick applies the change over a few frames, and reports
     //  whether it is still under way.
     bool     SetHover    (bool over, POINT pt = { -1, -1 });
     bool     Tick        (int64_t nowMs);
@@ -116,17 +134,32 @@ public:
 
     void     SetOnScroll (std::function<void (int sbCode, int pos)> cb)  { m_onScroll = std::move (cb); }
 
+    //  Windows' menu for a scrollbar, for a right-click at a point on the bar:
+    //  Scroll here, the two ends, a page and a line each way. Each row moves
+    //  the bar and calls onScroll, as a click on the bar's own parts does.
+    std::vector<DxuiPopupMenuItem>  BuildContextMenu (int xPx, int yPx);
+
+    //  Opens that menu when the point is on the bar, at atPx in the window's
+    //  client pixels. Returns whether the point was on the bar.
+    bool     ShowContextMenu (HWND hwnd, int xPx, int yPx, POINT atPx);
+
+    //  Opens a menu BuildContextMenu built over the window at atPx, and
+    //  repaints the window when it closes. False for an empty menu.
+    static bool  ShowMenu (HWND hwnd, POINT atPx, std::vector<DxuiPopupMenuItem> items);
+
 private:
-    int    GetContentExtent() const;     // nMax - nMin
-    int    GetMainTrackStart() const;    // along the scroll axis
-    int    GetMainTrackLength() const;
-    int    GetArrowExtent() const;       // 0 when the bar is too short
-    float  GetThumbStart() const;
-    float  GetThumbLength() const;
-    RECT   GetMainRect (int mainStart, int mainExtent) const;
-    void   NotifyPos (int sbCode, int newPos);
-    void   PaintThumb (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
-    void   PaintArrow (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
+    int    GetContentExtent   () const;     // nMax - nMin
+    int    GetMainTrackStart  () const;    // along the scroll axis
+    int    GetMainTrackLength () const;
+    int    GetArrowExtent     () const;       // 0 when the bar is too short
+    float  GetThumbStart      () const;
+    float  GetThumbLength     () const;
+    RECT   GetMainRect        (int mainStart, int mainExtent) const;
+    void   NotifyPos          (int sbCode, int newPos);
+    int    GetPosAt           (int xPx, int yPx) const;
+    void   PaintThumb         (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
+    void   PaintArrow         (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
+    void   PaintMarks         (IDxuiPainter & painter, const Metrics & m) const;
 
     Orientation                            m_orientation = Orientation::Vertical;
     int                                    m_thicknessPx = 0;
@@ -145,5 +178,8 @@ private:
     float                                  m_dragGrab    = 0.0f;
     float                                  m_dragOffset  = 0.0f;
     int                                    m_hoverArrow  = 0;
+    std::vector<Mark>                      m_marks;
+    uint32_t                               m_matchArgb   = 0;
+    uint32_t                               m_currentArgb = 0;
     std::function<void (int sbCode, int pos)>  m_onScroll;
 };

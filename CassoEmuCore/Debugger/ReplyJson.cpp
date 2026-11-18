@@ -233,6 +233,22 @@ std::string ReplyJson::WriteMachineChanged (const std::string & machineName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReplyJson::WriteHitLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ReplyJson::WriteHitLog (const std::string & text)
+{
+    return WriteLine (Members { { "type", MakeString ("log") },
+                                { "text", MakeString (text) } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReplyJson::WriteModeChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -686,6 +702,18 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
     if (auto * v = std::get_if<CalcData> (&data))
     {
         return JsonValue (Members { { "kind", MakeString ("calc") }, { "value", MakeNumber (v->value) } });
+    }
+
+    if (auto * v = std::get_if<BreakpointMessagesData> (&data))
+    {
+        std::vector<JsonValue>  messages;
+
+        for (const std::string & message : v->messages)
+        {
+            messages.push_back (MakeString (message));
+        }
+
+        return JsonValue (Members { { "kind", MakeString ("breakpointMessages") }, { "messages", JsonValue (std::move (messages)) } });
     }
 
     return JsonValue (Members { { "kind", MakeString ("message") } });

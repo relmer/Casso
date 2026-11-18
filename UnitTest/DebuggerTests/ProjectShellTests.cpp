@@ -4,12 +4,15 @@
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Project/DebugProjectStore.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "EmuTests/FixtureRomSource.h"
 #include "InMemoryPipeTransport.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineBuilder.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/ProjectSettingsDialog.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "HResultAssert.h"
@@ -49,7 +52,7 @@ namespace ProjectShellTests
 
 
 
-        ProjectRig()
+        explicit ProjectRig (TestMachine::Slots slots = TestMachine::Slots::Empty)
         {
             MachineBuildServices  services;
             MachineBuilder        builder (shell->GetMachine(), services);
@@ -59,11 +62,11 @@ namespace ProjectShellTests
 
 
 
-            hr = HeadlessMachineFactory::Build (shell->GetMachine(), builder, source, "Apple2e", TestMachine::Slots::Empty, TestMachine::kSeed, error);
+            hr = HeadlessMachineFactory::Build (shell->GetMachine(), builder, source, "Apple2e", slots, TestMachine::kSeed, error);
             AssertSucceeded (hr, L"the shell's machine builds");
 
             shell->GetMachine().PowerCycle();
-            shell->GetDebugger().SetProjectStore (std::make_unique<DebugProjectStore> (files, s_kpszFolder));
+            shell->GetDebugger().GetProject().SetStore (std::make_unique<DebugProjectStore> (files, s_kpszFolder));
         }
 
 
@@ -90,7 +93,7 @@ namespace ProjectShellTests
 
             debugger = controller.get();
             shell->GetDebugger().AttachDebugger (std::move (controller));
-            shell->GetDebugger().ServiceProject();
+            shell->GetDebugger().GetProject().Service();
         }
 
 
@@ -113,7 +116,7 @@ namespace ProjectShellTests
 
 
 
-            shell->GetDebugger().ServiceProject();
+            shell->GetDebugger().GetProject().Service();
             return reply;
         }
 
@@ -250,7 +253,7 @@ namespace ProjectShellTests
             rig.Attach();
             rig.Run ("BP 300");
             rig.shell->GetDebugger().SetDebuggerStartupCommands ({ { "BP 500", CommandMode::AppleWin } });
-            rig.shell->GetDebugger().ServiceProject();
+            rig.shell->GetDebugger().GetProject().Service();
             rig.Detach();
 
             rig.Attach();
@@ -294,7 +297,7 @@ namespace ProjectShellTests
 
             Assert::IsNotNull (data, L"PROJECT replies with the project");
             Assert::AreEqual (std::string ("binary"), data->scope, L"the binary's project is open");
-            Assert::AreEqual (std::string ("binary prog.bin"), data->label, L"labeled with the binary's name");
+            Assert::AreEqual (std::string ("prog.bin"), data->label, L"labeled with the binary's name");
 
             rig.Detach();
             Assert::AreEqual ((size_t) 2, rig.files.FileCount(), L"the machine's project and the binary's");
@@ -304,6 +307,85 @@ namespace ProjectShellTests
 
             rig.Run ("BLOAD C:\\Work\\prog.bin 300");
             Assert::IsTrue (rig.GetBreakpointAddresses() == std::vector<Word> { 0x0300, 0x0400 }, L"the binary's project has both");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABootFromAnotherDiskLeavesTheBinarysProject
+        //
+        //  A binary outranks the boot disk in the scope, so booting another
+        //  disk unloads it, and the new disk's project opens.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABootFromAnotherDiskLeavesTheBinarysProject)
+        {
+            ProjectRig            rig (TestMachine::Slots::DiskOnly);
+            std::vector<Byte>     blank (NibblizationLayer::kImageByteSize, 0);
+            DiskImageStore      & disks = rig.shell->GetMachine().GetDiskStore();
+            Reply                 reply;
+            const ProjectData   * data  = nullptr;
+
+
+
+            disks.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+            Assert::AreEqual (S_OK, disks.MountFromBytes (6, 0, "C:\\Disks\\first.dsk", DiskFormat::Dsk, blank));
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
+            Assert::IsNotNull (data);
+            Assert::AreEqual (std::string ("binary"), data->scope, L"the binary's project, on the first disk");
+
+            Assert::AreEqual (S_OK, disks.MountFromBytes (6, 0, "C:\\Disks\\second.dsk", DiskFormat::Dsk, blank));
+            rig.shell->GetDebugger().NotifyDebugReset (true);
+            rig.shell->GetDebugger().GetProject().Service();
+
+            data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
+            Assert::IsNotNull (data);
+            Assert::AreEqual (std::string ("machineBoot"), data->scope, L"the second disk's project");
+            Assert::IsTrue   (rig.debugger->GetSession().GetFiles().GetBinaryKey().empty(), L"the binary is unloaded");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  TheDiskMountedAfterABuildsPowerCycleIsTheBootDisk
+        //
+        //  A machine is built with a power cycle while its drives are empty,
+        //  and then its disks are mounted, so the machine boots the disk in
+        //  drive 1: its project is the disk's, as after a restart.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheDiskMountedAfterABuildsPowerCycleIsTheBootDisk)
+        {
+            ProjectRig            rig (TestMachine::Slots::DiskOnly);
+            std::vector<Byte>     blank (NibblizationLayer::kImageByteSize, 0);
+            DiskImageStore      & disks = rig.shell->GetMachine().GetDiskStore();
+            Reply                 reply;
+            const ProjectData   * data  = nullptr;
+
+
+
+            disks.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+            rig.shell->GetDebugger().NotifyDebugReset (true);
+
+            Assert::AreEqual (S_OK, disks.MountFromBytes (6, 0, "C:\\Disks\\boot.dsk", DiskFormat::Dsk, blank));
+            rig.shell->GetDebugger().NotifyDebugDisksMounted();
+
+            rig.Attach();
+            data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
+            Assert::IsNotNull (data);
+            Assert::AreEqual (std::string ("machineBoot"), data->scope, L"the boot disk's project, not the machine's");
         }
 
 
@@ -422,7 +504,7 @@ namespace ProjectShellTests
             rig.Run ("BP 300");
             rig.Run ("BLOAD C:\\Work\\prog.bin 300");
 
-            Assert::IsTrue (rig.shell->GetDebugger().HasMergeOffer(), L"the machine project's breakpoint is offered");
+            Assert::IsTrue (rig.shell->GetDebugger().GetProject().GetMerge().HasOffer(), L"the machine project's breakpoint is offered");
         }
 
 
@@ -456,17 +538,17 @@ namespace ProjectShellTests
             rig.Attach();
             rig.Run ("BP 300");
             rig.shell->GetDebugger().SetDebuggerStartupCommands ({ { "BLOAD C:\\Work\\prog.bin 300", CommandMode::AppleWin } });
-            rig.shell->GetDebugger().ServiceProject();
+            rig.shell->GetDebugger().GetProject().Service();
             rig.Detach();
 
             rig.Attach();
-            rig.shell->GetDebugger().ServiceProject();
+            rig.shell->GetDebugger().GetProject().Service();
             reply = rig.Run ("PROJECT");
             data  = std::get_if<ProjectData> (&reply.data);
 
             Assert::IsNotNull (data, L"PROJECT replies with the project");
             Assert::AreEqual (std::string ("binary"), data->scope, L"the startup BLOAD opens the binary's project");
-            Assert::IsFalse  (rig.shell->GetDebugger().HasMergeOffer(), L"nothing is offered");
+            Assert::IsFalse  (rig.shell->GetDebugger().GetProject().GetMerge().HasOffer(), L"nothing is offered");
         }
 
 
@@ -498,7 +580,7 @@ namespace ProjectShellTests
             saved.Attach();
             saved.Run ("BP 500");
             saved.shell->GetDebugger().SetDebuggerStartupCommands ({ { "BLOAD C:\\Work\\prog.bin 300", CommandMode::AppleWin } });
-            saved.shell->GetDebugger().ServiceProject();
+            saved.shell->GetDebugger().GetProject().Service();
             saved.Run ("PROJECT SAVEAS \"C:\\Work\\game.cassoproj\"");
 
             content = saved.files.PeekContent (L"C:\\Work\\game.cassoproj");
@@ -518,13 +600,13 @@ namespace ProjectShellTests
             reply = rig.Run ("PROJECT OPEN \"C:\\Work\\game.cassoproj\"");
             Assert::IsTrue (reply.status == CommandStatus::Ok, L"PROJECT OPEN succeeds");
 
-            rig.shell->GetDebugger().ServiceProject();
+            rig.shell->GetDebugger().GetProject().Service();
             reply = rig.Run ("PROJECT");
             data  = std::get_if<ProjectData> (&reply.data);
 
             Assert::IsNotNull (data, L"PROJECT replies with the project");
             Assert::AreEqual  (std::string ("binary"), data->scope, L"the startup BLOAD opens the binary's project");
-            Assert::IsFalse   (rig.shell->GetDebugger().HasMergeOffer(), L"nothing is offered");
+            Assert::IsFalse   (rig.shell->GetDebugger().GetProject().GetMerge().HasOffer(), L"nothing is offered");
         }
 
 
@@ -554,7 +636,7 @@ namespace ProjectShellTests
             rig.Run ("BLOAD C:\\Work\\prog.bin 300");
 
             Assert::IsTrue  (rig.GetBreakpointAddresses() == std::vector<Word> { 0x0500 }, L"the binary's project is open");
-            Assert::IsFalse (rig.shell->GetDebugger().HasMergeOffer(), L"the machine project has no items, so nothing is offered");
+            Assert::IsFalse (rig.shell->GetDebugger().GetProject().GetMerge().HasOffer(), L"the machine project has no items, so nothing is offered");
         }
 
 
@@ -574,12 +656,89 @@ namespace ProjectShellTests
 
 
 
-            rig.shell->GetDebugger().SetProjectStore (nullptr);
+            rig.shell->GetDebugger().GetProject().SetStore (nullptr);
             rig.Attach();
             reply = rig.Run ("PROJECT");
 
             Assert::IsTrue (reply.status == CommandStatus::Error, L"PROJECT fails without a store");
             Assert::AreEqual ((size_t) 0, rig.files.FileCount(), L"and nothing is written");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  TheProjectLineLinksTheProjectAndItsFile
+        //
+        //  "project" is linked to the project's file and the debug file's name
+        //  to the debug file; neither path is written out.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheProjectLineLinksTheProjectAndItsFile)
+        {
+            ProjectScope                     scope = { ProjectScopeKind::DebugFile, "0123", "symbols-demo.dbg" };
+            std::vector<ConsoleLinks::Link>  links;
+            std::wstring                     shown;
+
+
+
+            shown = ConsoleLinks::Parse (ShellDebugProject::GetProjectLine (scope, L"C:\\Projects\\debugFile-1.cassoproj", L"C:\\Src\\symbols-demo.dbg"), links);
+
+            Assert::AreEqual (std::wstring (L"Loaded the debug project for symbols-demo.dbg"), shown);
+            Assert::AreEqual ((size_t) 2, links.size());
+            Assert::AreEqual (17, links[0].start, L"the word project");
+            Assert::AreEqual (7,  links[0].length);
+            Assert::AreEqual (std::wstring (L"C:\\Projects\\debugFile-1.cassoproj"), links[0].path);
+            Assert::AreEqual (29, links[1].start, L"the debug file's name");
+            Assert::AreEqual (16, links[1].length);
+            Assert::AreEqual (std::wstring (L"C:\\Src\\symbols-demo.dbg"), links[1].path);
+
+            scope = { ProjectScopeKind::Machine, "Apple2e", "Apple2e" };
+            shown = ConsoleLinks::Parse (ShellDebugProject::GetProjectLine (scope, L"C:\\Projects\\machine-1.cassoproj", L""), links);
+
+            Assert::AreEqual (std::wstring (L"Loaded the debug project for Apple2e"), shown, L"a machine's project");
+            Assert::AreEqual ((size_t) 1, links.size(), L"has no file to link");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  TheConsoleGetsTheProjectLineWhenAProjectLoads
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheConsoleGetsTheProjectLineWhenAProjectLoads)
+        {
+            ProjectRig                                    rig;
+            std::shared_ptr<const DebuggerViewSnapshot>   snapshot;
+            std::vector<std::string>                      lines;
+            std::vector<ConsoleLinks::Link>               links;
+            bool                                          isFound = false;
+
+
+
+            rig.Attach();
+            rig.Run ("BP 300");
+            rig.Detach();
+            rig.Attach();
+
+            (void) rig.shell->GetDebugger().TakeDebuggerUpdate (snapshot, lines);
+
+            for (const std::string & line : lines)
+            {
+                if (ConsoleLinks::Parse (line, links).starts_with (L"Loaded the debug project for ") && !links.empty())
+                {
+                    isFound = links[0].path.starts_with (L"C:\\Projects\\") && links[0].path.ends_with (L".cassoproj");
+                }
+            }
+
+            Assert::IsTrue (isFound, L"with project linked to the project's file");
         }
     };
 

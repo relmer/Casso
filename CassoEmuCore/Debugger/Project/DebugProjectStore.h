@@ -63,9 +63,9 @@ public:
     bool          IsSaveDue    (uint64_t nowMs) const { return m_changedAt.has_value() && nowMs - *m_changedAt >= kSaveDelayMs; }
 
 private:
-    HRESULT       Read          (const std::wstring & path, DebugProject & project, std::vector<std::string> & notices, bool & isFound);
-    bool          TryReadRedirect (const std::wstring & path, std::string & redirect);
-    std::string   GetStamp      () const;
+    HRESULT      Read            (const std::wstring & path, DebugProject & project, std::vector<std::string> & notices, bool & isFound);
+    bool         TryReadRedirect (const std::wstring & path, std::string & redirect);
+    std::string  GetStamp        () const;
 
     static std::wstring  GetFolder (const std::wstring & path);
 

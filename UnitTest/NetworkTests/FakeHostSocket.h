@@ -85,9 +85,10 @@ public:
     FakeHostSocket (FakeHostNetwork & network, std::shared_ptr<FakeSocketState> state);
     ~FakeHostSocket () override;
 
-    HRESULT  Bind         (const HostEndpoint & local, bool allowBroadcast)          override;
-    HRESULT  GetLocal     (HostEndpoint & outLocal) const                            override;
-    HRESULT  Listen       ()                                                         override;
+    HRESULT  Bind           (const HostEndpoint & local, bool allowBroadcast)          override;
+    HRESULT  AllowBroadcast ()                                                       override { m_state->allowBroadcast = true; return S_OK; }
+    HRESULT  GetLocal       (HostEndpoint & outLocal) const                            override;
+    HRESULT  Listen         ()                                                         override;
     HRESULT  Accept       (std::unique_ptr<IHostSocket>  & outAccepted,
                            HostEndpoint                  & outPeer,
                            bool                          & outWouldBlock)            override;

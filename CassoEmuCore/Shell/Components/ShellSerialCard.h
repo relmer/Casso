@@ -24,9 +24,9 @@ class EmulatorShell;
 //  thread applies it on its next frame (Tick). The download runs on a
 //  background queue and is applied the same way.
 //
-//  The banner itself is a DxuiActionBanner. It shares the chrome's change
-//  band with the disk-change banner, below it, so ShellChrome lays the two
-//  out together.
+//  The banner itself is a DxuiInfoBanner with buttons and a close box. It
+//  shares the chrome's change band with the disk-change banner, below it, so
+//  ShellChrome lays the two out together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +47,7 @@ public:
     // `reportInInfobar`, progress and the result appear in the infobar;
     // Settings passes false and reports the result itself.
     void  StartFirmwareDownload (bool reportInInfobar = true);
-    bool  IsDownloading () const { return m_isDownloading; }
+    bool  IsDownloading         () const { return m_isDownloading; }
 
     // Downloads finished so far, and the last one's outcome, for a caller
     // that started one and waits for the count to move.
@@ -55,7 +55,7 @@ public:
     bool            DidLastDownloadSucceed    () const { return m_lastDownloadSucceeded; }
     const string &  GetLastDownloadError      () const { return m_lastDownloadError; }
 
-    DxuiActionBanner &  GetBanner           () { return m_banner; }
+    DxuiInfoBanner &    GetBanner           () { return m_banner; }
     int                 GetBandThicknessPx  (int clientWidthPx) const;
     void                LayoutBanner        (const RECT & bounds);
     bool                OfferMouseToBanner  (DxuiMouseEventKind kind, int x, int y);
@@ -65,8 +65,9 @@ private:
     void  OnAction (size_t index);
 
     EmulatorShell                        & m_shell;
-    DxuiActionBanner                       m_banner;
+    DxuiInfoBanner                         m_banner;
     SerialCardNotice                       m_notice;
+    vector<wstring>                        m_buttons;   // the notice's actions but Dismiss, in order
 
     mutex                                  m_pendingLock;
     SerialCardNotice                       m_pendingNotice;

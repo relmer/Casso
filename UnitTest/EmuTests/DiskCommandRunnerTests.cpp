@@ -1,20 +1,32 @@
 #include "Pch.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Devices/Disk/Archives/NuFxArchive.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
+#include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
+#include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/FieldLocator.h"
 #include "InspectorTrackBuilder.h"
+#include "IntegerBasicTokenizer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -218,7 +230,7 @@ public:
         options.disk.path = heading;
         result            = runner.Run (options);
 
-        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("the name is not unique") != std::string::npos);
 
         //  The name and the index together select that entry.
         options.disk.hasIndex = true;
@@ -226,7 +238,7 @@ public:
         result                = runner.Run (options);
 
         Assert::IsTrue (result.diagnostics.find ("--index is only allowed") == std::string::npos);
-        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") == std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("the name is not unique") == std::string::npos,
             L"the index resolves to the heading, regardless of the read result for an entry with no sectors");
 
         //  --index requires the name as well, so a wrong index cannot select a
@@ -308,6 +320,50 @@ public:
     }
 
 
+    //  A recursive listing's name column is as wide as its longest path, so
+    //  every type lines up.
+    TEST_METHOD (List_Recurse_AlignsTheColumnsToTheLongestPath)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        std::istringstream  lines;
+        std::string         line;
+        size_t              column = std::string::npos;
+        size_t              rows   = 0;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "GRAPHICS.FOLDER/PRINTSHOP.ITEMS";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        lines.str (result.output);
+
+        while (std::getline (lines, line))
+        {
+            size_t  type = line.find (" $");
+
+            if (line.find ("eof=") != std::string::npos)
+            {
+                Assert::IsTrue (column == std::string::npos || type == column, TextEncoding::NarrowToWide (line).c_str());
+                Assert::IsTrue (line.find ("PRINTSHOP.ITEMSDIR") == std::string::npos);
+
+                column = type;
+                rows++;
+            }
+        }
+
+        Assert::IsTrue (rows > 2);
+    }
+
+
     TEST_METHOD (Mkdir_OnADos33Disk_SaysTheFilesystemHasNoDirectories)
     {
         FakeDiskFileIo      io;
@@ -321,7 +377,7 @@ public:
         options.disk.path = "CASSO";
         result            = runner.Run (options);
 
-        Assert::IsTrue (result.diagnostics.find ("DOS 3.3, which has none") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("Unable to create CASSO: this volume is DOS 3.3, which has no directories") != std::string::npos);
     }
 
 
@@ -381,6 +437,241 @@ public:
     }
 
 
+    //  HFS has folders, as ProDOS has directories: mkdir makes each along
+    //  the path, and rmdir removes them.
+    TEST_METHOD (MkdirAndRmdir_ChangeAnHfsVolume)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        vector<Byte>        image;
+
+
+
+        AssertSucceeded (HfsWriter::Format (image, 1600, "Mac Disk"));
+        io.files["mac.po"]  = image;
+        io.stamps["mac.po"] = FileStamp { image.size(), 100 };
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir, "mac.po");
+        options.disk.path = "Work/Deep Folder";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List, "mac.po");
+        options.disk.path = "Work";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue   (result.output.find ("Deep Folder") != std::string::npos, L"the deeper folder is inside the first");
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir, "mac.po");
+        options.disk.path    = "Work";
+        options.disk.recurse = true;
+        options.disk.yes     = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List, "mac.po");
+        options.disk.path = "Work";
+        result            = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus, L"the folder is gone, so listing it fails");
+    }
+
+
+    //  A get to a name in Casso Explorer's text form converts the file as a
+    //  copy out does, the same as --text.
+    TEST_METHOD (Get_ToATextFormName_ConvertsAsCopyOutDoes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+
+
+        SeedProDosDisk (io);
+        io.files["note.txt"]  = { 'O', 'N', 'E', '\r', '\n', 'T', 'W', 'O', '\r', '\n' };
+        io.stamps["note.txt"] = FileStamp { 10, 100 };
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile = "note.txt";
+        options.disk.path     = "NOTE";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        result                = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path     = "NOTE";
+        options.disk.hostFile = "raw.bin";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile = "NOTE.Text.txt";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile = "plain.txt";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (io.files["NOTE.Text.txt"] == io.files["plain.txt"], L"the same as --text");
+        Assert::IsTrue (io.files["NOTE.Text.txt"] != io.files["raw.bin"],   L"and not the stored bytes");
+    }
+
+
+    //  Put reads `._NAME` beside the file, as get writes it: the resource fork
+    //  and the ProDOS type go onto the disk, and come back out.
+    TEST_METHOD (Put_ReadsTheAppleDoubleFileBesideIt)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        AppleSingleFile     single;
+        AppleSingleFile     back;
+        vector<Byte>        sidecar;
+        std::string         error;
+
+
+
+        SeedProDosDisk (io);
+
+        single.resourceFork    = { 1, 2, 3, 4, 5 };
+        single.hasResourceFork = true;
+        single.hasProDosInfo   = true;
+        single.fileType        = 0x50;
+        single.auxType         = 0x5445;
+        single.finderInfo.assign (32, 0);
+        AppleSingleCodec::EncodeDouble (single, sidecar);
+
+        io.files["DOC"]    = { 'T', 'E', 'A', 'C', 'H' };
+        io.files["._DOC"]  = sidecar;
+        io.stamps["DOC"]   = FileStamp { 5, 100 };
+        io.stamps["._DOC"] = FileStamp { sidecar.size(), 100 };
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile = "DOC";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path     = "DOC";
+        options.disk.hostFile = "out";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue  (io.files["out"] == io.files["DOC"]);
+        AssertSucceeded (AppleSingleCodec::Decode (io.files["._out"], back, error));
+        Assert::IsTrue   (back.resourceFork == single.resourceFork, L"the resource fork went onto the disk");
+        Assert::AreEqual ((uint32_t) 0x50,   (uint32_t) back.fileType);
+        Assert::AreEqual ((uint32_t) 0x5445, (uint32_t) back.auxType);
+    }
+
+
+    //  The entry `name` in the committed ProDOS image's catalog.
+    static FileEntry FindProDosEntry (FakeDiskFileIo & io, const char * name)
+    {
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+        FileEntry           found;
+
+
+
+        AssertSucceeded (VolumeImage::Load (io.files[kImage], kImage, sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            if (entry.name == name)
+            {
+                found = entry;
+            }
+        }
+
+        return found;
+    }
+
+
+    static Byte GetProDosType (FakeDiskFileIo & io, const char * name)
+    {
+        return FindProDosEntry (io, name).type;
+    }
+
+
+    //  A file put from the PC is dated when it was last written there, in
+    //  local time.
+    TEST_METHOD (Put_DatesTheFileWhenItWasWrittenOnThePc)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        FilePayload         expected;
+        FileEntry           entry;
+
+
+
+        SeedProDosDisk (io);
+
+        io.files["note.txt"]  = { 'H', 'I' };
+        io.stamps["note.txt"] = FileStamp { 2, 1700000000 };
+        HostAppleFile::SetHostDates (1700000000, expected);
+
+        options.disk.hostFile = "note.txt";
+        options.disk.path     = "NOTE";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        entry = FindProDosEntry (io, "NOTE");
+        Assert::IsTrue   (expected.hasDates);
+        Assert::AreEqual ((int) (23 << 9 | 11 << 5), (int) (expected.modifiedDate & 0xFFE0), L"November 2023");
+        Assert::AreEqual ((int) expected.modifiedDate, (int) entry.modifiedDate);
+        Assert::AreEqual ((int) expected.modifiedTime, (int) entry.modifiedTime);
+        Assert::AreEqual ((int) expected.modifiedDate, (int) entry.createdDate);
+    }
+
+
+    //  --type takes any type in ProDOS's table, by its abbreviation or its
+    //  number, and a host name's type applies with --as too.
+    TEST_METHOD (Put_TakesAProDosTypeByNumberOrAbbreviation_AndAHostNamesTypeWithAs)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+
+
+
+        SeedProDosDisk (io);
+
+        io.files["pic.bin"]     = vector<Byte> (64, 0x11);
+        io.stamps["pic.bin"]    = FileStamp { 64, 100 };
+        io.files["ART#C10001"]  = vector<Byte> (64, 0x22);
+        io.stamps["ART#C10001"] = FileStamp { 64, 100 };
+
+        options                = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile  = "pic.bin";
+        options.disk.path      = "PAINT";
+        options.disk.typeName  = "$C0";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.path      = "SOUND";
+        options.disk.typeName  = "snd";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile  = "ART#C10001";
+        options.disk.path      = "PICTURE";
+        options.disk.typeName  = "";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::AreEqual ((int) 0xC0, (int) GetProDosType (io, "PAINT"));
+        Assert::AreEqual ((int) 0xD8, (int) GetProDosType (io, "SOUND"));
+        Assert::AreEqual ((int) 0xC1, (int) GetProDosType (io, "PICTURE"));
+
+        options.disk.path      = "ODD";
+        options.disk.typeName  = "$100";
+        Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus, L"past a byte");
+    }
+
+
     TEST_METHOD (Rmdir_WithYes_NeedsNobodyToAsk)
     {
         FakeDiskFileIo      io;
@@ -421,7 +712,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue   (result.output.find ('/') != std::string::npos,
-            L"a row below the volume directory carries the path that reaches it");
+            L"a row below the volume directory gives the path that reaches it");
     }
 
 
@@ -708,7 +999,7 @@ public:
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
-        vector<Byte>       noise (NibblizationLayer::kImageByteSize, 0xE5);
+        vector<Byte>       noise (NibblizationLayer::kImageByteSize, 0x55);
 
         io.files[kImage]  = noise;
         io.stamps[kImage] = FileStamp { noise.size(), 1 };
@@ -1725,6 +2016,343 @@ public:
                         L"and it reports what it made");
     }
 
+    //  A .d13 image is a blank 13-sector DOS volume that lists, takes a file
+    //  and formats again.
+    TEST_METHOD (Create_WritesAThirteenSectorDos32Image)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("old.d13");
+        CommandLineOptions  init    = MakeCreate ("old.d13");
+        DiskCommandResult   result;
+        vector<Byte>        bytes;
+        Dos33Geometry       geometry;
+
+
+
+        options.disk.volumeName = "77";
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.output.find ("DOS 3.2, volume 77") != std::string::npos);
+
+        AssertSucceeded (io.ReadAllBytes ("old.d13", bytes));
+
+        Assert::AreEqual (ThirteenSectorCodec::kImageByteSize, bytes.size());
+        Assert::IsTrue (Dos33Geometry::TryDetect (bytes, geometry));
+        Assert::IsTrue (geometry.IsThirteenSector());
+
+        init.disk.command     = CommandLineOptions::DiskOptions::Command::Init;
+        init.disk.commandWord = "init";
+        result = runner.Run (init);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+    }
+
+    TEST_METHOD (Create_ThirteenSectorImageOfAnotherFormat_IsABadCommandLine)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  asProDos = MakeCreate ("old.d13");
+        CommandLineOptions  asDsk    = MakeCreate ("old.dsk");
+        DiskCommandResult   result;
+
+
+
+        asProDos.disk.formatName = "prodos";
+        result = runner.Run (asProDos);
+
+        Assert::IsTrue (result.badCommandLine);
+        Assert::IsFalse (io.Exists ("old.d13"));
+
+        asDsk.disk.formatName = "dos32";
+        result = runner.Run (asDsk);
+
+        Assert::IsTrue (result.badCommandLine);
+        Assert::IsFalse (io.Exists ("old.dsk"));
+    }
+
+    //  A ProDOS volume larger than a floppy, in each block container.
+    TEST_METHOD (Create_WritesA5MBProDosVolume)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.hdv");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+
+
+
+        options.disk.sizeName = "5M";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("big.hdv", written));
+        Assert::AreEqual ((size_t) 10240 * 512, written.size());
+
+        AssertSucceeded (VolumeImage::Load (written, "big.hdv", sectors, report));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos);
+    }
+
+    TEST_METHOD (Create_WritesAn800KDiskCopyImage)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result = runner.Run (MakeCreate ("disk.dc42"));
+        vector<Byte>       written;
+
+
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("disk.dc42", written));
+        Assert::IsTrue (DiskCopy42Container::IsDiskCopy42 (written));
+    }
+
+    TEST_METHOD (Create_WritesA140KTwoImgInProDosOrder)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("small.2mg");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+
+
+
+        options.disk.sizeName = "140k";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("small.2mg", written));
+        AssertSucceeded (VolumeImage::Load (written, "small.2mg", sectors, report));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos);
+    }
+
+    TEST_METHOD (Init_ReformatsAHardDiskImageAtItsSize)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.hdv");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+
+
+
+        options.disk.sizeName = "10M";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Init;
+        options.disk.sizeName   = "";
+        options.disk.volumeName = "AGAIN";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("big.hdv", written));
+        Assert::AreEqual ((size_t) 20480 * 512, written.size());
+
+        AssertSucceeded (VolumeImage::Load (written, "big.hdv", sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
+        Assert::AreEqual (std::string ("AGAIN"), listing.volumeName);
+    }
+
+    //  An HFS volume, 800K by default, then reformatted with another name.
+    TEST_METHOD (Create_WritesAnHfsVolumeAndInitReformatsIt)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("mac.po");
+        vector<Byte>        written;
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+
+
+
+        options.disk.formatName = "hfs";
+
+        DiskCommandResult  created = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, created.exitStatus, TextEncoding::NarrowToWide (created.diagnostics).c_str());
+        AssertSucceeded (io.ReadAllBytes ("mac.po", written));
+        Assert::AreEqual ((size_t) 1600 * 512, written.size());
+
+        AssertSucceeded (VolumeImage::Load (written, "mac.po", sectors, report));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::Hfs);
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::Hfs, sectors)->Enumerate (listing));
+        Assert::AreEqual (std::string ("Untitled"), listing.volumeName);
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Init;
+        options.disk.volumeName = "Work Disk";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("mac.po", written));
+        AssertSucceeded (VolumeImage::Load (written, "mac.po", sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::Hfs, sectors)->Enumerate (listing));
+        Assert::AreEqual (std::string ("Work Disk"), listing.volumeName);
+    }
+
+    TEST_METHOD (Create_WritesA32MBHfsHardDisk)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("mac.hdv");
+        vector<Byte>        written;
+
+
+
+        options.disk.formatName = "HFS";
+        options.disk.sizeName   = "32M";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (io.ReadAllBytes ("mac.hdv", written));
+        Assert::AreEqual ((size_t) 65535 * 512, written.size());
+        Assert::IsTrue (HfsVolume::IsFound (BlockImage (written)));
+    }
+
+    TEST_METHOD (Create_RefusesA140KHfsVolumeAndAColonInItsName)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("mac.po");
+
+
+
+        options.disk.formatName = "hfs";
+        options.disk.sizeName   = "140K";
+
+        DiskCommandResult  tiny = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, tiny.exitStatus);
+        Assert::IsTrue (tiny.diagnostics.find ("800K or larger") != std::string::npos);
+
+        options.disk.sizeName   = "";
+        options.disk.volumeName = "A:B";
+
+        DiskCommandResult  colon = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, colon.exitStatus);
+        Assert::IsTrue (colon.diagnostics.find ("colon") != std::string::npos);
+        Assert::IsFalse (io.Exists ("mac.po"));
+    }
+
+    TEST_METHOD (Test_ReportsACleanImageAndADamagedArchive)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("clean.dsk");
+        NuFxArchive         archive;
+        NuFxRecord          record;
+        vector<Byte>        bytes;
+
+
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.command     = CommandLineOptions::DiskOptions::Command::Test;
+        options.disk.commandWord = "test";
+
+        DiskCommandResult  clean = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, clean.exitStatus, TextEncoding::NarrowToWide (clean.output + clean.diagnostics).c_str());
+        Assert::IsTrue (clean.output.find ("no problems") != std::string::npos);
+
+        record.threads.push_back (NuFxArchive::MakeFilenameThread ("A"));
+        record.threads.push_back (NuFxArchive::MakeDataThread (NuFxThread::kKindDataFork, vector<Byte> (100, 1)));
+        record.threads[1].format = NuFxThread::kFormatStored;
+        record.threads[1].stored = vector<Byte> (100, 1);
+        archive.records.push_back (record);
+        archive.Build (bytes);
+        bytes[bytes.size() - 1] ^= 0xFF;
+        io.files["bad.shk"] = bytes;
+
+        options.disk.imagePath = "bad.shk";
+
+        DiskCommandResult  damaged = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kWithComplaints, damaged.exitStatus);
+        Assert::IsTrue (damaged.output.find ("CRC") != std::string::npos);
+    }
+
+    //  --bootable on a disk larger than 140K was dropped without a word, so a
+    //  32 MB volume had no PRODOS and didn't start from a hard drive card.
+    //  Found booting one on Apple's SCSI card in MAME.
+    TEST_METHOD (Create_MakesALargeProDosVolumeBootable)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.hdv");
+        DiskCommandResult   made;
+        DiskCommandResult   listed;
+
+
+
+        SeedRealDisk (io, "Disks/Merlin-proProdos2.33-b.dsk", "master.dsk");
+
+        for (const char * size : { "800K", "32M" })
+        {
+            options.disk.sizeName     = size;
+            options.disk.formatName   = "prodos";
+            options.disk.bootable     = true;
+            options.disk.bootableFrom = "master.dsk";
+
+            made = runner.Run (options);
+            Assert::AreEqual (DiskCommandResult::kClean, made.exitStatus, TextEncoding::NarrowToWide (made.output + made.diagnostics).c_str());
+            Assert::IsTrue   (made.output.find (", bootable") != std::string::npos, TextEncoding::NarrowToWide (made.output).c_str());
+            Assert::AreNotEqual ((int) io.files["big.hdv"][0], 0, L"block 0 has the ProDOS loader");
+
+            listed = runner.Run (MakeOptions (CommandLineOptions::DiskOptions::Command::List, "big.hdv"));
+            Assert::IsTrue (listed.output.find ("PRODOS") != std::string::npos, TextEncoding::NarrowToWide (listed.output).c_str());
+            Assert::IsTrue (listed.output.find ("Not bootable") == std::string::npos);
+
+            io.files.erase ("big.hdv");
+            io.stamps.erase ("big.hdv");
+        }
+
+        options.disk.formatName = "hfs";
+        made = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kNoOutput, made.exitStatus, L"an HFS volume isn't made bootable");
+        Assert::IsFalse  (io.Exists ("big.hdv"));
+    }
+
+    TEST_METHOD (Create_RefusesALargeDosDisk)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("big.po");
+
+
+
+        options.disk.sizeName   = "800K";
+        options.disk.formatName = "dos33";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsFalse (io.Exists ("big.po"));
+    }
+
+    TEST_METHOD (Create_RefusesADiskCopyImageThatIsNot800K)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeCreate ("disk.dc42");
+
+
+
+        options.disk.sizeName = "5M";
+
+        DiskCommandResult  result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("Disk Copy") != std::string::npos);
+    }
+
     //  IT WILL NOT WRITE OVER SOMETHING. A disk somebody still wanted is one
     //  keystroke from a disk they no longer have, and the refusal names the
     //  command for meaning it.
@@ -1803,17 +2431,17 @@ public:
     {
         FakeDiskFileIo      io;
         DiskCommandRunner   runner (io);
-        CommandLineOptions  options = MakeCreate ("new.2mg");
+        CommandLineOptions  options = MakeCreate ("new.dmg");
         DiskCommandResult   result;
 
-        options.disk.containerType = "2mg";
+        options.disk.containerType = "dmg";
         result                     = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.badCommandLine, L"so the page prints above it");
-        Assert::IsTrue (result.diagnostics.find ("2mg") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("dmg") != std::string::npos,
                         L"and the word they typed is quoted back");
-        Assert::IsFalse (io.Exists ("new.2mg"), L"and nothing was written");
+        Assert::IsFalse (io.Exists ("new.dmg"), L"and nothing was written");
     }
 
     //
@@ -2807,7 +3435,7 @@ public:
 
     //  For the refusals that must state exactly one reason: a count of one
     //  newline is what separates a single sentence from a message that
-    //  reported its cause and then carried on into something else.
+    //  reported its cause and then went on into something else.
     static size_t CountNewlines (const std::string & text)
     {
         size_t  newlines = 0;
@@ -3207,7 +3835,7 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("Unable to write PROG: it is locked") != std::string::npos,
             L"the refusal must state the file is locked, not merely that something failed");
 
         Assert::IsTrue (result.diagnostics.find ("PROG") != std::string::npos,
@@ -3217,7 +3845,7 @@ public:
 
         Assert::AreEqual (size_t (1), CountNewlines (result.diagnostics),
             L"and as ONE reason: a second line means the refusal reported its cause and "
-            L"then carried on far enough to trip over something else");
+            L"then went on far enough to trip over something else");
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, committed);
@@ -3239,7 +3867,7 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("Unable to write BIG: the volume has no room") != std::string::npos,
             L"and reports the volume has no room, not something generic");
 
         AssertNamesNoPlatformCode (result.diagnostics);
@@ -3328,13 +3956,119 @@ public:
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
 
-        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
-                                       "20  PRINT \"PRINT AT TO\"\n"
-                                       "30  DATA \"A:B\",C: PRINT 1\n"
-                                       "40  FOR I = 1 TO 9: NEXT\n"),
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\r\n"
+                                       "20  PRINT \"PRINT AT TO\"\r\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\r\n"
+                                       "40  FOR I = 1 TO 9: NEXT\r\n"),
                           returned,
             L"the listing must come back with the same statements and the same payload "
             L"spacing -- the leading spaces are the ones LIST puts in front of a token");
+    }
+
+    TEST_METHOD (Get_AProgramWithLineFeedsInARem_ListsThemAsLineBreaks_AndPutsBackTheSameBytes)
+    {
+        // TANK COMBAT's line 140: a REM whose text is two line feeds, BEGIN
+        // GAME and two more, so LIST on the Apple prints blank lines around it.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  put      = MakePutOptions (kBlankImage, kHostFile, "TANK");
+        CommandLineOptions  putBack  = MakePutOptions (kBlankImage, kHostFile, "TANK2");
+        DiskCommandResult   listed;
+        DiskCommandResult   raw;
+        std::string         returned;
+        vector<Byte>        program  =
+        {
+            0x15, 0x08, 0x8C, 0x00, 0xB2, 0x0A, 0x0A,
+            'B',  'E',  'G',  'I',  'N',  ' ',  'G',  'A',  'M',  'E',
+            0x0A, 0x0A, 0x00,
+            0x1B, 0x08, 0x96, 0x00, 0x97, 0x00,
+            0x00, 0x00,
+        };
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   program);
+
+        put.disk.typeName = "A";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus);
+
+        listed = GetFromCommittedImage (io, kBlankImage, "TANK", CommandLineOptions::DiskOptions::Encoding::Basic);
+
+        Assert::AreEqual (DiskCommandResult::kClean, listed.exitStatus, TextEncoding::NarrowToWide (listed.diagnostics).c_str());
+
+        returned.assign (listed.payload.begin(), listed.payload.end());
+
+        Assert::AreEqual (std::string ("140  REM\r\n\r\nBEGIN GAME\r\n\r\n\r\n150  HOME\r\n"), returned);
+
+        SeedFile (io, kHostFile, listed.payload);
+
+        putBack.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (putBack).exitStatus);
+
+        raw = GetFromCommittedImage (io, kBlankImage, "TANK2");
+
+        Assert::IsTrue (raw.payload == program, L"the listing put back with --basic is the same program");
+    }
+
+    TEST_METHOD (Put_AnIntegerBasicListing_LandsTokenizedUnderTypeI)
+    {
+        FakeDiskFileIo         io;
+        DiskCommandRunner      runner (io);
+        CommandLineOptions     options  = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult      result;
+        DiskCommandResult      readBack;
+        DiskCommandResult      raw;
+        std::string            listing  = "20 GOTO 10\n10 PRINT \"HI\"\n";
+        std::string            returned;
+        std::vector<Byte>      tokens;
+        ApplesoftListingError  error;
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   vector<Byte> (listing.begin(), listing.end()));
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+        options.disk.typeName = "I";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreEqual (std::string(), result.diagnostics);
+        Assert::IsTrue   (ListCommittedImage (io, kBlankImage).find (" I 002 PROG") != std::string::npos);
+
+        AssertSucceeded (IntegerBasicTokenizer::Tokenize (listing, tokens, error));
+
+        raw = GetFromCommittedImage (io, kBlankImage, "PROG", CommandLineOptions::DiskOptions::Encoding::Verbatim);
+
+        Assert::IsTrue (raw.payload == tokens, L"the stored bytes are the tokenized program");
+
+        readBack = GetFromCommittedImage (io, kBlankImage, "PROG", CommandLineOptions::DiskOptions::Encoding::Basic);
+
+        returned.assign (readBack.payload.begin(), readBack.payload.end());
+
+        Assert::AreEqual (DiskCommandResult::kClean, readBack.exitStatus);
+        Assert::IsTrue   (returned.find ("PRINT \"HI\"") < returned.find ("GOTO 10"), L"the lines come back in number order");
+    }
+
+    TEST_METHOD (Put_AnIntegerBasicListing_ThatIntegerBasicRejects_FailsWithTheLine)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "PROG");
+        DiskCommandResult   result;
+        std::string         listing  = "10 PRINT \"HI\"\n20 SCORE=1\n";
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   vector<Byte> (listing.begin(), listing.end()));
+
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+        options.disk.typeName = "INT";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue   (result.diagnostics.find ("Integer BASIC") != std::string::npos);
+        Assert::IsTrue   (result.diagnostics.find ("20") != std::string::npos);
     }
 
     TEST_METHOD (Put_ABasicListing_StoresTheTOKENIZEDForm_NotTheTextItWasGiven)
@@ -3447,10 +4181,10 @@ public:
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
 
-        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
-                                       "20  PRINT \"PRINT AT TO\"\n"
-                                       "30  DATA \"A:B\",C: PRINT 1\n"
-                                       "40  FOR I = 1 TO 9: NEXT\n"),
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\r\n"
+                                       "20  PRINT \"PRINT AT TO\"\r\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\r\n"
+                                       "40  FOR I = 1 TO 9: NEXT\r\n"),
                           returned,
             L"and the listing comes back off ProDOS exactly as it comes back off DOS 3.3");
     }
@@ -3549,7 +4283,7 @@ public:
         CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "NOTES");
         DiskCommandResult   stored;
         DiskCommandResult   asText;
-        std::string         source   = "HELLO\nWORLD\n";
+        std::string         source   = "HELLO\r\nWORLD\r\n";
         vector<Byte>        hostText (source.begin(), source.end());
         size_t              i        = 0;
 
@@ -3578,7 +4312,19 @@ public:
                                         CommandLineOptions::DiskOptions::Encoding::Text);
 
         Assert::IsTrue (asText.payload == hostText,
-            L"host text placed and read back as text is the identity");
+            L"Windows text placed and read back as text is the identity");
+    }
+
+    //  Text for the PC ends each line with CR LF, whether the conversion
+    //  wrote LF, as Apple text's does, or CR LF, as Pascal text's does.
+    TEST_METHOD (ToWindowsLineEndings_MakesEachLineEndCrLfOnce)
+    {
+        std::string   text  = "A\nB\r\nC\n\nD";
+        vector<Byte>  bytes (text.begin(), text.end());
+
+        DiskCommandRunner::ToWindowsLineEndings (bytes);
+
+        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\n\r\nD"), std::string (bytes.begin(), bytes.end()));
     }
 
     TEST_METHOD (Put_WithTextAndNoNamedType_TakesTheFilesystemsOwnTextType)
@@ -3719,6 +4465,208 @@ public:
         Assert::IsTrue (listing.find ("BUILD") == std::string::npos,
             L"and carries none of the host's directories with it");
     }
+
+    //  Casso Explorer copies a file out under a name with its type and address,
+    //  and put with no --as reads that name back, so a file goes out of one
+    //  program and back in through the other as the same entry.
+    TEST_METHOD (Put_ACassoExplorerListingName_GoesInAsTheProgramUnderItsBareName)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\HELLO.Applesoft BASIC.txt", nullptr);
+        DiskCommandResult   result;
+        std::string         listing;
+        std::string         text    = "10 PRINT \"HI\"\n";
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\HELLO.Applesoft BASIC.txt", vector<Byte> (text.begin(), text.end()));
+
+        result  = runner.Run (options);
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (listing.find (" A 002 HELLO\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+    }
+
+
+    TEST_METHOD (Put_ACassoExplorerBinaryName_TakesItsTypeAndLoadAddress)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\PROG.Binary.$6000.bin", nullptr);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        std::string         listing;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\PROG.Binary.$6000.bin", MakePayload());
+
+        result   = runner.Run (options);
+        listing  = ListCommittedImage (io, kBlankImage);
+        readBack = GetFromCommittedImage (io, kBlankImage, "PROG");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (listing.find (" B 004 PROG\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (readBack.diagnostics.find ("loads at $6000") != std::string::npos, TextEncoding::NarrowToWide (readBack.diagnostics).c_str());
+    }
+
+
+    TEST_METHOD (Put_ACiderPressName_TakesItsTypeAndLoadAddress)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\PIC#062000", nullptr);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\PIC#062000", MakePayload());
+
+        result   = runner.Run (options);
+        readBack = GetFromCommittedImage (io, kBlankImage, "PIC");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (ListCommittedImage (io, kBlankImage).find (" B 004 PIC\n") != std::string::npos);
+        Assert::IsTrue (readBack.diagnostics.find ("loads at $2000") != std::string::npos, TextEncoding::NarrowToWide (readBack.diagnostics).c_str());
+    }
+
+
+    //  A conversion with an import goes back in as the file its program
+    //  saves: Merlin source on DOS 3.3 is a binary file whose name starts T.
+    TEST_METHOD (Put_ACassoExplorerMerlinName_GoesInAsMerlinSource)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\DEMO.S.Merlin.txt", nullptr);
+        DiskCommandResult   result;
+        DiskCommandResult   readBack;
+        std::string         listing;
+        std::string         text    = "START LDA #$00 ;zero\n RTS\n";
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\DEMO.S.Merlin.txt", vector<Byte> (text.begin(), text.end()));
+
+        result   = runner.Run (options);
+        listing  = ListCommittedImage (io, kBlankImage);
+        readBack = GetFromCommittedImage (io, kBlankImage, "T.DEMO");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue (listing.find (" T.DEMO\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find (" B ") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (!readBack.payload.empty() && readBack.payload.back() == 0x8D, L"Merlin's lines end in $8D");
+    }
+
+
+    //  A get to a file with a conversion's suffix writes that conversion,
+    //  and a file in another format is an error with no file written.
+    TEST_METHOD (Get_ToAConversionName_WritesTheConversion)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  put     = MakePutOptions (kBlankImage, "C:\\out\\DEMO.S.Merlin.txt", nullptr);
+        CommandLineOptions  get     = MakeOptions (CommandLineOptions::DiskOptions::Command::Get, kBlankImage);
+        DiskCommandResult   written;
+        DiskCommandResult   failed;
+        std::string         text    = "START LDA #$00 ;zero\n RTS\n";
+        std::string         back;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\DEMO.S.Merlin.txt", vector<Byte> (text.begin(), text.end()));
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus);
+
+        get.disk.path     = "T.DEMO";
+        get.disk.hostFile = "C:\\back\\DEMO.S.Merlin.txt";
+        written           = runner.Run (get);
+
+        Assert::AreEqual (DiskCommandResult::kClean, written.exitStatus, TextEncoding::NarrowToWide (written.diagnostics).c_str());
+        Assert::AreEqual (size_t (1), io.files.count ("C:\\back\\DEMO.S.Merlin.txt"));
+
+        back.assign (io.files["C:\\back\\DEMO.S.Merlin.txt"].begin(), io.files["C:\\back\\DEMO.S.Merlin.txt"].end());
+
+        Assert::IsTrue (back.find ("LDA") != std::string::npos && back.find ("RTS") != std::string::npos, TextEncoding::NarrowToWide (back).c_str());
+        Assert::IsTrue (back.find ('\x8D') == std::string::npos, L"the conversion has no Apple text bytes");
+        Assert::IsTrue (written.diagnostics.find ("loads at") == std::string::npos, TextEncoding::NarrowToWide (written.diagnostics).c_str());
+
+        get.disk.hostFile = "C:\\back\\DEMO.LZ4FH.png";
+        failed            = runner.Run (get);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, failed.exitStatus);
+        Assert::IsTrue (failed.diagnostics.find ("Unable to convert T.DEMO") != std::string::npos, TextEncoding::NarrowToWide (failed.diagnostics).c_str());
+        Assert::AreEqual (size_t (0), io.files.count ("C:\\back\\DEMO.LZ4FH.png"));
+    }
+
+
+    //  A conversion with no import is a host file like any other, so it
+    //  goes in under its whole name.
+    TEST_METHOD (Put_AConversionWithNoImport_IsUsedAsWritten)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakePutOptions (kBlankImage, "C:\\out\\PIC.LZ4FH.png", nullptr);
+        std::string         listing;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\PIC.LZ4FH.png", MakePayload());
+
+        options.disk.typeName       = "B";
+        options.disk.hasLoadAddress = true;
+        options.disk.loadAddress    = kLoadAddress;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::IsTrue (listing.find (" PIC\n") == std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find ("PIC.") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+    }
+
+
+    //  Every other host name goes in as written, and --as takes precedence
+    //  over a name in Casso Explorer's form.
+    TEST_METHOD (Put_ANameInNoCassoExplorerForm_OrAnAsName_IsUsedAsWritten)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  plain   = MakePutOptions (kBlankImage, "C:\\out\\MEMO.txt", nullptr);
+        CommandLineOptions  renamed = MakePutOptions (kBlankImage, "C:\\out\\PROG.Binary.$6000.bin", "OTHER");
+        std::string         listing;
+
+
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, "C:\\out\\MEMO.txt", MakePayload());
+        SeedFile (io, "C:\\out\\PROG.Binary.$6000.bin", MakePayload());
+
+        plain.disk.typeName         = "B";
+        plain.disk.hasLoadAddress   = true;
+        plain.disk.loadAddress      = kLoadAddress;
+        renamed.disk.typeName       = "B";
+        renamed.disk.hasLoadAddress = true;
+        renamed.disk.loadAddress    = kLoadAddress;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (plain).exitStatus);
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (renamed).exitStatus);
+
+        listing = ListCommittedImage (io, kBlankImage);
+
+        Assert::IsTrue (listing.find ("MEMO.txt\n") != std::string::npos || listing.find ("MEMO.TXT\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find (" OTHER\n") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+        Assert::IsTrue (listing.find (" PROG\n") == std::string::npos);
+    }
+
 
     TEST_METHOD (Put_OntoAProDosVolume_RecordsTheLoadAddressAsTheAuxiliaryType)
     {
@@ -3894,7 +4842,7 @@ public:
         result = runner.Run (MakeDeleteOptions (kBlankImage, "PROG"));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("Unable to delete PROG: it is locked") != std::string::npos);
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, committed);
@@ -4563,5 +5511,143 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus,
                           L"and a direct-boot disk that is not a WOZ is refused");
+    }
+
+
+    //  A file whose sectors cannot be gathered is damaged in its file
+    //  system's terms; any other failure has no damage to name.
+    TEST_METHOD (Damage_IsInTheFileSystemsTerms)
+    {
+        constexpr HRESULT  broken = HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+
+        Assert::AreEqual (std::string ("the track/sector list is damaged"), DiskCommandRunner::DescribeDamage (broken, VolumeKind::Dos33));
+        Assert::AreEqual (std::string ("the index block is damaged"),       DiskCommandRunner::DescribeDamage (broken, VolumeKind::ProDos));
+        Assert::IsTrue   (DiskCommandRunner::DescribeDamage (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), VolumeKind::Dos33).empty());
+    }
+
+
+    //  Every 4-and-4 address field on a track, as their volumes. The track's
+    //  bits are read into nibbles as the drive reads them, since a self-sync
+    //  byte has ten bits and leaves the nibbles off byte boundaries.
+    static vector<Byte> GetAddressVolumes (const DiskImage & image, int track)
+    {
+        const vector<Byte> &  bits    = image.GetTrackBits (track);
+        size_t                count   = image.GetTrackBitCount (track);
+        Byte                  nibble  = 0;
+        vector<Byte>          nibbles;
+        vector<Byte>          volumes;
+
+        for (size_t i = 0; i < count; i++)
+        {
+            nibble = (Byte) ((nibble << 1) | ((bits[i >> 3] >> (7 - (i & 7))) & 1));
+
+            if (nibble & 0x80)
+            {
+                nibbles.push_back (nibble);
+                nibble = 0;
+            }
+        }
+
+        for (size_t i = 0; i + 4 < nibbles.size(); i++)
+        {
+            if (nibbles[i] == 0xD5 && nibbles[i + 1] == 0xAA && nibbles[i + 2] == 0x96)
+            {
+                volumes.push_back ((Byte) (((nibbles[i + 3] << 1) | 1) & nibbles[i + 4]));
+            }
+        }
+
+        return volumes;
+    }
+
+
+    CommandLineOptions MakeBinaryPutOptions (const char * image)
+    {
+        CommandLineOptions  options = MakePutOptions (image, kHostFile, "PROG");
+
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        return options;
+    }
+
+
+    //  A DOS 3.3 volume number is in every address field, as INIT writes it,
+    //  and a write afterward keeps it.
+    TEST_METHOD (Create_ADosVolumeNumber_IsInEveryAddressField)
+    {
+        constexpr const char *  kImage = "C:\\disks\\v100.woz";
+        FakeDiskFileIo          io;
+        DiskCommandRunner       runner (io);
+        CommandLineOptions      options;
+        DiskImage               image;
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath  = kImage;
+        options.disk.formatName = "dos";
+        options.disk.volumeName = "100";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        SeedFile (io, kHostFile, MakePayload());
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (MakeBinaryPutOptions (kImage)).exitStatus);
+
+        AssertSucceeded (WozLoader::Load (io.files[kImage], image));
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            vector<Byte>  volumes = GetAddressVolumes (image, track);
+
+            Assert::AreEqual ((size_t) NibblizationLayer::kSectorsPerTrack, volumes.size());
+            Assert::IsTrue   (std::all_of (volumes.begin(), volumes.end(), [] (Byte v) { return v == 100; }), std::format (L"track {}", track).c_str());
+        }
+    }
+
+
+    //  A disk with no DOS 3.3 VTOC keeps 254.
+    TEST_METHOD (Create_AProDosVolume_Has254InItsAddressFields)
+    {
+        constexpr const char *  kImage = "C:\\disks\\p.woz";
+        FakeDiskFileIo          io;
+        DiskCommandRunner       runner (io);
+        CommandLineOptions      options;
+        DiskImage               image;
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath  = kImage;
+        options.disk.formatName = "prodos";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (WozLoader::Load (io.files[kImage], image));
+
+        Assert::IsTrue (GetAddressVolumes (image, 0) == vector<Byte> ((size_t) NibblizationLayer::kSectorsPerTrack, NibblizationLayer::kDefaultVolume));
+    }
+
+
+    //  A WOZ whose INFO marks it write-protected isn't written, as the
+    //  emulated drive won't write it.
+    TEST_METHOD (Put_OnAWriteProtectedWoz_IsRefused_AndChangesNothing)
+    {
+        constexpr const char *  kImage = "C:\\disks\\wp.woz";
+        FakeDiskFileIo          io;
+        DiskCommandRunner       runner (io);
+        CommandLineOptions      options;
+        DiskCommandResult       result;
+        vector<Byte>            before;
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath  = kImage;
+        options.disk.formatName = "dos";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (io.files[kImage], true));
+
+        before = io.files[kImage];
+
+        SeedFile (io, kHostFile, MakePayload());
+        result = runner.Run (MakeBinaryPutOptions (kImage));
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue      (result.diagnostics.find ("write-protected") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue      (io.files[kImage] == before, L"and the image is untouched");
     }
 };

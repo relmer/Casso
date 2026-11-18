@@ -50,6 +50,11 @@ void DxuiAddressBar::BeginEdit()
 
     selected = m_input.InvokeCommand (DxuiStandardCommand::SelectAll);
     IGNORE_RETURN_VALUE (selected, true);
+
+    if (m_onEditState)
+    {
+        m_onEditState (true);
+    }
 }
 
 
@@ -64,11 +69,36 @@ void DxuiAddressBar::BeginEdit()
 
 void DxuiAddressBar::EndEdit()
 {
+    bool  was = m_editing;
+
+
+
     m_editing      = false;
     m_pressed      = Hit();
     m_clearHover   = false;
     m_clearPressed = false;
     m_input.SetFocused (false);
+
+    if (was && m_onEditState)
+    {
+        m_onEditState (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAddressBar::SetEditText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiAddressBar::SetEditText (const std::wstring & text)
+{
+    m_input.SetText      (text);
+    m_input.SetSelection (text.size(), text.size());
 }
 
 
@@ -105,6 +135,10 @@ DxuiAddressBar::Hit DxuiAddressBar::HitTest (int x, int y) const
         if (x >= GetHistoryRect().left && x < GetHistoryRect().right)
         {
             hit = Hit { Part::History, -1 };
+        }
+        else if (x >= m_rootsRect.left && x < m_rootsRect.right)
+        {
+            hit = Hit { Part::Roots, -1 };
         }
         else if (x >= m_overflow.left && x < m_overflow.right)
         {
@@ -156,7 +190,7 @@ void DxuiAddressBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     //  so a long path scrolls under neither.
     m_input.Layout (RECT { boundsDip.left + padX,
                            boundsDip.top,
-                           boundsDip.right - m_scaler.ToPx (s_kClearDip) - (m_onHistory ? m_scaler.ToPx (s_kHistoryDip) : 0),
+                           boundsDip.right - m_scaler.ToPx (s_kClearDip) - (HasHistoryChevron() ? m_scaler.ToPx (s_kHistoryDip) : 0),
                            boundsDip.bottom }, m_scaler);
     LayoutSegments();
 }
@@ -179,8 +213,9 @@ void DxuiAddressBar::LayoutSegments()
     int               padX     = m_scaler.ToPx (s_kPadXDip);
     int               segPad   = m_scaler.ToPx (s_kSegmentPadDip);
     int               sep      = m_scaler.ToPx (s_kSeparatorDip);
+    int               roots    = m_scaler.ToPx (s_kRootsDip);
     int               overflow = m_scaler.ToPx (s_kOverflowDip);
-    int               history  = m_onHistory ? m_scaler.ToPx (s_kHistoryDip) : 0;
+    int               history  = HasHistoryChevron() ? m_scaler.ToPx (s_kHistoryDip) : 0;
     int               avail    = (int) (m_boundsDip.right - m_boundsDip.left) - padX * 2 - history;
     int               total    = 0;
     int               x        = (int) m_boundsDip.left + padX;
@@ -193,7 +228,26 @@ void DxuiAddressBar::LayoutSegments()
     m_separators.assign (m_labels.size(), RECT {});
     m_overflow    = RECT {};
     m_overflowSep = RECT {};
+    m_leadRect    = RECT {};
+    m_rootsRect   = RECT {};
     m_firstShown  = 0;
+
+    //  The location's icon and the roots chevron lead, ahead of everything.
+    if (m_leadIcon || m_leadGlyph != nullptr)
+    {
+        x         += m_scaler.ToPx (s_kLeadPadDip);
+        avail     -= m_scaler.ToPx (s_kLeadPadDip);
+        m_leadRect = RECT { x, m_boundsDip.top, x + m_scaler.ToPx (s_kLeadIconDip), m_boundsDip.bottom };
+        x         += m_scaler.ToPx (s_kLeadIconDip);
+        avail     -= m_scaler.ToPx (s_kLeadIconDip);
+    }
+
+    if (m_onRoots)
+    {
+        m_rootsRect = RECT { x, m_boundsDip.top, x + roots, m_boundsDip.bottom };
+        x          += roots;
+        avail      -= roots;
+    }
 
     for (const std::wstring & label : m_labels)
     {
@@ -251,7 +305,7 @@ int DxuiAddressBar::MeasurePx (const std::wstring & label) const
 
     if (m_renderer != nullptr)
     {
-        hr = m_renderer->MeasureString (label.c_str(), m_scaler.ToPxf (m_fontDip), (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace, width, height);
+        hr = m_renderer->MeasureString (label.c_str(), m_scaler.ToPxf (m_fontDip), (m_face != nullptr) ? m_face : DxuiTheme::GetUiFace(), width, height);
     }
 
     return SUCCEEDED (hr) ? (int) std::ceil (width) : 0;
@@ -281,7 +335,7 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float            accent  = (float) m_scaler.ToPx (2);   // the editing field's accent underline
     float            inset   = (float) m_scaler.ToPx (s_kHoverInsetDip);
     RECT             clear   = GetClearRect();
-    const wchar_t  * face    = (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+    const wchar_t  * face    = (m_face != nullptr) ? m_face : DxuiTheme::GetUiFace();
     int              i       = 0;
 
 
@@ -309,7 +363,7 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     //  Before the editing branch, which returns: the chevron shows in both
     //  states, and points down as a drop-down's does. Drawn rather than set
     //  from a font for the reason the separators' chevrons are.
-    if (m_onHistory)
+    if (HasHistoryChevron())
     {
         RECT  historyRect = GetHistoryRect();
 
@@ -343,6 +397,31 @@ void DxuiAddressBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     hr = text.PushClipRect (x, y, w, h);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  A glyph in the icon face takes the icon's place, as Explorer draws
+    //  This PC's outline there.
+    if (m_leadGlyph != nullptr)
+    {
+        hr = text.DrawString (m_leadGlyph, (float) m_leadRect.left, y, (float) (m_leadRect.right - m_leadRect.left), h,
+                              theme.Foreground(), m_scaler.ToPxf ((float) s_kIconDip), m_iconFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (m_leadIcon && !m_leadIcon->bgraPremul.empty())
+    {
+        float  iconPx = (float) m_scaler.ToPx (s_kIconDip);
+
+        hr = text.DrawIconBitmap (m_leadIcon->bgraPremul.data(), m_leadIcon->width, m_leadIcon->height,
+                                  (m_leadRect.left + m_leadRect.right - iconPx) * 0.5f, y + (h - iconPx) * 0.5f, iconPx, iconPx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    //  Explorer's points along the crumbs, as the separators do.
+    if (m_onRoots)
+    {
+        PaintHover   (painter, theme, m_rootsRect, Hit { Part::Roots, -1 });
+        PaintChevron (painter, m_rootsRect, 0.0f, theme.Foreground());
+    }
 
     if (m_firstShown > 0)
     {
@@ -456,7 +535,7 @@ RECT DxuiAddressBar::GetHistoryRect() const
 
 
 
-    if (!m_onHistory)
+    if (!HasHistoryChevron())
     {
         return RECT {};
     }
@@ -485,7 +564,7 @@ void DxuiAddressBar::PaintChevron (IDxuiPainter & painter, const RECT & rc, floa
 
 
     float  cx    = (float) (rc.left + rc.right) * 0.5f;
-    float  cy    = (float) (rc.top + rc.bottom) * 0.5f;
+    float  cy    = (float) (rc.top + rc.bottom) * 0.5f + m_scaler.ToPxf (s_kChevronDropDip);
     float  halfH = m_scaler.ToPxf (s_kChevronHalfDip);
     float  depth = m_scaler.ToPxf (s_kChevronDepthDip);
     float  thick = (std::max) (1.0f, m_scaler.ToPxf (s_kChevronStrokeDip));
@@ -623,7 +702,7 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
 
         if (hit.part == Part::History && m_onHistory)
         {
-            m_onHistory (GetHistoryRect());
+            m_onHistory (HasHistoryChevron() ? GetHistoryRect() : m_boundsDip);
         }
     }
     else if (m_editing)
@@ -642,7 +721,7 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (ev.kind == DxuiMouseEventKind::Move)
     {
-        hover   = (hit.part == Part::Segment || hit.part == Part::Overflow || hit.part == Part::History
+        hover   = (hit.part == Part::Segment || hit.part == Part::Overflow || hit.part == Part::History || hit.part == Part::Roots
                    || (hit.part == Part::Separator && hit.index >= 0)) ? hit : Hit();
         handled = !(hover == m_hover);
         m_hover = hover;
@@ -665,9 +744,13 @@ bool DxuiAddressBar::OnMouse (const DxuiMouseEvent & ev)
         {
             m_onOverflow (m_overflow);
         }
+        else if (hit == pressed && hit.part == Part::Roots && m_onRoots)
+        {
+            m_onRoots (m_rootsRect);
+        }
         else if (hit == pressed && hit.part == Part::History && m_onHistory)
         {
-            m_onHistory (GetHistoryRect());
+            m_onHistory (HasHistoryChevron() ? GetHistoryRect() : m_boundsDip);
         }
         else if (hit == pressed && hit.part == Part::Separator && hit.index >= 0 && m_onSeparator)
         {
@@ -716,9 +799,13 @@ bool DxuiAddressBar::OnKey (const DxuiKeyEvent & ev)
             //  the list of typed paths drops at the same time.
             if (ev.vk == VK_F4 && m_onHistory)
             {
-                m_onHistory (GetHistoryRect());
+                m_onHistory (HasHistoryChevron() ? GetHistoryRect() : m_boundsDip);
             }
         }
+    }
+    else if (down && m_onEditKey && m_onEditKey (ev.vk))
+    {
+        handled = true;
     }
     else if (down && ev.vk == VK_F4)
     {
@@ -726,7 +813,7 @@ bool DxuiAddressBar::OnKey (const DxuiKeyEvent & ev)
 
         if (m_onHistory)
         {
-            m_onHistory (GetHistoryRect());
+            m_onHistory (HasHistoryChevron() ? GetHistoryRect() : m_boundsDip);
         }
     }
     else if (down && ev.vk == VK_RETURN)
@@ -745,7 +832,14 @@ bool DxuiAddressBar::OnKey (const DxuiKeyEvent & ev)
     }
     else if (!(down && ev.vk == VK_TAB))
     {
+        std::wstring  before = m_input.GetText();
+
         handled = m_input.OnKey (ev);
+
+        if (m_onEditText && m_input.GetText() != before)
+        {
+            m_onEditText (m_input.GetText());
+        }
     }
 
     return handled;

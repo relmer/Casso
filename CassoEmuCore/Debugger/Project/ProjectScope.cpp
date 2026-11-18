@@ -36,12 +36,12 @@ ProjectScope ProjectScope::Choose (
 
     if (!debugFileKey.empty())
     {
-        return { ProjectScopeKind::DebugFile, debugFileKey, "debug file " + debugFileName };
+        return { ProjectScopeKind::DebugFile, debugFileKey, debugFileName };
     }
 
     if (!binaryKey.empty())
     {
-        return { ProjectScopeKind::Binary, binaryKey, "binary " + binaryName };
+        return { ProjectScopeKind::Binary, binaryKey, binaryName };
     }
 
     if (!bootDisk.empty())

@@ -1,11 +1,15 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ConsolePanes.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -57,6 +61,7 @@ void ConsoleOutput::Configure()
     m_view->SetFollowEnd     (true);
     m_view->SetLineSpacing   (kLineSpacing);
     m_view->SetPaneTextInset (true);
+    m_view->SetOnLink        ([this] (int row, int span) { OpenLink (row, span); });
 }
 
 
@@ -104,7 +109,7 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
 
 
 
-    while (m_lines.empty() && first != lines.end() && (first->empty() || DebuggerViewState::IsCommandGap (*first)))
+    while (m_lines.empty() && first != lines.end() && (first->empty() || DebuggerViewCommands::IsCommandGap (*first)))
     {
         ++first;
     }
@@ -114,9 +119,11 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
         return;
     }
 
+    //  No full path is written out in the console: each is its file's name,
+    //  linked, with the path in its tip.
     for (auto line = first; line != lines.end(); ++line)
     {
-        m_lines.push_back (Line { *line, time, stamp });
+        m_lines.push_back (Line { ConsoleLinks::LinkPaths (*line), time, stamp });
     }
 
     if ((int) m_lines.size() > kLineLimit)
@@ -177,7 +184,10 @@ void ConsoleOutput::Reflow()
 //  Each command's output is laid out apart from the rest, so a help
 //  listing's syntax column fits its rows at the view's width less the time
 //  stamps' column. The time stamp is the first cell of a line's first row;
-//  a help row laid out as two has an empty first cell on the second.
+//  a help row laid out as two has an empty first cell on the second. Rows
+//  are laid out from the text without its marks. A line laid out as one row
+//  gets its links; a line split into several, as a help listing's row is,
+//  doesn't get them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,12 +208,13 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
     }
 
     m_rowLines.clear();
+    m_rowLinks.clear();
 
     while (start < m_lines.size())
     {
         size_t  end = start + 1;
 
-        while (end < m_lines.size() && !DebuggerViewState::IsCommandGap (m_lines[end].text))
+        while (end < m_lines.size() && !DebuggerViewCommands::IsCommandGap (m_lines[end].text))
         {
             end++;
         }
@@ -212,32 +223,44 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
 
         for (size_t i = start; i < end; i++)
         {
-            texts.push_back (m_lines[i].text);
+            texts.push_back (ConsoleLinks::GetShownText (m_lines[i].text));
         }
 
         laidOut = CommandModeHelp::LayOutTabbedRows (texts, (std::max) (0, m_columns - (int) stampAt), sources);
 
         for (size_t r = 0; r < laidOut.size(); r++)
         {
-            const std::string  & text   = laidOut[r];
-            size_t               source = start + sources[r];
-            bool                 isLead = r == 0 || sources[r - 1] != sources[r];
-            DxuiTextView::Row    row;
+            const std::string                & text   = laidOut[r];
+            size_t                             source = start + sources[r];
+            bool                               isLead = r == 0 || sources[r - 1] != sources[r];
+            bool                               isOne  = text == texts[sources[r]];
+            DxuiTextView::Row                  row;
+            std::vector<ConsoleLinks::Link>    links;
+            std::vector<std::wstring>          paths;
 
-            if (DebuggerViewState::IsCommandGap (text))
+
+
+            if (DebuggerViewCommands::IsCommandGap (text))
             {
                 row.cells  = { std::wstring() };
-                row.height = DebuggerViewState::kCommandGapHeight;
+                row.height = DebuggerViewCommands::kCommandGapHeight;
                 m_rowLines.push_back (-1);
             }
             else
             {
-                row.cells      = { isLead ? m_lines[source].stamp : std::wstring(), TextEncoding::NarrowToWide (text) };
+                row.cells      = { isLead ? m_lines[source].stamp : std::wstring(), isOne ? ConsoleLinks::Parse (m_lines[source].text, links) : TextEncoding::NarrowToWide (text) };
                 row.wrapIndent = GetWrapIndent (text);
                 m_rowLines.push_back (isLead ? (int) source : -1);
             }
 
+            for (const ConsoleLinks::Link & link : links)
+            {
+                row.spans.push_back (DxuiTextView::Span { 1, link.start, link.length, 0, 0, true });
+                paths.push_back (link.path);
+            }
+
             rows.push_back (std::move (row));
+            m_rowLinks.push_back (std::move (paths));
         }
 
         start = end;
@@ -293,6 +316,7 @@ void ConsoleOutput::Clear()
 {
     m_lines.clear();
     m_rowLines.clear();
+    m_rowLinks.clear();
     m_view->SetRows ({});
     m_changedMs = (std::max) ((int64_t) 1, (int64_t) GetTickCount64());
 }
@@ -371,7 +395,7 @@ void ConsoleOutput::RestoreSaved (const std::string & text, bool keepCurrent)
         time.wMinute = (WORD) minute;
         time.wSecond = (WORD) second;
 
-        m_lines.push_back (Line { line.substr (tab + 1), time, GetTimeStamp (time) });
+        m_lines.push_back (Line { ConsoleLinks::LinkPaths (line.substr (tab + 1)), time, GetTimeStamp (time) });
     }
 
     m_lines.insert (m_lines.end(), std::make_move_iterator (current.begin()), std::make_move_iterator (current.end()));
@@ -474,6 +498,85 @@ bool ConsoleOutput::TryGetTimeTip (POINT point, RECT & anchor, std::wstring & te
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConsoleOutput::TryGetLinkTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsoleOutput::TryGetLinkTip (POINT point, RECT & anchor, std::wstring & text) const
+{
+    int   row  = -1;
+    int   span = -1;
+    RECT  part = {};
+
+
+
+    if (m_view == nullptr || !m_view->IsVisible() || !m_host.IsRoutable (m_view) || !m_view->TryGetLinkAt (point, row, span, part))
+    {
+        return false;
+    }
+
+    text = GetLinkPath (row, span);
+
+    if (text.empty())
+    {
+        return false;
+    }
+
+    anchor = part;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetLinkPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ConsoleOutput::GetLinkPath (int row, int span) const
+{
+    if (row < 0 || row >= (int) m_rowLinks.size() || span < 0 || span >= (int) m_rowLinks[(size_t) row].size())
+    {
+        return std::wstring();
+    }
+
+    return m_rowLinks[(size_t) row][(size_t) span];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::OpenLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::OpenLink (int row, int span)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    std::wstring           path = GetLinkPath (row, span);
+
+
+
+    if (host == nullptr || path.empty())
+    {
+        return;
+    }
+
+    host->OpenDebuggerFile (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ConsoleOutput::GetTimeStamp
 //
 //  The short time format is the one the user picks in the region settings,
@@ -547,13 +650,23 @@ void ConsoleOutput::ScrollToEnd()
 //  ConsoleOutput::RouteMouse
 //
 //  A press selects in the text, but typing goes to the command line, as it
-//  does in a terminal.
+//  does in a terminal. A move over the text sets the link that is
+//  underlined, then goes on to the rest of the window, where the tips are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 {
-    if (!m_view->IsVisible() || !m_host.IsRoutable (m_view))
+    bool  isRoutable = m_view->IsVisible() && m_host.IsRoutable (m_view);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move && m_view->SetHoverPoint (isRoutable ? ev.positionDip : POINT { -1, -1 }))
+    {
+        m_host.Repaint();
+    }
+
+    if (!isRoutable)
     {
         return false;
     }
@@ -623,10 +736,11 @@ void CommandLine::Create()
 
 void CommandLine::Configure()
 {
-    m_box->SetHwnd        (m_host.GetOwnerHwnd());
-    m_box->SetMaxLength   (256);
-    m_box->SetPrompt      (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
-    m_box->SetPlaceholder (L"Command (Enter to run, HELP for help)");
+    m_box->SetHwnd         (m_host.GetOwnerHwnd());
+    m_box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_box->SetMaxLength    (256);
+    m_box->SetPrompt       (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
+    m_box->SetPlaceholder  (L"Command (Enter to run, HELP for help)");
 }
 
 
@@ -648,6 +762,23 @@ void CommandLine::Apply (const DebuggerViewSnapshot & snapshot)
     m_box->SetPlaceholder (std::format (L"Command (Enter to run, {} for help)", ConsoleModeBar::GetHelpCommand (snapshot.mode)));
 
     m_completion.SetMode (snapshot.mode);
+
+    //  The symbols are taken again only when they change.
+    if (snapshot.symbols != nullptr && snapshot.symbols != m_completionSymbols)
+    {
+        std::vector<std::wstring>  names;
+
+
+
+        m_completionSymbols = snapshot.symbols;
+
+        for (const SymbolInfo & symbol : snapshot.symbols->symbols)
+        {
+            names.push_back (TextEncoding::NarrowToWide (symbol.name));
+        }
+
+        m_completion.SetSymbols (std::move (names));
+    }
 
     if (snapshot.suggestionSerial != m_offeredSuggestion)
     {
@@ -688,9 +819,9 @@ void CommandLine::Submit()
 
     BAIL_OUT_IF (host == nullptr, S_OK);
 
-    fileVerb = DebuggerViewState::GetMissingFileVerb (line,
-                                                      snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
-                                                      snapshot != nullptr && snapshot->isAssembling);
+    fileVerb = DebuggerCommandLines::GetMissingFileVerb (line,
+                                                         snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
+                                                         snapshot != nullptr && snapshot->isAssembling);
 
     if (fileVerb.has_value())
     {
@@ -702,11 +833,20 @@ void CommandLine::Submit()
 
         BAIL_OUT_IF (!picked, S_OK);
 
-        line = DebuggerViewState::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
+        line = DebuggerCommandLines::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
     }
 
     m_history.Add (typed);
     SaveHistory();
+
+    //  CLS clears the output here, in every command mode, as the output's
+    //  menu does; it isn't a command for the machine.
+    if (IsClearCommand (line))
+    {
+        m_output.Clear();
+        m_box->SetText (L"");
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     m_output.ScrollToEnd();
 
@@ -715,6 +855,44 @@ void CommandLine::Submit()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::IsClearCommand
+//
+//  CLS or CLEAR, in either case, alone on the line, with or without a mode's
+//  prefix (/ for Monitor mode, ! for WinDbg mode).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLine::IsClearCommand (const std::string & line)
+{
+    size_t       first = line.find_first_not_of (" \t");
+    size_t       last  = line.find_last_not_of (" \t");
+    std::string  word;
+
+
+
+    if (first == std::string::npos)
+    {
+        return false;
+    }
+
+    word = line.substr (first, last - first + 1);
+
+    if (!word.empty() && (word[0] == '/' || word[0] == '!'))
+    {
+        word.erase (0, 1);
+    }
+
+    std::ranges::transform (word, word.begin(), [] (char c) { return (char) toupper ((unsigned char) c); });
+
+    return word == "CLS" || word == "CLEAR";
 }
 
 
@@ -974,7 +1152,7 @@ void ConsoleModeBar::Configure()
 
     label.command       = m_label->GetCommand();
     label.custom        = m_label.get();
-    label.neverOverflow = true;
+    label.pinned        = true;
 
     m_dialect        = std::make_shared<DxuiCommand>();
     m_dialect->id    = kDialectEntry;
@@ -983,7 +1161,7 @@ void ConsoleModeBar::Configure()
 
     dialect.command       = m_dialect;
     dialect.kind          = DxuiToolbar::Kind::DropDown;
-    dialect.neverOverflow = true;
+    dialect.pinned        = true;
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries ({ label, dialect, m_host.GetFindEntry (DebuggerLayout::kConsole) });
@@ -1055,7 +1233,7 @@ void ConsoleModeBar::SetMenus()
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (label, current, [this, target]
         {
-            DebuggerAction  action = DebuggerActions::GetSetMode (target, m_host.GetMode());
+            DebuggerAction  action = SessionActions::GetSetMode (target, m_host.GetMode());
 
 
 
@@ -1215,7 +1393,8 @@ void ConsolePane::Configure()
     m_commandLine.Configure();
     m_modeBar.Configure();
 
-    //  Over a line's time stamp, the date and time in full.
+    //  Over a line's time stamp, the date and time in full; over a link, the
+    //  file's full path.
     m_output.GetView()->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
 }
 
@@ -1337,8 +1516,8 @@ bool ConsolePane::Tick (int64_t nowMs)
 //
 //  The command line's own keys: Ctrl+C with nothing selected in it copies
 //  what is selected in the text above, since a click in the text puts the
-//  focus in the command line; the completion keys; and Up and Down, which
-//  walk the lines run before.
+//  focus in the command line; Ctrl+L, which clears the output; the
+//  completion keys; and Up and Down, which walk the lines run before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1357,6 +1536,13 @@ bool ConsolePane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
     if (ev.ctrl && ev.vk == 'C' && box->GetSelectionStart() == box->GetSelectionEnd() && view->HasSelection())
     {
         view->CopySelection();
+        return true;
+    }
+
+    //  Ctrl+L clears the output, as CLS does.
+    if (ev.ctrl && !ev.shift && ev.vk == 'L')
+    {
+        m_output.Clear();
         return true;
     }
 
@@ -1408,13 +1594,14 @@ bool ConsolePane::SubmitTextBox (DxuiTextInput * box)
 //
 //  ConsolePane::TryGetTipAt
 //
-//  Over a line's time stamp, the date and the time in full.
+//  Over a line's time stamp, the date and the time in full; over a link, the
+//  file's full path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ConsolePane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
-    if (!m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
+    if (!m_output.TryGetLinkTip (clientPx, tip.anchor, tip.text) && !m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
     {
         return false;
     }

@@ -7,6 +7,7 @@
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/ColorKeyPopup.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
@@ -222,6 +223,73 @@ namespace ColorLegendTests
         }
 
 
+        //  The heat map's key lists the fills its view can draw and the options
+        //  on: Self-modifying only with Blend on in All, Value changed only in
+        //  Changed, Read before written only in All and Data, and the outlines
+        //  in every view.
+        //  The heat map's code, read and write rows ramp through the heat
+        //  column's scales, as their cells are drawn; the other heat rows
+        //  have no stops.
+        TEST_METHOD (TheHeatRampsAreTheHeatColumnsScales)
+        {
+            ColorLegend::Palette     palette = MakeDistinctPalette();
+            std::array<uint32_t, 3>  run     = HeatStrip::GetScaleStops (HeatStrip::Kind::Run);
+            std::array<uint32_t, 3>  read    = HeatStrip::GetScaleStops (HeatStrip::Kind::Read);
+
+
+
+            Assert::IsTrue   (ColorLegend::GetRampStops (Meaning::HeatCode, palette) == std::vector<uint32_t> (run.begin(), run.end()));
+            Assert::IsTrue   (ColorLegend::GetRampStops (Meaning::HeatRead, palette) == std::vector<uint32_t> (read.begin(), read.end()));
+            Assert::AreEqual (run.back(), ColorLegend::GetArgb (Meaning::HeatCode, palette), L"the row's color is the hottest");
+            Assert::IsTrue   (ColorLegend::GetRampStops (Meaning::HeatChanged, palette).empty());
+        }
+
+
+
+        TEST_METHOD (TheHeatMapsKeyListsOnlyWhatItsViewDraws)
+        {
+            using View = HeatMapOptions::View;
+
+            auto  has = [] (View view, bool isBlend, Meaning meaning)
+            {
+                std::vector<ColorLegend::Entry>  entries = ColorLegend::GetEntriesFor (ColorLegend::GetHeatMapPane (view, isBlend));
+
+                return std::ranges::any_of (entries, [meaning] (const ColorLegend::Entry & entry) { return entry.meaning == meaning; });
+            };
+
+
+
+            Assert::IsFalse (has (View::All,     false, Meaning::HeatSelfModifying), L"Blend is off");
+            Assert::IsTrue  (has (View::All,     true,  Meaning::HeatSelfModifying));
+            Assert::IsFalse (has (View::Code,    true,  Meaning::HeatSelfModifying), L"Code has no writes");
+            Assert::IsFalse (has (View::Data,    true,  Meaning::HeatSelfModifying), L"Data has no code");
+            Assert::IsFalse (has (View::Changed, true,  Meaning::HeatSelfModifying));
+
+            Assert::IsFalse (has (View::All,     false, Meaning::HeatChanged));
+            Assert::IsFalse (has (View::Data,    false, Meaning::HeatChanged));
+            Assert::IsTrue  (has (View::Changed, false, Meaning::HeatChanged));
+            Assert::IsFalse (has (View::Changed, false, Meaning::HeatWrite),     L"Changed draws one color");
+            Assert::IsFalse (has (View::Changed, false, Meaning::HeatCode));
+
+            Assert::IsTrue  (has (View::All,     false, Meaning::HeatUnwritten));
+            Assert::IsTrue  (has (View::Data,    false, Meaning::HeatUnwritten));
+            Assert::IsFalse (has (View::Code,    false, Meaning::HeatUnwritten));
+            Assert::IsFalse (has (View::Changed, false, Meaning::HeatUnwritten));
+
+            Assert::IsFalse (has (View::Code,    false, Meaning::HeatRead));
+            Assert::IsFalse (has (View::Data,    false, Meaning::HeatCode));
+
+            for (View view : { View::All, View::Code, View::Data, View::Changed })
+            {
+                for (Meaning outline : { Meaning::HeatPc, Meaning::HeatStack, Meaning::HeatBreakpoint, Meaning::HeatReadWatch, Meaning::HeatWriteWatch })
+                {
+                    Assert::IsTrue (has (view, false, outline));
+                    Assert::IsTrue (has (view, true,  outline));
+                }
+            }
+        }
+
+
         TEST_METHOD (EveryLineHasAColorInEveryTheme)
         {
             ColorLegend::Palette  palette = MakeDistinctPalette();
@@ -311,25 +379,60 @@ namespace ColorLegendTests
             Assert::AreEqual (255u, alpha (ColorLegend::MakeSwatchIcon (ColorLegend::Swatch::Fill,    0xFFFF0000), kCenter));
         }
 
-        TEST_METHOD (TheBranchTipHasWhichFlagAndItsState)
+        //  A heat color's swatch is shaded across, from its faintest shade at
+        //  the left to its full color at the right, as the map draws cells
+        //  from the least touched to the busiest; every heat fill in the key
+        //  has one.
+        TEST_METHOD (AHeatSwatchRunsFromItsFaintestShadeToItsColor)
         {
-            Assert::AreEqual (std::wstring (L"Will branch: BNE branches while Z is clear, and Z is clear"),
-                              ColorLegend::GetBranchTip ("BNE $0310", true, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Won't branch: BEQ branches while Z is set, and Z is clear"),
-                              ColorLegend::GetBranchTip ("beq $0310", false, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Won't branch: BCC branches while C is clear, and C is set"),
-                              ColorLegend::GetBranchTip ("BCC LOOP", false, (Byte) 0x01));
-            Assert::AreEqual (std::wstring (L"Will branch: BBS3 branches while bit 3 of its byte is set"),
-                              ColorLegend::GetBranchTip ("BBS3 $10,$0310", true, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Will call: JSR always calls its target"),
-                              ColorLegend::GetBranchTip ("JSR $FDED", true, std::nullopt));
+            constexpr uint32_t               kFrom   = 0xFF202020;
+            constexpr uint32_t               kTo     = 0xFFE0E0E0;
+            constexpr int                    kRow    = ColorLegend::kSwatchPx / 2;
+            auto                             image   = ColorLegend::MakeSwatchIcon (ColorLegend::Swatch::Ramp, kTo, kFrom);
+            auto                             red     = [&image] (int x) { return (image->bgraPremul[(size_t) (kRow * ColorLegend::kSwatchPx + x)] >> 16) & 0xFF; };
+            int                              left    = ColorLegend::kSwatchPx / 2 - 18;
+            int                              right   = ColorLegend::kSwatchPx / 2 + 18;
+
+
+
+            Assert::IsTrue (red (left) < 0x50,  L"faint at the left");
+            //  In the key, a heat color is drawn as a scale from its faintest
+            //  shade, not an image.
+            for (const ColorKeyPopup::Row & row : ColorKeyPopup::MakeRows (ColorLegend::Pane::HeatMap, MakeDistinctPalette()))
+            {
+                if (row.swatch == ColorLegend::Swatch::Ramp)
+                {
+                    Assert::IsNull      (row.icon.get(), row.text.c_str());
+                    Assert::AreNotEqual (row.argb, row.fromArgb, row.text.c_str());
+                }
+            }
+
+            Assert::IsTrue (red (right) > 0xB0, L"full at the right");
+
+            for (const ColorLegend::Entry & entry : ColorLegend::GetEntriesFor (ColorLegend::Pane::HeatMapBlend))
+            {
+                bool  isHeatFill = entry.meaning == Meaning::HeatCode || entry.meaning == Meaning::HeatRead || entry.meaning == Meaning::HeatWrite ||
+                                   entry.meaning == Meaning::HeatSelfModifying;
+
+                Assert::IsTrue (!isHeatFill || entry.swatch == ColorLegend::Swatch::Ramp, ColorLegend::GetText (entry.meaning));
+            }
+        }
+
+        TEST_METHOD (TheBranchTipIsWhetherItWillBeTaken)
+        {
+            Assert::AreEqual (std::wstring (L"This branch will be taken"),  ColorLegend::GetBranchTip ("BNE $0310", true));
+            Assert::AreEqual (std::wstring (L"This branch won't be taken"), ColorLegend::GetBranchTip ("beq $0310", false));
+            Assert::AreEqual (std::wstring (L"This branch will be taken"),  ColorLegend::GetBranchTip ("BBS3 $10,$0310", true));
+            Assert::AreEqual (std::wstring (L"This jump will be taken"),    ColorLegend::GetBranchTip ("jmp ($0036)", true));
+            Assert::AreEqual (std::wstring (L"This call will be taken"),    ColorLegend::GetBranchTip ("JSR $FDED", true));
         }
 
         //  The dotted arrow's tip: the branch the last step took to the PC.
-        TEST_METHOD (TheTakenBranchTipHasTheStepsInstruction)
+        TEST_METHOD (TheTakenBranchTipIsThatItWasTaken)
         {
-            Assert::AreEqual (std::wstring (L"Taken by the last step: BNE w_inner at $60BB"), ColorLegend::GetTakenBranchTip ("BNE w_inner", 0x60BB));
-            Assert::AreEqual (std::wstring (L"Taken by the last step, from $60BB"),           ColorLegend::GetTakenBranchTip ("", 0x60BB), L"scrolled out of the lines");
+            Assert::AreEqual (std::wstring (L"This branch was taken"), ColorLegend::GetTakenBranchTip ("BNE w_inner"));
+            Assert::AreEqual (std::wstring (L"This jump was taken"),   ColorLegend::GetTakenBranchTip ("JMP $0302"));
+            Assert::AreEqual (std::wstring (L"This branch was taken"), ColorLegend::GetTakenBranchTip (""), L"scrolled out of the lines");
         }
 
 
@@ -425,8 +528,9 @@ namespace ColorLegendTests
 
 
         //  The operand column's colors mean the same on every row, so its
-        //  heading has the tip; past the last column there is none.
-        TEST_METHOD (TheOperandHeadingHasTheTipAndNothingPastTheLastColumnHasOne)
+        //  heading has the tip. The column runs to the pane's edge, so no
+        //  space past the last column is left without one.
+        TEST_METHOD (TheOperandHeadingHasTheTipAndTheColumnRunsToThePanesEdge)
         {
             CassoTheme              theme = CassoTheme::MakeSkeuomorphic();
             LegendHost              host;
@@ -464,8 +568,7 @@ namespace ColorLegendTests
                 right += list->GetColumnEffectiveWidthPx (c);
             }
 
-            Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
-            Assert::IsFalse (window.GetTipCoordinator().TryGetTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, tip, isColorTip), L"past the PC's row's last column");
+            Assert::IsTrue (bounds.left + right >= bounds.right - list->GetScrollbarWidthPx(), L"the last column runs to the pane's edge");
         }
     };
 }

@@ -254,7 +254,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("0302: 01 02 03 04 B_0302 DB   $01,$02,$03,$04"), lines[1]);
             Assert::AreEqual (std::string ("0306: 60              RTS"),                      lines[2]);
             Assert::AreEqual (std::string ("0307: 34 12 78 56 W_0307 DW   $1234,$5678"),     lines[3]);
-            Assert::AreEqual (std::string ("030B: C8 C9 8D T_030B ASC  \"HI.\""),            lines[4]);
+            Assert::AreEqual (std::string ("030B: C8 C9 8D T_030B ASC  \"HI\",$8D"),          lines[4], L"a control character at the end follows the quotes");
             Assert::AreEqual (std::string ("030E: ED FD    A_030E DA   $FDED"),              lines[5]);
             Assert::AreEqual (std::string ("0310: 81 40 00 00 00 F_0310 DF   1.5"),          lines[6]);
 
@@ -294,12 +294,12 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (std::string ("Assembling at $0300. Enter a blank line to stop."), rig.RunOk ("A 300").text.at (0));
-            Assert::IsTrue   (rig.session.IsAssembling());
+            Assert::IsTrue   (rig.session.GetInterpreter().IsAssembling());
 
             rig.RunOk ("LDA #$41");
             Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
             rig.RunOk ("");
-            Assert::IsFalse  (rig.session.IsAssembling());
+            Assert::IsFalse  (rig.session.GetInterpreter().IsAssembling());
 
             rig.target.registers.pc = 0x0400;
             Assert::AreEqual (std::string ("Assembling at $0400. Enter a blank line to stop."), rig.RunOk ("A").text.at (0));

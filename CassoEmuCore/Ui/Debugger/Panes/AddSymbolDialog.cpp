@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 #include "Ui/Debugger/TextDialog.h"
 
@@ -36,6 +37,6 @@ void AddSymbolDialog::Run (IDebuggerPaneHost & host, Word address)
 
     if (typed.has_value())
     {
-        host.RunAction (DebuggerActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, host.GetMode()));
+        host.RunAction (SymbolActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, host.GetMode()));
     }
 }

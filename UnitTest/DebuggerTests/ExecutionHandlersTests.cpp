@@ -694,7 +694,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"nothing is counted while profiling is off");
 
             Assert::AreEqual (std::string ("Profiling on."), rig.RunOk ("PROFILE ON").text.at (0));
-            rig.machine.RunCycles (20);
+            rig.machine.GetRunner().RunCycles (20);
             Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is profiled too");
             rig.RunOk ("PROFILE RESET");
 
@@ -919,7 +919,7 @@ namespace DebuggerTests
 
             rig.RunOk ("TF trace.txt");
             rig.RunOk ("PROFILE ON");
-            rig.machine.RunCycles (200);
+            rig.machine.GetRunner().RunCycles (200);
             Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"the free run is profiled");
 
             rig.RunOk ("= 300");
@@ -1016,13 +1016,13 @@ namespace DebuggerTests
             rig.target.videoPosition = { 42, 17 };
             Assert::AreEqual (std::string ("Scanline $2A, cycle $11"), rig.RunOk ("VIDEOINFO").text.at (0));
 
-            Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$A0. It clears after it fires."), rig.RunOk ("BPV A0").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$A0. It is removed after its first stop."), rig.RunOk ("BPV A0").text.at (0));
             Assert::IsTrue   (rig.target.hookInstalled);
             Assert::IsFalse  (rig.session.ShouldStopBefore (0x0300));
             rig.target.videoPosition.scanline = 160;
             Assert::IsTrue   (rig.session.ShouldStopBefore (0x0300));
             rig.target.Stop (StopEvent { StopReason::Breakpoint, 0x0300 });
-            Assert::IsFalse  (rig.session.HasVideoBreak(), L"a video break clears when it fires");
+            Assert::IsFalse  (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"a video break clears when it fires");
             Assert::IsFalse  (rig.target.hookInstalled);
         }
 
@@ -1050,14 +1050,14 @@ namespace DebuggerTests
 
 
             rig.RunOk ("BPV A0");
-            Assert::IsTrue  (rig.session.HasVideoBreak());
+            Assert::IsTrue  (rig.session.GetStops().GetBeamBreaks().HasVideoBreak());
             rig.session.ClearAllBreakpoints();
-            Assert::IsFalse (rig.session.HasVideoBreak(), L"clearing every breakpoint clears the video break");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"clearing every breakpoint clears the video break");
             Assert::IsFalse (rig.target.hookInstalled);
 
             rig.RunOk ("BPV A0");
             rig.session.OnMachineChanged ("Apple //e", true);
-            Assert::IsFalse (rig.session.HasVideoBreak(), L"a machine change clears the video break");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"a machine change clears the video break");
             Assert::IsFalse (rig.target.hookInstalled);
         }
 
@@ -1074,10 +1074,10 @@ namespace DebuggerTests
             rig.RunFails ("BPV 200",   "invalid arguments");
             rig.RunFails ("BPV FFFF",  "invalid arguments");
             rig.RunFails ("BPV A0:10", "invalid arguments");
-            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak());
 
             rig.RunOk ("BPV 105");
-            Assert::IsTrue  (rig.session.HasVideoBreak(), L"scanline 261 is the frame's last");
+            Assert::IsTrue  (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"scanline 261 is the frame's last");
         }
 
 
@@ -1090,7 +1090,7 @@ namespace DebuggerTests
 
 
             rig.RunFails ("BPV 100:50", "invalid arguments");
-            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak());
         }
 
 

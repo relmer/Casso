@@ -351,13 +351,15 @@ disks (`scripts/RunTests.ps1 -Build -Scenario` fetches them).
 10. Boot a copy-protected disk with bad fields: Error rows (address or data
     checksum) on a reddish fill and Warning rows (cut off, no address field,
     read stall, write protected) on a yellowish fill, each with Error or
-    Warning in the Severity column. Clear Info in the Severity drop-down:
-    only those rows remain.
+    Warning in the Severity column. Check Error and Warning on the Severity
+    heading's chevron: only those rows remain.
 11. Right-click the column headings of the Disk II log, the input log and
     the Breakpoints pane: a check for each column; the Detail, Meaning and
     Name columns are dimmed. No pane has a column drop-down on its bar.
-12. Type 17.25 and 17-18.25 in the track filter: rows on quarter-track 17.25,
-    and on 17.0 to 18.25. There is no Quarter-tracks option.
+12. Check 17.25 on the Track heading's chevron: only the rows on quarter-track
+    17.25. On the Cycle heading's chevron, choose Between... and type two cycle
+    counts as the column shows them: only the rows between them. There is no
+    Quarter-tracks option.
 13. Run a program that turns two adjacent stepper phases on together: a Head
     step row to the odd quarter-track between them (FR-233).
 

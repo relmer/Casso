@@ -1,0 +1,70 @@
+#pragma once
+
+#include "Pch.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Theme/IDxuiTheme.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSeverity
+//
+//  How serious a notice or a finding is, least first, so the most severe of
+//  several is their maximum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DxuiSeverity
+{
+    Info,
+    Warning,
+    Error,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSeverityBadge
+//
+//  The mark for a severity, drawn from primitives: an error as a disc in the
+//  theme's error color with an exclamation in it, a warning as
+//  DxuiWarningBadge's triangle, and information as a ring with an "i" in the
+//  theme's accent. A count badge is a disc, or a pill for more digits, in
+//  the severity's color with the count in it. The exclamation and the count
+//  are in the same ink, black or white by contrast with the fill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DxuiSeverityBadge
+{
+public:
+    //  Draws the mark into the square box at (left, top). An error color
+    //  other than 0 takes the theme's error color's place, for a host whose
+    //  bad things are drawn in a color of its choosing.
+    static void  Draw (IDxuiPainter & painter, DxuiSeverity severity, float left, float top, float size, const IDxuiTheme & theme, uint32_t errorArgb = 0);
+
+    //  The count badge's width for its text, and the badge drawn with its
+    //  left edge at left, centered on cy.
+    static float  GetCountWidth (IDxuiTextRenderer & text, const std::wstring & count, float height);
+    static void   DrawCount     (IDxuiPainter & painter, IDxuiTextRenderer & text, DxuiSeverity severity, const std::wstring & count,
+                                 float left, float cy, float height, const IDxuiTheme & theme, uint32_t errorArgb = 0);
+
+    //  The severity's color: the error color, the warning accent, or the accent.
+    static uint32_t  GetColor (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb = 0);
+
+    //  The ink on the severity's color, for the exclamation and the count:
+    //  the warning mark's color on the warning accent, and otherwise black or
+    //  white, whichever contrasts more with the color.
+    static uint32_t  GetInk   (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb = 0);
+
+private:
+    static constexpr float  s_kStrokeEm = 0.085f;   // the ring's and the "i"'s pen, as a fraction of the box
+    static constexpr float  s_kCountEm  = 0.72f;    // the count's face, as a fraction of the badge's height
+};

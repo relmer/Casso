@@ -28,6 +28,12 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - Every `.cpp` file MUST include `"Pch.h"` as its **first** `#include`
 - **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h` or a library project's umbrella header (currently only `Dxui.h`)
 - All system headers and STL headers belong in `Pch.h`
+- **One exception: `Dxui/Window/DxuiWinRt.h` has the C++/WinRT headers.** They
+  take about four seconds to parse and one `.cpp` uses them. In `Dxui/Pch.h`
+  that cost was paid in four precompiled headers, because Dxui headers include
+  `Pch.h` and `Dxui.h` is in the other three. Add another exception
+  only on the same grounds: a measured parse cost in seconds and a handful of
+  users.
 - **The only project headers a `Pch.h` may include are `Ehm.h` and `Dxui.h`.**
   A change to any header in a precompiled header rebuilds every file in its
   project, and project headers change constantly. These two are exempt
@@ -611,6 +617,12 @@ Two specific practices fall out of this:
   that compiles into it, because a stale run reports a full, confident pass
   against code that is not on disk, and a new test file that never compiled
   in is simply absent from the count.
+- **An unfiltered `RunTests.ps1` run is split across up to 12 vstest
+  processes** by `RunTestShards.ps1`, one group of test classes each, so tests
+  in different classes run at the same time. A test that depends on another
+  class's state, or that writes a fixed path another class also uses, fails
+  only in some runs. `-Serial` runs the suite in one process, to rule that out
+  or when memory is short.
 - **`RunTests.ps1 -Filter <word>`** runs only matching tests, for the edit-test
   loop. A bare word matches as a substring of the fully qualified name
   (`-Filter Merlin`); anything containing filter grammar passes through to
@@ -640,8 +652,9 @@ above that reduce to a mechanical test: empty-paren spacing, anonymous
 namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
 `goto Error`, cast spacing, producing `S_FALSE`, Claude attribution in commit
 messages, lookup tables in an executable (CS0021), strings converted by
-copying an iterator range (CS0024), the banner/blank-line structure rules
-(CS0014–CS0017), and
+copying an iterator range (CS0024), a `.cpp` over 2,000 lines (CS0026; the
+files over it when the rule arrived are listed in the script, and the list
+only shrinks), the banner/blank-line structure rules (CS0014–CS0017), and
 declaration-run column alignment (CS0019, flags only runs that
 `scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
 have a companion fixer in `scripts/FixLateDecls.ps1`). Commit subjects on
@@ -739,11 +752,18 @@ intermediate commit on a feature branch: feature branches routinely carry many
 work-in-progress commits, and running the full build/test/analysis suite on each
 one wastes time. Validate the full gates **once, just before merging/PRing the
 branch to `master`** (and re-run after resolving merge conflicts).
+- **`scripts\RunMergeGate.ps1` runs the whole gate**: the style sweep, all four
+  configurations rebuilt with code analysis, the Debug and Release unit suites,
+  the scenario suite and the AddressSanitizer scenario run. Independent steps
+  overlap, about 11 minutes against 26 one at a time. If a parallel run fails
+  because it ran out of commit memory (C3859, C1060, a linker out of heap),
+  rerun with `-Serial`. CI analyzes x64 Debug only, so this is the only place
+  the other three configurations are analyzed.
 - **ALL** tests MUST pass before merging to master
 - Build MUST succeed with no errors before merging to master
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing
 - **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis` to verify.
-  It compiles on the x86-hosted compiler, as CI does; the x64-hosted one misses C6011s CI reports
+  It compiles on the 64-bit compiler, as CI does
 - **The AddressSanitizer scenario run MUST pass** before pushing to master:
   `scripts\RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`,
   under a minute once built. CI does not run it. A use-after-free that reads
@@ -993,7 +1013,7 @@ in conversation.
   verifies the fixture set before it runs anything, so on a machine without them
   the suite refuses to start and NOTHING can be validated -- not one test, not a
   filtered run. Fetch them with `scripts/FetchRoms.ps1 -Fixtures`. It downloads
-  only the eleven ROM images the fixtures call for, writes them under
+  only the ROM images the fixtures call for, writes them under
   `UnitTest/Fixtures/`, and that path is already gitignored, so nothing it
   fetches can reach a commit. This widens nothing else: no other script may
   fetch a binary, and a ROM is still never committed.

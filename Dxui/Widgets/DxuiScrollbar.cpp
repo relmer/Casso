@@ -4,6 +4,8 @@
 
 #include "Render/IDxuiPainter.h"
 #include "Core/DxuiSystemSettings.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Window/DxuiHwndSource.h"
 
 
 
@@ -16,6 +18,7 @@ static constexpr uint32_t  s_kThumbAlpha        = 0xA6000000u;
 //  more slowly when it leaves.
 static constexpr float     s_kGrowMs            = 100.0f;
 static constexpr float     s_kShrinkMs          = 400.0f;
+static constexpr float     s_kMaxTickMs         = 33.0f;    // the longest step one tick takes
 static constexpr uint32_t  s_kArrowAlpha        = 0xA0000000u;
 static constexpr uint32_t  s_kArrowHotAlpha     = 0xFF000000u;
 static constexpr float     s_kArrowGlyphRatio   = 0.30f;
@@ -240,21 +243,25 @@ int DxuiScrollbar::GetArrowExtent() const
 //  DxuiScrollbar::GetThumbLength
 //
 //  Thumb extent along the scroll axis: proportional to page / content,
-//  floored at the minimum thumb size and capped at the track length.
+//  floored at the minimum thumb size and capped at the track length. Among
+//  a find's marks the floor is twice the bar's thickness, about the
+//  pointer's height, so the thumb is easy to see and to take.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float DxuiScrollbar::GetThumbLength() const
 {
-    int    trackLen = GetMainTrackLength() - GetArrowExtent() * s_kArrowCount;
-    int    content  = GetContentExtent();
-    float  length   = 0.0f;
+    constexpr int  kMarkedThumbBars = 2;
+    int            trackLen         = GetMainTrackLength() - GetArrowExtent() * s_kArrowCount;
+    int            content          = GetContentExtent();
+    int            floorPx          = m_marks.empty() ? m_minThumbPx : (std::max) (m_minThumbPx, m_thicknessPx * kMarkedThumbBars);
+    float          length           = 0.0f;
 
 
 
     if (trackLen > 0 && content > 0)
     {
-        length = std::max ((float) m_minThumbPx, (float) trackLen * (float) m_page / (float) content);
+        length = std::max ((float) floorPx, (float) trackLen * (float) m_page / (float) content);
         length = std::min (length, (float) trackLen);
     }
 
@@ -579,27 +586,183 @@ void DxuiScrollbar::NotifyPos (int sbCode, int newPos)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiScrollbar::BuildContextMenu
+//
+//  Windows' rows and order, in sentence case. Scroll here moves the puck's
+//  middle to the point the menu was opened on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiScrollbar::BuildContextMenu (int xPx, int yPx)
+{
+    struct Row
+    {
+        const wchar_t *  vertical;
+        const wchar_t *  horizontal;
+        int              sbCode;
+    };
+
+    static constexpr Row  kRows[] =
+    {
+        { L"Scroll &here",  L"Scroll &here",  SB_THUMBPOSITION },
+        { nullptr,          nullptr,          0                },
+        { L"&Top",          L"&Left edge",    SB_TOP           },
+        { L"&Bottom",       L"&Right edge",   SB_BOTTOM        },
+        { nullptr,          nullptr,          0                },
+        { L"Page &up",      L"Page l&eft",    SB_PAGEUP        },
+        { L"Page &down",    L"Page r&ight",   SB_PAGEDOWN      },
+        { nullptr,          nullptr,          0                },
+        { L"Scroll u&p",    L"Scroll le&ft",  SB_LINEUP        },
+        { L"Scroll do&wn",  L"Scroll ri&ght", SB_LINEDOWN      },
+    };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    int                             here     = GetPosAt (xPx, yPx);
+    bool                            vertical = m_orientation == Orientation::Vertical;
+
+
+
+    for (const Row & row : kRows)
+    {
+        std::shared_ptr<DxuiCommand>  command;
+        int                           sbCode  = row.sbCode;
+
+        if (row.vertical == nullptr)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+            continue;
+        }
+
+        command           = std::make_shared<DxuiCommand>();
+        command->label    = vertical ? row.vertical : row.horizontal;
+        command->dispatch = [this, sbCode, here]()
+        {
+            switch (sbCode)
+            {
+                case SB_THUMBPOSITION: NotifyPos (sbCode, here);                        break;
+                case SB_TOP:           NotifyPos (sbCode, m_min);                       break;
+                case SB_BOTTOM:        NotifyPos (sbCode, m_min + GetMaxScrollPos());   break;
+                case SB_PAGEUP:        NotifyPos (sbCode, m_pos - m_page);              break;
+                case SB_PAGEDOWN:      NotifyPos (sbCode, m_pos + m_page);              break;
+                case SB_LINEUP:        NotifyPos (sbCode, m_pos - m_arrowStepPx);       break;
+                default:               NotifyPos (sbCode, m_pos + m_arrowStepPx);       break;
+            }
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::ShowContextMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollbar::ShowContextMenu (HWND hwnd, int xPx, int yPx, POINT atPx)
+{
+    bool  onBar = GetMetrics().visible && HitTest (xPx, yPx);
+
+
+
+    return onBar && ShowMenu (hwnd, atPx, BuildContextMenu (xPx, yPx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::ShowMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollbar::ShowMenu (HWND hwnd, POINT atPx, std::vector<DxuiPopupMenuItem> items)
+{
+    DxuiHwndSource  * host  = DxuiHwndSource::FromHwnd (hwnd);
+    bool              shown = host != nullptr && !items.empty();
+
+
+
+    if (shown)
+    {
+        DxuiContextMenu::Show (*host, atPx.x, atPx.y, std::move (items), [hwnd] (bool)
+        {
+            InvalidateRect (hwnd, nullptr, FALSE);
+        });
+    }
+
+    return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::GetPosAt
+//
+//  The position that centers the puck on a point along the track.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiScrollbar::GetPosAt (int xPx, int yPx) const
+{
+    Metrics  m        = GetMetrics();
+    bool     vertical = m_orientation == Orientation::Vertical;
+    float    mainPt   = (float) (vertical ? yPx : xPx);
+    float    start    = (float) (vertical ? m.track.top : m.track.left);
+    float    length   = (float) (vertical ? m.track.bottom - m.track.top : m.track.right - m.track.left);
+    float    travel   = length - m.thumbLength;
+    float    ratio    = (travel > 0.0f) ? std::clamp ((mainPt - start - m.thumbLength / 2.0f) / travel, 0.0f, 1.0f) : 0.0f;
+
+
+
+    return m_min + (int) std::lround (ratio * (float) GetMaxScrollPos());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiScrollbar::Paint
 //
 //  Fills the thumb, centered across the bar, and the two arrow triangles
 //  once the pointer is near enough to fade them in. No track is drawn.
 //
+//  Among a find's marks the thumb is as wide as the bar, faint enough for
+//  the marks under it to be seen through it, and outlined so it is distinct
+//  from them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) const
 {
-    HRESULT   hr        = S_OK;
-    Metrics   m         = GetMetrics();
-    float     amount    = m_dragging ? 1.0f : m_hoverAmount;
-    float     restA     = (float) (s_kRestThumbAlpha >> 24);
-    float     wideA     = (float) (s_kThumbAlpha >> 24);
-    uint32_t  thumbArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
-    uint32_t  arrowArgb = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowAlpha >> 24) * amount) << 24);
-    uint32_t  arrowHot  = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowHotAlpha >> 24) * amount) << 24);
-    bool      vertical  = (m_orientation == Orientation::Vertical);
-    float     strip     = 0.0f;
-    float     thumbW    = 0.0f;
-    float     inset     = 0.0f;
+    constexpr uint32_t  kMarkedThumbAlpha = 0x40000000u;
+    constexpr float     kMarkedOutlinePx  = 2.0f;
+    bool                isMarked          = !m_marks.empty();
+    HRESULT             hr                = S_OK;
+    Metrics             m                 = GetMetrics();
+    float               amount            = (m_dragging || isMarked) ? 1.0f : m_hoverAmount;
+    float               restA             = (float) (s_kRestThumbAlpha >> 24);
+    float               wideA             = (float) (s_kThumbAlpha >> 24);
+    uint32_t            thumbArgb         = (foregroundArgb & s_kRgbMask) | ((uint32_t) (restA + (wideA - restA) * amount) << 24);
+    uint32_t            arrowArgb         = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowAlpha >> 24) * amount) << 24);
+    uint32_t            arrowHot          = (foregroundArgb & s_kRgbMask) | ((uint32_t) ((float) (s_kArrowHotAlpha >> 24) * amount) << 24);
+    bool                vertical          = (m_orientation == Orientation::Vertical);
+    float               strip             = 0.0f;
+    float               thumbW            = 0.0f;
+    float               inset             = 0.0f;
 
 
 
@@ -609,8 +772,13 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
     //  from its resting width toward the bar's as the pointer arrives.
     strip  = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
     thumbW = (float) m_restThumbPx + ((std::max) (strip * s_kHoverThumbRatio, (float) m_restThumbPx) - (float) m_restThumbPx) * amount;
-    thumbW = (std::min) (thumbW, strip);
+    thumbW = isMarked ? strip : (std::min) (thumbW, strip);
     inset  = (strip - thumbW) * 0.5f;
+
+    if (isMarked)
+    {
+        thumbArgb = (foregroundArgb & s_kRgbMask) | kMarkedThumbAlpha;
+    }
 
     if (vertical)
     {
@@ -619,6 +787,17 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
     else
     {
         PaintThumb (painter, m.thumbStart, (float) m.bar.top + inset, m.thumbLength, thumbW, thumbArgb);
+    }
+
+    PaintMarks (painter, m);
+
+    if (isMarked && m.thumbLength > 0.0f && vertical)
+    {
+        painter.OutlineRoundedRect ((float) m.bar.left, m.thumbStart, strip, m.thumbLength, strip * 0.5f, kMarkedOutlinePx, foregroundArgb | ~s_kRgbMask);
+    }
+    else if (isMarked && m.thumbLength > 0.0f)
+    {
+        painter.OutlineRoundedRect (m.thumbStart, (float) m.bar.top, m.thumbLength, strip, strip * 0.5f, kMarkedOutlinePx, foregroundArgb | ~s_kRgbMask);
     }
 
     //  Arrows fade in with the widening, and the one under the pointer is
@@ -631,6 +810,78 @@ void DxuiScrollbar::Paint (IDxuiPainter & painter, uint32_t foregroundArgb) cons
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::SetMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiScrollbar::SetMarks (std::vector<Mark> marks, uint32_t matchArgb, uint32_t currentArgb)
+{
+    m_marks       = std::move (marks);
+    m_matchArgb   = matchArgb;
+    m_currentArgb = currentArgb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiScrollbar::PaintMarks
+//
+//  A line across the bar for each mark, along the track between the arrows,
+//  drawn over the puck so a match under it can be seen. The selected
+//  match's line is drawn last, in its color, and a little thicker.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiScrollbar::PaintMarks (IDxuiPainter & painter, const Metrics & m) const
+{
+    constexpr float  kLinePx    = 2.0f;
+    constexpr float  kCurrentPx = 3.0f;
+    bool             vertical   = (m_orientation == Orientation::Vertical);
+    float            start      = (float) (GetMainTrackStart() + GetArrowExtent());
+    float            length     = (float) (GetMainTrackLength() - s_kArrowCount * GetArrowExtent());
+    float            across     = vertical ? (float) m.bar.left : (float) m.bar.top;
+    float            width      = vertical ? (float) (m.bar.right - m.bar.left) : (float) (m.bar.bottom - m.bar.top);
+
+
+
+    if (m_marks.empty() || length <= 0.0f)
+    {
+        return;
+    }
+
+    for (int pass = 0; pass < 2; pass++)
+    {
+        for (const Mark & mark : m_marks)
+        {
+            float  thick = mark.isCurrent ? kCurrentPx : kLinePx;
+            float  along = start + std::clamp (mark.at, 0.0f, 1.0f) * (length - thick);
+
+            if (mark.isCurrent != (pass == 1))
+            {
+                continue;
+            }
+
+            if (vertical)
+            {
+                painter.FillRect (across, along, width, thick, mark.isCurrent ? m_currentArgb : m_matchArgb);
+            }
+            else
+            {
+                painter.FillRect (along, across, thick, width, mark.isCurrent ? m_currentArgb : m_matchArgb);
+            }
+        }
+    }
 }
 
 
@@ -680,7 +931,9 @@ void DxuiScrollbar::PaintThumb (IDxuiPainter & painter, float x, float y, float 
 bool DxuiScrollbar::Tick (int64_t nowMs)
 {
     float    target = (m_expanded || m_dragging) ? 1.0f : 0.0f;
-    float    dt     = (m_lastTickMs == 0) ? 0.0f : (float) (nowMs - m_lastTickMs);
+    //  Capped, so the first tick after a host's timer was stopped animates from
+    //  where the bar was rather than jumping to the end.
+    float    dt     = (m_lastTickMs == 0) ? 0.0f : (std::min) ((float) (nowMs - m_lastTickMs), s_kMaxTickMs);
 
 
 

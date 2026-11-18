@@ -222,6 +222,7 @@ bool DebugExpressionEvaluator::TryParseOperandPosition (
     ExpressionToken     token;
     ExpressionOperator  op        = ExpressionOperator::Add;
     bool                isRead    = false;
+    size_t              cut       = 0;
 
 
 
@@ -238,12 +239,23 @@ bool DebugExpressionEvaluator::TryParseOperandPosition (
         return true;
     }
 
-    isRead = TryReadOperand (text, pos, syntax, token, error);
+    //  A width suffix reads memory at the operand's value, as a watch does:
+    //  .b the byte there, .w the word. .s is text, read in a watch alone. The
+    //  operand is read without it, so $3E.w is the number $3E.
+    cut    = FindWidthSuffix (text, pos);
+    op     = ExpressionOperator::Add;
+    isRead = (cut == std::string::npos) ? TryReadOperand (text, pos, syntax, token, error)
+                                        : TryReadSuffixed (text, cut, pos, syntax, token, op, error);
 
     if (isRead)
     {
         expression.postfix.push_back (token);
         expectOperand = false;
+
+        if (op == ExpressionOperator::Dereference || op == ExpressionOperator::DereferenceWord)
+        {
+            EmitOperator (op, expression);
+        }
     }
     else if (error.empty())
     {
@@ -448,6 +460,96 @@ bool DebugExpressionEvaluator::TryReadOperand (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugExpressionEvaluator::FindWidthSuffix
+//
+//  Where the .b, .w or .s at the end of the word at pos begins, after any $ or
+//  # before it; npos when the word has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DebugExpressionEvaluator::FindWidthSuffix (const std::string & text, size_t pos)
+{
+    static constexpr size_t  kSuffixLength = 2;
+    size_t                   start         = pos;
+    size_t                   end           = pos;
+    char                     last          = '.';
+
+
+
+    if (start < text.size() && (text[start] == '$' || text[start] == '#'))
+    {
+        start++;
+    }
+
+    end = start;
+
+    while (end < text.size() && (isalnum ((unsigned char) text[end]) || text[end] == '_' || text[end] == '.'))
+    {
+        end++;
+    }
+
+    if (end - start <= kSuffixLength || text[end - kSuffixLength] != '.')
+    {
+        return std::string::npos;
+    }
+
+    last = (char) tolower ((unsigned char) text[end - 1]);
+
+    return (last == 'b' || last == 'w' || last == 's') ? end - kSuffixLength : std::string::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugExpressionEvaluator::TryReadSuffixed
+//
+//  The operand before the suffix at cut, read alone, and op the read the
+//  suffix asks for; pos moves past the suffix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugExpressionEvaluator::TryReadSuffixed (
+    const std::string   & text,
+    size_t                cut,
+    size_t              & pos,
+    NumberSyntax          syntax,
+    ExpressionToken     & token,
+    ExpressionOperator  & op,
+    std::string         & error)
+{
+    static constexpr size_t  kSuffixLength = 2;
+    char                     last          = (char) tolower ((unsigned char) text[cut + 1]);
+    std::string              head          = text.substr (0, cut);
+    bool                     isRead        = false;
+
+
+
+    if (last == 's')
+    {
+        error = std::format ("{} is text, read in a watch alone; an expression takes .b or .w.", text.substr (pos, cut + kSuffixLength - pos));
+        return false;
+    }
+
+    isRead = TryReadOperand (head, pos, syntax, token, error) && pos == cut;
+
+    if (isRead)
+    {
+        op   = (last == 'b') ? ExpressionOperator::Dereference : ExpressionOperator::DereferenceWord;
+        pos += kSuffixLength;
+    }
+
+    return isRead;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugExpressionEvaluator::TryReadOperator
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,6 +696,11 @@ bool DebugExpressionEvaluator::TryReadAtRegister (
 
 bool DebugExpressionEvaluator::IsUnary (ExpressionOperator op)
 {
+    if (op == ExpressionOperator::DereferenceWord)
+    {
+        return true;
+    }
+
     for (const OperatorSpelling & entry : s_kUnaryOperators)
     {
         if (entry.op == op)
@@ -860,6 +967,7 @@ bool DebugExpressionEvaluator::TryApplyUnary (
     static constexpr int32_t  kByteMask = 0xFF;
     static constexpr int      kByteBits = 8;
     Byte                      byte      = 0;
+    Byte                      high      = 0;
     bool                      isRead    = true;
     bool                      isInRange = true;
 
@@ -880,6 +988,11 @@ bool DebugExpressionEvaluator::TryApplyUnary (
     case ExpressionOperator::Dereference:
         isRead = context.TryPeek ((Word) operand, byte);
         result = byte;
+        break;
+
+    case ExpressionOperator::DereferenceWord:
+        isRead = context.TryPeek ((Word) operand, byte) && context.TryPeek ((Word) (operand + 1), high);
+        result = byte | (high << kByteBits);
         break;
 
     default:

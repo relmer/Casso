@@ -75,14 +75,14 @@ public:
         Add (drive, nibble, static_cast<Byte> (flags | gap), address);
     }
 
-    void      NoteDiskChange (int drive)         { m_pendingNewDisk = static_cast<Byte> (m_pendingNewDisk | (1 << drive)); }
-    void      Clear();
+    void  NoteDiskChange (int drive)         { m_pendingNewDisk = static_cast<Byte> (m_pendingNewDisk | (1 << drive)); }
+    void  Clear          ();
 
     //  Entries added since the last power cycle, and how many the ring has:
     //  those have the indices GetCount() - GetSize() to GetCount() - 1.
-    uint64_t  GetCount() const                  { return m_count; }
-    size_t    GetSize() const                   { return (size_t) std::min<uint64_t> (m_count, kCapacity); }
-    const Entry &  GetEntry (uint64_t index) const { return m_entries[index & kIndexMask]; }
+    uint64_t       GetCount () const                  { return m_count; }
+    size_t         GetSize  () const                   { return (size_t) std::min<uint64_t> (m_count, kCapacity); }
+    const Entry  & GetEntry (uint64_t index) const { return m_entries[index & kIndexMask]; }
 
     HRESULT   SaveState (StateWriter & writer) const;
     HRESULT   LoadState (StateReader & reader);

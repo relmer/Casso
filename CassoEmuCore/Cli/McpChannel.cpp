@@ -5,6 +5,7 @@
 #include "Cli/DebugAttachRunner.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 #include "Debugger/Channel/IInstanceDirectory.h"
 
 
@@ -44,7 +45,7 @@ McpChannel::~McpChannel() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool McpChannel::Hello (DWORD timeoutMs, std::string & record)
+bool McpChannel::Hello (DWORD timeoutMs, const ChannelClient & client, std::string & record)
 {
     int64_t      id    = m_nextId++;
     JsonValue    reply;
@@ -53,7 +54,7 @@ bool McpChannel::Hello (DWORD timeoutMs, std::string & record)
 
 
 
-    if (!m_client->WriteLine (std::format ("{{\"type\":\"hello\",\"id\":{},\"client\":\"casso-mcp\",\"protocol\":1}}", id)))
+    if (!m_client->WriteLine (ChannelProtocol::WriteHelloRequest (id, client)))
     {
         return false;
     }
@@ -88,7 +89,7 @@ bool McpChannel::Hello (DWORD timeoutMs, std::string & record)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void McpChannel::Execute (const std::string & line, const std::string & mode, uint64_t budget, DWORD timeoutMs, McpChannelResult & result)
+void McpChannel::Execute (const std::string & line, const std::string & mode, uint64_t budget, bool overwrite, DWORD timeoutMs, McpChannelResult & result)
 {
     int64_t    id        = m_nextId++;
     JsonValue  reply;
@@ -100,7 +101,7 @@ void McpChannel::Execute (const std::string & line, const std::string & mode, ui
 
     result = McpChannelResult();
 
-    if (!m_client->WriteLine (DebugAttachRunner::BuildCommand (id, line, mode, budget)))
+    if (!m_client->WriteLine (DebugAttachRunner::BuildCommand (id, line, mode, budget, overwrite)))
     {
         result.isClosed = true;
         return;

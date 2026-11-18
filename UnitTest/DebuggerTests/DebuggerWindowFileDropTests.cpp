@@ -112,8 +112,6 @@ namespace DebuggerWindowFileDropTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::ShowMessageBox;
 
         //  The message box of a load, which returns `answer`.

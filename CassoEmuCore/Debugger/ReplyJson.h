@@ -32,18 +32,21 @@ public:
     static std::string  WriteReset          (bool isPowerCycle);
     static std::string  WriteMachineChanged (const std::string & machineName);
     static std::string  WriteModeChanged    (CommandMode mode);
+
+    //  A logging breakpoint's message at a hit: {"type":"log","text":...}.
+    static std::string  WriteHitLog         (const std::string & text);
     static std::string  WriteClosing        ();
 
-    static const char * GetStatusName       (CommandStatus status);
-    static const char * GetRegionName       (MemoryRegion region);
-    static const char * GetBreakpointKindName (BreakpointKind kind);
-    static const char * GetAccessName       (WatchAccess access);
-    static const char * GetStopReasonName   (StopReason reason);
-    static const char * GetSymbolTableName  (SymbolTableId table);
-    static const char * GetModeName         (CommandMode mode);
-    static const char * GetWatchModeName    (WatchMode mode);
-    static const char * GetDataBlockKindName (DataBlockKind kind);
-    static const char * GetDiskEventName    (DiskEvent event);
+    static const char  * GetStatusName         (CommandStatus status);
+    static const char  * GetRegionName         (MemoryRegion region);
+    static const char  * GetBreakpointKindName (BreakpointKind kind);
+    static const char  * GetAccessName         (WatchAccess access);
+    static const char  * GetStopReasonName     (StopReason reason);
+    static const char  * GetSymbolTableName    (SymbolTableId table);
+    static const char  * GetModeName           (CommandMode mode);
+    static const char  * GetWatchModeName      (WatchMode mode);
+    static const char  * GetDataBlockKindName  (DataBlockKind kind);
+    static const char  * GetDiskEventName      (DiskEvent event);
 
 private:
     using Members = std::vector<std::pair<std::string, JsonValue>>;

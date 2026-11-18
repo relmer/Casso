@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
+#include "Devices/Disk/BlockImage.h"
 
 
 
@@ -30,24 +32,50 @@ class ProDosSkeleton
 public:
     static constexpr int  kTotalBlocks = 280;
 
-    //  Empty formatted volume (data-only). Buffer must be kImageByteSize.
+    //  The most blocks a ProDOS volume addresses.
+    static constexpr int  kMaxBlocks = 65535;
+
+    //  An extended file's Finder information: FInfo, then FXInfo.
+    static constexpr size_t  kFinderInfoBytes = 32;
+
+    //  Empty formatted volume (data-only), at the buffer's size.
     static HRESULT  Write (vector<Byte> & buffer, const std::string & volumeName);
 
     //  Boot blocks + PRODOS + BASIC.SYSTEM from the master image.
     static HRESULT  InstallBoot (vector<Byte> & buffer, const vector<Byte> & usersDisk);
 
+    //  The volume directory header's name, or false when the buffer has no
+    //  ProDOS volume directory.
+    static bool     TryGetVolumeName (const vector<Byte> & buffer, std::string & outName);
+
     //  Byte offset of a position inside a ProDOS block within the DOS 3.3
     //  logical-sector buffer. Public so the file writer / reader, the block
     //  commands and the builder's tests address blocks the same single way.
-    static size_t   GetBlockByteOffset (int block, size_t offsetInBlock);
+    static size_t   GetBlockByteOffset    (int block, size_t offsetInBlock);
+    static size_t   GetBlockByteOffset    (size_t bufferBytes, int block, size_t offsetInBlock);
+    static int      GetBlockCount         (size_t bufferBytes);
+    static bool     IsValidVolumeSize     (size_t bufferBytes);
+    static bool     IsBlockOrder          (size_t bufferBytes);
+    static int      GetReservedBlockCount (size_t bufferBytes);
+    static size_t   GetBitmapByteOffset   (const BlockImage & buffer, uint32_t block);
+
+    //  A directory's entries a block, from its header: 13 as ProDOS writes,
+    //  or fewer, as some SOS disks have. A value outside 1 to 13 is 13.
+    static int   GetEntriesPerBlock     (Byte headerValue);
+    static bool  IsEntriesPerBlockValid (Byte headerValue);
+
+    //  Where the header's entries-a-block byte is in a directory's key block.
+    static constexpr size_t  kEntriesPerBlockAt = 0x04 + 0x20;
 
     static constexpr int     kBlockByteSize   = 512;
 
-private:
-    static constexpr int     kBlocksPerTrack  = 8;
+    //  The volume directory's blocks and the volume bitmap's.
     static constexpr int     kDirKeyBlock     = 2;
     static constexpr int     kDirLastBlock    = 5;
     static constexpr int     kBitmapBlock     = 6;
+
+private:
+    static constexpr int     kBlocksPerTrack  = 8;
 
     static constexpr Byte    kStorageVolumeDir = 0xF0;
     static constexpr Byte    kAccessDefault    = 0xC3;
@@ -78,6 +106,7 @@ private:
     static constexpr size_t  kEntOffKeyPointer    = 0x11;
     static constexpr size_t  kEntOffBlocksUsed    = 0x13;
     static constexpr size_t  kEntOffEof           = 0x15;
+    static constexpr size_t  kEntOffCreated       = 0x18;   // date word, then time word
     static constexpr size_t  kEntOffAccess        = 0x1E;
     static constexpr size_t  kEntOffAuxType       = 0x1F;
     static constexpr size_t  kEntOffModified      = 0x21;   // date word, then time word
@@ -104,8 +133,17 @@ private:
     static constexpr Byte    kStorageTree     = 0x30;
     static constexpr Byte    kStorageSubdir   = 0xD0;
 
+    //  An extended file: a data fork and a resource fork under one entry,
+    //  whose key block has each fork's entry and the Finder information.
+    static constexpr Byte    kStorageExtended      = 0x50;
+    static constexpr size_t  kExtOffDataFork       = 0x000;
+    static constexpr size_t  kExtOffFinderInfo     = 0x008;
+    static constexpr size_t  kExtOffResourceFork   = 0x100;
+    static constexpr size_t  kFinderInfoEntryBytes = 18;
+    static constexpr size_t  kFinderInfoEntries    = 2;
+
     //  The first record of a subdirectory's key block is its own header, which
-    //  carries this storage nibble rather than the 0xD0 of the record that
+    //  has this storage nibble rather than the 0xD0 of the record that
     //  points at it from the parent.
     static constexpr Byte    kStorageSubdirHdr = 0xE0;
 
@@ -130,6 +168,8 @@ private:
     friend class ProDosReader;
     friend class ProDosFileWriter;
     friend class ProDosVolume;
+    friend class ProDosVolumeWriter;
+    friend class ProDosVolumeRemover;
 
     //  ProDOS block half -> DOS 3.3 logical sector within the track. Derived
     //  from the standard 2:1 ProDOS physical interleave composed with the
@@ -141,7 +181,8 @@ private:
         { 7, 6 },  { 5, 4 },   { 3, 2 },   { 1, 15 },
     };
 
-    static void  WriteWord (vector<Byte> & buffer, int block, size_t offsetInBlock, Word value);
+    static void  WriteWord   (vector<Byte> & buffer, int block, size_t offsetInBlock, Word value);
+    static void  WriteBitmap (vector<Byte> & buffer, int blocks);
 };
 
 
@@ -158,10 +199,18 @@ private:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ProDosForks
+{
+    vector<Byte>  data;
+    vector<Byte>  resource;
+    vector<Byte>  finderInfo;
+    bool          isExtended = false;
+};
+
 class ProDosReader
 {
 public:
-    static HRESULT  ExtractFile (const vector<Byte> & volume,
+    static HRESULT  ExtractFile (const BlockImage   & volume,
                                  const std::string  & fileName,
                                  vector<Byte>       & outBytes,
                                  Byte               & outFileType,
@@ -169,25 +218,56 @@ public:
 
     //  The same, for a file in the directory whose key block is given, which
     //  may be a subdirectory's.
-    static HRESULT  ExtractFileFromDirectory (const vector<Byte> & volume,
-                                              int                  dirKeyBlock,
-                                              const std::string  & fileName,
-                                              vector<Byte>       & outBytes,
-                                              Byte               & outFileType,
-                                              Word               & outAuxType);
+    static HRESULT  ExtractFileFromDirectory (const BlockImage     & volume,
+                                              int                    dirKeyBlock,
+                                              const std::string    & fileName,
+                                              vector<Byte>         & outBytes,
+                                              Byte                 & outFileType,
+                                              Word                 & outAuxType,
+                                              ISectorReadObserver  * observer = nullptr);
+
+    //  Both forks and the Finder information of an extended file; the data
+    //  fork alone of any other.
+    static HRESULT  ExtractForksFromDirectory (const BlockImage     & volume,
+                                               int                    dirKeyBlock,
+                                               const std::string    & fileName,
+                                               ProDosForks          & outForks,
+                                               Byte                 & outFileType,
+                                               Word                 & outAuxType,
+                                               ISectorReadObserver  * observer = nullptr);
+
+    //  One fork's bytes from its storage type, key block and length.
+    static HRESULT  ReadFork (const BlockImage     & volume,
+                              Byte                   storage,
+                              Word                   keyPointer,
+                              uint32_t               eof,
+                              ISectorReadObserver  * observer,
+                              vector<Byte>         & outBytes);
+
+    //  One fork's entry in an extended key block.
+    static void  ReadMiniEntry (const BlockImage   & volume, Word keyBlock, size_t at, Byte & outStorage, Word & outKey, uint32_t & outEof);
+
+    //  A block's two sectors, to the observer if there is one.
+    static void  NoteBlockRead (ISectorReadObserver * observer, size_t bufferBytes, int block);
 
     //  A block number the volume could actually hold. Every pointer walked here
     //  comes off the disk, so none of them may be trusted: block numbers index
     //  directly into the sector buffer, and an out-of-range one reads far past
     //  its end rather than merely returning something wrong.
-    static bool  IsBlockInRange (Word block);
+    static bool  IsBlockInRange (const BlockImage   & volume, Word block);
 
 private:
     //  False when the index block itself is unusable, so the caller reports an
     //  unreadable file instead of gathering garbage.
-    static bool  AppendIndexedBlocks (const vector<Byte> & volume,
-                                      Word                 indexBlock,
-                                      vector<Word>       & dataBlocks);
+    static HRESULT  ReadExtendedForks (const BlockImage     & volume,
+                                       Word                   keyBlock,
+                                       ISectorReadObserver  * observer,
+                                       ProDosForks          & outForks);
+
+    static bool  AppendIndexedBlocks (const BlockImage     & volume,
+                                      Word                   indexBlock,
+                                      vector<Word>         & dataBlocks,
+                                      ISectorReadObserver  * observer);
 };
 
 

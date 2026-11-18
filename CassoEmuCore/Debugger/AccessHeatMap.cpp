@@ -103,7 +103,7 @@ void AccessHeatMap::Begin (uint64_t cycle)
     m_isKeptChanged    = true;
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
-    m_isStatementPending  = false;
+    m_tokenRead.reset();
 
     FillBytes (m_written, m_isStartedClear ? 0 : 0xFF);
 
@@ -921,6 +921,9 @@ void AccessHeatMap::OnWatchedAccess (Word address, Byte value, BusAccess access,
         return;
     }
 
+    //  CHRGET's LDA has TXTPTR as its operand, so the operand bytes count.
+    NoteTextPointer (address, value);
+
     if (access == BusAccess::Write)
     {
         OnWrite (address, value);
@@ -1025,10 +1028,10 @@ void AccessHeatMap::OnRead (Word address, Byte value)
         m_lastReadWasBank = m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)];
     }
 
-    if (m_isStatementPending && m_instruction.has_value() && m_instruction->GetPc() == kChrGetRead)
+    if (address == m_txtPtr)
     {
-        CountAlso (HeatKind::Statement, address, m_lastReadLanding);
-        m_isStatementPending = false;
+        m_tokenRead    = address;
+        m_tokenLanding = m_lastReadLanding;
     }
 
     if (m_isLastReadUnwritten)
@@ -1104,6 +1107,31 @@ void AccessHeatMap::OnPowerCycle()
 
     m_isTracking    = true;
     m_isKeptChanged = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::NoteTextPointer
+//
+//  Every read through TXTPTR reads TXTPTR first, and every change to it is
+//  a write, so the last bytes read from it or written to it are its value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::NoteTextPointer (Word address, Byte value)
+{
+    if (address == kTxtPtr)
+    {
+        m_txtPtr = (Word) ((m_txtPtr & 0xFF00) | value);
+    }
+    else if (address == kTxtPtr + 1)
+    {
+        m_txtPtr = (Word) ((m_txtPtr & 0x00FF) | (value << 8));
+    }
 }
 
 
@@ -1609,11 +1637,10 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
     m_isLastReadStop      = false;
     m_isStore             = m_instructionSet != nullptr && IsStore (m_instructionSet[opcode].operation);
 
-    //  A statement begins at the statement loop's call of CHRGET, and its
-    //  first token is the next byte CHRGET reads. Any other code between
-    //  the call and that read ends the wait.
-    m_isStatementPending  = (pc == kNewStatement && opcode == kJsr) ||
-                            (m_isStatementPending && pc >= kChrGet && pc <= kChrGetRead);
+    if (pc == kStatementStart && opcode == kJsr && m_tokenRead == m_txtPtr)
+    {
+        CountAlso (HeatKind::Statement, *m_tokenRead, m_tokenLanding);
+    }
 
     MarkOpcode (pc, Count (HeatKind::Execute, pc, false));
 

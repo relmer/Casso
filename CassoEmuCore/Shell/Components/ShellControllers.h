@@ -107,7 +107,7 @@ private:
     std::unique_ptr<ControllerInputThread>   m_controllerThread;
 
     // Written by the controller thread when the players' slots change, read
-    // on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting prefs
+    // on the UI thread once (UINT) AppMessage::ShellControllerPick arrives: persisting prefs
     // and raising a notice are both UI-thread work.
     std::mutex                               m_controllerPickMutex;
     std::vector<std::wstring>                m_controllerPickNotices;

@@ -34,7 +34,7 @@ namespace BreakpointImportDialectTests
             files.WriteAllText (L"C:\\Work\\import.txt", script);
             step.kind = BreakpointStep::Kind::Import;
             step.path = "C:\\Work\\import.txt";
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()
@@ -134,6 +134,22 @@ namespace BreakpointImportDialectTests
             Assert::AreEqual ((Word) 0x0400, list[1].address);
             Assert::IsFalse  (list[1].enabled, L"BPD 1 is the script's BP 0400");
             Assert::IsTrue   (list[2].enabled, L"and not BP 0500");
+        }
+
+        //  A number in an imported line too large for an int is no
+        //  breakpoint's, rather than an exception.
+        TEST_METHOD (AnOversizedNumberIsSkipped)
+        {
+            ImportRig                    rig;
+            std::vector<BreakpointInfo>  list;
+
+
+
+            rig.Import ("BP 300\nBPCHANGE 99999999999999999999 d\n");
+            list = rig.List();
+
+            Assert::AreEqual ((size_t) 1, list.size());
+            Assert::IsTrue   (list[0].enabled, L"no breakpoint was changed");
         }
     };
 }

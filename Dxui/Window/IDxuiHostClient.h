@@ -340,9 +340,10 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
-    // WM_XBUTTONUP. HIWORD (wParam) is XBUTTON1 or XBUTTON2, a five-button
-    // mouse's back and forward buttons; lParam packs the client point.
-    // Default returns NotHandled.
+    // WM_XBUTTONUP. HIWORD (wParam) is XBUTTON1 for a mouse's back button
+    // or XBUTTON2 for its forward button; lParam packs the (x, y)
+    // client-coordinate point. NotHandled lets DefWindowProc turn the
+    // release into WM_APPCOMMAND.
     virtual DxuiMessageResult  OnXButtonUp      (WPARAM wParam, LPARAM lParam)
     {
         UNREFERENCED_PARAMETER (wParam);
@@ -378,11 +379,28 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_ENABLE: the window disabled, as a modal dialog it owns does while it
+    // runs, or enabled again. Default returns NotHandled.
+    virtual DxuiMessageResult  OnEnable         (bool enabled)
+    {
+        UNREFERENCED_PARAMETER (enabled);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_CAPTURECHANGED: the window lost the mouse capture to `newCapture`,
     // which is null when it was released. Default returns NotHandled.
     virtual DxuiMessageResult  OnCaptureChanged (HWND newCapture)
     {
         UNREFERENCED_PARAMETER (newCapture);
+        return DxuiMessageResult::NotHandled;
+    }
+
+    // WM_ENDSESSION. `ending` is true when Windows is signing out or shutting
+    // down; the process can end any time after this returns, so anything to
+    // save is written here.
+    virtual DxuiMessageResult  OnEndSession     (bool ending)
+    {
+        UNREFERENCED_PARAMETER (ending);
         return DxuiMessageResult::NotHandled;
     }
 
@@ -450,6 +468,15 @@ public:
     // Fires BEFORE the resize, so a client that wants the resulting
     // placement has to wait for the OnSize that follows.
     virtual void  OnUserWindowStateCommand () {}
+
+    // WM_SYSCOMMAND for a command the client added to the system menu, with
+    // its low four bits cleared. The system's own commands, SC_SIZE and up,
+    // are passed to DefWindowProc instead.
+    virtual DxuiMessageResult  OnSysCommand     (UINT command)
+    {
+        UNREFERENCED_PARAMETER (command);
+        return DxuiMessageResult::NotHandled;
+    }
 
     virtual void  OnEnterSizeMove    () {}
     virtual void  OnExitSizeMove     () {}

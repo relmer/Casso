@@ -45,6 +45,10 @@ public:
     //  as used now. `keepFileId` is never closed to make room.
     int   Open       (int fileId, int keepFileId = -1);
     void  Close      (int slot);
+
+    //  A slot's file changed to `fileId`, in the same slot, as when a file
+    //  open on its own is matched to a debug file's record.
+    void  Replace    (int slot, int fileId);
     void  Clear      ();
 
     //  The slot showing `fileId`, or -1.

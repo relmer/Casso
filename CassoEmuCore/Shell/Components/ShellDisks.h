@@ -5,7 +5,10 @@
 #include "Devices/Disk/ChangePrompt.h"
 #include "Devices/Disk/DeferredChangePrompts.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Seams/IntentReplyTracker.h"
+#include "Seams/Win32IntentChannel.h"
 #include "Shell/CpuCommandTargets.h"
+#include "Shell/DiskMenuRule.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
@@ -63,7 +66,7 @@ public:
     void  InstallChangeReporting ();
 
     // Null before Initialize.
-    DiskManager *                      GetManager          () const { return m_diskManager.get(); }
+    DiskManager                      * GetManager          () const { return m_diskManager.get(); }
     std::array<DriveWidget, 2>       & GetDriveChrome      ()       { return m_driveChrome; }
     std::array<DriveWidgetState, 2>  & GetDriveWidgetState ()       { return m_driveWidgetState; }
     DriveWidgetController            & GetDriveWidgets     ()       { return m_driveWidgets; }
@@ -88,6 +91,18 @@ public:
     void     EjectDisk               (int drive) override;
     HRESULT  ToggleImageWriteProtect (int drive) override;
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
+    void     InsertFloppy35          (int slot, int drive, const std::string & path) override;
+    void     EjectFloppy35           (int slot, int drive) override;
+    HRESULT  AttachHardDisk          (int slot, int drive, const std::string & path) override;
+
+    // A hard disk's new image, posted from the CPU thread to the UI thread
+    // as AppMessage::ShellHardDiskImage, which saves it with the machine.
+    struct HardDiskImageChange
+    {
+        int          slot  = 0;
+        int          drive = 0;
+        std::string  path;
+    };
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user
@@ -99,13 +114,14 @@ public:
     HRESULT  Mount (int slot, int drive, const std::wstring & path) override;
     void     Eject (int slot, int drive) override;
 
-    // UI helper: open the drive door for visual feedback, show the
-    // file-open dialog, then close the door again. Mount-on-success
-    // is handled by the existing PromptForDiskImage path; this
-    // method just owns the door visual. `anchorClientPx` is the clicked
-    // drive in client pixels, which the picker opens below; null (the menu
-    // and accelerator path) centers the picker on the window.
-    void  BrowseForDisk (int drive, const RECT * anchorClientPx = nullptr);
+    // Opens the drive's picker, or brings it to the front when it is open.
+    void  BrowseForDisk (int drive);
+
+    // The door while the drive's picker is open: opened with the picker,
+    // and on its close left to the insert or put back to the mount state.
+    void            OpenDoorForPicker      (int drive);
+    void            RestoreDoorAfterPicker (int drive, bool isInserted);
+    static int64_t  GetDoorNowMs           ();
 
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures
@@ -133,14 +149,21 @@ public:
     // to plug one. The //c's external drive is an optional add-on, shown only
     // while connected; everywhere else the second drive is whatever is on the
     // Disk ][ card's second connector.
-    bool  ShouldShowExternalDrive  () const;
-    bool  IsSecondDriveOffered     () const;
-    bool  IsExternalDriveConnected () const         { return m_externalDriveConnected; }
+    bool  ShouldShowExternalDrive   () const;
+    bool  IsSecondDriveOffered      () const;
+    bool  IsExternalDriveConnected  () const         { return m_externalDriveConnected; }
     void  SetExternalDriveConnected (bool connected) { m_externalDriveConnected = connected; }
 
     // Whether the machine's drive is soldered in rather than plugged into a
     // card, which decides the drive the desk scene draws.
     bool  MachineHasBuiltInDrive () const;
+    bool  HasDiskIicDrives       () const;
+
+    // The drive the Storage menu's drive 1 (0), drive 2 (1) or drive 3 (2)
+    // commands act on, and the reverse: which commands act on a Disk II
+    // drive, or -1 for none.
+    DiskMenuDrive  GetMenuDrive (int menuDrive)   const;
+    int            GetMenuIndex (int diskIiDrive) const;
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing
@@ -176,6 +199,31 @@ public:
     // Initialize, before the message loop that would service it is running.
     void  HandleMountCompletion (const MountCompletion & completion);
 
+    // An answer to a tool that asked, posted to the UI thread when the
+    // outcome was known on another one.
+    struct IntentReplyPost
+    {
+        HWND                       target = nullptr;
+        Win32IntentChannel::Reply  reply;
+    };
+
+    // Sends one answer, from the UI thread. A tool that has gone away is
+    // not an error: the send simply finds no window.
+    void  SendIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Posts one answer to the UI thread from whichever thread knows it.
+    void  PostIntentReply (HWND target, const Win32IntentChannel::Reply & reply);
+
+    // Records a mounted disk's folder in the known-folder list Casso
+    // Explorer and the picker share.
+    void  RecordKnownFolder (const std::string & imagePath);
+
+    // Wires the store's decision report to the tools waiting on a reload.
+    void  InstallIntentReplies ();
+
+    // Tools waiting on an insert or a reload.
+    IntentReplyTracker &  GetIntentReplies () { return m_intentReplies; }
+
     // What one bay's external change wants said, carried from the thread that
     // owns disk writes to the one that owns the screen.
     struct ChangeNotice
@@ -204,7 +252,7 @@ public:
     // oversight: the action it carries is the restart, which is what the user
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
-    DxuiActionBanner &  GetChangeBanner () { return m_changeBanner; }
+    DxuiInfoBanner &  GetChangeBanner () { return m_changeBanner; }
 
     // How tall the notice's band is right now: zero when nothing is being
     // reported, and the height its wrapped text needs when something is.
@@ -275,7 +323,7 @@ private:
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                               m_externalDriveConnected = false;
 
-    DxuiActionBanner                   m_changeBanner;
+    DxuiInfoBanner                     m_changeBanner;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the
@@ -288,4 +336,7 @@ private:
     DeferredChangePrompts              m_deferredChanges;
 
     std::unique_ptr<DiskManager>       m_diskManager;
+
+    // Tools waiting on an insert or a reload.
+    IntentReplyTracker                 m_intentReplies;
 };

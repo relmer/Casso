@@ -91,10 +91,10 @@ public:
     //  Moves an owned child out with its ownership, and in again, so a control
     //  can pass between panels or windows intact (R-023). DetachChild returns
     //  null for a child this panel does not own.
-    std::unique_ptr<IDxuiControl>  DetachChild (IDxuiControl * child);
-    IDxuiControl *                 AttachChild (std::unique_ptr<IDxuiControl> child);
-    void     Clear         ();
-    void     SetLayout     (std::unique_ptr<IDxuiLayout> layout);
+    std::unique_ptr<IDxuiControl>    DetachChild (IDxuiControl * child);
+    IDxuiControl                   * AttachChild (std::unique_ptr<IDxuiControl> child);
+    void                             Clear       ();
+    void                             SetLayout   (std::unique_ptr<IDxuiLayout> layout);
 
     void  PropagateDpi   (const DxuiDpiScaler & scaler);
     void  PropagateTheme ();
@@ -107,13 +107,13 @@ public:
     void              Paint        (IDxuiPainter        & painter,
                                     IDxuiTextRenderer   & text,
                                     const IDxuiTheme    & theme) override;
-    bool              OnMouse      (const DxuiMouseEvent & ev) override;
-    LPCWSTR           GetCursorForPoint (POINT clientPx) const     override;
-    bool              IsHitAt      (POINT pointPx) const override;
-    bool              TryGetTip    (POINT pointPx, DxuiTip & tip) const override;
-    bool              OnKey        (const DxuiKeyEvent   & ev) override;
-    void              OnThemeChanged()                       override;
-    void              Tick         (int64_t nowMs)            override;
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const     override;
+    bool     IsHitAt           (POINT pointPx) const override;
+    bool     TryGetTip         (POINT pointPx, DxuiTip & tip) const override;
+    bool     OnKey             (const DxuiKeyEvent   & ev) override;
+    void     OnThemeChanged    ()                       override;
+    void     Tick              (int64_t nowMs)            override;
 
     void              OnChildVisibilityChanged (IDxuiControl * child);
 
@@ -131,9 +131,9 @@ public:
     //  One child painted above even the top layer while it is lifted off its
     //  place, as a toolbar carried by its handle is, so its shadow falls
     //  over its neighbors and their text; null for none.
-    void              SetRaisedChild (IDxuiControl * child)                { m_raised = child; }
-    IDxuiControl *    GetRaisedChild () const                              { return m_raised; }
-    virtual void      PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void            SetRaisedChild (IDxuiControl * child)                { m_raised = child; }
+    IDxuiControl  * GetRaisedChild () const                              { return m_raised; }
+    virtual void    PaintTopLayer  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     size_t            GetChildCount () const                   override { return m_children.size(); }
     IDxuiControl *    GetChild      (size_t index) const       override { return (index < m_children.size()) ? m_children[index].raw : nullptr; }

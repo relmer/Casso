@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DriveImageRule.h"
+
 
 
 
@@ -22,12 +24,45 @@ struct FileDialogFilter
 };
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileDialogContent
+//
+//  What a file request is for. A request for a disk or tape image opens
+//  the Casso Explorer picker in a process that has one, and any other
+//  request opens the operating system's dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class FileDialogContent
+{
+    Any,
+    Images,
+};
+
+
 struct FileDialogSpec
 {
     std::vector<FileDialogFilter>  filters;
     std::wstring                   defaultExtension;   // "png", without the dot
     std::wstring                   defaultFileName;    // seeds the name field
     std::filesystem::path          initialFolder;      // best effort: the dialog may open elsewhere
+    std::wstring                   title;              // empty: Windows' own
+    bool                           askToReplace = true;  // off: the caller asks, in its own theme
+
+    //  Windows keeps the last folder and the names typed in a picker under
+    //  this, apart from every other picker; none shares the common history.
+    GUID                           clientGuid   = GUID_NULL;
+
+    //  Images: the request is for a disk or tape image. With a receiving
+    //  drive, only the images that drive accepts are listed, and the
+    //  drive's label is stated, such as "UniDisk 3.5 - S5,D1".
+    FileDialogContent              content      = FileDialogContent::Any;
+    std::optional<ReceivingDrive>  receivingDrive;
+    std::wstring                   driveLabel;
 };
 
 

@@ -74,6 +74,18 @@ public:
         "useMicaBackdrop":    false
     })";
 
+    static constexpr const char * kPhosphorJson = R"({
+        "$cassoThemeVersion": 1,
+        "$cassoBuiltIn":      true,
+        "name":               "Phosphor",
+        "familyId":           "apple2",
+        "variantId":          "iic",
+        "uiTokens":           {},
+        "driveVisualProfile": { "style":"disk2", "colorway":"platinum", "doorAnimation":"x", "syncChannel":"drive-door" },
+        "author":             "Casso",
+        "useMicaBackdrop":    false
+    })";
+
     static constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
 
 
@@ -118,16 +130,18 @@ public:
         // Written in an order the dropdown must NOT show, and stored under
         // directory names that sort the wrong way alphabetically too.
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",    kDarkJson);
+        WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Phosphor",      kPhosphorJson);
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\RetroTerminal", kRetroJson);
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic",  kSkeuoJson);
 
         hr = mgr.Discover();
 
         AssertSucceeded (hr);
-        Assert::AreEqual (size_t (3), mgr.GetAvailableThemes().size());
+        Assert::AreEqual (size_t (4), mgr.GetAvailableThemes().size());
         Assert::AreEqual (string ("Skeuomorphic"),  mgr.GetAvailableThemes()[0].name);
         Assert::AreEqual (string ("RetroTerminal"), mgr.GetAvailableThemes()[1].name);
-        Assert::AreEqual (string ("DarkModern"),    mgr.GetAvailableThemes()[2].name);
+        Assert::AreEqual (string ("Phosphor"),      mgr.GetAvailableThemes()[2].name);
+        Assert::AreEqual (string ("DarkModern"),    mgr.GetAvailableThemes()[3].name);
     }
 
 

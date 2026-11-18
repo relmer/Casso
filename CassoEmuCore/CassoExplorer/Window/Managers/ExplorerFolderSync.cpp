@@ -1,0 +1,960 @@
+#include "Pch.h"
+
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Model/RefreshAnchor.h"
+#include "CassoExplorer/Model/FolderWatch.h"
+#include "Core/AppTimerIds.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerRename.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "Core/AppMessages.h"
+#include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::ExplorerFolderSync
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerFolderSync::ExplorerFolderSync (ExplorerContext & context)
+    : m_context (context)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::RefreshAfterHostChange
+//
+//  The folder watcher's notice of the change arrives a moment later, so the
+//  folder is reread now. The row whose name is select, such as a file just
+//  renamed, is selected before the list is filled, so the preview pane stays
+//  open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
+{
+    HRESULT                          hr   = m_context.browser.Reload (true);
+    const std::vector<CatalogRow>  & rows = m_context.browser.GetRows();
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (size_t i = 0; i < rows.size() && !select.empty(); i++)
+    {
+        if (_wcsicmp (rows[i].name.c_str(), select.c_str()) == 0)
+        {
+            m_context.browser.SetSelectedRows ({ (int) i });
+            break;
+        }
+    }
+
+    m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::ChangeKnownFolder
+//
+//  The shared file is changed under its lock, then read back whole, so a
+//  folder Casso recorded in the meantime shows too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::ChangeKnownFolder (const std::wstring & folder, bool add)
+{
+    HRESULT                               hr = S_OK;
+
+
+
+    if (m_context.app.fs == nullptr)
+    {
+        return;
+    }
+
+    KnownFolderStore  store (*m_context.app.fs, m_context.app.baseDir);
+
+    hr = add ? store.Append (folder, (int64_t) _time64 (nullptr)) : store.Remove (folder);
+
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (L"Casso's folder list could not be changed.", MB_ICONERROR);
+        return;
+    }
+
+    ReloadKnownFolders();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::ReloadKnownFolders
+//
+//  Casso's root lists the folders on record, less any that are gone, which
+//  are dropped from the record as they are noticed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::ReloadKnownFolders()
+{
+    HRESULT                               hr      = S_OK;
+    std::vector<KnownFolderStore::Entry>  entries;
+    std::vector<std::wstring>             folders;
+    bool                                  removed = false;
+
+
+
+    if (m_context.app.fs == nullptr)
+    {
+        return;
+    }
+
+    KnownFolderStore  store (*m_context.app.fs, m_context.app.baseDir);
+
+    hr = store.RemoveMissing (removed);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = store.Load (entries);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    folders = KnownFolderStore::ListRootFolders (*m_context.app.fs, m_context.app.baseDir, entries);
+
+    m_context.browser.GetTreeModel().SetKnownFolders (folders);
+    m_context.browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
+    m_context.treePane.ReloadChildren (TreeModel::kCassoRootId);
+    UpdateWatchedFolders();
+    m_context.window.Invalidate();
+
+    hr = m_context.app.fs->ReadAllText (KnownFolderStore::GetFilePath (m_context.app.baseDir), m_knownFoldersText);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::ReloadKnownFoldersIfChanged
+//
+//  Casso writes its known folders while this window is open. The folder the
+//  file is in also has this window's own prefs, so the file's text is compared
+//  before the tree is rebuilt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::ReloadKnownFoldersIfChanged()
+{
+    HRESULT      hr   = S_OK;
+    std::string  text;
+
+
+
+    if (m_context.app.fs == nullptr)
+    {
+        return;
+    }
+
+    hr = m_context.app.fs->ReadAllText (KnownFolderStore::GetFilePath (m_context.app.baseDir), text);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (text != m_knownFoldersText)
+    {
+        ReloadKnownFolders();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::RefreshQuickAccessIfChanged
+//
+//  Every program's jump list is written to the same folder, so only a change
+//  to Quick access's own file reads the tree's roots again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::RefreshQuickAccessIfChanged()
+{
+    int64_t  stamp   = 0;
+    int64_t  recent  = 0;
+    bool     changed = false;
+
+
+
+    if (m_quickAccessDir.empty())
+    {
+        return;
+    }
+
+    stamp = GetQuickAccessStamp (m_quickAccessDir);
+
+    if (stamp != m_quickAccessStamp)
+    {
+        m_quickAccessStamp = stamp;
+        m_context.browser.RefreshShellRoots();
+        m_context.treePane.RefreshTree();
+        changed = true;
+    }
+
+    //  Recent's folder changes as a file joins Home's list, and the recent
+    //  items' jump list as one leaves it.
+    recent = GetFileStamp (m_quickAccessDir.substr (0, m_quickAccessDir.find_last_of (L'\\'))) ^ GetFileStamp (m_quickAccessDir + L"\\" + kRecentItemsFile);
+
+    if (recent != m_recentStamp)
+    {
+        m_recentStamp = recent;
+        changed       = true;
+    }
+
+    if (changed && m_context.browser.IsHomeLocation())
+    {
+        m_context.browser.RequestHomeRead();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetQuickAccessStamp
+//
+//  Quick access's file's last write, or zero where it cannot be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t ExplorerFolderSync::GetQuickAccessStamp (const std::wstring & directory)
+{
+    return GetFileStamp (directory + L"\\" + kQuickAccessFile);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetFileStamp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t ExplorerFolderSync::GetFileStamp (const std::wstring & path)
+{
+    WIN32_FILE_ATTRIBUTE_DATA  data  = {};
+    ULARGE_INTEGER             when  = {};
+
+
+
+    if (!GetFileAttributesExW (path.c_str(), GetFileExInfoStandard, &data))
+    {
+        return 0;
+    }
+
+    when.LowPart  = data.ftLastWriteTime.dwLowDateTime;
+    when.HighPart = data.ftLastWriteTime.dwHighDateTime;
+
+    return (int64_t) when.QuadPart;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::CheckDrives
+//
+//  A drive attached or removed while the window is open changes This PC, and
+//  can bring back or take away a known folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::CheckDrives()
+{
+    HRESULT   hr           = S_OK;
+    DWORD     mask         = GetLogicalDrives();
+    bool      cardsChanged = UpdateStorageCards();
+    Location  showing;
+
+
+
+    if (mask == m_driveMask && !cardsChanged)
+    {
+        return;
+    }
+
+    m_driveMask = mask;
+
+    m_context.browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
+    m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
+    m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
+    ReloadKnownFolders();
+
+    //  A card opened since the last look is opened in the tree to its
+    //  partitions.
+    for (const std::wstring & id : m_expandIds)
+    {
+        m_context.treePane.ExpandNode (id);
+    }
+
+    if (!m_expandIds.empty())
+    {
+        m_context.treePane.RevealLocationInTree();
+    }
+
+    m_expandIds.clear();
+
+    if (!m_context.browser.GetBrowserModel().HasTabs())
+    {
+        return;
+    }
+
+    showing = m_context.browser.GetLocation();
+
+    if (showing.kind == Location::Kind::Root && showing.path == TreeModel::kThisPcRootId)
+    {
+        m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
+        hr = m_context.browser.Refresh();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_context.listPane.FillList();
+    }
+    else if (m_context.browser.LeaveMissingLocation())
+    {
+        m_context.listPane.FillList();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::PollDrives
+//
+//  Listing the cards calls GetVolumeInformationW for each volume, and for a
+//  volume Windows can't read, as a CFFA card's are, Windows reads the card
+//  again for each file system it has. So the cards are listed only when the
+//  drive letters changed, or Windows reports a device attached or removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::PollDrives()
+{
+    if (GetLogicalDrives() != m_driveMask)
+    {
+        CheckDrives();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleDeviceChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleDeviceChange()
+{
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceSoon, kDeviceSoonMs, nullptr);
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceLate, kDeviceLateMs, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleDeviceTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleDeviceTimer (UINT_PTR timerId)
+{
+    KillTimer (m_context.window.GetHwnd(), timerId);
+    CheckDrives();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::CheckOpenedCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::CheckOpenedCard()
+{
+    Location  location = m_context.browser.GetLocation();
+    int       number   = 0;
+    int       part     = 0;
+    bool      isNew    = false;
+
+
+
+    if (m_context.app.cards == nullptr ||
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), number, part) == PhysicalCards::PathKind::None)
+    {
+        return;
+    }
+
+    isNew = m_context.app.cards->IsOpen (number) &&
+            std::find (m_openCardDrives.begin(), m_openCardDrives.end(), number) == m_openCardDrives.end();
+
+    if (isNew)
+    {
+        CheckDrives();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::UpdateStorageCards
+//
+//  Returns true when the storage cards differ from the last look. A card that
+//  was removed is closed, so a card put back in is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFolderSync::UpdateStorageCards()
+{
+    HRESULT                                   hr      = S_OK;
+    std::vector<PhysicalCards::StorageCard>   cards;
+    std::vector<StorageCardTreeEntry>         entries;
+    std::vector<int>                          drives;
+    std::wstring                              key;
+    bool                                      changed = false;
+
+
+
+    BAIL_OUT_IF (m_context.app.cards == nullptr, S_OK);
+
+    hr = m_context.app.cards->ListStorageCards (cards);
+    CHR (hr);
+
+    for (const PhysicalCards::StorageCard & card : cards)
+    {
+        std::wstring                 path         = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
+        std::wstring                 letters;
+        std::vector<WindowsVolume>   volumes;
+        StorageCardTreeEntry         entry        { path, std::wstring() };
+        PartitionLayoutKind          kind         = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  partitions;
+        HRESULT                      hrVolumes    = S_OK;
+        HRESULT                      hrPartitions = S_OK;
+
+        hrVolumes = m_context.app.cards->ListVolumes (card.drive.number, volumes);
+        IGNORE_RETURN_VALUE (hrVolumes, S_OK);
+
+        //  A volume Windows can't read, as a CFFA card is to it, is listed as
+        //  the card's node rather than a drive letter.
+        for (const WindowsVolume & volume : volumes)
+        {
+            if (volume.fileSystem.empty() && !volume.letter.empty())
+            {
+                entry.hiddenRoots.push_back (volume.letter + L"\\");
+                letters += (letters.empty() ? L"" : L", ") + volume.letter;
+            }
+        }
+
+        entry.label = PhysicalCards::FormatCardLabel (card.drive, letters);
+
+        drives.push_back (card.drive.number);
+
+        //  An open card's partitions are listed from the read made when it
+        //  opened, so this reads nothing from the card.
+        if (m_context.app.cards->IsOpen (card.drive.number))
+        {
+            hrPartitions = m_context.app.cards->ListPartitions (card.drive.number, kind, partitions);
+            IGNORE_RETURN_VALUE (hrPartitions, S_OK);
+        }
+
+        for (const PartitionEntry & partition : partitions)
+        {
+            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), TextEncoding::NarrowToWide (PartitionAccess::GetLabel (partition, true)) });
+        }
+
+        key += std::format (L"{}|{}|{}|{}|{}|{};", letters, card.drive.number, card.drive.bytes, entry.label, card.hasUnmounted ? 1 : 0, entry.partitions.size());
+
+        for (const StorageCardTreeEntry::Partition & partition : entry.partitions)
+        {
+            key += partition.label + L";";
+        }
+
+        if (card.hasUnmounted)
+        {
+            entries.push_back (std::move (entry));
+        }
+    }
+
+    changed = key != m_storageCardKey;
+    BAIL_OUT_IF (!changed, S_OK);
+
+    for (const StorageCardTreeEntry & entry : entries)
+    {
+        int   number   = 0;
+        int   part     = 0;
+        bool  isOpened = false;
+
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (entry.path), number, part);
+        isOpened = !entry.partitions.empty() && std::find (m_openCardDrives.begin(), m_openCardDrives.end(), number) == m_openCardDrives.end();
+
+        if (isOpened)
+        {
+            m_expandIds.push_back (std::wstring (TreeModel::kStorageCardTag) + entry.path);
+        }
+    }
+
+    m_openCardDrives.clear();
+
+    for (const StorageCardTreeEntry & entry : entries)
+    {
+        int  number = 0;
+        int  part   = 0;
+
+        if (!entry.partitions.empty())
+        {
+            PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (entry.path), number, part);
+            m_openCardDrives.push_back (number);
+        }
+    }
+
+    for (int number : m_storageCardDrives)
+    {
+        if (std::find (drives.begin(), drives.end(), number) == drives.end())
+        {
+            m_context.app.cards->Close (number);
+        }
+    }
+
+    m_storageCardKey    = std::move (key);
+    m_storageCardDrives = std::move (drives);
+
+    m_context.browser.GetTreeModel().SetStorageCards (std::move (entries));
+
+    //  The top level is rebuilt without the drive letters the card's node replaces.
+    m_context.treePane.RefreshTree();
+
+Error:
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::UpdateWatchedFolders
+//
+//  The folder the list is showing -- for an image, the folder holding it --
+//  and every host folder the tree has open, since those are the folders whose
+//  contents are on screen.
+//
+//  The host folders worth watching: the one the list is showing and every
+//  one the tree has open. Cheap enough to call after anything that could
+//  have changed either.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::UpdateWatchedFolders()
+{
+    std::vector<std::wstring>  folders;
+    Location                   showing = m_context.browser.GetLocation();
+    int                        row     = 0;
+
+
+
+    if (m_folderWatch == nullptr)
+    {
+        return;
+    }
+
+    //  The shown folder's parent too: deleting the folder is a change there.
+    if (showing.kind == Location::Kind::HostFolder && !showing.path.empty())
+    {
+        folders.push_back (showing.path);
+
+        if (showing.path.size() > 3)
+        {
+            folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+        }
+    }
+    else if (!showing.path.empty())
+    {
+        folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+    }
+
+    for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
+    {
+        const DxuiTreeNode *  node = m_context.treePane.GetNodeAt (row);
+        Location              at;
+
+        if (node != nullptr && node->expanded
+            && m_context.browser.TryGetNodeLocation (node->id, at)
+            && at.kind == Location::Kind::HostFolder && !at.path.empty())
+        {
+            folders.push_back (at.path);
+        }
+    }
+
+    //  Casso's known folders file, which Casso writes while this window is open,
+    //  and File Explorer's Quick access, which a pin made there changes.
+    if (!m_context.app.baseDir.empty())
+    {
+        folders.push_back (m_context.app.baseDir);
+    }
+
+    if (!m_quickAccessDir.empty())
+    {
+        folders.push_back (m_quickAccessDir);
+    }
+
+    m_folderWatch->SetWatched (folders);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::IsSameFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFolderSync::IsSameFolder (const std::wstring & a, const std::wstring & b)
+{
+    return CompareStringOrdinal (a.c_str(), (int) a.size(), b.c_str(), (int) b.size(), TRUE) == CSTR_EQUAL;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::IsShownFolderIn
+//
+//  Whether the list shows one of the folders: the folder itself, or, inside a
+//  disk image, the folder that holds the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & folders) const
+{
+    Location      showing = m_context.browser.GetLocation();
+    std::wstring  shown;
+
+
+
+    if (showing.path.empty())
+    {
+        return false;
+    }
+
+    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : CassoExplorerBrowser::GetParentFolder (showing.path);
+
+    return std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, shown); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::RefreshOpenTreeFolders
+//
+//  Reads again, in place, what the tree shows under each open node the changed
+//  folders hold: a folder's subfolders, or a disk image's. Returns whether any
+//  node was read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring> & folders)
+{
+    std::vector<std::wstring>  stale;
+    int                        row = 0;
+
+
+
+    for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
+    {
+        const DxuiTreeNode *  node = m_context.treePane.GetNodeAt (row);
+        Location              at;
+
+        //  A closed folder is read again too, so its first subfolder gives it
+        //  a chevron.
+        if (node != nullptr
+            && m_context.browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
+            && (node->expanded || at.kind == Location::Kind::HostFolder))
+        {
+            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : CassoExplorerBrowser::GetParentFolder (at.path);
+
+            if (std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, holder); }))
+            {
+                stale.push_back (node->id);
+            }
+        }
+    }
+
+    //  In row order, so a parent goes first; a node its parent's change took
+    //  away has no row by the time its turn comes, and is passed over.
+    for (const std::wstring & id : stale)
+    {
+        if (m_context.treePane.HasNode (id))
+        {
+            m_context.browser.GetTreeModel().Invalidate (id);
+            m_context.treePane.ReloadChildren (id);
+        }
+    }
+
+    return !stale.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::RefreshChangedFolders
+//
+//  Runs once a burst has settled. The same files stay selected, and the view
+//  stays on the same files, by the rules RefreshAnchor sets out: a file added
+//  or removed elsewhere in the folder is no reason to lose the selection or to
+//  move what is on screen.
+//
+//  Re-reads whatever the watcher reported, once the burst has settled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::RefreshChangedFolders()
+{
+    HRESULT                    hr = S_OK;
+    std::vector<std::wstring>  changed;
+    std::vector<std::wstring>  keys;
+    RefreshAnchor::Before      before;
+    RefreshAnchor::After       after;
+
+
+
+    if (m_folderWatch == nullptr)
+    {
+        return;
+    }
+
+    //  Not while a rename is open or a button is down: the rows under either
+    //  would change. The changes wait, and the timer tries again.
+    if (m_context.rename.IsRenaming() || m_context.listPane.IsBusy() || m_context.treePane.IsInteracting())
+    {
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
+        return;
+    }
+
+    if (!m_folderWatch->TakeChanged (changed))
+    {
+        return;
+    }
+
+    ReloadKnownFoldersIfChanged();
+    RefreshQuickAccessIfChanged();
+
+    //  A folder written to often -- a disk image Casso has mounted, say --
+    //  must not cost the tree or the list anything when neither shows it.
+    if (RefreshOpenTreeFolders (changed))
+    {
+        UpdateWatchedFolders();
+    }
+
+    //  The folder shown was deleted: the change is its parent's, so the list
+    //  moves up, as Explorer's does, rather than staying on what is gone.
+    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.LeaveMissingLocation())
+    {
+        m_context.listPane.FillList();
+        return;
+    }
+
+    if (!m_context.browser.GetBrowserModel().HasTabs() || !IsShownFolderIn (changed))
+    {
+        m_context.window.Invalidate();
+        return;
+    }
+
+    //  The view as it stands, in keys, before the rows under it change.
+    m_context.browser.GetRowKeys (before.keys);
+    m_context.listPane.CaptureView (before);
+
+    //  Re-read without the browser's own restore: the anchor decides both the
+    //  selection and where the view lands.
+    hr = m_context.browser.Reload (false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  The selection is set before the list is filled, so the preview pane
+    //  doesn't close and reopen in between.
+    m_context.browser.GetRowKeys (keys);
+    after = RefreshAnchor::Compute (before, keys);
+
+    m_context.browser.SetSelectedRows (after.selected);
+    m_context.listPane.FillList();
+    m_context.listPane.RestoreView (after);
+
+    m_context.preview.FillPreview();
+    m_context.statusBar.Fill();
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::StartWatch
+//
+//  Posting is all that happens on the watcher's thread; the settle timer and
+//  the re-read run here.
+//
+//  The watch on the folders on display, and the polls for drives and
+//  Quick access; a change posted by the watch, and its settle timer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::StartWatch()
+{
+    if (m_context.app.watcher == nullptr)
+    {
+        return;
+    }
+
+    m_folderWatch = std::make_unique<FolderWatch> (*m_context.app.watcher);
+
+    m_folderWatch->SetOnChanged ([this] ()
+    {
+        PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerFolderChanged, 0, 0);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::StartPolling
+//
+//  The drives attached at the start, the drive letters polled and Windows'
+//  device notifications watched for others, and the folder of File
+//  Explorer's Quick access, with its file's last write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::StartPolling()
+{
+    PWSTR    recent = nullptr;
+    HRESULT  hr     = S_OK;
+
+
+
+    m_driveMask = GetLogicalDrives();
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
+
+    hr = m_deviceWatch.Start ([this]() { HandleDeviceChange(); });
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
+
+    if (SUCCEEDED (hr))
+    {
+        m_quickAccessDir   = std::wstring (recent) + L"\\AutomaticDestinations";
+        m_quickAccessStamp = GetQuickAccessStamp (m_quickAccessDir);
+        m_recentStamp      = GetFileStamp (recent) ^ GetFileStamp (m_quickAccessDir + L"\\" + kRecentItemsFile);
+    }
+
+    CoTaskMemFree (recent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleFolderChanged
+//
+//  A burst of changes settles before a re-read, for no longer than
+//  kFolderMaxSettleMs from its first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleFolderChanged()
+{
+    ULONGLONG  now = GetTickCount64();
+
+
+
+    if (m_firstChangeMs == 0)
+    {
+        m_firstChangeMs = now;
+    }
+
+    if (now - m_firstChangeMs < CassoExplorerWindow::kFolderMaxSettleMs)
+    {
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleSettleTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleSettleTimer()
+{
+    KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder);
+    m_firstChangeMs = 0;
+    RefreshChangedFolders();
+}

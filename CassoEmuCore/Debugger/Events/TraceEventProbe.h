@@ -26,7 +26,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class TraceEventProbe : public IDebugEventProbe<Cpu::TraceEntry>, public IWatchSink
+class TraceEventProbe : public IDebugEventProbe<CpuTrace::Entry>, public IWatchSink
 {
 public:
     //  The ring's size before any Reserve raises it.
@@ -36,7 +36,7 @@ public:
     //  only grows.
     void     Reserve (size_t instructions);
 
-    HRESULT  Attach  (MachineHost & machine, std::vector<DebugEventEntry<Cpu::TraceEntry>> & entries) override;
+    HRESULT  Attach  (MachineHost & machine, std::vector<DebugEventEntry<CpuTrace::Entry>> & entries) override;
     void     Detach  (MachineHost & machine) override;
 
     // IWatchSink
@@ -45,6 +45,6 @@ public:
 private:
     std::atomic<size_t>                                m_capacity { kInitialCapacity };
     MachineHost                                      * m_machine  = nullptr;
-    std::vector<DebugEventEntry<Cpu::TraceEntry>>    * m_entries  = nullptr;
+    std::vector<DebugEventEntry<CpuTrace::Entry>>    * m_entries  = nullptr;
     uint64_t                                           m_start    = 0;
 };

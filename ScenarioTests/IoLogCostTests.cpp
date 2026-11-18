@@ -60,7 +60,7 @@ namespace IoLogCostTests
 
             while (spent < kCycles)
             {
-                spent += machine.StepOne();
+                spent += machine.GetRunner().StepOne();
             }
 
             return std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - began).count();
@@ -112,12 +112,12 @@ namespace IoLogCostTests
 
         static void  AssertWithin (double slowdown, double allowed)
         {
-#ifdef NDEBUG
+#if defined (NDEBUG) && !defined (__SANITIZE_ADDRESS__)
             Assert::IsTrue (slowdown <= allowed, std::format (L"{:+.1f}%", slowdown * 100.0).c_str());
 #else
             UNREFERENCED_PARAMETER (slowdown);
             UNREFERENCED_PARAMETER (allowed);
-            Logger::WriteMessage ("Debug build: the bound is checked in Release only\n");
+            Logger::WriteMessage ("Debug or sanitized build: the bound is checked in a plain Release build only\n");
 #endif
         }
 

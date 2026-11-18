@@ -36,8 +36,10 @@ public:
     //  meaning beside it.
     struct Row
     {
-        ColorLegend::Swatch              swatch = ColorLegend::Swatch::Fill;
-        uint32_t                         argb   = 0;
+        ColorLegend::Swatch              swatch   = ColorLegend::Swatch::Fill;
+        uint32_t                         argb     = 0;
+        uint32_t                         fromArgb = 0;   // a Ramp's faintest shade
+        std::vector<uint32_t>            stops;          // a Ramp's colors, faintest to full
         std::wstring                     text;
         std::shared_ptr<DxuiIconImage>   icon;
     };
@@ -72,9 +74,11 @@ public:
     RECT  GetRect () const;
 
 private:
-    HRESULT  Raise       (HWND owner, const RECT & screen);
-    SIZE     MeasureDip  (UINT dpi) const;
-    void     Render      (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    HRESULT  Raise              (HWND owner, const RECT & screen);
+    SIZE     MeasureDip         (UINT dpi) const;
+    void     Render             (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    float    GetSwatchColumnDip () const;
+    void     PaintRamp          (IDxuiPainter & painter, const Row & row, float left, float top, float width, float height) const;
 
     DxuiHwndSource     * m_host       = nullptr;
     DxuiPopupHost      * m_popup      = nullptr;

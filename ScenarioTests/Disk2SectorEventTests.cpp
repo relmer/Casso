@@ -88,11 +88,11 @@ namespace Disk2SectorEventTests
 
 
             machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
-            machine.AttachObservers ({ &counter, nullptr }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ &counter, nullptr }, ObserverSlot::History);
 
             GuestSession::BootToPrompt (machine, master);
 
-            machine.AttachObservers ({}, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::History);
 
             Logger::WriteMessage (std::format ("{} sector reads, {} with the sector unknown\n", counter.reads, counter.unknownSectors).c_str());
 

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 
@@ -94,6 +95,7 @@ struct CallStackRebuildJob
     size_t                             inputsFrom  = 0;
     std::vector<InputRecord>           inputs;
     std::vector<ReplayDisk>            disks;
+    std::vector<ReplayBlockMedia>      blockMedia;
     std::vector<CallRecordCopy>        copyAt;
 };
 

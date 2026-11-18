@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/ReverseController.h"
-#include "Debugger/Reverse/ReverseStepSearch.h"
 
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/MachineHost.h"
@@ -25,29 +24,27 @@ HRESULT ReverseController::SaveHistory (SavedKeyframes & outSaved)
 {
     HRESULT   hr       = S_OK;
     EmuCpu  * cpu      = m_machine.GetCpu();
-    uint64_t  position = m_machine.GetPosition();
-    bool      isLive   = m_isRecording && m_isLive;
+    uint64_t  position = m_machine.GetRunner().GetPosition();
+    bool      isLive   = m_span.IsRecording() && m_span.IsLive();
 
 
 
     CBRA (cpu);
     CBREx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE));
 
-    if (m_isEditPending)
+    if (m_span.TakeEdit())
     {
-        m_isEditPending = false;
-
-        hr = OnMachineChanged();
+        hr = m_seeker.OnMachineChanged();
         CHR (hr);
     }
 
-    if (m_isPaused && position > m_pauseStart)
+    if (m_span.IsPausedBefore (position))
     {
-        hr = CaptureBoundary (true, m_pauseStart);
+        hr = m_capturer.CaptureBoundary (true, m_span.GetPauseStart());
         CHR (hr);
     }
 
-    hr = m_keyframes.Export (m_machine.GetInputJournal(), outSaved);
+    hr = m_keyframes.Export (m_machine.GetHostInput().GetJournal(), outSaved);
     CHR (hr);
 
     outSaved.segments[0].info.liveEndPosition = position;
@@ -82,8 +79,9 @@ HRESULT ReverseController::StartFromSaved (
     constexpr size_t          kStepSlack            = 64;
     HRESULT                   hr                    = S_OK;
     EmuCpu                  * cpu                   = m_machine.GetCpu();
-    InputJournal            & journal               = m_machine.GetInputJournal();
+    InputJournal            & journal               = m_machine.GetHostInput().GetJournal();
     const KeyframeSettings  & kept                  = settings.keyframes;
+    size_t                    stepRoom              = static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack;
     bool                      isSameSettings        = false;
     bool                      isAtLiveEnd           = false;
     bool                      isNewestHere          = false;
@@ -92,7 +90,7 @@ HRESULT ReverseController::StartFromSaved (
 
     CBRA (cpu);
 
-    isSameSettings = !saved.segments.empty()                       &&
+    isSameSettings = !saved.segments.empty()                              &&
                      saved.settings.intervalCycles == kept.intervalCycles &&
                      saved.settings.wholeEvery     == kept.wholeEvery     &&
                      saved.settings.longestGroup   == kept.longestGroup;
@@ -103,35 +101,34 @@ HRESULT ReverseController::StartFromSaved (
 
     m_keyframes.Configure (kept);
 
-    hr = UseWorkQueue();
+    hr = m_capturer.UseWorkQueue();
     CHR (hr);
 
-    m_stepTable.Reserve          (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
-    m_search->ReserveStackLevels (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
+    m_stepTable.Reserve (stepRoom);
+    m_stepper.Reserve   (stepRoom);
 
-    m_machine.SetPosition (saved.segments[0].info.liveEndPosition);
+    m_machine.GetRunner().SetPosition (saved.segments[0].info.liveEndPosition);
 
     hr = m_keyframes.Import (saved, journal);
     CHR (hr);
 
-    m_machine.SetInputJournalOn  (true);
-    m_machine.SetHistoryRecorder (this);
+    m_machine.GetHostInput().SetJournalOn (true);
+    m_machine.GetRunner().SetHistoryRecorder (this);
 
     m_machine.GetDiskStore().SetFlushHold      (false);
     m_machine.GetDiskStore().SetMediaRetention (true);
 
-    m_isRecording = true;
-    m_isLive      = true;
+    m_span.Start();
 
-    isNewestHere = m_keyframes.GetInfo (m_keyframes.GetCount() - 1).cycle == cpu->GetHistoryCycles();
+    isNewestHere = m_keyframes.GetArena().GetInfo (m_keyframes.GetArena().GetCount() - 1).cycle == cpu->GetHistoryCycles();
 
     if (!isNewestHere)
     {
-        hr = CaptureBoundary (false, 0);
+        hr = m_capturer.CaptureBoundary (false, 0);
         CHR (hr);
     }
 
-    BecomeLive();
+    m_seeker.BecomeLive();
 
 Error:
     return hr;

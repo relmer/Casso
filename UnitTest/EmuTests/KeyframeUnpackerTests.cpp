@@ -52,12 +52,12 @@ public:
         Fill (store, kKeyframes, 1);
 
         //  Newest first, so older groups are met after the newest.
-        for (i = store.GetCount(); i-- > 0; )
+        for (i = store.GetArena().GetCount(); i-- > 0; )
         {
             hr = store.Restore (i, expected);
             AssertSucceeded (hr, L"Restore");
 
-            hr = store.CopyPacked (store.GetInfo (i).position, unpacker, packed, copy);
+            hr = store.CopyPacked (store.GetArena().GetInfo (i).position, unpacker, packed, copy);
             AssertSucceeded (hr, L"CopyPacked");
             Assert::IsTrue (copy == KeyframeCopy::Copied, L"copied");
 
@@ -85,7 +85,7 @@ public:
 
         Fill (store, s_kUnpackGroup * 2, 1);
 
-        hr = store.CopyPacked (store.GetInfo (1).position, unpacker, packed, copy);
+        hr = store.CopyPacked (store.GetArena().GetInfo (1).position, unpacker, packed, copy);
         AssertSucceeded (hr, L"CopyPacked");
         Assert::IsFalse (packed.whole.empty(),      L"the unpacker holds nothing yet: the whole snapshot comes along");
         Assert::IsFalse (packed.difference.empty(), L"with the difference");
@@ -93,7 +93,7 @@ public:
         hr = unpacker.Unpack (packed, state);
         AssertSucceeded (hr, L"Unpack");
 
-        hr = store.CopyPacked (store.GetInfo (2).position, unpacker, packed, copy);
+        hr = store.CopyPacked (store.GetArena().GetInfo (2).position, unpacker, packed, copy);
         AssertSucceeded (hr, L"CopyPacked a neighbor");
         Assert::IsTrue  (packed.whole.empty(),      L"the same group: only the difference is copied");
         Assert::IsFalse (packed.difference.empty(), L"the difference");
@@ -101,7 +101,7 @@ public:
         hr = unpacker.Unpack (packed, state);
         AssertSucceeded (hr, L"Unpack the neighbor");
 
-        hr = store.CopyPacked (store.GetInfo (s_kUnpackGroup + 1).position, unpacker, packed, copy);
+        hr = store.CopyPacked (store.GetArena().GetInfo (s_kUnpackGroup + 1).position, unpacker, packed, copy);
         AssertSucceeded (hr, L"CopyPacked from the next group");
         Assert::IsFalse (packed.whole.empty(), L"another group: its whole snapshot comes along");
     }

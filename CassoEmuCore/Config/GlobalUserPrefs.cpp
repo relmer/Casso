@@ -52,6 +52,10 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "$cassoGlobalPrefsVersion",
     "activeTheme",
     "crtMonitor",
+    "autoHideDrives",
+    "deskFloppies",
+    "deskHardDisks",
+    "deskFloppyPairBeside",
     "showFrameRate",
     "showSceneView",
     "sceneAntiAliasing",
@@ -117,12 +121,14 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerSerialLogOptions",
     "debuggerNetworkLogOptions",
     "debuggerEchoActions",
+    "debuggerLinksInFileExplorer",
     "debuggerSkipNotice",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
     "debuggerProgramSourceFolders",
-    "debuggerWindowState"
+    "debuggerWindowState",
+    "diskInspector"
 };
 
 
@@ -1213,6 +1219,10 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
+    root.emplace_back ("autoHideDrives",        JsonValue (autoHideDrives));
+    root.emplace_back ("deskFloppies",          JsonValue (deskFloppies));
+    root.emplace_back ("deskHardDisks",         JsonValue (deskHardDisks));
+    root.emplace_back ("deskFloppyPairBeside",  JsonValue (deskFloppyPairBeside));
     root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
     root.emplace_back ("showSceneView",         JsonValue (showSceneView));
     root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
@@ -1316,6 +1326,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerSerialLogOptions",   JsonValue (debugger.serialLogOptions));
     root.emplace_back ("debuggerNetworkLogOptions",  JsonValue (debugger.networkLogOptions));
     root.emplace_back ("debuggerEchoActions",        JsonValue (debugger.echoActions));
+    root.emplace_back ("debuggerLinksInFileExplorer", JsonValue (debugger.linksInFileExplorer));
     root.emplace_back ("debuggerSkipNotice",         JsonValue (debugger.skipNoticeShown));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
@@ -1365,6 +1376,12 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("autoSaveMachineState", JsonValue (autoSaveMachineState));
     root.emplace_back ("pendingUpdateKind",    JsonValue (pendingUpdateKind));
     root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
+
+    // The disk inspector's state, once the window has been opened.
+    if (diskInspector.IsSaved())
+    {
+        root.emplace_back ("diskInspector", diskInspector.ToJson (true));
+    }
 
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
@@ -1423,6 +1440,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue  * loadedArr        = nullptr;
     const JsonValue  * sourceFolderArr  = nullptr;
     const JsonValue  * programFolderObj = nullptr;
+    const JsonValue  * inspectorObj     = nullptr;
     std::string        inputModeStr;
     std::string        textModeStr;
     bool               legacyArrows     = false;
@@ -1441,6 +1459,10 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
+    autoHideDrives        = TryGetBoolOpt   (v, "autoHideDrives",          autoHideDrives);
+    deskFloppies          = GetStringOpt    (v, "deskFloppies",            deskFloppies);
+    deskHardDisks         = GetStringOpt    (v, "deskHardDisks",           deskHardDisks);
+    deskFloppyPairBeside  = TryGetBoolOpt   (v, "deskFloppyPairBeside",    deskFloppyPairBeside);
     showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);
     showSceneView         = TryGetBoolOpt   (v, "showSceneView",           showSceneView);
 
@@ -1602,6 +1624,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debugger.networkLogOptions  = GetStringOpt (v, "debuggerNetworkLogOptions",  debugger.networkLogOptions);
 
     debugger.echoActions     = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
+    debugger.linksInFileExplorer = TryGetBoolOpt (v, "debuggerLinksInFileExplorer", debugger.linksInFileExplorer);
     debugger.skipNoticeShown = TryGetBoolOpt (v, "debuggerSkipNotice",  debugger.skipNoticeShown);
 
     debugger.textZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debugger.textZoomPercent),
@@ -1669,6 +1692,12 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     pendingUpdateKind    = GetStringOpt (v, "pendingUpdateKind",    pendingUpdateKind);
     pendingUpdateFailure = (int) GetNumberOpt (v, "pendingUpdateFailure", (double) pendingUpdateFailure);
 
+    // The disk inspector's state; a field whose key is absent is its default.
+    if (v.HasObject ("diskInspector", inspectorObj))
+    {
+        diskInspector.FromJson (*inspectorObj);
+    }
+
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())
     {
@@ -1682,4 +1711,25 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::CopyUpdateFieldsFrom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::CopyUpdateFieldsFrom (const GlobalUserPrefs & other)
+{
+    autoUpdateCheck      = other.autoUpdateCheck;
+    lastUpdateCheckUtc   = other.lastUpdateCheckUtc;
+    latestKnownVersion   = other.latestKnownVersion;
+    skippedVersion       = other.skippedVersion;
+    pendingUpdateVersion = other.pendingUpdateVersion;
+    pendingUpdateKind    = other.pendingUpdateKind;
+    pendingUpdateFailure = other.pendingUpdateFailure;
 }

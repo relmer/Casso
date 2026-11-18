@@ -45,7 +45,7 @@ void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
     DxuiStripMark             strip;
     std::wstring              top;
     std::wstring              bottom;
-    uint64_t                  endCycle = m_endCycle.load (std::memory_order_acquire);
+    uint64_t                  endCycle = m_playhead.GetEndCycle();
 
 
 
@@ -56,7 +56,7 @@ void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
 
         for (const HistoryMark & mark : m_marks)
         {
-            strip.offset = HistoryThumbnailGrid::GetPlayheadOffset (m_cells, mark.cycle, endCycle);
+            strip.offset = HistoryCellGrid::GetPlayheadOffset (m_cells, mark.cycle, endCycle);
 
             if (strip.offset < 0.0f)
             {
@@ -75,11 +75,9 @@ void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
         }
     }
 
-    for (size_t i = 0; i < marks.size() && m_labeler; i++)
+    for (size_t i = 0; i < marks.size(); i++)
     {
-        m_labeler (marks[i].cycle, m_wallTimes.GetWallTimeAt (marks[i].cycle), top, bottom);
-
-        if (!top.empty())
+        if (m_playhead.LabelAt (marks[i].cycle, top, bottom) && !top.empty())
         {
             outMarks[i].tip += L" at " + top;
         }
@@ -243,7 +241,7 @@ void HistoryThumbnails::GetForkRows (
     active.id           = kActiveBranchId;
     active.forkPosition = markId;
     active.forkCycle    = branches.front().forkCycle;
-    active.liveEndCycle = m_endCycle.load (std::memory_order_acquire);
+    active.liveEndCycle = m_playhead.GetEndCycle();
 
     branches.insert (branches.begin(), active);
 

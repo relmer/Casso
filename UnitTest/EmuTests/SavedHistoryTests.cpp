@@ -51,8 +51,8 @@ namespace SavedHistoryTests
             for (uint64_t slice = 0; slice < cycles / kSlice; slice++)
             {
                 ReverseSessionRig::Feed (machine, static_cast<size_t> (slice));
-                machine.SampleHostInputs();
-                machine.RunCycles (kSlice);
+                machine.GetHostInput().Sample();
+                machine.GetRunner().RunCycles (kSlice);
             }
         }
 
@@ -73,7 +73,7 @@ namespace SavedHistoryTests
 
             Run (machine, kRecordCycles);
 
-            hr = host.Execute (ReverseCommand::Seek, machine.GetPosition() - kBack, nullptr, result);
+            hr = host.Execute (ReverseCommand::Seek, machine.GetRunner().GetPosition() - kBack, nullptr, result);
             AssertSucceeded (hr, L"Seek");
 
             hr = host.Fork();
@@ -378,16 +378,16 @@ namespace SavedHistoryTests
 
             RecordWithFork (machine, host);
 
-            before = machine.GetPosition();
+            before = machine.GetRunner().GetPosition();
             sum    = ReverseSessionRig::Checksum (machine);
 
             hr = host.Execute (ReverseCommand::SwitchBranch, 0xFFFF, nullptr, result);
             AssertSucceeded (hr, L"SwitchBranch");
 
             Assert::IsTrue             (result.outcome == ReverseOutcome::Stopped,   L"the switch stopped");
-            Assert::AreEqual<uint64_t> (before, machine.GetPosition(),               L"at the same position");
+            Assert::AreEqual<uint64_t> (before, machine.GetRunner().GetPosition(),               L"at the same position");
             Assert::AreEqual<uint64_t> (sum,    ReverseSessionRig::Checksum (machine), L"with the same machine");
-            Assert::AreEqual<size_t>   (1,      host.GetController().GetKeyframes().GetBranchCount(), L"the branch left behind is kept");
+            Assert::AreEqual<size_t>   (1,      host.GetController().GetKeyframes().GetArena().GetBranchCount(), L"the branch left behind is kept");
         }
 
 
@@ -407,14 +407,14 @@ namespace SavedHistoryTests
             RecordWithFork (machine, host);
 
             store = &host.GetController().GetKeyframes();
-            store->GetBranches (branches);
+            store->GetArena().GetBranches (branches);
             Assert::AreEqual<size_t> (1, branches.size(), L"a branch left behind");
 
             store->DropBranchesForkedAfter (branches[0].forkPosition);
-            Assert::AreEqual<size_t> (1, store->GetBranchCount(), L"a cut at the fork keeps the branch");
+            Assert::AreEqual<size_t> (1, store->GetArena().GetBranchCount(), L"a cut at the fork keeps the branch");
 
             store->DropBranchesForkedAfter (branches[0].forkPosition - 1);
-            Assert::AreEqual<size_t> (0, store->GetBranchCount(), L"a cut before it drops the branch");
+            Assert::AreEqual<size_t> (0, store->GetArena().GetBranchCount(), L"a cut before it drops the branch");
         }
 
         //  The history of a machine with a fork, saved and loaded into
@@ -463,7 +463,7 @@ namespace SavedHistoryTests
 
 
 
-                hr = target.LoadState (reader);
+                hr = target.GetStateStream().LoadState (reader);
                 AssertSucceeded (hr, L"LoadState");
             }
 
@@ -471,18 +471,18 @@ namespace SavedHistoryTests
             AssertSucceeded (hr, L"StartRecordingFromSaved");
 
             Assert::IsTrue             (targetHost.IsRecording(),                                             L"recording from the saved history");
-            Assert::AreEqual<uint64_t> (source.GetPosition(), target.GetPosition(),                           L"at the same live end");
+            Assert::AreEqual<uint64_t> (source.GetRunner().GetPosition(), target.GetRunner().GetPosition(),                           L"at the same live end");
             Assert::AreEqual<uint64_t> (ReverseSessionRig::Checksum (source), ReverseSessionRig::Checksum (target), L"with the same machine");
-            Assert::AreEqual<uint64_t> (sourceHost.GetController().GetOldestPosition(), targetHost.GetController().GetOldestPosition(), L"and the same oldest point");
+            Assert::AreEqual<uint64_t> (sourceHost.GetController().GetSeeker().GetOldestPosition(), targetHost.GetController().GetSeeker().GetOldestPosition(), L"and the same oldest point");
 
-            for (size_t i = 0; i < sourceHost.GetController().GetKeyframes().GetCount(); i++)
+            for (size_t i = 0; i < sourceHost.GetController().GetKeyframes().GetArena().GetCount(); i++)
             {
-                Assert::AreEqual<uint64_t> (sourceHost.GetController().GetKeyframes().GetInfo (i).checksum,
-                                            targetHost.GetController().GetKeyframes().GetInfo (i).checksum, L"the same keyframe");
+                Assert::AreEqual<uint64_t> (sourceHost.GetController().GetKeyframes().GetArena().GetInfo (i).checksum,
+                                            targetHost.GetController().GetKeyframes().GetArena().GetInfo (i).checksum, L"the same keyframe");
             }
 
-            sourceHost.GetController().GetKeyframes().GetBranches (sourceBranches);
-            targetHost.GetController().GetKeyframes().GetBranches (targetBranches);
+            sourceHost.GetController().GetKeyframes().GetArena().GetBranches (sourceBranches);
+            targetHost.GetController().GetKeyframes().GetArena().GetBranches (targetBranches);
 
             Assert::AreEqual<size_t>   (1, targetBranches.size(),                                    L"the branch came with it");
             Assert::AreEqual<uint32_t> (sourceBranches[0].id,              targetBranches[0].id,              L"the same branch");
@@ -495,10 +495,10 @@ namespace SavedHistoryTests
             hr = targetHost.Execute (ReverseCommand::SwitchBranch, targetBranches[0].id, nullptr, result);
             AssertSucceeded (hr, L"the second machine's switch");
 
-            Assert::AreEqual<uint64_t> (source.GetPosition(), target.GetPosition(),                           L"both at the branch's live end");
+            Assert::AreEqual<uint64_t> (source.GetRunner().GetPosition(), target.GetRunner().GetPosition(),                           L"both at the branch's live end");
             Assert::AreEqual<uint64_t> (ReverseSessionRig::Checksum (source), ReverseSessionRig::Checksum (target), L"with the same machine");
 
-            oldest = targetHost.GetController().GetOldestPosition() + kBack;
+            oldest = targetHost.GetController().GetSeeker().GetOldestPosition() + kBack;
 
             hr = sourceHost.Execute (ReverseCommand::Seek, oldest, nullptr, result);
             AssertSucceeded (hr, L"the first machine's seek");
@@ -559,9 +559,9 @@ namespace SavedHistoryTests
             hr = store.Import (saved, journal);
             AssertSucceeded (hr, L"Import");
 
-            Assert::AreEqual<size_t>   (0, store.GetBranchCount(),  L"no branch left");
-            Assert::IsTrue             (store.GetCount() > 0,       L"the active path's newest group kept");
-            Assert::AreEqual<uint64_t> (saved.segments[0].infos.back().position, store.GetInfo (store.GetCount() - 1).position, L"its newest keyframe");
+            Assert::AreEqual<size_t>   (0, store.GetArena().GetBranchCount(),  L"no branch left");
+            Assert::IsTrue             (store.GetArena().GetCount() > 0,       L"the active path's newest group kept");
+            Assert::AreEqual<uint64_t> (saved.segments[0].infos.back().position, store.GetArena().GetInfo (store.GetArena().GetCount() - 1).position, L"its newest keyframe");
         }
 
 
@@ -590,7 +590,7 @@ namespace SavedHistoryTests
             hr = store.Import (saved, journal);
 
             Assert::AreEqual         (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"refused");
-            Assert::AreEqual<size_t> (0, store.GetCount(), L"no keyframe");
+            Assert::AreEqual<size_t> (0, store.GetArena().GetCount(), L"no keyframe");
             Assert::AreEqual<size_t> (journal.GetBeginIndex(), journal.GetEndIndex(), L"no record");
         }
 
@@ -622,7 +622,7 @@ namespace SavedHistoryTests
             hr = store.Import (saved, journal);
 
             Assert::AreEqual         (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"refused");
-            Assert::AreEqual<size_t> (0, store.GetCount(), L"no keyframe");
+            Assert::AreEqual<size_t> (0, store.GetArena().GetCount(), L"no keyframe");
         }
 
 
@@ -667,15 +667,15 @@ namespace SavedHistoryTests
 
             ReverseSessionRig::Prepare (iie);
 
-            hr = iie.ComputeStateFingerprint (first);
+            hr = iie.GetStateStream().ComputeFingerprint (first);
             AssertSucceeded (hr, L"the //e's fingerprint");
 
             Run (iie, kBranchCycles);
 
-            hr = iie.ComputeStateFingerprint (later);
+            hr = iie.GetStateStream().ComputeFingerprint (later);
             AssertSucceeded (hr, L"the //e's fingerprint, later");
 
-            hr = iic.ComputeStateFingerprint (other);
+            hr = iic.GetStateStream().ComputeFingerprint (other);
             AssertSucceeded (hr, L"the //c's fingerprint");
 
             Assert::AreEqual<uint64_t> (first, later, L"running on keeps it");

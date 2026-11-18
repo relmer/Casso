@@ -80,7 +80,7 @@ namespace StateLoadHistoryTests
         //  Whether the journal has a StateLoad record at position.
         static bool HasStateLoadAt (ShellRig & rig, uint64_t position)
         {
-            const InputJournal  & journal = rig.shell->GetMachine().GetInputJournal();
+            const InputJournal  & journal = rig.shell->GetMachine().GetHostInput().GetJournal();
             bool                  isFound = false;
 
 
@@ -111,9 +111,9 @@ namespace StateLoadHistoryTests
             Load (target, bytes);
 
             Assert::IsTrue             (target.shell->GetHistory().IsRecording(),                                         L"recording");
-            Assert::AreEqual<uint64_t> (source.shell->GetMachine().GetPosition(), target.shell->GetMachine().GetPosition(), L"at the file's live end");
-            Assert::AreEqual<uint64_t> (GetController (source).GetOldestPosition(), GetController (target).GetOldestPosition(), L"with the file's history");
-            Assert::IsTrue             (GetController (target).GetKeyframes().GetCount() >= GetController (source).GetKeyframes().GetCount(), L"every keyframe of it");
+            Assert::AreEqual<uint64_t> (source.shell->GetMachine().GetRunner().GetPosition(), target.shell->GetMachine().GetRunner().GetPosition(), L"at the file's live end");
+            Assert::AreEqual<uint64_t> (GetController (source).GetSeeker().GetOldestPosition(), GetController (target).GetSeeker().GetOldestPosition(), L"with the file's history");
+            Assert::IsTrue             (GetController (target).GetKeyframes().GetArena().GetCount() >= GetController (source).GetKeyframes().GetArena().GetCount(), L"every keyframe of it");
         }
 
 
@@ -135,7 +135,7 @@ namespace StateLoadHistoryTests
             Load (target, bytes);
 
             Assert::IsTrue             (target.shell->GetHistory().IsRecording(),                                             L"recording");
-            Assert::AreEqual<uint64_t> (target.shell->GetMachine().GetPosition(), GetController (target).GetOldestPosition(), L"from the load");
+            Assert::AreEqual<uint64_t> (target.shell->GetMachine().GetRunner().GetPosition(), GetController (target).GetSeeker().GetOldestPosition(), L"from the load");
         }
 
 
@@ -151,21 +151,21 @@ namespace StateLoadHistoryTests
 
 
             source.RunFrames (kFrames);
-            live = source.shell->GetMachine().GetPosition();
+            live = source.shell->GetMachine().GetRunner().GetPosition();
 
             source.Reverse (ReverseCommand::Seek, live - ShellHistoryTests::kFrameCycles);
-            shown = source.shell->GetMachine().GetPosition();
+            shown = source.shell->GetMachine().GetRunner().GetPosition();
 
             bytes = Save (source, true);
 
-            Assert::AreEqual<uint64_t> (shown, source.shell->GetMachine().GetPosition(), L"the save leaves the machine where it was");
+            Assert::AreEqual<uint64_t> (shown, source.shell->GetMachine().GetRunner().GetPosition(), L"the save leaves the machine where it was");
             Assert::IsTrue             (source.shell->GetHistory().IsBehindLive(),          L"behind live");
 
             Load (target, bytes);
 
-            Assert::AreEqual<uint64_t> (shown, target.shell->GetMachine().GetPosition(), L"the load resumes there");
+            Assert::AreEqual<uint64_t> (shown, target.shell->GetMachine().GetRunner().GetPosition(), L"the load resumes there");
             Assert::IsTrue             (target.shell->GetHistory().IsBehindLive(),          L"behind live");
-            Assert::AreEqual<uint64_t> (live,  GetController (target).GetLiveEndPosition(), L"with the same live end");
+            Assert::AreEqual<uint64_t> (live,  GetController (target).GetSeeker().GetLiveEndPosition(), L"with the same live end");
         }
 
 
@@ -185,18 +185,18 @@ namespace StateLoadHistoryTests
             bytes = Save (rig, false);
 
             rig.RunFrames (kFrames);
-            oldest = GetController (rig).GetOldestPosition();
-            at     = rig.shell->GetMachine().GetPosition();
+            oldest = GetController (rig).GetSeeker().GetOldestPosition();
+            at     = rig.shell->GetMachine().GetRunner().GetPosition();
 
             Load (rig, bytes);
 
-            newest = GetController (rig).GetKeyframes().GetCount() - 1;
+            newest = GetController (rig).GetKeyframes().GetArena().GetCount() - 1;
 
             Assert::IsTrue             (rig.shell->GetHistory().IsRecording(),            L"recording");
-            Assert::AreEqual<uint64_t> (oldest, GetController (rig).GetOldestPosition(),  L"history before the load is kept");
+            Assert::AreEqual<uint64_t> (oldest, GetController (rig).GetSeeker().GetOldestPosition(),  L"history before the load is kept");
             Assert::IsTrue             (HasStateLoadAt (rig, at),                         L"the load is marked where it was made");
-            Assert::IsTrue             (GetController (rig).GetKeyframes().GetInfo (newest).isBoundary, L"a boundary keyframe holds the loaded machine");
-            Assert::AreEqual<uint64_t> (at, GetController (rig).GetKeyframes().GetInfo (newest).position, L"at the load");
+            Assert::IsTrue             (GetController (rig).GetKeyframes().GetArena().GetInfo (newest).isBoundary, L"a boundary keyframe holds the loaded machine");
+            Assert::AreEqual<uint64_t> (at, GetController (rig).GetKeyframes().GetArena().GetInfo (newest).position, L"at the load");
         }
 
 
@@ -214,12 +214,12 @@ namespace StateLoadHistoryTests
             bytes = Save (rig, false);
 
             rig.RunFrames (kFrames);
-            rig.Reverse (ReverseCommand::Seek, rig.shell->GetMachine().GetPosition() - ShellHistoryTests::kFrameCycles);
-            at = rig.shell->GetMachine().GetPosition();
+            rig.Reverse (ReverseCommand::Seek, rig.shell->GetMachine().GetRunner().GetPosition() - ShellHistoryTests::kFrameCycles);
+            at = rig.shell->GetMachine().GetRunner().GetPosition();
 
             Load (rig, bytes);
 
-            GetController (rig).GetKeyframes().GetBranches (branches);
+            GetController (rig).GetKeyframes().GetArena().GetBranches (branches);
 
             Assert::AreEqual<size_t>   (1, branches.size(),                     L"the future left behind is a branch");
             Assert::AreEqual<uint64_t> (at, branches[0].forkPosition,           L"forked at the load");
@@ -244,7 +244,7 @@ namespace StateLoadHistoryTests
             source.RunFrames (kFrames);
             bytes = Save (source, true);
 
-            target.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, kBudgetMb));
+            target.SetOptions (false);
 
             hr = target.shell->GetHistory().BuildSavedHistory (history, resumeAt);
             AssertSucceeded (hr, L"BuildSavedHistory");

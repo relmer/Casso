@@ -30,9 +30,9 @@ namespace DebuggerTests
         {
             "A",
             "=", "G", "GG", "IN", "KEY", "JSR", "NOP", "OUT", "LBR", "PROFILE", "SOUNDLOG", "STOPWATCH", "VIDEOLOG", "R", "POP", "PPOP", "PUSH", "P", "RTS", "T", "TF", "TL", "U",
-            "T-", "P-", "GU-", "G-", "LIVE",
+            "T-", "P-", "GU-", "G-", "LIVE", "SEEK",
             "BM", "BMA", "BMC", "BML", "BMG", "BMSAVE",
-            "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BPDISK", "BPBASIC", "BPBASICVAR", "BRKBASIC", "BPNAME", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
+            "BRK", "BRKOP", "BRKINT", "BRKUNINIT", "BPDISK", "BPBASIC", "BPBASICVAR", "BRKBASIC", "BPNAME", "BPLOG", "BPLOGS", "BPGROUP", "BP", "BPA", "BPR", "BPX", "BPIO", "BPM", "BPMR", "BPMW", "BPMV", "BPC", "BPD", "BPEDIT", "BPE", "BPL", "BPSAVE", "BPCHANGE",
             "LOAD", "SAVE", "PWD", "CD",
             "CYCLES", "RCC",
             "Z", "X", "B", "DB", "DB2", "DB4", "DB8", "DW", "DW2", "DW4", "ASC", "DF", "DA",
@@ -52,7 +52,7 @@ namespace DebuggerTests
             "MODE", "PAUSE", "BUDGET", "SWITCHES", "MAP", "STACK", "PATCH", "SRC", "SKIP", "CALLS", "HISTORY", "PANEL",
             "OUTPUT",
             "SAVESTATE",
-            "LOADSTATE", "PROJECT", "BASICSTEP", "BASICLINE", "BASICOUT", "BASICVARS", "BASICSTACK", "BASICLOAD", "BASICSAVE",
+            "LOADSTATE", "PROJECT", "BASICSTEP", "BASICLINE", "BASICOUT", "BASICVARS", "BASICSTACK", "BASICLOAD", "BASICSAVE", "BASICCLEAR",
             "RESET", "PASTE", "SCREEN", "SCREENSHOT", "EXIT",
         };
 

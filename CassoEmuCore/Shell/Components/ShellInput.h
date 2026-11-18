@@ -15,7 +15,7 @@
 class IInputHost;
 class JsonValue;
 class MachineHost;
-class ShellHistory;
+class ShellDebugger;
 
 
 
@@ -39,7 +39,7 @@ class ShellInput
 {
 public:
 
-    ShellInput (IInputHost & host, MachineHost & machine, ShellHistory & history);
+    ShellInput (IInputHost & host, MachineHost & machine, ShellDebugger & debugger);
     ~ShellInput();
 
     // The game port's sink and the controller stack, brought up once the
@@ -68,7 +68,7 @@ public:
     void  PasteClipboardText ();
 
     // PASTE's text, typed as a paste of the clipboard is. QueuePasteText may
-    // be called from any thread and posts WM_APP_PASTE_TEXT; the window calls
+    // be called from any thread and posts (UINT) AppMessage::ShellPasteText; the window calls
     // DeliverQueuedPaste for it on the UI thread.
     void  QueuePasteText     (const std::wstring & text);
     void  DeliverQueuedPaste ();
@@ -180,7 +180,7 @@ private:
 
     IInputHost     & m_host;
     MachineHost    & m_machine;
-    ShellHistory   & m_history;
+    ShellDebugger  & m_debugger;
 
     // How the host's arrow keys and pointer stand in for the game port.
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse

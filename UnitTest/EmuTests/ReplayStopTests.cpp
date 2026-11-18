@@ -92,15 +92,15 @@ public:
 
         PrepareRecording (machine, host, control);
 
-        from   = machine.GetPosition();
-        oldest = host.GetController().GetOldestPosition();
+        from   = machine.GetRunner().GetPosition();
+        oldest = host.GetController().GetSeeker().GetOldestPosition();
 
         hr = host.Execute (ReverseCommand::ReverseContinue, 0, &test, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Stopped, L"the run reports it was stopped");
-        Assert::IsTrue (machine.GetPosition() < from,   L"it moved back from where it began");
-        Assert::IsTrue (machine.GetPosition() > oldest, L"and stopped short of the start of history");
+        Assert::IsTrue (machine.GetRunner().GetPosition() < from,   L"it moved back from where it began");
+        Assert::IsTrue (machine.GetRunner().GetPosition() > oldest, L"and stopped short of the start of history");
         Assert::IsTrue (host.IsBehindLive(), L"behind live");
     }
 
@@ -152,14 +152,14 @@ public:
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBack");
 
-        from = machine.GetPosition();
+        from = machine.GetRunner().GetPosition();
         control.isStopRequested.store (true);
 
         hr = host.Execute (ReverseCommand::StepBackOut, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Stopped, L"the step reports it was stopped");
-        Assert::AreEqual<uint64_t> (from, machine.GetPosition(), L"and stayed where it was");
+        Assert::AreEqual<uint64_t> (from, machine.GetRunner().GetPosition(), L"and stayed where it was");
     }
 
 
@@ -205,9 +205,9 @@ private:
         hr = host.StartRecording (ReverseHost::MakeSettings (s_kStopBudgetMb, 1));
         AssertSucceeded (hr, L"StartRecording");
 
-        host.GetController().SetReplayControl (&control);
+        host.GetController().GetSeeker().SetReplayControl (&control);
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kStopWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStopWarmupCycles);
     }
 };

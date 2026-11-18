@@ -52,6 +52,27 @@ Disk2NibbleEngine::~Disk2NibbleEngine()
 
 uint8_t Disk2NibbleEngine::PeekLatchAfter (uint32_t cpuCycles) const
 {
+    Disk2NibbleEngine  copy = MakePeekCopy();
+
+
+
+    copy.AdvancePeekCopy (cpuCycles);
+
+    return copy.m_readLatch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakePeekCopy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Disk2NibbleEngine Disk2NibbleEngine::MakePeekCopy() const
+{
     Disk2NibbleEngine  copy = *this;
 
 
@@ -59,12 +80,63 @@ uint8_t Disk2NibbleEngine::PeekLatchAfter (uint32_t cpuCycles) const
     copy.m_burstActive = false;
     copy.m_burstBits.clear();
 
-    copy.Tick (cpuCycles);
+    return copy;
+}
 
-    copy.m_burstActive = false;
-    copy.m_burstBits.clear();
 
-    return copy.m_readLatch;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvancePeekCopy
+//
+//  A write the run begins is cleared after it, as MakePeekCopy clears one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::AdvancePeekCopy (uint32_t cpuCycles)
+{
+    Tick (cpuCycles);
+
+    m_burstActive = false;
+    m_burstBits.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSameReadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2NibbleEngine::IsSameReadState (const Disk2NibbleEngine & other) const
+{
+    return m_disk             == other.m_disk             &&
+           m_currentTrack     == other.m_currentTrack     &&
+           m_motorOn          == other.m_motorOn          &&
+           m_writeMode        == other.m_writeMode        &&
+           m_shiftLoadMode    == other.m_shiftLoadMode    &&
+           m_bitPos           == other.m_bitPos           &&
+           m_lssState         == other.m_lssState         &&
+           m_lssClock         == other.m_lssClock         &&
+           m_readLatch        == other.m_readLatch        &&
+           m_bus              == other.m_bus              &&
+           m_latchIsFresh     == other.m_latchIsFresh     &&
+           m_headWindow       == other.m_headWindow       &&
+           m_weakRngState     == other.m_weakRngState     &&
+           m_slot             == other.m_slot             &&
+           m_isFluxSlot       == other.m_isFluxSlot       &&
+           m_layoutGeneration == other.m_layoutGeneration &&
+           m_fluxNow          == other.m_fluxNow          &&
+           m_fluxDue          == other.m_fluxDue          &&
+           m_fluxLastPulse    == other.m_fluxLastPulse    &&
+           m_fluxRevUnits     == other.m_fluxRevUnits     &&
+           m_fluxPulseClock   == other.m_fluxPulseClock   &&
+           m_fluxPulseCount   == other.m_fluxPulseCount;
 }
 
 
@@ -609,6 +681,86 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
     {
         StepLss();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::StepCell (bool isWriting, uint8_t bit)
+{
+    constexpr int  kLssClocksPerCell = 8;
+    bool           hasTrack          = false;
+    bool           writing           = false;
+    uint8_t        pulse             = 0;
+    size_t         trackBits         = 0;
+
+
+
+    if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
+    {
+        RefreshSlot();
+    }
+
+    hasTrack = (m_slot >= 0);
+    writing  = isWriting && hasTrack && !m_disk->IsWriteProtected();
+
+    if (m_isFluxSlot)
+    {
+        for (m_lssClock = 0; m_lssClock < kLssClocksPerCell; m_lssClock++)
+        {
+            m_fluxNow += kFluxUnitsPerLssClock;
+
+            if (m_lssClock == kLssReadClock || m_fluxNow >= m_fluxDue)
+            {
+                pulse = (uint8_t) (pulse | StepFluxPulse());
+            }
+        }
+
+        m_lssClock = 0;
+
+        if (writing)
+        {
+            RecordFluxWriteBit (bit);
+        }
+        else if (m_burstActive)
+        {
+            CommitPendingWrite();
+        }
+    }
+    else if (hasTrack)
+    {
+        pulse = ApplyHeadWindow (m_disk->ReadBit (m_slot, m_bitPos));
+
+        if (writing)
+        {
+            m_disk->WriteBit (m_slot, m_bitPos, bit);
+        }
+
+        trackBits = m_disk->GetTrackBitCount (m_slot);
+
+        if (trackBits > 0)
+        {
+            m_bitPos = (m_bitPos + 1) % trackBits;
+        }
+    }
+    else
+    {
+        pulse = ApplyHeadWindow (0);
+
+        if (m_disk != nullptr)
+        {
+            m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
+        }
+    }
+
+    return pulse;
 }
 
 

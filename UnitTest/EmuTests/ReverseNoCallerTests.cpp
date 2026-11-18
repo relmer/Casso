@@ -50,18 +50,18 @@ public:
         RunRecorded (machine, recorder, s_kNoCallerWarmupSteps);
         RunRecordedTo (machine, recorder, ReverseSessionRig::kCallSite);
 
-        controller.SetReplayControl (&control);
+        controller.GetSeeker().SetReplayControl (&control);
 
-        position = machine.GetPosition();
+        position = machine.GetRunner().GetPosition();
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::NoCaller, L"no call entered the top level");
-        Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the machine stays where it is");
+        Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the machine stays where it is");
         Assert::AreEqual<uint64_t> (position, result.position);
-        Assert::IsFalse (controller.IsInHistory(),                    L"still live");
-        Assert::AreEqual<size_t> (0, controller.GetTableBuildCount(), L"nothing was replayed");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(),                    L"still live");
+        Assert::AreEqual<size_t> (0, controller.GetStepTable().GetBuildCount(), L"nothing was replayed");
         Assert::AreEqual (ReplayControl::kNoProgress, control.progress.load(), L"no search reported progress");
     }
 
@@ -84,11 +84,11 @@ public:
         RunRecorded (machine, recorder, s_kNoCallerWarmupSteps);
         RunRecordedTo (machine, recorder, ReverseSessionRig::kCallSite);
 
-        call = machine.GetPosition();
+        call = machine.GetRunner().GetPosition();
 
         RunRecordedTo (machine, recorder, ReverseSessionRig::kRoutinePla);
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"the caller was found");
@@ -121,14 +121,14 @@ public:
         Start (machine, controller, recorder);
         RunRecordedTo (machine, recorder, ReverseSessionRig::kRoutinePla);
 
-        position = machine.GetPosition();
+        position = machine.GetRunner().GetPosition();
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::NoCaller, L"the JSR came before history");
-        Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the machine stays where it is");
-        Assert::AreEqual<size_t> (0, controller.GetTableBuildCount(), L"nothing was replayed");
+        Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the machine stays where it is");
+        Assert::AreEqual<size_t> (0, controller.GetStepTable().GetBuildCount(), L"nothing was replayed");
     }
 
 
@@ -147,12 +147,12 @@ public:
         ReverseSessionRig::Prepare (machine);
         Start (machine, controller, recorder);
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * 2);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * 2);
 
         Begin (machine, recorder, false);
         RunRecordedTo (machine, recorder, ReverseSessionRig::kCallSite);
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"searched to the start of history");
@@ -196,7 +196,7 @@ private:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        controller.SetCallerProbe ([&machine, &recorder] (uint64_t historyStartCycle)
+        controller.GetStepper().SetCallerProbe ([&machine, &recorder] (uint64_t historyStartCycle)
         {
             recorder.Settle (machine.GetCpu()->GetPC(), machine.GetCpu()->GetSP());
 
@@ -217,7 +217,7 @@ private:
             pc = machine.GetCpu()->GetPC();
 
             recorder.OnInstruction (pc, machine.GetCpu()->GetSP(), machine.GetMemoryBus().ReadByte (pc));
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
     }
 

@@ -19,8 +19,9 @@ class MachineHost;
 //  fetch counts as one instruction. Called on the thread that runs the
 //  machine.
 //
-//  The per-instruction part is forced inline and not virtual: it is one
-//  compare of the cycle count, and only a snapshot falling due, a few times
+//  The per-instruction part is forced inline and not virtual: it sets the bit
+//  of the page the instruction starts on and compares the cycle count, and
+//  only a snapshot falling due, a few times
 //  a second, reaches the derived class through OnCaptureDue. Left to the
 //  compiler it stayed a call.
 //
@@ -42,8 +43,11 @@ public:
     __forceinline void  OnInstructionStart (const Cpu6502 & cpu)
     {
         uint64_t  cycle = cpu.GetHistoryCycleCount();        // inline: no virtual call
+        Word      page  = (Word) (cpu.GetPC() >> 8);
 
 
+
+        m_pagesRun[page >> 6] |= 1ull << (page & 63);
 
         if (cycle >= m_nextDueCycle)
         {
@@ -68,6 +72,7 @@ protected:
     virtual void        OnCaptureDue (uint64_t cycle) = 0;
     virtual void        OnArrived    () {}
 
-    uint64_t  m_nextDueCycle = 0;     // the first cycle at which OnCaptureDue is called
-    bool      m_isArrivalDue = false; // whether OnArrived is called after each instruction
+    uint64_t                 m_nextDueCycle = 0;     // the first cycle at which OnCaptureDue is called
+    bool                     m_isArrivalDue = false; // whether OnArrived is called after each instruction
+    std::array<uint64_t, 4>  m_pagesRun     = {};    // a bit for each 256-byte page an instruction started on since the derived class cleared it
 };

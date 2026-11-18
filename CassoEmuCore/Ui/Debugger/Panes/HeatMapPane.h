@@ -7,6 +7,7 @@
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 
 class HeatMapBarCommands;
+class MemoryAddressEntry;
 
 
 
@@ -54,11 +55,11 @@ public:
 
     //  A set renamed: the set left out of the reads before written follows
     //  the new name when it was that set.
-    void                                 RenameIgnoreSet (const std::string & from, const std::string & to);
-    void                                 RunBarEntry  (int id);
-    bool                                 IsBarEnabled (int id) const;
-    bool                                 IsBarChecked (int id) const;
-    std::wstring                         GetBarLabel  (int id) const;
+    void          RenameIgnoreSet (const std::string & from, const std::string & to);
+    void          RunBarEntry     (int id);
+    bool          IsBarEnabled    (int id) const;
+    bool          IsBarChecked    (int id) const;
+    std::wstring  GetBarLabel     (int id) const;
 
     //  The rows a menu on a byte or a cell gets for its last write and read:
     //  show each in the disassembly, or go back to it.
@@ -85,20 +86,39 @@ public:
     std::vector<DxuiToolbar *>       GetBars             () const override { return { m_bar.GetBar(), m_viewBar }; }
     std::optional<PaneColorKeySpec>  GetColorKey         () const override;
     void                             Apply               (const DebuggerViewSnapshot & snapshot) override;
+
+    //  The theme's heat colors into the map, as at a snapshot: a theme chosen
+    //  while the machine is stopped comes with no snapshot.
+    void                             ApplyPalette        ();
     bool                             Tick                (int64_t nowMs) override;
     void                             OnProjectSwitched   () override;
     void                             PlaceBar            () override;
-    bool                             RouteEarlyMouse     (const DxuiMouseEvent & ev) override;
     bool                             RouteBarMouse       (const DxuiMouseEvent & ev) override;
     bool                             RouteContentMouse   (const DxuiMouseEvent & ev) override;
+    bool                             ZoomContent         (float notches, std::optional<POINT> clientPx) override;
+    bool                             ResetContentZoom    () override;
     bool                             TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    std::vector<IDxuiControl *>      GetPressTargets     () const override { return { m_box }; }
+    std::vector<DxuiTextInput *>     GetTextBoxes        () const override { return { m_box }; }
+    bool                             SubmitTextBox       (DxuiTextInput * box) override;
+
+    //  The address box on the bar. Enter moves the map to its address.
+    DxuiTextInput                  * GetAddressBox       () const { return m_box; }
+
+    //  An access row's label and whether it is on, for the cell's accesses
+    //  as the machine looked them up, or none yet. Only a machine behind
+    //  live, at `cycles`, can go forward to an access.
+    static std::wstring  GetAccessLabel     (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles, bool isBehindLive);
+    static bool          IsAccessRowEnabled (const HeatAccessHover * hover, bool isWrite, bool isRewind);
 
 private:
     void  SetIgnoreMenu  ();
     void  RequestAccess  (Word address, HeatMapView::PickAction action, HeatMapOptions::Bank bank);
     void  SendHover      (std::optional<Word> address);
     void  SaveOptions    (const HeatMapOptions & options);
+    void  SetBarEntries  (bool isCumulative);
+    void  ApplyGoTo      (const DebuggerViewSnapshot & snapshot);
 
     Ranges                                       m_ranges;
     PaneBarSlot                                  m_bar;
@@ -110,14 +130,26 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>    m_viewCommands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_bankCommands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_ignoreCommands;
-    std::string                                  m_ignoreWords;
+    std::vector<std::pair<Word, Word>>           m_ignoreSpans;
+    bool                                         m_isIgnoreSent  = false;
     std::vector<HeatMapOptions::Bank>            m_banks;
     uint64_t                                     m_appliedSerial = 0;
+
+    //  The address box, its entry on the bar, and the last Go to it acted on.
+    DxuiTextInput                              * m_box           = nullptr;
+    std::unique_ptr<MemoryAddressEntry>          m_addressEntry;
+    uint32_t                                     m_goToSerial    = 0;
 
     //  The point the tip over the map is for, and whether it is pending until
     //  a snapshot brings the cell's last writer and reader.
     std::optional<POINT>                         m_tipAt;
-    bool                                         m_isTipPending  = false;
+
+    //  The last cell's accesses the machine looked up, and the CPU's cycle
+    //  at the last snapshot and whether it was behind live, for the access
+    //  rows of a menu.
+    std::shared_ptr<const HeatAccessHover>       m_hover;
+    uint64_t                                     m_cycles        = 0;
+    bool                                         m_isBehindLive  = false;
 
     //  When the wheel last zoomed the map. TryGetTip returns false for
     //  kZoomQuietMs after, since each notch moves every cell under the pointer and a tip

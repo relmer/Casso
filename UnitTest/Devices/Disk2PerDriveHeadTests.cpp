@@ -60,19 +60,19 @@ namespace Disk2PerDriveHeadTests
             ctrl->Write (kMotorOn, 0x00);
             ctrl->Write (kSelect1, 0x00);
             SeekToQuarterTrackFour (*ctrl);
-            Assert::AreEqual (4, ctrl->GetQuarterTrack (kDrive1));
-            Assert::AreEqual (0, ctrl->GetQuarterTrack (kDrive2), L"drive 2's head has not moved");
+            Assert::AreEqual (4, ctrl->GetDrive (kDrive1).GetQuarterTrack());
+            Assert::AreEqual (0, ctrl->GetDrive (kDrive2).GetQuarterTrack(), L"drive 2's head has not moved");
 
             ctrl->Write (kSelect2, 0x00);
-            Assert::AreEqual (0, ctrl->GetQuarterTrack(), L"drive 2's head is where it was after the select");
+            Assert::AreEqual (0, ctrl->GetLines().GetQuarterTrack(), L"drive 2's head is where it was after the select");
 
             ctrl->Write (kPhase1On,  0x00);
             ctrl->Write (kPhase1Off, 0x00);
-            Assert::AreEqual (2, ctrl->GetQuarterTrack (kDrive2));
-            Assert::AreEqual (4, ctrl->GetQuarterTrack (kDrive1), L"drive 1's head has not moved");
+            Assert::AreEqual (2, ctrl->GetDrive (kDrive2).GetQuarterTrack());
+            Assert::AreEqual (4, ctrl->GetDrive (kDrive1).GetQuarterTrack(), L"drive 1's head has not moved");
 
             ctrl->Write (kSelect1, 0x00);
-            Assert::AreEqual (4, ctrl->GetQuarterTrack(), L"selecting drive 1 again finds its head where it was");
+            Assert::AreEqual (4, ctrl->GetLines().GetQuarterTrack(), L"selecting drive 1 again finds its head where it was");
         }
 
         TEST_METHOD (EachEngineIsOnItsOwnDrivesTrack)
@@ -88,8 +88,8 @@ namespace Disk2PerDriveHeadTests
             ctrl->Write (kSelect1, 0x00);
             ctrl->Write (kSelect2, 0x00);
 
-            Assert::AreEqual (4, ctrl->GetEngine (kDrive1).GetCurrentTrack(), L"drive 1's engine");
-            Assert::AreEqual (0, ctrl->GetEngine (kDrive2).GetCurrentTrack(), L"drive 2's engine, not drive 1's position");
+            Assert::AreEqual (4, ctrl->GetDrive (kDrive1).GetEngine().GetCurrentTrack(), L"drive 1's engine");
+            Assert::AreEqual (0, ctrl->GetDrive (kDrive2).GetEngine().GetCurrentTrack(), L"drive 2's engine, not drive 1's position");
         }
 
         TEST_METHOD (ABumpMovesNeitherHead)
@@ -106,8 +106,8 @@ namespace Disk2PerDriveHeadTests
             ctrl->Write (kSelect1, 0x00);
             ctrl->Write (kPhase3On, 0x00);
 
-            Assert::AreEqual (0, ctrl->GetQuarterTrack (kDrive1), L"drive 1's head at the outer stop");
-            Assert::AreEqual (2, ctrl->GetQuarterTrack (kDrive2), L"drive 2's head where it was");
+            Assert::AreEqual (0, ctrl->GetDrive (kDrive1).GetQuarterTrack(), L"drive 1's head at the outer stop");
+            Assert::AreEqual (2, ctrl->GetDrive (kDrive2).GetQuarterTrack(), L"drive 2's head where it was");
         }
 
 
@@ -121,14 +121,14 @@ namespace Disk2PerDriveHeadTests
 
 
             ctrl->Write (kPhase1On, 0x00);
-            Assert::AreEqual (0, ctrl->GetQuarterTrack(), L"the motor off, the phase moves nothing");
+            Assert::AreEqual (0, ctrl->GetLines().GetQuarterTrack(), L"the motor off, the phase moves nothing");
 
             ctrl->Write (kMotorOn, 0x00);
-            Assert::AreEqual (2, ctrl->GetQuarterTrack(), L"the motor on, the phase on pulls the head");
+            Assert::AreEqual (2, ctrl->GetLines().GetQuarterTrack(), L"the motor on, the phase on pulls the head");
 
             ctrl->Write (kPhase1Off, 0x00);
             ctrl->Write (kPhase2On,  0x00);
-            Assert::AreEqual (4, ctrl->GetQuarterTrack(), L"and the next phase steps it");
+            Assert::AreEqual (4, ctrl->GetLines().GetQuarterTrack(), L"and the next phase steps it");
         }
 
 
@@ -143,14 +143,14 @@ namespace Disk2PerDriveHeadTests
             ctrl->Write (kMotorOn,  0x00);
             ctrl->Write (kMotorOff, 0x00);
             ctrl->Write (kPhase1On, 0x00);
-            Assert::AreEqual (2, ctrl->GetQuarterTrack(), L"in the spin-down the head steps");
+            Assert::AreEqual (2, ctrl->GetLines().GetQuarterTrack(), L"in the spin-down the head steps");
 
-            ctrl->Tick (Disk2Controller::kMotorSpindownCycles);
-            Assert::IsFalse  (ctrl->IsMotorOn(), L"the motor has stopped");
+            ctrl->Tick (Disk2CardSequencer::kMotorSpindownCycles);
+            Assert::IsFalse  (ctrl->GetLines().IsMotorOn(), L"the motor has stopped");
 
             ctrl->Write (kPhase1Off, 0x00);
             ctrl->Write (kPhase2On,  0x00);
-            Assert::AreEqual (2, ctrl->GetQuarterTrack(), L"with the motor stopped it does not");
+            Assert::AreEqual (2, ctrl->GetLines().GetQuarterTrack(), L"with the motor stopped it does not");
         }
 
 
@@ -165,11 +165,11 @@ namespace Disk2PerDriveHeadTests
             ctrl->Write (kMotorOn,  0x00);
             ctrl->Write (kSelect1,  0x00);
             ctrl->Write (kPhase1On, 0x00);
-            Assert::AreEqual (2, ctrl->GetQuarterTrack (kDrive1));
+            Assert::AreEqual (2, ctrl->GetDrive (kDrive1).GetQuarterTrack());
 
             ctrl->Write (kSelect2, 0x00);
-            Assert::AreEqual (2, ctrl->GetQuarterTrack (kDrive2), L"drive 2's head pulled to the phase on");
-            Assert::AreEqual (2, ctrl->GetQuarterTrack (kDrive1), L"drive 1's head where it was");
+            Assert::AreEqual (2, ctrl->GetDrive (kDrive2).GetQuarterTrack(), L"drive 2's head pulled to the phase on");
+            Assert::AreEqual (2, ctrl->GetDrive (kDrive1).GetQuarterTrack(), L"drive 1's head where it was");
         }
     };
 }

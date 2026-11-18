@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FixtureProvider.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "MachineIdle.h"
 #include "TextScreenScraper.h"
@@ -104,8 +105,6 @@ public:
     static constexpr uint64_t  kBootCycles = 40'000'000ULL;
     static constexpr uint64_t  kBootSlice  =  2'000'000ULL;
 
-    static constexpr Word  kBootRomEntry = 0xC600;
-    static constexpr Word  kIntCxRomOff  = 0xC006;
 
     //  What the guest itself puts on screen once it has loaded off the image.
     //  Asserting on this rather than on "the screens matched" is what stops
@@ -813,14 +812,13 @@ public:
         img = machine.GetDiskStore().GetImage (6, 0);
         Assert::IsNotNull (img, L"the mounted image must be present");
 
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-        machine.GetCpu()->SetPC (kBootRomEntry);
+        GuestSession::StartFromPowerOn (machine);
 
         while (spent < kBootCycles && joined.find (until) == std::string::npos)
         {
             std::vector<std::string>  rows;
 
-            machine.RunCycles (kBootSlice);
+            machine.GetRunner().RunCycles (kBootSlice);
             spent += kBootSlice;
 
             rows   = TextScreenScraper::Scrape (machine);

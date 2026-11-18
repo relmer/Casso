@@ -105,11 +105,15 @@ public:
     static bool                                IsSeparator        (const EmulatorMenuEntry & entry);
     static std::string                         EmitParityMarkdown ();
 
+    // The Storage menu's second-drive row, which the live label query shows.
+    static std::wstring  GetDrive2Label (bool isExternal, bool isAttached);
+
     // Shell sinks. Read live by every command's functors, so they can be
     // set or replaced at any time without rebuilding anything.
     void  SetDispatch     (DispatchFn fn)   { m_dispatch   = std::move (fn); }
     void  SetCheckQuery   (CheckFn fn)      { m_isChecked  = std::move (fn); }
     void  SetEnableQuery  (CheckFn fn)      { m_isEnabled  = std::move (fn); }
+    void  SetVisibleQuery (CheckFn fn)      { m_isVisible  = std::move (fn); }
 
     // Dynamic label override. Consulted live at paint / mnemonic time; an
     // empty return falls back to the entry's static label, so a query only
@@ -195,6 +199,7 @@ private:
     DispatchFn  m_dispatch;
     CheckFn     m_isChecked;
     CheckFn     m_isEnabled;
+    CheckFn     m_isVisible;
     LabelFn     m_labelQuery;
 
     // Shared with every surface's item list, so a rebuilt list's previous

@@ -239,7 +239,7 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
 {
     HRESULT                    hr      = S_OK;
     IDebugTarget             & target  = session.GetTarget();
-    IFileSystem              * files   = session.GetFileSystem();
+    IFileSystem              * files   = session.GetHostFiles().GetFileSystem();
     size_t                     total   = target.GetTraceSize();
     size_t                     first   = (total > kMaxSaved) ? total - kMaxSaved : 0;
     std::vector<TraceRecord>   entries;
@@ -259,12 +259,12 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
         text += AppleWinFormatter::FormatTraceLine (record) + "\n";
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), text);
-    CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text)));
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), text);
+    CHRF (hr, reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text))));
 
     saved = (first > 0) ? std::format ("the newest {} of {}", entries.size(), total) : std::format ("{}", entries.size());
 
-    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", saved, entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to")) } };
+    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", saved, entries.size() == 1 ? "entry" : "entries", session.GetHostFiles().GetPathEcho (command.text, "to", reply)) } };
 
 Error:
     return;

@@ -4,7 +4,7 @@
 
 #include "Shell/Components/ShellInput.h"
 #include "Shell/MachineHost.h"
-#include "Shell/Components/ShellHistory.h"
+#include "Shell/ShellDebugger.h"
 #include "Shell/IInputHost.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -376,12 +376,12 @@ void ShellMouseInput::UpdateGuestMouseFromHost (int xPx, int yPx)
     // Behind live in reverse execution's history the mouse holds a recorded
     // position, so the pointer's place is held instead, until the guest's
     // mouse would move to it or the machine is live.
-    isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
 
     if (!isGateOpen)
     {
-        m_input.m_history.GetDivergenceGate().SetMouseTarget (target);
-        m_input.m_history.PublishHeldInput();
+        m_input.m_debugger.GetDivergence().GetGate().SetMouseTarget (target);
+        m_input.m_debugger.GetDivergence().PublishHeldInput();
     }
     else if (target.has_value())
     {
@@ -421,12 +421,12 @@ void ShellMouseInput::PressGuestMouseButton (int x, int y)
         return;
     }
 
-    isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_input.m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
 
     if (!isGateOpen)
     {
-        m_input.m_history.HoldInputBehindLive (HeldInput::MousePress);
+        m_input.m_debugger.GetDivergence().HoldInput (HeldInput::MousePress);
         return;
     }
 
@@ -460,13 +460,13 @@ void ShellMouseInput::ReleaseGuestMouseButton()
         return;
     }
 
-    isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_input.m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
 
     if (!isGateOpen)
     {
-        m_input.m_history.GetDivergenceGate().ReleaseMousePress();
-        m_input.m_history.PublishHeldInput();
+        m_input.m_debugger.GetDivergence().GetGate().ReleaseMousePress();
+        m_input.m_debugger.GetDivergence().PublishHeldInput();
         return;
     }
 

@@ -21,7 +21,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items)
+void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items, DxuiPopupMenu::ClosedFn onClosed)
 {
     HRESULT              hr        = S_OK;
     HWND                 hwnd      = host.GetHwnd();
@@ -40,12 +40,16 @@ void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<Dxu
     menu.SetPopupHost  (&host);
     menu.SetTheme      (host.GetTheme());
     menu.SetDpi        (host.GetScaler().GetDpi());
-    menu.SetOnClosed   (nullptr);
+    menu.SetOnClosed   (std::move (onClosed));
 
     //  The menu is shared, so a width floor a drop-down set is cleared.
     menu.SetMinWidthPx (0);
     ClearListLook      (menu);
     menu.ShowAt        (x, y, std::move (items), *text, client);
+
+    //  The menu captures the mouse, and a window with capture gets no WM_SETCURSOR,
+    //  so the pointer becomes the arrow here.
+    SetCursor (LoadCursorW (nullptr, IDC_ARROW));
 
 Error:
     return;
@@ -114,6 +118,10 @@ void DxuiContextMenu::ShowBelow (DxuiHwndSource & host, const RECT & anchor, std
     menu.SetMinWidthPx (minWidthPx);
     ClearListLook      (menu);
     menu.ShowUnder     (anchor, std::move (items), *text, client);
+
+    //  The menu captures the mouse, and a window with capture gets no WM_SETCURSOR,
+    //  so the pointer becomes the arrow here.
+    SetCursor (LoadCursorW (nullptr, IDC_ARROW));
 
 Error:
     return;

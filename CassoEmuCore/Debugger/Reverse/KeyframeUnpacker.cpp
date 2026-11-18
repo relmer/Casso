@@ -73,7 +73,7 @@ HRESULT KeyframeUnpacker::Unpack (
     hr = m_compressor.Decompress (packed.difference.data(), packed.difference.size(), packed.stateBytes, outState);
     CHR (hr);
 
-    KeyframeStore::XorBytes (outState.data(), m_whole.data(), outState.data(), outState.size());
+    KeyframeCodec::XorBytes (outState.data(), m_whole.data(), outState.data(), outState.size());
 
 Error:
     return hr;

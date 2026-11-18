@@ -3,14 +3,14 @@
 #include "Pch.h"
 #include "DxuiToolbar.h"
 #include "DxuiStripMarks.h"
-#include "DxuiStripPreview.h"
 #include "IDxuiImageStripSource.h"
+#include "IDxuiImageStripPreviewHost.h"
+#include "DxuiImageStripPreview.h"
 #include "DxuiTooltip.h"
 
 
 
 class DxuiHwndSource;
-class DxuiPopupHost;
 
 
 
@@ -45,7 +45,8 @@ class DxuiPopupHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiImageStrip : public IDxuiToolbarCustomEntry
+class DxuiImageStrip : public IDxuiToolbarCustomEntry,
+                       private IDxuiImageStripPreviewHost
 {
 public:
     //  Room the entry asks for when the host gives it no length of its own.
@@ -103,10 +104,19 @@ public:
     DxuiStripFlyout                          &  GetFlyout     ()       { return m_marks.GetFlyout(); }
     const DxuiStripFlyout                    &  GetFlyout     () const { return m_marks.GetFlyout(); }
 
-    //  Where the preview's picture sits on screen, empty with none up, and
+    //  Where the preview opens against, in screen pixels: the strip and its
+    //  balloons, so the preview clears them on either side; and a balloon's
+    //  height.
+    RECT  GetPreviewAnchor () const { return GetPreviewAnchorFor (m_preview.GetSizeDip()); }
+    int   GetBalloonPx     (const DxuiDpiScaler & scaler) const;
+
+    //  The popup's size: the picture and the frame's padding on each side.
+    SIZE  GetPreviewSizeDip () const { return m_preview.GetSizeDip(); }
+
+    //  Where the preview's popup sits on screen, empty with none up, and
     //  the picture it shows.
     RECT                                  GetPreviewRectPx () const { return m_preview.GetRectPx(); }
-    const IDxuiImageStripSource::Image &  GetShownPreview  () const { return m_preview.GetImage(); }
+    const IDxuiImageStripSource::Image &  GetShownPreview  () const { return m_preview.GetShownImage(); }
 
     void  Sync             ();
     void  HidePreview      ();
@@ -121,7 +131,7 @@ public:
     static int   HitTestCell   (const RECT & rc, int count, int cellPx, bool vertical, int x, int y);
 
     int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
-    int              GetMinWidthPx (const DxuiDpiScaler & scaler) const override;
+    int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
     void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override;
     void             Paint         (IDxuiPainter      & painter,
                                     IDxuiTextRenderer & text,
@@ -138,37 +148,37 @@ public:
     LPCWSTR          GetCursorAt   (int x, int y) const override;
 
 private:
-    static constexpr float  kDefaultAspect  = 560.0f / 384.0f;
-    static constexpr float  kMarkerDip      = 4.0f;
-    static constexpr int    kMinThicknessPx = 1;
-    static constexpr float  kPlayheadDip    = 3.0f;
-    static constexpr float  kLineReachDip   = 4.0f;   // how far the line runs past the pictures
-    static constexpr float  kLabelFontDip   = 11.0f;
-    static constexpr float  kLabelPadDip    = 3.0f;
-    static constexpr float  kSidePadDip     = 6.0f;
-    static constexpr float  kLiveDotDip     = 6.0f;
-    static constexpr float  kHoverLineDip   = 1.0f;   // the line at the pointer, thinner than the playhead's
+    static constexpr float  kDefaultAspect    = 560.0f / 384.0f;
+    static constexpr float  kMarkerDip        = 4.0f;
+    static constexpr int    kMinThicknessPx   = 1;
+    static constexpr float  kPlayheadDip      = 3.0f;
+    static constexpr float  kLineReachDip     = 4.0f;   // how far the line runs past the pictures
+    static constexpr float  kLabelFontDip     = 11.0f;
+    static constexpr float  kLabelPadDip      = 3.0f;
+    static constexpr float  kSidePadDip       = 6.0f;
+    static constexpr float  kLiveDotDip       = 6.0f;
+    static constexpr float  kHoverLineDip     = 1.0f;   // the line at the pointer, thinner than the playhead's
 
     //  The end labels, each a button.
     enum class Part { None, Leading, Trailing };
 
-    void  SetHovered       (int index);
-    Part  HitTestPart      (int x, int y) const;
-    bool  IsPartClickable  (Part part) const;
-    void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
-    void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  SetHovered        (int index);
+    Part  HitTestPart       (int x, int y) const;
+    bool  IsPartClickable   (Part part) const;
+    void  PaintPartChrome   (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
+    void  PaintHoverLine    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  ShowOutsideLabels (const IDxuiTheme & theme);
-    void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
-    void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
-    void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
-    int   GetSideLabelPx   (const std::wstring & label, bool isTrailing) const;
-    void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
-    RECT  GetPreviewAnchor (SIZE sizeDip) const;
-    void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
-    void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
-    void  GetLastCellSpan  (float & outStart, float & outLastPixel) const;
-    int   GetCellAtOffset  (float offset) const;
-    bool  IsOverPlayhead   (int x, int y, float & outLine) const;
+    void  PaintLabelPair    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
+    void  GetLabelSpan      (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
+    void  HideOverlap       (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
+    int   GetSideLabelPx    (const std::wstring & label, bool isTrailing) const;
+    void  PaintSideLabel    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
+
+    void  PaintPlayhead     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
+    void  PaintLabel        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
+    void  GetLastCellSpan   (float & outStart, float & outLastPixel) const;
+    int   GetCellAtOffset   (float offset) const;
+    bool  IsOverPlayhead    (int x, int y, float & outLine) const;
 
     //  A strip standing up: its end labels above and below the pictures,
     //  and its playhead line's labels beside the line, across the strip.
@@ -178,9 +188,13 @@ private:
     void   PaintStandingPlayheadLabels (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float along, float thick, const std::wstring & top, const std::wstring & bottom);
     void   PaintStandingLabel          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float top, float height);
 
+    RECT                GetPreviewAnchorFor (SIZE sizeDip) const override;
+    DxuiPopupPlacement  GetPreviewPlacement () const override { return m_vertical ? DxuiPopupPlacement::Right : DxuiPopupPlacement::Below; }
+
     IDxuiImageStripSource         * m_source             = nullptr;
     IDxuiTextRenderer             * m_text               = nullptr;
     DxuiHwndSource                * m_popupHost          = nullptr;
+    DxuiImageStripPreview           m_preview            { *this };
     DxuiTooltip                     m_topLabel;
     DxuiTooltip                     m_bottomLabel;
     bool                            m_isLabelsOutside    = false;
@@ -188,7 +202,6 @@ private:
     std::wstring                    m_pendingTop;
     std::wstring                    m_pendingBottom;
     float                           m_pendingCenterX     = 0.0f;
-
     POINT                           m_pointer            = {};   // where the pointer last moved over the strip
     float                           m_aspect             = kDefaultAspect;
     int                             m_preferredPx        = 0;
@@ -213,6 +226,5 @@ private:
 
     mutable std::wstring  m_tip;          // an end label's tip, kept while it shows
 
-    DxuiStripMarks     m_marks;
-    DxuiStripPreview   m_preview;
+    DxuiStripMarks  m_marks;
 };

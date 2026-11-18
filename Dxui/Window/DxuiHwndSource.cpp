@@ -2,6 +2,8 @@
 
 #include "DxuiHwndSource.h"
 #include "DxuiCaptionBar.h"
+#include "Widgets/DxuiInfoTip.h"
+#include "Widgets/DxuiTooltip.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Core/DxuiSystemSettings.h"
@@ -28,6 +30,14 @@
 // (WM_ENTERSIZEMOVE..WM_EXITSIZEMOVE) to drive IDxuiHostClient::OnModalLoopTick.
 // Distinct from any client SetTimer id, which route to OnTimer instead.
 static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
+
+// Host-owned WM_TIMER id that runs the caption title's tooltip while it opens
+// or fades. Armed only while the tooltip has something to animate.
+static constexpr UINT_PTR  s_kCaptionTipTimerId = 0xDCE2;
+static constexpr UINT      s_kCaptionTipTickMs  = 16;
+
+// The mark in the window text for unsaved changes: U+25CF BLACK CIRCLE.
+static constexpr LPCWSTR   s_kpszUnsavedMark    = L"\x25CF";
 
 
 
@@ -617,7 +627,7 @@ DWORD DxuiHwndSource::GetExtendedStyle (const CreateParams & params)
         exStyle |= WS_EX_NOACTIVATE;   // stripped right after creation (see CreateParams)
     }
 
-    if (params.composited)
+    if (params.composited || params.drawOverBackdrop)
     {
         exStyle |= WS_EX_NOREDIRECTIONBITMAP;
     }
@@ -646,6 +656,8 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 {
     HRESULT      hr               = S_OK;
     WNDCLASSEXW  wc               = { sizeof (wc) };
+    WNDCLASSEXW  existing         = { sizeof (existing) };
+    bool         classExists      = false;
     DWORD        style            = 0;
     DWORD        exStyle          = 0;
     HINSTANCE    hInstance        = nullptr;
@@ -673,10 +685,11 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     CBRA (m_hwnd == nullptr);
     CBRA (!m_synthetic);
 
-    m_params    = params;
-    hInstance   = (params.hInstance != nullptr) ? params.hInstance
-                                                : GetModuleHandleW (nullptr);
-    m_hInstance = hInstance;
+    m_params           = params;
+    m_clearTransparent = params.drawOverBackdrop;
+    hInstance          = (params.hInstance != nullptr) ? params.hInstance
+                                                       : GetModuleHandleW (nullptr);
+    m_hInstance        = hInstance;
 
     if (params.classNameOverride != nullptr)
     {
@@ -699,10 +712,19 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    classAtom = RegisterClassExW (&wc);
-    CWRA (classAtom);
+    //  A stable class name is shared by every window of the app that passes
+    //  it, so the second window finds the class the first registered. The
+    //  window that registered it unregisters it, which fails harmlessly while
+    //  another window of the class is open.
+    classExists = params.classNameOverride != nullptr && GetClassInfoExW (hInstance, m_className.c_str(), &existing) != FALSE;
 
-    m_classRegistered = true;
+    if (!classExists)
+    {
+        classAtom = RegisterClassExW (&wc);
+        CWRA (classAtom);
+
+        m_classRegistered = true;
+    }
 
     style   = params.borderless ? (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)
                                 : WS_OVERLAPPEDWINDOW;
@@ -828,6 +850,18 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
                               this);
     CWRA (m_hwnd);
     m_ownsHwnd = true;
+
+    //  Over a backdrop the caption is see-through, and Windows draws its
+    //  caption buttons under it for a window with the system menu style. The
+    //  host draws the buttons, so the style is dropped before the window
+    //  appears. GetSystemMenu returns null for a window created without the
+    //  style, so the window is created with it, the menu is taken first, and
+    //  the host opens it.
+    if (IsSystemMenuDropped())
+    {
+        m_systemMenu = DropSystemMenuStyle (m_hwnd);
+        CWRA (m_systemMenu);
+    }
 
     // The NOACTIVATE bit exists only to keep CreateWindowEx from activating
     // the newborn window (stealing focus mid-keystroke); strip it now so the
@@ -1432,6 +1466,71 @@ bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::RestoreInitialPlacement
+//
+//  The size the window was created at, at the DPI of the monitor it is on
+//  and fitted to that monitor's work area, about the window's center and
+//  inside the work area, on the same monitor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::RestoreInitialPlacement()
+{
+    HRESULT  hr       = S_OK;
+    UINT     dpi      = 0;
+    SIZE     sizePx   = {};
+    RECT     workArea = {};
+    RECT     windowPx = {};
+    POINT    topLeft  = {};
+    BOOL     isRead   = FALSE;
+    BOOL     isPlaced = FALSE;
+    bool     isWork   = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
+
+    if (IsZoomed (m_hwnd))
+    {
+        ShowWindow (m_hwnd, SW_RESTORE);
+    }
+
+    dpi    = GetDpiForWindow (m_hwnd);
+    dpi    = (dpi != 0) ? dpi : s_kDefaultDpi;
+    sizePx = { MulDiv (m_params.initialSizeDip.cx, (int) dpi, (int) s_kDefaultDpi), MulDiv (m_params.initialSizeDip.cy, (int) dpi, (int) s_kDefaultDpi) };
+    isWork = TryGetAnchorWorkArea (m_hwnd, workArea);
+
+    if (m_params.fitToWorkArea && isWork)
+    {
+        sizePx = FitSizeToWorkArea (sizePx, workArea);
+    }
+
+    isRead = GetWindowRect (m_hwnd, &windowPx);
+    CWRA (isRead);
+
+    topLeft = { (windowPx.left + windowPx.right - sizePx.cx) / 2, (windowPx.top + windowPx.bottom - sizePx.cy) / 2 };
+
+    if (isWork)
+    {
+        topLeft.x = std::clamp (topLeft.x, workArea.left, std::max (workArea.left, workArea.right  - sizePx.cx));
+        topLeft.y = std::clamp (topLeft.y, workArea.top,  std::max (workArea.top,  workArea.bottom - sizePx.cy));
+    }
+
+    isPlaced = SetWindowPos (m_hwnd, nullptr, topLeft.x, topLeft.y, sizePx.cx, sizePx.cy, SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (isPlaced);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Destroy
 //
 //  Idempotent. Releases render resources first (they reference the
@@ -1445,6 +1544,12 @@ void DxuiHwndSource::Destroy()
     DXUI_ASSERT_UI_THREAD();
 
     ReleaseRenderResources();
+
+    if (m_frameWait != nullptr)
+    {
+        CloseHandle (m_frameWait);
+        m_frameWait = nullptr;
+    }
 
     m_rtv.Reset();
     m_swapChain.Reset();
@@ -1471,6 +1576,8 @@ void DxuiHwndSource::Destroy()
 
     if (m_classRegistered && m_hInstance != nullptr)
     {
+        //  Fails while another window of a shared class is open; the class then
+        //  stays registered for that window.
         UnregisterClassW (m_className.c_str(), m_hInstance);
         m_classRegistered = false;
     }
@@ -1638,6 +1745,64 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 
     m_overlayActiveHook = std::move (isActive);
     m_overlayPaintHook  = std::move (paint);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAnimationLayerHooks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetAnimationLayerHooks (std::function<bool()> isActive,
+                                             std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint)
+{
+    m_animationLayerActiveHook = std::move (isActive);
+    m_animationLayerPaintHook  = std::move (paint);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasAnimationLayer
+//
+//  A drag layer or a modal overlay paints after the layer would, so with
+//  either up the layer is part of an ordinary frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasAnimationLayer() const
+{
+    bool  isCovered = (m_dragLayerActiveHook && m_dragLayerActiveHook()) || (m_overlayActiveHook && m_overlayActiveHook());
+
+
+
+    return !isCovered && m_animationLayerActiveHook && m_animationLayerActiveHook() && m_animationLayerPaintHook;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintAnimationLayer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PaintAnimationLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme)
+{
+    HRESULT  hr = PaintLayer (target, widthPx, heightPx, theme, m_animationLayerPaintHook);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -2291,8 +2456,10 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
     scd.BufferCount      = 2;
     scd.Scaling          = DXGI_SCALING_STRETCH;
     scd.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    scd.Flags            = m_params.paceFrames ? (UINT) DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0u;
+    m_swapChainFlags     = scd.Flags;
 
-    if (m_params.composited)
+    if (m_params.composited || m_params.drawOverBackdrop)
     {
         ComPtr<IDCompositionDesktopDevice>  desktopDevice;
         ComPtr<IDCompositionVisual2>        compVisual2;
@@ -2329,7 +2496,10 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         hr = desktopDevice.As (&m_compDevice);
         CHRA (hr);
 
-        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, TRUE, m_compTarget.GetAddressOf());
+        //  Behind the window's children, so a child window a host places over
+        //  the content, such as a file's preview from another program, is
+        //  drawn on top of it.
+        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, FALSE, m_compTarget.GetAddressOf());
         CHRA (hr);
 
         hr = desktopDevice->CreateVisual (compVisual2.GetAddressOf());
@@ -2379,9 +2549,77 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
         CHRA (hr);
     }
 
+    hr = CreateFrameWait();
+    CHRA (hr);
+
 Error:
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateFrameWait
+//
+//  With CreateParams::paceFrames, one frame queued at most, and the handle
+//  WaitForFrameSlot waits on for it to leave the queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::CreateFrameWait()
+{
+    HRESULT                  hr         = S_OK;
+    ComPtr<IDXGISwapChain2>  swapChain2;
+
+
+
+    BAIL_OUT_IF (!m_params.paceFrames || m_swapChain == nullptr, S_OK);
+
+    hr = m_swapChain.As (&swapChain2);
+    CHRA (hr);
+
+    hr = swapChain2->SetMaximumFrameLatency (1);
+    CHRA (hr);
+
+    m_frameWait = swapChain2->GetFrameLatencyWaitableObject();
+    CBRA (m_frameWait != nullptr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitForFrameSlot
+//
+//  Holds a paint until the frame before it has left the queue, so it draws
+//  just after a vsync, as every frame then does, and is seen two vsyncs
+//  later. Bounded, so a frame the compositor does not take, as for a window
+//  on no display, costs a paint no more than a few frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::WaitForFrameSlot()
+{
+    DWORD  waited = WAIT_OBJECT_0;
+
+
+
+    if (m_frameWait == nullptr)
+    {
+        return;
+    }
+
+    waited = WaitForSingleObjectEx (m_frameWait, s_kFrameWaitMs, FALSE);
+    IGNORE_RETURN_VALUE (waited, WAIT_OBJECT_0);
 }
 
 
@@ -2402,6 +2640,10 @@ HRESULT DxuiHwndSource::CreateRenderResources()
 
     m_painter      = std::make_unique<DxuiPainter>();
     m_textRenderer = std::make_unique<DxuiTextRenderer>();
+
+    // The window's text is drawn in its theme's typography, or the nearest
+    // owner's.
+    m_textRenderer->SetTypographyWindow (m_hwnd);
 
     hr = m_painter->Initialize (m_device.Get(), m_context.Get());
     CHRA (hr);
@@ -2669,7 +2911,13 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // the ordering too and pays a full-screen clear and a full-screen blit
     // every frame for it, which is the window-area cost GH #131 is about.
     // Recording pays neither.
-    hr = m_painter->Begin (widthPx, heightPx);
+    //
+    // A control that has to cover text drawn earlier in the pass calls
+    // IDxuiPainter::FlushLayer, which draws the queued fills and then calls
+    // this flush to replay the text drawn so far.
+    m_painter->SetTextFlush ([this]() { return m_textRenderer->FlushDeferred(); });
+
+    hr = m_painter->Begin (widthPx, heightPx, target);
     CHRA (hr);
     painterBegun = true;
 
@@ -2948,13 +3196,15 @@ Error:
 //  WM_PAINT body for full-ownership mode. Delegates the frame orchestration to
 //  DxuiRenderTarget::RenderFrame (clear -> before-present hook -> PaintContent
 //  -> after-paint / compose -> PresentFrame), which bails cleanly if the
-//  painter / text renderer / RTV / swap chain are missing.
+//  painter / text renderer / RTV / swap chain are missing. A window that paces
+//  its frames first waits for the last one to leave the queue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
+    WaitForFrameSlot();
     RenderFrame (m_theme);
 }
 
@@ -2983,13 +3233,13 @@ void DxuiHwndSource::ApplyDwmConfiguration()
         return;
     }
 
-    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica);
+    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica || m_params.backdrop == DxuiHwndSourceBackdrop::MicaAlt);
 
     // Extend the frame first — Mica is invisible without it, and the
     // OS drop-shadow also depends on this even when backdrop is None.
-    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, s_kExtendFrameInsetPx);
+    DxuiDwm::ExtendFrameIntoClientArea (m_hwnd, m_params.drawOverBackdrop ? -1 : s_kExtendFrameInsetPx);
     DxuiDwm::ApplyRoundedCorners       (m_hwnd, m_params.roundedCorners);
-    DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica);
+    DxuiDwm::ApplyMicaBackdrop         (m_hwnd, wantMica, m_params.backdrop == DxuiHwndSourceBackdrop::MicaAlt);
     DxuiDwm::ApplyImmersiveDarkMode    (m_hwnd, m_params.darkMode);
 
 #ifdef _DEBUG
@@ -3001,6 +3251,29 @@ void DxuiHwndSource::ApplyDwmConfiguration()
     m_dwmSeam.roundedRequested      = m_params.roundedCorners;
     m_dwmSeam.darkRequested         = m_params.darkMode;
 #endif
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FromHwnd
+//
+//  Trusted only for a window whose procedure is this class's, since another
+//  class may keep something else in its user data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiHwndSource * DxuiHwndSource::FromHwnd (HWND hwnd)
+{
+    if (hwnd == nullptr || (WNDPROC) GetWindowLongPtr (hwnd, GWLP_WNDPROC) != &DxuiHwndSource::s_WndProcThunk)
+    {
+        return nullptr;
+    }
+
+    return reinterpret_cast<DxuiHwndSource *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
 }
 
 
@@ -3087,6 +3360,7 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
     {
         result = DefaultProc (msg, wp, lp);
     }
+
 
     return result;
 }
@@ -3244,6 +3518,21 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
             break;
 
+        //  Windows opens no system menu for a right-click on a caption the
+        //  window draws itself, so the host opens it.
+        case WM_NCRBUTTONUP:
+            isHandled = wp == HTCAPTION && ((GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0 || IsSystemMenuDropped());
+
+            if (isHandled)
+            {
+                HRESULT  hrMenu = ShowSystemMenu (ptScreen);
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+            }
+
+            result = 0;
+            break;
+
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
 
@@ -3290,7 +3579,21 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
                 break;
             }
 
-            isHandled = false;
+            // A command the client added to the system menu.
+            isHandled = m_client != nullptr && (wp & 0xFFF0) < SC_SIZE &&
+                        m_client->OnSysCommand ((UINT) (wp & 0xFFF0)) == DxuiMessageResult::Handled;
+
+            // Alt+Space. Windows opens the system menu for it only on a window
+            // with the system menu style.
+            if (!isHandled && (wp & 0xFFF0) == SC_KEYMENU && lp == VK_SPACE && IsSystemMenuDropped())
+            {
+                HRESULT  hrMenu = ShowSystemMenu (GetSystemMenuPoint());
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+                isHandled = true;
+            }
+
+            result    = 0;
             break;
 
         case WM_ENTERSIZEMOVE:
@@ -3323,6 +3626,11 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             {
                 if (m_client != nullptr) { m_client->OnModalLoopTick(); }
 
+                result = 0;
+            }
+            else if (wp == s_kCaptionTipTimerId)
+            {
+                TickCaptionTip();
                 result = 0;
             }
             else
@@ -3442,6 +3750,15 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         return IsClaimed (m_client->OnAppMessage (msg, wp, lp), RepaintOnClaim::No);
     }
 
+    //  A pinned info tip closes when focus moves from its window to another
+    //  window of this program or another program, as it does on a click
+    //  elsewhere. Here rather than in DxuiWindow, so a window that overrides
+    //  OnKillFocus closes it too.
+    if (msg == WM_KILLFOCUS)
+    {
+        DxuiInfoTip::CloseOpen();
+    }
+
     switch (msg)
     {
         // -- claim-or-fall-through, no repaint --
@@ -3459,9 +3776,12 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_SETFOCUS:      isHandled = IsClaimed (m_client->OnSetFocus(),     RepaintOnClaim::No); break;
         case WM_KILLFOCUS:     isHandled = IsClaimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
         case WM_CANCELMODE:    isHandled = IsClaimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
+        case WM_ENABLE:        isHandled = IsClaimed (m_client->OnEnable (wp != 0), RepaintOnClaim::No); break;
         case WM_CAPTURECHANGED:
             isHandled = IsClaimed (m_client->OnCaptureChanged (reinterpret_cast<HWND> (lp)), RepaintOnClaim::No);
             break;
+
+        case WM_ENDSESSION:    isHandled = IsClaimed (m_client->OnEndSession (wp != 0), RepaintOnClaim::No); break;
         case WM_COPYDATA:      isHandled = IsClaimed (m_client->OnCopyData (wp, lp), RepaintOnClaim::No); break;
         case WM_DROPFILES:     isHandled = IsClaimed (m_client->OnDropFiles (reinterpret_cast<HDROP> (wp)), RepaintOnClaim::Yes); break;
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
@@ -3503,15 +3823,17 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_CHAR:          isHandled = IsClaimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
-            isHandled           = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes);
-            m_sysKeyDownClaimed = isHandled && msg == WM_SYSKEYDOWN;
+            isHandled         = IsClaimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes);
+            m_sysKeyClaimed   = msg == WM_SYSKEYDOWN && isHandled;
             break;
 
-        //  The character TranslateMessage makes from a claimed Alt+key. Left
-        //  to DefWindowProc it asks for a Win32 menu this window does not
-        //  have, and Windows beeps. An unclaimed Alt+key, such as Alt+Space
-        //  for the window menu, still reaches DefWindowProc.
-        case WM_SYSCHAR:       isHandled = m_sysKeyDownClaimed; break;
+        //  An Alt shortcut the client took on its key-down is not a menu
+        //  mnemonic as well: DefWindowProc would look for one, find none, and
+        //  beep.
+        case WM_SYSCHAR:
+            isHandled         = m_sysKeyClaimed;
+            m_sysKeyClaimed   = false;
+            break;
         case WM_TIMER:         isHandled = IsClaimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
                                                       RepaintOnClaim::Yes); break;
 
@@ -3729,13 +4051,49 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
         // A non-zero result means DefWindowProc asked for special client
         // handling; leave its rects alone in that case.
+        //
+        // A maximized window extends past the monitor by its frame on every
+        // side. DefWindowProc insets the other three edges by it, and the top
+        // is inset by the same frame here. Without it the caption's top was
+        // off the screen, and its buttons were drawn above the ones Windows
+        // draws.
         if (defResult == 0)
         {
-            pParams->rgrc[0].top = originalTop;
+            pParams->rgrc[0].top = originalTop + GetMaximizedFramePx();
         }
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMaximizedFramePx
+//
+//  How far a maximized window extends past each edge of its monitor, at the
+//  window's DPI; 0 for a window that isn't maximized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetMaximizedFramePx() const
+{
+    UINT  dpi = 0;
+
+
+
+    if (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE)
+    {
+        return 0;
+    }
+
+    dpi = GetDpiForWindow (m_hwnd);
+    dpi = (dpi != 0) ? dpi : s_kDefaultDpi;
+
+    return GetSystemMetricsForDpi (SM_CYFRAME, dpi) + GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
 }
 
 
@@ -3810,8 +4168,11 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 
     // Convert client-pixel point to client-DIP before running the
     // classifier — controls store bounds in DIPs.
-    ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
-    ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    //
+    // The point rounds down, not to the nearest DIP. Rounded, the last pixel
+    // at 125% landed on the client's right edge, past the resize band.
+    ptClient.x = ptClient.x * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
+    ptClient.y = ptClient.y * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
     rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
     rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
 
@@ -3851,6 +4212,8 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     bool                 toDefault   = true;
 
 
+
+    UpdateCaptionTip (msg, wp, lp);
 
     if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
@@ -3969,6 +4332,103 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 Error:
     return toDefault ? DefaultProc (msg, wp, lp) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::UpdateCaptionTip
+//
+//  Windows' own title bar shows the full title in a tooltip when it is cut
+//  short. The pointer over the title, and the title cut, opens it; anywhere
+//  else, or leaving the caption, closes it, and a press closes it at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::UpdateCaptionTip (UINT msg, WPARAM wp, LPARAM lp)
+{
+    POINT            pointPx  = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+    RECT             anchorPx = {};
+    RECT             clientPx = {};
+    const wchar_t *  tip      = nullptr;
+    int64_t          nowMs    = (int64_t) GetTickCount64();
+    TRACKMOUSEEVENT  tme      = { sizeof (tme) };
+
+
+
+    if (m_caption == nullptr || !m_captionVisible || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    if (m_captionTip == nullptr)
+    {
+        m_captionTip = std::make_unique<DxuiTooltip>();
+        m_captionTip->SetPopupHost (this);
+    }
+
+    if (msg == WM_NCMOUSEMOVE && wp == (WPARAM) HTCAPTION && ScreenToClient (m_hwnd, &pointPx))
+    {
+        tip = m_caption->GetTooltipAt (pointPx, anchorPx);
+    }
+
+    if (tip != nullptr)
+    {
+        GetClientRect (m_hwnd, &clientPx);
+        m_captionTip->SetDpi (m_scaler.GetDpi());
+        m_captionTip->SetViewportSize (clientPx.right - clientPx.left, clientPx.bottom - clientPx.top);
+
+        if (m_theme != nullptr)
+        {
+            m_captionTip->SetTheme (*m_theme);
+        }
+
+        m_captionTip->RequestShow (anchorPx, tip, nowMs);
+
+        //  The leave that closes it only arrives when asked for.
+        tme.dwFlags   = TME_NONCLIENT | TME_LEAVE;
+        tme.hwndTrack = m_hwnd;
+        TrackMouseEventHost (&tme);
+    }
+    else if (msg == WM_NCLBUTTONDOWN)
+    {
+        m_captionTip->HideImmediate();
+    }
+    else
+    {
+        m_captionTip->RequestHide (nowMs);
+    }
+
+    if (m_captionTip->WantsTick())
+    {
+        ::SetTimer (m_hwnd, s_kCaptionTipTimerId, s_kCaptionTipTickMs, nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::TickCaptionTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::TickCaptionTip()
+{
+    if (m_captionTip != nullptr)
+    {
+        m_captionTip->Tick ((int64_t) GetTickCount64());
+    }
+
+    if (m_captionTip == nullptr || !m_captionTip->WantsTick())
+    {
+        ::KillTimer (m_hwnd, s_kCaptionTipTimerId);
+    }
 }
 
 
@@ -4221,7 +4681,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
         if (IsBufferResizeDue (have, widthPx, heightPx))
         {
             ReleaseBackBufferRtv();
-            (void) m_swapChain->ResizeBuffers (0, GetBufferExtent (widthPx), GetBufferExtent (heightPx), DXGI_FORMAT_UNKNOWN, 0);
+            (void) m_swapChain->ResizeBuffers (0, GetBufferExtent (widthPx), GetBufferExtent (heightPx), DXGI_FORMAT_UNKNOWN, m_swapChainFlags);
 
             hr = CreateBackBufferRtv();
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -4240,6 +4700,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // client repaints through its own OnSize.
     if (m_ownsPaintPump)
     {
+        WaitForFrameSlot();
         RenderFrame (m_theme);
     }
 
@@ -4437,24 +4898,30 @@ void DxuiHwndSource::LayoutCaption (const RECT & clientDip)
 //  SetTitle
 //
 //  SetWindowText-style title update: drives the Win32 window text (so
-//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph.
+//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph. At
+//  markAt, the window text has a black circle and the caption a dot in the
+//  error color, which indicate unsaved changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::SetTitle (const std::wstring & title)
+void DxuiHwndSource::SetTitle (const std::wstring & title, size_t markAt)
 {
+    std::wstring  text = (markAt <= title.size()) ? title.substr (0, markAt) + L" " + s_kpszUnsavedMark + title.substr (markAt) : title;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    m_params.title = title;
+    m_params.title = text;
 
     if (m_hwnd != nullptr)
     {
-        SetWindowTextW (m_hwnd, title.c_str());
+        SetWindowTextW (m_hwnd, text.c_str());
     }
 
     if (m_caption)
     {
-        m_caption->SetTitle (title);
+        m_caption->SetTitle (title, markAt);
         if (m_hwnd != nullptr)
         {
             InvalidateRect (m_hwnd, nullptr, FALSE);
@@ -4593,6 +5060,53 @@ void DxuiHwndSource::RelayoutCaptionNow()
 int DxuiHwndSource::GetCaptionHeightPx() const
 {
     return (m_caption && m_captionVisible) ? m_caption->GetPreferredHeightPx (m_scaler) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizeBorderPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderPx() const
+{
+    return HasResizeBand() ? MulDiv (GetResizeBorderDip(), (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasResizeBand
+//
+//  A maximized window can't be resized, so its edges are content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasResizeBand() const
+{
+    return m_params.resizable && (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizeBorderDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderDip() const
+{
+    return (std::max) ((int) m_params.resizeBorderDip, s_kMinResizeBorderPx);
 }
 
 
@@ -5000,15 +5514,10 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     //  client pixels; only the resize bands and the caption here are measured
     //  in DIPs. Content controls are asked in pixels, which match DIPs only at
     //  96 DPI.
-    borderPx = (int) m_params.resizeBorderDip;
-
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
+    borderPx = GetResizeBorderDip();
 
     // Resize edges win outright.
-    if (m_params.resizable)
+    if (HasResizeBand())
     {
         kind    = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
         claimed = kind != DxuiHitTestKind::None;
@@ -5192,6 +5701,135 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::ShowSystemMenu
+//
+//  The window's system menu at a point on the screen, its items enabled as
+//  Windows enables them for the window's state, and the chosen command
+//  posted as WM_SYSCOMMAND.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
+{
+    HRESULT  hr        = S_OK;
+    HMENU    menu      = GetWindowSystemMenu();
+    bool     isMax     = ::IsZoomed (m_hwnd) != FALSE;
+    bool     isSizable = (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
+    UINT     command   = 0;
+    BOOL     isPosted  = FALSE;
+
+
+
+    CWRA (menu);
+
+    EnableMenuItem (menu, SC_RESTORE,  MF_BYCOMMAND | (isMax ? MF_ENABLED : MF_GRAYED));
+    EnableMenuItem (menu, SC_MOVE,     MF_BYCOMMAND | (isMax ? MF_GRAYED  : MF_ENABLED));
+    EnableMenuItem (menu, SC_SIZE,     MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MAXIMIZE, MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MINIMIZE, MF_BYCOMMAND | MF_ENABLED);
+    SetMenuDefaultItem (menu, SC_CLOSE, FALSE);
+
+    command = static_cast<UINT> (TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, ptScreen.x, ptScreen.y, 0, m_hwnd, nullptr));
+    BAIL_OUT_IF (command == 0, S_OK);
+
+    isPosted = PostMessageW (m_hwnd, WM_SYSCOMMAND, command, 0);
+    CWRA (isPosted);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::IsSystemMenuDropped
+//
+//  Whether the window is created without the system menu style. Without it,
+//  Windows doesn't draw its caption buttons under a see-through caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsSystemMenuDropped() const
+{
+    return m_params.borderless && m_params.drawOverBackdrop && !m_params.composited;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetWindowSystemMenu
+//
+//  The window's system menu: the one taken when the style was dropped, or
+//  the one GetSystemMenu returns for the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::GetWindowSystemMenu() const
+{
+    return m_systemMenu != nullptr ? m_systemMenu : GetSystemMenu (m_hwnd, FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DropSystemMenuStyle
+//
+//  Removes the system menu style from a window and returns its system menu,
+//  taken while the window has the style; null when the window has no menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::DropSystemMenuStyle (HWND hwnd)
+{
+    HMENU  menu = GetSystemMenu (hwnd, FALSE);
+
+
+
+    SetWindowLongPtrW (hwnd, GWL_STYLE, GetWindowLongPtrW (hwnd, GWL_STYLE) & ~(LONG_PTR) WS_SYSMENU);
+    (void) SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+    return menu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetSystemMenuPoint
+//
+//  Where Alt+Space opens the system menu: the client area's left edge, under
+//  the caption, as Windows opens it under a window's icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::GetSystemMenuPoint() const
+{
+    POINT  point = { 0, GetCaptionHeightPx() };
+
+
+
+    (void) ClientToScreen (m_hwnd, &point);
+
+    return point;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  KindToHt
 //
 //  Maps the abstract DxuiHitTestKind to the matching Win32 HT* code.
@@ -5309,7 +5947,61 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 #endif
     }
 
+    // A size measured before the popup opens is in this window's typography,
+    // or in the one pinned for popups.
+    popup->SetTypographyWindow (m_hwnd);
+    popup->SetPinnedTypography (m_pinnedPopupTypography);
+
     return popup;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PinPopupTypography
+//
+//  The open popups, and each popup acquired until the pin is removed, are
+//  measured and drawn in the typography; with none, they go back to this
+//  window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PinPopupTypography (const DxuiTextRenderer::Typography * typography)
+{
+    m_pinnedPopupTypography = typography;
+
+    for (DxuiPopupHost * popup : m_popupActive)
+    {
+        if (popup != nullptr)
+        {
+            popup->SetPinnedTypography (typography);
+            popup->MarkDirty();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkPopupsDirty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::MarkPopupsDirty()
+{
+    for (DxuiPopupHost * popup : m_popupActive)
+    {
+        if (popup != nullptr)
+        {
+            popup->MarkDirty();
+        }
+    }
 }
 
 

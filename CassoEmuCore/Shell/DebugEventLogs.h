@@ -96,10 +96,17 @@ public:
     bool  TakeDelta (InputLogDelta & outDelta);
     bool  TakeDelta (DebugLogKind kind, IoLogDelta & outDelta);
 
-    const DebugEventCache<Disk2Event>  & GetDiskCache  () const { return m_disk.cache; }
-    const DebugEventCache<InputEvent>  & GetInputCache () const { return m_input.cache; }
-    const DebugEventCache<IoEvent>     & GetVideoCache () const { return m_video.cache; }
-    const DebugEventCache<IoEvent>     & GetSoundCache () const { return m_sound.cache; }
+    //  Every open pane's delta that has anything in it; true when any did.
+    bool  TakeDeltas (DebugLogDeltas & outDeltas);
+
+    //  A pane's request, as the debugger window sends it, and every pane closed.
+    void  ApplyRequest (DebugLogKind kind, const DebugLogRequest & request);
+    void  CloseAll     ();
+
+    const DebugEventCache<Disk2Event>  & GetDiskCache    () const { return m_disk.cache; }
+    const DebugEventCache<InputEvent>  & GetInputCache   () const { return m_input.cache; }
+    const DebugEventCache<IoEvent>     & GetVideoCache   () const { return m_video.cache; }
+    const DebugEventCache<IoEvent>     & GetSoundCache   () const { return m_sound.cache; }
     const DebugEventCache<IoEvent>     & GetSerialCache  () const { return m_serial.cache; }
     const DebugEventCache<IoEvent>     & GetNetworkCache () const { return m_network.cache; }
 
