@@ -259,6 +259,9 @@ least 500 microseconds, starts the ramp and times it until `$C066` goes low
 | The machine runs at 1 MHz in emulation | DDW p. 80 |
 | Hi-res is as on an Apple II | SVC 10.3 |
 | Control-Reset does not end emulation | SVC 8.5 |
+| Emulation has the Apple II's video modes. The display decoder's inputs are the Apple II switches: `$C050`/`$C051` graphics / text, `$C052`/`$C053` full / mixed, `$C054`/`$C055` page, `$C056`/`$C057` lo-res / hi-res. Text is the "40 Character Apple ][" mode: black and white, from the RAM character generator | SVC 6.2, 6.24 (decoder ROM G5 with its `AII LORES` output) |
+| The disk's menu runs before the lockout and draws with a downloaded character set. After Return the machine is locked, INSERT APPLE II DISK is on the screen, and the Apple II boot code runs from `$C600` | Apple II Emulation disk, 2026-11-18 |
+| The keyboard has no Apple II mode: the Apple II software reads only the KA port | SVC 8.7 |
 
 ## Connectors and physical
 

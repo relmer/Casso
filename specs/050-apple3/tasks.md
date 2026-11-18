@@ -141,7 +141,7 @@ it back with Casso's disk tools.
 - [x] T048 [P] [US3] Implement `Apple3HiResMode`, `Apple3ColorHiResMode`, `Apple3Color140Mode` and `Apple3HiRes560Mode` in `CassoEmuCore/Machines/Apple3/`
 - [x] T049 [US3] Implement smooth scroll and mode selection for all seven modes in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
 - [x] T050 [US3] Add the 16-color palette and the 16 gray levels, applied by the color, green, amber and white styles (FR-021), in `CassoEmuCore/Machines/Apple3/Apple3Palette.h`
-- [ ] T051 [US3] Add `AppleMonitorIII` with green as its phosphor to `CassoEmuCore/Config/MonitorCatalog.h` (its mesh arrives in Phase 12; until then it uses the Monitor II mesh)
+- [x] T051 [US3] Add `AppleMonitorIII` with green as its phosphor to `CassoEmuCore/Config/MonitorCatalog.h` (its mesh arrives in Phase 12; until then it uses the Monitor II mesh)
 - [ ] T052 [US3] Write `scripts/CompareMameFrame.ps1` (headless MAME snapshot, headless Casso frame at the same emulated time, color index mapping, differing pixel report)
 - [ ] T053 [US3] Run T052 for each mode with a disk that draws in it; check each difference against the documents before changing code; store the results in `specs/050-apple3/validation/mame-frames.md`
 - [ ] T054 [US3] Confirm screenshot capture and the CRT effects work with each mode (FR-023)
@@ -196,7 +196,7 @@ debugger tests pass with their expectations as they were.
 - [ ] T072 [US7] Make the stack pane, call stack, step over, step out and the stack stop rules use the stack page in use (FR-041) in `CassoEmuCore/Debugger/CallStack.cpp` and the stack pane
 - [ ] T073 [US7] Add the bank, environment and zero page change breakpoints (FR-043) to `CassoEmuCore/Debugger/` and the Breakpoints pane
 - [ ] T074 [US7] Add the machine helper to `CassoCore/Disassembler.h` and `.cpp`: the resolved access annotation (FR-039) and inline call formatting (FR-044)
-- [ ] T075 [P] [US7] Write `SosCallNames` and `Apple3Symbols` (I/O addresses, VIA registers, documented ROM entry points) from the Apple documents in `CassoEmuCore/Machines/Apple3/`
+- [ ] T075 [P] [US7] Write `SosCallNames` and `Apple3Symbols` (I/O addresses, VIA registers, documented ROM entry points) from the Apple documents in `CassoEmuCore/Machines/Apple3/`. Done except the ROM entry points: no Apple document found so far lists them. The debugger loads the Apple /// table in place of the Monitor table
 - [ ] T076 [US7] Store and load `DebugAddress` in debugger projects, with older projects loading as current view (FR-047), in `CassoEmuCore/Debugger/Project/`
 - [ ] T077 [US7] Bind a debug file's addresses to the bank a program loaded in for source-level debugging (FR-048) in `CassoEmuCore/Debugger/Source/`
 - [ ] T078 [US7] Get the owner's approval of the debugger strings and the device panel titles in `specs/050-apple3/contracts/ui-strings.md`
@@ -252,7 +252,7 @@ reads the clock and both joystick ports.
 ## Phase 11: User Story 9 - Rewind an Apple /// session (Priority: P2)
 
 - [x] T101 [P] [US9] Write save and load round-trip tests for every new device and the MMU in `UnitTest/Apple3Tests/Apple3StateTests.cpp`
-- [ ] T102 [US9] Write a history test: store a SOS boot, seek to 100 random cycles, compare the full state hash with the live run at each (SC-009), in `ScenarioTests/Apple3HistoryTests.cpp` `Apple3HistoryTests` replays a Business BASIC run to every keyframe and back to live; the 100 random seeks remain
+- [x] T102 [US9] Write a history test: store a SOS boot, seek to 100 random cycles, compare the full state hash with the live run at each (SC-009), in `ScenarioTests/Apple3HistoryTests.cpp`. `SosBoot_SeeksToScatteredCycles_MatchLive` compares the whole saved state at each
 - [x] T103 [US9] Register every bank with history's page diff and keyframes, and add every new device to the machine state list, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
 - [x] T104 [US9] Route the clock chip's host time and the analog inputs through `InputJournal` (FR-057) in `CassoEmuCore/Devices/Mm58167.cpp` and `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.cpp`
 - [ ] T105 [US9] Rebuild the stack and call stack panes for the stack in use after a seek, and report banks in the rebuilt trace, heat map and event logs, in `CassoEmuCore/Debugger/CallStack.cpp` and `CassoEmuCore/Debugger/Reverse/`
@@ -306,12 +306,12 @@ Depends on Phase 7.
 
 ## Phase 15: User Story 12 - Run Apple II software in emulation mode (Priority: P3)
 
-- [ ] T130 [P] [US12] Write lockout tests (set by the documented write; register writes ignored afterward; survives reset; cleared by power-off; the Apple II mapping) in `UnitTest/Apple3Tests/Apple3EmulationModeTests.cpp`
-- [ ] T131 [US12] Implement the lockout and the Apple II mapping in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
-- [ ] T132 [US12] Select the Apple II text, lo-res and hi-res classes in emulation mode, with the text mode reading glyphs from `Apple3CharacterSet`, in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
-- [ ] T133 [US12] Produce Apple II keyboard codes, speaker, paddle and disk behavior at their Apple II addresses in emulation mode (FR-031b), in `CassoEmuCore/Machines/Apple3/`
+- [ ] T130 [P] [US12] Write lockout tests (set by the documented write; register writes ignored afterward; survives reset; cleared by power-off; the Apple II mapping) in `UnitTest/Apple3Tests/Apple3EmulationModeTests.cpp`. Setting the lockout, the register writes it discards and its end at a VIA reset are tested in `Apple3SystemViasTests` and `Apple3MmuTests`, and the display switches in `Apple3VideoTests`. Open: per SVC 8.5, Control-Reset is a true system reset but does not end Apple II mode, while a VIA reset here ends the lockout
+- [ ] T131 [US12] Implement the lockout and the Apple II mapping in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`. The lockout is implemented, and the emulation disk sets the mapping through the registers before it locks them. Control-Reset under the lockout waits for T130
+- [x] T132 [US12] Select the Apple II text, lo-res and hi-res classes in emulation mode, with the text mode reading glyphs from `Apple3CharacterSet`, in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
+- [x] T133 [US12] Produce Apple II keyboard codes, speaker, paddle and disk behavior at their Apple II addresses in emulation mode (FR-031b), in `CassoEmuCore/Machines/Apple3/`. No hardware change is made for these (SVC 8.7, 10.3-10.6): the emulation disk's Monitor reads the KA port and the A/D inputs, and the built-in drive is at the Apple II's slot 6 addresses
 - [ ] T134 [US12] Make the debugger follow the mode: machine info, symbols, memory map, the lockout row, and history storing the lockout (FR-031d), in `CassoEmuCore/Debugger/` and `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
-- [ ] T135 [US12] Add a scenario test: boot the Apple II Emulation disk, start emulation, boot the DOS 3.3 System Master, draw in lo-res and hi-res, compare frames with the ][+ machine
+- [x] T135 [US12] Add a scenario test: boot the Apple II Emulation disk, start emulation, boot the DOS 3.3 System Master, draw in lo-res and hi-res, compare frames with the ][+ machine
 
 ---
 

@@ -3,6 +3,7 @@
 #include "EmuTests/GuestSession.h"
 #include "EmuTests/TestMachine.h"
 #include "HResultAssert.h"
+#include "Video/MachineFrameRenderer.h"
 #include "Machines/Apple3/Apple3System.h"
 #include "Machines/Apple3/Apple3TextCells.h"
 #include "Core/TextEncoding.h"
@@ -36,6 +37,7 @@ public:
     static constexpr int           kDrive1             = 0;
     static constexpr const char *  kpszBusinessBasic   = "Disks/Apple/apple3-business-basic.dsk";
     static constexpr size_t        kDiskBytes          = 143360;
+    static constexpr size_t        kMixedFirstLine     = 160;
 
 
     //  The screen as text: 80 columns when the 80-column switch is set,
@@ -435,5 +437,76 @@ public:
 
         RunCommand (machine, "CATALOG .D3");
         Assert::IsTrue (GetScreenText (*machine.GetApple3()).find ("?VOLUME NOT FOUND ERROR") != std::string::npos, TextEncoding::Utf8ToWide (GetScreenText (*machine.GetApple3())).c_str());
+    }
+
+
+    //  Types the commands into both machines, then compares the top 20 text
+    //  rows' worth of the two frames, the area that is graphics on a mixed
+    //  screen. The text rows differ, since the Apple ///'s text comes from
+    //  its character generator.
+    static void CheckGraphicsMatch (TestMachine & apple3, TestMachine & apple2, const std::vector<std::string> & commands, const wchar_t * what)
+    {
+        std::vector<uint32_t>  apple3Frame;
+        std::vector<uint32_t>  apple2Frame;
+        size_t                 graphicsPixels = (size_t) MachineFrameRenderer::kWidth * kMixedFirstLine * 2;
+        size_t                 lit            = 0;
+        HRESULT                hr             = S_OK;
+
+
+
+        for (const std::string & command : commands)
+        {
+            Type (apple3, command + "\r");
+            apple3.GetRunner().RunCycles (kTicksPerSecond);
+            GuestSession::TypeAndCollect (apple2, command);
+        }
+
+        hr = MachineFrameRenderer::Render (apple3, apple3.GetBuilder(), true, apple3Frame);
+        AssertSucceeded (hr, what);
+        hr = MachineFrameRenderer::Render (apple2, apple2.GetBuilder(), true, apple2Frame);
+        AssertSucceeded (hr, what);
+
+        for (size_t i = 0; i < graphicsPixels; i++)
+        {
+            Assert::AreEqual (apple2Frame[i], apple3Frame[i], std::format (L"{}: pixel {}, {}", what, i % MachineFrameRenderer::kWidth, i / MachineFrameRenderer::kWidth).c_str());
+            lit += (apple3Frame[i] & 0x00FFFFFF) != 0 ? 1 : 0;
+        }
+
+        Assert::IsTrue (lit > 0, what);
+    }
+
+
+    //  The Apple II Emulation disk's menu, then Return: the machine is locked
+    //  into emulation, with INSERT APPLE II DISK on the screen. The DOS 3.3
+    //  System Master boots to Applesoft, and lo-res and hi-res drawings match
+    //  a ][+ given the same commands.
+    TEST_METHOD (Emulation_BootsDos33_AndDrawsAsAnApple2Plus)
+    {
+        TestMachine        apple3 ("Apple3");
+        TestMachine        apple2 ("Apple2Plus");
+        std::vector<Byte>  emulation = GuestSession::RequireRepoImage ("Disks/Apple/apple3-apple2-emulation.dsk");
+        std::vector<Byte>  master    = GuestSession::RequireDos33Master();
+
+
+
+        MountBytes (apple3, kDrive1, "apple3-apple2-emulation.dsk", emulation);
+        Assert::IsTrue (RunUntilScreenHas (apple3, "EMULATION MODE", kSecondsToPrompt), L"the emulation disk's menu");
+        Assert::IsFalse (apple3.GetApple3()->GetMmu().IsLockedOut(), L"the menu runs before the lockout");
+
+        apple3.GetApple3()->GetKeyboard().PressKey ('\r');
+        Assert::IsTrue (RunUntilScreenHas (apple3, "INSERT APPLE II DISK", kSecondsToPrompt), L"INSERT APPLE II DISK is on the screen");
+        Assert::IsTrue (apple3.GetApple3()->GetMmu().IsLockedOut(), L"and the machine is locked into emulation");
+
+        MountBytes (apple3, kDrive1, "master.dsk", master);
+        Assert::IsTrue (RunUntilScreenHas (apple3, "SYSTEM MASTER", kSecondsToPrompt), L"the System Master boots");
+        apple3.GetRunner().RunCycles (kTicksPerSecond * 2);
+
+        RunCommand (apple3, "PRINT 6*7");
+        Assert::IsTrue (GetScreenText (*apple3.GetApple3()).find ("\n42 ") != std::string::npos, TextEncoding::Utf8ToWide (GetScreenText (*apple3.GetApple3())).c_str());
+
+        GuestSession::BootToPrompt (apple2, master);
+
+        CheckGraphicsMatch (apple3, apple2, { "GR", "COLOR=13", "PLOT 10,10", "HLIN 0,39 AT 20", "COLOR=6", "VLIN 0,39 AT 30" }, L"lo-res");
+        CheckGraphicsMatch (apple3, apple2, { "HGR", "HCOLOR=3", "HPLOT 0,0 TO 279,159", "HCOLOR=5", "HPLOT 0,159 TO 279,0" }, L"hi-res");
     }
 };

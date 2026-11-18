@@ -16,6 +16,7 @@ static constexpr int  s_k80ColumnSwitch = 1;
 static constexpr int  s_kPage2Switch    = 2;
 static constexpr int  s_kGraphicsSwitch = 3;
 static constexpr int  s_kScrollMask     = 0x07;
+static constexpr Word s_kGraphicsStart  = 0x2000;
 
 
 
@@ -160,7 +161,9 @@ void Apple3Video::SetVerticalBlank (bool isBlank)
 //  GetMode
 //
 //  The text, graphics, 40/80 and color switches select one of seven modes;
-//  the 80-column text mode ignores the color switch.
+//  the 80-column text mode ignores the color switch. Under the Apple II
+//  lockout this is black and white 40-column text; Apple3VideoOutput draws
+//  the Apple II graphics modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +173,11 @@ const IApple3VideoMode * Apple3Video::GetMode() const
 
 
 
-    if (!m_isGraphics)
+    if (IsEmulationMode())
+    {
+        mode = &m_text40;
+    }
+    else if (!m_isGraphics)
     {
         mode = m_is80Columns ? static_cast<const IApple3VideoMode *> (&m_text80)
              : m_isColor     ? static_cast<const IApple3VideoMode *> (&m_color40)
@@ -185,6 +192,49 @@ const IApple3VideoMode * Apple3Video::GetMode() const
     }
 
     return mode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsEmulationMode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple3Video::IsEmulationMode() const
+{
+    return m_vias != nullptr && m_vias->IsLockedOut();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekDisplay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple3Video::PeekDisplay (Word address) const
+{
+    Byte  value = 0;
+
+
+
+    if (address >= s_kGraphicsStart)
+    {
+        value = m_readGraphics ? m_readGraphics (address) : 0;
+    }
+    else
+    {
+        value = m_readSystem ? m_readSystem (address) : 0;
+    }
+
+    return value;
 }
 
 

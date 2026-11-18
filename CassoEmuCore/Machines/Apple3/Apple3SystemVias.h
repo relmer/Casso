@@ -69,6 +69,10 @@ public:
     void     SetSlotInterrupt (int slot, bool asserted);
     void     SetInterruptLine (bool asserted);
 
+    //  The Apple II lockout: the E VIA's bit 6 driven low. As an input it
+    //  reads high.
+    bool     IsLockedOut      () const;
+
     Via6522        & GetD ()       { return m_d; }
     Via6522        & GetE ()       { return m_e; }
     const Via6522  & GetD () const { return m_d; }

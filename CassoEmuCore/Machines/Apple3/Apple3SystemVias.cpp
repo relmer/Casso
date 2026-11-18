@@ -159,23 +159,35 @@ void Apple3SystemVias::Tick (uint32_t cycles)
 //
 //  UpdateOutputs
 //
-//  Passes the three registers and the lockout to the memory map. The
-//  lockout is the E VIA's bit 6 driven low; as an input it reads high.
+//  Passes the three registers and the lockout to the memory map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple3SystemVias::UpdateOutputs()
 {
-    Byte  portA      = m_e.GetPortA();
-    bool  isDriven   = (m_e.GetDdra() & kLockout) != 0;
-    bool  isLockout  = isDriven && (portA & kLockout) == 0;
-
-
-
     m_mmu.SetEnvironment (m_d.GetPortA());
     m_mmu.SetZeroPage    (m_d.GetPortB());
-    m_mmu.SetBank        ((Byte) (portA & kBankBits));
-    m_mmu.SetLockout     (isLockout);
+    m_mmu.SetBank        ((Byte) (m_e.GetPortA() & kBankBits));
+    m_mmu.SetLockout     (IsLockedOut());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsLockedOut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple3SystemVias::IsLockedOut() const
+{
+    bool  isDriven = (m_e.GetDdra() & kLockout) != 0;
+
+
+
+    return isDriven && (m_e.GetPortA() & kLockout) == 0;
 }
 
 

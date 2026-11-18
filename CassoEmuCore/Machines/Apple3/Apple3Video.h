@@ -37,6 +37,11 @@ class Apple3SystemVias;
 //  CB2 lines until the display starts again. Flashing characters change
 //  phase every 15 frames, about twice a second.
 //
+//  Under the Apple II lockout the display has the Apple II's modes, and the
+//  switches act as an Apple II's: $C050/$C051 graphics or text, $C052/$C053
+//  full screen or mixed, $C054/$C055 page 1 or 2, $C056/$C057 lo-res or
+//  hi-res. Text is black and white.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Apple3Video : public IMachineState
@@ -80,6 +85,16 @@ public:
     bool     IsScreenOn        () const { return m_isScreenOn; }
     bool     IsVerticalBlank   () const { return m_isVerticalBlank; }
     bool     IsFlashOn         () const { return m_isFlashOn; }
+
+    //  The Apple II lockout, and the switches as an Apple II's.
+    bool     IsEmulationMode   () const;
+    bool     IsApple2Text      () const { return m_isColor; }
+    bool     IsApple2Mixed     () const { return m_is80Columns; }
+    bool     IsApple2HiRes     () const { return m_isGraphics; }
+
+    //  A byte of video memory: the system bank below $2000, the graphics
+    //  buffers from $2000.
+    Byte     PeekDisplay       (Word address) const;
 
     HRESULT  SaveState         (StateWriter & writer) const override;
     HRESULT  LoadState         (StateReader & reader) override;

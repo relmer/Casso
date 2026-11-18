@@ -272,6 +272,7 @@ void Apple3MachineBuilder::CreateVideo()
 
 
     m_builder.CreateVideoModes();
+    output->SetApple2Modes (m_host.GetRefs().loRes, m_host.GetRefs().hiRes);
 
     m_host.GetRefs().apple3Video     = output.get();
     m_host.GetRefs().activeVideoMode = output.get();

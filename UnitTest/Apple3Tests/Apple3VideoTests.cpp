@@ -102,6 +102,37 @@ public:
     }
 
 
+    //  Under the Apple II lockout the switches act as an Apple II's, and the
+    //  text mode is black and white 40-column text whatever they are.
+    TEST_METHOD (Lockout_SwitchesActAsAnApple2s)
+    {
+        auto  rig = std::make_unique<Rig>();
+
+
+
+        rig->systemVias.Write (0xFFE3, 0x4F);
+        rig->systemVias.Write (0xFFEF, 0x00);
+        Assert::IsTrue (rig->video.IsEmulationMode());
+
+        rig->video.HandleSwitch (0xC051);
+        Assert::IsTrue   (rig->video.IsApple2Text(), L"$C051 is TEXT");
+        Assert::AreEqual ("apple3-text40", rig->video.GetMode()->GetModeName(), L"no color text");
+
+        rig->video.HandleSwitch (0xC053);
+        Assert::IsTrue   (rig->video.IsApple2Mixed(), L"$C053 is MIXED");
+        Assert::AreEqual ("apple3-text40", rig->video.GetMode()->GetModeName(), L"no 80-column text");
+
+        rig->video.HandleSwitch (0xC057);
+        Assert::IsTrue (rig->video.IsApple2HiRes(), L"$C057 is HIRES");
+
+        rig->video.HandleSwitch (0xC050);
+        Assert::IsFalse (rig->video.IsApple2Text(), L"$C050 is GRAPHICS");
+
+        rig->systemVias.Reset();
+        Assert::IsFalse (rig->video.IsEmulationMode(), L"a reset of the VIAs ends the lockout");
+    }
+
+
     TEST_METHOD (Download_SwitchesReachTheCharacterSet)
     {
         auto  rig = std::make_unique<Rig>();
