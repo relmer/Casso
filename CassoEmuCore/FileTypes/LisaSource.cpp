@@ -707,6 +707,7 @@ void LisaSource::DecodeVersion3 (std::span<const Byte> bytes, Listing & out)
             DecodeLine3 (line, symbols, out);
             continue;
         }
+
         if (flag >= 0xFE)
         {
             out.Put ((flag == 0xFE) ? '*' : ';');
@@ -1137,6 +1138,7 @@ void LisaSource::DecodeVersion4 (std::span<const Byte> bytes, Listing & out)
             DecodeLine4 (line, symbols, out);
             continue;
         }
+
         if (flag == 0xFF || flag == 0xFE)
         {
             out.Put ((flag == 0xFE) ? '*' : ';');
