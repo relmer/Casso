@@ -319,7 +319,7 @@ Depends on Phase 7.
 
 Blocked until a merge from `035-debugger` includes 048.
 
-- [ ] T136 [US11] Merge `035-debugger` once it contains 048; confirm `ProFileDrive`, `ProFileCard` and the ProFile models are present
+- [x] T136 [US11] Merge `035-debugger` once it contains 048; confirm `ProFileDrive`, `ProFileCard` and the ProFile models are present. 048 reached 050 through 035 earlier, and merge `dcfc62663` brings 035 to `e1803dcda`
 - [ ] T137 [P] [US11] Write tests for the ProFile interface card in an Apple /// slot (handshake, read, write, both sizes) in `UnitTest/Apple3Tests/Apple3ProFileTests.cpp`
 - [ ] T138 [US11] Add card support to `Apple3Slots` (from T019a) and implement the Apple /// ProFile interface card over 048's `ProFileDrive` in `CassoEmuCore/Machines/Apple3/`
 - [ ] T139 [US11] Offer the card in slot settings, attach it by default in slot 4 in both machine files, and add the ProFile placement setting (on the computer, to the side, hidden)

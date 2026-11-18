@@ -510,6 +510,30 @@ to `FetchRoms.ps1 -Fixtures`. The copy on the owner's PC has CRC `55e8eec9`.
 Which revisions exist and whether the Plus uses the same image is to be
 verified; the catalog lists each accepted revision.
 
+## R25. The ProFile card on the Apple ///
+
+**Source**: Apple's SOS `.PROFILE` driver 1.30 source listing (`Apple 3
+Source - Profile HD Driver.pdf`), read 2026-11-18. The driver is on the System
+Utilities disk.
+
+**Facts from the listing**:
+
+- The card's I/O registers are at `$C080` plus the slot offset in X:
+  `$C080` writes a byte to the drive's Z8 controller, `$C081` reads one,
+  `$C082` is the status (busy, and the parity error in bit 6), and a write to
+  `$C083` clears the parity error.
+- The handshake lines are set by reads of `$Cn00` plus an offset. Bits 0 and
+  1 of the offset select the line, bit 2 is its level, and bit 3 is the
+  reset: command 0 and 4, read and write 1 and 5, interrupt 2 and 6, data
+  read and write 3 and 7, reset `$0C` and clear `$08`.
+- The driver runs at 1 MHz while it accesses the card, and moves a block
+  through the pseudo DMA code in the ROM at `$F800`.
+
+**Open**: 048's `ProFileCard` decodes the line offsets with bits 1 and 2
+selecting the line and bit 0 its level, from the Apple II card's ROM. The
+two decodes disagree, so the Apple /// card, or one of the two readings,
+differs. T137 compares the two listings before T138 reuses the drive.
+
 ## R24. Order of work and merges
 
 **Decision**: memory and CPU first, then VIAs, video and keyboard up to the
