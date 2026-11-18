@@ -21,7 +21,7 @@ struct Reply;
 //
 //  The files a debug session loaded for the program in memory: the debug
 //  file with its line table and data blocks, the checks of whether memory
-//  still has the program each file was made for, and the record of each
+//  has the program each file was made for, and the record of each
 //  symbol file, added symbol and binary loaded, for a debug project to load
 //  again.
 //

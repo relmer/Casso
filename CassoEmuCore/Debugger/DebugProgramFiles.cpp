@@ -583,7 +583,7 @@ void DebugProgramFiles::ForgetBinaryLoad()
 //
 //  DebugProgramFiles::TakeView
 //
-//  The debug file already in out is kept while its revision matches, so
+//  The debug file already in out is reused while its revision matches, so
 //  taking a view copies it once per change rather than once per frame.
 //
 ////////////////////////////////////////////////////////////////////////////////

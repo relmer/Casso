@@ -477,7 +477,7 @@ std::optional<WatchHit> DebugStopMonitor::GetUnwrittenHit() const
 //  DebugStopMonitor::ReportStop
 //
 //  The breakpoint or watchpoint that caused the stop is attached here, where
-//  it was recorded, then the Applesoft, disk call and disk reports and the
+//  it was stored, then the Applesoft, disk call and disk reports and the
 //  condition of the entry that stopped the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -714,9 +714,9 @@ void DebugStopMonitor::AttachCondition (StopEvent & event) const
 //
 //  DebugStopMonitor::OnStopped
 //
-//  A stop that is not the Monitor return's own leaves the return armed: the
-//  address a Monitor `G` pushed is still on the stack, so a breakpoint partway
-//  through the program does not let the final RTS run on into the ROM.
+//  The Monitor's return stays armed across any other stop: the address a
+//  Monitor `G` pushed is on the stack, so a breakpoint partway through the
+//  program does not let the final RTS run on into the ROM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -791,7 +791,7 @@ void DebugStopMonitor::OnRunStarting()
 //
 //  DebugStopMonitor::OnMachineChanged
 //
-//  A different machine makes every recorded cause meaningless. With
+//  A different machine makes every stored cause meaningless. With
 //  isKeepingStops the breakpoints stay, so the last one's id does too.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,7 +13,7 @@ enum class HostAccess;
 //
 //  DebugHostFiles
 //
-//  How a debug session reaches host files: the injected file system, the
+//  A debug session's access to host files: the injected file system, the
 //  directory CD set, and the access rules of the channel client whose line
 //  is running. Relative paths typed to a command resolve here, and a path
 //  echoed in a reply is the one the command opened.

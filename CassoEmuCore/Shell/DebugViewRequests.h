@@ -11,7 +11,7 @@ class HeatMapOptions;
 //
 //  DebugViewRequests
 //
-//  The debugger window's changes to what its panes show, carried out on the
+//  The debugger window's changes to the views in its panes, made on the
 //  CPU thread: the code views, the memory windows, the trace and the heat
 //  map. Each takes the view state lock a build reads under, and a change
 //  calls the function given, which marks the view for building again.

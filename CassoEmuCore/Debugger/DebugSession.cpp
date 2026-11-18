@@ -758,8 +758,8 @@ void DebugSession::OnFreeRunSlice()
 //  DebugSession::OnStopped
 //
 //  Every stop, whether it ends a debugger run or interrupts a free-running
-//  machine, leaves the session paused and is announced, with the cause the
-//  stop monitor recorded.
+//  machine, pauses the session and is announced, with the cause
+//  DebugStopMonitor stored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1753,7 +1753,7 @@ void DebugSession::UpdateHookInstalled()
 //  DebugSession::RefreshHookFilter
 //
 //  Every instruction during a run the debugger started or while profiling
-//  is on; otherwise the ones the stop conditions need to see.
+//  is on; otherwise the ones DebugStopMonitor::BuildHookFilter marks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

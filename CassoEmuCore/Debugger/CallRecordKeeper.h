@@ -20,8 +20,8 @@ struct DebugSessionView;
 //  A debug session's call-stack record (FR-068): started at PC, fed the
 //  opcodes that can change it by the CPU and the stack writes by the
 //  watchpoint table, and settled between instructions before it is read.
-//  The frame a step out leaves is set from it, and turning recording off
-//  while that step runs takes effect when the step stops.
+//  A step out's frame is set from it, and turning recording off while that
+//  step runs takes effect when the step stops.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,14 +42,15 @@ public:
     CallStackMechanism             GetMechanism       () const                        { return m_mechanism; }
     void                           SetMechanism       (CallStackMechanism mechanism)  { m_mechanism = mechanism; }
 
-    //  The chain to PC, each frame's target named from the symbol tables;
-    //  with entries, only calls to them are kept.
+    //  The chain to PC, with each frame's target looked up in the symbol
+    //  tables; with entries, calls to other addresses are dropped.
     CallStackData                  GetCallStack       (const SymbolTable & symbols, const std::set<Word> * entries);
     bool                           HasNoCallSince     (uint64_t cycle);
     void                           GetCallerLinks     (std::vector<CallerLink> & outLinks);
     void                           Settle             ();
 
-    //  A step out's frame on the record, or the notice that there is none.
+    //  A step out's frame on the record, or a notice when the record has no
+    //  frame for it.
     void                           SetStepOutFrame    (RunRequest & request, std::string & outNotice);
 
     //  The PC at the last stop: a PC that differs at a step out was moved.

@@ -11,8 +11,8 @@ class IDebugTarget;
 //  BeamBreakMonitor
 //
 //  The stops a debug session takes at a place in the video frame: BPV's,
-//  when the beam enters a range of scanlines, BPBEAM's, when the beam
-//  reaches a cycle within the frame, and FRAME's, a beam break for one run.
+//  when the beam enters a range of scanlines, BPBEAM's, at a cycle within
+//  the frame, and FRAME's, a beam break for one run.
 //  Poll follows the beam at each instruction boundary.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,10 +34,10 @@ public:
 
     std::optional<uint32_t>  GetBeamBreak () const;
 
-    //  Any of the three is set, so the session sees every instruction.
+    //  Any of the three is set, so the hook is called on every instruction.
     bool   IsArmed         () const { return m_videoBreak.has_value() || HasBeamBreak(); }
 
-    //  At an instruction boundary: true when a break is reached.
+    //  At an instruction boundary: true at one of the breaks.
     bool   Poll            ();
 
     //  A stop takes away the breaks that made it, and FRAME's whatever made it.

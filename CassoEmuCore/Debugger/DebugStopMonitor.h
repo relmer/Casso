@@ -22,7 +22,7 @@ struct DebugHookFilter;
 //  A debug session's stop conditions, tested at each instruction boundary:
 //  the breakpoints, the disk and Applesoft monitors, the beam breaks, the
 //  return a Monitor `G` pushed, the before-mode watchpoints and read before
-//  written. A stop's cause is recorded where it is found and added to the
+//  written. A stop's cause is stored where it is found and added to the
 //  stop event when the run reports the stop.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,8 +57,8 @@ public:
     //  Any enabled stop condition exists, so the hook is installed.
     bool   HasStopConditions        () const;
 
-    //  The instructions the session needs to see, given whether it needs
-    //  every one for a reason of its own.
+    //  The instructions the hook is called on, given whether every one is
+    //  called on for another reason.
     void   BuildHookFilter          (DebugHookFilter & filter, bool isEvery);
 
     //  A stop's cause, reason and reports, added to the event the run
@@ -67,8 +67,8 @@ public:
     void   OnStopped                ();
     void   ClearTemporary           (const StopEvent & stop);
 
-    //  A run is starting: a hit raised while the machine was paused, by IN
-    //  or OUT, belongs to no run.
+    //  A run is starting: a hit raised by IN or OUT while the machine was
+    //  paused is not part of any run, and is dropped.
     void   OnRunStarting            ();
 
     void   OnMachineChanged         (bool isKeepingStops);
