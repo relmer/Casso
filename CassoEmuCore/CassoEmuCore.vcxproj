@@ -270,6 +270,7 @@
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostBlocks.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostModules.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostTextForm.cpp" />
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkVirtualDrives.cpp" />
