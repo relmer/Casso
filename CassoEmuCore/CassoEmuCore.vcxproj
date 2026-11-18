@@ -312,6 +312,11 @@
     <ClCompile Include="Ui\Debugger\Panes\BasicPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapView.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapCells.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapCellText.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapGrid.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapPainter.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapSections.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapZoomWidget.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DebuggerPaneFrame.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FindWidgetPlate.cpp" />
@@ -1811,6 +1816,11 @@
     <ClInclude Include="Ui\Debugger\Panes\BasicPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapCells.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapCellText.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapGrid.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapPainter.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapSections.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapZoomWidget.h" />
     <ClInclude Include="Ui\Debugger\HeatMapRangeBarCommands.h" />
     <ClInclude Include="Ui\Debugger\Panes\DebuggerPaneFrame.h" />
