@@ -165,8 +165,11 @@ public:
     //  new name only when there is one entry.
     Outcome  ApplyProperties (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits);
 
-    //  The selected file converted, as BasicConversion converts it, into a
-    //  new file beside it; outNewName is the new file's name.
+    //  Each selected file converted, as BasicConversion converts it, into a
+    //  new file beside it. A file with no conversion is passed over. Those
+    //  passed over and those that fail are listed in the outcome's warning
+    //  when any file was converted, and in its message when none was.
+    //  outNewName is the new file's name when one file was converted.
     Outcome  ConvertSelected (std::string & outNewName);
 
     //  The access an entry has locked or unlocked: ProDOS's destroy, rename
@@ -343,6 +346,7 @@ private:
     static constexpr size_t  kMaxImageFacts = 256;
 
     std::vector<std::string>  GetEntryNames (const std::string & image, const std::string & directory) const;
+    Outcome                   ConvertOne    (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName);
     ImageFacts              & GetImageFacts (const std::wstring & image) const;
 
     void  FinishWrite (const std::wstring & imagePath);
