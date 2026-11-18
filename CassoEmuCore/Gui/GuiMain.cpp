@@ -928,6 +928,9 @@ extern "C" int WINAPI wCassoMain (
         hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
         IGNORE_RETURN_VALUE (hrSounds, S_OK);
 
+        hrSounds = AssetBootstrap::EnsureDriveSounds (hInstance);
+        IGNORE_RETURN_VALUE (hrSounds, S_OK);
+
         // Register the Apple keycap glyphs with DirectWrite before any window
         // exists, since a text format caches the fallback it was built with
         // and the renderers are per window.

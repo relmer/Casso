@@ -2,6 +2,7 @@
 
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "AssetBootstrap.h"
+#include "Audio/Floppy35AudioSource.h"
 #include "Shell/RepoCheckout.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
@@ -1250,6 +1251,87 @@ HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureDriveSounds
+//
+//  The drive sounds are read-only assets, so a missing file is written and an
+//  existing one is left alone. After a failed write, that sound is silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureDriveSounds (HINSTANCE hInstance)
+{
+    struct SoundAsset { int resourceId; const wchar_t * folder; const wchar_t * fileName; };
+
+    static const SoundAsset  s_kSounds[] =
+    {
+        { IDR_SOUND_SONY35_SPIN_START,  Floppy35AudioSource::kSampleFolder,  L"35_spin_start_loaded.wav" },
+        { IDR_SOUND_SONY35_SPIN_LOOP,   Floppy35AudioSource::kSampleFolder,  L"35_spin_loaded.wav"       },
+        { IDR_SOUND_SONY35_SPIN_END,    Floppy35AudioSource::kSampleFolder,  L"35_spin_end.wav"          },
+        { IDR_SOUND_SONY35_STEP,        Floppy35AudioSource::kSampleFolder,  L"35_step_1_1.wav"          },
+        { IDR_SOUND_SONY35_SEEK,        Floppy35AudioSource::kSampleFolder,  L"35_seek_12ms.wav"         },
+    };
+
+    HRESULT     hr = S_OK;
+    error_code  ec;
+
+
+
+    for (const SoundAsset & asset : s_kSounds)
+    {
+        fs::path          folder = GetDriveSoundsDirectory() / asset.folder;
+        fs::path          target = folder / asset.fileName;
+        span<const Byte>  bytes;
+        HRESULT           hrItem = S_OK;
+
+
+
+        if (fs::exists (target, ec))
+        {
+            continue;
+        }
+
+        fs::create_directories (folder, ec);
+
+        bytes = ExtractResource (hInstance, asset.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;
+            continue;
+        }
+
+        hrItem = WriteFileBytes (target, bytes);
+
+        if (FAILED (hrItem))
+        {
+            hr = hrItem;
+        }
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDriveSoundsDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path AssetBootstrap::GetDriveSoundsDirectory()
+{
+    return GetAssetBaseDirectory() / L"Drive Sounds";
 }
 
 

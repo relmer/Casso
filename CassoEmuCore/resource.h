@@ -280,3 +280,12 @@
 #define IDR_SOUND_PAPER_TEAR_3              511
 #define IDR_SOUND_PAPER_TEAR_4              512
 #define IDR_SOUND_PAPER_TEAR_5              513
+
+// Embedded drive sounds (extracted to %LOCALAPPDATA%\Casso\Drive Sounds\ by
+// EnsureDriveSounds). The Sony 3.5-inch set is MAME's, CC0. See
+// Assets/Drive Sounds/Sony 3.5/ATTRIBUTION.txt.
+#define IDR_SOUND_SONY35_SPIN_START         520
+#define IDR_SOUND_SONY35_SPIN_LOOP          521
+#define IDR_SOUND_SONY35_SPIN_END           522
+#define IDR_SOUND_SONY35_STEP               523
+#define IDR_SOUND_SONY35_SEEK               524

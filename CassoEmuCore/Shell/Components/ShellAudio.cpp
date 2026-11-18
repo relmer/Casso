@@ -187,6 +187,19 @@ void ShellAudio::LoadAssetsForDeviceRate (MockingboardCard * mockingboard)
     hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(), sampleRate);
     IGNORE_RETURN_VALUE (hrSnd, S_OK);
 
+    for (auto & src : m_deviceAudioSources)
+    {
+        Floppy35AudioSource  * floppy = dynamic_cast<Floppy35AudioSource *> (src.get());
+
+
+
+        if (floppy != nullptr)
+        {
+            hrSnd = floppy->LoadSamples (AssetBootstrap::GetDriveSoundsDirectory() / Floppy35AudioSource::kSampleFolder, sampleRate);
+            IGNORE_RETURN_VALUE (hrSnd, S_OK);
+        }
+    }
+
     if (mockingboard != nullptr)
     {
         mockingboard->SetSampleRate (sampleRate);

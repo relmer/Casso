@@ -1344,6 +1344,7 @@
     <ClCompile Include="Devices\Floppy35\Apple2cPlusDiskPort.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2cPlus\MigChip.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.cpp" />
+    <ClCompile Include="Audio\AudioFileDecoder.cpp" />
     <ClCompile Include="Audio\Floppy35AudioSource.cpp" />
     <ClCompile Include="Audio\HardDiskAudioSource.cpp" />
     <ClCompile Include="Ui\Settings\SlotCards.cpp" />
@@ -2372,6 +2373,7 @@
     <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlus.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\MigChip.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.h" />
+    <ClInclude Include="Audio\AudioFileDecoder.h" />
     <ClInclude Include="Audio\Floppy35AudioSource.h" />
     <ClInclude Include="Audio\HardDiskAudioSource.h" />
     <ClInclude Include="Ui\Settings\SlotCards.h" />
