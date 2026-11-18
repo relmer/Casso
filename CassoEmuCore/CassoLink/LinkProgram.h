@@ -83,7 +83,7 @@ struct LinkShimOptions
 //  LinkProgram
 //
 //  The Apple side of Casso's link, built from the 6502 sources compiled into
-//  the core: the shim, resident at $3B00, and the program it loads at $0800.
+//  the core: the shim, resident at $3A00, and the program it loads at $0800.
 //  Both are assembled here with CassoCore's assembler, in the AS65 dialect,
 //  for the NMOS 6502.
 //
@@ -96,12 +96,12 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 101;
-    static constexpr Byte    kShimVersion       = 10;
-    static constexpr Word    kShimAddress       = 0x3B00;
-    static constexpr Word    kZeroPageSave      = 0x3A00;   // the shim's copy of the machine's zero page, below it
+    static constexpr Word    kProgramVersion    = 102;
+    static constexpr Byte    kShimVersion       = 11;
+    static constexpr Word    kShimAddress       = 0x3A00;
+    static constexpr Word    kZeroPageSave      = 0x3900;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
-    static constexpr size_t  kShimLimit         = 0x500;   // $3B00-$3FFF, below the program's tables
+    static constexpr size_t  kShimLimit         = 0x600;   // $3A00-$3FFF, below the program's tables
 
     //  Where the host writes the shim's starting speed: the 6551 control
     //  byte, and its text, padded with spaces.
@@ -149,21 +149,21 @@ public:
     static constexpr Word    kUniversalAddress  = 0x2000;
     static constexpr size_t  kUniversalLimit    = 0xC00;
     static constexpr Word    kUniversalAcia     = 0x2C00;
-    static constexpr Word    kUniversalW5100    = 0x3100;
+    static constexpr Word    kUniversalW5100    = 0x3200;
 
     //  The UDP port a universal disk's W5100 broadcasts its announcements to.
     static constexpr uint16_t  kAnnouncePort  = 6510;
 
     //  The slot finder, which runs ahead of a 6551 shim typed in or read from
     //  tape, in the page the shim's copy of the zero page later fills.
-    static constexpr Word    kSlotFinderAddress = 0x3AA0;
+    static constexpr Word    kSlotFinderAddress = 0x39A0;
 
     //  The seed of the XOR that Apple's monitor reads and writes a tape with.
     static constexpr Byte    kTapeChecksumSeed  = 0xFF;
 
     //  The slot finder built to read the shim from the 6551 itself, the only
     //  part of a serial bootstrap that is typed.
-    static constexpr Word    kSerialLoaderAddress = 0x3A50;
+    static constexpr Word    kSerialLoaderAddress = 0x3950;
 
     static HRESULT      AssembleShim     (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
     //  With faults, the build has the Fault command, for a Debug build's tests

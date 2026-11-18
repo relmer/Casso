@@ -267,7 +267,7 @@ private:
     //  Applesoft's prompt, as the loader does.
     bool  RunLoader (std::stop_token stop, Line & line)
     {
-        static constexpr std::string_view  kRun = "3A50G\r";
+        static constexpr std::string_view  kRun = "3950G\r";
         Byte                               chunk[4096];
         size_t                             got  = 0;
         size_t                             need = 0;

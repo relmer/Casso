@@ -97,10 +97,10 @@
 ; or firmware set its speed, so Set speed is acknowledged and changes
 ; nothing.
 ;
-; A IIgs's modem and printer ports are run that way at first, with SHIMPAS at
-; $C0. Set speed sets the port's 8530 itself, and the shim's three firmware
-; jumps are pointed at sccstat, sccread and sccwrite here, so the byte
-; routines drive the 8530 directly from then on, at the new speed.
+; A IIgs's modem and printer ports are driven the same way, with SHIMPAS at
+; $C0: the shim's three jumps go to its 8530 routines rather than to the
+; firmware. Set speed sets the 8530 through the shim, and Load program
+; starts the shim at the speed set.
 ;
 ; On a IIgs the program runs at 1 MHz, as every wait here is counted in
 ; cycles, from its start until CassoLink ends, when the IIgs's speed is put
@@ -257,7 +257,7 @@ FLTUNREAD = 4
 FLTDATA   = 5
 FLTCRC    = 6
 
-SHIM      = $3B00
+SHIM      = $3A00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
@@ -271,8 +271,9 @@ SHIMPSTAT = SHIM + $3A            ; the shim's calls of that firmware: status,
 SHIMPREAD = SHIM + $3D            ; read
 SHIMPWRITE = SHIM + $40           ; and write, X and Y changed
 SHIMGS    = SHIM + $43            ; a IIgs's speed register as found, plus 1; 0 until then
+SHIMSCC   = SHIM + $44            ; the shim's setting of a IIgs's port to the speed in A
 CYAREG    = $C036                 ; a IIgs's speed register: bit 7 for its fast speed
-ZPSAVE    = $3A00                 ; the zero page the shim found, below the shim
+ZPSAVE    = $3900                 ; the zero page the shim found, below the shim
 ACK       = $06
 NAK       = $15
 
@@ -970,14 +971,16 @@ doload: jsr col40
         jmp SHIM
         else
 doload: jsr col40
-        bit SHIMPAS             ; the firmware's card has no 6551 speed to set
-        bpl dlacia
-        jsr sccback             ; and a IIgs's port goes back to its firmware
+        bit SHIMPAS             ; the firmware's card has no 6551 speed to set,
+        bpl dlacia              ; and a IIgs's port has its speed in the shim
+        bvs dlgs
         jmp SHIM
+dlgs:   lda SHIMSPEED
+        jmp dlspeed
 dlacia: ldx slotx
         lda ACIACTL,x
         sta SHIMSPEED
-        and #$0F
+dlspeed: and #$0F
         ldx #0
 dlfind: cmp speeds,x
         beq dlfound
@@ -1208,11 +1211,10 @@ dospeed: lda #OPSPEED
         jmp main                ; a W5100 or the cassette has no speed to set
         else
         bit SHIMPAS             ; nor a card run through its firmware, but a
-        bpl spdacia             ; IIgs's port does
+        bpl spdacia             ; IIgs's port does, once the ACK is sent
         bvc spddone
-        lda SHIMGS              ; a port with the SSC's ID and no 6551 on a
-        beq spddone             ; machine other than a IIgs has no 8530
-        jsr sccspeed
+        lda PKTBUF
+        jsr SHIMSCC
         jsr showconn
 spddone: jmp main
 spdacia: ldx slotx
@@ -2953,206 +2955,6 @@ pwwait: lda #0                  ; ready for output
         rts
 
 pasavy: .byte 0                 ; Y across a firmware call
-
-; ---------------------------------------------------------------------------
-; A IIgs's port, through its 8530
-; ---------------------------------------------------------------------------
-
-; Slot 1's printer port is channel B and slot 2's modem port channel A. A
-; read of a channel's command register reads register 0 and selects it
-; again; a write selects the register the next access of it reads or writes.
-; Reads are indexed by the channel. Writes are absolute, set for the port,
-; as an indexed store reads its address first, which changes the register
-; selected or reads a byte received.
-SCCBCMD  = $C038
-SCCBDATA = $C03A
-RR0RX    = $01                  ; register 0: a byte received
-RR0TX    = $04                  ; and the transmit buffer empty
-RR1SENT  = $01                  ; register 1: the last byte sent whole
-
-; sccstat, sccread and sccwrite: the shim's firmware calls' contract, on the
-; 8530. sccstat has the carry set when the transmitter is ready, for A of
-; 0, or a byte has arrived, for 1; a call when neither is true lasts about
-; 100 cycles, as a firmware's status call does, since getbt counts its rounds
-; by it. X and Y are changed.
-sccstat: tay
-        ldx gschan
-        lda SCCBCMD,x
-        and sccbits,y
-        bne ssyes
-        ldy #11
-sspad:  dey
-        bne sspad
-        clc
-        rts
-ssyes:  sec
-        rts
-
-sccread: ldx gschan
-srwait: lda SCCBCMD,x
-        lsr a                   ; RR0RX
-        bcc srwait
-        lda SCCBDATA,x
-        rts
-
-sccwrite: pha
-        ldx gschan
-swwait: lda SCCBCMD,x
-        and #RR0TX
-        beq swwait
-        pla
-scwd:   sta SCCBDATA
-        rts
-
-; sccwr: A into the 8530's register X; sccsel: register X selected, for a
-; read of the command register.
-sccwr:  jsr sccsel
-scwr2:  sta SCCBCMD
-        rts
-sccsel:
-scwr1:  stx SCCBCMD
-        rts
-
-; sccspeed: the port's 8530 set to the speed of the 6551 control byte in
-; PKTBUF, once the ACK before it is sent, and the shim's firmware jumps
-; pointed here. A speed it has no time constant for changes nothing. The
-; IIgs's 8530 is clocked by a 3.6864 MHz crystal at RTxC: the baud rate
-; generator divides it by twice the time constant plus 2, and the channel
-; by 16 after that, or by 32 straight from RTxC for 115,200 baud.
-sccspeed: ldx #0
-        lda slotx
-        cmp #$20
-        bne scchan
-        inx
-scchan: stx gschan
-        txa
-        clc
-        adc #<SCCBCMD
-        sta scwr1+1
-        sta scwr2+1
-        adc #2
-        sta scwd+1
-        ldx gschan
-        lda SCCBCMD,x           ; register 0 selected
-sssent: ldx #1
-        jsr sccsel
-        ldx gschan
-        lda SCCBCMD,x
-        and #RR1SENT
-        beq sssent
-        lda PKTBUF
-        and #$0F
-        ldx #0
-ssfind: cmp sccrates,x
-        beq ssfound
-        inx
-        inx
-        cpx #sccratend-sccrates
-        bne ssfind
-        rts
-ssfound: lda sccrates+1,x
-        sta sctc
-        lda PKTBUF
-        sta gsctl
-        ldx #4                  ; 1 stop bit, no parity, the clock divided by 16
-        lda #$44
-        ldy sctc
-        cpy #$FF
-        bne ss16
-        lda #$84                ; or 32
-ss16:   jsr sccwr
-        ldx #3                  ; the receiver off, 8 bits
-        lda #$C0
-        jsr sccwr
-        ldx #5                  ; the transmitter off, 8 bits, DTR and RTS on
-        lda #$E2
-        jsr sccwr
-        ldx #14                 ; the generator off while it is set
-        lda #$00
-        jsr sccwr
-        ldx #11                 ; both clocks from the generator, or from RTxC
-        lda #$50
-        ldy sctc
-        cpy #$FF
-        bne ssclk
-        lda #$00
-ssclk:  jsr sccwr
-        ldx #12
-        lda sctc
-        jsr sccwr
-        ldx #13
-        lda #0
-        jsr sccwr
-        ldy sctc
-        cpy #$FF
-        beq ssirq
-        ldx #14                 ; the generator on, from RTxC
-        lda #$01
-        jsr sccwr
-ssirq:  ldx #1                  ; no interrupts from the channel
-        lda #0
-        jsr sccwr
-        ldx #3                  ; the receiver on
-        lda #$C1
-        jsr sccwr
-        ldx #5                  ; and the transmitter
-        lda #$EA
-        jsr sccwr
-        bit gsport
-        bmi ssdone
-        ldx #0
-        ldy #0
-ssjump: lda SHIMPSTAT+1,y       ; each jump's target as the shim set it, then
-        sta gsjumps,x           ; this program's routine
-        lda sccjumps,x
-        sta SHIMPSTAT+1,y
-        lda SHIMPSTAT+2,y
-        sta gsjumps+1,x
-        lda sccjumps+1,x
-        sta SHIMPSTAT+2,y
-        iny
-        iny
-        iny
-        inx
-        inx
-        cpx #6
-        bne ssjump
-        lda #$80
-        sta gsport
-ssdone: rts
-
-; sccback: the shim's firmware jumps as the shim set them, for Load program,
-; which loads the program over this code. The shim's init of the port's
-; firmware sets the speed in the IIgs's Control Panel.
-sccback: bit gsport
-        bpl sbdone
-        ldx #0
-        ldy #0
-sbjump: lda gsjumps,x
-        sta SHIMPSTAT+1,y
-        lda gsjumps+1,x
-        sta SHIMPSTAT+2,y
-        iny
-        iny
-        iny
-        inx
-        inx
-        cpx #6
-        bne sbjump
-        lda #0
-        sta gsport
-sbdone: rts
-
-sccbits: .byte RR0TX, RR0RX
-; Each 6551 rate's time constant: $FF for 115,200 baud, straight from RTxC.
-sccrates: .byte $00, $FF, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
-sccratend:
-sccjumps: .word sccstat, sccread, sccwrite
-gsport: .byte 0                 ; $80 once the program drives the 8530
-gschan: .byte 0                 ; the port's channel: 0 for B, 1 for A
-gsctl:  .byte 0                 ; the 6551 control byte its speed is from
-sctc:   .byte 0                 ; sccspeed: the time constant
-gsjumps: .ds 6                  ; the shim's firmware jumps' targets
         endif
         endif
 
@@ -4597,7 +4399,7 @@ conndraw: lda #<conntext
         lsr a
         jmp putdec
 cdgs:   lda #<connport          ; a IIgs's port: Serial port 2, and its speed
-        sta ptr                 ; once the program sets it
+        sta ptr
         lda #>connport
         sta ptr+1
         jsr puttext
@@ -4607,15 +4409,12 @@ cdgs:   lda #<connport          ; a IIgs's port: Serial port 2, and its speed
         lsr a
         lsr a
         jsr putdec
-        bit gsport
-        bmi cdgsspd
-        rts
-cdgsspd: lda #<conncomma
+        lda #<conncomma
         sta ptr
         lda #>conncomma
         sta ptr+1
         jsr puttext
-        lda gsctl
+        lda SHIMSPEED
         jmp cdspeed
 cdacia: ldx #0                  ; what the 6551 is: a card or a //c's port,
         lda $FBB3               ; by cable or through a Wi-Fi modem, as
