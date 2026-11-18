@@ -261,7 +261,7 @@ runs on machines as they ship today.
 - [X] T114 (done in `ProFileTests::RealTiming` and `BlockDeviceBootTests::ProFile_RealTimingBootsWhenReady`) A ProFile's real timing checkbox in the Machine tab sets a spin-up delay and seek time in `ProFileDrive`, as `ScsiHardDisk::SetRealTiming` does for the HD20SC, wired in `CassoEmuCore/Shell/StorageCardWiring.cpp`, with tests in `UnitTest/BlockDeviceTests/ProFileTests.cpp`
 - [X] T115 (done: `hasRealTiming` is false for each drive in `BlockDeviceCatalog.cpp`) Hide the real timing switch from the Machine tab, per the owner (spec Clarifications, 2026-11-16)
 - [ ] T116 Once hard disk seek sound samples exist, offer real timing again, with seek time charged by the head's travel instead of an average per command, in `ProFileDrive` and `ScsiHardDisk`
-- [ ] T113 A click on a 3.5-inch drive opens Casso's disk picker, as a click on a Disk II does, rather than the standard Open dialog. Waits for spec 049, whose picker replaces Casso's
+- [X] T113 A click on a 3.5-inch drive opens Casso's disk picker, as a click on a Disk II does, rather than the standard Open dialog. Done by spec 049 (`42fc008b5`): every floppy drive opens a Casso Explorer picker through `ShellDrivePickers::OpenForDeskDrive`, and `DrivePickersTests` covers the Apple 3.5 Drive
 - [ ] T112 Pre-merge gate: `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/RunTests.ps1 -Build`, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`
 
 ---
