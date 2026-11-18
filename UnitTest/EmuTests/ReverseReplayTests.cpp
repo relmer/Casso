@@ -181,8 +181,8 @@ public:
 
         Assert::IsTrue (result.outcome == ReverseOutcome::HistoryCut, L"the replay must catch the bad keyframe");
         Assert::AreEqual (bad, store.GetCount(), L"history is cut after the last good keyframe");
-        Assert::AreEqual<uint64_t> (store.GetInfo (bad - 1).position, machine.GetPosition(), L"the machine is at the last good keyframe");
-        Assert::AreEqual (store.GetInfo (bad - 1).journalIndex, machine.GetInputJournal().GetEndIndex(), L"the inputs after it are dropped");
+        Assert::AreEqual<uint64_t> (store.GetInfo (bad - 1).position, machine.GetRunner().GetPosition(), L"the machine is at the last good keyframe");
+        Assert::AreEqual (store.GetInfo (bad - 1).journalIndex, machine.GetHostInput().GetJournal().GetEndIndex(), L"the inputs after it are dropped");
         Assert::IsTrue (store.DoesStateMatch (bad - 1, ReverseSessionRig::Save (machine)), L"in that keyframe's state");
         Assert::IsFalse (controller.IsInHistory(), L"and live there");
     }
@@ -215,7 +215,7 @@ public:
 
         recordedUs = TimeFrames (recorded, kFrames);
 
-        Assert::AreEqual<uint64_t> (plain.GetPosition(), recorded.GetPosition(), L"both ran the same instructions");
+        Assert::AreEqual<uint64_t> (plain.GetRunner().GetPosition(), recorded.GetRunner().GetPosition(), L"both ran the same instructions");
 
         Logger::WriteMessage (std::format ("{:.2f} emulated seconds without history: {:.1f} ms, {:.1f}x real time; recording: {:.1f} ms, {:.1f}x real time, +{:.1f}%; {} keyframes in {} bytes, {} bytes reserved\n",
                                            seconds,
@@ -247,7 +247,7 @@ private:
 
         for (frame = 0; frame < frames; frame++)
         {
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         QueryPerformanceCounter (&stop);
@@ -271,7 +271,7 @@ private:
             }
 
             ReverseSessionRig::Feed (machine, slice);
-            machine.RunCycles (s_kReplaySliceCycles);
+            machine.GetRunner().RunCycles (s_kReplaySliceCycles);
         }
 
         return samples;
@@ -284,7 +284,7 @@ private:
 
 
 
-        sample.position = machine.GetPosition();
+        sample.position = machine.GetRunner().GetPosition();
         sample.cycle    = machine.GetCpu()->GetTotalCycles();
         sample.state    = ReverseSessionRig::Save (machine);
 
@@ -295,7 +295,7 @@ private:
     //  The session must really have exercised what the test claims to cover.
     static void CheckSessionCoverage (MachineHost & machine, const ReverseController & controller)
     {
-        const InputJournal  & journal = machine.GetInputJournal();
+        const InputJournal  & journal = machine.GetHostInput().GetJournal();
         size_t                keys    = 0;
         size_t                paddles = 0;
         size_t                i       = 0;

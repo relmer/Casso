@@ -42,7 +42,7 @@ namespace MusicDemoReplayTests
         {
             for (uint64_t frame = 0; frame < seconds * s_kFramesPerSecond; frame++)
             {
-                machine.RunCycles (s_kFrameCycles);
+                machine.GetRunner().RunCycles (s_kFrameCycles);
             }
         }
 

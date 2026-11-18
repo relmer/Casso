@@ -396,7 +396,7 @@ public:
             record.after = rows;
             settled      = steady >= kSteadyFrames;
 
-            rig.machine.RunCycles (kFrame);
+            rig.machine.GetRunner().RunCycles (kFrame);
             spent += kFrame;
         }
 

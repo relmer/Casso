@@ -625,7 +625,7 @@ namespace DiskReadProbeTests
 
 
             machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
-            machine.AttachObservers ({ &log, nullptr, nullptr, nullptr }, ObserverSlot::Panel);
+            machine.GetObserverWiring().AttachObservers ({ &log, nullptr, nullptr, nullptr }, ObserverSlot::Panel);
 
             for (const DiskBreakSpec & spec : specs)
             {
@@ -634,7 +634,7 @@ namespace DiskReadProbeTests
 
             session.OnStopConditionsChanged();
             GuestSession::MountAndBoot (machine, image);
-            machine.AttachObservers ({}, ObserverSlot::Panel);
+            machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::Panel);
 
             for (const Breakpoint & entry : session.GetBreakpoints().GetAll())
             {
@@ -683,13 +683,13 @@ namespace DiskReadProbeTests
 
 
             machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
-            machine.SetDebugHook (&probe);
-            machine.AttachObservers ({ &probe, nullptr, &probe, &probe.GetIoFilter() }, ObserverSlot::History);
+            machine.GetRunner().SetDebugHook (&probe);
+            machine.GetObserverWiring().AttachObservers ({ &probe, nullptr, &probe, &probe.GetIoFilter() }, ObserverSlot::History);
 
             GuestSession::MountAndBoot (machine, image);
 
-            machine.AttachObservers ({}, ObserverSlot::History);
-            machine.SetDebugHook (nullptr);
+            machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::History);
+            machine.GetRunner().SetDebugHook (nullptr);
 
             Analyze (probe, results);
             Report  (probe, results, isProDos ? "ProDOS" : "DOS 3.3");

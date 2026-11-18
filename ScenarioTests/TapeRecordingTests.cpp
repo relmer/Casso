@@ -64,7 +64,7 @@ public:
     static void Boot (TestMachine & machine)
     {
         machine.PowerCycle();
-        machine.RunCycles (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
     }
 
 
@@ -99,11 +99,11 @@ public:
         AssertSucceeded (TapeImageLoader::Load (recording, "recording", true, decoder, image, error));
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
-        machine.GetTapeDeck().Insert (std::move (image));
+        machine.GetTape().GetDeck().Insert (std::move (image));
 
-        machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
-        machine.RunCycles ((uint64_t) (seconds * machine.GetConfig().clockSpeed) + kTailCycles);
-        machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+        machine.GetTape().GetDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
+        machine.GetRunner().RunCycles ((uint64_t) (seconds * machine.GetConfig().clockSpeed) + kTailCycles);
+        machine.GetTape().GetDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
     }
 
 

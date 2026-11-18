@@ -97,12 +97,12 @@ private:
         for (const char * c = keys; *c != '\0'; c++)
         {
             KeystrokeInjector::InjectKey (machine, static_cast<Byte> (*c));
-            machine.RunCycles (kKeyGapCycles);
+            machine.GetRunner().RunCycles (kKeyGapCycles);
         }
 
         while (!found && spent < kCeilingCycles)
         {
-            spent += machine.RunCycles (kPollCycles);
+            spent += machine.GetRunner().RunCycles (kPollCycles);
             found  = GuestSession::AnyRowContains (TextScreenScraper::Scrape (machine), prompt);
         }
 

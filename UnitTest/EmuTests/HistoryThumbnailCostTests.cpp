@@ -78,14 +78,14 @@ public:
         ReverseSessionRig::Prepare (machine);
         ShowHiRes (machine);
 
-        frameMs = TimeMs ([&] { machine.RunCycles (KeyframeSettings::kFrameCycles); });
+        frameMs = TimeMs ([&] { machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles); });
 
         for (i = 0; i < (size_t) s_kCostKeyframes; i++)
         {
-            machine.RunCycles (settings.intervalCycles);
+            machine.GetRunner().RunCycles (settings.intervalCycles);
             ScribbleHiRes (machine, i);
 
-            hr = store.Capture (machine, machine.GetPosition());
+            hr = store.Capture (machine, machine.GetRunner().GetPosition());
             AssertSucceeded (hr, L"Capture");
         }
 

@@ -238,10 +238,10 @@ namespace DebuggerTests
 
 
             machine.PowerCycle();
-            machine.RunCycles (kBootCycles);
+            machine.GetRunner().RunCycles (kBootCycles);
 
             machine.GetCpu()->SetPC (kMonitorReset);
-            machine.RunCycles (kLineCycles);
+            machine.GetRunner().RunCycles (kLineCycles);
         }
 
 
@@ -274,7 +274,7 @@ namespace DebuggerTests
 
             for (slice = 0; slice < kMaxSlices && !keyboard->IsStrobeClear(); ++slice)
             {
-                machine.RunCycles (kSlice);
+                machine.GetRunner().RunCycles (kSlice);
             }
 
             Assert::IsTrue (keyboard->IsStrobeClear(),
@@ -295,7 +295,7 @@ namespace DebuggerTests
             }
 
             Type (machine, kReturn);
-            machine.RunCycles (kLineCycles);
+            machine.GetRunner().RunCycles (kLineCycles);
         }
 
 

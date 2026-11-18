@@ -307,12 +307,12 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * (s_kSeekFrames - s_kSeekBackFrames));
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * (s_kSeekFrames - s_kSeekBackFrames));
 
-        target   = machine.GetPosition();
+        target   = machine.GetRunner().GetPosition();
         expected = ReverseSessionRig::Checksum (machine);
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kSeekBackFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kSeekBackFrames);
 
         Assert::IsTrue (queue.GetPendingCount() > 0, L"keyframes are still in flight");
 

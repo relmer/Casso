@@ -307,7 +307,7 @@ HRESULT ReverseStepSearch::StepOutByRecord (
     BAIL_OUT_IF (!hasLinks || count == 0, S_OK);
 
     link     = m_callerLinks[count - 1];
-    isUsable = link.cycle >= m_owner.m_keyframes.GetInfo (0).cycle && !HasGapSince (link.cycle, m_owner.m_machine.GetPosition());
+    isUsable = link.cycle >= m_owner.m_keyframes.GetInfo (0).cycle && !HasGapSince (link.cycle, m_owner.m_machine.GetRunner().GetPosition());
 
     if (!isUsable)
     {
@@ -336,7 +336,7 @@ HRESULT ReverseStepSearch::StepOutByRecord (
     }
 
     m_callerDepth   = count - 1;
-    m_callerLanding = m_owner.m_machine.GetPosition();
+    m_callerLanding = m_owner.m_machine.GetRunner().GetPosition();
     result.outcome  = ReverseOutcome::Moved;
     outIsDone       = true;
 
@@ -364,7 +364,7 @@ Error:
 bool ReverseStepSearch::TryGetCallerLinks (size_t & outCount)
 {
     bool  isAskable = m_owner.m_isRecording && m_owner.m_isLive && m_callerLinksProbe && m_owner.m_keyframes.GetCount() > 0;
-    bool  isLanded  = !m_owner.m_isLive && m_owner.m_machine.GetPosition() == m_callerLanding;
+    bool  isLanded  = !m_owner.m_isLive && m_owner.m_machine.GetRunner().GetPosition() == m_callerLanding;
 
 
 
@@ -373,7 +373,7 @@ bool ReverseStepSearch::TryGetCallerLinks (size_t & outCount)
         m_callerLinksProbe (m_callerLinks);
 
         m_callerDepth   = m_callerLinks.size();
-        m_callerLanding = m_owner.m_machine.GetPosition();
+        m_callerLanding = m_owner.m_machine.GetRunner().GetPosition();
     }
 
     outCount = m_callerDepth;

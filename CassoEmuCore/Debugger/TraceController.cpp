@@ -53,7 +53,7 @@ void TraceController::On()
     bus.SetTraceAllPages (true);
     cpu->EnableTrace     (kCapacity);
 
-    m_ringFrom   = m_host.GetPosition();
+    m_ringFrom   = m_host.GetRunner().GetPosition();
     m_isOn       = true;
     m_hasEntries = true;
 }
@@ -170,7 +170,7 @@ size_t TraceController::GetSize() const
 bool TraceController::TryGetRingSpan (TraceSpan & outSpan) const
 {
     const Cpu  * cpu      = (m_host.GetCpu() != nullptr) ? m_host.GetCpu()->GetCpu6502() : nullptr;
-    uint64_t     position = m_host.GetPosition();
+    uint64_t     position = m_host.GetRunner().GetPosition();
     bool         isWhole  = false;
 
 

@@ -155,7 +155,7 @@ public:
 
 
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         return writer.GetBytes();

@@ -143,21 +143,21 @@ private:
         {
             if (frame == frames / 3)
             {
-                machine.RecordInput (InputKind::Reset, 0, 0, {});
+                machine.GetHostInput().Record (InputKind::Reset, 0, 0, {});
                 machine.SoftReset();
                 TypeLine (machine, "RUN");
             }
 
             if (frame == (frames * 2) / 3)
             {
-                machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+                machine.GetHostInput().Record (InputKind::PowerCycle, 0, 0, {});
                 machine.PowerCycle();
             }
 
             Feed (machine, frame);
             FeedNetwork (network, frame);
-            machine.SampleHostInputs();
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetHostInput().Sample();
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         hr = controller.GetKeyframes().WaitForPending();
@@ -176,7 +176,7 @@ private:
 
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, (name + L": the replay matched every keyframe").c_str());
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, (name + L": nothing stopped it, so it reached the start").c_str());
-        Assert::AreEqual<uint64_t> (oldest, machine.GetPosition(), (name + L": at the oldest position").c_str());
+        Assert::AreEqual<uint64_t> (oldest, machine.GetRunner().GetPosition(), (name + L": at the oldest position").c_str());
         Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetCount(), (name + L": no keyframe was dropped").c_str());
 
         hr = controller.SeekToCycle (UINT64_MAX, result);
@@ -188,7 +188,7 @@ private:
         Logger::WriteMessage (std::format ("{}: {} keyframes, {} journal records, all matched\n",
                                            label,
                                            keyframes,
-                                           machine.GetInputJournal().GetEndIndex() - machine.GetInputJournal().GetBeginIndex()).c_str());
+                                           machine.GetHostInput().GetJournal().GetEndIndex() - machine.GetHostInput().GetJournal().GetBeginIndex()).c_str());
     }
 
 
@@ -248,8 +248,8 @@ private:
 
             for (steps = 0; steps < kMaxSteps && !machine.GetRefs().keyboard->IsStrobeClear(); steps++)
             {
-                machine.SampleHostInputs();
-                machine.RunCycles (kStepCycles);
+                machine.GetHostInput().Sample();
+                machine.GetRunner().RunCycles (kStepCycles);
             }
 
             Assert::IsTrue (machine.GetRefs().keyboard->IsStrobeClear(), L"the guest takes each key");
@@ -310,7 +310,7 @@ private:
 
     static size_t CountRecords (MachineHost & machine, InputKind kind)
     {
-        const InputJournal  & journal = machine.GetInputJournal();
+        const InputJournal  & journal = machine.GetHostInput().GetJournal();
         size_t                count   = 0;
         size_t                i       = 0;
 
@@ -381,7 +381,7 @@ private:
 
 
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         return writer.GetBytes();

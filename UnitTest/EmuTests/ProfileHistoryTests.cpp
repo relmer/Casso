@@ -47,7 +47,7 @@ namespace ProfileHistoryTests
             logs.Start (&controller);
             logs.GetProfileHistory().SetIsStopped ([] { return true; });
 
-            machine.RunCycles (kRunCycles);
+            machine.GetRunner().RunCycles (kRunCycles);
 
             hr = controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");
@@ -255,7 +255,7 @@ namespace ProfileHistoryTests
             boundary = keyframes.GetInfo (keyframes.GetCount() - 1).position;
             Assert::IsTrue (keyframes.GetInfo (keyframes.GetCount() - 1).isBoundary, L"the edit took a boundary keyframe");
 
-            rig.machine.RunCycles (kMoreCycles);
+            rig.machine.GetRunner().RunCycles (kMoreCycles);
 
             hr = rig.controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");

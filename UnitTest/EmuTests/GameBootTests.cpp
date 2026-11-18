@@ -127,7 +127,7 @@ public:
         {
             uint64_t   chunk = std::min<uint64_t> (kChunkCycles, totalBudget - spent);
 
-            machine.RunCycles (chunk);
+            machine.GetRunner().RunCycles (chunk);
             spent += chunk;
 
             outTracksVisited.insert (machine.GetRefs().diskController->GetLines().GetCurrentTrack());

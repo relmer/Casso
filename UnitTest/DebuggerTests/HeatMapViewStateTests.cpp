@@ -74,7 +74,7 @@ namespace DebuggerTests
 
             //  LDA #$41 at $0300: counted, but a running machine's snapshot
             //  within the interval holds the reading before it.
-            rig->machine.StepOne();
+            rig->machine.GetRunner().StepOne();
             snapshot = rig->view.Build (rig->controller.GetSession(), false);
             running  = snapshot.heatMap.serial;
 
@@ -127,7 +127,7 @@ namespace DebuggerTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41 at $0300, run once: two bytes executed, once each.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             Assert::AreEqual ((Word) 0x0302, rig.controller.GetSession().GetTarget().GetRegisters().pc);
 
             snapshot = rig.view.Build (rig.controller.GetSession());
@@ -165,7 +165,7 @@ namespace DebuggerTests
             Assert::AreEqual ((int) HeatMapOptions::Bank::Cpu, (int) snapshot.heatMap.bank);
 
             //  LDA #$41 at $0300: executed from main RAM.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
 
             options.cumulative = true;
             options.bank       = HeatMapOptions::Bank::Main;
@@ -198,8 +198,8 @@ namespace DebuggerTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41, then STA $0400.
-            rig.machine.StepOne();
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
+            rig.machine.GetRunner().StepOne();
 
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::IsNull (snapshot.heatMap.hover.get(), L"no cell, nothing looked up");

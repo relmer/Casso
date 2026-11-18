@@ -58,12 +58,12 @@ public:
         Rig()
         {
             machine.PowerCycle();
-            machine.RunCycles (2 * kClockHz);
+            machine.GetRunner().RunCycles (2 * kClockHz);
             machine.GetCpu()->SetPC (0xE000);
-            machine.RunCycles (2 * kClockHz);
+            machine.GetRunner().RunCycles (2 * kClockHz);
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (kPort, machineEnd));
+            Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (kPort, machineEnd));
 
             Type ("IN#2\r");
             Type ("\x01" "14B");
@@ -74,7 +74,7 @@ public:
             for (size_t i = 0; text[i] != '\0'; i++)
             {
                 machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
-                machine.RunCycles (kKeyCycles);
+                machine.GetRunner().RunCycles (kKeyCycles);
             }
         }
 
@@ -87,10 +87,10 @@ public:
                 for (size_t at = std::min (dropped, line.size()); at < line.size(); at++)
                 {
                     AssertSucceeded (pcEnd->Write (reinterpret_cast<const Byte *> (line.data() + at), 1));
-                    machine.RunCycles (kCharCycles);
+                    machine.GetRunner().RunCycles (kCharCycles);
                 }
 
-                machine.RunCycles (kLineCycles);
+                machine.GetRunner().RunCycles (kLineCycles);
             }
         }
 
@@ -111,7 +111,7 @@ public:
                     return spent;
                 }
 
-                machine.RunCycles (kStepCycles);
+                machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -276,7 +276,7 @@ public:
         AssertSucceeded (host->SetColumns (true));
 
         rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
-        rig.machine.RunCycles (2 * kClockHz);
+        rig.machine.GetRunner().RunCycles (2 * kClockHz);
         Assert::AreEqual (std::string::npos, rig.Screen().find ("CassoLink"), L"Escape ended CassoLink");
 
         after = ReadPortHoles (rig.machine);

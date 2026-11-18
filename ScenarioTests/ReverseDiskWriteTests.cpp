@@ -65,7 +65,7 @@ namespace ReverseDiskWriteTests
             Assert::AreEqual (S_OK, controller.Start (settings), L"Start");
 
             (void) GuestSession::TypeAndCollect (machine, "SAVE X");
-            machine.RunCycles (kWaitCycles);
+            machine.GetRunner().RunCycles (kWaitCycles);
         }
 
         //  Reverse continue with one breakpoint, and the time it took.

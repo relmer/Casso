@@ -48,13 +48,13 @@ public:
 
 
 
-            source->RunCycles (200'000);
+            source->GetRunner().RunCycles (200'000);
             state = ReverseSessionRig::Save (*source);
 
             {
                 StateReader  reader (state);
 
-                Assert::AreEqual (S_OK, target->LoadState (reader), L"the state as saved loads, so the copies are read through every section");
+                Assert::AreEqual (S_OK, target->GetStateStream().LoadState (reader), L"the state as saved loads, so the copies are read through every section");
             }
 
             //  One byte flipped every kStride bytes through the whole state, so
@@ -109,13 +109,13 @@ private:
         try
         {
             StateReader  reader (bytes);
-            HRESULT      hr     = machine.LoadState (reader);
+            HRESULT      hr     = machine.GetStateStream().LoadState (reader);
 
             //  A load that succeeds may have read values a real machine never
             //  has; the machine then runs with them.
             if (SUCCEEDED (hr))
             {
-                (void) machine.RunCycles (kRunCycles);
+                (void) machine.GetRunner().RunCycles (kRunCycles);
             }
         }
         catch (const std::exception & e)

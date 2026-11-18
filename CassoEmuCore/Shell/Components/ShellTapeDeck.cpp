@@ -146,7 +146,7 @@ void ShellTapeDeck::LoadRecorderConnected (const JsonValue & uiPrefs)
 
 void ShellTapeDeck::SetTapeAutoStop (bool enabled)
 {
-    m_shell.m_machine.GetTapeDeck().SetAutoStop (enabled);
+    m_shell.m_machine.GetTape().GetDeck().SetAutoStop (enabled);
 }
 
 
@@ -161,7 +161,7 @@ void ShellTapeDeck::SetTapeAutoStop (bool enabled)
 
 void ShellTapeDeck::SetTapeIdleStop (bool enabled)
 {
-    m_shell.m_machine.GetTapeDeck().SetIdleStop (enabled);
+    m_shell.m_machine.GetTape().GetDeck().SetIdleStop (enabled);
 }
 
 
@@ -217,7 +217,7 @@ bool ShellTapeDeck::MachineHasCassettePort() const
 TapeDeckView ShellTapeDeck::GetTapeView() const
 {
     constexpr int64_t   kLoadingShowMs = 150;
-    TapeDeck::Snapshot  snapshot       = m_shell.m_machine.GetTapeDeck().GetSnapshot();
+    TapeDeck::Snapshot  snapshot       = m_shell.m_machine.GetTape().GetDeck().GetSnapshot();
     TapeDeckView        view;
     std::string         loading;
     int64_t             loadingMs      = 0;
@@ -761,7 +761,7 @@ void ShellTapeDeck::ControlTape (TapeCommand command)
 
 
 
-    m_tapeManager->Execute (command, m_shell.m_machine.GetTapeDeck(), now);
+    m_tapeManager->Execute (command, m_shell.m_machine.GetTape().GetDeck(), now);
 }
 
 

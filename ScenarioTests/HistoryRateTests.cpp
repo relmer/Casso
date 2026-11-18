@@ -52,8 +52,8 @@ public:
 
         for (frame = 0; frame < kWarmSeconds * kFramesPerSecond; frame++)
         {
-            machine.SampleHostInputs();
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetHostInput().Sample();
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         hr = controller.GetKeyframes().WaitForPending();
@@ -63,8 +63,8 @@ public:
 
         for (frame = 0; frame < kSeconds * kFramesPerSecond; frame++)
         {
-            machine.SampleHostInputs();
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetHostInput().Sample();
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         hr = controller.GetKeyframes().WaitForPending();

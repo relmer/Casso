@@ -565,7 +565,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     //  restored state has the same image in the bay.
     if (change != BayChange::Restored)
     {
-        m_machine.ConnectDiskToController (slot, drive);
+        m_machine.GetStorage().ConnectDiskToController (slot, drive);
     }
 
     //  Re-assert the effective write protection on a disk that just arrived:

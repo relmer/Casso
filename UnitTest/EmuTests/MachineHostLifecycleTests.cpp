@@ -183,7 +183,7 @@ public:
 
         machine.SetPrng (std::make_unique<Prng> (kFormerlyHangingSeed));
         machine.PowerCycle();
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
 
         rows = TextScreenScraper::Scrape (machine);
 
@@ -275,14 +275,14 @@ public:
         pc = host.GetCpu()->GetPC();
         Assert::AreEqual<Word> (s_kEntryPoint, pc);
 
-        cycles = host.StepOne();
+        cycles = host.GetRunner().StepOne();
 
         Assert::AreEqual<Word> (static_cast<Word> (s_kEntryPoint + 1), host.GetCpu()->GetPC(),
             L"NOP is one byte, so the program counter advances by one");
         Assert::AreEqual<Byte> (2, cycles,
             L"and costs two cycles");
 
-        cycles = host.StepOne();
+        cycles = host.GetRunner().StepOne();
 
         Assert::AreEqual<Word> (static_cast<Word> (s_kEntryPoint + 2), host.GetCpu()->GetPC(),
             L"INX is also one byte");
@@ -300,7 +300,7 @@ public:
 
         before = host.GetCpu()->GetTotalCycles();
 
-        host.StepOne();
+        host.GetRunner().StepOne();
 
         //  The clock is what the //e video timing and the //c mouse measure
         //  themselves against. A step that ticked the disk controller but
@@ -319,7 +319,7 @@ public:
         Build (host);
         host.SoftReset();
 
-        spent = host.RunCycles (100);
+        spent = host.GetRunner().RunCycles (100);
 
         //  The machine cannot stop mid-opcode, so the budget is a floor and
         //  the overshoot is bounded by the longest instruction. Callers
@@ -339,8 +339,8 @@ public:
 
         //  Nothing built. Every lifecycle entry point is reachable from the
         //  menu before a machine finishes coming up, so each has to answer.
-        Assert::AreEqual<Byte> (0, host.StepOne());
-        Assert::AreEqual<uint64_t> (0, host.RunCycles (100));
+        Assert::AreEqual<Byte> (0, host.GetRunner().StepOne());
+        Assert::AreEqual<uint64_t> (0, host.GetRunner().RunCycles (100));
 
         host.SoftReset();
         host.PowerCycle();

@@ -62,7 +62,7 @@ public:
 
         while (ran < kSettle)
         {
-            ran += machine.RunCycles (kSettle - ran);
+            ran += machine.GetRunner().RunCycles (kSettle - ran);
         }
 
         for (size_t i = 0; i < std::size (kProgram); i++)
@@ -123,7 +123,7 @@ public:
 
         while (ran < cycles)
         {
-            ran += machine.RunCycles (std::min (kFrameCycles, cycles - ran));
+            ran += machine.GetRunner().RunCycles (std::min (kFrameCycles, cycles - ran));
         }
     }
 

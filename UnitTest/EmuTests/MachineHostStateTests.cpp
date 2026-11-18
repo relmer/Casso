@@ -57,7 +57,7 @@ public:
 
             // Powered on as Casso powers on a machine it has just built.
             machine.PowerCycle();
-            machine.RunCycles (s_kWarmupFrames * s_kFrameCycles);
+            machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
             CheckRunRepeats (machine, ToWide (id));
         }
@@ -77,7 +77,7 @@ public:
         Assert::IsNotNull (image);
 
         // Partway into the boot ROM's read of track 0, with the motor on.
-        machine.RunCycles (s_kWarmupFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         CheckRunRepeats (machine, L"Apple2e with a disk");
     }
@@ -93,11 +93,11 @@ public:
 
 
         MountPatternDisk (machine);
-        machine.RunCycles (s_kWarmupFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         saved = Save (machine);
 
-        machine.RunCycles (s_kRunFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kRunFrames * s_kFrameCycles);
 
         hr = Load (machine, saved);
         AssertSucceeded (hr, L"loading a state into the machine that saved it");
@@ -151,8 +151,8 @@ public:
 
 
 
-        source.RunCycles (s_kWarmupFrames * s_kFrameCycles);
-        other.RunCycles  (s_kWarmupFrames * s_kFrameCycles);
+        source.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
+        other.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         saved  = Save (source);
         pc     = other.GetCpu()->GetPC();
@@ -297,10 +297,10 @@ public:
 
 
         first  = machine.GetRomIdentity();
-        hashes = machine.GetRomIdentityHashCount();
+        hashes = machine.GetRomIdentityCache().GetHashCount();
 
         Assert::AreEqual<uint64_t> (first,  machine.GetRomIdentity(),          L"an unchanged ROM set keeps its identity");
-        Assert::AreEqual<uint64_t> (hashes, machine.GetRomIdentityHashCount(), L"and a second call does not hash the ROMs again");
+        Assert::AreEqual<uint64_t> (hashes, machine.GetRomIdentityCache().GetHashCount(), L"and a second call does not hash the ROMs again");
 
         for (std::unique_ptr<MemoryDevice> & owned : machine.GetOwnedDevices())
         {
@@ -393,7 +393,7 @@ private:
 
         start = Save (machine);
 
-        machine.RunCycles (s_kRunFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kRunFrames * s_kFrameCycles);
 
         firstRun    = Save (machine);
         firstPc     = machine.GetCpu()->GetPC();
@@ -404,7 +404,7 @@ private:
         hr = Load (machine, start);
         AssertSucceeded (hr, (label + L": load").c_str());
 
-        machine.RunCycles (s_kRunFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kRunFrames * s_kFrameCycles);
 
         secondRun = Save (machine);
 
@@ -421,7 +421,7 @@ private:
 
 
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         return writer.GetBytes();
@@ -434,7 +434,7 @@ private:
 
 
 
-        return machine.LoadState (reader);
+        return machine.GetStateStream().LoadState (reader);
     }
 
 

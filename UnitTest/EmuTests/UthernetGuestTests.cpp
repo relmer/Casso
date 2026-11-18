@@ -639,7 +639,7 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
                     onSlice();
                 }
 
-                spent += m_machine.RunCycles (kSlice);
+                spent += m_machine.GetRunner().RunCycles (kSlice);
             }
         }
 
@@ -767,7 +767,7 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             HRESULT                           hr         = S_OK;
             auto                              take       = [&machine] ()
             {
-                return Sample { machine.GetPosition(), machine.GetCpu()->GetTotalCycles(), ReverseSessionRig::Save (machine) };
+                return Sample { machine.GetRunner().GetPosition(), machine.GetCpu()->GetTotalCycles(), ReverseSessionRig::Save (machine) };
             };
 
 

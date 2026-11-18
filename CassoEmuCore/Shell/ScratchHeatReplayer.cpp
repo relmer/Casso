@@ -410,7 +410,7 @@ HRESULT ScratchHeatReplayer::RunPart (
         hr = m_scratch.MountDisks (job.disks, job.blockMedia);
         CHR (hr);
 
-        m_scratch.GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
+        m_scratch.GetMachine()->GetHostInput().GetJournal().LoadRecords (job.inputsFrom, job.inputs);
     }
 
     hr = Replay (job, job.parts[part], outResult);
@@ -463,7 +463,7 @@ HRESULT ScratchHeatReplayer::Replay (
     hr = replayer->LoadFrom (m_state, part.startPosition, part.journalIndex);
     CHR (hr);
 
-    m_map.SetPositionSource (machine->GetPositionPtr());
+    m_map.SetPositionSource (machine->GetRunner().GetPositionPtr());
     m_map.SetFadeSeconds    (job.fadeSeconds);
     m_map.Restart           (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetHistoryCycles());
     m_map.SetCountFrom      (job.countFrom);
@@ -475,7 +475,7 @@ HRESULT ScratchHeatReplayer::Replay (
     before = replayer->GetReplayedCount();
     cycle  = cpu->GetHistoryCycles();
 
-    while (machine->GetPosition() < part.endPosition)
+    while (machine->GetRunner().GetPosition() < part.endPosition)
     {
         BAIL_OUT_IF (IsAbandoned (job), E_ABORT);
 

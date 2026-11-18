@@ -307,7 +307,7 @@ void ShellDebugger::RunReverseCommand (
     stop.history   = result.outcome;
 
     m_lastReverseOutcome  = result.outcome;
-    m_lastReversePosition = m_machine.GetPosition();
+    m_lastReversePosition = m_machine.GetRunner().GetPosition();
 
     if (result.outcome == ReverseOutcome::NoCaller)
     {
@@ -376,7 +376,7 @@ Error:
 std::string ShellDebugger::GetLandingText (ReverseOutcome outcome)
 {
     EmuCpu        * cpu      = m_machine.GetCpu();
-    uint64_t        position = m_machine.GetPosition();
+    uint64_t        position = m_machine.GetRunner().GetPosition();
     uint64_t        wallTime = 0;
     std::wstring    clock;
     std::wstring    text;
@@ -882,7 +882,7 @@ void ShellDebugger::ApplyHeldMouseTarget (uint32_t target)
 
     BAIL_OUT_IF (!lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
 
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
     BAIL_OUT_IF (!isGateOpen, S_OK);
 
     m_machine.GetMouse()->SetHostTargetFraction (static_cast<uint16_t> (target >> 16), static_cast<uint16_t> (target & 0xFFFF));
@@ -917,7 +917,7 @@ void ShellDebugger::PressGuestMouseHeldBehindLive()
 
     BAIL_OUT_IF (!lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
 
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
     BAIL_OUT_IF (!isGateOpen, S_OK);
 
     m_machine.GetMouse()->SetButton (true);
@@ -961,7 +961,7 @@ void ShellDebugger::ReleaseGuestMouseAfterClick()
 
     BAIL_OUT_IF (isHostDown || !lifetime.owns_lock() || m_machine.GetMouse() == nullptr, S_OK);
 
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_host.GetHeldHostInputs().OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
 
     if (isGateOpen)
@@ -1020,7 +1020,7 @@ void ShellDebugger::ToggleEightyColumnSwitch (Apple2eKeyboard * iieKbd)
 
     BAIL_OUT_IF (iieKbd == nullptr, S_OK);
 
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
 
     if (!isGateOpen)
     {
@@ -1321,7 +1321,7 @@ bool ShellDebugger::TryPublishHistoryPlayhead()
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 
-    m_historyThumbnails.SetPlayhead     (m_machine.GetPosition(), isBehind);
+    m_historyThumbnails.SetPlayhead     (m_machine.GetRunner().GetPosition(), isBehind);
     m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
 
     if (keyframes->GetCount() > 0)
@@ -1378,7 +1378,7 @@ ReplayProgress ShellDebugger::GetReplayProgress()
 HistoryStatus ShellDebugger::GetHistoryStatus()
 {
     HistoryStatus  status;
-    bool           hasMoved = !m_cpuManager.IsPaused() || m_machine.GetPosition() != m_lastReversePosition;
+    bool           hasMoved = !m_cpuManager.IsPaused() || m_machine.GetRunner().GetPosition() != m_lastReversePosition;
 
 
 

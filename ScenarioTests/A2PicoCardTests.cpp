@@ -79,7 +79,7 @@ public:
 
         while (!onScreen && spent < cycleCap)
         {
-            spent += host.RunCycles (kSlice);
+            spent += host.GetRunner().RunCycles (kSlice);
 
             rows.clear();
             GuestSession::CollectRows (host, rows);

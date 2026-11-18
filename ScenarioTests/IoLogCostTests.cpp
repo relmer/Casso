@@ -60,7 +60,7 @@ namespace IoLogCostTests
 
             while (spent < kCycles)
             {
-                spent += machine.StepOne();
+                spent += machine.GetRunner().StepOne();
             }
 
             return std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - began).count();

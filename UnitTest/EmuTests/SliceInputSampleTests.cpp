@@ -97,7 +97,7 @@ public:
         size_t                sampled    = 0;
         size_t                observed   = 0;
         size_t                i          = 0;
-        const InputJournal  & journal    = machine.GetInputJournal();
+        const InputJournal  & journal    = machine.GetHostInput().GetJournal();
 
 
 
@@ -130,12 +130,12 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        before = machine.GetInputJournal().GetEndIndex();
+        before = machine.GetHostInput().GetJournal().GetEndIndex();
 
         machine.GetRefs().keyboard->PressKey ('Q');
-        machine.SampleHostInputs();
+        machine.GetHostInput().Sample();
 
-        Assert::AreEqual (before, machine.GetInputJournal().GetEndIndex(), L"no record");
+        Assert::AreEqual (before, machine.GetHostInput().GetJournal().GetEndIndex(), L"no record");
     }
 
 
@@ -169,7 +169,7 @@ public:
         onUs    = TimeSlices (recorded,   true);
         callNs  = TimeCalls  (sampledOff) * 1000 / s_kSampleCallCount;
 
-        Assert::AreEqual<uint64_t> (plain.GetPosition(), sampledOff.GetPosition(), L"both ran the same instructions");
+        Assert::AreEqual<uint64_t> (plain.GetRunner().GetPosition(), sampledOff.GetRunner().GetPosition(), L"both ran the same instructions");
 
         Logger::WriteMessage (std::format ("{} frames in slices: no sampling {:.1f} ms; sampling, journal off {:.1f} ms ({:+.2f}%); sampling while recording {:.1f} ms; one call with the journal off {:.2f} ns, {:.3f} us per frame\n",
                                            s_kSampleCostFrames,
@@ -209,7 +209,7 @@ private:
         AssertSucceeded (hr, L"Start");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kSampleWarmupCycles);
+        machine.GetRunner().RunCycles (s_kSampleWarmupCycles);
 
         for (i = 0; i <= s_kSampleSteps; i++)
         {
@@ -226,20 +226,20 @@ private:
                     machine.GetRefs().iieSoftSwitches->SetPaddle (0, static_cast<Byte> (i / s_kSamplePaddleEvery));
                 }
 
-                machine.SampleHostInputs();
+                machine.GetHostInput().Sample();
             }
 
             isUnread  = !machine.GetRefs().keyboard->IsStrobeClear();
             pending  += isUnread ? 1 : 0;
 
-            step.position = machine.GetPosition();
+            step.position = machine.GetRunner().GetPosition();
             step.pc       = machine.GetCpu()->GetPC();
             step.checksum = ReverseSessionRig::Checksum (machine);
             steps.push_back (step);
 
             if (i < s_kSampleSteps)
             {
-                machine.StepOne();
+                machine.GetRunner().StepOne();
             }
         }
 
@@ -249,7 +249,7 @@ private:
 
     static void CheckStep (TestMachine & machine, const Step & expected, const wchar_t * when)
     {
-        Assert::AreEqual<uint64_t> (expected.position, machine.GetPosition(),     std::format (L"{}: position", when).c_str());
+        Assert::AreEqual<uint64_t> (expected.position, machine.GetRunner().GetPosition(),     std::format (L"{}: position", when).c_str());
         Assert::AreEqual<Word>     (expected.pc,       machine.GetCpu()->GetPC(), std::format (L"{}: PC at position {}", when, expected.position).c_str());
         Assert::AreEqual<uint64_t> (expected.checksum, ReverseSessionRig::Checksum (machine),
                                     std::format (L"{}: the whole machine at position {}", when, expected.position).c_str());
@@ -273,10 +273,10 @@ private:
         {
             if (isSampling)
             {
-                machine.SampleHostInputs();
+                machine.GetHostInput().Sample();
             }
 
-            executed += machine.RunCycles (s_kSampleSliceCycles);
+            executed += machine.GetRunner().RunCycles (s_kSampleSliceCycles);
         }
 
         QueryPerformanceCounter (&stop);
@@ -299,7 +299,7 @@ private:
 
         for (i = 0; i < s_kSampleCallCount; i++)
         {
-            machine.SampleHostInputs();
+            machine.GetHostInput().Sample();
         }
 
         QueryPerformanceCounter (&stop);

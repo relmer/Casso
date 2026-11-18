@@ -108,7 +108,7 @@ public:
         Assert::IsTrue (reserved >= s_kBufferBudget, L"the whole budget is taken at the start");
         Assert::IsTrue (reserved <= s_kBufferBudget + s_kBufferOverStates * stateBytes, L"and not much beyond it: the budget plus the work buffers");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kBufferWarmFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kBufferWarmFrames);
 
         Logger::WriteMessage (std::format ("state {} bytes, {} reserved, {} keyframes in {} bytes, oldest at {}\n", stateBytes, reserved, controller.GetKeyframes().GetCount(), controller.GetKeyframes().GetByteCount(), controller.GetKeyframes().GetInfo (0).position).c_str());
 

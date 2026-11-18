@@ -84,7 +84,7 @@ namespace DebuggerTests
 
             for (int i = 0; i < kSteps; i++)
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
         }
 

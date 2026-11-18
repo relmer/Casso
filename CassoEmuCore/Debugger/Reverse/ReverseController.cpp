@@ -33,13 +33,13 @@ ReverseController::ReverseController (MachineHost & machine) :
     m_search   (std::make_unique<ReverseStepSearch> (*this)),
     m_replayer (machine, m_keyframes)
 {
-    m_replayer.SetOutputGate ([&machine] (bool isMuted) { machine.SetOutputMuted (isMuted); });
+    m_replayer.SetOutputGate ([&machine] (bool isMuted) { machine.GetOutputMute().SetMuted (isMuted); });
 
     m_replayer.SetStateLoadedCallback ([this] ()
     {
         if (m_observer != nullptr)
         {
-            m_observer->OnKeyframeLoaded (m_machine.GetPosition());
+            m_observer->OnKeyframeLoaded (m_machine.GetRunner().GetPosition());
         }
     });
 }
@@ -125,9 +125,9 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
     m_steps.reserve         (static_cast<size_t> (settings.keyframes.intervalCycles / kMinInstructionCycles) + kStepSlack);
     m_search->ReserveStackLevels (static_cast<size_t> (settings.keyframes.intervalCycles / kMinInstructionCycles) + kStepSlack);
 
-    m_machine.GetInputJournal().Clear();
-    m_machine.SetInputJournalOn  (true);
-    m_machine.SetHistoryRecorder (this);
+    m_machine.GetHostInput().GetJournal().Clear();
+    m_machine.GetHostInput().SetJournalOn (true);
+    m_machine.GetRunner().SetHistoryRecorder (this);
 
     m_machine.GetDiskStore().SetFlushHold      (false);
     m_machine.GetDiskStore().SetMediaRetention (true);
@@ -233,21 +233,21 @@ bool ReverseController::IsRecordingLive() const
 
 void ReverseController::Stop()
 {
-    if (m_machine.GetHistoryRecorder() == this)
+    if (m_machine.GetRunner().GetHistoryRecorder() == this)
     {
-        m_machine.SetHistoryRecorder (nullptr);
+        m_machine.GetRunner().SetHistoryRecorder (nullptr);
     }
 
     if (m_isRecording)
     {
-        m_machine.SetInputJournalOn (false);
-        m_machine.GetInputJournal().Clear();
+        m_machine.GetHostInput().SetJournalOn (false);
+        m_machine.GetHostInput().GetJournal().Clear();
 
         m_machine.GetDiskStore().SetFlushHold      (false);
         m_machine.GetDiskStore().SetReplaying      (false);
         m_machine.GetDiskStore().SetMediaRetention (false);
 
-        m_machine.SetOutputMuted (false);
+        m_machine.GetOutputMute().SetMuted (false);
     }
 
     m_keyframes.Release();
@@ -299,9 +299,9 @@ HRESULT ReverseController::SetUserMaximumSpeed (bool isMaximum)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hasGap = m_machine.GetPosition() > gapStart;
+    hasGap = m_machine.GetRunner().GetPosition() > gapStart;
 
-    m_machine.SetInputJournalOn (true);
+    m_machine.GetHostInput().SetJournalOn (true);
 
     if (hasGap)
     {
@@ -335,7 +335,7 @@ HRESULT ReverseController::ChangeBudget (size_t budgetBytes)
 
 
 
-    hr = m_keyframes.ChangeBudget (budgetBytes, m_machine.GetPosition());
+    hr = m_keyframes.ChangeBudget (budgetBytes, m_machine.GetRunner().GetPosition());
     CHR (hr);
 
 Error:
@@ -366,7 +366,7 @@ HRESULT ReverseController::OnMachineChanged()
 {
     HRESULT   hr         = S_OK;
     EmuCpu  * cpu        = m_machine.GetCpu();
-    uint64_t  position   = m_machine.GetPosition();
+    uint64_t  position   = m_machine.GetRunner().GetPosition();
     uint64_t  gapStart   = m_pauseStart;
     bool      isAfterGap = false;
 
@@ -379,8 +379,8 @@ HRESULT ReverseController::OnMachineChanged()
 
     if (!m_isLive)
     {
-        m_machine.ResyncHostConnections (m_replayer.GetJournalCursor());
-        m_machine.GetInputJournal().Truncate (m_replayer.GetJournalCursor());
+        m_machine.GetHostInput().ResyncConnections (m_replayer.GetJournalCursor());
+        m_machine.GetHostInput().GetJournal().Truncate (m_replayer.GetJournalCursor());
     }
 
     // By position: a power cycle restarts the cycle counter, and every
@@ -482,7 +482,7 @@ void ReverseController::OnMachineEdited (MachineHost & machine)
 HRESULT ReverseController::StepBack (ReverseResult & result)
 {
     HRESULT     hr       = S_OK;
-    uint64_t    position = m_machine.GetPosition();
+    uint64_t    position = m_machine.GetRunner().GetPosition();
     uint64_t    oldest   = GetOldestPosition();
     ReplayStep  step;
     bool        isInGap  = false;
@@ -530,7 +530,7 @@ Error:
 
 HRESULT ReverseController::StepForward (ReverseResult & result)
 {
-    return SeekToPosition (m_machine.GetPosition() + 1, result);
+    return SeekToPosition (m_machine.GetRunner().GetPosition() + 1, result);
 }
 
 
@@ -559,7 +559,7 @@ HRESULT ReverseController::StepBackOver (ReverseResult & result)
     m_isCut     = false;
     m_isStopped = false;
 
-    hr = m_search->FindStepOverTarget (m_machine.GetPosition(), m_machine.GetCpu()->GetSP(), isFound, target, isGap);
+    hr = m_search->FindStepOverTarget (m_machine.GetRunner().GetPosition(), m_machine.GetCpu()->GetSP(), isFound, target, isGap);
     CHR (hr);
 
     if (m_isCut)
@@ -597,7 +597,7 @@ Error:
 HRESULT ReverseController::StepBackOut (ReverseResult & result)
 {
     HRESULT         hr      = S_OK;
-    uint64_t        current = m_machine.GetPosition();
+    uint64_t        current = m_machine.GetRunner().GetPosition();
     int             spNow   = m_machine.GetCpu()->GetSP();
     bool            isDone  = false;
     bool            isFound = false;
@@ -710,7 +710,7 @@ HRESULT ReverseController::ReverseContinue (
     ReverseResult     & result)
 {
     HRESULT         hr       = S_OK;
-    uint64_t        from     = m_machine.GetPosition();
+    uint64_t        from     = m_machine.GetRunner().GetPosition();
     uint64_t        end      = from;
     uint64_t        oldest   = 0;
     size_t          keyframe = 0;
@@ -857,7 +857,7 @@ bool ReverseController::IsInHistory() const
 
 uint64_t ReverseController::GetOldestPosition() const
 {
-    return (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).position : m_machine.GetPosition();
+    return (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).position : m_machine.GetRunner().GetPosition();
 }
 
 
@@ -875,7 +875,7 @@ uint64_t ReverseController::GetOldestPosition() const
 
 uint64_t ReverseController::GetLiveEndPosition() const
 {
-    return m_isLive ? m_machine.GetPosition() : m_liveEndPosition;
+    return m_isLive ? m_machine.GetRunner().GetPosition() : m_liveEndPosition;
 }
 
 
@@ -954,7 +954,7 @@ HRESULT ReverseController::Seek (
     CBRA (cpu);
     CBRAEx (m_isRecording, E_UNEXPECTED);
 
-    isForward = isByCycle ? target.cycle >= cpu->GetHistoryCycles() : target.position >= m_machine.GetPosition();
+    isForward = isByCycle ? target.cycle >= cpu->GetHistoryCycles() : target.position >= m_machine.GetRunner().GetPosition();
 
     result.outcome = ReverseOutcome::Moved;
 
@@ -971,7 +971,7 @@ HRESULT ReverseController::Seek (
     hr = m_keyframes.WaitForPending();
     CHR (hr);
 
-    isHere = TryFindStretch (m_machine.GetPosition(), stretch);
+    isHere = TryFindStretch (m_machine.GetRunner().GetPosition(), stretch);
     isHere = isHere && isForward && (isByCycle ? m_keyframes.TryFindAtOrBefore (target.cycle, keyframe) : m_keyframes.TryFindByPosition (target.position, keyframe));
     isHere = isHere && keyframe == stretch.keyframe && (isByCycle || target.position <= stretch.end);
 
@@ -987,7 +987,7 @@ HRESULT ReverseController::Seek (
             CHR (hr);
 
             result.outcome = ReverseOutcome::AtHistoryGap;
-            stretch.end    = m_machine.GetPosition();
+            stretch.end    = m_machine.GetRunner().GetPosition();
         }
     }
 
@@ -1001,14 +1001,14 @@ HRESULT ReverseController::Seek (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    isShort = isByCycle ? cpu->GetHistoryCycles() < target.cycle : m_machine.GetPosition() < target.position;
+    isShort = isByCycle ? cpu->GetHistoryCycles() < target.cycle : m_machine.GetRunner().GetPosition() < target.position;
 
-    if (isShort && m_machine.GetPosition() < m_liveEndPosition)
+    if (isShort && m_machine.GetRunner().GetPosition() < m_liveEndPosition)
     {
         result.outcome = ReverseOutcome::AtHistoryGap;
     }
 
-    if (m_machine.GetPosition() >= m_liveEndPosition)
+    if (m_machine.GetRunner().GetPosition() >= m_liveEndPosition)
     {
         BecomeLive();
     }
@@ -1113,8 +1113,8 @@ HRESULT ReverseController::HandleDivergence (
     //  The host's connections stay open, so the bytes they sent after the
     //  keyframe are queued for the guest again before the journal is truncated,
     //  as a resume from the past does.
-    m_machine.ResyncHostConnections (info.journalIndex);
-    m_machine.GetInputJournal().Truncate (info.journalIndex);
+    m_machine.GetHostInput().ResyncConnections (info.journalIndex);
+    m_machine.GetHostInput().GetJournal().Truncate (info.journalIndex);
 
     BecomeLive();
 
@@ -1263,7 +1263,7 @@ Error:
 HRESULT ReverseController::PrepareRecentSteps (ReverseResult & result)
 {
     HRESULT        hr        = S_OK;
-    uint64_t       position  = m_machine.GetPosition();
+    uint64_t       position  = m_machine.GetRunner().GetPosition();
     bool           isCovered = m_hasSteps && position > m_stepsStart && position <= m_stepsEnd;
     bool           isInGap   = false;
     uint64_t       gapStart  = 0;
@@ -1285,7 +1285,7 @@ HRESULT ReverseController::PrepareRecentSteps (ReverseResult & result)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    BAIL_OUT_IF (m_machine.GetPosition() == position, S_OK);
+    BAIL_OUT_IF (m_machine.GetRunner().GetPosition() == position, S_OK);
 
     hr = SeekToPosition (position, landed);
     CHR (hr);
@@ -1311,7 +1311,7 @@ void ReverseController::GetRecentSteps (
     size_t                     count,
     std::vector<ReplayStep>  & outSteps) const
 {
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
     size_t    last     = 0;
     size_t    first    = 0;
 
@@ -1394,8 +1394,8 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
 {
     HRESULT            hr         = S_OK;
     EmuCpu           * cpu        = m_machine.GetCpu();
-    InputJournal     & journal    = m_machine.GetInputJournal();
-    uint64_t           position   = m_machine.GetPosition();
+    InputJournal     & journal    = m_machine.GetHostInput().GetJournal();
+    uint64_t           position   = m_machine.GetRunner().GetPosition();
     uint64_t           cycle      = 0;
     size_t             journalEnd = 0;
     StateWriter      & writer     = m_writer;
@@ -1421,22 +1421,22 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
     // puts it in front of any replay that crosses this point as well.
     m_hostWriter.Reuse (m_hostWriter.TakeBytes());
 
-    hr = m_machine.SaveHostInputState (m_hostWriter);
+    hr = m_machine.GetHostInput().SaveState (m_hostWriter);
     CHR (hr);
 
     hostState = std::string_view (reinterpret_cast<const char *> (m_hostWriter.GetBytes().data()), m_hostWriter.GetBytes().size());
 
-    m_machine.RecordInput (InputKind::HostState, 0, 0, hostState);
+    m_machine.GetHostInput().Record (InputKind::HostState, 0, 0, hostState);
 
     journalEnd = journal.GetEndIndex();
 
     writer.Reuse      (writer.TakeBytes(), writer.TakeSegments());
     writer.SetSharing (true);
 
-    hr = m_machine.SaveState (writer);
+    hr = m_machine.GetStateStream().SaveState (writer);
     CHR (hr);
 
-    m_machine.CheckSharedSave (writer);
+    m_machine.GetStateStream().CheckSharedSave (writer);
 
     m_side.clear();
 
@@ -1553,11 +1553,11 @@ HRESULT ReverseController::CaptureBoundary (
         m_keyframes.MarkNewestBoundary();
     }
 
-    NotifyKeyframe (m_machine.GetPosition());
+    NotifyKeyframe (m_machine.GetRunner().GetPosition());
 
     if (m_isPaused)
     {
-        m_pauseStart = m_machine.GetPosition();
+        m_pauseStart = m_machine.GetRunner().GetPosition();
     }
 
 Error:
@@ -1634,7 +1634,7 @@ void ReverseController::OnCaptureDue (uint64_t cycle)
 HRESULT ReverseController::ReplayHere (bool isStarting)
 {
     HRESULT       hr       = S_OK;
-    uint64_t      position = m_machine.GetPosition();
+    uint64_t      position = m_machine.GetRunner().GetPosition();
     bool          isFound  = false;
     Stretch       stretch;
     ReplayReport  report;
@@ -1651,7 +1651,7 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    m_machine.SetOutputMuted (false, true);
+    m_machine.GetOutputMute().SetMuted (false, true);
     m_machine.GetDiskStore().SetReplaying (true);
 
     // The stretch is looked up only when the machine leaves the one it was in.
@@ -1665,7 +1665,7 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
             hr = m_replayer.RestoreKeyframe (stretch.keyframe + 1);
             CHR (hr);
 
-            position = m_machine.GetPosition();
+            position = m_machine.GetRunner().GetPosition();
             isFound  = TryFindStretch (position, stretch);
             CBRAEx (isFound, E_UNEXPECTED);
         }
@@ -1679,7 +1679,7 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
 
     //  A keyframe the step loaded was loaded muted, and gave the output back
     //  as a replay leaves it.
-    m_machine.SetOutputMuted (false, true);
+    m_machine.GetOutputMute().SetMuted (false, true);
     m_machine.GetDiskStore().SetReplaying (true);
 
     if (report.isDiverged)
@@ -1689,7 +1689,7 @@ HRESULT ReverseController::ReplayHere (bool isStarting)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    if (m_machine.GetPosition() >= m_liveEndPosition)
+    if (m_machine.GetRunner().GetPosition() >= m_liveEndPosition)
     {
         BecomeLive();
     }
@@ -1746,7 +1746,7 @@ void ReverseController::OnArrived()
 HRESULT ReverseController::LeaveLive()
 {
     HRESULT   hr       = S_OK;
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
 
 
 
@@ -1840,7 +1840,7 @@ void ReverseController::BecomeLive()
 
     m_machine.GetDiskStore().SetFlushHold (false);
     m_machine.GetDiskStore().SetReplaying (false);
-    m_machine.SetOutputMuted (false);
+    m_machine.GetOutputMute().SetMuted (false);
 
     m_machine.SetHeldInputWatch (nullptr);
 
@@ -1849,16 +1849,16 @@ void ReverseController::BecomeLive()
 
     if (m_isPaused)
     {
-        m_pauseStart = m_machine.GetPosition();
+        m_pauseStart = m_machine.GetRunner().GetPosition();
     }
 
-    m_machine.SetInputJournalOn (!m_isPaused);
+    m_machine.GetHostInput().SetJournalOn (!m_isPaused);
 
     ScheduleCaptures();
 
     for (const auto & [owner, listener] : m_liveListeners)
     {
-        listener (m_machine.GetPosition());
+        listener (m_machine.GetRunner().GetPosition());
     }
 }
 
@@ -1988,7 +1988,7 @@ void ReverseController::FillResult (ReverseResult & result) const
 
 
 
-    result.position = m_machine.GetPosition();
+    result.position = m_machine.GetRunner().GetPosition();
     result.cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
 }
 

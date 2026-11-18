@@ -376,7 +376,7 @@ void ShellMouseInput::UpdateGuestMouseFromHost (int xPx, int yPx)
     // Behind live in reverse execution's history the mouse holds a recorded
     // position, so the pointer's place is held instead, until the guest's
     // mouse would move to it or the machine is live.
-    isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
 
     if (!isGateOpen)
     {
@@ -421,7 +421,7 @@ void ShellMouseInput::PressGuestMouseButton (int x, int y)
         return;
     }
 
-    isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_input.m_heldHostInputs.OnPress (HeldHostInputs::kMouseButton, isGateOpen);
 
     if (!isGateOpen)
@@ -460,7 +460,7 @@ void ShellMouseInput::ReleaseGuestMouseButton()
         return;
     }
 
-    isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_input.m_heldHostInputs.OnRelease (HeldHostInputs::kMouseButton, isGateOpen);
 
     if (!isGateOpen)

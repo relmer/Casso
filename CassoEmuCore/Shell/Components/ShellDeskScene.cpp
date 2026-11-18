@@ -2024,10 +2024,10 @@ bool ShellDeskScene::SyncRecorderKeys (int64_t nowMs)
 
     // A reset, a power cycle or an empty deck releases every key, and so does
     // a Stop or Eject press once the key has reached the bottom of its stroke.
-    if (m_shell.m_machine.GetTapeResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
+    if (m_shell.m_machine.GetTape().GetResetCount() != m_seenTapeResets || transport == TapeTransport::Empty ||
         (m_shell.m_tapeDeck->GetKeyReleaseAtMs() != 0 && nowMs >= m_shell.m_tapeDeck->GetKeyReleaseAtMs()))
     {
-        m_seenTapeResets      = m_shell.m_machine.GetTapeResetCount();
+        m_seenTapeResets      = m_shell.m_machine.GetTape().GetResetCount();
         m_shell.m_tapeDeck->SetKeyReleaseAtMs (0);
         m_shell.m_tapeDeck->GetKeyLatches().fill (false);
     }
@@ -5696,7 +5696,7 @@ bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_
         case DeskDriveModel::UniDisk35:
         case DeskDriveModel::Apple35Drive:
         case DeskDriveModel::Apple35Plus:
-            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            sony = m_shell.m_machine.GetStorage().FindFloppy35 (drive.slot, drive.drive);
             busy = sony != nullptr && sony->IsMotorOn();
             break;
 
@@ -5726,7 +5726,7 @@ bool ShellDeskScene::HasDiskIn (const DeskDrive & drive) const
 
     if (drive.model == DeskDriveModel::UniDisk35 || drive.model == DeskDriveModel::Apple35Drive || drive.model == DeskDriveModel::Apple35Plus)
     {
-        sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+        sony    = m_shell.m_machine.GetStorage().FindFloppy35 (drive.slot, drive.drive);
         hasDisk = sony != nullptr && sony->HasDisk();
     }
 
@@ -5778,7 +5778,7 @@ std::string ShellDeskScene::GetDriveImagePath (const DeskDrive & drive) const
         case DeskDriveModel::UniDisk35:
         case DeskDriveModel::Apple35Drive:
         case DeskDriveModel::Apple35Plus:
-            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            sony = m_shell.m_machine.GetStorage().FindFloppy35 (drive.slot, drive.drive);
 
             if (sony != nullptr && sony->HasDisk())
             {
@@ -5899,7 +5899,7 @@ uint32_t ShellDeskScene::GetDriveDiskBlocks (const DeskDrive & drive) const
         case DeskDriveModel::UniDisk35:
         case DeskDriveModel::Apple35Drive:
         case DeskDriveModel::Apple35Plus:
-            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            sony = m_shell.m_machine.GetStorage().FindFloppy35 (drive.slot, drive.drive);
 
             if (sony != nullptr && sony->HasDisk())
             {
@@ -5981,7 +5981,7 @@ bool ShellDeskScene::IsDriveWriteProtected (const DeskDrive & drive) const
         case DeskDriveModel::UniDisk35:
         case DeskDriveModel::Apple35Drive:
         case DeskDriveModel::Apple35Plus:
-            sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            sony    = m_shell.m_machine.GetStorage().FindFloppy35 (drive.slot, drive.drive);
             protect = sony != nullptr && sony->HasDisk() && sony->IsWriteProtected();
             break;
 

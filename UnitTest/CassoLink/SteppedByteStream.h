@@ -62,7 +62,7 @@ public:
                 break;
             }
 
-            m_machine.RunCycles (kStepCycles);
+            m_machine.GetRunner().RunCycles (kStepCycles);
             spent  += kStepCycles;
             m_total += kStepCycles;
 

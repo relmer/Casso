@@ -414,7 +414,7 @@ public:
 
         for (step = 0; step < kMaxSteps && machine.GetMemoryBus().ReadByte (kDoneAddr) == 0; step++)
         {
-            (void) machine.RunCycles (kStepCycles);
+            (void) machine.GetRunner().RunCycles (kStepCycles);
         }
 
         Assert::AreEqual (1, static_cast<int> (machine.GetMemoryBus().ReadByte (kDoneAddr)), L"the routine finds and reads the sector");

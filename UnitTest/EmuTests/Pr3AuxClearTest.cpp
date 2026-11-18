@@ -108,7 +108,7 @@ public:
         AssertSucceeded (hr);
 
         machine.PowerCycle();
-        machine.RunCycles (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
 
         size_t  consumed = KeystrokeInjector::InjectLine (machine, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
@@ -173,7 +173,7 @@ public:
         AssertSucceeded (hr);
 
         machine.PowerCycle();
-        machine.RunCycles (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
 
         size_t  consumed = KeystrokeInjector::InjectLine (machine, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);

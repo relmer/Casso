@@ -79,7 +79,7 @@ public:
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, prodos));
 
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+            Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (2, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, hostEnd);
             host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
@@ -187,7 +187,7 @@ public:
 
             for (int frame = 0; frame < 30; frame++)
             {
-                machine.RunCycles (kFrame);
+                machine.GetRunner().RunCycles (kFrame);
             }
 
             for (const std::string & row : TextScreenScraper::Scrape (machine))

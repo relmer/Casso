@@ -164,7 +164,7 @@ bool TraceHistory::Pump()
 
 void TraceHistory::GetSpans (std::vector<TraceSpan> & outSpans)
 {
-    uint64_t          position = m_machine.GetPosition();
+    uint64_t          position = m_machine.GetRunner().GetPosition();
     bool              isJoined = false;
     DebugEventBounds  live;
 
@@ -389,7 +389,7 @@ void TraceHistory::GetBounds (
     uint64_t                         to,
     std::vector<DebugEventBounds>  & outBounds) const
 {
-    uint64_t                    position = m_machine.GetPosition();
+    uint64_t                    position = m_machine.GetRunner().GetPosition();
     size_t                      i        = 0;
     const KeyframeStretches   * synced   = nullptr;
     DebugEventBounds            live;
@@ -451,7 +451,7 @@ void TraceHistory::GetBounds (
 bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
 {
     const KeyframeStore  & keyframes = m_controller->GetKeyframes();
-    uint64_t               position  = m_machine.GetPosition();
+    uint64_t               position  = m_machine.GetRunner().GetPosition();
     uint64_t               newest    = keyframes.GetInfo (keyframes.GetCount() - 1).position;
     bool                   isGrowing = m_controller->IsRecordingLive() && !IsStopped();
     bool                   isLive    = newest < position && !isGrowing && !m_controller->IsPaused();

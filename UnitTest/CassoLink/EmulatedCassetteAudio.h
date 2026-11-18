@@ -89,7 +89,7 @@ public:
         {
             uint64_t  step = std::min (kStepCycles, cycles - run);
 
-            m_machine.RunCycles (step);
+            m_machine.GetRunner().RunCycles (step);
             run += step;
         }
 

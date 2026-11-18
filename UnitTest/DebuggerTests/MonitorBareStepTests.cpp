@@ -92,7 +92,7 @@ public:
 
             for (int i = 0; i < 50 && !cpuManager.IsPaused(); i++)
             {
-                uint32_t  actual = (uint32_t) machine.RunCycles (1000);
+                uint32_t  actual = (uint32_t) machine.GetRunner().RunCycles (1000);
 
 
 

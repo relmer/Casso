@@ -113,7 +113,7 @@ uint64_t MachineIdle::RunUntilIdle (MachineHost & host, uint64_t cycleCap)
     {
         uint64_t  slice = (std::min) (kSampleSlice, cycleCap - spent);
 
-        host.RunCycles (slice);
+        host.GetRunner().RunCycles (slice);
         spent += slice;
 
         // Scrape rather than Scrape40 so an 80-column //c reads correctly.

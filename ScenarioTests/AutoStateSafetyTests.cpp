@@ -122,7 +122,7 @@ private:
 
 
 
-        machine.RunCycles (kRunCycles);
+        machine.GetRunner().RunCycles (kRunCycles);
 
         hr = MachineStateFile::Build (machine, bytes, error);
         AssertSucceeded (hr, L"Build");

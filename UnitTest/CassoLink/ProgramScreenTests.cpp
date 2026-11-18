@@ -63,7 +63,7 @@ public:
 
 
 
-        rig.machine.RunCycles (kSettleCycles);
+        rig.machine.GetRunner().RunCycles (kSettleCycles);
 
         text = TextScreenScraper::Scrape40 (rig.machine.GetMemoryBus(), 0x0400)[(size_t) row];
         return text.substr (0, text.find_last_not_of (' ') + 1);
@@ -185,7 +185,7 @@ public:
 
         AssertSucceeded (rig.host->SetSpeed (kFastControl));
         AssertSucceeded (rig.host->SetColumns (true));
-        rig.machine.RunCycles (kSettleCycles);
+        rig.machine.GetRunner().RunCycles (kSettleCycles);
 
         for (const Cell & cell : kCells)
         {
@@ -261,7 +261,7 @@ public:
         rig.host->SetProgress (0, 100);
         AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
 
-        rig.machine.RunCycles (kGoneCycles);
+        rig.machine.GetRunner().RunCycles (kGoneCycles);
         AssertRow (rig, kRowBar2, "", L"with the PC gone");
     }
 

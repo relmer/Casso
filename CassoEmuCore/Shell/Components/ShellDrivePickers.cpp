@@ -138,7 +138,7 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
 
     hooks.getDemoDisks = [this] (const PickerDrive & drive)
     {
-        return StartupDiskPicker::GetDemoDisks (m_shell.m_machine.GetBlockMediaFileIo(), drive.receiving);
+        return StartupDiskPicker::GetDemoDisks (m_shell.m_machine.GetStorage().GetBlockMediaFileIo(), drive.receiving);
     };
 
     hooks.fetchStockDisk = [] (const std::wstring & path, std::wstring & outError)
@@ -336,7 +336,7 @@ std::unique_ptr<ExplorerPickerHost> ShellDrivePickers::MakeHost (PickerRequest r
 {
     std::string                          theme = CassoExplorerPrefs::MapCassoTheme (m_shell.m_settings->GetPrefs().activeTheme);
     std::unique_ptr<ExplorerPickerHost>  host  = std::make_unique<ExplorerPickerHost> (m_shell.m_settings->GetFileSystem(),
-                                                                                         m_shell.m_machine.GetBlockMediaFileIo(),
+                                                                                         m_shell.m_machine.GetStorage().GetBlockMediaFileIo(),
                                                                                          AssetBootstrap::GetAssetBaseDirectory().wstring());
 
 

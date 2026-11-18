@@ -77,10 +77,9 @@ result, not a goal.
 - **Replay tests** are the net for timing: `DiskHistoryTests`,
   `ReverseReplayTests`, `ReverseSessionStopTestTests`, `CallStackHistoryTests`,
   `HeatHistoryTests`, `TraceHistoryTests`, `ProfileHistoryTests`.
-- **Per-instruction cost.** `MachineHost::FinishStep`, `Cpu::StepOne` and
+- **Per-instruction cost.** `MachineRunner::FinishStep`, `Cpu::StepOne` and
   `Disk2Controller::Tick` run once per instruction. Measure before and after with
-  the method in memory note `reference-measure-per-instruction-perf`, pinned to
-  one CCD. A slowdown over 2% is a defect.
+  `MachineRunCostTests`, pinned to one CCD (see the test's banner). A slowdown over 2% is a defect.
 - **After a class layout change**, build with `-Target Rebuild`.
 - **Per commit**: Release build, the area's tests, `CheckStyle -Mode Staged`,
   `FixDeclAlign -Apply -Paths <one file>`, `Check-Prose.ps1` on new comments and
@@ -185,35 +184,51 @@ the run loop, host input, storage, muting, observer wiring, tape and a diagnosti
 panel. The first cut left one-line forwarders for the connectors and the state
 stream.
 
+**State, at `27dd627d4`.** All on the CPU thread unless marked; "UI" is the UI
+thread through `GetLifetimeLock`.
+
+| Field | Written by | Read by | Group |
+|---|---|---|---|
+| `m_memoryBus`, `m_registry`, `m_interruptController` | constructor, builder | every part | parts |
+| `m_cpu`, `m_prng`, `m_mmu`, `m_apple2cRomBank`, `m_mouse`, `m_accelerator`, `m_joyport`, `m_videoTiming`, `m_videoScanner` | the setters, from the builder on each machine switch | the run loop, input, reset, state, diagnostics | parts |
+| `m_ownedDevices`, `m_ownedAciaEndpoints`, `m_videoModes`, `m_charRom`, `m_refs` | builder | every part; UI | parts |
+| `m_softSwitches`, `m_lifetimeLock` | `SelectVideoMode`; both threads | renderer | host |
+| `m_config`, `m_currentMachineName`, `m_assetBaseDir` | builder, shell | identity, state header, storage, diagnostics | host |
+| `m_diskStore` | shell | state, storage, reset | host |
+| `m_position`, `m_debugHook`, `m_stopFlag` (another thread raises it), `m_historyRecorder`, `m_watchOpcodes`, `m_watcher` | the setters, `FinishStep` | `StepOne`, `RunCycles`, `FinishStep` | runner |
+| `m_inputJournal`, `m_hostInputGate` (UI and CPU), `m_heldInputWatch`, `m_hostInputParts` | the journal and watch setters, replay | `RecordInput`, `ApplyDeviceInput`, `SampleHostInputs`, host-input state, `RunCycles` | host input |
+| `m_hostBlockFileIo`, `m_blockFileIo`, `m_blockProbe`, `m_blockMediaProblems`, `m_stockImageFolder` | `SetBlockMediaFileIo`, builder, `SetStockImageFolder` | the builder, `InsertFloppy35`, `AttachHardDisk`, the replay media | storage |
+| `m_isSoundMuted`, `m_isPrinterMuted`, `m_mutedDiskAudio`, `m_wasMotorOnAtMute` | `SetOutputMuted` | the queries | output mute |
+| `m_commSink` | `AttachCommEventSink` | `AttachInputJournal` (again after a switch) | observer wiring |
+| `m_tapeDeck`, `m_cassetteDiagnostics`, `m_tapeResetCount` (read on UI) | `StopTape` | the shell, the cassette panel | tape |
+| `m_speedMode` | `SetSpeedMode` | the clock panel | clock panel |
+| `m_printerRing` | printer card, drain thread | connectors | host |
+| `m_romIdentity`, `m_connectors`, `m_stateStream` | first cut | first cut | as they are |
+
 **Classes.**
 
 | Class | State | Responsibility |
 |---|---|---|
-| `MachineHost` | the bus, registry, interrupt controller, CPU, Prng, MMU, ROM bank, mouse, accelerator, Joyport, video timing, video scanner, owned devices, video modes, character ROM, `MachineRefs`, soft-switch mirror, lifetime lock, config, machine name, asset folder, and the components below | What the machine is made of, and `SoftReset` and `PowerCycle`, which touch every part. Getters for the components. Nothing else. |
-| `MachineRunner` | position, debug hook, stop flag, history recorder pointer, opcode watch | `StepOne`, `RunCycles`, the hook path, `FinishStep`, the card catch-up. Constructed with the parts it ticks (CPU slot, `MachineRefs`, `MachineConnectors`, accelerator slot). |
-| `MachineHostInput` | `InputJournal`, `HostInputGate`, the `HeldInputWatch` pointer, the host-input part list | `Record`, `SetJournalOn`, `AttachJournal`, `ApplyDeviceInput`, `Sample`, `SaveState`, `LoadState`, `DropConnections`, `ResyncConnections`. |
-| `MachineStorage` | the block media file I/O and probe, the problem list, the stock folder | `FindFloppy35`, `InsertFloppy35`, `EjectFloppy35`, `AttachHardDisk`, `ConnectDiskToController`, `BindDiskDrives`, and `MachineReplayMedia`'s three functions as methods. `MachineReplayMedia` is deleted. |
-| `MachineOutputMute` | the two mute flags, the muted drive audio sink, the motor flag at mute | `SetMuted` and the queries. |
-| `MachineObserverWiring` | the comm sink | `AttachObservers`, `AttachCommEventSink`. |
-| `MachineTape` | `TapeDeck`, `CassetteDiagnostics`, the reset count | `Stop`, the count. |
-| `MachineClockPanel` | the speed mode | The clock panel (`IDiagnosticsProvider`) and `GetProviders`. `MachineHost` no longer implements `IDiagnosticsProvider`. |
-| `MachineConnectors`, `MachineStateStream`, `MachineRomIdentity` | as now | Remove every forwarder on `MachineHost` (`SetSerialPort` through `DescribeAttachmentFailure`, `SaveState` through `CheckSharedSave`, `MediaIds`, `kStateTag`, `kStateVersion`, `kOldestStateVersion`). |
+| `MachineParts` (struct, in a separate header) | the bus, registry, interrupt controller, the replaceable parts in `unique_ptr` slots, the video scanner, the owned devices and endpoints, the video modes, the character ROM, `MachineRefs` | What the machine is made of. A component that uses a part has a reference to this struct, so it reads the slot after a machine switch replaced it. |
+| `MachineHost` | `MachineParts`, config, name, asset folder, disk store, printer ring, soft-switch mirror, lifetime lock, and the components below | What the machine is: getters for the parts and the components, the part setters, `SoftReset` and `PowerCycle`, which touch every part, `NoteDebuggerEdit` and the media-change callback (the history recorder takes the host). `SetHeldInputWatch` sets the watch on the host input, which points the devices at it, and on the runner, which ends a run on a hit. `AttachDevices` attaches the journal and the comm sink to the devices of a machine the builder switched to. Implements `IMachineStateParts` for the state stream; nothing else. |
+| `MachineRunner` | position, debug hook, stop flag, history recorder, opcode watch, the `HeldInputWatch` pointer | `StepOne`, `RunCycles`, the hook path, `FinishStep`, the card catch-up. Has references to the parts and the connectors. |
+| `MachineHostInput` | `InputJournal`, `HostInputGate`, the `HeldInputWatch` pointer, the host-input part list | `Record`, `SetJournalOn`, `AttachJournal`, `ApplyDeviceInput`, `Sample`, `SaveState`, `LoadState`, `DropConnections`, `ResyncConnections`, `SetHeldInputWatch`. Has references to the parts and the runner's position. |
+| `MachineStorage` | the block media file I/O and probe, the problem list, the stock folder | `FindFloppy35`, `InsertFloppy35`, `EjectFloppy35`, `AttachHardDisk`, `ConnectDiskToController`, `BindDiskDrives`, and `MachineReplayMedia`'s `Get`, `Copy` and `Mount` as methods. `MachineReplayMedia` is deleted. Has references to the parts, the config and the disk store. |
+| `MachineOutputMute` | the two mute flags, the muted drive audio sink, the motor flag at mute | `SetMuted` and the queries. Has references to the parts and the connectors. |
+| `MachineObserverWiring` | the comm sink | `AttachObservers`, `AttachCommEventSink`, `AttachAgain` (after a machine switch). Has a reference to the parts. |
+| `MachineTape` | `TapeDeck`, `CassetteDiagnostics`, the reset count | `GetDeck`, `Stop`, the count, the cassette panel. `CassetteDiagnostics` takes the deck and the refs, not the host. |
+| `MachineClockPanel` | the speed mode | The clock panel (`IDiagnosticsProvider`) and `GetProviders`, the list of every panel. `MachineHost` no longer implements `IDiagnosticsProvider`. |
+| `MachineConnectors`, `MachineStateStream`, `MachineRomIdentity` | as now | Every forwarder on `MachineHost` is removed: `SetSerialPort` through `DescribeAttachmentFailure`, `SaveState` through `CheckSharedSave`, `MediaIds`, `kStateTag`, `kStateVersion`, `kOldestStateVersion`. |
 
-**Slots.** `m_cpu`, `m_mmu` and the other `unique_ptr` members are replaced on a
-machine switch, so a component cannot store a raw pointer taken at construction.
-Pass each component a reference to the `unique_ptr` (or a small `MachineParts`
-struct of them that `MachineHost` has as a member), not `MachineHost &`.
+**Member order.** The parts, then the fields of the host, then the components in
+the order they refer to each other: connectors, state stream, runner, host input,
+storage, output mute, observer wiring, tape, clock panel.
 
-**Member order.** Components that take references are declared after what they
-refer to. Write the order as a comment once, at the member list.
-
-**Callers.** Counts at `4b20fcd8c`, outside `MachineHost`: `GetTapeDeck` 66,
-serial and printer methods 64, `GetInputJournal` 41, `AttachObservers` 34,
-`SampleHostInputs` 31, `GetHostInputGate` 28, `RecordInput` 19, `AttachHardDisk`
-16, `InsertFloppy35` 16, `GetDiagnosticsProviders` 13, plus every `SaveState`,
-`LoadState`, `StepOne`, `RunCycles` and `GetPosition` call. `TestMachine` derives
-from `MachineHost`; update it and the test rigs first, since most test call sites
-go through them.
+**Callers.** `GetConnectors().X`, `GetStateStream().X`, `GetRunner().X` (`StepOne`,
+`RunCycles`, `SetDebugHook`, `GetPosition` and the rest), `GetHostInput().X`
+(`GetJournal`, `GetGate`, `Record`, `Sample`), `GetStorage().X`,
+`GetOutputMute().X`, `GetObserverWiring().X`, `GetTape().X`, `GetClockPanel().X`.
+`AttachInputJournal` after a machine switch is `MachineHost::AttachDevices`.
 
 **Not in this plan.** `MachineRefs` (a struct of raw pointers the builder fills)
 is a separate design problem and is out of scope. Add what you find to tasks.md.

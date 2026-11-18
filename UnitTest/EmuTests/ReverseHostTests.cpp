@@ -57,8 +57,8 @@ public:
         AssertSucceeded (hr, L"StartRecording");
 
         Assert::IsTrue (host.IsRecording(), L"recording");
-        Assert::IsTrue (machine.GetHistoryRecorder() == &host.GetController(), L"the machine reports to the controller");
-        Assert::IsTrue (machine.GetInputJournal().IsOn(), L"the journal is on");
+        Assert::IsTrue (machine.GetRunner().GetHistoryRecorder() == &host.GetController(), L"the machine reports to the controller");
+        Assert::IsTrue (machine.GetHostInput().GetJournal().IsOn(), L"the journal is on");
 
         hr = host.StartRecording (ReverseHost::MakeSettings (s_kHostBudgetMb, 1));
         AssertSucceeded (hr, L"StartRecording again, as a machine switch does");
@@ -68,7 +68,7 @@ public:
         host.StopRecording();
 
         Assert::IsFalse (host.IsRecording(), L"stopped");
-        Assert::IsTrue  (machine.GetHistoryRecorder() == nullptr, L"detached");
+        Assert::IsTrue  (machine.GetRunner().GetHistoryRecorder() == nullptr, L"detached");
     }
 
 
@@ -105,7 +105,7 @@ public:
         hr = host.StartRecording (ReverseHost::MakeSettings (s_kHostBudgetMb, 1));
         AssertSucceeded (hr, L"StartRecording");
 
-        machine.RunCycles (s_kHostWarmupCycles);
+        machine.GetRunner().RunCycles (s_kHostWarmupCycles);
 
         cpu.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::Automatic);
 
@@ -115,7 +115,7 @@ public:
         Assert::IsFalse (host.GetController().IsPaused(), L"an automatic raise keeps recording");
 
         count = host.GetController().GetKeyframes().GetCount();
-        machine.RunCycles (s_kHostGapCycles);
+        machine.GetRunner().RunCycles (s_kHostGapCycles);
 
         Assert::IsTrue (host.GetController().GetKeyframes().GetCount() > count, L"keyframes are taken at an automatic Maximum");
 
@@ -127,7 +127,7 @@ public:
         Assert::IsTrue (host.GetController().IsPaused(), L"the user's Maximum pauses recording");
 
         count = host.GetController().GetKeyframes().GetCount();
-        machine.RunCycles (s_kHostGapCycles);
+        machine.GetRunner().RunCycles (s_kHostGapCycles);
 
         Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"no keyframe while paused");
 
@@ -160,28 +160,28 @@ public:
 
         host.SetLiveCallback ([&lives] () { lives++; });
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
 
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBack");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"moved");
-        Assert::AreEqual<uint64_t> (liveEnd - 1, machine.GetPosition(), L"one instruction back");
+        Assert::AreEqual<uint64_t> (liveEnd - 1, machine.GetRunner().GetPosition(), L"one instruction back");
         Assert::IsTrue (host.IsBehindLive(), L"behind live");
-        Assert::IsTrue (machine.GetHostInputGate().IsHeld(), L"host input is held back");
+        Assert::IsTrue (machine.GetHostInput().GetGate().IsHeld(), L"host input is held back");
 
         hr = host.Execute (ReverseCommand::StepBackOver, 0, nullptr, result);
         AssertSucceeded (hr, L"StepBackOver");
 
-        Assert::IsTrue (machine.GetHostInputGate().IsHeld(), L"still held");
+        Assert::IsTrue (machine.GetHostInput().GetGate().IsHeld(), L"still held");
         Assert::AreEqual (0, lives, L"not live yet");
 
         hr = host.Execute (ReverseCommand::GoLive, 0, nullptr, result);
         AssertSucceeded (hr, L"GoLive");
 
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"at the live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"at the live end");
         Assert::IsFalse (host.IsBehindLive(), L"live");
-        Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"host input flows again");
+        Assert::IsFalse (machine.GetHostInput().GetGate().IsHeld(), L"host input flows again");
         Assert::AreEqual (1, lives, L"the live callback ran once");
     }
 
@@ -219,7 +219,7 @@ public:
 
         PrepareRecording (machine, host);
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
         count   = store.GetCount();
 
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
@@ -230,10 +230,10 @@ public:
         hr = host.Execute (ReverseCommand::GoLive, 0, nullptr, result);
         AssertSucceeded (hr, L"GoLive");
 
-        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"live again from the old live end");
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetRunner().GetPosition(), L"live again from the old live end");
         Assert::AreEqual (count, store.GetCount(), L"no history was dropped");
 
-        machine.RunCycles (s_kHostGapCycles);
+        machine.GetRunner().RunCycles (s_kHostGapCycles);
 
         Assert::IsTrue (store.GetCount() > count, L"keyframes taken after going live");
 
@@ -273,19 +273,19 @@ public:
 
         PrepareRecording (machine, host);
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
         target  = liveEnd - 100;
 
         hr = host.Execute (ReverseCommand::Seek, target, nullptr, result);
         AssertSucceeded (hr, L"Seek");
 
-        Assert::AreEqual<uint64_t> (target, machine.GetPosition(), L"at the target");
+        Assert::AreEqual<uint64_t> (target, machine.GetRunner().GetPosition(), L"at the target");
         Assert::AreEqual<uint64_t> (target, result.position, L"the result says so");
 
         hr = host.Execute (ReverseCommand::StepForward, 0, nullptr, result);
         AssertSucceeded (hr, L"StepForward");
 
-        Assert::AreEqual<uint64_t> (target + 1, machine.GetPosition(), L"one instruction on");
+        Assert::AreEqual<uint64_t> (target + 1, machine.GetRunner().GetPosition(), L"one instruction on");
         Assert::IsTrue (host.IsBehindLive(), L"still behind live");
     }
 
@@ -382,7 +382,7 @@ public:
 
         Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"live, nothing is dropped or kept");
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
         target  = liveEnd - 100;
 
         hr = host.Execute (ReverseCommand::Seek, target, nullptr, result);
@@ -392,9 +392,9 @@ public:
         AssertSucceeded (hr, L"Diverge behind live");
 
         Assert::IsFalse (host.IsBehindLive(), L"live where it stood");
-        Assert::AreEqual<uint64_t> (target, machine.GetPosition(), L"the machine did not move");
+        Assert::AreEqual<uint64_t> (target, machine.GetRunner().GetPosition(), L"the machine did not move");
         Assert::AreEqual<uint64_t> (target, host.GetController().GetLiveEndPosition(), L"the future is gone");
-        Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"host input flows again");
+        Assert::IsFalse (machine.GetHostInput().GetGate().IsHeld(), L"host input flows again");
         Assert::AreEqual (1, lives, L"the live callback ran once");
     }
 
@@ -413,7 +413,7 @@ public:
 
         PrepareRecording (machine, host);
 
-        hr = host.Execute (ReverseCommand::Seek, machine.GetPosition() - 100, nullptr, result);
+        hr = host.Execute (ReverseCommand::Seek, machine.GetRunner().GetPosition() - 100, nullptr, result);
         AssertSucceeded (hr, L"Seek");
 
         status = host.GetStatus();
@@ -459,13 +459,13 @@ public:
 
         PrepareRecording (machine, host);
 
-        position = machine.GetPosition();
+        position = machine.GetRunner().GetPosition();
 
         hr = host.Execute (ReverseCommand::ReverseContinue, 0, nullptr, result);
 
         Assert::IsTrue (FAILED (hr), L"no stop test, no reverse continue");
-        Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the machine did not move");
-        Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"and the host's input still flows");
+        Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the machine did not move");
+        Assert::IsFalse (machine.GetHostInput().GetGate().IsHeld(), L"and the host's input still flows");
     }
 
 
@@ -483,7 +483,7 @@ public:
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);
 
         Assert::IsTrue (FAILED (hr), L"nothing recorded, nothing to step back into");
-        Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"the gate is not left held");
+        Assert::IsFalse (machine.GetHostInput().GetGate().IsHeld(), L"the gate is not left held");
     }
 
 
@@ -502,7 +502,7 @@ public:
 
 
 
-        sink.SetInputGate (&machine.GetHostInputGate());
+        sink.SetInputGate (&machine.GetHostInput().GetGate());
 
         PrepareRecording (machine, host);
 
@@ -548,7 +548,7 @@ public:
 
 
 
-        sink.SetInputGate      (&machine.GetHostInputGate());
+        sink.SetInputGate      (&machine.GetHostInput().GetGate());
         sink.SetDivergenceGate (&gate, [&helds] () { helds++; });
 
         PrepareRecording (machine, host);
@@ -713,6 +713,6 @@ private:
         AssertSucceeded (hr, L"StartRecording");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kHostWarmupCycles);
+        machine.GetRunner().RunCycles (s_kHostWarmupCycles);
     }
 };

@@ -283,13 +283,13 @@ public:
         machine.PowerCycle();
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "boot.dsk", DiskFormat::Dsk, sectors));
         publisher.SetActive (true);
-        machine.RunCycles (100 * kFrameCycles);
+        machine.GetRunner().RunCycles (100 * kFrameCycles);
 
         QueryPerformanceCounter (&start);
 
         for (int frame = 0; frame < kFrames; frame++)
         {
-            machine.RunCycles (kFrameCycles);
+            machine.GetRunner().RunCycles (kFrameCycles);
         }
 
         frameMs = GetElapsedMs (start) / kFrames;

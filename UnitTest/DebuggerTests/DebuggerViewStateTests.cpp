@@ -110,7 +110,7 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.machine.RunCycles (1234);
+            rig.machine.GetRunner().RunCycles (1234);
 
             cycles   = rig.machine.GetCpu()->GetTotalCycles();
             snapshot = rig.view.Build (rig.controller.GetSession());
@@ -135,9 +135,9 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.machine.RunCycles (5000);
+            rig.machine.GetRunner().RunCycles (5000);
             rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetResetCycles (CommandMode::AppleWin));
-            rig.machine.RunCycles (100);
+            rig.machine.GetRunner().RunCycles (100);
 
             snapshot = rig.view.Build (rig.controller.GetSession());
             trip     = std::stoull (snapshot.registers[7].value);
@@ -1185,7 +1185,7 @@ namespace DebuggerViewStateTests
 
             //  One step: the previous instruction is known, and what it
             //  touched shows below what the current one touches.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession(), true);
 
             Assert::IsNotNull (find ("R:A"),    L"STA reads A");
@@ -1408,7 +1408,7 @@ namespace DebuggerViewStateTests
                 (void) target.TryPeek ((Word) (0x01F0 + i), stackBefore[i]);
             }
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             after = target.GetRegisters();
 
             if (after.a  != before.a)  { text += std::format (" A={:02X}", after.a);  }
@@ -2045,7 +2045,7 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (SUCCEEDED (hr));
             Assert::IsTrue (rig.controller.GetSession().IsCallRecording(), L"attached: the record is kept");
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
             rows     = CallStackPane::GetRows (snapshot.callStack);
 
@@ -2059,7 +2059,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("CALLS MODE RECORDED"), CallStackPane::GetNextModeLine (snapshot.callStack.mechanism));
 
             rig.controller.Close();
-            Assert::IsNull (rig.machine.GetDebugHook(), L"detached: no hook (FR-064)");
+            Assert::IsNull (rig.machine.GetRunner().GetDebugHook(), L"detached: no hook (FR-064)");
         }
 
 
@@ -2201,7 +2201,7 @@ namespace DebuggerViewStateTests
             rig.machine.GetMemoryBus().WriteByte (0x0302, 0x03);
 
             rig.Run ("HISTORY ON");
-            rig.machine.RunCycles (kTotal * kJmpCycles);
+            rig.machine.GetRunner().RunCycles (kTotal * kJmpCycles);
         }
 
 

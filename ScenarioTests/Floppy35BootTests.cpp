@@ -114,7 +114,7 @@ public:
 
         while (!onScreen && spent < cycleCap)
         {
-            spent += host.RunCycles (kSlice);
+            spent += host.GetRunner().RunCycles (kSlice);
 
             rows.clear();
             GuestSession::CollectRows (host, rows);
@@ -137,7 +137,7 @@ public:
 
         while (ran < cycles)
         {
-            ran += host.RunCycles (std::min (kFrameCycles, cycles - ran));
+            ran += host.GetRunner().RunCycles (std::min (kFrameCycles, cycles - ran));
         }
     }
 
@@ -168,7 +168,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszLironCardDevice, ports } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsTrue (machine.GetRefs().lironCards[0]->HasFirmware(), L"the card's ROM is in the fixtures");
         Assert::AreEqual ((size_t) 1, machine.GetRefs().lironCards[0]->GetDriveCount(), L"the drive's ROM is in the fixtures");
 
@@ -308,7 +308,7 @@ public:
 
         //  The firmware's motor timeout deselects the drive about 2.3 seconds
         //  after its last command.
-        machine.RunCycles (kDeselectCycles);
+        machine.GetRunner().RunCycles (kDeselectCycles);
 
         AssertSucceeded (ProDosVolume (Take140K (io.files[kDiskPath])).Enumerate (listing));
 
@@ -344,7 +344,7 @@ public:
         }
 
         KeystrokeInjector::InjectLine (machine, "CALL 768");
-        machine.RunCycles (4'000'000);
+        machine.GetRunner().RunCycles (4'000'000);
 
         Assert::IsFalse (card.GetDrive (0).GetMechanism().HasDisk(), L"the CONTROL call ejects the disk");
     }
@@ -368,7 +368,7 @@ public:
 
         TestMachine  machine ("Apple2c", diskPort, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsNotNull (machine.GetRefs().apple2cSmartPort);
         Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cSmartPort->GetPort().GetDriveCount());
 
@@ -397,7 +397,7 @@ public:
 
         TestMachine  machine ("Apple2c", diskPort, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cSmartPort->GetPort().GetDriveCount(), L"the UniDisk is on the chain");
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "second.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
 
@@ -453,7 +453,7 @@ public:
         machine.PowerCycle();
         Assert::IsTrue (RunUntilScreenShows (machine, "Apple", kStartCap), L"the banner is on the screen after the first power-on");
 
-        machine.RunCycles (kRanFirst);
+        machine.GetRunner().RunCycles (kRanFirst);
         machine.PowerCycle();
 
         Assert::IsTrue (RunUntilScreenShows (machine, "Apple", kStartCap), L"and as soon after the second");
@@ -477,7 +477,7 @@ public:
 
         TestMachine  machine ("Apple2cPlus", internal, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsNotNull (machine.GetRefs().apple2cPlusDiskPort);
         Assert::IsNotNull (machine.GetAccelerator());
         Assert::IsTrue (machine.GetRefs().apple2cPlusDiskPort->GetInternalDrive().HasDisk());
@@ -685,7 +685,7 @@ public:
 
         TestMachine  machine ("Apple2cPlus", ports, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsNotNull (machine.GetRefs().diskController, L"the 5.25-inch drive has a controller");
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
 
@@ -803,7 +803,7 @@ public:
 
         TestMachine  machine ("Apple2cPlus", ports, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cPlusDiskPort->GetPort().GetDriveCount(), L"the UniDisk is on the chain");
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
 
@@ -835,7 +835,7 @@ public:
 
         TestMachine  machine ("Apple2cPlus", ports, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::AreEqual (1, machine.GetRefs().apple2cPlusDiskPort->GetExternalCount());
         Assert::IsTrue (machine.GetRefs().apple2cPlusDiskPort->GetExternalDrive (0).HasDisk());
 
@@ -876,7 +876,7 @@ public:
         TestMachine  machine ("Apple2cPlus", ports, io);
         SmartPortHost  & port = machine.GetRefs().apple2cPlusDiskPort->GetPort();
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::AreEqual ((size_t) 1, port.GetDriveCount(), L"the UniDisk is on the chain");
 
         machine.PowerCycle();
@@ -905,7 +905,7 @@ public:
 
         TestMachine  machine ("Apple2cPlus", ports, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
 
         machine.PowerCycle();
@@ -928,7 +928,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsTrue (machine.GetRefs().apple35Cards[0]->HasFirmware(), L"the card's ROM is in the fixtures");
 
         machine.PowerCycle();
@@ -994,7 +994,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsTrue (machine.GetRefs().apple35Cards[0]->GetCardMemory().GetDrive (0).IsWoz());
 
         machine.PowerCycle();
@@ -1030,7 +1030,7 @@ public:
 
         TestMachine  machine ("Apple2e", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
 
         machine.PowerCycle();
         GuestSession::StartFromPowerOn (machine);
@@ -1081,7 +1081,7 @@ public:
 
         while (!isThere && spent < cycleCap)
         {
-            spent  += host.RunCycles (kSlice);
+            spent  += host.GetRunner().RunCycles (kSlice);
             isThere = GetHiResHash (host) == hash;
         }
 

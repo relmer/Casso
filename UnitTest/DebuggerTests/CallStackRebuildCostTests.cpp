@@ -145,7 +145,7 @@ namespace CallStackRebuildCostTests
                 ReverseSessionRig::Feed (rig.machine, slice++);
             }
 
-            rig.machine.RunCycles (kSliceCycles);
+            rig.machine.GetRunner().RunCycles (kSliceCycles);
         }
 
         hr = controller.GetKeyframes().WaitForPending();
@@ -178,16 +178,16 @@ namespace CallStackRebuildCostTests
         hr = controller.GetKeyframes().Restore (0, state);
         AssertSucceeded (hr, L"Restore");
 
-        isCopied = rig.machine.GetInputJournal().TryCopyRecords (oldest.journalIndex, rig.machine.GetPosition(), inputs);
+        isCopied = rig.machine.GetHostInput().GetJournal().TryCopyRecords (oldest.journalIndex, rig.machine.GetRunner().GetPosition(), inputs);
         Assert::IsTrue (isCopied, L"the journal holds history's inputs");
 
-        scratch.GetInputJournal().LoadRecords (oldest.journalIndex, inputs);
+        scratch.GetHostInput().GetJournal().LoadRecords (oldest.journalIndex, inputs);
         replayer.SetOverMountedMedia (workload == Workload::Session);
 
         hr = replayer.LoadFrom (state, oldest.position, oldest.journalIndex);
         AssertSucceeded (hr, L"LoadFrom");
 
-        target.position = rig.machine.GetPosition();
+        target.position = rig.machine.GetRunner().GetPosition();
 
         start = Now();
         hr    = replayer.RunTo (target, target.position, nullptr, report);
@@ -216,7 +216,7 @@ namespace CallStackRebuildCostTests
 
         history.Attach (&controller, &replayer);
 
-        hr = history.MakeJob (false, 0, 0, rig.machine.GetPosition(), job, hasJob);
+        hr = history.MakeJob (false, 0, 0, rig.machine.GetRunner().GetPosition(), job, hasJob);
         AssertSucceeded (hr, L"MakeJob");
         Assert::IsTrue (hasJob, L"history holds the run");
 
@@ -224,7 +224,7 @@ namespace CallStackRebuildCostTests
 
         hr = replayer.Rebuild (job, result);
         AssertSucceeded (hr, L"Rebuild");
-        Assert::AreEqual<uint64_t> (rig.machine.GetPosition(), result.position, L"the rebuild reaches the end of history");
+        Assert::AreEqual<uint64_t> (rig.machine.GetRunner().GetPosition(), result.position, L"the rebuild reaches the end of history");
         Assert::AreEqual<uint64_t> (rig.machine.GetCpu()->GetTotalCycles(), result.cycle, L"on the same cycle");
 
         history.Attach (nullptr, nullptr);

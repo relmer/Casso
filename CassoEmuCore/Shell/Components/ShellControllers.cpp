@@ -37,7 +37,7 @@ void ShellControllers::SyncJoyport()
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_input.m_machine.GetLifetimeLock());
     HostInputGate::Entry                 gate;
-    bool                                 isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    bool                                 isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
 
 
 

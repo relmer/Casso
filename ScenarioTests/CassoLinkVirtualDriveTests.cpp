@@ -128,7 +128,7 @@ public:
 
         while (!onScreen && spent < cycleCap)
         {
-            spent += host.RunCycles (kSlice);
+            spent += host.GetRunner().RunCycles (kSlice);
 
             rows.clear();
             GuestSession::CollectRows (host, rows);
@@ -176,7 +176,7 @@ public:
         GuestSession::BootToPrompt (machine, disk);
         GuestSession::CollectRows (machine, rows);
 
-        AssertSucceeded (machine.AttachSerialStream (kPort, rig.machineEnd));
+        AssertSucceeded (machine.GetConnectors().AttachSerialStream (kPort, rig.machineEnd));
         rig.Serve();
 
         slot = FindSlot (rows);

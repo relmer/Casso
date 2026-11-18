@@ -47,14 +47,14 @@ public:
 
     static void Run (TestMachine & machine, uint64_t millions)
     {
-        machine.RunCycles (millions * kMillion);
+        machine.GetRunner().RunCycles (millions * kMillion);
     }
 
 
     static void Press (TestMachine & machine, Byte key)
     {
         machine.GetRefs().iieKeyboard->PressKey (key);
-        machine.RunCycles (kKeyCycles);
+        machine.GetRunner().RunCycles (kKeyCycles);
     }
 
 

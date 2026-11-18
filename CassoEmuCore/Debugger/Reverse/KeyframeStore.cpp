@@ -412,10 +412,10 @@ HRESULT KeyframeStore::Capture (
 
     CBRA (cpu);
 
-    hr = machine.SaveState (writer);
+    hr = machine.GetStateStream().SaveState (writer);
     CHR (hr);
 
-    hr = Add (position, cpu->GetHistoryCycles(), machine.GetInputJournal().GetEndIndex(), writer);
+    hr = Add (position, cpu->GetHistoryCycles(), machine.GetHostInput().GetJournal().GetEndIndex(), writer);
     CHR (hr);
 
 Error:

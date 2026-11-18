@@ -92,7 +92,7 @@ public:
 
         while (!onScreen && spent < cycleCap)
         {
-            spent += host.RunCycles (kSlice);
+            spent += host.GetRunner().RunCycles (kSlice);
 
             rows.clear();
             GuestSession::CollectRows (host, rows);
@@ -144,7 +144,7 @@ public:
             Assert::IsTrue (RunUntilScreenShows (*machine, "PRODOS", kBootCap), L"ProDOS boots from the UniDisk");
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            AssertSucceeded (machine->AttachSerialStream (kPort, machineEnd));
+            AssertSucceeded (machine->GetConnectors().AttachSerialStream (kPort, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (*machine, pcEnd);
             host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });

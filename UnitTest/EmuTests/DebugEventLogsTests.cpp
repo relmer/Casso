@@ -38,7 +38,7 @@ namespace DebugEventLogsTests
 
             for (spent = 0; spent < kSliceCycles; )
             {
-                spent += machine.StepOne();
+                spent += machine.GetRunner().StepOne();
             }
         }
     }
@@ -96,7 +96,7 @@ namespace DebugEventLogsTests
     private:
         void  Add()
         {
-            seen.push_back ({ m_machine.GetPosition(), m_machine.GetCpu()->GetTotalCycles() });
+            seen.push_back ({ m_machine.GetRunner().GetPosition(), m_machine.GetCpu()->GetTotalCycles() });
         }
 
         MachineHost  & m_machine;
@@ -247,7 +247,7 @@ namespace DebugEventLogsTests
 
             for (spent = 0; spent < 100 * kSliceCycles; )
             {
-                spent += machine.StepOne();
+                spent += machine.GetRunner().StepOne();
             }
 
             hr = controller.GetKeyframes().WaitForPending();
@@ -297,7 +297,7 @@ namespace DebugEventLogsTests
 
             Assert::AreEqual (0, disk->GetLines().GetActiveDrive(), L"drive 1 while the loop runs");
 
-            past = session.machine.GetPosition();
+            past = session.machine.GetRunner().GetPosition();
             Run (session.machine, 30, 30);
 
             (void) session.machine.GetMemoryBus().ReadByte (0xC0EB);
@@ -311,7 +311,7 @@ namespace DebugEventLogsTests
             hr = session.controller.OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
-            live = session.machine.GetPosition();
+            live = session.machine.GetRunner().GetPosition();
             (void) session.machine.GetMemoryBus().ReadByte (0xC0E9);
 
             session.logs.GetDiskCache().CopySpan (live, UINT64_MAX, entries);
@@ -336,7 +336,7 @@ namespace DebugEventLogsTests
 
             Run (session.machine, 0, 200);
 
-            start = session.machine.GetPosition();
+            start = session.machine.GetRunner().GetPosition();
             session.logs.Start (&session.controller);
 
             Run (session.machine, 200, 30);
@@ -416,10 +416,10 @@ namespace DebugEventLogsTests
             session.logs.Start (&session.controller);
             Run (session.machine, 0, 10);
 
-            rewound = session.machine.GetPosition();
+            rewound = session.machine.GetRunner().GetPosition();
             Run (session.machine, 10, 20);
 
-            cleared = session.machine.GetPosition();
+            cleared = session.machine.GetRunner().GetPosition();
             session.logs.ClearIoLog (IoLogKind::Sound);
             Run (session.machine, 30, 2);
             session.WaitForKeyframes();
@@ -463,7 +463,7 @@ namespace DebugEventLogsTests
                 AssertSucceeded (hr, L"StepBack");
             }
 
-            hr = session.controller.SeekToPosition (session.machine.GetPosition() - 5000, result);
+            hr = session.controller.SeekToPosition (session.machine.GetRunner().GetPosition() - 5000, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             Assert::IsTrue   (session.controller.IsInHistory());
@@ -530,9 +530,9 @@ namespace DebugEventLogsTests
             hr = session.controller.SetUserMaximumSpeed (true);
             AssertSucceeded (hr, L"SetUserMaximumSpeed");
 
-            paused = session.machine.GetPosition();
+            paused = session.machine.GetRunner().GetPosition();
             Run (session.machine, 60, 60);
-            resumed = session.machine.GetPosition();
+            resumed = session.machine.GetRunner().GetPosition();
 
             hr = session.controller.SetUserMaximumSpeed (false);
             AssertSucceeded (hr, L"SetUserMaximumSpeed");
@@ -580,7 +580,7 @@ namespace DebugEventLogsTests
             logs.SetOpen (DebugLogKind::Input, true);
 
             machine.GetRefs().serialChips[1]->EnqueueReceivedBytes (&kByte, 1);
-            machine.RunCycles (kSliceCycles);
+            machine.GetRunner().RunCycles (kSliceCycles);
 
             logs.TakeDelta (delta);
             logs.Stop();
@@ -611,7 +611,7 @@ namespace DebugEventLogsTests
 
 
 
-            machine.RunCycles (kSliceCycles * 4);
+            machine.GetRunner().RunCycles (kSliceCycles * 4);
             machine.PowerCycle();
 
             hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
@@ -621,7 +621,7 @@ namespace DebugEventLogsTests
             logs.SetOpen (DebugLogKind::Input, true);
 
             machine.GetRefs().serialChips[1]->EnqueueReceivedBytes (&kByte, 1);
-            machine.RunCycles (kSliceCycles);
+            machine.GetRunner().RunCycles (kSliceCycles);
 
             logs.TakeDelta (delta);
             logs.Stop();
@@ -651,7 +651,7 @@ namespace DebugEventLogsTests
 
 
 
-            machine.RunCycles (kSliceCycles * 4);
+            machine.GetRunner().RunCycles (kSliceCycles * 4);
             machine.PowerCycle();
 
             hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
@@ -660,7 +660,7 @@ namespace DebugEventLogsTests
             logs.Start   (&controller);
             logs.SetOpen (DebugLogKind::Sound, true);
 
-            machine.RunCycles (kSliceCycles * 30);
+            machine.GetRunner().RunCycles (kSliceCycles * 30);
 
             (void) logs.TakeDelta (DebugLogKind::Sound, delta);
             logs.Stop();
@@ -732,7 +732,7 @@ namespace DebugEventLogsTests
             Assert::IsTrue  (first.isReset);
             Assert::IsFalse (first.newer.empty(), L"the sound the machine made");
 
-            cleared = session.machine.GetPosition();
+            cleared = session.machine.GetRunner().GetPosition();
             session.logs.ClearIoLog (IoLogKind::Sound);
             Run (session.machine, 30, 2);
 
@@ -782,11 +782,11 @@ namespace DebugEventLogsTests
 
 
 
-            session.machine.AttachObservers ({ &recorder, nullptr }, ObserverSlot::Panel);
+            session.machine.GetObserverWiring().AttachObservers ({ &recorder, nullptr }, ObserverSlot::Panel);
 
             Run (session.machine, 0, 200);
 
-            start = session.machine.GetPosition();
+            start = session.machine.GetRunner().GetPosition();
             session.logs.Start (&session.controller);
             session.logs.SetOpen (DebugLogKind::Disk, true);
 
@@ -811,7 +811,7 @@ namespace DebugEventLogsTests
             session.logs.TakeDelta (delta);
             older.insert (older.end(), delta.older.begin(), delta.older.end());
 
-            session.machine.AttachObservers ({}, ObserverSlot::Panel);
+            session.machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::Panel);
 
             Assert::IsFalse (older.empty(), L"rows were rebuilt");
 

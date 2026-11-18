@@ -113,7 +113,7 @@ public:
         RecordingInputSink  panel;
 
         BuildKeyboard (host);
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
 
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
@@ -128,11 +128,11 @@ public:
         RecordingInputSink  panel;
 
         BuildKeyboard (host);
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
         //  Closing the panel.
-        host.AttachObservers ({});
+        host.GetObserverWiring().AttachObservers ({});
         host.GetRefs().keyboard->BeginKeyRepeat ('B');
 
         Assert::AreEqual (1, panel.GetKeyDowns(),
@@ -147,7 +147,7 @@ public:
         RecordingInputSink  panel;
 
         BuildKeyboard (host);
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
         //  What a machine switch does: every device is destroyed and built
@@ -160,7 +160,7 @@ public:
             L"the new keyboard starts unwatched -- this is the silence the "
             L"re-attach exists to prevent");
 
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('C');
 
         Assert::AreEqual (2, panel.GetKeyDowns(),
@@ -199,14 +199,14 @@ public:
 
         observers.blockDevice = blockRing.get();
         observers.floppy35    = floppyRing.get();
-        host.AttachObservers (observers);
+        host.GetObserverWiring().AttachObservers (observers);
 
         Assert::IsTrue (first.blockSink   == blockRing.get());
         Assert::IsTrue (second.blockSink  == blockRing.get());
         Assert::IsTrue (second.floppySink == floppyRing.get());
         Assert::IsTrue (first.floppySink  == nullptr, L"a source not in the floppy list is left alone");
 
-        host.AttachObservers ({});
+        host.GetObserverWiring().AttachObservers ({});
 
         Assert::IsTrue (first.blockSink   == nullptr);
         Assert::IsTrue (second.floppySink == nullptr);
@@ -225,7 +225,7 @@ public:
         //  The Input panel is useful on its own. Attaching used to return
         //  early when no disk panel was open, so someone running only this
         //  one saw it go quiet after a machine switch and stay quiet.
-        host.AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
         host.GetRefs().keyboard->BeginKeyRepeat ('A');
 
         Assert::AreEqual (1, panel.GetKeyDowns(),
@@ -240,8 +240,8 @@ public:
 
         //  Panels can be open across the window in which a machine has been
         //  torn down and not yet rebuilt.
-        host.AttachObservers ({ nullptr, &panel });
-        host.AttachObservers ({});
+        host.GetObserverWiring().AttachObservers ({ nullptr, &panel });
+        host.GetObserverWiring().AttachObservers ({});
     }
 
 

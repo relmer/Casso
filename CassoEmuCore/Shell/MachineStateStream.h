@@ -67,14 +67,37 @@ public:
     MachineStateStream (const MachineStateStream &)             = delete;
     MachineStateStream & operator= (const MachineStateStream &) = delete;
 
-    //  See MachineHost::SaveState, LoadState, LoadStateOverMountedMedia and
-    //  LoadStateForPicture.
+    //  The whole machine's state as one stream, and back. The stream opens
+    //  with the machine's name and ROM identity, so a state from another
+    //  machine or another ROM set fails to load with ERROR_INVALID_DATA. The
+    //  machine must already be built with the same devices and the same disks
+    //  mounted; after a failed load it is unusable. Call both on the thread
+    //  that runs the machine.
     HRESULT  SaveState                 (StateWriter & writer) const;
     HRESULT  LoadState                 (StateReader & reader);
+
+    //  The same load for a state read back from a file, in a session that
+    //  never had the saved disks: the caller has mounted them, and each bay
+    //  that had a disk at the save must have one now, and each empty bay
+    //  must be empty.
     HRESULT  LoadStateOverMountedMedia (StateReader & reader);
+
+    //  Enough of a state to draw its screen, into a machine built from the
+    //  same configuration with no disks: the disks the state has, and any
+    //  part this machine has no counterpart for, are passed over. The machine
+    //  and ROM set must match. The machine is for drawing only afterward;
+    //  running it is undefined.
     HRESULT  LoadStateForPicture       (StateReader & reader);
 
+    //  The media a saved state's bays had, from its header alone, so a second
+    //  machine can check whether the disks it mounted are the ones the state
+    //  was saved with before it loads it over them.
     static HRESULT  ReadSavedMedia  (const std::vector<Byte> & state, MediaIds & outIds);
+
+    //  Debug builds only: asserts that every run a sharing save stored by
+    //  reference matches the bytes of its buffer. A mismatch is a RAM write
+    //  that missed the page marking or a track change that missed the
+    //  generation count. Call it right after the save.
     static void     CheckSharedSave (const StateWriter & writer);
 
 private:

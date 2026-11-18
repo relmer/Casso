@@ -179,7 +179,7 @@ EmulatorShell::EmulatorShell() :
 
     // A pause stops the machine on the instruction boundary after it is asked
     // for, rather than at the end of the frame the CPU thread is running.
-    m_machine.SetStopFlag (&m_cpuManager.GetPauseFlag());
+    m_machine.GetRunner().SetStopFlag (&m_cpuManager.GetPauseFlag());
 
     m_clipboardManager = std::make_unique<ClipboardManager> (m_hostClipboard,
                                                               m_machine.GetMemoryBus(),
@@ -202,7 +202,7 @@ EmulatorShell::EmulatorShell() :
     m_linkFileSystem  = std::make_unique<Win32FileSystem>();
     m_processProbe    = std::make_unique<Win32ProcessProbe>();
     m_runningRegistry = std::make_unique<RunningCassoRegistry> (*m_linkFileSystem, *m_processProbe, RunningCassoRegistry::GetDefaultFolder());
-    m_machine.SetRunningRegistry (m_runningRegistry.get());
+    m_machine.GetConnectors().SetRunningRegistry (m_runningRegistry.get());
 
     m_audio->BindBuildServices (services);
 
@@ -331,8 +331,8 @@ EmulatorShell::~EmulatorShell()
 
     //  This Casso's ports are no longer for Casso Explorer to find, and the
     //  registry goes before the machine does.
-    m_machine.WithdrawSerialPorts();
-    m_machine.SetRunningRegistry (nullptr);
+    m_machine.GetConnectors().WithdrawSerialPorts();
+    m_machine.GetConnectors().SetRunningRegistry (nullptr);
 
     m_window->UninitializeOle();
 }
@@ -921,12 +921,12 @@ void EmulatorShell::InitAssetPathsAndStores()
 
     if (!ec)
     {
-        m_machine.SetStockImageFolder (stockDir.string());
+        m_machine.GetStorage().SetStockImageFolder (stockDir.string());
     }
 
     m_disks->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_imageWatchDisabled);
 
-    m_audio->AttachTape (&m_machine.GetTapeDeck(),
+    m_audio->AttachTape (&m_machine.GetTape().GetDeck(),
                          [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
 
     m_tapeDeck->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem());
@@ -1142,7 +1142,7 @@ void EmulatorShell::QueueNotice (std::wstring text)
 
 void EmulatorShell::QueueBlockMediaNotices()
 {
-    for (const std::wstring & problem : m_machine.GetBlockMediaProblems())
+    for (const std::wstring & problem : m_machine.GetStorage().GetBlockMediaProblems())
     {
         QueueNotice (problem);
     }

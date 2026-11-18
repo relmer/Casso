@@ -129,7 +129,7 @@ Error:
 
 void ReverseHost::SyncInputGate()
 {
-    HostInputGate  & gate     = m_machine.GetHostInputGate();
+    HostInputGate  & gate     = m_machine.GetHostInput().GetGate();
     bool             isBehind = m_controller.IsInHistory();
     bool             isHeld   = gate.IsHeld();
 
@@ -180,7 +180,7 @@ HRESULT ReverseHost::Execute (
 
     CBREx (isRecording, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE));
 
-    m_machine.GetHostInputGate().Hold();
+    m_machine.GetHostInput().GetGate().Hold();
 
     hr = Move (command, argument, stopTest, result);
     CHR (hr);
@@ -342,7 +342,7 @@ HistoryStatus ReverseHost::GetStatus() const
 {
     HistoryStatus    status;
     EmuCpu         * cpu      = m_machine.GetCpu();
-    uint64_t         position = m_machine.GetPosition();
+    uint64_t         position = m_machine.GetRunner().GetPosition();
     uint64_t         cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
     uint64_t         endPos   = m_controller.GetLiveEndPosition();
     uint64_t         endCycle = m_controller.GetLiveEndCycle();

@@ -84,7 +84,7 @@ void ShellInput::ReleaseGuestKeys()
     // Behind live in reverse execution's history the keyboard holds a
     // recorded position, which a release must not change; the releases are
     // kept for when the machine is live again.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_heldHostInputs.OnReleaseAll (isGateOpen);
 
     if (!isGateOpen)
@@ -122,7 +122,7 @@ void ShellInput::ReleaseInputsLetGoBehindLive()
 
 
 
-    if (m_machine.GetHostInputGate().IsHeld())
+    if (m_machine.GetHostInput().GetGate().IsHeld())
     {
         return;
     }
@@ -163,7 +163,7 @@ void ShellInput::ReleaseMouseButton()
 
 
 
-    if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
+    if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInput().GetGate().TryEnter (gate))
     {
         m_machine.GetMouse()->SetButton (false);
     }
@@ -297,7 +297,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // position, so the guest gets no keys until the machine is live again.
     // Each press and release is tracked either way, so a key let go of behind
     // live is released once the machine is live.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
 
     if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
     {
@@ -1535,7 +1535,7 @@ void ShellInput::TickKeyboardAutoRepeat()
 
     if (fired != 0)
     {
-        m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
+        m_machine.GetHostInput().Record (InputKind::AutoRepeat, fired, 0, {});
     }
 }
 
@@ -1606,7 +1606,7 @@ HRESULT ShellInput::Start()
     });
 
     // Held back while reverse execution has the machine behind live.
-    m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
+    m_gamePortSink->SetInputGate (&m_machine.GetHostInput().GetGate());
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.

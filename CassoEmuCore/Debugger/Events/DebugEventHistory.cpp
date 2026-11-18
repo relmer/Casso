@@ -3,7 +3,7 @@
 #include "Debugger/Events/DebugEventHistory.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Shell/MachineHost.h"
-#include "Shell/MachineReplayMedia.h"
+#include "Shell/MachineStorage.h"
 
 
 
@@ -98,13 +98,13 @@ HRESULT DebugEventHistory::BuildJob (
     outJob.inputsFrom = outJob.stretches.back().journalIndex;
     outJob.generation = ++m_generation;
 
-    isCopied = m_machine.GetInputJournal().TryCopyRecords (outJob.inputsFrom, outJob.stretches.front().endPosition, outJob.inputs);
+    isCopied = m_machine.GetHostInput().GetJournal().TryCopyRecords (outJob.inputsFrom, outJob.stretches.front().endPosition, outJob.inputs);
     CBRA (isCopied);
 
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
     CHR (hr);
 
-    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), outJob.blockMedia);
+    hr = m_machine.GetStorage().CopyReplayMedia (outJob.blockMedia);
     CHR (hr);
 
 Error:

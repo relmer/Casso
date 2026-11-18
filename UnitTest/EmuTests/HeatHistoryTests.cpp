@@ -49,7 +49,7 @@ public:
 
 
 
-        while (m_slice < m_slices && machine.GetPosition() < endPosition)
+        while (m_slice < m_slices && machine.GetRunner().GetPosition() < endPosition)
         {
             if (!m_isFed)
             {
@@ -59,12 +59,12 @@ public:
                 m_spent = 0;
             }
 
-            while (m_spent < s_kHeatSliceCycles && machine.GetPosition() < endPosition)
+            while (m_spent < s_kHeatSliceCycles && machine.GetRunner().GetPosition() < endPosition)
             {
                 cycle    = machine.GetCpu()->GetTotalCycles();
                 frameEnd = (cycle / AccessHeatMap::kCyclesPerFrame + 1) * AccessHeatMap::kCyclesPerFrame;
 
-                m_spent += machine.StepOne();
+                m_spent += machine.GetRunner().StepOne();
 
                 if (map != nullptr && machine.GetCpu()->GetTotalCycles() >= frameEnd)
                 {
@@ -163,7 +163,7 @@ public:
 
             hr = controller.SeekToPosition (position, result);
             AssertSucceeded (hr, L"SeekToPosition");
-            Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the seek lands where asked");
+            Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the seek lands where asked");
 
             target.NoteHistoryMoved (false);
         }
@@ -189,7 +189,7 @@ public:
         for (uint64_t position : positions)
         {
             script.RunTo (machine, position);
-            Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the straight run reaches the position");
+            Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the straight run reaches the position");
 
             map = target.FoldHeatMap();
             map->GetTotalsNow (totals[position]);
@@ -297,7 +297,7 @@ public:
         for (uint64_t position : positions)
         {
             script.RunTo (machine, position);
-            Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"the straight run reaches the position");
+            Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the straight run reaches the position");
 
             (void) target.FoldHeatMap();
             last[position] = LookUpSample (target, sample);
@@ -454,7 +454,7 @@ public:
         rig.script.RunTo (rig.machine, UINT64_MAX);
         Assert::AreEqual (s_kHeatSlices, rig.script.GetSlice(), L"the whole session ran");
 
-        firstEnd = rig.machine.GetPosition();
+        firstEnd = rig.machine.GetRunner().GetPosition();
         spread   = SpreadPositions (rig.controller, firstEnd);
 
         for (uint64_t position : spread)
@@ -497,9 +497,9 @@ public:
             rig.target.NoteHistoryMoved (false);
             AssertSameTotals (straight[position + 1], GetShown (rig.GetMap()), std::format (L"two steps forward from {}", position - 1));
 
-            while (rig.machine.GetPosition() < position + s_kHeatRunOn)
+            while (rig.machine.GetRunner().GetPosition() < position + s_kHeatRunOn)
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
 
             AssertSameTotals (straight[position + s_kHeatRunOn], GetShown (rig.GetMap()), std::format (L"running on from {}", position + 1));
@@ -537,7 +537,7 @@ public:
         rig.target.SetHeatAccessFinder (&finder);
 
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        spread = SpreadPositions (rig.controller, rig.machine.GetPosition());
+        spread = SpreadPositions (rig.controller, rig.machine.GetRunner().GetPosition());
         sample = PickLastSample (rig.GetMap());
 
         for (uint64_t position : spread)
@@ -572,9 +572,9 @@ public:
             rig.target.NoteHistoryMoved (false);
             AssertSameLast (straight[position - 1], LookUpSample (rig.target, sample), std::format (L"step back from {}", position));
 
-            while (rig.machine.GetPosition() < position + s_kHeatRunOn)
+            while (rig.machine.GetRunner().GetPosition() < position + s_kHeatRunOn)
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
 
             AssertSameLast (straight[position + s_kHeatRunOn], LookUpSample (rig.target, sample), std::format (L"running on from {}", position - 1));
@@ -624,7 +624,7 @@ public:
 
         rig.Seek (plan.position);
 
-        Assert::AreEqual<uint64_t> (access.GetPosition() + 1, rig.machine.GetPosition(), L"just after the writer");
+        Assert::AreEqual<uint64_t> (access.GetPosition() + 1, rig.machine.GetRunner().GetPosition(), L"just after the writer");
         Assert::AreEqual ((int) HeatAccessState::Found, (int) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, request.address, there), L"the write is there");
         Assert::IsTrue (there == access, L"and it is the last");
 
@@ -653,7 +653,7 @@ public:
         //  Part of the session, a seek back, then on to the live end and the
         //  rest of the session, recorded after the move.
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        end = rig.machine.GetPosition();
+        end = rig.machine.GetRunner().GetPosition();
 
         midway = rig.controller.GetOldestPosition() + (end - rig.controller.GetOldestPosition()) / 2;
 
@@ -749,19 +749,19 @@ public:
         ProgramRig       rig;
         HeatLastAccess   access;
         HeatAccessState  state  = HeatAccessState::Found;
-        uint64_t         start  = rig.machine.GetPosition();
+        uint64_t         start  = rig.machine.GetRunner().GetPosition();
         uint64_t         middle = 0;
 
 
 
         for (size_t i = 0; i < 1000000 && rig.machine.GetCpu()->GetPC() != 0x6010; i++)
         {
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
         }
 
         for (size_t i = 0; i < 100; i++)
         {
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
         }
 
         Assert::IsTrue (rig.controller.GetKeyframes().GetCount() > 6, L"several stretches, or the test proves nothing");
@@ -792,7 +792,7 @@ public:
 
 
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        end    = rig.machine.GetPosition();
+        end    = rig.machine.GetRunner().GetPosition();
         spread = SpreadPositions (rig.controller, end);
         reset  = spread[spread.size() / 2];
 
@@ -839,12 +839,12 @@ public:
 
             //  Reset live, a little way in, then record on until the budget
             //  has dropped history from before the reset.
-            rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 20000);
-            reset = rig.machine.GetPosition();
+            rig.script.RunTo (rig.machine, rig.machine.GetRunner().GetPosition() + 20000);
+            reset = rig.machine.GetRunner().GetPosition();
             rig.target.ResetHeatMap();
 
             rig.script.RunTo (rig.machine, UINT64_MAX);
-            end = rig.machine.GetPosition();
+            end = rig.machine.GetRunner().GetPosition();
 
             Assert::IsTrue (rig.controller.GetOldestPosition() > reset,
                             std::format (L"history dropped everything up to the reset at {}, or the test proves nothing: oldest {}, {} keyframes in {} bytes",
@@ -894,18 +894,18 @@ public:
 
         //  On for a while, so history keeps counts from then; off; and on
         //  again further on, where the counting starts over.
-        rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 60000);
-        early = rig.machine.GetPosition() - 30000;
+        rig.script.RunTo (rig.machine, rig.machine.GetRunner().GetPosition() + 60000);
+        early = rig.machine.GetRunner().GetPosition() - 30000;
 
         rig.target.SetHeatMapOn (false);
 
-        rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 90000);
-        on = rig.machine.GetPosition();
+        rig.script.RunTo (rig.machine, rig.machine.GetRunner().GetPosition() + 90000);
+        on = rig.machine.GetRunner().GetPosition();
 
         rig.target.SetHeatMapOn (true);
 
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        end    = rig.machine.GetPosition();
+        end    = rig.machine.GetRunner().GetPosition();
         spread = SpreadPositions (rig.controller, end);
 
         for (uint64_t position : spread)
@@ -957,18 +957,18 @@ public:
 
 
 
-        rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 60000);
-        early = rig.machine.GetPosition() - 30000;
+        rig.script.RunTo (rig.machine, rig.machine.GetRunner().GetPosition() + 60000);
+        early = rig.machine.GetRunner().GetPosition() - 30000;
 
         rig.target.SetHeatMapOn (false);
 
-        rig.script.RunTo (rig.machine, rig.machine.GetPosition() + 90000);
-        on = rig.machine.GetPosition();
+        rig.script.RunTo (rig.machine, rig.machine.GetRunner().GetPosition() + 90000);
+        on = rig.machine.GetRunner().GetPosition();
 
         rig.target.SetHeatMapOn (true);
 
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        end     = rig.machine.GetPosition();
+        end     = rig.machine.GetRunner().GetPosition();
         through = on + s_kHeatRunOn;
 
         Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"history ends where the session did");
@@ -976,9 +976,9 @@ public:
         //  With the map on, through the stretch recorded with it off.
         rig.Seek (early);
 
-        while (rig.machine.GetPosition() < through && rig.controller.IsInHistory())
+        while (rig.machine.GetRunner().GetPosition() < through && rig.controller.IsInHistory())
         {
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
         }
 
         Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"running on with the map on across the stretch recorded with it off cut history");
@@ -988,9 +988,9 @@ public:
         rig.target.SetHeatMapOn (false);
         rig.Seek (early);
 
-        while (rig.machine.GetPosition() < through && rig.controller.IsInHistory())
+        while (rig.machine.GetRunner().GetPosition() < through && rig.controller.IsInHistory())
         {
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
         }
 
         Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"running on with the map off across the stretches recorded with it on cut history");
@@ -1019,7 +1019,7 @@ public:
 
 
             rig.script.RunTo (rig.machine, UINT64_MAX);
-            end    = rig.machine.GetPosition();
+            end    = rig.machine.GetRunner().GetPosition();
             spread = SpreadPositions (rig.controller, end);
 
             for (uint64_t position : spread)
@@ -1072,7 +1072,7 @@ public:
 
 
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        spread = SpreadPositions (rig.controller, rig.machine.GetPosition());
+        spread = SpreadPositions (rig.controller, rig.machine.GetRunner().GetPosition());
 
         replayer.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
 
@@ -1115,7 +1115,7 @@ public:
 
 
         rig.script.RunTo (rig.machine, UINT64_MAX);
-        at = rig.machine.GetPosition() - 1000;
+        at = rig.machine.GetRunner().GetPosition() - 1000;
 
         Assert::IsTrue ((double) rig.machine.GetCpu()->GetTotalCycles() > kFade * AccessHeatMap::kCyclesPerSecond, L"history outlasts the fade time, or the test proves nothing");
 
@@ -1163,7 +1163,7 @@ public:
             replayer.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
 
             script.RunTo (rig.machine, UINT64_MAX);
-            at = rig.machine.GetPosition() - 1000;
+            at = rig.machine.GetRunner().GetPosition() - 1000;
 
             hr = rig.controller.SeekToPosition (at, result);
             AssertSucceeded (hr, L"SeekToPosition");
@@ -1208,7 +1208,7 @@ public:
 
 
 
-        rig.machine.RunCycles (cycles);
+        rig.machine.GetRunner().RunCycles (cycles);
 
         replayer.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
 
@@ -1255,7 +1255,7 @@ public:
             replayer.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
 
             rig.script.RunTo (rig.machine, UINT64_MAX);
-            spread = SpreadPositions (rig.controller, rig.machine.GetPosition());
+            spread = SpreadPositions (rig.controller, rig.machine.GetRunner().GetPosition());
             at     = spread[spread.size() / 2];
 
             rig.Seek (at);
@@ -1292,7 +1292,7 @@ public:
             replayer.SetMachine (rig.machine.GetConfig(), rig.machine.GetCurrentMachineName());
 
             rig.script.RunTo (rig.machine, UINT64_MAX);
-            spread = SpreadPositions (rig.controller, rig.machine.GetPosition());
+            spread = SpreadPositions (rig.controller, rig.machine.GetRunner().GetPosition());
 
             for (uint64_t position : spread)
             {
@@ -1335,7 +1335,7 @@ public:
             rig.target.SetHeatMapCumulative (true);
 
             rig.script.RunTo (rig.machine, UINT64_MAX);
-            spread = SpreadPositions (rig.controller, rig.machine.GetPosition());
+            spread = SpreadPositions (rig.controller, rig.machine.GetRunner().GetPosition());
 
             rig.Seek (spread[2]);
 
@@ -1576,11 +1576,11 @@ private:
 
 
 
-        while (machine.GetPosition() < position)
+        while (machine.GetRunner().GetPosition() < position)
         {
             frameEnd = (machine.GetCpu()->GetTotalCycles() / AccessHeatMap::kCyclesPerFrame + 1) * AccessHeatMap::kCyclesPerFrame;
 
-            machine.StepOne();
+            machine.GetRunner().StepOne();
 
             if (map != nullptr && machine.GetCpu()->GetTotalCycles() >= frameEnd)
             {

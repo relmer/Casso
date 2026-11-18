@@ -91,11 +91,11 @@ public:
         //  nothing; then the hook is put back.
         void Record()
         {
-            DebugHook  * hook = rig.machine.GetDebugHook();
+            DebugHook  * hook = rig.machine.GetRunner().GetDebugHook();
 
 
 
-            rig.machine.SetDebugHook (nullptr);
+            rig.machine.GetRunner().SetDebugHook (nullptr);
 
             while (live.size() < kRunSteps)
             {
@@ -103,14 +103,14 @@ public:
 
 
 
-                step.position = rig.machine.GetPosition();
+                step.position = rig.machine.GetRunner().GetPosition();
                 step.isStop   = stopTest.ShouldStopBefore (rig.machine, rig.machine.GetCpu()->GetPC());
                 step.line     = Line();
                 live.push_back (step);
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
 
-            rig.machine.SetDebugHook (hook);
+            rig.machine.GetRunner().SetDebugHook (hook);
             rig.session.OnStopConditionsChanged();
         }
 

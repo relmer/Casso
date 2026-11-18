@@ -82,7 +82,7 @@ IHostDialogs & ShellDebugger::GetHostDialogs() noexcept
 
 bool ShellDebugger::IsBehindLiveForUi()
 {
-    return m_machine.GetHostInputGate().IsHeld();
+    return m_machine.GetHostInput().GetGate().IsHeld();
 }
 
 
@@ -1681,7 +1681,7 @@ void ShellDebugger::PublishDebuggerView()
 
     //  The clock panel reports the speed, which the CPU manager paces and the
     //  machine does not know.
-    m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
+    m_machine.GetClockPanel().SetSpeedMode (m_cpuManager.GetSpeedMode());
 
     //  Anything the window did is shown at once, the heat map included.
     if (m_isDebugViewDirty)

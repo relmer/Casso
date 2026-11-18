@@ -118,10 +118,10 @@ public:
         AssertSucceeded (rig.host->SetSpeed (kFastControl));
         AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
 
-        rig.machine.RunCycles (kPause);
+        rig.machine.GetRunner().RunCycles (kPause);
         Assert::IsTrue (rig.machine.GetRefs().diskController->GetLines().IsMotorOn(), L"the motor runs while the PC pauses");
 
-        rig.machine.RunCycles (kGone - kPause);
+        rig.machine.GetRunner().RunCycles (kGone - kPause);
         Assert::IsFalse (rig.machine.GetRefs().diskController->GetLines().IsMotorOn(), L"the motor stops once the PC is gone");
     }
 
@@ -147,7 +147,7 @@ public:
 
         for (int step = 0; step < kSteps; step++)
         {
-            rig.machine.RunCycles (kStep);
+            rig.machine.GetRunner().RunCycles (kStep);
             AssertSucceeded (rig.host->AnswerBusy (0));
         }
 

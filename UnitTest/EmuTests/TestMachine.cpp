@@ -94,7 +94,7 @@ TestMachine::TestMachine (
 
 
 
-    SetBlockMediaFileIo (&fileIo);
+    GetStorage().SetBlockMediaFileIo (&fileIo);
     m_hasOwnBlockFiles = true;
 
     Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices &)
@@ -142,7 +142,7 @@ TestMachine::TestMachine (
 
 
 
-    SetBlockMediaFileIo (&fileIo);
+    GetStorage().SetBlockMediaFileIo (&fileIo);
     m_hasOwnBlockFiles = true;
 
     Construct (machineId, Slots::AsShipped, [&] (MachineConfig & config, MachineBuildServices &)
@@ -319,11 +319,11 @@ void TestMachine::BuildFrom (const std::string & machineId, const MachineConfig 
 
     SetPrng (std::make_unique<Prng> (kSeed));
     SetCurrentMachineName (wide);
-    SetStockImageFolder (kpszStockFolder);
+    GetStorage().SetStockImageFolder (kpszStockFolder);
 
     if (!m_hasOwnBlockFiles)
     {
-        SetBlockMediaFileIo (&m_blockFiles);
+        GetStorage().SetBlockMediaFileIo (&m_blockFiles);
     }
 
     GetConfig() = config;

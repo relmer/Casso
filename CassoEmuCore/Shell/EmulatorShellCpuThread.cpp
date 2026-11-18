@@ -237,9 +237,9 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
     // Journaled before it is applied, so the stamp is the boundary the
     // machine was at when the reset, power cycle or disk change landed.
-    if (m_machine.GetInputJournal().IsOn() && CpuCommandDispatcher::TryGetJournalInput (cmd, input))
+    if (m_machine.GetHostInput().GetJournal().IsOn() && CpuCommandDispatcher::TryGetJournalInput (cmd, input))
     {
-        m_machine.RecordInput (input.kind, input.value, input.detail, input.payload);
+        m_machine.GetHostInput().Record (input.kind, input.value, input.detail, input.payload);
     }
 
     CpuCommandDispatcher::Dispatch (cmd, { *this, *m_disks, *m_audio, *m_tapeDeck, *m_debugger });
@@ -276,8 +276,8 @@ void EmulatorShell::StepInstruction()
         return;
     }
 
-    m_machine.SampleHostInputs();
-    m_machine.StepOne();
+    m_machine.GetHostInput().Sample();
+    m_machine.GetRunner().StepOne();
 
     m_renderer->RenderFramebuffer();
     m_renderer->PublishFramebuffer();
@@ -359,8 +359,8 @@ void EmulatorShell::ReportUthernetListenFailures()
 
     for (const W5100SocketBridge::ListenFailure & failure : failures)
     {
-        serial   = m_machine.GetSerialPortOnTcp (failure.port);
-        sentence = TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serial, m_machine.IsSerialPortOnCard (serial)));
+        serial   = m_machine.GetConnectors().GetSerialPortOnTcp (failure.port);
+        sentence = TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serial, m_machine.GetConnectors().IsSerialPortOnCard (serial)));
         text    += (text.empty() ? L"" : L"\n") + sentence;
 
         if (serial != 0)
@@ -434,11 +434,11 @@ HRESULT EmulatorShell::ConnectSerialPort (int port, const std::string & device, 
 
 
 
-    hr = m_machine.ConnectSerialPort (port, device, m_streamFactory.get(), m_serialLog.get(), path);
+    hr = m_machine.GetConnectors().ConnectSerialPort (port, device, m_streamFactory.get(), m_serialLog.get(), path);
 
     if (card != nullptr && card->GetSlot() == port)
     {
-        card->SetAttachmentProblem (FAILED (hr) ? MachineHost::DescribeAttachmentFailure (device, path) : std::string());
+        card->SetAttachmentProblem (FAILED (hr) ? MachineConnectors::DescribeAttachmentFailure (device, path) : std::string());
         m_serialCard->NoteMachineBuilt();
     }
 
@@ -457,7 +457,7 @@ HRESULT EmulatorShell::ConnectSerialPort (int port, const std::string & device, 
 
 HRESULT EmulatorShell::ConnectParallelPrinter (int slot, bool attached)
 {
-    return m_machine.ConnectParallelPrinter (slot, attached);
+    return m_machine.GetConnectors().ConnectParallelPrinter (slot, attached);
 }
 
 
@@ -555,7 +555,7 @@ void EmulatorShell::ApplyTapeTurbo()
 {
     uint64_t  now    = *m_machine.GetCpu()->GetBusCyclePtr();
     bool      isFast = TapeTurboGovernor::ShouldRunAtMaximum (m_tapeDeck->IsFastTapeLoading(),
-                                                              m_machine.GetTapeDeck(),
+                                                              m_machine.GetTape().GetDeck(),
                                                               now,
                                                               (double) m_machine.GetConfig().clockSpeed);
 
@@ -648,7 +648,7 @@ uint32_t EmulatorShell::RunWatchedSlice (uint32_t sliceTarget, const DebuggerSli
         m_machine.SetHeldInputWatch (hooks.heldInputWatch);
     }
 
-    actual = static_cast<uint32_t> (m_machine.RunCycles (sliceTarget));
+    actual = static_cast<uint32_t> (m_machine.GetRunner().RunCycles (sliceTarget));
 
     if (isWatching)
     {
@@ -807,12 +807,12 @@ void EmulatorShell::ExecuteCpuSlices()
 
         if (pasted != 0)
         {
-            m_machine.RecordInput (InputKind::PasteChar, pasted, 0, {});
+            m_machine.GetHostInput().Record (InputKind::PasteChar, pasted, 0, {});
         }
 
         // Recording history: journal what the UI thread wrote since the last
         // slice, here where the machine first holds it. Off, one bool test.
-        m_machine.SampleHostInputs();
+        m_machine.GetHostInput().Sample();
 
         sliceActual = RunWatchedSlice (sliceTarget, hooks);
         executed   += sliceActual;
@@ -869,12 +869,12 @@ void EmulatorShell::ExecuteCpuSlices()
 
         // The recorder stops itself at the end of the tape and refreshes what
         // the deck shows, on emulated time like everything else here.
-        m_machine.GetTapeDeck().Update (*m_machine.GetCpu()->GetBusCyclePtr());
+        m_machine.GetTape().GetDeck().Update (*m_machine.GetCpu()->GetBusCyclePtr());
         ApplyTapeTurbo();
 
-        if (m_machine.GetTapeDeck().HasPendingRecording())
+        if (m_machine.GetTape().GetDeck().HasPendingRecording())
         {
-            hr = m_tapeDeck->GetManager()->CommitPendingRecording (m_machine.GetTapeDeck());
+            hr = m_tapeDeck->GetManager()->CommitPendingRecording (m_machine.GetTape().GetDeck());
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 

@@ -100,7 +100,7 @@ public:
         uint64_t     spent = 0;
 
         machine.PowerCycle();
-        spent = machine.RunCycles (s_kBootCycles);
+        spent = machine.GetRunner().RunCycles (s_kBootCycles);
 
         Assert::IsTrue (spent >= s_kBootCycles, L"the cycles asked for were spent");
 
@@ -117,7 +117,7 @@ public:
         TestMachine  machine ("Apple2e");
 
         machine.PowerCycle();
-        machine.RunCycles (s_kBootCycles);
+        machine.GetRunner().RunCycles (s_kBootCycles);
 
         //  The reset routine puts the display back to 40-column text. These
         //  read the live bank rather than the latched mirror, which only the
@@ -300,7 +300,7 @@ public:
                 std::format (L"{} must build a speaker", name).c_str());
 
             machine.PowerCycle();
-            machine.RunCycles (s_kBootCycles);
+            machine.GetRunner().RunCycles (s_kBootCycles);
 
             Assert::IsTrue (machine.GetCpu()->GetPC() >= s_kRomSpaceStart,
                 std::format (L"{} must boot into ROM; PC was ${:04X}",

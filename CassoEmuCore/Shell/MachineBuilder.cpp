@@ -110,7 +110,7 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     //  `continue`. The machine that needs the factories is the one being
     //  built, and this is where it is built.
     ComponentRegistry::RegisterBuiltinDevices (m_host.GetRegistry());
-    m_host.GetBlockMediaProblems().clear();
+    m_host.GetStorage().GetBlockMediaProblems().clear();
 
     hr = CreateMemoryDevices (config);
     CHR (hr);
@@ -147,7 +147,7 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
 
     // A journal that was on before a machine switch records against the new
     // devices too.
-    m_host.AttachInputJournal();
+    m_host.AttachDevices();
 
 Error:
     return hr;
@@ -698,7 +698,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
             m_host.GetRefs().serialChips.push_back (acia.get());
             m_host.GetMemoryBus().AddDevice (acia.get());
-            m_host.SetSerialPort (slot, acia.get());
+            m_host.GetConnectors().SetSerialPort (slot, acia.get());
             m_host.GetOwnedDevices().push_back (std::move (acia));
         }
 
@@ -1976,7 +1976,7 @@ void MachineBuilder::AttachSerialDevices (const MachineConfig & config)
             device = (port.name == kpszPortNames[number - 1]) ? port.device : device;
         }
 
-        hr = m_host.ConnectSerialPort (number, device, m_services.streamFactory, log);
+        hr = m_host.GetConnectors().ConnectSerialPort (number, device, m_services.streamFactory, log);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -2010,8 +2010,8 @@ void MachineBuilder::WireCassettePort()
     }
 
     port->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
-    port->SetDeck           (&m_host.GetTapeDeck());
-    m_host.GetTapeDeck().SetCpuClock ((double) m_host.GetConfig().clockSpeed);
+    port->SetDeck           (&m_host.GetTape().GetDeck());
+    m_host.GetTape().GetDeck().SetCpuClock ((double) m_host.GetConfig().clockSpeed);
 
     if (refs.gamePort != nullptr)
     {
@@ -2162,11 +2162,11 @@ void MachineBuilder::WireParallelPrinter (const SlotConfig & slot, PrinterCard &
 
 
 
-    m_host.SetParallelCard (slot.slot, &card);
+    m_host.GetConnectors().SetParallelCard (slot.slot, &card);
 
     if (wanted && refs.printerRing == nullptr)
     {
-        hr = m_host.ConnectParallelPrinter (slot.slot, true);
+        hr = m_host.GetConnectors().ConnectParallelPrinter (slot.slot, true);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -2244,7 +2244,7 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
         refs.superSerialCard = &card;
     }
 
-    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
+    m_host.GetConnectors().SetSerialPort (slot.slot, &card.GetAcia(), true);
     AttachSerialEndpoint (slot, card);
 }
 
@@ -2331,11 +2331,11 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
         path   = slot.ports.front().path;
     }
 
-    hr = m_host.ConnectSerialPort (slot.slot, device, m_services.streamFactory,
+    hr = m_host.GetConnectors().ConnectSerialPort (slot.slot, device, m_services.streamFactory,
                                    (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr, path);
 
     if (FAILED (hr))
     {
-        card.SetAttachmentProblem (MachineHost::DescribeAttachmentFailure (device, path));
+        card.SetAttachmentProblem (MachineConnectors::DescribeAttachmentFailure (device, path));
     }
 }

@@ -90,7 +90,7 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
     case DropAction::MountDisk:
         //  Any other drop does nothing: no mount, no eject and no message,
         //  since the cursor over that drive was the no-drop cursor.
-        image = ImageClassifier::Classify (m_machine.GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
+        image = ImageClassifier::Classify (m_machine.GetStorage().GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
 
         if (!TryGetDropDrive (tag, drive, address) || !DriveImageRule::Accepts (drive, image))
         {

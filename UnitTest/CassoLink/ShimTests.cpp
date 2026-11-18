@@ -156,7 +156,7 @@ public:
 
 
         AssertSucceeded (rig.host->SetColumns (false));
-        rig.machine.RunCycles (kSettleCycles);
+        rig.machine.GetRunner().RunCycles (kSettleCycles);
 
         Assert::AreEqual<int> (LinkProgram::kProgramVersion, rig.host->GetClient().programVersion);
         Assert::IsTrue (Row (rig, kRowStatus).starts_with ("CassoLink: Connected"), TextEncoding::NarrowToWide (Row (rig, kRowStatus)).c_str());

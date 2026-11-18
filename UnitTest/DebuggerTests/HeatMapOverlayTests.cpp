@@ -390,7 +390,7 @@ namespace DebuggerTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41 at $0300.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
             sp       = rig.controller.GetSession().GetTarget().GetRegisters().sp;
 

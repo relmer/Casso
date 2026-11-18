@@ -86,13 +86,13 @@ void MachineEventFeed::Attach (MachineHost & machine)
 
 
     m_machine  = &machine;
-    m_position = machine.GetPositionPtr();
+    m_position = machine.GetRunner().GetPositionPtr();
     m_drive    = (controller != nullptr) ? controller->GetLines().GetActiveDrive() : 0;
 
     m_decoder.Seed (machine);
     m_decoder.GetFilter (m_ioFilter);
 
-    machine.AttachObservers ({ this, this, isIo ? this : nullptr, isIo ? &m_ioFilter : nullptr, isComm ? this : nullptr }, ObserverSlot::History);
+    machine.GetObserverWiring().AttachObservers ({ this, this, isIo ? this : nullptr, isIo ? &m_ioFilter : nullptr, isComm ? this : nullptr }, ObserverSlot::History);
 }
 
 
@@ -107,7 +107,7 @@ void MachineEventFeed::Attach (MachineHost & machine)
 
 void MachineEventFeed::Detach (MachineHost & machine)
 {
-    machine.AttachObservers ({}, ObserverSlot::History);
+    machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::History);
 
     m_machine     = nullptr;
     m_position    = nullptr;
@@ -201,7 +201,7 @@ void MachineEventFeed::EmitDisk (
         return;
     }
 
-    position = m_machine->GetPosition();
+    position = m_machine->GetRunner().GetPosition();
     cycle    = m_machine->GetCpu()->GetTotalCycles();
 
     event.category = EventCategory::Controller;
@@ -257,7 +257,7 @@ void MachineEventFeed::EmitInput (
         return;
     }
 
-    position = m_machine->GetPosition();
+    position = m_machine->GetRunner().GetPosition();
     cycle    = m_machine->GetCpu()->GetTotalCycles();
 
     event.category           = InputEventCategory::Guest;

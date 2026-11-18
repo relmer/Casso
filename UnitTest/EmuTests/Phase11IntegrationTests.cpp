@@ -136,7 +136,7 @@ public:
 
         bitsBefore = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        machine.RunCycles (kBootCycleBudget);
+        machine.GetRunner().RunCycles (kBootCycleBudget);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
@@ -160,7 +160,7 @@ public:
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
-        machine.RunCycles (kBootCycleBudget);
+        machine.GetRunner().RunCycles (kBootCycleBudget);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
@@ -190,7 +190,7 @@ public:
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
-        machine.RunCycles (kShortRunCycles);
+        machine.GetRunner().RunCycles (kShortRunCycles);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
@@ -225,7 +225,7 @@ public:
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
             L"CP-style WOZ must preserve the non-standard 50000-bit track length");
 
-        machine.RunCycles (kShortRunCycles);
+        machine.GetRunner().RunCycles (kShortRunCycles);
 
         Assert::IsTrue (machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition() > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");

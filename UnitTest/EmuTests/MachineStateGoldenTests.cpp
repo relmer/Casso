@@ -115,8 +115,8 @@ public:
 
         machine.PowerCycle();
 
-        AssertSucceeded (machine.InsertFloppy35 (5, 0, "unidisk.po", error), L"the UniDisk 3.5's disk");
-        AssertSucceeded (machine.InsertFloppy35 (4, 0, "apple35.po", error), L"the 3.5 drive's disk");
+        AssertSucceeded (machine.GetStorage().InsertFloppy35 (5, 0, "unidisk.po", error), L"the UniDisk 3.5's disk");
+        AssertSucceeded (machine.GetStorage().InsertFloppy35 (4, 0, "apple35.po", error), L"the 3.5 drive's disk");
 
         Assert::AreEqual (std::wstring(), CheckRun (machine, kEveryCard, L"every storage card"));
     }
@@ -134,15 +134,15 @@ public:
 
 
 
-        machine.RunCycles (kRunFrames * kFrameCycles);
+        machine.GetRunner().RunCycles (kRunFrames * kFrameCycles);
         actual[0] = SaveChecksum (machine);
 
         machine.SoftReset();
-        machine.RunCycles (kRunFrames * kFrameCycles);
+        machine.GetRunner().RunCycles (kRunFrames * kFrameCycles);
         actual[1] = SaveChecksum (machine);
 
         machine.PowerCycle();
-        machine.RunCycles (kRunFrames * kFrameCycles);
+        machine.GetRunner().RunCycles (kRunFrames * kFrameCycles);
         actual[2] = SaveChecksum (machine);
 
         Logger::WriteMessage (std::format (L"{}: 0x{:016X}, 0x{:016X}, 0x{:016X}\n", label, actual[0], actual[1], actual[2]).c_str());
@@ -167,7 +167,7 @@ public:
 
 
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         bytes = writer.GetBytes();

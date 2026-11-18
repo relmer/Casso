@@ -98,7 +98,7 @@ namespace ObserverSlotTests
 
                 for (spent = 0; spent < kSliceCycles; )
                 {
-                    spent += machine.StepOne();
+                    spent += machine.GetRunner().StepOne();
                 }
             }
         }
@@ -113,8 +113,8 @@ namespace ObserverSlotTests
 
 
             ReverseSessionRig::Prepare (machine);
-            machine.AttachObservers ({ &panel,   &panel },   ObserverSlot::Panel);
-            machine.AttachObservers ({ &history, &history }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ &panel,   &panel },   ObserverSlot::Panel);
+            machine.GetObserverWiring().AttachObservers ({ &history, &history }, ObserverSlot::History);
 
             RunRig (machine);
 
@@ -134,8 +134,8 @@ namespace ObserverSlotTests
 
 
             ReverseSessionRig::Prepare (machine);
-            machine.AttachObservers ({ &panel,   &panel },   ObserverSlot::Panel);
-            machine.AttachObservers ({ &history, &history }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ &panel,   &panel },   ObserverSlot::Panel);
+            machine.GetObserverWiring().AttachObservers ({ &history, &history }, ObserverSlot::History);
 
             machine.GetRefs().keyboard->BeginKeyRepeat ('A');
             machine.GetRefs().keyboard->EndKeyRepeat();
@@ -159,7 +159,7 @@ namespace ObserverSlotTests
 
             unread = ReverseSessionRig::Save (machine);
 
-            machine.AttachObservers ({ nullptr, &history }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ nullptr, &history }, ObserverSlot::History);
 
             (void) machine.GetMemoryBus().ReadByte (0xC000);
             (void) machine.GetMemoryBus().ReadByte (0xC000);
@@ -181,7 +181,7 @@ namespace ObserverSlotTests
         static void  Load (TestMachine & machine, const std::vector<Byte> & state)
         {
             StateReader  reader (state);
-            HRESULT      hr     = machine.LoadState (reader);
+            HRESULT      hr     = machine.GetStateStream().LoadState (reader);
 
 
 
@@ -220,14 +220,14 @@ namespace ObserverSlotTests
             }
 
             machine.GetCpu()->SetPC (0x0300);
-            machine.AttachObservers ({ &panel,   &panel },   ObserverSlot::Panel);
-            machine.AttachObservers ({ &history, &history }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ &panel,   &panel },   ObserverSlot::Panel);
+            machine.GetObserverWiring().AttachObservers ({ &history, &history }, ObserverSlot::History);
 
             counter.Start();
 
             for (i = 0; i < kInstructions; i++)
             {
-                (void) machine.StepOne();
+                (void) machine.GetRunner().StepOne();
             }
 
             allocated = counter.Stop();

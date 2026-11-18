@@ -157,9 +157,9 @@ public:
 
             //  At the BASIC prompt, then the disk in drive 1.
             machine.PowerCycle();
-            machine.RunCycles (2 * kClockHz);
+            machine.GetRunner().RunCycles (2 * kClockHz);
             machine.GetCpu()->SetPC (0xE000);
-            machine.RunCycles (2 * kClockHz);
+            machine.GetRunner().RunCycles (2 * kClockHz);
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (kDiskSlot, 0, "", DiskFormat::Dsk, disk));
 
             if (start == Start::FromTape)
@@ -219,10 +219,10 @@ public:
             Type ("CALL -151\r");
             Type (command.c_str());
 
-            machine.GetTapeDeck().Insert (std::move (image));
-            machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
-            machine.RunCycles ((uint64_t) ((seconds + 1.0) * kClockHz));
-            machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+            machine.GetTape().GetDeck().Insert (std::move (image));
+            machine.GetTape().GetDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
+            machine.GetRunner().RunCycles ((uint64_t) ((seconds + 1.0) * kClockHz));
+            machine.GetTape().GetDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
         }
 
         void  Type (const char * text)
@@ -230,7 +230,7 @@ public:
             for (size_t i = 0; text[i] != '\0'; i++)
             {
                 machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
-                machine.RunCycles (100'000ULL);
+                machine.GetRunner().RunCycles (100'000ULL);
             }
         }
 

@@ -53,7 +53,7 @@ HRESULT TraceEventProbe::Attach (
 
     m_machine = &machine;
     m_entries = &entries;
-    m_start   = machine.GetPosition();
+    m_start   = machine.GetRunner().GetPosition();
 
     if (cpu->GetCpu6502()->GetTraceCapacity() != capacity)
     {

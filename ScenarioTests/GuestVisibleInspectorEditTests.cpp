@@ -583,7 +583,7 @@ public:
         //  The guest runs on while the apply waits for the drive to stop.
         for (pass = 0; pass < kMaxPasses && outcome == ApplyOutcome::Waiting; pass++)
         {
-            (void) machine.RunCycles (kPassCycles);
+            (void) machine.GetRunner().RunCycles (kPassCycles);
             queue.Drain (source);
             queue.TakeReplies (replies);
             outcome = replies.empty() ? outcome : replies.back().applyOutcome;
@@ -636,7 +636,7 @@ public:
 
         for (pass = 0; pass < kMaxPasses && outcome == ApplyOutcome::Waiting; pass++)
         {
-            (void) machine.RunCycles (kPassCycles);
+            (void) machine.GetRunner().RunCycles (kPassCycles);
             queue.Drain (source);
             queue.TakeReplies (replies);
             outcome = replies.empty() ? outcome : replies.back().applyOutcome;
@@ -761,7 +761,7 @@ public:
         //  which is not a safe point, so the apply waits for the field to pass.
         for (step = 0; step < kMaxFieldSteps && !(source.GetMotion (kDrive).isTurning && IsInSpan (request.spans[0], source.GetMotion (kDrive))); step++)
         {
-            (void) machine.RunCycles (kFieldStepCycles);
+            (void) machine.GetRunner().RunCycles (kFieldStepCycles);
         }
 
         Assert::IsTrue (IsInSpan (request.spans[0], source.GetMotion (kDrive)), L"the head is over the edited field while the guest reads");
@@ -772,7 +772,7 @@ public:
 
         for (step = 0; step < kMaxSteps && outcome == ApplyOutcome::Waiting; step++)
         {
-            (void) machine.RunCycles (kStepCycles);
+            (void) machine.GetRunner().RunCycles (kStepCycles);
             queue.Drain (source);
             queue.TakeReplies (replies);
             outcome = replies.empty() ? outcome : replies.back().applyOutcome;
@@ -784,7 +784,7 @@ public:
         //  Run the loop until it reads the new bytes.
         for (step = 0; step < kMaxSteps; step++)
         {
-            (void) machine.RunCycles (kPassCycles);
+            (void) machine.GetRunner().RunCycles (kPassCycles);
             flags = GuestSession::GuestBytesAt (machine, kMixedFlag, 2);
 
             if (flags[1] != 0)

@@ -440,7 +440,7 @@ HRESULT ScratchCallReplayer::Run (
         CHR (hr);
     }
 
-    isThrough = m_isBegun && m_scratch.GetMachine()->GetPosition() == m_jobEnd;
+    isThrough = m_isBegun && m_scratch.GetMachine()->GetRunner().GetPosition() == m_jobEnd;
     CBREx (isThrough, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     TakeCopyIfDue (job);
@@ -526,7 +526,7 @@ HRESULT ScratchCallReplayer::Start (const CallStackRebuildJob & job)
         m_view = std::make_unique<DebugMemoryView> (*machine);
     }
 
-    machine->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
+    machine->GetHostInput().GetJournal().LoadRecords (job.inputsFrom, job.inputs);
 
     AttachRecorder();
 
@@ -555,11 +555,11 @@ HRESULT ScratchCallReplayer::FindStartPart (
     const CallStackRebuildJob  & job,
     size_t                     & outStart)
 {
-    HRESULT                 hr          = S_OK;
-    size_t                  index       = job.parts.size();
-    bool                    isSame      = false;
-    bool                    isNewerSame = false;
-    MachineHost::MediaIds   saved       = {};
+    HRESULT                       hr          = S_OK;
+    size_t                        index       = job.parts.size();
+    bool                          isSame      = false;
+    bool                          isNewerSame = false;
+    MachineStateStream::MediaIds  saved       = {};
 
 
 
@@ -602,7 +602,7 @@ Error:
 
 HRESULT ScratchCallReplayer::ReadPartMedia (
     const CallStackRebuildPart  & part,
-    MachineHost::MediaIds       & outSaved)
+    MachineStateStream::MediaIds       & outSaved)
 {
     HRESULT  hr = S_OK;
 
@@ -611,7 +611,7 @@ HRESULT ScratchCallReplayer::ReadPartMedia (
     hr = m_unpacker.Unpack (part.start, m_state);
     CHR (hr);
 
-    hr = MachineHost::ReadSavedMedia (m_state, outSaved);
+    hr = MachineStateStream::ReadSavedMedia (m_state, outSaved);
     CHR (hr);
 
 Error:
@@ -640,7 +640,7 @@ HRESULT ScratchCallReplayer::RunPart (
 {
     HRESULT   hr       = S_OK;
     bool      isLoaded = false;
-    uint64_t  position = m_scratch.GetMachine()->GetPosition();
+    uint64_t  position = m_scratch.GetMachine()->GetRunner().GetPosition();
 
 
 
@@ -684,11 +684,11 @@ HRESULT ScratchCallReplayer::LoadPart (
     const CallStackRebuildPart  & part,
     bool                        & outIsLoaded)
 {
-    HRESULT                 hr       = S_OK;
-    Replayer              * replayer = m_scratch.GetReplayer();
-    bool                    isSame   = false;
-    bool                    isFresh  = false;
-    MachineHost::MediaIds   saved    = {};
+    HRESULT                         hr       = S_OK;
+    Replayer                      * replayer = m_scratch.GetReplayer();
+    bool                            isSame   = false;
+    bool                            isFresh  = false;
+    MachineStateStream::MediaIds    saved    = {};
 
 
 
@@ -803,7 +803,7 @@ HRESULT ScratchCallReplayer::ReplayPart (
     MachineHost  * machine     = m_scratch.GetMachine();
     Replayer     * replayer    = m_scratch.GetReplayer();
     EmuCpu       * cpu         = machine->GetCpu();
-    uint64_t       position    = machine->GetPosition();
+    uint64_t       position    = machine->GetRunner().GetPosition();
     uint64_t       span        = (m_jobEnd > m_jobStart) ? m_jobEnd - m_jobStart : 0;
     bool           isAbandoned = false;
     ReplayTarget   target;
@@ -829,7 +829,7 @@ HRESULT ScratchCallReplayer::ReplayPart (
         hr = replayer->RunTo (target, part.endPosition, this, report);
         CHR (hr);
 
-        position = machine->GetPosition();
+        position = machine->GetRunner().GetPosition();
 
         if (span > 0)
         {
@@ -865,7 +865,7 @@ Error:
 
 void ScratchCallReplayer::TakeCopyIfDue (const CallStackRebuildJob & job)
 {
-    uint64_t        position = m_scratch.GetMachine()->GetPosition();
+    uint64_t        position = m_scratch.GetMachine()->GetRunner().GetPosition();
     bool            isDue    = false;
     CallRecordCopy  copy;
 
@@ -927,7 +927,7 @@ void ScratchCallReplayer::Finish (
 
     SettleRecorder();
 
-    outResult.position      = machine->GetPosition();
+    outResult.position      = machine->GetRunner().GetPosition();
     outResult.cycle         = machine->GetCpu()->GetHistoryCycles();
     outResult.registers     = registers;
     outResult.journalCursor = m_scratch.GetReplayer()->GetJournalCursor();
@@ -975,7 +975,7 @@ void ScratchCallReplayer::AttachRecorder()
                                                        [this] (Word address) { return PeekByte (address); });
     });
 
-    machine->SetOpcodeWatch (m_opcodes.data(), this);
+    machine->GetRunner().SetOpcodeWatch (m_opcodes.data(), this);
     machine->GetMemoryBus().SetWatchedPage (kStackPage, true);
 
     replayer->SetResetCallback ([this] (bool isPowerCycle) { OnReplayedReset (isPowerCycle); });
@@ -1005,7 +1005,7 @@ void ScratchCallReplayer::DetachRecorder()
         return;
     }
 
-    machine->SetOpcodeWatch (nullptr, nullptr);
+    machine->GetRunner().SetOpcodeWatch (nullptr, nullptr);
     machine->GetMemoryBus().SetWatchedPage (kStackPage, false);
 
     replayer->SetResetCallback (nullptr);

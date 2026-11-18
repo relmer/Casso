@@ -60,7 +60,7 @@ public:
 
         for (i = 0; i < s_kSeekKeyframes; i++)
         {
-            machine.RunCycles (interval);
+            machine.GetRunner().RunCycles (interval);
         }
 
         Assert::IsTrue (controller.GetKeyframes().GetCount() >= (size_t) s_kSeekKeyframes / 2, L"history was recorded");

@@ -67,7 +67,7 @@ void DebugEventLogs::Start (ReverseController * controller)
     Stop();
 
     m_controller = controller;
-    position     = m_machine.GetPosition();
+    position     = m_machine.GetRunner().GetPosition();
 
     m_history.Attach ((controller != nullptr) ? &controller->GetKeyframes() : nullptr);
 
@@ -488,7 +488,7 @@ void DebugEventLogs::EndAt (uint64_t position)
 
 void DebugEventLogs::OnDrop (KeyframeDrop drop)
 {
-    uint64_t  position = (drop == KeyframeDrop::All) ? 0 : m_machine.GetPosition();
+    uint64_t  position = (drop == KeyframeDrop::All) ? 0 : m_machine.GetRunner().GetPosition();
 
 
 
@@ -531,17 +531,17 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
 
     if (kind == IoLogKind::Video)
     {
-        m_videoClearedAt = m_machine.GetPosition();
+        m_videoClearedAt = m_machine.GetRunner().GetPosition();
         m_isVideoCleared = true;
     }
     else
     {
-        m_soundClearedAt = m_machine.GetPosition();
+        m_soundClearedAt = m_machine.GetRunner().GetPosition();
         m_isSoundCleared = true;
     }
 
     //  The pane drops its rows and starts again from here.
-    log.floor      = m_machine.GetPosition();
+    log.floor      = m_machine.GetRunner().GetPosition();
     log.isResetDue = log.isOpen;
 }
 
@@ -561,7 +561,7 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
 
 void DebugEventLogs::FollowRewind()
 {
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
 
 
 
@@ -884,7 +884,7 @@ void DebugEventLogs::CutBack (
     Log<T>    & log,
     uint64_t    position)
 {
-    InputJournal  & journal = m_machine.GetInputJournal();
+    InputJournal  & journal = m_machine.GetHostInput().GetJournal();
 
 
 
@@ -986,7 +986,7 @@ void DebugEventLogs::SendNewer (
     Log<T>            & log,
     DebugLogDelta<T>  & outDelta)
 {
-    InputJournal                     & journal = m_machine.GetInputJournal();
+    InputJournal                     & journal = m_machine.GetHostInput().GetJournal();
     uint64_t                           first   = log.cache.GetFirstSerial();
     size_t                             index   = 0;
     std::vector<DebugEventEntry<T>>    entries;
@@ -1112,7 +1112,7 @@ void DebugEventLogs::MergeJournal (
     size_t                         firstIndex,
     size_t                         endIndex)
 {
-    InputJournal                 & journal = m_machine.GetInputJournal();
+    InputJournal                 & journal = m_machine.GetHostInput().GetJournal();
     size_t                         index   = 0;
     std::vector<DebugLogRow<T>>    records;
     std::vector<DebugLogRow<T>>    merged;
@@ -1364,7 +1364,7 @@ bool DebugEventLogs::TryMakeRow (
 
 size_t DebugEventLogs::FindJournalIndex (uint64_t position) const
 {
-    const InputJournal  & journal = m_machine.GetInputJournal();
+    const InputJournal  & journal = m_machine.GetHostInput().GetJournal();
     size_t                low     = journal.GetBeginIndex();
     size_t                high    = journal.GetEndIndex();
     size_t                mid     = 0;

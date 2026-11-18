@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  An image dropped on a 3.5-inch drive on the desk or the drive bar, or
 //  chosen from its file dialog, is inserted through
-//  MachineHost::InsertFloppy35, and the error it returns is posted as a
+//  MachineStorage::InsertFloppy35, and the error it returns is posted as a
 //  notice. Its checks are the ones an image attached in the Machine tab
 //  takes when the machine is built.
 //
@@ -47,16 +47,16 @@ public:
         TestMachine  attached ("Apple2eEnhanced", TestMachine::Slots::Empty, { UniDiskCard (1, kBigPath) }, attachedIo);
         TestMachine  dropped  ("Apple2eEnhanced", TestMachine::Slots::Empty, { UniDiskCard (1, "") },      droppedIo);
 
-        Assert::AreEqual ((size_t) 1, attached.GetBlockMediaProblems().size(), L"the Machine tab's image isn't attached");
+        Assert::AreEqual ((size_t) 1, attached.GetStorage().GetBlockMediaProblems().size(), L"the Machine tab's image isn't attached");
 
-        hr = dropped.InsertFloppy35 (kSlot, 0, kBigPath, error);
+        hr = dropped.GetStorage().InsertFloppy35 (kSlot, 0, kBigPath, error);
         Assert::IsTrue (FAILED (hr), L"the dropped image isn't inserted");
         Assert::IsFalse (error.empty());
-        Assert::IsTrue (attached.GetBlockMediaProblems()[0].find (error) != std::wstring::npos,
-                        std::format (L"the same error: \"{}\" and \"{}\"", attached.GetBlockMediaProblems()[0], error).c_str());
+        Assert::IsTrue (attached.GetStorage().GetBlockMediaProblems()[0].find (error) != std::wstring::npos,
+                        std::format (L"the same error: \"{}\" and \"{}\"", attached.GetStorage().GetBlockMediaProblems()[0], error).c_str());
         Assert::IsTrue (error.find (L"at most 1600") != std::wstring::npos, L"the error states the drive's limit");
 
-        Assert::IsFalse (dropped.FindFloppy35 (kSlot, 0)->HasDisk(), L"the drive stays empty");
+        Assert::IsFalse (dropped.GetStorage().FindFloppy35 (kSlot, 0)->HasDisk(), L"the drive stays empty");
         Assert::IsTrue  (droppedIo.files[kBigPath] == image, L"the file is as it was");
     }
 
@@ -73,10 +73,10 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { UniDiskCard (1, "") }, io);
 
-        hr = machine.InsertFloppy35 (kSlot, 0, "gone.po", error);
+        hr = machine.GetStorage().InsertFloppy35 (kSlot, 0, "gone.po", error);
         Assert::IsTrue  (FAILED (hr));
         Assert::IsFalse (error.empty(), L"an error for the notice");
-        Assert::IsFalse (machine.FindFloppy35 (kSlot, 0)->HasDisk());
+        Assert::IsFalse (machine.GetStorage().FindFloppy35 (kSlot, 0)->HasDisk());
     }
 
 
@@ -94,12 +94,12 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { UniDiskCard (2, "") }, io);
 
-        AssertSucceeded (machine.InsertFloppy35 (kSlot, 0, kDiskPath, error));
-        hr = machine.InsertFloppy35 (kSlot, 1, kDiskPath, error);
+        AssertSucceeded (machine.GetStorage().InsertFloppy35 (kSlot, 0, kDiskPath, error));
+        hr = machine.GetStorage().InsertFloppy35 (kSlot, 1, kDiskPath, error);
         Assert::IsTrue  (FAILED (hr));
         Assert::IsTrue  (error.find (L"another drive") != std::wstring::npos, error.c_str());
-        Assert::IsTrue  (machine.FindFloppy35 (kSlot, 0)->HasDisk());
-        Assert::IsFalse (machine.FindFloppy35 (kSlot, 1)->HasDisk());
+        Assert::IsTrue  (machine.GetStorage().FindFloppy35 (kSlot, 0)->HasDisk());
+        Assert::IsFalse (machine.GetStorage().FindFloppy35 (kSlot, 1)->HasDisk());
     }
 
 

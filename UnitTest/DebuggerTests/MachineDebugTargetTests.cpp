@@ -271,10 +271,10 @@ namespace DebuggerTests
 
 
             rig.target.SetHookInstalled (true);
-            Assert::IsNotNull (rig.machine.GetDebugHook());
+            Assert::IsNotNull (rig.machine.GetRunner().GetDebugHook());
 
             rig.target.SetHookInstalled (false);
-            Assert::IsNull (rig.machine.GetDebugHook());
+            Assert::IsNull (rig.machine.GetRunner().GetDebugHook());
 
             pages[0x03] = true;
             rig.target.SetWatchedPages (pages);
@@ -291,7 +291,7 @@ namespace DebuggerTests
 
 
 
-            rig.machine.RunCycles (kBudget);
+            rig.machine.GetRunner().RunCycles (kBudget);
             position = rig.target.GetVideoPosition();
 
             Assert::AreEqual (rig.machine.GetVideoTiming()->GetCurrentScanline(), position.scanline);

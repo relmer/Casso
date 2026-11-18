@@ -77,7 +77,7 @@ public:
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, prodos));
 
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+            Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (2, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, hostEnd);
             host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
@@ -238,7 +238,7 @@ public:
 
         for (int frame = 0; frame < 60; frame++)
         {
-            rig.machine.RunCycles (kFrame);
+            rig.machine.GetRunner().RunCycles (kFrame);
         }
 
         //  FLASHBIT, at $F3, is set off rather than put back.
@@ -341,7 +341,7 @@ public:
 
         for (int frame = 0; frame < 60 * 7; frame++)
         {
-            rig.machine.RunCycles (kFrame);
+            rig.machine.GetRunner().RunCycles (kFrame);
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);
@@ -368,7 +368,7 @@ public:
 
         for (int frame = 0; frame < 60 * 12; frame++)
         {
-            rig.machine.RunCycles (kFrame);
+            rig.machine.GetRunner().RunCycles (kFrame);
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);
@@ -603,7 +603,7 @@ public:
 
         for (int frame = 0; frame < 60; frame++)
         {
-            rig.machine.RunCycles (kFrame);
+            rig.machine.GetRunner().RunCycles (kFrame);
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);
@@ -614,7 +614,7 @@ public:
 
         for (int frame = 0; frame < 60; frame++)
         {
-            rig.machine.RunCycles (kFrame);
+            rig.machine.GetRunner().RunCycles (kFrame);
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);

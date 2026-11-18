@@ -14,7 +14,7 @@
 //  it belongs at offset in the writer's own bytes, ahead of whatever was
 //  written there after it. source is the live buffer the run stands for,
 //  which holds the same bytes at the moment of the save unless a write to it
-//  was missed; MachineHost::CheckSharedSave compares the two right after the
+//  was missed; MachineStateStream::CheckSharedSave compares the two right after the
 //  save, and nothing may read through it once the machine runs on.
 //
 ////////////////////////////////////////////////////////////////////////////////

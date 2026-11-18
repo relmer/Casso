@@ -207,7 +207,7 @@ bool ProfileHistory::IsStopped() const
 
 void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds> & outBounds) const
 {
-    uint64_t                         position  = m_machine.GetPosition();
+    uint64_t                         position  = m_machine.GetRunner().GetPosition();
     const KeyframeStore            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
     size_t                           count     = (keyframes != nullptr && m_controller->IsRecording()) ? keyframes->GetCount() : 0;
     size_t                           first     = 0;

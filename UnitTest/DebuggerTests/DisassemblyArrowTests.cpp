@@ -205,7 +205,7 @@ namespace DebuggerTests
 
             Assert::IsFalse (snapshot.branchedFrom.has_value(), L"no transfer to $0300");
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (snapshot.branchedFrom == std::optional<Word> (0x0300), L"the BEQ was taken to the PC");
@@ -222,14 +222,14 @@ namespace DebuggerTests
 
             //  A run of two instructions with no build between, as a run that
             //  a breakpoint stops: the JMP brought the machine to $0320.
-            rig.machine.StepOne();
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((int) 0x0320, (int) snapshot.pc);
             Assert::IsTrue   (snapshot.branchedFrom == std::optional<Word> (0x0311), L"the JMP, found with no stop at it");
 
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse (snapshot.branchedFrom.has_value(), L"the PC moved on in order from the JMP's target, so nothing is marked");

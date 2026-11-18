@@ -98,14 +98,14 @@ public:
 
         PrepareRecording (machine, host);
 
-        target = machine.GetPosition() - s_kTraceSeekBack;
+        target = machine.GetRunner().GetPosition() - s_kTraceSeekBack;
 
         hr = host.Execute (ReverseCommand::Seek, target, nullptr, result);
         AssertSucceeded (hr, L"Seek");
 
         host.GetRecentTrace (s_kTraceRows, entries);
 
-        Assert::AreEqual<uint64_t> (target, machine.GetPosition(), L"the machine is where the seek landed");
+        Assert::AreEqual<uint64_t> (target, machine.GetRunner().GetPosition(), L"the machine is where the seek landed");
         Assert::IsTrue  (result.outcome == ReverseOutcome::Moved, L"and the command reports the move");
         Assert::IsFalse (entries.empty(), L"the instructions behind the position are listed");
         Assert::IsTrue  (entries.back().cycles < machine.GetCpu()->GetTotalCycles(), L"all of them before the position");
@@ -182,6 +182,6 @@ private:
         AssertSucceeded (hr, L"StartRecording");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kTraceWarmupCycles);
+        machine.GetRunner().RunCycles (s_kTraceWarmupCycles);
     }
 };

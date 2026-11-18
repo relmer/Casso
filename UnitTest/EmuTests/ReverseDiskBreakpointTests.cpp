@@ -95,11 +95,11 @@ public:
         //  debugger's are put back.
         void Record (std::optional<Word> end, size_t maxSteps)
         {
-            DebugHook  * hook = rig.machine.GetDebugHook();
+            DebugHook  * hook = rig.machine.GetRunner().GetDebugHook();
 
 
 
-            rig.machine.SetDebugHook (nullptr);
+            rig.machine.GetRunner().SetDebugHook (nullptr);
             rig.machine.GetMemoryBus().SetWatchSink (stopTest.GetWatchSink());
             Controller().SetEventSink (ObserverSlot::Breakpoints, stopTest.GetDiskSink());
 
@@ -109,17 +109,17 @@ public:
 
 
 
-                step.position = rig.machine.GetPosition();
+                step.position = rig.machine.GetRunner().GetPosition();
                 step.isStop   = stopTest.ShouldStopBefore (rig.machine, rig.machine.GetCpu()->GetPC());
                 step.qtrack   = step.isStop ? Value ("DISK.QTRACK") : 0;
                 step.atrack   = step.isStop ? Value ("DISK.ATRACK") : 0;
                 live.push_back (step);
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
 
             Assert::IsTrue (!end.has_value() || *end == rig.machine.GetCpu()->GetPC(), L"the PC is at the end");
 
-            rig.machine.SetDebugHook (hook);
+            rig.machine.GetRunner().SetDebugHook (hook);
             rig.machine.GetMemoryBus().SetWatchSink (&rig.session.GetWatchpoints());
             rig.session.OnStopConditionsChanged();
         }
@@ -209,7 +209,7 @@ public:
         disk.rig.RunOk ("G");
 
         Assert::IsTrue             (disk.rig.LastStop().reason == StopReason::Disk);
-        Assert::AreEqual<uint64_t> (hits[hits.size() - 2].position, disk.rig.machine.GetPosition(), L"the next hit");
+        Assert::AreEqual<uint64_t> (hits[hits.size() - 2].position, disk.rig.machine.GetRunner().GetPosition(), L"the next hit");
         Assert::AreEqual           (1u, disk.GetHitCount(), L"and counted it");
     }
 

@@ -23,7 +23,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  HardDiskAttachTests
 //
 //  A hard disk's image changed while the machine runs, through
-//  MachineHost::AttachHardDisk: an image dropped on the drive or chosen from
+//  MachineStorage::AttachHardDisk: an image dropped on the drive or chosen from
 //  its file dialog, once the confirmation that the machine restarts is
 //  accepted. The image takes the machine build's checks, and when it fails
 //  them the drive has its image from before.
@@ -49,7 +49,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { ScsiCard (kOldPath) }, io);
 
-        hr = machine.AttachHardDisk (kScsiSlot, 0, kNewPath, error);
+        hr = machine.GetStorage().AttachHardDisk (kScsiSlot, 0, kNewPath, error);
 
         AssertSucceeded (hr);
         Assert::AreEqual (std::string (kNewPath), Target (machine).GetMedia().GetPath());
@@ -75,7 +75,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { ScsiCard (kOldPath) }, io);
 
-        hr = machine.AttachHardDisk (kScsiSlot, 0, kFloppyPath, error);
+        hr = machine.GetStorage().AttachHardDisk (kScsiSlot, 0, kFloppyPath, error);
 
         Assert::IsTrue  (FAILED (hr));
         Assert::IsTrue  (error.find (L"floppy") != std::wstring::npos, error.c_str());
@@ -98,7 +98,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { ScsiCard (kOldPath) }, io);
 
-        hr = machine.AttachHardDisk (kScsiSlot, 0, "gone.po", error);
+        hr = machine.GetStorage().AttachHardDisk (kScsiSlot, 0, "gone.po", error);
 
         Assert::IsTrue  (FAILED (hr));
         Assert::IsFalse (error.empty(), L"an error for the notice");
@@ -127,7 +127,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { card }, io);
 
-        hr = machine.AttachHardDisk (kProFileSlot, 0, kNewPath, error);
+        hr = machine.GetStorage().AttachHardDisk (kProFileSlot, 0, kNewPath, error);
 
         AssertSucceeded (hr);
         Assert::AreEqual (std::string (kNewPath), machine.GetRefs().proFileCards[0]->GetDrive().GetMedia().GetPath());
@@ -209,7 +209,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { ScsiCard (kOldPath) }, io);
 
-        hr = machine.AttachHardDisk (kProFileSlot, 0, kNewPath, error);
+        hr = machine.GetStorage().AttachHardDisk (kProFileSlot, 0, kNewPath, error);
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), hr);
     }

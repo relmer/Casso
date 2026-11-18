@@ -127,7 +127,7 @@ public:
 
         while (!onScreen && spent < cycleCap)
         {
-            spent += host.RunCycles (kSlice);
+            spent += host.GetRunner().RunCycles (kSlice);
 
             rows.clear();
             GuestSession::CollectRows (host, rows);
@@ -217,7 +217,7 @@ public:
         for (char c : text)
         {
             AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) c));
-            machine.RunCycles (kPerKey);
+            machine.GetRunner().RunCycles (kPerKey);
         }
     }
 
@@ -279,7 +279,7 @@ public:
         machine.PowerCycle();
 
         //  The title, then the scenario disk in drive 1 for the game.
-        machine.RunCycles (60'000'000ULL);
+        machine.GetRunner().RunCycles (60'000'000ULL);
         TypeToWizardry (machine, " ");
         Assert::IsTrue (RunUntilScreenShows (machine, "S)TART GAME", kCap), L"the menu after the title");
 
@@ -287,7 +287,7 @@ public:
         Assert::IsTrue (RunUntilScreenShows (machine, "SCENARIO MASTER IN DRV 1", kCap));
 
         machine.GetDiskStore().Eject (6, 0);
-        machine.RunCycles (2'000'000ULL);
+        machine.GetRunner().RunCycles (2'000'000ULL);
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "wizardry1-scenario.dsk", DiskFormat::Dsk, scenario));
         TypeToWizardry (machine, "\r");
         Assert::IsTrue (RunUntilScreenShows (machine, "MASTER/DUPLICATE IN DRV 1", kCap));
@@ -351,7 +351,7 @@ public:
         TypeToWizardry (machine, "E");
         Assert::IsTrue (RunUntilScreenShows (machine, "L)EAVE THE", kCap));
         TypeToWizardry (machine, "L");
-        machine.RunCycles (60'000'000ULL);
+        machine.GetRunner().RunCycles (60'000'000ULL);
 
         //  The scenario disk as the game left it, decoded.
         saved = GuestSession::DecodeThroughTheDrive (*machine.GetDiskStore().GetImage (6, 0), report);
@@ -472,7 +472,7 @@ public:
         for (char c : text)
         {
             AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) c));
-            machine.RunCycles (kPerKey);
+            machine.GetRunner().RunCycles (kPerKey);
         }
 
         if (enter)
@@ -480,7 +480,7 @@ public:
             AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) '\r'));
         }
 
-        machine.RunCycles (kToAnswer);
+        machine.GetRunner().RunCycles (kToAnswer);
     }
 
 

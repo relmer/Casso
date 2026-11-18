@@ -177,7 +177,7 @@ public:
         CheckState (last.state, ReverseSessionRig::Save (machine), last.position);
         Assert::AreEqual<size_t> (waiting + 1, machine.GetRefs().serialChips[0]->GetQueuedReceiveCount(), L"the byte waits in the queue");
 
-        machine.RunCycles (s_kSerialSliceCycles);
+        machine.GetRunner().RunCycles (s_kSerialSliceCycles);
 
         Assert::AreEqual<size_t> (before + 1, CountRecords (machine, InputKind::AciaByte), L"taken live and journaled");
     }
@@ -260,7 +260,7 @@ public:
 
         Assert::AreEqual (sent, capture.bytes.size(), L"the replays send nothing");
 
-        machine.RunCycles (s_kSerialSliceCycles);
+        machine.GetRunner().RunCycles (s_kSerialSliceCycles);
         Assert::IsTrue (capture.bytes.size() > sent, L"live again, the port sends");
 
         machine.GetRefs().serialChips[0]->SetEndpoint (nullptr);
@@ -284,7 +284,7 @@ public:
         hr = scratch.Build();
         AssertSucceeded (hr, L"Build");
 
-        Assert::IsTrue (scratch.GetMachine()->IsOutputMuted(), L"the scratch machine is muted");
+        Assert::IsTrue (scratch.GetMachine()->GetOutputMute().IsMuted(), L"the scratch machine is muted");
     }
 
 
@@ -423,7 +423,7 @@ private:
                 machine.GetRefs().serialChips[0]->EnqueueReceivedBytes (bytes, sizeof (bytes));
             }
 
-            machine.RunCycles (s_kSerialSliceCycles);
+            machine.GetRunner().RunCycles (s_kSerialSliceCycles);
         }
 
         return samples;
@@ -436,7 +436,7 @@ private:
 
 
 
-        sample.position = machine.GetPosition();
+        sample.position = machine.GetRunner().GetPosition();
         sample.cycle    = machine.GetCpu()->GetTotalCycles();
         sample.state    = ReverseSessionRig::Save (machine);
 
@@ -446,7 +446,7 @@ private:
 
     static size_t CountRecords (MachineHost & machine, InputKind kind)
     {
-        const InputJournal  & journal = machine.GetInputJournal();
+        const InputJournal  & journal = machine.GetHostInput().GetJournal();
         size_t                count   = 0;
         size_t                i       = 0;
 

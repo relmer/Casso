@@ -324,7 +324,7 @@ public:
 
             for (int slice = 0; slice < s_kBootSlices; slice++)
             {
-                machine.RunCycles (s_kBootStep / s_kBootSlices);
+                machine.GetRunner().RunCycles (s_kBootStep / s_kBootSlices);
 
                 if (machine.GetRefs().diskController != nullptr)
                 {
@@ -1063,13 +1063,13 @@ public:
 
         machine.PowerCycle();
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "boot.woz", DiskFormat::Woz, woz));
-        machine.RunCycles (cycles);
+        machine.GetRunner().RunCycles (cycles);
 
         for (int i = 0; i < kSamples && passes; i++)
         {
             Word  pc = 0;
 
-            machine.RunCycles (997);
+            machine.GetRunner().RunCycles (997);
             pc     = machine.GetCpu()->GetPC();
             passes = pc < kBreakFirst || pc >= kBreakEnd;
         }
@@ -1137,12 +1137,12 @@ public:
         AssertSucceeded (VolumeImage::Load (woz, "image.woz", sectors, report));
 
         GuestSession::MountWoz (machine, woz, sectors);
-        machine.RunCycles (s_kRunBootCycles);
+        machine.GetRunner().RunCycles (s_kRunBootCycles);
 
         for (char key : keys)
         {
             machine.GetRefs().iieKeyboard->PressKey ((Byte) key);
-            machine.RunCycles (s_kRunKeyCycles);
+            machine.GetRunner().RunCycles (s_kRunKeyCycles);
         }
 
         while (at < joy.size())
@@ -1156,7 +1156,7 @@ public:
 
             machine.GetRefs().iieSoftSwitches->SetPaddle (0, (Byte) std::stoi (step.substr (0, first)));
             machine.GetRefs().iieSoftSwitches->SetPaddle (1, (Byte) std::stoi (step.substr (first + 1, second - first - 1)));
-            machine.RunCycles ((uint64_t) (std::stod (step.substr (second + 1)) * 1e6));
+            machine.GetRunner().RunCycles ((uint64_t) (std::stod (step.substr (second + 1)) * 1e6));
         }
 
         GuestSession::CollectRows (machine, rows);

@@ -200,7 +200,7 @@ private:
         AssertSucceeded (hr, L"Start");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kSessionStopWarmupCycles);
+        machine.GetRunner().RunCycles (s_kSessionStopWarmupCycles);
 
         for (i = 0; i < s_kSessionStopSteps; i++)
         {
@@ -209,10 +209,10 @@ private:
                 machine.GetRefs().keyboard->PressKey (static_cast<Byte> ('a' + i / kKeyEvery));
             }
 
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
 
-        return machine.GetPosition();
+        return machine.GetRunner().GetPosition();
     }
 
 

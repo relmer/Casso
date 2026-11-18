@@ -241,7 +241,7 @@ private:
 
         CHR (hr);
 
-        m_scratch->GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
+        m_scratch->GetMachine()->GetHostInput().GetJournal().LoadRecords (job.inputsFrom, job.inputs);
 
         for (const DebugEventStretch & stretch : job.stretches)
         {
@@ -270,15 +270,15 @@ private:
     //  saved with them, to its end, with the probe attached.
     HRESULT  RunStretch (const DebugEventJob & job, const DebugEventStretch & stretch, DebugEventStretchResult<T> & outResult)
     {
-        HRESULT                 hr         = S_OK;
-        MachineHost           * machine    = m_scratch->GetMachine();
-        Replayer              * replayer   = m_scratch->GetReplayer();
-        EmuCpu                * cpu        = (machine != nullptr) ? machine->GetCpu() : nullptr;
-        bool                    isAttached = false;
-        bool                    isAtEnd    = false;
-        MachineHost::MediaIds   saved      = {};
-        ReplayTarget            target;
-        ReplayReport            report;
+        HRESULT                         hr         = S_OK;
+        MachineHost                   * machine    = m_scratch->GetMachine();
+        Replayer                      * replayer   = m_scratch->GetReplayer();
+        EmuCpu                        * cpu        = (machine != nullptr) ? machine->GetCpu() : nullptr;
+        bool                            isAttached = false;
+        bool                            isAtEnd    = false;
+        MachineStateStream::MediaIds    saved      = {};
+        ReplayTarget                    target;
+        ReplayReport                    report;
 
 
 
@@ -288,7 +288,7 @@ private:
         hr = m_unpacker.Unpack (stretch.start, m_state);
         CHR (hr);
 
-        hr = MachineHost::ReadSavedMedia (m_state, saved);
+        hr = MachineStateStream::ReadSavedMedia (m_state, saved);
         CHR (hr);
 
         if (!ScratchReplayMachine::IsSavedWith (saved, job.disks))
@@ -308,7 +308,7 @@ private:
 
         isAttached = true;
 
-        while (machine->GetPosition() < stretch.endPosition)
+        while (machine->GetRunner().GetPosition() < stretch.endPosition)
         {
             BAIL_OUT_IF (IsAbandoned (job), E_ABORT);
 
@@ -321,7 +321,7 @@ private:
 
         //  A replay that ends anywhere but the stretch's end went wrong; one
         //  before a gap has no end cycle to check.
-        isAtEnd = machine->GetPosition() == stretch.endPosition && (stretch.endCycle == 0 || cpu->GetHistoryCycles() == stretch.endCycle);
+        isAtEnd = machine->GetRunner().GetPosition() == stretch.endPosition && (stretch.endCycle == 0 || cpu->GetHistoryCycles() == stretch.endCycle);
         CBREx (isAtEnd, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     Error:

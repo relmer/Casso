@@ -818,7 +818,7 @@ public:
         {
             std::vector<std::string>  rows;
 
-            machine.RunCycles (kBootSlice);
+            machine.GetRunner().RunCycles (kBootSlice);
             spent += kBootSlice;
 
             rows   = TextScreenScraper::Scrape (machine);

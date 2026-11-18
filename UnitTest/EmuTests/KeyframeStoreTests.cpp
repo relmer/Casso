@@ -406,7 +406,7 @@ public:
 
         for (frame = 0; frame < kFrames; frame++)
         {
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
             if (!store.IsDue (machine.GetCpu()->GetTotalCycles()))
             {
@@ -438,12 +438,12 @@ public:
             {
                 StateReader  reader (restored);
 
-                hr = machine.LoadState (reader);
+                hr = machine.GetStateStream().LoadState (reader);
                 AssertSucceeded (hr, L"LoadState of a restored keyframe");
             }
 
             writer = StateWriter();
-            hr     = machine.SaveState (writer);
+            hr     = machine.GetStateStream().SaveState (writer);
             AssertSucceeded (hr, L"SaveState");
 
             Assert::IsTrue (store.DoesStateMatch (i, writer.GetBytes()), L"the loaded machine must match the keyframe's checksum");
@@ -478,7 +478,7 @@ public:
 
         for (frame = 0; frame < kMaxFrames && !isDropping; frame++)
         {
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
             if (!store.IsDue (machine.GetCpu()->GetTotalCycles()))
             {

@@ -384,7 +384,7 @@ HRESULT DebugBatchRunner::InsertTape (const std::string & path, DebugBatchResult
     hr = TapeImageLoader::Load (std::span<const Byte> ((const Byte *) content.data(), content.size()), path, true, mp3, image, error);
     CHR (hr);
 
-    m_host->GetTapeDeck().Insert (std::move (image));
+    m_host->GetTape().GetDeck().Insert (std::move (image));
 
 Error:
     if (FAILED (hr))

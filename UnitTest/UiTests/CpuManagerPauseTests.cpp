@@ -151,8 +151,8 @@ namespace CpuManagerPauseTests
 
             gate.Arm (now - now % kFrame + kGateOffset);
 
-            machine.SetHistoryRecorder (&gate);
-            machine.SetStopFlag        (&cpu.GetPauseFlag());
+            machine.GetRunner().SetHistoryRecorder (&gate);
+            machine.GetRunner().SetStopFlag (&cpu.GetPauseFlag());
 
             cpu.SetSpeedMode (speed, SpeedChooser::User);
         }
@@ -190,7 +190,7 @@ namespace CpuManagerPauseTests
             while (executed < target && !cpu.IsPaused())
             {
                 slice     = std::min (target - executed, FrameCycleBudget::kSliceCycles);
-                actual    = (uint32_t) machine.RunCycles (slice);
+                actual    = (uint32_t) machine.GetRunner().RunCycles (slice);
                 executed += actual;
 
                 if (actual == 0)

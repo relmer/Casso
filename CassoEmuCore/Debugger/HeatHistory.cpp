@@ -5,7 +5,7 @@
 #include "Debugger/HeatCountDelta.h"
 #include "Debugger/HeatKeyframeSide.h"
 #include "Shell/MachineHost.h"
-#include "Shell/MachineReplayMedia.h"
+#include "Shell/MachineStorage.h"
 
 
 
@@ -92,7 +92,7 @@ void HeatHistory::Attach (KeyframeStore * keyframes)
 
 void HeatHistory::OnMapStarted()
 {
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
     size_t    index    = 0;
     bool      isFound  = false;
 
@@ -185,7 +185,7 @@ void HeatHistory::Reset()
         m_rebuilder->Cancel();
     }
 
-    m_heatFrom     = m_machine.GetPosition();
+    m_heatFrom     = m_machine.GetRunner().GetPosition();
     m_awaited      = 0;
     m_isRebuildDue = false;
 
@@ -369,7 +369,7 @@ HeatAccessState HeatHistory::LookUpLastAccess (
     HeatLastAccess   & outAccess)
 {
     HeatAccessState        state    = m_map.GetLastAccess (space, isWrite, address, outAccess);
-    uint64_t               position = m_machine.GetPosition();
+    uint64_t               position = m_machine.GetRunner().GetPosition();
     size_t                 entry    = AccessHeatMap::GetLastIndex (space, isWrite, address);
     HeatRebuildJob::Query  query;
 
@@ -427,7 +427,7 @@ HeatAccessState HeatHistory::SearchHistory (
 {
     HRESULT          hr       = S_OK;
     const EmuCpu   * cpu      = m_machine.GetCpu();
-    uint64_t         position = m_machine.GetPosition();
+    uint64_t         position = m_machine.GetRunner().GetPosition();
     size_t           entry    = AccessHeatMap::GetIndex (query.space, query.isWrite ? HeatKind::Write : HeatKind::Read, query.address);
     size_t           here     = 0;
     bool             isFound  = false;
@@ -592,7 +592,7 @@ HRESULT HeatHistory::FindInStretch (
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), job.disks);
     CHR (hr);
 
-    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), job.blockMedia);
+    hr = m_machine.GetStorage().CopyReplayMedia (job.blockMedia);
     CHR (hr);
 
     hr = m_finder->FindAccess (job, result);
@@ -628,7 +628,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
     size_t    count     = m_keyframes->GetCount();
     size_t    index     = (drop == KeyframeDrop::Oldest) ? 0 : count - 1;
     bool      isApplied = false;
-    uint64_t  cut       = m_machine.GetPosition();
+    uint64_t  cut       = m_machine.GetRunner().GetPosition();
 
 
 
@@ -1086,7 +1086,7 @@ HRESULT HeatHistory::MakeRebuildJob (
 {
     HRESULT              hr       = S_OK;
     const EmuCpu       * cpu      = m_machine.GetCpu();
-    uint64_t             position = m_machine.GetPosition();
+    uint64_t             position = m_machine.GetRunner().GetPosition();
     uint64_t             cycle    = 0;
     size_t               target   = 0;
     size_t               start    = 0;
@@ -1132,7 +1132,7 @@ HRESULT HeatHistory::MakeRebuildJob (
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
     CHR (hr);
 
-    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), outJob.blockMedia);
+    hr = m_machine.GetStorage().CopyReplayMedia (outJob.blockMedia);
     CHR (hr);
 
     outHasWindow = true;
@@ -1309,7 +1309,7 @@ HRESULT HeatHistory::CopyInputs (
 
 
 
-    isCopied = m_machine.GetInputJournal().TryCopyRecords (journalIndex, position, outInputs);
+    isCopied = m_machine.GetHostInput().GetJournal().TryCopyRecords (journalIndex, position, outInputs);
     CBRA (isCopied);
 
 Error:

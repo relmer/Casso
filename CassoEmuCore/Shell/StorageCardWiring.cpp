@@ -100,25 +100,25 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
         if (image == kpszStockImage)
         {
-            if (m_host.GetStockImageFolder().empty())
+            if (m_host.GetStorage().GetStockImageFolder().empty())
             {
                 continue;
             }
 
-            hr = StockHardDiskImage::Ensure (m_host.GetBlockMediaFileIo(), m_host.GetStockImageFolder(), image);
+            hr = StockHardDiskImage::Ensure (m_host.GetStorage().GetBlockMediaFileIo(), m_host.GetStorage().GetStockImageFolder(), image);
 
             if (FAILED (hr))
             {
-                m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: the stock hard disk image can't be made.", slot.slot, id));
+                m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: the stock hard disk image can't be made.", slot.slot, id));
                 continue;
             }
         }
 
-        hr = target.GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
+        hr = target.GetMedia().Attach (m_host.GetStorage().GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.GetStorage().ProbeBlockMedia (image), error);
 
         if (FAILED (hr) || RejectFloppyImage (target.GetMedia(), error))
         {
-            m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: {}", slot.slot, id, error));
+            m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: {}", slot.slot, id, error));
         }
     }
 
@@ -224,11 +224,11 @@ void StorageCardWiring::WireProFileCard (const SlotConfig & slot, ProFileCard & 
 
 
 
-        hr = card.GetDrive().GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
+        hr = card.GetDrive().GetMedia().Attach (m_host.GetStorage().GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.GetStorage().ProbeBlockMedia (image), error);
 
         if (FAILED (hr) || RejectFloppyImage (card.GetDrive().GetMedia(), error))
         {
-            m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, ProFile: {}", slot.slot, error));
+            m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Slot {}, ProFile: {}", slot.slot, error));
         }
     }
 
@@ -284,11 +284,11 @@ void StorageCardWiring::WireApple35Card (const SlotConfig & slot, Apple35Control
             continue;
         }
 
-        hr = card.GetCardMemory().GetDrive ((int) port).Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+        hr = card.GetCardMemory().GetDrive ((int) port).Insert (m_host.GetStorage().GetBlockMediaFileIo(), entry.image, m_host.GetStorage().ProbeBlockMedia (entry.image), error);
 
         if (FAILED (hr))
         {
-            m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, drive {}: {}", slot.slot, port + 1, error));
+            m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Slot {}, drive {}: {}", slot.slot, port + 1, error));
         }
     }
 
@@ -363,11 +363,11 @@ void StorageCardWiring::WireLironCard (const SlotConfig & slot, LironCard & card
 
         if (!entry.image.empty())
         {
-            hr = drive->GetMechanism().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+            hr = drive->GetMechanism().Insert (m_host.GetStorage().GetBlockMediaFileIo(), entry.image, m_host.GetStorage().ProbeBlockMedia (entry.image), error);
 
             if (FAILED (hr))
             {
-                m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, drive {}: {}", slot.slot, port + 1, error));
+                m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Slot {}, drive {}: {}", slot.slot, port + 1, error));
             }
         }
 
@@ -453,7 +453,7 @@ void StorageCardWiring::AddChainDrives (const PortConfig & port, SmartPortHost &
 
         if (entry.firmwarePath.empty())
         {
-            m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: the UniDisk 3.5's ROM, Devices/UniDisk35/UniDisk35.rom, is missing.", index + 1));
+            m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: the UniDisk 3.5's ROM, Devices/UniDisk35/UniDisk35.rom, is missing.", index + 1));
             continue;
         }
 
@@ -473,11 +473,11 @@ void StorageCardWiring::AddChainDrives (const PortConfig & port, SmartPortHost &
 
         if (!entry.image.empty())
         {
-            hr = drive->GetMechanism().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+            hr = drive->GetMechanism().Insert (m_host.GetStorage().GetBlockMediaFileIo(), entry.image, m_host.GetStorage().ProbeBlockMedia (entry.image), error);
 
             if (FAILED (hr))
             {
-                m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", index + 1, error));
+                m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", index + 1, error));
             }
         }
 
@@ -512,11 +512,11 @@ void StorageCardWiring::WireApple2cPlusDrives (Apple2cPlusDiskPort & port)
 
         if (entry.name == "internal" && !entry.image.empty())
         {
-            hr = port.GetInternalDrive().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+            hr = port.GetInternalDrive().Insert (m_host.GetStorage().GetBlockMediaFileIo(), entry.image, m_host.GetStorage().ProbeBlockMedia (entry.image), error);
 
             if (FAILED (hr))
             {
-                m_host.GetBlockMediaProblems().push_back (std::format (L"Internal drive: {}", error));
+                m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Internal drive: {}", error));
             }
         }
 
@@ -530,11 +530,11 @@ void StorageCardWiring::WireApple2cPlusDrives (Apple2cPlusDiskPort & port)
 
             if (!external.image.empty())
             {
-                hr = port.GetExternalDrive ((int) i).Insert (m_host.GetBlockMediaFileIo(), external.image, m_host.ProbeBlockMedia (external.image), error);
+                hr = port.GetExternalDrive ((int) i).Insert (m_host.GetStorage().GetBlockMediaFileIo(), external.image, m_host.GetStorage().ProbeBlockMedia (external.image), error);
 
                 if (FAILED (hr))
                 {
-                    m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", i + 1, error));
+                    m_host.GetStorage().GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", i + 1, error));
                 }
             }
         }

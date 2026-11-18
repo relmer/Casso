@@ -114,7 +114,7 @@ public:
 
         while (!onScreen && spent < cycleCap)
         {
-            spent += host.RunCycles (kSlice);
+            spent += host.GetRunner().RunCycles (kSlice);
 
             rows.clear();
             GuestSession::CollectRows (host, rows);
@@ -171,13 +171,13 @@ public:
                               { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath) },
                                 { 5, kpszProFileCardDevice,   profile } }, io);
 
-        for (const std::wstring & problem : machine.GetBlockMediaProblems())
+        for (const std::wstring & problem : machine.GetStorage().GetBlockMediaProblems())
         {
             saw140 = saw140 || problem.find (L"SCSI ID 6: The image is a 140K floppy disk image") != std::wstring::npos;
             saw800 = saw800 || problem.find (L"ProFile: The image is a 800K floppy disk image") != std::wstring::npos;
         }
 
-        Assert::AreEqual ((size_t) 2, machine.GetBlockMediaProblems().size());
+        Assert::AreEqual ((size_t) 2, machine.GetStorage().GetBlockMediaProblems().size());
         Assert::IsTrue   (saw140, L"a 140K image on the SCSI card is a media problem");
         Assert::IsTrue   (saw800, L"an 800K image on the ProFile is a media problem");
         Assert::IsFalse  (machine.GetRefs().scsiCards[0]->GetTarget (6).GetMedia().IsAttached());
@@ -206,7 +206,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 7, kpszAppleScsiCardDevice, ports } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsTrue (machine.GetRefs().scsiCards[0]->GetTarget (6).GetMedia().IsAttached());
         Assert::IsTrue (machine.GetRefs().scsiCards[0]->GetTarget (5).GetMedia().IsAttached());
     }
@@ -230,7 +230,7 @@ public:
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty,
                               { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath) } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsTrue (machine.GetRefs().scsiCards[0]->HasFirmware(), L"the card's ROM is in the fixtures");
 
         Boot (machine);
@@ -334,7 +334,7 @@ public:
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszProFileCardDevice, ports } }, io);
 
-        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
         Assert::IsTrue (machine.GetRefs().proFileCards[0]->HasFirmware(), L"the card's ROM is in the fixtures");
 
         Boot (machine);
@@ -408,7 +408,7 @@ public:
 
         Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the scan passes over the drive that isn't ready");
 
-        machine.RunCycles (kReadyCycles);
+        machine.GetRunner().RunCycles (kReadyCycles);
         KeystrokeInjector::InjectLine (machine, "PR#5");
 
         Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots once the drive is ready");
@@ -518,7 +518,7 @@ public:
 
             while (cycles < kCap && (machine.GetCpu()->GetPC() & kPageMask) != kDiskRomPage)
             {
-                cycles += machine.StepOne();
+                cycles += machine.GetRunner().StepOne();
             }
 
             Assert::IsTrue (cycles < kCap, L"the Disk II ROM runs");
@@ -586,7 +586,7 @@ public:
 
 
 
-            Assert::IsTrue (machine.GetBlockMediaProblems().empty(), name.c_str());
+            Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty(), name.c_str());
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "users.dsk", DiskFormat::Dsk, floppy));
             Boot (machine);
 
@@ -600,7 +600,7 @@ public:
             }
 
             AssertSucceeded (KeystrokeInjector::InjectKey (machine, 'S'));
-            machine.RunCycles (kMenuCycles);
+            machine.GetRunner().RunCycles (kMenuCycles);
 
             GuestSession::CollectRows (machine, rows);
 

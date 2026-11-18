@@ -5,7 +5,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseController.h"
 #include "Shell/MachineHost.h"
-#include "Shell/MachineReplayMedia.h"
+#include "Shell/MachineStorage.h"
 #include "Debugger/CallStackRebuildJob.h"
 
 
@@ -373,13 +373,13 @@ HRESULT CallStackHistory::MakeJob (
 
     outJob.parts.back().endPosition = target;
 
-    isCopied = m_machine.GetInputJournal().TryCopyRecords (outJob.inputsFrom, target, outJob.inputs);
+    isCopied = m_machine.GetHostInput().GetJournal().TryCopyRecords (outJob.inputsFrom, target, outJob.inputs);
     BAIL_OUT_IF (!isCopied, S_OK);
 
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
     CHR (hr);
 
-    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), outJob.blockMedia);
+    hr = m_machine.GetStorage().CopyReplayMedia (outJob.blockMedia);
     CHR (hr);
 
     outHasJob = true;
@@ -459,7 +459,7 @@ void CallStackHistory::Request()
 {
     HRESULT                               hr         = S_OK;
     KeyframeStore                       & keyframes  = m_history->GetKeyframes();
-    uint64_t                              target     = m_machine.GetPosition();
+    uint64_t                              target     = m_machine.GetRunner().GetPosition();
     uint64_t                              recorded   = m_history->GetRecordedEnd();
     uint64_t                              recordFrom = 0;
     size_t                                start      = 0;
@@ -575,7 +575,7 @@ void CallStackHistory::TakeResults()
 HRESULT CallStackHistory::Land (CallStackRebuildResult & result)
 {
     HRESULT   hr        = S_OK;
-    uint64_t  position  = m_machine.GetPosition();
+    uint64_t  position  = m_machine.GetRunner().GetPosition();
     bool      isUseful  = false;
     bool      isSettled = false;
 
@@ -629,7 +629,7 @@ HRESULT CallStackHistory::Continue (
 {
     HRESULT                               hr       = S_OK;
     const EmuCpu                        * cpu      = m_machine.GetCpu();
-    uint64_t                              target   = m_machine.GetPosition();
+    uint64_t                              target   = m_machine.GetRunner().GetPosition();
     uint64_t                              recorded = m_history->GetRecordedEnd();
     uint64_t                              cycle    = 0;
     uint64_t                              limit    = 0;
@@ -716,7 +716,7 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
     }
 
     registers = cpu->GetCpu6502()->GetRegisters();
-    isSame    = result.position == m_machine.GetPosition() && result.cycle == cpu->GetHistoryCycles() &&
+    isSame    = result.position == m_machine.GetRunner().GetPosition() && result.cycle == cpu->GetHistoryCycles() &&
                 AreSameRegisters (result.registers, registers);
 
     if (isSame)
@@ -884,7 +884,7 @@ void CallStackHistory::OnRecordChanged (
     m_wholeRecord = record;
     m_seenRecord  = record;
     m_isDue       = isOn && isMidRun;
-    m_began       = m_machine.GetPosition();
+    m_began       = m_machine.GetRunner().GetPosition();
 }
 
 
@@ -1076,7 +1076,7 @@ size_t CallStackHistory::FindFreshStart (
     const KeyframeStore  & keyframes,
     uint64_t               target) const
 {
-    const InputJournal  & journal  = m_machine.GetInputJournal();
+    const InputJournal  & journal  = m_machine.GetHostInput().GetJournal();
     const InputRecord   * record   = nullptr;
     size_t                count    = keyframes.GetCount();
     size_t                end      = journal.GetEndIndex();
@@ -1144,7 +1144,7 @@ bool CallStackHistory::TryMarkMove (MoveMark & outMark) const
 
     if (isMarked)
     {
-        outMark.position = m_machine.GetPosition();
+        outMark.position = m_machine.GetRunner().GetPosition();
         outMark.cycle    = cpu->GetHistoryCycles();
         outMark.replayed = m_history->GetReplayer().GetReplayedCount();
         outMark.restores = m_history->GetReplayer().GetRestoreCount();

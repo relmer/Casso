@@ -87,7 +87,7 @@ public:
 
         while (!found && spent < kBootCap)
         {
-            spent += machine.RunCycles (kSlice);
+            spent += machine.GetRunner().RunCycles (kSlice);
             rows.clear();
             GuestSession::CollectRows (machine, rows);
             found = GuestSession::AnyRowContains (rows, needle);
@@ -129,7 +129,7 @@ public:
 
         while (machine.GetMemoryBus().ReadByte (kFlag) != 1 && spent < kBootCap)
         {
-            uint64_t  ran = machine.StepOne();
+            uint64_t  ran = machine.GetRunner().StepOne();
 
 
 
@@ -205,7 +205,7 @@ public:
 
             TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 7, kpszAppleScsiCardDevice, ports } }, io);
 
-            Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+            Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
             BootAndLog (machine, std::string ("SCSI card, ") + name);
         }
     }
@@ -236,7 +236,7 @@ public:
 
             TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
 
-            Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+            Assert::IsTrue (machine.GetStorage().GetBlockMediaProblems().empty());
             BootAndLog (machine, std::string ("3.5 controller card, ") + name);
         }
     }

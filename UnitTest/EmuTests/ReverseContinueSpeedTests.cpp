@@ -48,7 +48,7 @@ public:
         AssertSucceeded (hr, L"Start");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (kSeconds * kCyclesPerSecond);
+        machine.GetRunner().RunCycles (kSeconds * kCyclesPerSecond);
 
         probe.breakPc = ReverseSessionRig::kProgramStart + 3;
 
@@ -98,7 +98,7 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (kFramesPerKeyframe));
         AssertSucceeded (hr, L"Start");
 
-        rig.machine.RunCycles (kSeconds * kCyclesPerSecond);
+        rig.machine.GetRunner().RunCycles (kSeconds * kCyclesPerSecond);
         rig.RunOk ("BPDISK WRITE");
 
         startedAt = GetTickCount64();
@@ -146,7 +146,7 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (kFramesPerKeyframe));
         AssertSucceeded (hr, L"Start");
 
-        rig.machine.RunCycles (kSeconds * kCyclesPerSecond);
+        rig.machine.GetRunner().RunCycles (kSeconds * kCyclesPerSecond);
         rig.RunOk ("BP 0900");
 
         startedAt = GetTickCount64();

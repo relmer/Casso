@@ -93,12 +93,12 @@ public:
 
 
 
-        machine.RunCycles (kSettleCycles);
+        machine.GetRunner().RunCycles (kSettleCycles);
 
         for (run = 0; run < kRuns; run++)
         {
             Clock::time_point  start   = Clock::now();
-            uint64_t           cycles  = machine.RunCycles (kRunCycles);
+            uint64_t           cycles  = machine.GetRunner().RunCycles (kRunCycles);
             double             seconds = std::chrono::duration<double> (Clock::now() - start).count();
 
 

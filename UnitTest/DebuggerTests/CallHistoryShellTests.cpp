@@ -184,9 +184,9 @@ namespace CallHistoryShellTests
 
         void RunTo (uint64_t position)
         {
-            while (shell->GetMachine().GetPosition() < position)
+            while (shell->GetMachine().GetRunner().GetPosition() < position)
             {
-                shell->GetMachine().StepOne();
+                shell->GetMachine().GetRunner().StepOne();
             }
         }
 
@@ -334,7 +334,7 @@ namespace CallHistoryShellTests
 
             rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
 
-            Assert::AreEqual    (landing, rig.shell->GetMachine().GetPosition(), L"the seek lands at the position given");
+            Assert::AreEqual    (landing, rig.shell->GetMachine().GetRunner().GetPosition(), L"the seek lands at the position given");
             Assert::AreNotEqual (generation, rig.GetGeneration(),                L"and the record starts again there");
             Assert::IsFalse     (ShellRig::HasCalls (rig.GetRecord()),           L"holding no call before it");
 
@@ -363,13 +363,13 @@ namespace CallHistoryShellTests
             rig.Rebuild();
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
 
-            position   = rig.shell->GetMachine().GetPosition();
+            position   = rig.shell->GetMachine().GetRunner().GetPosition();
             generation = rig.GetGeneration();
             before     = rig.GetRecord();
 
             rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, ShellRig::kOpenAt / 2); });
 
-            Assert::AreEqual (position,   rig.shell->GetMachine().GetPosition(), L"the machine did not move");
+            Assert::AreEqual (position,   rig.shell->GetMachine().GetRunner().GetPosition(), L"the machine did not move");
             Assert::AreEqual (generation, rig.GetGeneration(),                  L"and the record did not start again");
             Assert::IsTrue   (ShellRig::HasCalls (rig.GetRecord()),              L"it still holds the calls");
             Assert::AreEqual (before.frames.size(), rig.GetRecord().frames.size(), L"every one of them");
@@ -397,7 +397,7 @@ namespace CallHistoryShellTests
             rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
             rig.Rebuild();
 
-            Assert::AreEqual (landing, rig.shell->GetMachine().GetPosition(), L"behind live, where the seek landed");
+            Assert::AreEqual (landing, rig.shell->GetMachine().GetRunner().GetPosition(), L"behind live, where the seek landed");
 
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
             rig.shell->GetDebugger().ServiceDebugger();
@@ -405,7 +405,7 @@ namespace CallHistoryShellTests
             bottom = rig.debugger->GetSession().GetCallRecordBottom();
             rows   = CallStackPane::GetRows (rig.debugger->GetSession().GetCallStack());
 
-            Assert::AreEqual (end, rig.shell->GetMachine().GetPosition(),        L"live again, where history ended");
+            Assert::AreEqual (end, rig.shell->GetMachine().GetRunner().GetPosition(),        L"live again, where history ended");
             Assert::IsFalse  (rig.debugger->GetCallHistory().IsRebuilding(),     L"with no rebuild");
             Assert::IsTrue   (bottom.has_value() && bottom->kind == CallBreakKind::TrackingRestarted,
                               L"the bottom marks only that the calls before it are not available");

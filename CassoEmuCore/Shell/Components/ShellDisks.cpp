@@ -1808,7 +1808,7 @@ void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const st
 void ShellDisks::InsertFloppy35 (int slot, int drive, const std::string & path)
 {
     std::wstring  error;
-    HRESULT       hr = m_shell.m_machine.InsertFloppy35 (slot, drive, path, error);
+    HRESULT       hr = m_shell.m_machine.GetStorage().InsertFloppy35 (slot, drive, path, error);
 
 
 
@@ -1830,7 +1830,7 @@ void ShellDisks::InsertFloppy35 (int slot, int drive, const std::string & path)
 
 void ShellDisks::EjectFloppy35 (int slot, int drive)
 {
-    HRESULT  hr = m_shell.m_machine.EjectFloppy35 (slot, drive);
+    HRESULT  hr = m_shell.m_machine.GetStorage().EjectFloppy35 (slot, drive);
 
 
 
@@ -1854,7 +1854,7 @@ void ShellDisks::EjectFloppy35 (int slot, int drive)
 HRESULT ShellDisks::AttachHardDisk (int slot, int drive, const std::string & path)
 {
     std::wstring                          error;
-    HRESULT                               hr     = m_shell.m_machine.AttachHardDisk (slot, drive, path, error);
+    HRESULT                               hr     = m_shell.m_machine.GetStorage().AttachHardDisk (slot, drive, path, error);
     std::unique_ptr<HardDiskImageChange>  change;
 
 

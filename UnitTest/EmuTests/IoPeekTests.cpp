@@ -136,7 +136,7 @@ namespace IoPeekTests
         {
             TestMachine            machine ("Apple2e", TestMachine::Slots::Empty);
             MemoryBus            & bus     = machine.GetMemoryBus();
-            TapeDeck             & deck    = machine.GetTapeDeck();
+            TapeDeck             & deck    = machine.GetTape().GetDeck();
             NullTapeAudioDecoder   mp3;
             TapeImage              image;
             std::vector<Byte>      wav;

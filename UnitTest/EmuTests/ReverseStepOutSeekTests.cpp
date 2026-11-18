@@ -346,7 +346,7 @@ private:
         std::vector<ReverseResult>  search (count);
         ReverseResult               result;
         HRESULT                     hr       = S_OK;
-        uint64_t                    liveEnd  = machine.GetPosition();
+        uint64_t                    liveEnd  = machine.GetRunner().GetPosition();
         uint64_t                    replayed = 0;
         size_t                      restores = 0;
         size_t                      builds   = 0;
@@ -409,7 +409,7 @@ private:
             pc = machine.GetCpu()->GetPC();
 
             recorder.OnInstruction (pc, machine.GetCpu()->GetSP(), machine.GetMemoryBus().ReadByte (pc));
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
     }
 

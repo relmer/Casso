@@ -140,7 +140,7 @@ namespace HistoryNetworkTests
             for (i = 0; i < count; i++)
             {
                 shell->GetDebugger().RecordHistoryFrame (false);
-                shell->GetMachine().RunCycles (kFrameCycles);
+                shell->GetMachine().GetRunner().RunCycles (kFrameCycles);
             }
         }
 
@@ -212,7 +212,7 @@ namespace HistoryNetworkTests
             rig.RunFrames (3);
             Assert::IsTrue (rig.IsRecording(), L"history is on with the card idle");
 
-            openedAt = rig.shell->GetMachine().GetPosition();
+            openedAt = rig.shell->GetMachine().GetRunner().GetPosition();
             rig.OpenSocket();
             rig.RunFrames (3);
             Assert::IsTrue (rig.IsRecording(), L"history is on while the socket is open");
@@ -237,11 +237,11 @@ namespace HistoryNetworkTests
             rig.RunFrames (3);
 
             rig.OpenSocket();
-            position = rig.shell->GetMachine().GetPosition();
+            position = rig.shell->GetMachine().GetRunner().GetPosition();
 
             rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::StepBack, 0); });
 
-            Assert::IsTrue (rig.shell->GetMachine().GetPosition() < position, L"the machine steps back");
+            Assert::IsTrue (rig.shell->GetMachine().GetRunner().GetPosition() < position, L"the machine steps back");
             Assert::IsTrue (rig.IsRecording(), L"and history is on");
         }
 

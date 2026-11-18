@@ -116,7 +116,7 @@ HRESULT ScratchMachineRenderer::Render (
     isBuilt = m_machine != nullptr && m_builder != nullptr;
     CBRA (isBuilt);
 
-    hr = m_machine->LoadStateForPicture (reader);
+    hr = m_machine->GetStateStream().LoadStateForPicture (reader);
     CHR (hr);
 
     hr = MachineFrameRenderer::Render (*m_machine, *m_builder, true, outBgra);

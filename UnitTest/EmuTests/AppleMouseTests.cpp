@@ -543,7 +543,7 @@ public:
             // Let the reset firmware initialize (screen, zero page) and run
             // past the first VBL onset so the VBL latch is set -- the firmware's
             // interrupt-enable path samples $C019 before programming the IOU.
-            machine.RunCycles (60'000);
+            machine.GetRunner().RunCycles (60'000);
 
             // Driver 1 @ $0300: INITMOUSE, SETMOUSE(mode 1), CLI, spin.
             // Protocol: X = $Cn, Y = $n0 (n = 7), A = argument.
@@ -563,11 +563,11 @@ public:
             for (Byte b : kInit) { machine.GetCpu()->WriteByte (addr++, b); }
 
             machine.GetCpu()->SetPC (0x0300);
-            machine.RunCycles (150'000);
+            machine.GetRunner().RunCycles (150'000);
 
             // Inject host motion; the firmware services it one unit per IRQ.
             machine.GetMouse()->MoveBy (+5, +3);
-            machine.RunCycles (300'000);
+            machine.GetRunner().RunCycles (300'000);
 
             // Driver 2 @ $0320: READMOUSE, spin.
             const Byte kRead[] =
@@ -581,7 +581,7 @@ public:
             for (Byte b : kRead) { machine.GetCpu()->WriteByte (addr++, b); }
 
             machine.GetCpu()->SetPC (0x0320);
-            machine.RunCycles (100'000);
+            machine.GetRunner().RunCycles (100'000);
 
             // Slot-7 screen holes: $047F/$057F = X lo/hi, $04FF/$05FF = Y lo/hi.
             x = machine.GetCpu()->ReadByte (0x047F) | (machine.GetCpu()->ReadByte (0x057F) << 8);
@@ -610,7 +610,7 @@ public:
             // Button: press, READMOUSE again, status hole $077F bit 7 = down.
             machine.GetMouse()->SetButton (true);
             machine.GetCpu()->SetPC (0x0320);
-            machine.RunCycles (100'000);
+            machine.GetRunner().RunCycles (100'000);
 
             status = machine.GetCpu()->ReadByte (0x077F);
             Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
@@ -623,10 +623,10 @@ public:
             // Regression: the original UI-thread PeekByte mapping read stale
             // memory and silently no-oped in production (X/Y stuck at 0).
             machine.GetMouse()->SetHostTargetFraction (0x8000, 0x8000);
-            machine.RunCycles (8'000'000);
+            machine.GetRunner().RunCycles (8'000'000);
 
             machine.GetCpu()->SetPC (0x0320);                          // READMOUSE stub
-            machine.RunCycles (100'000);
+            machine.GetRunner().RunCycles (100'000);
 
             tx = machine.GetCpu()->ReadByte (0x047F) | (machine.GetCpu()->ReadByte (0x057F) << 8);
             ty = machine.GetCpu()->ReadByte (0x04FF) | (machine.GetCpu()->ReadByte (0x05FF) << 8);
@@ -704,9 +704,9 @@ public:
             KeystrokeInjector::InjectLine (machine, "RUN", 2'000'000);
 
             machine.GetMouse()->MoveBy (+7, +4);                       // host motion
-            machine.RunCycles (4'000'000);
+            machine.GetRunner().RunCycles (4'000'000);
             machine.GetMouse()->SetButton (true);
-            machine.RunCycles (2'000'000);
+            machine.GetRunner().RunCycles (2'000'000);
             dump ("---- screen after RUN + motion ----");
             sprintf_s (st, "xyEn=%d mode07FF=%02X PC=%04X",
                        machine.GetMouse()->AreXyInterruptsEnabled() ? 1 : 0,

@@ -78,7 +78,7 @@ public:
 
             while (m_state->sent.empty() && !IsClosed() && spent < budget)
             {
-                m_machine.RunCycles (kStepCycles);
+                m_machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -137,7 +137,7 @@ public:
             GuestSession::Mount (machine, boot);
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
             machine.GetMemoryBus().WriteByte (kSaltAt, salt);
-            machine.RunCycles (kBootCycles);
+            machine.GetRunner().RunCycles (kBootCycles);
         }
 
         //  The card's listener on `port`, once it is listening.
@@ -152,7 +152,7 @@ public:
                  !(listener && listener->listening && !listener->destroyed) && spent < kWaitCycles;
                  listener = network.FindBound (HostSocketKind::Tcp, port))
             {
-                machine.RunCycles (kStepCycles);
+                machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -182,7 +182,7 @@ public:
 
             while (!(connection->destroyed || connection->shutdownSent) && spent < kWaitCycles)
             {
-                machine.RunCycles (kStepCycles);
+                machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -308,7 +308,7 @@ public:
 
             while (!done() && spent < kWaitCycles)
             {
-                machine.RunCycles (kStepCycles);
+                machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -392,7 +392,7 @@ public:
         AssertSucceeded (rig.host->ReadSectors (2, 20, sector, data, status));
         Assert::IsTrue (data == pattern, L"the sector written reads back");
 
-        rig.machine.RunCycles (kWaitCycles / 40);
+        rig.machine.GetRunner().RunCycles (kWaitCycles / 40);
         Assert::AreEqual (std::string ("CassoLink: Connected"),         rig.Row (kRowStatus));
         Assert::AreEqual (std::string ("Uthernet II, slot 3"),          rig.Row (kRowCard));
         Assert::AreEqual (std::format ("127.0.0.1:{}", kPort),          rig.Row (kRowAddress), L"the address and port under the connection");
@@ -479,7 +479,7 @@ public:
 
         rig.Connect();
         AssertSucceeded (rig.host->SetColumns (true));
-        rig.machine.RunCycles (kWaitCycles / 40);
+        rig.machine.GetRunner().RunCycles (kWaitCycles / 40);
 
         Assert::IsTrue   (rig.Row80 (kRowStatus).ends_with ("Uthernet II, slot 3"), TextEncoding::NarrowToWide (rig.Row80 (kRowStatus)).c_str());
         Assert::AreEqual (std::string (80 - address.size(), ' ') + address, rig.Row80 (kRowCard), L"the address right-justified under the connection");

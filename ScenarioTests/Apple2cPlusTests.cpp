@@ -45,7 +45,7 @@ public:
 
         machine.PowerCycle();
         GuestSession::StartFromPowerOn (machine);
-        machine.RunCycles (kSettle);
+        machine.GetRunner().RunCycles (kSettle);
 
         for (size_t i = 0; i < std::size (program); i++)
         {
@@ -56,7 +56,7 @@ public:
 
         while (machine.GetCpu()->GetPC() != kDone && spent < kCap)
         {
-            spent += machine.StepOne();
+            spent += machine.GetRunner().StepOne();
         }
 
         Assert::IsTrue (spent < kCap, L"the loop finishes");
@@ -99,8 +99,8 @@ public:
 
         machine.PowerCycle();
         GuestSession::StartFromPowerOn (machine);
-        machine.RunCycles (kPowerOn);
-        machine.AttachObservers (observers);
+        machine.GetRunner().RunCycles (kPowerOn);
+        machine.GetObserverWiring().AttachObservers (observers);
 
         resetAt = machine.GetCpu()->GetTotalCycles();
         keyboard->HoldAppleKeysThroughReset (true, false);
@@ -108,7 +108,7 @@ public:
 
         for (uint32_t ran = 0; ran < Apple2eKeyboard::kResetHoldCycles && sink.readAt.empty(); ran += kTick)
         {
-            machine.RunCycles (kTick);
+            machine.GetRunner().RunCycles (kTick);
             keyboard->TickResetHold (kTick);
         }
 

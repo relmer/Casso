@@ -86,7 +86,7 @@ void MachineDebugTarget::SetHeatMapOn (bool on)
 
     if (on)
     {
-        m_heat.SetPositionSource (m_host.GetPositionPtr());
+        m_heat.SetPositionSource (m_host.GetRunner().GetPositionPtr());
         m_heat.Start (GetInstructionSet(), GetHistoryCycleCount());
 
         isConnected = TryConnectHeatMap (m_host, &m_heat);
@@ -761,7 +761,7 @@ bool MachineDebugTarget::IsPausePending() const
 
 void MachineDebugTarget::SetHookInstalled (bool installed)
 {
-    m_host.SetDebugHook (installed ? &m_runHook : nullptr);
+    m_host.GetRunner().SetDebugHook (installed ? &m_runHook : nullptr);
 }
 
 
@@ -776,7 +776,7 @@ void MachineDebugTarget::SetHookInstalled (bool installed)
 
 void MachineDebugTarget::SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher)
 {
-    m_host.SetOpcodeWatch (opcodes, watcher);
+    m_host.GetRunner().SetOpcodeWatch (opcodes, watcher);
 }
 
 
@@ -867,7 +867,7 @@ VideoPosition MachineDebugTarget::GetVideoPosition() const
 
 TapeDeck * MachineDebugTarget::GetTapeDeck()
 {
-    return (m_host.GetRefs().cassettePort != nullptr) ? &m_host.GetTapeDeck() : nullptr;
+    return (m_host.GetRefs().cassettePort != nullptr) ? &m_host.GetTape().GetDeck() : nullptr;
 }
 
 
@@ -1261,7 +1261,7 @@ void MachineDebugTarget::GetTraceWindow (size_t first, size_t count, std::vector
 
 std::vector<const IDiagnosticsProvider *> MachineDebugTarget::GetDiagnosticsProviders() const
 {
-    return m_host.GetDiagnosticsProviders();
+    return m_host.GetClockPanel().GetProviders();
 }
 
 

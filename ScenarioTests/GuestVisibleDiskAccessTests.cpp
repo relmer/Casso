@@ -73,7 +73,7 @@ public:
                 }
             }
 
-            cycles += std::max<uint64_t> (machine.StepOne(), 1);
+            cycles += std::max<uint64_t> (machine.GetRunner().StepOne(), 1);
         }
     }
 

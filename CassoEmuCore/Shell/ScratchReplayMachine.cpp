@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Shell/MachineReplayMedia.h"
+#include "Shell/MachineStorage.h"
 #include "Shell/ScratchReplayMachine.h"
 
 #include "Core/Prng.h"
@@ -104,7 +104,7 @@ HRESULT ScratchReplayMachine::Build()
     CHR (hr);
 
     m_machine->GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
-    m_machine->SetOutputMuted (true);
+    m_machine->GetOutputMute().SetMuted (true);
 
     m_replayer = std::make_unique<Replayer> (*m_machine, m_noKeyframes);
     m_replayer->SetOverMountedMedia (true);
@@ -186,7 +186,7 @@ HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks,
         m_mounted[bay] = disk.mediaId;
     }
 
-    hr = MachineReplayMedia::Mount (m_machine->GetRefs(), blockMedia, m_mountedBlocks);
+    hr = m_machine->GetStorage().MountReplayMedia (blockMedia, m_mountedBlocks);
     CHR (hr);
 
 Error:
@@ -228,10 +228,10 @@ void ScratchReplayMachine::Release()
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ScratchReplayMachine::IsSavedWith (
-    const MachineHost::MediaIds    & saved,
+    const MachineStateStream::MediaIds    & saved,
     const std::vector<ReplayDisk>  & disks)
 {
-    MachineHost::MediaIds  given = {};
+    MachineStateStream::MediaIds  given = {};
 
 
 

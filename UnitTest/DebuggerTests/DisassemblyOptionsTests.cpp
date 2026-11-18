@@ -1229,7 +1229,7 @@ namespace DisassemblyOptionsTests
             rig.controller.GetSession().GetTarget().SetRegisters (r);
 
             (void) rig.view.Build (rig.controller.GetSession());
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = std::make_shared<DebuggerViewSnapshot> (rig.view.Build (rig.controller.GetSession()));
 
             Assert::AreEqual ((int) 0x0300, (int) snapshot->pc);

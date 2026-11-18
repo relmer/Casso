@@ -67,7 +67,7 @@ public:
             AssertSucceeded (hr, L"StepBack");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
-            Assert::AreEqual<uint64_t> (steps[index].position, machine.GetPosition(), L"one instruction back");
+            Assert::AreEqual<uint64_t> (steps[index].position, machine.GetRunner().GetPosition(), L"one instruction back");
             Assert::AreEqual<Word>     (steps[index].pc,       machine.GetCpu()->GetPC(), L"PC");
             Assert::AreEqual<uint64_t> (steps[index].checksum, ReverseSessionRig::Checksum (machine),
                                         std::format (L"the whole machine at position {}", steps[index].position).c_str());
@@ -316,7 +316,7 @@ public:
 
         Record (machine, controller, steps, nullptr);
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
         start   = steps.size() / 4;
 
         hr = controller.SeekToPosition (steps[start].position, result);
@@ -326,13 +326,13 @@ public:
 
         for (index = start + 1; index < steps.size(); index++)
         {
-            machine.StepOne();
+            machine.GetRunner().StepOne();
 
             //  A key the host pressed is recorded when the guest reads it, so
             //  between the press and the read the live machine held a latch
             //  the replay sets only at the read. The path is compared at
             //  every position, and the whole machine at the end.
-            Assert::AreEqual<uint64_t> (steps[index].position, machine.GetPosition(), L"one instruction on");
+            Assert::AreEqual<uint64_t> (steps[index].position, machine.GetRunner().GetPosition(), L"one instruction on");
             Assert::AreEqual<Word>     (steps[index].pc,       machine.GetCpu()->GetPC(),
                                         std::format (L"the PC at position {}", steps[index].position).c_str());
             Assert::AreEqual<uint64_t> (steps[index].cycle,    machine.GetCpu()->GetTotalCycles(), L"the cycle count");
@@ -346,10 +346,10 @@ public:
 
         Assert::AreEqual<uint64_t> (steps.back().checksum, ReverseSessionRig::Checksum (machine), L"the whole machine at the end of history");
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         Assert::IsFalse (controller.IsInHistory(), L"live once the end of history is reached");
-        Assert::AreEqual<uint64_t> (liveEnd + 1, machine.GetPosition());
+        Assert::AreEqual<uint64_t> (liveEnd + 1, machine.GetRunner().GetPosition());
     }
 
 
@@ -368,7 +368,7 @@ public:
 
         Record (machine, controller, steps, nullptr);
 
-        liveEnd = machine.GetPosition();
+        liveEnd = machine.GetRunner().GetPosition();
 
         hr = controller.SeekToPosition (steps[steps.size() / 2].position, result);
         AssertSucceeded (hr, L"SeekToPosition");
@@ -412,11 +412,11 @@ public:
         hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (kRunCycles);
+        machine.GetRunner().RunCycles (kRunCycles);
 
-        before = machine.GetPosition();
+        before = machine.GetRunner().GetPosition();
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
         original = machine.GetMemoryBus().ReadByte (kEdited);
         Assert::AreNotEqual ((int) kValue, (int) original);
@@ -426,7 +426,7 @@ public:
         hr = controller.OnMachineChanged();
         AssertSucceeded (hr, L"OnMachineChanged");
 
-        machine.RunCycles (kRunCycles);
+        machine.GetRunner().RunCycles (kRunCycles);
 
         hr = controller.SeekToPosition (before, result);
         AssertSucceeded (hr, L"SeekToPosition before the edit");
@@ -445,10 +445,10 @@ public:
 
         Assert::AreEqual (count - 2, controller.GetKeyframes().GetCount(), L"the oldest group was dropped");
 
-        machine.StepOne();
-        machine.StepOne();
+        machine.GetRunner().StepOne();
+        machine.GetRunner().StepOne();
 
-        Assert::AreEqual<uint64_t> (before + 2, machine.GetPosition(), L"the machine stepped past the edit");
+        Assert::AreEqual<uint64_t> (before + 2, machine.GetRunner().GetPosition(), L"the machine stepped past the edit");
         Assert::AreEqual           ((int) kValue, (int) machine.GetMemoryBus().ReadByte (kEdited), L"the edit's boundary keyframe was loaded");
     }
 
@@ -478,7 +478,7 @@ public:
         hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (kRunCycles);
+        machine.GetRunner().RunCycles (kRunCycles);
 
         Assert::IsTrue (controller.GetKeyframes().GetCount() > 4, L"several groups recorded");
 
@@ -492,9 +492,9 @@ public:
 
         Assert::IsTrue (controller.GetKeyframes().TryFindByPosition (position, here), L"a keyframe at or before the machine's position");
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
-        Assert::AreEqual<uint64_t> (position + 1, machine.GetPosition(), L"the machine stepped on");
+        Assert::AreEqual<uint64_t> (position + 1, machine.GetRunner().GetPosition(), L"the machine stepped on");
         Assert::IsTrue             (controller.IsInHistory(), L"still in history");
     }
 
@@ -580,7 +580,7 @@ public:
         session.GetBreakpoints().TrySetFlags (counting, false, false);
         session.ExecuteLine ("BPMW 300");
 
-        machine.SetDebugHook (&session);
+        machine.GetRunner().SetDebugHook (&session);
 
         probe.watchAddr = ReverseSessionRig::kKeyStore;
 
@@ -618,7 +618,7 @@ public:
 
         for (i = 0; i < s_kCommandSteps && GetBreakpointHits (session, counting) == 0; i++)
         {
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
 
         Assert::IsTrue (GetBreakpointHits (session, counting) > 0, L"running live, the counting breakpoint counts");
@@ -649,7 +649,7 @@ public:
         AssertSucceeded (hr, L"Start");
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kCommandWarmupCycles);
+        machine.GetRunner().RunCycles (s_kCommandWarmupCycles);
 
         StepLive (machine, s_kCommandGapSteps, before);
         gapStart = before.back();
@@ -658,7 +658,7 @@ public:
         AssertSucceeded (hr, L"SetUserMaximumSpeed on");
 
         keyframes = controller.GetKeyframes().GetCount();
-        machine.RunCycles (s_kCommandGapCycles);
+        machine.GetRunner().RunCycles (s_kCommandGapCycles);
 
         Assert::AreEqual (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe is taken while paused");
 
@@ -669,7 +669,7 @@ public:
 
         Assert::IsTrue (resumed.hasGapBefore, L"recording resumed with a keyframe after a gap");
         Assert::AreEqual<uint64_t> (gapStart.position, resumed.gapStart, L"the gap starts where recording paused");
-        Assert::AreEqual<uint64_t> (machine.GetPosition(), resumed.position, L"and ends where it resumed");
+        Assert::AreEqual<uint64_t> (machine.GetRunner().GetPosition(), resumed.position, L"and ends where it resumed");
 
         StepLive (machine, s_kCommandGapSteps, after);
 
@@ -736,7 +736,7 @@ private:
         // Paddle 0 at zero keeps each pass of the loop short, so the
         // recording holds several calls to the write routine.
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
-        machine.RunCycles (s_kCommandWarmupCycles);
+        machine.GetRunner().RunCycles (s_kCommandWarmupCycles);
 
         if (probe != nullptr)
         {
@@ -750,7 +750,7 @@ private:
                 machine.GetRefs().keyboard->PressKey (static_cast<Byte> ('a' + i / kKeyEvery));
             }
 
-            step.position = machine.GetPosition();
+            step.position = machine.GetRunner().GetPosition();
             step.pc       = machine.GetCpu()->GetPC();
             step.cycle    = machine.GetCpu()->GetTotalCycles();
             step.checksum = ReverseSessionRig::Checksum (machine);
@@ -768,7 +768,7 @@ private:
 
             if (i < s_kCommandSteps)
             {
-                machine.StepOne();
+                machine.GetRunner().StepOne();
             }
         }
     }
@@ -785,7 +785,7 @@ private:
 
         for (i = 0; i <= count; i++)
         {
-            step.position = machine.GetPosition();
+            step.position = machine.GetRunner().GetPosition();
             step.pc       = machine.GetCpu()->GetPC();
             step.cycle    = machine.GetCpu()->GetTotalCycles();
             step.checksum = ReverseSessionRig::Checksum (machine);
@@ -793,7 +793,7 @@ private:
 
             if (i < count)
             {
-                machine.StepOne();
+                machine.GetRunner().StepOne();
             }
         }
     }
@@ -801,7 +801,7 @@ private:
 
     static void CheckStep (TestMachine & machine, const Step & expected, const wchar_t * when)
     {
-        Assert::AreEqual<uint64_t> (expected.position, machine.GetPosition(),     std::format (L"{}: position", when).c_str());
+        Assert::AreEqual<uint64_t> (expected.position, machine.GetRunner().GetPosition(),     std::format (L"{}: position", when).c_str());
         Assert::AreEqual<Word>     (expected.pc,       machine.GetCpu()->GetPC(), std::format (L"{}: PC at position {}", when, expected.position).c_str());
         Assert::AreEqual<uint64_t> (expected.checksum, ReverseSessionRig::Checksum (machine),
                                     std::format (L"{}: the whole machine at position {}", when, expected.position).c_str());

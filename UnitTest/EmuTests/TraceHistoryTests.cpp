@@ -50,7 +50,7 @@ namespace TraceHistoryTests
             logs.GetTraceHistory().SetIsStopped ([] { return true; });
 
             trace.On();
-            machine.RunCycles (kRunCycles);
+            machine.GetRunner().RunCycles (kRunCycles);
 
             hr = controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");
@@ -105,7 +105,7 @@ namespace TraceHistoryTests
             TraceRig                         rig;
             std::vector<TraceHistoryEntry>   rebuilt;
             Cpu::TraceEntry                  live      = {};
-            uint64_t                         position  = rig.machine.GetPosition();
+            uint64_t                         position  = rig.machine.GetRunner().GetPosition();
             size_t                           size      = rig.GetCpu()->GetTraceSize();
             size_t                           i         = 0;
 
@@ -146,7 +146,7 @@ namespace TraceHistoryTests
 
             rig.trace.SetHistory (&rig.logs.GetTraceHistory());
 
-            Assert::AreEqual ((uint64_t) (rig.machine.GetPosition() - oldest), (uint64_t) rig.trace.GetSize(), L"every instruction since history began");
+            Assert::AreEqual ((uint64_t) (rig.machine.GetRunner().GetPosition() - oldest), (uint64_t) rig.trace.GetSize(), L"every instruction since history began");
             Assert::IsTrue   (rig.trace.GetSize() > TraceController::kCapacity, L"more than the ring's capacity");
 
             rig.trace.GetWindow (0, 3, window);
@@ -176,7 +176,7 @@ namespace TraceHistoryTests
             std::vector<TraceHistoryEntry>   rebuilt;
             std::vector<TraceSpan>           spans;
             uint64_t                         oldest   = rig.controller.GetKeyframes().GetInfo (0).position;
-            uint64_t                         position = rig.machine.GetPosition();
+            uint64_t                         position = rig.machine.GetRunner().GetPosition();
 
 
 
@@ -284,7 +284,7 @@ namespace TraceHistoryTests
 
             rig.trace.SetHistory (&rig.logs.GetTraceHistory());
             rig.trace.Off();
-            rig.machine.RunCycles (200'000);
+            rig.machine.GetRunner().RunCycles (200'000);
 
             hr = rig.controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");

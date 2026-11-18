@@ -716,7 +716,7 @@ void ShellWindow::InstallDragDropTarget()
     {
         if (path != lastPath)
         {
-            lastClass = ImageClassifier::Classify (m_shell.m_machine.GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
+            lastClass = ImageClassifier::Classify (m_shell.m_machine.GetStorage().GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
             lastPath  = path;
         }
 

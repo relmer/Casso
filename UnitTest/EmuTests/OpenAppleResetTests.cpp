@@ -45,7 +45,7 @@ public:
 
         machine.GetRefs().iieKeyboard->SetOpenApple (true);
         machine.SoftReset();
-        machine.RunCycles (kSettleCycles);
+        machine.GetRunner().RunCycles (kSettleCycles);
         machine.GetRefs().iieKeyboard->SetOpenApple (false);
 
         Assert::AreEqual<Word> (kEmptyProgramEnd, ProgramEnd (machine),
@@ -61,7 +61,7 @@ public:
         PretendAProgramIsLoaded (machine);
 
         machine.SoftReset();
-        machine.RunCycles (kSettleCycles);
+        machine.GetRunner().RunCycles (kSettleCycles);
 
         Assert::AreEqual<Word> (kFakeProgramEnd, ProgramEnd (machine),
             L"a plain reset is a warm start, and the program stays");
@@ -215,7 +215,7 @@ private:
     static void BootToPrompt (MachineHost & machine)
     {
         machine.PowerCycle();
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
     }
 
 
@@ -232,7 +232,7 @@ private:
     {
         for (uint32_t ran = 0; ran < cycles; ran += kTickCycles)
         {
-            machine.RunCycles (kTickCycles);
+            machine.GetRunner().RunCycles (kTickCycles);
             machine.GetRefs().iieKeyboard->TickResetHold (kTickCycles);
         }
     }
@@ -254,9 +254,9 @@ private:
 
         machine.GetRefs().iieKeyboard->SetOpenApple (true);
         machine.SoftReset();
-        machine.RunCycles (cycles);
+        machine.GetRunner().RunCycles (cycles);
         machine.GetRefs().iieKeyboard->SetOpenApple (false);
-        machine.RunCycles (kSettleCycles);
+        machine.GetRunner().RunCycles (kSettleCycles);
 
         return ProgramEnd (machine) == kEmptyProgramEnd;
     }
@@ -273,11 +273,11 @@ private:
         observers.input = &sink;
 
         BootToPrompt (machine);
-        machine.AttachObservers (observers);
+        machine.GetObserverWiring().AttachObservers (observers);
 
         resetAt = machine.GetCpu()->GetTotalCycles();
         machine.SoftReset();
-        machine.RunCycles (kIIcSettleCycles);
+        machine.GetRunner().RunCycles (kIIcSettleCycles);
 
         Assert::IsFalse (sink.readAt.empty(), L"the //c firmware reads $C061 after a reset");
 

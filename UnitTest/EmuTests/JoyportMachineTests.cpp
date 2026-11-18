@@ -138,7 +138,7 @@ public:
         {
             PretendAProgramIsLoaded (machine);
             machine.SoftReset();
-            machine.RunCycles (kSettleCycles);
+            machine.GetRunner().RunCycles (kSettleCycles);
 
             Assert::AreEqual<Word> (kFakeProgramEnd, ProgramEnd (machine),
                 std::format (L"reset {} was not a plain warm reset", i + 1).c_str());
@@ -195,7 +195,7 @@ public:
         machine.GetJoyport()->SetAttached (true);
 
         machine.SoftReset();
-        machine.RunCycles (kSettleCycles);
+        machine.GetRunner().RunCycles (kSettleCycles);
 
         Assert::AreEqual<Word> (kFakeProgramEnd, ProgramEnd (machine), L"still a plain warm reset");
     }
@@ -238,7 +238,7 @@ public:
         Assert::AreEqual<Byte> (0x00, ReadButton (machine, kPb0),
             L"right after power-on PB0 is the keyboard's Open Apple, released, not the Joyport's open line");
 
-        machine.RunCycles (SiriusJoyport::kReleaseCycles);
+        machine.GetRunner().RunCycles (SiriusJoyport::kReleaseCycles);
         Assert::AreEqual<Byte> (0x80, ReadButton (machine, kPb0), L"and the Joyport's once the window has run");
     }
 
@@ -340,7 +340,7 @@ protected:
     {
         for (uint32_t ran = 0; ran < cycles; ran += kTickCycles)
         {
-            machine.RunCycles (kTickCycles);
+            machine.GetRunner().RunCycles (kTickCycles);
             machine.GetRefs().iieKeyboard->TickResetHold (kTickCycles);
         }
     }
@@ -349,7 +349,7 @@ protected:
     static void BootToPrompt (MachineHost & machine)
     {
         machine.PowerCycle();
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
     }
 
 
@@ -384,7 +384,7 @@ protected:
         constexpr uint32_t  kPastFullScale = 3'000;
 
         machine.GetMemoryBus().ReadByte (0xC070);
-        machine.RunCycles (kPastFullScale);
+        machine.GetRunner().RunCycles (kPastFullScale);
 
         return (machine.GetMemoryBus().ReadByte (0xC064) & kButtonBit) != 0;
     }

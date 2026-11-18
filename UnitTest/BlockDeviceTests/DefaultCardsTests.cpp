@@ -78,11 +78,11 @@ public:
 
         TestMachine  machine ("Apple2e", std::vector<PortConfig>(), io);
 
-        AssertSucceeded (machine.InsertFloppy35 (5, 0, "d.po", error));
-        Assert::IsTrue (machine.FindFloppy35 (5, 0)->HasDisk());
+        AssertSucceeded (machine.GetStorage().InsertFloppy35 (5, 0, "d.po", error));
+        Assert::IsTrue (machine.GetStorage().FindFloppy35 (5, 0)->HasDisk());
 
-        AssertSucceeded (machine.EjectFloppy35 (5, 0));
-        Assert::IsNull (machine.FindFloppy35 (4, 0));
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), machine.InsertFloppy35 (4, 0, "d.po", error));
+        AssertSucceeded (machine.GetStorage().EjectFloppy35 (5, 0));
+        Assert::IsNull (machine.GetStorage().FindFloppy35 (4, 0));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), machine.GetStorage().InsertFloppy35 (4, 0, "d.po", error));
     }
 };

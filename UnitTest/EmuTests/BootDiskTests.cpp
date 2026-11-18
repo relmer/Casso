@@ -208,11 +208,11 @@ public:
         for (size_t i = 0; typed[i] != '\0'; i++)
         {
             machine.GetRefs().iieKeyboard->PressKey (typed[i]);
-            machine.RunCycles (100'000ULL);
+            machine.GetRunner().RunCycles (100'000ULL);
         }
 
         machine.GetRefs().iieKeyboard->PressKey ('\r');
-        machine.RunCycles (2'000'000ULL);
+        machine.GetRunner().RunCycles (2'000'000ULL);
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
 
@@ -510,7 +510,7 @@ public:
             //  the exit bugs were all found by hand in the emulator
             //  instead. Booting the way the machine does costs about
             //  200k cycles.
-            machine.RunCycles (kDemoCycleBudget);
+            machine.GetRunner().RunCycles (kDemoCycleBudget);
 
             // BOOT LANDING IS THE QUESTION, NOT A PICTURE. Nothing can
             // detect the monitor -- no Apple II can, the video connectors
@@ -555,7 +555,7 @@ public:
             //  display switches, and the picture is there immediately.
             Assert::IsNotNull (machine.GetRefs().iieKeyboard, L"AppleKeyboard must be present");
             machine.GetRefs().iieKeyboard->PressKey ('M');
-            machine.RunCycles (200'000ULL);
+            machine.GetRunner().RunCycles (200'000ULL);
 
             Assert::IsTrue (ss->IsGraphicsMode(),
                 L"Answering M must leave the //e in graphics mode (TEXT off)");
@@ -662,7 +662,7 @@ public:
             // is asserted is the switch state and that page 2 still holds
             // the image.
             machine.GetRefs().iieKeyboard->PressKey (' ');
-            machine.RunCycles (200'000ULL);
+            machine.GetRunner().RunCycles (200'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 1 (HGR mono) must keep HIRES on");
             Assert::IsTrue (ss->IsPage2(),
@@ -683,7 +683,7 @@ public:
             //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
             //  models what BKGND paints, mask by mask, against the ROM.
             machine.GetRefs().iieKeyboard->PressKey (' ');
-            machine.RunCycles (1'500'000ULL);
+            machine.GetRunner().RunCycles (1'500'000ULL);
 
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 2 (sweep) must turn HIRES on");
@@ -710,7 +710,7 @@ public:
                 Assert::IsTrue (intact < kHgrPayloadSize,
                     L"the sweep must paint over what step 1 left on the page");
 
-                machine.RunCycles (1'500'000ULL);
+                machine.GetRunner().RunCycles (1'500'000ULL);
 
                 Assert::AreNotEqual (mask, machine.GetMemoryBus().ReadByte (0x0048),
                     L"the sweep's mask counter must keep advancing, or the "
@@ -719,7 +719,7 @@ public:
 
             quietMark = machine.GetRefs().speaker->GetToggleTimestamps().size();
             machine.GetRefs().iieKeyboard->PressKey (' ');
-            machine.RunCycles (500'000ULL);
+            machine.GetRunner().RunCycles (500'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
             //  dropped into Applesoft with the 80-column hardware on and
@@ -763,13 +763,13 @@ public:
             Assert::IsNotNull (ss,     L"soft switches must survive the re-boot");
             Assert::IsNotNull (auxBuf, L"aux buffer must survive the re-boot");
 
-            machine.RunCycles (kDemoCycleBudget);
+            machine.GetRunner().RunCycles (kDemoCycleBudget);
 
             Assert::IsFalse (ss->IsGraphicsMode(),
                 L"The re-booted demo must wait in TEXT for its answer too");
 
             machine.GetRefs().iieKeyboard->PressKey ('C');
-            machine.RunCycles (600'000ULL);
+            machine.GetRunner().RunCycles (600'000ULL);
 
             Assert::IsTrue (ss->IsGraphicsMode(),
                 L"Answering C must leave the //e in graphics mode");
@@ -794,7 +794,7 @@ public:
             // Step 1 on the color answer is the HGR color cassowary,
             // restored from the main $A000 stash to page 1.
             machine.GetRefs().iieKeyboard->PressKey (' ');
-            machine.RunCycles (300'000ULL);
+            machine.GetRunner().RunCycles (300'000ULL);
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 1 (HGR color) must keep HIRES on");
             Assert::IsFalse (ss->IsPage2(),
@@ -820,7 +820,7 @@ public:
             //  Applesoft_HgrColorSweep_AllMasksMatchRomFill below already
             //  models what BKGND paints, mask by mask, against the ROM.
             machine.GetRefs().iieKeyboard->PressKey (' ');
-            machine.RunCycles (1'500'000ULL);
+            machine.GetRunner().RunCycles (1'500'000ULL);
 
             Assert::IsTrue (ss->IsHiresMode(),
                 L"Step 2 (sweep) must turn HIRES on");
@@ -847,7 +847,7 @@ public:
                 Assert::IsTrue (intact < kHgrPayloadSize,
                     L"the sweep must paint over what step 1 left on the page");
 
-                machine.RunCycles (1'500'000ULL);
+                machine.GetRunner().RunCycles (1'500'000ULL);
 
                 Assert::AreNotEqual (mask, machine.GetMemoryBus().ReadByte (0x0048),
                     L"the sweep's mask counter must keep advancing, or the "
@@ -860,7 +860,7 @@ public:
             //  whichever step it was called from.
             quietMark = machine.GetRefs().speaker->GetToggleTimestamps().size();
             machine.GetRefs().iieKeyboard->PressKey (0x1B);
-            machine.RunCycles (200'000ULL);
+            machine.GetRunner().RunCycles (200'000ULL);
             //  IT HAS TO LEAVE THE VIDEO HARDWARE HABITABLE. The reset
             //  handler does not clear 80COL, so exiting from a DHGR step
             //  dropped into Applesoft with the 80-column hardware on and
@@ -1047,7 +1047,7 @@ public:
     //  RunUntilPc
     //
     //  Steps the CPU until the program counter reaches `stopPc` or the
-    //  cycle budget is exhausted, mirroring MachineHost::RunCycles'
+    //  cycle budget is exhausted, mirroring MachineRunner::RunCycles'
     //  step/accumulate pairing. Returns the cycles actually consumed so
     //  callers can time an individual ROM call.
     //
@@ -1274,7 +1274,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kSweepColdBootCycles);
+        machine.GetRunner().RunCycles (kSweepColdBootCycles);
 
         // HGR: select page 1, clear it, latch the display mode
         PlantHgrStub (machine);
@@ -1369,7 +1369,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kSweepColdBootCycles);
+        machine.GetRunner().RunCycles (kSweepColdBootCycles);
 
         AppleHiResMode   hires (machine.GetMemoryBus());
 
@@ -1424,7 +1424,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kSweepColdBootCycles);
+        machine.GetRunner().RunCycles (kSweepColdBootCycles);
 
         consumed = KeystrokeInjector::InjectString (machine, kSweepOneLiner);
         Assert::AreEqual (strlen (kSweepOneLiner), consumed,
@@ -1443,7 +1443,7 @@ public:
         // never phase-flips.
         while (elapsed < kSweepCycleCeiling)
         {
-            machine.RunCycles (kSweepPollChunk);
+            machine.GetRunner().RunCycles (kSweepPollChunk);
             elapsed = machine.GetCpu()->GetTotalCycles() - startCycles;
 
             if (machine.GetMemoryBus().ReadByte (kZpColorMask) == kLastColorMask &&

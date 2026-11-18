@@ -488,7 +488,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
         // The recorder outlives the machine; stop it while the old CPU's
         // cycle count is still valid. The tape stays inserted.
-        m_shell.m_machine.StopTape();
+        m_shell.m_machine.GetTape().Stop();
 
         m_shell.m_machine.SetCpu (nullptr);
         // The //c ROM-bank coordinator holds references into the language card

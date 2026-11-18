@@ -48,7 +48,7 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
 
         CBREx (!isStopped, E_ABORT);
 
-        host.RunCycles (limits.sliceCycles);
+        host.GetRunner().RunCycles (limits.sliceCycles);
 
         RenderFrame (host, builder, outReport.frame, outReport.width, outReport.height);
 
@@ -176,7 +176,7 @@ void BootProbe::ReadLoop (MachineHost & host, const Limits & limits, Trace & ioT
 
     for (int i = 0; i < kEndPcs; i++)
     {
-        host.RunCycles (kEndCycles);
+        host.GetRunner().RunCycles (kEndCycles);
         ioTrace.endPcs.push_back (host.GetCpu()->GetPC());
     }
 

@@ -124,7 +124,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
     }
 
 
@@ -256,7 +256,7 @@ public:
         Assert::AreEqual (size_t (3), consumed,
             L"`GR` + Return must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"GR must engage graphics mode (TEXT off)");
@@ -301,7 +301,7 @@ public:
         Assert::AreEqual (size_t (4), consumed,
             L"`HGR` + Return must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR must engage graphics mode (TEXT off)");
@@ -316,7 +316,7 @@ public:
         Assert::IsTrue (consumed >= 18,
             L"HPLOT line must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape40 (
             machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
@@ -345,7 +345,7 @@ public:
         Assert::AreEqual (size_t (5), consumed,
             L"`HGR2` + Return must be fully consumed");
 
-        machine.RunCycles (kAfterCommandCycles);
+        machine.GetRunner().RunCycles (kAfterCommandCycles);
 
         Assert::IsTrue  (machine.GetRefs().iieSoftSwitches->IsGraphicsMode(),
             L"HGR2 must engage graphics mode (TEXT off)");
@@ -392,7 +392,7 @@ public:
         AssertSucceeded (hr, L"BuildApple2e must succeed");
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
 
         // Engage HIRES + MIXED + 80COL via the documented soft-switch
         // surface. Drives the same flag state Applesoft would set after
@@ -497,7 +497,7 @@ public:
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
             L"DOS 3.3 .dsk mount must produce a nibblized track 0");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
@@ -549,7 +549,7 @@ public:
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
@@ -608,7 +608,7 @@ public:
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
@@ -646,7 +646,7 @@ public:
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
             L"CP-style WOZ must preserve the non-standard 50000-bit track length");
 
-        machine.RunCycles (kBootDiskCycles);
+        machine.GetRunner().RunCycles (kBootDiskCycles);
 
         bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
