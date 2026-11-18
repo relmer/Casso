@@ -1387,6 +1387,7 @@
     <ClCompile Include="Apple3Tests\Apple3SerialTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3StateTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3PlusTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3ProFileTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3SymbolsTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3TimingTests.cpp" />
     <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />

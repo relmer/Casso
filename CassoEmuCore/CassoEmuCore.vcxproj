@@ -1698,6 +1698,7 @@
     <ClCompile Include="Devices\Network\W5100SocketBridge.cpp" />
     <ClCompile Include="Machines\Apple2\Common\UthernetCard.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Mmu.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3ProFileCard.cpp" />
     <ClCompile Include="Machines\Apple3\Cpu6502Apple3.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3SystemVias.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Slots.cpp" />
@@ -3177,6 +3178,7 @@
     <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
     <ClInclude Include="Machines\Apple2\Common\ReadEdges.h" />
     <ClInclude Include="Machines\Apple3\Apple3Mmu.h" />
+    <ClInclude Include="Machines\Apple3\Apple3ProFileCard.h" />
     <ClInclude Include="Machines\Apple3\Cpu6502Apple3.h" />
     <ClInclude Include="Machines\Apple3\IExtendedAddressing.h" />
     <ClInclude Include="Machines\Apple3\Apple3SystemVias.h" />

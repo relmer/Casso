@@ -320,8 +320,8 @@ Depends on Phase 7.
 Blocked until a merge from `035-debugger` includes 048.
 
 - [x] T136 [US11] Merge `035-debugger` once it contains 048; confirm `ProFileDrive`, `ProFileCard` and the ProFile models are present. 048 reached 050 through 035 earlier, and merge `dcfc62663` brings 035 to `e1803dcda`
-- [ ] T137 [P] [US11] Write tests for the ProFile interface card in an Apple /// slot (handshake, read, write, both sizes) in `UnitTest/Apple3Tests/Apple3ProFileTests.cpp`
-- [ ] T138 [US11] Add card support to `Apple3Slots` (from T019a) and implement the Apple /// ProFile interface card over 048's `ProFileDrive` in `CassoEmuCore/Machines/Apple3/`
+- [x] T137 [P] [US11] Write tests for the ProFile interface card in an Apple /// slot (handshake, read, write, both sizes) in `UnitTest/Apple3Tests/Apple3ProFileTests.cpp`
+- [x] T138 [US11] Add card support to `Apple3Slots` (from T019a) and implement the Apple /// ProFile interface card over 048's `ProFileDrive` in `CassoEmuCore/Machines/Apple3/`. `Apple3ProFileCard` reuses 048's `ProFileDrive` and decodes the line latch as the Apple /// interface schematic (050-5007-A) has it: a 9334 with A0, A1 and A3 selecting the line and A2 its level
 - [ ] T139 [US11] Offer the card in slot settings, attach it by default in slot 4 in both machine files, and add the ProFile placement setting (on the computer, to the side, hidden)
 - [ ] T140 [US11] Place 048's ProFile models in the stack, check the fit rules against the body's measured top (FR-065), and model the card's connector in its slot opening (FR-060)
 - [ ] T141 [US11] Add a scenario test: boot SOS with `.PROFILE`, format, copy files, read them back from the image, for 5 MB and 10 MB
