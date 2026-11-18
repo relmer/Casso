@@ -1284,9 +1284,8 @@ void ShellDeskScene::SyncSceneDriveChrome()
 //  reserves its height above (both scene branches shrink the rect they
 //  compose into by exactly that much) and the drives never sit on it.
 //
-//  Ellipsized through the shared pure truncation helper against the real text
-//  measurement, so a long name ends in a single ellipsis instead of wrapping
-//  out of the strip. The tooltip still carries the full name.
+//  A long name ends in an ellipsis, fitted against the text renderer's
+//  measurement, and scrolls whole while the pointer is on it.
 //
 //  Fullscreen shows no labels: the picture owns the client and the drives are
 //  only briefly on screen in the overlay strip, which has its own tooltip.
@@ -1376,10 +1375,6 @@ void ShellDeskScene::SyncSceneDriveLabels()
         // hung off the drive's projected anchor -- one model point rather
         // than the drive's swelling bounds, so it rides the orbit rigidly.
         //
-        // The desk bakes the whole name and scrolls it under the pointer; only
-        // the chrome label is cut short to fit.
-        fullNames[i] = name;
-
         if (!name.empty())
         {
             rc.left   = comp.driveLabelPx[i].x - halfW;
@@ -1411,6 +1406,18 @@ void ShellDeskScene::SyncSceneDriveLabels()
             m_sceneLabelSpan[kSceneInfoIconCell + i] = { (iconRc.left + iconRc.right) / 2 - comp.driveLabelPx[i].x, iconRc.right - iconRc.left };
             fullNames[kSceneInfoIconCell + i]        = s_kpszMdl2Info;
         }
+
+        // A name too long for its strip ends in an ellipsis, except while the
+        // pointer is on it, when the whole name scrolls. The fit test is the
+        // marquee's: the strip's width less the glow on each side.
+        if (i != m_sceneLabelHover && text != nullptr)
+        {
+            name = DxuiTextElide::ToWidth (*text, name, fontPx, DxuiTheme::kBodyFace,
+                                           (float) (nameRc.right - nameRc.left) - 2.0f * DxuiShadowedText::kGlowReachPx,
+                                           DxuiElide::Tail);
+        }
+
+        fullNames[i] = name;
 
         // On the strip a long name scrolls under the pointer, as on the desk,
         // whose baked names keep their own periods.
