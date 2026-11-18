@@ -220,7 +220,7 @@ reads the clock and both joystick ports.
 - [x] T084 [P] [US4] Implement `Apple3AnalogInputs` over 034's controller assignments in `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.h` and `.cpp`
 - [ ] T085 [US4] Complete the keyboard: PC key mappings for every Apple /// key in the settings key list, repeat rates, pasted text (FR-025), and Control with Reset obeying the environment register's reset bit, in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.cpp` and `CassoEmuCore/Ui/Settings/`
 - [ ] T086 [US4] Run the Confidence Test disk in the scenario suite (SC-002) in `ScenarioTests/Apple3SosTests.cpp`, after T089, since the test includes the serial port. Machine Configuration passes at 128K and 256K, and so does the Memory Test at 128K (`ConfidenceProgram_*`). The disk tests use an external test diskette, which the program makes from a disk formatted by the System Utilities; that step does not advance yet
-- [ ] T087 [US4] Write a timing test program and check SC-005 at 2 MHz and 1 MHz in `UnitTest/Apple3Tests/Apple3TimingTests.cpp`
+- [x] T087 [US4] Write a timing test program and check SC-005 at 2 MHz and 1 MHz in `UnitTest/Apple3Tests/Apple3TimingTests.cpp`. Timed by D VIA timer 2, the ROM loop takes 5161 VIA cycles at 2 MHz (5159.8 predicted) and 10319 at 1 MHz (10319.6 predicted); the RAM loop averages 1.789 MHz with the screen off, 1.442 MHz with it on and 1.020 MHz at 1 MHz
 
 ---
 
