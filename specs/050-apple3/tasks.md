@@ -226,7 +226,7 @@ reads the clock and both joystick ports.
 
 ## Phase 9: User Story 5 - Use the built-in serial port (Priority: P2)
 
-- [ ] T088 [P] [US5] Write a loopback test through `.RS232` at each baud rate in `ScenarioTests/Apple3SosTests.cpp` and a wiring test in `UnitTest/Apple3Tests/Apple3SerialTests.cpp`
+- [x] T088 [P] [US5] Write a loopback test through `.RS232` at each baud rate in `ScenarioTests/Apple3SosTests.cpp` and a wiring test in `UnitTest/Apple3Tests/Apple3SerialTests.cpp`. Business BASIC reads back a line it wrote to `.RS232`, at the driver's default rate; Business BASIC can't set the rate, so the unit test programs the 6551 at each internal rate. A looped-back byte arrives after two character times. A real plug returns it after one, because the receiver shifts the bits in as they are sent; the shared 6551 model queues the byte when the transmitter finishes
 - [x] T089 [US5] Create the `Acia6551` at its documented address with its interrupt wired, and attach it through the `serial` port configuration, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
 - [ ] T090 [US5] Offer every attachment the Super Serial Card offers for the built-in port in settings, and label its traffic "Built-in" in the serial log (FR-053), in `CassoEmuCore/Ui/Settings/` and `CassoEmuCore/Debugger/Events/`
 

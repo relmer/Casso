@@ -72,4 +72,53 @@ public:
         Assert::IsTrue   (received, L"the byte arrived within a tenth of a second");
         Assert::AreEqual<int> (0x55, machine.GetApple3()->GetAcia().Read (kData));
     }
+
+
+    //  At each rate of the internal clock, from 50 to 19200 baud, a byte
+    //  comes back through the loopback plug after two character times of a
+    //  start bit, 8 data bits and a stop bit. The 6551 model transmits the
+    //  byte, and its receiver then shifts the byte in.
+    TEST_METHOD (Loopback_EachBaudRate_TakesTwoCharacterTimes)
+    {
+        TestMachine     machine ("Apple3");
+        EmuCpu        & cpu      = *machine.GetCpu();
+        Apple3System  & system   = *machine.GetApple3();
+
+
+
+        machine.GetRunner().RunCycles (kTicksPerSecond / 10);
+        cpu.WriteByte (kCommand, kCommandOn);
+
+        for (int code = 1; code <= Acia6551::kControlBaudMask; code++)
+        {
+            double    baud      = Acia6551::GetBaudRate (code);
+            double    character = 10.0 / baud;
+            uint64_t  step      = std::max<uint64_t> (1, (uint64_t) (kTicksPerSecond * character / 200));
+            uint64_t  start     = 0;
+            double    elapsed   = 0;
+            bool      received  = false;
+
+
+
+            cpu.WriteByte (kControl, (Byte) ((k9600Baud & ~Acia6551::kControlBaudMask) | code));
+            (void) cpu.ReadByte (kData);
+
+            start = system.GetTimeBase().GetMasterClocks();
+            cpu.WriteByte (kData, (Byte) code);
+
+            for (int slice = 0; slice < 600 && !received; slice++)
+            {
+                machine.GetRunner().RunCycles (step);
+                received = (system.GetAcia().Read (kStatus) & Acia6551::kStatusRxFull) != 0;
+            }
+
+            elapsed = (double) (system.GetTimeBase().GetMasterClocks() - start) / Apple3TimeBase::kMasterClockHz;
+
+            Logger::WriteMessage (std::format ("{} baud: {:.6f} s, character {:.6f} s\n", baud, elapsed, character).c_str());
+
+            Assert::IsTrue        (received, std::format (L"a byte at {} baud came back", baud).c_str());
+            Assert::AreEqual<int> (code, system.GetAcia().Read (kData));
+            Assert::AreEqual      (2 * character, elapsed, character * 0.1, std::format (L"{} baud", baud).c_str());
+        }
+    }
 };

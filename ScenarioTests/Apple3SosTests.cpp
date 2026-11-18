@@ -313,6 +313,30 @@ public:
     }
 
 
+    //  A line written to .RS232 comes back through the loopback plug on the
+    //  serial port.
+    TEST_METHOD (Rs232_ALineComesBackThroughTheLoopbackPlug)
+    {
+        TestMachine  machine ("Apple3");
+        std::string  screen;
+
+
+
+        MountBusinessBasic (machine);
+        Assert::IsTrue (RunUntilScreenHas (machine, "BLOCKS FREE", kSecondsToPrompt));
+
+        RunCommand (machine, "10 OPEN#1,\".RS232\"");
+        RunCommand (machine, "20 PRINT#1;\"CASSO\"");
+        RunCommand (machine, "30 INPUT#1;A$");
+        RunCommand (machine, "40 PRINT \"READ \";A$");
+        RunCommand (machine, "50 CLOSE");
+        RunCommand (machine, "RUN");
+
+        screen = GetScreenText (*machine.GetApple3());
+        Assert::IsTrue (screen.find ("\nREAD CASSO") != std::string::npos, TextEncoding::Utf8ToWide (screen).c_str());
+    }
+
+
     //  A blank SOS volume, which has the ProDOS volume format.
     static std::vector<Byte> MakeBlankVolume (const std::string & name)
     {
