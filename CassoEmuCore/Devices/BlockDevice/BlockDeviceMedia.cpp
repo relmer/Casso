@@ -602,6 +602,25 @@ void BlockDeviceMedia::SaveState (StateWriter & writer) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockDeviceMedia::SaveEmptyState
+//
+//  What SaveState writes for media with no path, no blocks and no writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockDeviceMedia::SaveEmptyState (StateWriter & writer)
+{
+    writer.WriteUInt32 (0);
+    writer.WriteUInt32 (0);
+    writer.WriteUInt32 (0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockDeviceMedia::LoadState
 //
 //  A block written since the save gets its content from before its first

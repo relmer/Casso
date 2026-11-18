@@ -2,6 +2,7 @@
 
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Core/StateWriter.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "../EmuTests/FakeDiskFileIo.h"
@@ -429,5 +430,22 @@ public:
         Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (64));
         Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (1601));
         Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (65535));
+    }
+
+
+    //  The state written for a drive with no disk is the state an empty media
+    //  saves, byte for byte.
+    TEST_METHOD (SaveEmptyState_MatchesAnEmptyMedia)
+    {
+        BlockDeviceMedia  empty;
+        StateWriter       expected;
+        StateWriter       actual;
+
+
+
+        empty.SaveState                   (expected);
+        BlockDeviceMedia::SaveEmptyState  (actual);
+
+        Assert::IsTrue (expected.GetBytes() == actual.GetBytes());
     }
 };
