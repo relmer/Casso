@@ -202,21 +202,6 @@ protected:
     virtual Word ReadWord      (Word address);
 
     void InitializeInstructionSet ();
-
-    void  InitializeGroup00      ();
-    void  InitializeGroup01      ();
-    void  InitializeGroup10      ();
-    void  InitializeMisc         ();
-    void  InitializeUndocumented ();
-
-    void CreateInstruction (uint32_t                        addressingModeMax, 
-                            const char              * const instructionName[], 
-                            Byte                            opcode, 
-                            Byte                            addressingModeFlags, 
-                            Byte                            group, 
-                            Microcode::Operation            operation, 
-                            Byte                    *       pSourceRegister,
-                            Byte                    *       pDestinationRegister);
     
 
 

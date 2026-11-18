@@ -134,6 +134,7 @@
     <ClCompile Include="CommandLineParser.cpp" />
     <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Cpu.cpp" />
+    <ClCompile Include="InstructionSetBuilder.cpp" />
     <ClCompile Include="CycleReference.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
     <ClCompile Include="CpuOperations.cpp" />
@@ -173,8 +174,10 @@
     <ClCompile Include="Debugger\DebugExpressionEvaluator.cpp" />
     <ClCompile Include="Debugger\AppleWinCommandTable.cpp" />
     <ClCompile Include="Debugger\AppleWinParser.cpp" />
-    <ClCompile Include="Debugger\AppleWinParserDefinition.cpp" />
-    <ClCompile Include="Debugger\AppleWinParserDisk.cpp" />
+    <ClCompile Include="Debugger\AppleWinBreakpointParser.cpp" />
+    <ClCompile Include="Debugger\AppleWinBreakpointParserDefinition.cpp" />
+    <ClCompile Include="Debugger\AppleWinBreakpointParserDisk.cpp" />
+    <ClCompile Include="Debugger\AppleWinText.cpp" />
     <ClCompile Include="Debugger\CassoCommandReference.cpp" />
     <ClCompile Include="Debugger\DebugCommandPayload.cpp" />
     <ClCompile Include="Debugger\DiskBreakSpecText.cpp" />
@@ -208,6 +211,7 @@
     <ClInclude Include="CommandLineParser.h" />
     <ClInclude Include="UsageText.h" />
     <ClInclude Include="Cpu.h" />
+    <ClInclude Include="InstructionSetBuilder.h" />
     <ClInclude Include="Cpu6502.h" />
     <ClInclude Include="ICpu.h" />
     <ClInclude Include="I6502DebugInfo.h" />
@@ -264,7 +268,9 @@
     <ClInclude Include="Debugger\DiskBreakSpec.h" />
     <ClInclude Include="Debugger\DiskBreakSpecText.h" />
     <ClInclude Include="Debugger\AppleWinCommandTable.h" />
+    <ClInclude Include="Debugger\AppleWinBreakpointParser.h" />
     <ClInclude Include="Debugger\AppleWinParser.h" />
+    <ClInclude Include="Debugger\AppleWinText.h" />
     <ClInclude Include="Debugger\CassoCommandReference.h" />
     <ClInclude Include="Debugger\DebugCommandPayload.h" />
     <ClInclude Include="Debugger\MonitorParser.h" />

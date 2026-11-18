@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "Debugger/AppleWinBreakpointParser.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinText.h"
 #include "Debugger/BreakpointDefinition.h"
 #include "Debugger/DiskBreakSpecText.h"
 
@@ -51,7 +53,7 @@ BreakpointDefinition BreakpointDefinition::MakeSwitch (Type type, bool isOn)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryMakeBreakpoint
+//  AppleWinBreakpointParser::TryMakeBreakpoint
 //
 //  The command a definition's type sets, with each field evaluated by the
 //  function that reads that argument of a typed line. The caller's command
@@ -59,7 +61,7 @@ BreakpointDefinition BreakpointDefinition::MakeSwitch (Type type, bool isOn)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryMakeBreakpoint (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryMakeBreakpoint (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error)
 {
     using Type = BreakpointDefinition::Type;
 
@@ -108,13 +110,13 @@ bool AppleWinParser::TryMakeBreakpoint (const BreakpointDefinition & definition,
                      : (definition.type == Type::Write) ? DebugVerb::SetWriteWatchpoint
                      :                                    DebugVerb::SetMemoryWatchpoint;
         command.text = definition.isBefore ? "BEFORE" : "AFTER";
-        return TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
+        return AppleWinParser::TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
 
     case Type::Value:
         command.verb = DebugVerb::SetValueBreakpoint;
 
-        if (!TryParseRange (definition.address, context, command, error) || !IsLiveRange (command, error) ||
-            !TryEvaluate (definition.value, context, value, error))
+        if (!AppleWinParser::TryParseRange (definition.address, context, command, error) || !IsLiveRange (command, error) ||
+            !AppleWinParser::TryEvaluate (definition.value, context, value, error))
         {
             return false;
         }
@@ -142,7 +144,7 @@ bool AppleWinParser::TryMakeBreakpoint (const BreakpointDefinition & definition,
 
     case Type::Opcode:
         command.verb = DebugVerb::BreakOnOpcode;
-        return TryParseOpcodes ({ nullptr, Split (definition.value), definition.value, &context }, command, error);
+        return TryParseOpcodes ({ nullptr, AppleWinText::Split (definition.value), definition.value, &context }, command, error);
 
     case Type::Disk:
         command.verb = DebugVerb::SetDiskBreakpoint;
@@ -151,17 +153,17 @@ bool AppleWinParser::TryMakeBreakpoint (const BreakpointDefinition & definition,
     case Type::BasicLine:
     case Type::BasicVariable:
         command.verb = (definition.type == Type::BasicLine) ? DebugVerb::SetBasicLineBreakpoint : DebugVerb::SetBasicVariableBreakpoint;
-        command.text = ToUpper (definition.address);
+        command.text = AppleWinText::ToUpper (definition.address);
         return true;
 
     case Type::VideoLine:
         command.verb = DebugVerb::BreakOnVideoLine;
-        return TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
+        return AppleWinParser::TryParseRange (definition.address, context, command, error) && IsLiveRange (command, error);
 
     case Type::Beam:
         command.verb = DebugVerb::BreakOnBeam;
 
-        if (ToUpper (definition.address) == "VBL")
+        if (AppleWinText::ToUpper (definition.address) == "VBL")
         {
             command.text = "VBL";
             return true;
@@ -169,13 +171,13 @@ bool AppleWinParser::TryMakeBreakpoint (const BreakpointDefinition & definition,
 
         command.hasA1 = true;
         command.hasA2 = true;
-        return TryEvaluate (definition.address, context, command.a1, error) && TryEvaluate (definition.value, context, command.a2, error);
+        return AppleWinParser::TryEvaluate (definition.address, context, command.a1, error) && AppleWinParser::TryEvaluate (definition.value, context, command.a2, error);
 
     case Type::SourceLine:
         command.verb = DebugVerb::SetSourceBreakpoint;
         command.text = definition.file;
 
-        if (!TryParseCount (definition.address, command.count, syntax))
+        if (!AppleWinParser::TryParseCount (definition.address, command.count, syntax))
         {
             error = std::format ("{} is not a line number.", definition.address);
             return false;
@@ -194,17 +196,17 @@ bool AppleWinParser::TryMakeBreakpoint (const BreakpointDefinition & definition,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryMakeExecute
+//  AppleWinBreakpointParser::TryMakeExecute
 //
 //  An address or a range; a comparison, as `>300`, is a condition on the PC;
 //  `file:line` typed as the address is a source line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryMakeExecute (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryMakeExecute (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error)
 {
     static constexpr std::string_view  kOperators = "<>=!";
-    Tokens                             tokens     = Split (definition.address);
+    Tokens                             tokens     = AppleWinText::Split (definition.address);
 
 
 
@@ -234,12 +236,12 @@ bool AppleWinParser::TryMakeExecute (const BreakpointDefinition & definition, co
         return false;
     }
 
-    if (TryParseSourceLine (tokens[0], context, command))
+    if (AppleWinParser::TryParseSourceLine (tokens[0], context, command))
     {
         return true;
     }
 
-    if (!TryParseRange (tokens[0], context, command, error))
+    if (!AppleWinParser::TryParseRange (tokens[0], context, command, error))
     {
         return false;
     }
@@ -254,11 +256,11 @@ bool AppleWinParser::TryMakeExecute (const BreakpointDefinition & definition, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryMakeSwitchOff
+//  AppleWinBreakpointParser::TryMakeSwitchOff
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryMakeSwitchOff (const BreakpointDefinition & definition, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryMakeSwitchOff (const BreakpointDefinition & definition, DebugCommand & command, std::string & error)
 {
     using Type = BreakpointDefinition::Type;
 
@@ -287,17 +289,17 @@ bool AppleWinParser::TryMakeSwitchOff (const BreakpointDefinition & definition, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryMakeDiskSpec
+//  AppleWinBreakpointParser::TryMakeDiskSpec
 //
 //  The drive and the event are the controls' choices; the arguments are the
 //  text typed for that event.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryMakeDiskSpec (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryMakeDiskSpec (const BreakpointDefinition & definition, const IDebugExpressionContext & context, DebugCommand & command, std::string & error)
 {
     std::span<const DiskBreakSpecText::EventWord>  words  = DiskBreakSpecText::GetEventWords();
-    Tokens                                         tokens = Split (definition.arguments);
+    Tokens                                         tokens = AppleWinText::Split (definition.arguments);
     size_t                                         at     = 0;
     DiskBreakSpec                                  spec;
 
@@ -328,11 +330,11 @@ bool AppleWinParser::TryMakeDiskSpec (const BreakpointDefinition & definition, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::IsLiveRange
+//  AppleWinBreakpointParser::IsLiveRange
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::IsLiveRange (const DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::IsLiveRange (const DebugCommand & command, std::string & error)
 {
     if (command.hasA2 && command.a2 < command.a1)
     {

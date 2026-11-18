@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "Debugger/AppleWinBreakpointParser.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinText.h"
 #include "Debugger/DiskBreakSpecText.h"
 
 
@@ -30,17 +32,17 @@ static constexpr int   kMarkNibbles      = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskArguments
+//  AppleWinBreakpointParser::TryParseDiskArguments
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskArguments (const Arguments & args, DebugCommand & command, std::string & error)
+bool AppleWinBreakpointParser::TryParseDiskArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
     const Tokens                        & tokens = args.tokens;
     size_t                                at     = 0;
     DiskBreakSpec                         spec;
     const DiskBreakSpecText::EventWord  * found  = nullptr;
-    std::string                           drive  = tokens.empty() ? std::string() : ToUpper (tokens[0]);
+    std::string                           drive  = tokens.empty() ? std::string() : AppleWinText::ToUpper (tokens[0]);
     bool                                  isOk   = false;
 
 
@@ -53,7 +55,7 @@ bool AppleWinParser::TryParseDiskArguments (const Arguments & args, DebugCommand
 
     for (const DiskBreakSpecText::EventWord & each : DiskBreakSpecText::GetEventWords())
     {
-        found = (at < tokens.size() && ToUpper (tokens[at]) == each.word) ? &each : found;
+        found = (at < tokens.size() && AppleWinText::ToUpper (tokens[at]) == each.word) ? &each : found;
     }
 
     if (found == nullptr)
@@ -83,15 +85,15 @@ bool AppleWinParser::TryParseDiskArguments (const Arguments & args, DebugCommand
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskEventArguments
+//  AppleWinBreakpointParser::TryParseDiskEventArguments
 //
 //  The event's own arguments, up to its first option word.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskEventArguments (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec)
+bool AppleWinBreakpointParser::TryParseDiskEventArguments (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec)
 {
-    std::string  next  = (at < tokens.size()) ? ToUpper (tokens[at]) : std::string();
+    std::string  next  = (at < tokens.size()) ? AppleWinText::ToUpper (tokens[at]) : std::string();
     Word         block = 0;
 
 
@@ -147,13 +149,13 @@ bool AppleWinParser::TryParseDiskEventArguments (const Tokens & tokens, size_t &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskNumber
+//  AppleWinBreakpointParser::TryParseDiskNumber
 //
 //  A number in the mode's syntax, or * for any.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskNumber (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, std::optional<Byte> & outValue)
+bool AppleWinBreakpointParser::TryParseDiskNumber (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, std::optional<Byte> & outValue)
 {
     Word  value  = 0;
     bool  isAny  = at < tokens.size() && tokens[at] == "*";
@@ -173,14 +175,14 @@ bool AppleWinParser::TryParseDiskNumber (const Tokens & tokens, size_t & at, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskFields
+//  AppleWinBreakpointParser::TryParseDiskFields
 //
 //  ADDRESS's track, sector and volume, or RWTS's track and sector: as many
 //  as are given, each a number or *, before the first option word.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskFields (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, int count)
+bool AppleWinBreakpointParser::TryParseDiskFields (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, int count)
 {
     std::array<std::optional<Byte> *, 3>  fields = { &spec.track, &spec.sector, &spec.volume };
     bool                                  isOk   = true;
@@ -201,16 +203,16 @@ bool AppleWinParser::TryParseDiskFields (const Tokens & tokens, size_t & at, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskRange
+//  AppleWinBreakpointParser::TryParseDiskRange
 //
 //  QT first[:last] in quarter tracks, T first[:last] in whole tracks, or
 //  HALF for HEAD; none at all matches any position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskRange (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, bool takesHalf)
+bool AppleWinBreakpointParser::TryParseDiskRange (const Tokens & tokens, size_t & at, const IDebugExpressionContext & context, DiskBreakSpec & spec, bool takesHalf)
 {
-    std::string  unit    = (at < tokens.size()) ? ToUpper (tokens[at]) : std::string();
+    std::string  unit    = (at < tokens.size()) ? AppleWinText::ToUpper (tokens[at]) : std::string();
     bool         isRange = unit == "QT" || unit == "T";
     std::string  text    = (isRange && at + 1 < tokens.size()) ? tokens[at + 1] : std::string();
     size_t       colon   = text.find (':');
@@ -252,15 +254,15 @@ bool AppleWinParser::TryParseDiskRange (const Tokens & tokens, size_t & at, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskCommand
+//  AppleWinBreakpointParser::TryParseDiskCommand
 //
 //  RWTS's or DRIVER's request word, if given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskCommand (const Tokens & tokens, size_t & at, DiskBreakSpec & spec)
+bool AppleWinBreakpointParser::TryParseDiskCommand (const Tokens & tokens, size_t & at, DiskBreakSpec & spec)
 {
-    std::string  word = (at < tokens.size()) ? ToUpper (tokens[at]) : std::string();
+    std::string  word = (at < tokens.size()) ? AppleWinText::ToUpper (tokens[at]) : std::string();
 
 
 
@@ -286,14 +288,14 @@ bool AppleWinParser::TryParseDiskCommand (const Tokens & tokens, size_t & at, Di
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskOptions
+//  AppleWinBreakpointParser::TryParseDiskOptions
 //
 //  The options after the event's arguments, in any order; each event takes
 //  only the ones that mean something for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskOptions (const Tokens & tokens, size_t & at, DiskBreakSpec & spec)
+bool AppleWinBreakpointParser::TryParseDiskOptions (const Tokens & tokens, size_t & at, DiskBreakSpec & spec)
 {
     DiskEvent  event      = spec.event;
     bool       isField    = event == DiskEvent::SectorRead || event == DiskEvent::AddressField || event == DiskEvent::WritePrologue;
@@ -306,7 +308,7 @@ bool AppleWinParser::TryParseDiskOptions (const Tokens & tokens, size_t & at, Di
 
     while (isOk && at < tokens.size())
     {
-        std::string  word = ToUpper (tokens[at++]);
+        std::string  word = AppleWinText::ToUpper (tokens[at++]);
 
 
 
@@ -339,13 +341,13 @@ bool AppleWinParser::TryParseDiskOptions (const Tokens & tokens, size_t & at, Di
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryParseDiskMarks
+//  AppleWinBreakpointParser::TryParseDiskMarks
 //
 //  Three nibbles, each two hex digits or ?? for any.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseDiskMarks (const Tokens & tokens, size_t & at, std::optional<DiskMarkPattern> & outMarks)
+bool AppleWinBreakpointParser::TryParseDiskMarks (const Tokens & tokens, size_t & at, std::optional<DiskMarkPattern> & outMarks)
 {
     DiskMarkPattern  pattern;
     std::string      text;
@@ -373,17 +375,17 @@ bool AppleWinParser::TryParseDiskMarks (const Tokens & tokens, size_t & at, std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::IsDiskOptionWord
+//  AppleWinBreakpointParser::IsDiskOptionWord
 //
 //  The words that end an event's arguments.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::IsDiskOptionWord (const std::string & token)
+bool AppleWinBreakpointParser::IsDiskOptionWord (const std::string & token)
 {
     static constexpr const char * kWords[] = { "PASSED", "BADSUM", "WRONGTRACK", "BUMP", "EVERY", "ADDR", "DATA", "SECTORS",
                                                "READ", "WRITE", "SEEK", "STATUS", "FORMAT", "WRITTEN", "EITHER" };
-    std::string                   upper    = ToUpper (token);
+    std::string                   upper    = AppleWinText::ToUpper (token);
 
 
 
@@ -396,18 +398,18 @@ bool AppleWinParser::IsDiskOptionWord (const std::string & token)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWinParser::TryEvaluateQuietly
+//  AppleWinBreakpointParser::TryEvaluateQuietly
 //
 //  TryEvaluate where the error is the event's syntax line, not the
 //  expression's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryEvaluateQuietly (const std::string & text, const IDebugExpressionContext & context, Word & value)
+bool AppleWinBreakpointParser::TryEvaluateQuietly (const std::string & text, const IDebugExpressionContext & context, Word & value)
 {
     std::string  error;
 
 
 
-    return !text.empty() && TryEvaluate (text, context, value, error);
+    return !text.empty() && AppleWinParser::TryEvaluate (text, context, value, error);
 }

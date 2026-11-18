@@ -236,7 +236,7 @@ void Cpu65C02::InstallBitOps()
 //  ReclaimUndocumented
 //
 //  The 65C02 has none of the NMOS undocumented opcodes. Blank every slot the
-//  base Cpu::InitializeUndocumented() installed -- they are all flagged
+//  base InstructionSetBuilder::InitializeUndocumented() installed -- they are all flagged
 //  assemblerHidden and nothing else in the NMOS table is -- so the CMOS passes
 //  own those opcode-map holes: the ones the 65C02 redefines (e.g. $04 -> TSB)
 //  are re-installed by the leftovers pass, and the rest fall through to the
@@ -309,7 +309,7 @@ void Cpu65C02::InitializeArithmetic()
 //  InitializeCmosLeftovers
 //
 //  The 65C02 additions that fill the NMOS opcode-map holes (see GroupCmos).
-//  Mirrors Cpu::InitializeMisc: a table keyed by the mnemonic enum, with the
+//  Mirrors InstructionSetBuilder::InitializeMisc: a table keyed by the mnemonic enum, with the
 //  opcode byte and name pulled from GroupCmos::instruction[].
 //
 ////////////////////////////////////////////////////////////////////////////////

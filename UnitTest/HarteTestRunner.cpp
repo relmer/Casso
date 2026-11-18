@@ -1062,7 +1062,7 @@ namespace HarteTests
         //  Undocumented opcodes
         //
         //  One TEST_METHOD per illegal NMOS opcode Casso implements in
-        //  CassoCore Cpu::InitializeUndocumented(). RunOpcodeTest skips
+        //  CassoCore InstructionSetBuilder::InitializeUndocumented(). RunOpcodeTest skips
         //  silently when the matching .bin is absent, so these stay green
         //  under a --legal-only generation.
         //
