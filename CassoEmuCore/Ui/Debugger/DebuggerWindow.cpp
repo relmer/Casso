@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/CommandBarEntryStates.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -56,7 +57,6 @@
 
 
 
-static constexpr LPCWSTR  s_kpszWindowTitle = L"Debugger";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDebuggerWindow";
 
 
@@ -122,30 +122,6 @@ DebuggerWindow::~DebuggerWindow()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetCaption
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetCaption (const std::wstring & titlePrefix, const std::wstring & projectLabel)
-{
-    std::wstring  caption = titlePrefix.empty() ? std::wstring (s_kpszWindowTitle) : titlePrefix + L" - " + s_kpszWindowTitle;
-
-
-
-    if (!projectLabel.empty())
-    {
-        caption += L" - " + projectLabel;
-    }
-
-    return caption;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::UpdateProjectCaption
 //
 //  The project's label, read at most every kProjectLabelMs, since a switch
@@ -203,7 +179,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     m_host          = host;
     m_hInstance = hInstance;
 
-    params.title                    = s_kpszWindowTitle;
+    params.title                    = DebuggerWindowText::kpszWindowTitle;
     params.hInstance                = hInstance;
     //  A PEER OF THE EMULATOR WINDOW, NOT AN OWNED ONE. An owned window is
     //  z-locked above its owner forever: the debugger could never be put
@@ -525,69 +501,17 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 //
 //  DebuggerWindow::IsCommandBarEntryEnabled
 //
-//  A running machine has no state to step through, so everything that acts
-//  on a stopped one is off while it runs, and Pause is off while it is
-//  already stopped. Run to Cursor needs a line to run to as well. The
-//  choices that only change what the window shows stay live throughout.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 {
-    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
+    bool  isPaused       = m_snapshot != nullptr && m_snapshot->isPaused;
+    bool  isReplaying    = m_host != nullptr && m_host->IsReplayingHistory();
+    bool  hasSelectedRow = id == DebuggerCommands::kRunToCursor && isPaused && m_code->GetCodeList (m_code->GetActive())->GetSelectedRow() >= 0;
 
 
 
-    //  While history recording is on, the trace is rebuilt from history, so
-    //  there is nothing to turn on or off.
-    if (id == DebuggerCommands::kTrace)
-    {
-        return m_snapshot == nullptr || !m_snapshot->history.isRecording;
-    }
-
-    if (id == DebuggerCommands::kRun)
-    {
-        return paused;
-    }
-
-    if (id == DebuggerCommands::kRunOrPause)
-    {
-        return IsCommandBarEntryEnabled (DebuggerCommands::kRun) || IsCommandBarEntryEnabled (DebuggerCommands::kPause);
-    }
-
-    //  A replay runs with the machine stopped, and Pause stops it.
-    if (id == DebuggerCommands::kPause)
-    {
-        return !paused || (m_host != nullptr && m_host->IsReplayingHistory());
-    }
-
-    //  A load writes memory, which BLOAD does only with the machine stopped.
-    if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
-        id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext ||
-        id == DebuggerCommands::kRunFrame || id == DebuggerCommands::kLoadFile)
-    {
-        return paused;
-    }
-
-    if (id == DebuggerCommands::kRunToCursor)
-    {
-        return paused && m_code->GetCodeList (m_code->GetActive())->GetSelectedRow() >= 0;
-    }
-
-    //  Moving through history needs a stopped machine and a recording, and
-    //  going live needs the machine to be behind live.
-    if (id == DebuggerCommands::kStepBackInto || id == DebuggerCommands::kStepBackOver ||
-        id == DebuggerCommands::kStepBackOut  || id == DebuggerCommands::kReverseContinue)
-    {
-        return paused && m_snapshot->history.isRecording;
-    }
-
-    if (id == DebuggerCommands::kGoLive)
-    {
-        return paused && m_snapshot->history.isBehindLive;
-    }
-
-    return true;
+    return CommandBarEntryStates::IsEnabled (id, m_snapshot.get(), isReplaying, hasSelectedRow);
 }
 
 
@@ -596,40 +520,33 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::MakeDense
-//
-//  One setting for every pane, so the panes read as one listing rather than
-//  seven lists that happen to share a window.
-//
-//  A pane narrower than its columns scrolls sideways, as Visual Studio's do:
-//  the columns fit their contents, so without the scroll whatever was right
-//  of the pane's edge -- the code pane's annotations, the call stack's Found
-//  by -- could not be seen at all.
+//  DebuggerWindow::ScrollCodeAtEdge
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::MakeDense (DxuiListView * list)
+bool DebuggerWindow::ScrollCodeAtEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
 {
-    list->SetShowHeader              (true);
-    list->SetMonospace               (true);
-    list->SetFontSizeDip             (kPaneFontDip);
-    list->SetRowHeightDip            (kPaneRowDip);
-    list->SetHeaderHeightDip         (kPaneHeaderDip);
-    list->SetCellPaddingDip          (kPanePadDip, kPanePadDip);
-    list->SetPreciseAutoFit          (true);
-    list->SetRefitOnSetRows          (true);
-    list->SetHorizontalScrollEnabled (true);
-    list->SetPaneTextInset           (true);
-
-    //  The arrows, the page keys, Home and End move the selection, and Ctrl+C
-    //  copies it, so F9, run to cursor and the edit keys can act on a row
-    //  chosen without the mouse. A keyboard move is reported as a click is,
-    //  so the pane's record of the selection, which each snapshot restores,
-    //  follows it.
-    list->SetKeyboardColumnNav       (true);
-    list->SetKeyboardMoveNotify      (true);
+    return m_code->ScrollCodeAtEdge (vk, focused);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SelectCodeViewEdge
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::SelectCodeViewEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    return m_code->SelectCodeViewEdge (vk, focused);
+}
 
 
 
@@ -1868,25 +1785,6 @@ void DebuggerWindow::KeepOpenViews()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetUndoLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetUndoLabel (bool redo, const std::wstring & text)
-{
-    std::wstring  verb = redo ? L"Redo" : L"Undo";
-
-
-
-    return text.empty() ? verb : verb + L" " + text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::UpdateChanges
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2073,8 +1971,3 @@ void DebuggerWindow::SyncCommandBarFloatTip()
         tip->Tick ((int64_t) GetTickCount64());
     }
 }
-
-
-
-
-

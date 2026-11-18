@@ -17,6 +17,9 @@
 #include "Ui/Debugger/ConsoleHistory.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerThemes.h"
+#include "Ui/Debugger/DebuggerWindowText.h"
+#include "Ui/Debugger/DensePaneList.h"
+#include "Ui/Debugger/GoToAddressText.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
@@ -122,18 +125,18 @@ public:
 
     //  The dense look every pane's list has, public so the Options sheet's
     //  preview matches the disassembly views.
-    static void  MakeDense (DxuiListView * list);
+    static void  MakeDense (DxuiListView * list) { DensePaneList::MakeDense (list); }
 
     //  An Undo or Redo item and tip, with the edit: Undo change 2 bytes
     //  at $0300", or the bare verb when there is nothing to say.
-    static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text);
+    static std::wstring        GetUndoLabel            (bool redo, const std::wstring & text) { return DebuggerWindowText::GetUndoLabel (redo, text); }
 
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host, bool activate);
     void     RenderFrame ();
 
     //  The caption: the label from `--title`, ahead of Debugger, as on the
     //  emulator's window, then the open project's label.
-    static std::wstring  GetCaption     (const std::wstring & titlePrefix, const std::wstring & projectLabel = {});
+    static std::wstring  GetCaption     (const std::wstring & titlePrefix, const std::wstring & projectLabel = {}) { return DebuggerWindowText::GetCaption (titlePrefix, projectLabel); }
     void                 SetTitlePrefix (const std::wstring & titlePrefix) { m_titlePrefix = titlePrefix; SetTitle (GetCaption (m_titlePrefix, m_projectLabel)); }
 
     //  Detaches the host, for a shell tearing down before the window.
@@ -448,7 +451,7 @@ protected:
     void     GoToDefinition          (Word address);
 
     //  A go-to's address: hex, PC, or a symbol by name.
-    static bool  TryParseGoTo   (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress);
+    static bool  TryParseGoTo   (const std::wstring & text, const DebuggerViewSnapshot * snapshot, Word & outAddress) { return GoToAddressText::TryParseGoTo (text, snapshot, outAddress); }
 
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
@@ -459,10 +462,10 @@ private:
     //  Pane metrics (FR-026a): the monospace face at a size whose line height
     //  a row barely exceeds, small cell padding, and eight rows owed to every
     //  pane at the default size.
-    static constexpr float  kPaneFontDip           = 12.0f;
-    static constexpr int    kPaneRowDip            = 16;
-    static constexpr int    kPaneHeaderDip         = 22;
-    static constexpr int    kPanePadDip            = 4;
+    static constexpr float  kPaneFontDip           = DensePaneList::kFontDip;
+    static constexpr int    kPaneRowDip            = DensePaneList::kRowDip;
+    static constexpr int    kPaneHeaderDip         = DensePaneList::kHeaderDip;
+    static constexpr int    kPanePadDip            = DensePaneList::kPadDip;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
     static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
@@ -647,7 +650,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                                                 ClipPaneControls   ();
     void                                                 NoteViewFocus      (bool isSource) override;
     void                                                 NoteTabFocus       (POINT pointDip);
-    static IDxuiControl                                * FindFirstFocusable (IDxuiControl * node);
     int                                                  GetSourceSlotOf    (const std::wstring & pane) const;
     bool                                                 IsRestoringViews   () const override;
     bool                                                 ForwardToList      (DxuiListView * list, const DxuiMouseEvent & ev);
@@ -735,10 +737,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::vector<DxuiListView *>  GetLists          () const;
     std::vector<DxuiListView *>  GetTextLists      () const;
 
-    static LPCWSTR                 GetCursorOutsideLists (const IDxuiControl & node, POINT clientPx, const std::vector<DxuiListView *> & lists);
     void                           RefreshCursor         ();
     bool                           GoToAddressInPane     ();
-    static bool                    HasListWithin         (const IDxuiControl & node, const std::vector<DxuiListView *> & lists);
     std::vector<IDxuiControl *>    GetPressTargets       () const;
     DxuiTextInput                * GetFocusedBox         () const;
     const DxuiTextInput          * GetBlinkingBox        () const;

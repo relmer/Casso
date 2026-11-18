@@ -1754,3 +1754,107 @@ bool DisassemblyGroup::TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegis
 
     return false;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::ScrollCodeAtEdge
+//
+//  A disassembly view's rows are only the lines in view, so an arrow at its first
+//  or last visible line, or Page Up or Page Down there, scrolls the view
+//  through memory rather than stopping; the selected row stays at the edge,
+//  on the line scrolled into view. True when the key scrolled a view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::ScrollCodeAtEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code  = GetCodeList (view);
+        int             row   = 0;
+        int             last  = 0;
+        int             page  = 0;
+        int             lines = 0;
+
+
+
+        if (code == nullptr || code != focused || m_host.GetWindowHost() == nullptr)
+        {
+            continue;
+        }
+
+        row   = code->GetSelectedRow();
+        page  = std::max (1, code->GetVisibleRowCapacity());
+        last  = std::min (code->GetRowCount(), page) - 1;
+        lines = (vk == VK_UP    && row <= 0)    ? -1
+              : (vk == VK_DOWN  && row >= last) ?  1
+              : (vk == VK_PRIOR && row <= 0)    ? -page
+              : (vk == VK_NEXT  && row >= last) ?  page
+              :                                    0;
+
+        if (lines == 0 || row < 0)
+        {
+            return false;
+        }
+
+        SelectEdgeAfterScroll (view, lines < 0);
+        m_host.GetWindowHost()->ScrollDebuggerCode (lines, view);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::SelectCodeViewEdge
+//
+//  Ctrl+Page Up and Ctrl+Page Down select a disassembly view's top and
+//  bottom row in view, as they move to the top and bottom line in view in a
+//  source document and in Visual Studio's editor. True when a key moved a
+//  view's selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::SelectCodeViewEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code = GetCodeList (view);
+        int             top  = 0;
+        int             row  = 0;
+
+
+
+        if (code == nullptr || code != focused || (vk != VK_PRIOR && vk != VK_NEXT))
+        {
+            continue;
+        }
+
+        top = code->GetTopRow();
+        row = (vk == VK_PRIOR) ? top : (std::min) (code->GetRowCount(), top + (std::max) (1, code->GetVisibleRowCapacity())) - 1;
+
+        if (row < 0)
+        {
+            return false;
+        }
+
+        code->SetSelectedRow (row);
+        OnRowSelected (view, row);
+        return true;
+    }
+
+    return false;
+}

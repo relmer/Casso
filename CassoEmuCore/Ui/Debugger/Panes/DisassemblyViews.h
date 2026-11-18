@@ -109,6 +109,12 @@ public:
     //  selection moves onto the line scrolled into view.
     void                             SelectEdgeAfterScroll (int view, bool isTop);
 
+    //  A key at a view's first or last row in view: an arrow or a page key
+    //  there scrolls the view through memory, and Ctrl+Page Up or Down selects
+    //  the top or bottom row in view. True when the key moved a view.
+    bool  ScrollCodeAtEdge   (WPARAM vk, IDxuiControl * focused);
+    bool  SelectCodeViewEdge (WPARAM vk, IDxuiControl * focused);
+
     //  The PC's branch arrow in a view, a view past the code views being a
     //  source document's; drawn, clicked to go where it points and back, and
     //  its tip.
