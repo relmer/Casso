@@ -53,6 +53,11 @@ std::vector<std::wstring> CassoExplorerLinkChoices::GetSpeedLabels()
     for (DWORD speed : kSpeeds)
     {
         labels.push_back (std::format (L"{} baud", CassoLinkConnectionText::FormatBaud (speed)));
+
+        if (speed == LinkProgram::kIIgsBaud)
+        {
+            labels.back() += L" (Apple IIgs only)";
+        }
     }
 
     return labels;
