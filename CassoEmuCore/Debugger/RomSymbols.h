@@ -19,14 +19,16 @@ class RomSymbols
 {
 public:
     // The Main table for a machine, chosen from its name: the //e and //c
-    // tables add the memory-management and video switches of those machines.
+    // tables add the memory-management and video switches of those machines,
+    // and the Apple /// table replaces the Monitor table.
     static const char *  GetMain    (const std::string & machineName);
     static const char *  GetBasic   ();
     static const char *  GetDos33   ();
     static const char *  GetProDos  ();
 
 private:
-    static bool         IsIie   (const std::string & machineName);
-    static bool         IsIic   (const std::string & machineName);
-    static std::string  MakeIic (const std::string & iie);
+    static bool         IsApple3 (const std::string & machineName);
+    static bool         IsIie    (const std::string & machineName);
+    static bool         IsIic    (const std::string & machineName);
+    static std::string  MakeIic  (const std::string & iie);
 };

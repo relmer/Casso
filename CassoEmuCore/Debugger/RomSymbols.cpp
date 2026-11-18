@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/RomSymbols.h"
+#include "Machines/Apple3/Apple3Symbols.h"
 
 
 
@@ -206,7 +207,7 @@ static constexpr const char * s_kpszProDosSymbols =
 //
 //  RomSymbols::GetMain
 //
-//  The //e and //c get the Monitor table with the memory-management switches
+//  The Apple /// gets its I/O and VIA table. The //e and //c get the Monitor table with the memory-management switches
 //  appended; the ][ and ][+ get the Monitor table alone. The //c has no
 //  cassette port: $C028 flips its ROM bank and $C060 reads its 80/40
 //  switch, so ROMBANK and RD80SW take the place of TAPEOUT and TAPEIN.
@@ -220,6 +221,11 @@ const char * RomSymbols::GetMain (const std::string & machineName)
     static const std::string  s_iic = MakeIic (s_iie);
 
 
+
+    if (IsApple3 (machineName))
+    {
+        return Apple3Symbols::GetMain();
+    }
 
     if (IsIic (machineName))
     {
@@ -357,4 +363,30 @@ bool RomSymbols::IsIie (const std::string & machineName)
 
     return lower.find ("2e") != std::string::npos || lower.find ("2c") != std::string::npos ||
            lower.find ("//e") != std::string::npos || lower.find ("//c") != std::string::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RomSymbols::IsApple3
+//
+//  A machine whose name has "///" or "apple3" in it is an Apple ///.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RomSymbols::IsApple3 (const std::string & machineName)
+{
+    std::string  lower (machineName);
+
+
+
+    for (char & ch : lower)
+    {
+        ch = (char) tolower ((unsigned char) ch);
+    }
+
+    return lower.find ("///") != std::string::npos || lower.find ("apple3") != std::string::npos;
 }
