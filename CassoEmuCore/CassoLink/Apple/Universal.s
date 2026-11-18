@@ -242,7 +242,23 @@ shname: ldy #0
         jsr putdec
         ldx #msgat-msgs
         jsr puttext
+        ldx sel                 ; 230,400 baud runs at 115,200 on a 6551
+        lda acscc,x
+        bne shtext
+        lda ACIMG+HCTL
+        and #$0F
+        cmp #$01
+        bne shtext
         ldx #0
+shfast: lda u115200,x
+        ora #$80
+        sta (rowlo),y
+        iny
+        inx
+        cpx #6
+        bne shfast
+        beq shnext
+shtext: ldx #0
 shspd:  lda ACIMG+HSPEED,x
         ora #$80
         sta (rowlo),y
@@ -250,7 +266,7 @@ shspd:  lda ACIMG+HSPEED,x
         inx
         cpx #6
         bne shspd
-        ldx sel
+shnext: ldx sel
         inx
         bne shacia
 
@@ -1452,6 +1468,7 @@ msgat:  .text ", "
 msgdhcp: .text ", GETTING AN ADDRESS"
         .byte 0
 
+u115200: .text "115200"   ; a 6551's speed for 230,400 baud
 acslots: .ds 8                  ; each 6551's slot, or a //c's or a IIgs's port
 acscc:  .ds 8                   ; 0 for a 6551, or $80 plus a IIgs port's channel
 ; Each 6551 rate's time constant: $FF for 115,200 baud and $FE for 230,400,

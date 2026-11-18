@@ -1197,6 +1197,15 @@ acinit: lda slotx
         sta pbstat+1
         pla
         jsr fixctl
+        cmp ctlop+1
+        beq acspeed
+        sta ctlop+1             ; 230,400 baud runs at 115,200 on a 6551, and
+        ldx #5                  ; 115200 is drawn on the waiting screen
+acstext: lda s115200,x
+        sta speedtxt,x
+        dex
+        bpl acstext
+acspeed: lda ctlop+1
         ldx slotx
         sta ACIACTL,x
         lda #$0B                ; DTR on, no parity, no interrupts
@@ -1237,6 +1246,8 @@ modemreply: jsr getb               ; the modem's reply line, such as CONNECT,
         cmp #$0A               ; ends in a line feed; Ready waits for it
         bne modemreply
 sudone: jmp ready
+
+s115200: .text "115200"
 
 ; is6551: the carry set when the 6551 control register at Y, slot * 16,
 ; reads back two values written to it, as a 6551's does; it is then put back.
