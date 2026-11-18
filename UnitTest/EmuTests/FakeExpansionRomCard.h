@@ -34,12 +34,11 @@ public:
         return m_pageByte;
     }
 
-    bool TryPeekSlotPage (Word address, Byte & value) const override
+    Byte PeekSlotPage (Word address) const override
     {
         (void) address;
 
-        value = m_pageByte;
-        return true;
+        return m_pageByte;
     }
 
     bool IsExpansionRomSelected() const override { return m_selected; }
@@ -47,6 +46,13 @@ public:
     Byte ReadExpansionRom (Word address) override
     {
         m_lastRomAddress = address;
+
+        return m_romByte;
+    }
+
+    Byte PeekExpansionRom (Word address) const override
+    {
+        (void) address;
 
         return m_romByte;
     }

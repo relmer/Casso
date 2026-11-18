@@ -65,6 +65,8 @@ public:
     static constexpr uint16_t  kStateVersion = 1;
 
 private:
+    bool  IsPorts (const Iwm::SwitchState & after) const;
+
     SmartPortHost  m_port;
     bool           m_hasFloppyAfter = false;
 };

@@ -67,6 +67,7 @@ public:
     void  WriteData      (Byte value);
     Byte  ReadData       ();
     Byte  PeekData       () const;
+    void  TakeData       ();
 
     bool  IsBusy         () const { return m_busy && GetNow() >= m_readyCycle; }
     bool  IsPresent      () const { return true; }
@@ -101,12 +102,13 @@ private:
         WriteData,
     };
 
-    void      RunCommand   ();
-    void      FinishWrite  ();
-    uint64_t  GetSeekDelay () const;
-    void      BuildIdBlock (std::vector<Byte> & outBlock) const;
-    void      Emit         (BlockDeviceOp op, uint32_t block, Byte result);
-    uint64_t  GetNow       () const { return m_clock != nullptr ? *m_clock : 0; }
+    bool      IsSendingByte () const;
+    void      RunCommand    ();
+    void      FinishWrite   ();
+    uint64_t  GetSeekDelay  () const;
+    void      BuildIdBlock  (std::vector<Byte> & outBlock) const;
+    void      Emit          (BlockDeviceOp op, uint32_t block, Byte result);
+    uint64_t  GetNow        () const { return m_clock != nullptr ? *m_clock : 0; }
 
     int                      m_slot         = 0;
     uint32_t                 m_capacity     = 0;

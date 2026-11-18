@@ -419,6 +419,25 @@ method in place of `OnIwmAccess` plus `TryPeekIwmAccess`, and
 out today (a status read that moves a phase), the evaluation form usually makes
 it possible; remove each `return false` that it makes unnecessary.
 
+**7a, as built.** `Ncr5380` has `EvaluateRegister`, `EvaluateDma` and
+`EvaluateDrq`, each returning the byte with a `ReadResult` of the read's changes;
+the reads call `Apply`, the peeks discard the result, and `WouldTakeBus`,
+`PeekBusAndStatus` and `CheckPhaseMismatch` are removed. `Iwm::Access` moves the
+switches from `GetSwitchesAfter`, and `EvaluateRegister` and `ReadIsmRegister`
+are shared by the read and `TryPeekAccess`. `IDiskPortHook::AreFloppiesEnabled`
+is const and replaces `PeekFloppiesEnabled`. The //c Plus port's
+`OnIwmAccess` sets `m_floppies` from it, with the port's IWM as it was before
+the access, and each hook's `IsPorts` is the one test of whether the byte is
+the port's. `OnIwmAccess` stays an access,
+since it moves the port's IWM and bus. `IExpansionRomCard` has `PeekSlotPage` and
+`PeekExpansionRom` in place of the two `TryPeek...` functions, with no failure
+case; each card's access makes its changes and returns the peek, and
+`ExpansionRomBus::TryPeekIo` no longer calls a read. `ProFileDrive::ReadData` is
+`PeekData` plus `TakeData`, and `ProFileCard::Read` is `PeekIo` plus `TakeData`.
+`SmartPortHost::TryPeekAccess` and `GetSwitchesAfter` are removed; callers use
+`GetIwm()`. The Disk II sequencer's peek fails in write mode, since a copy
+of the drive can't run a write without writing to the disk.
+
 **7b. `BlockDeviceMedia` has three modes behind flags.** A file, a decoded WOZ and
 a replay copy are distinguished by `m_file`, `m_isWoz` and `m_isReplayCopy`, and
 `ReadBlock`, `WriteBlock`, `LoadState`, `Flush` and `Detach` each branch on them.

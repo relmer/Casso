@@ -68,18 +68,21 @@ public:
     //  a read returns.
     Byte  Access (int offset, bool isWrite, Byte value, uint64_t nowNs);
 
-    //  The switches after an access to `offset`, as Access sets them, worked
-    //  out without changing anything.
+    //  The switches after an access to `offset`, worked out without changing
+    //  anything; Access sets the switches from them.
     struct SwitchState
     {
-        bool  q6           = false;
-        bool  q7           = false;
-        bool  isEnabled    = false;
-        bool  isOffPending = false;
-        int   drive        = 0;
-        bool  isDriveMoved = false;
+        bool                 q6             = false;
+        bool                 q7             = false;
+        bool                 isEnabled      = false;
+        bool                 isOffPending   = false;
+        bool                 isTimerStarted = false;
+        int                  drive          = 0;
+        std::array<bool, 4>  phases         = {};
+        bool                 isDriveMoved   = false;
     };
 
+    SwitchState  GetSwitches      () const;
     SwitchState  GetSwitchesAfter (int offset) const;
 
     //  The byte a read of switch `offset` returns, as of the IWM's last
@@ -125,15 +128,26 @@ private:
     static constexpr Byte      kHistoryMask   = 0x0F;
     static constexpr Byte      kIsmPhaseReset = 0xF0;
 
-    Byte   AccessIsm      (int offset, bool isWrite, Byte value);
+    //  A register read's byte and its change, which ReadRegister makes and a
+    //  peek discards.
+    struct RegisterRead
+    {
+        Byte  value       = 0xFF;
+        bool  isKnown     = true;
+        bool  isDataTaken = false;
+    };
 
-    IDiskDriveBus  * GetSelected   () const { return m_drives[(size_t) m_driveSelect]; }
-    void             SetSwitch     (int sw, bool on, uint64_t nowNs);
-    Byte             ReadRegister  ();
-    void             WriteRegister (Byte value);
-    void             MoveCell      (uint64_t cellEndNs);
-    void             UpdatePhases  ();
-    void             UpdateEnables ();
+    Byte   AccessIsm       (int offset, bool isWrite, Byte value);
+    Byte   ReadIsmRegister (int reg) const;
+
+    IDiskDriveBus  * GetSelected      () const { return m_drives[(size_t) m_driveSelect]; }
+    void             SetSwitch        (int offset, uint64_t nowNs);
+    Byte             ReadRegister     ();
+    RegisterRead     EvaluateRegister (const SwitchState & after) const;
+    void             WriteRegister    (Byte value);
+    void             MoveCell         (uint64_t cellEndNs);
+    void             UpdatePhases     ();
+    void             UpdateEnables    ();
 
     std::array<IDiskDriveBus *, kDrives>  m_drives          = {};
     std::array<bool, 4>                   m_phases          = {};

@@ -13,55 +13,18 @@
 //
 //  ReadRegister
 //
+//  EvaluateRegister's byte, with its changes made.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Ncr5380::ReadRegister (int reg)
 {
-    constexpr Byte  kIcrWritable = 0x9F;
-    constexpr Byte  kTcrMask     = 0x0F;
-    Byte            value        = 0;
+    ReadResult  result = EvaluateRegister (reg);
 
 
 
-    UpdateArbitration();
-
-    switch (reg & kRegisterMask)
-    {
-        case 0:
-            value = m_bus.GetData();
-            break;
-
-        case 1:
-            value = (Byte) ((m_icr & kIcrWritable) | (m_arbitrating ? kIcrAip : 0));
-            break;
-
-        case 2:
-            value = m_mode;
-            break;
-
-        case 3:
-            value = (Byte) (m_tcr & kTcrMask);
-            break;
-
-        case 4:
-            value = GetBusStatus();
-            break;
-
-        case 5:
-            value = GetBusAndStatus();
-            break;
-
-        case 6:
-            value = m_idr;
-            break;
-
-        default:
-            m_irq       = false;
-            m_busyError = false;
-            break;
-    }
-
-    return value;
+    Apply (result);
+    return result.value;
 }
 
 
@@ -70,57 +33,61 @@ Byte Ncr5380::ReadRegister (int reg)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PeekRegister
+//  EvaluateRegister
 //
-//  ReadRegister's byte, with the arbitration it would start counted as
-//  started. Register 7's read clears the interrupt and returns 0.
+//  A register read's byte and the changes the read makes. Every read
+//  starts arbitration when ARBITRATE is set and the bus is free, so the
+//  byte is worked out from the bus as the chip then drives it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Ncr5380::PeekRegister (int reg) const
+Ncr5380::ReadResult Ncr5380::EvaluateRegister (int reg) const
 {
     constexpr Byte  kIcrWritable = 0x9F;
     constexpr Byte  kTcrMask     = 0x0F;
-    bool            isTaking     = WouldTakeBus();
-    Byte            value        = 0;
+    ReadResult      result       = StartRead();
+    bool            isTaking     = result.takesBus;
 
 
 
     switch (reg & kRegisterMask)
     {
         case 0:
-            value = isTaking ? (Byte) (m_odr | m_bus.GetTargetData()) : m_bus.GetData();
+            result.value = isTaking ? (Byte) (m_odr | m_bus.GetTargetData()) : m_bus.GetData();
             break;
 
         case 1:
-            value = (Byte) ((m_icr & kIcrWritable) | ((m_arbitrating || isTaking) ? kIcrAip : 0));
+            result.value = (Byte) ((m_icr & kIcrWritable) | ((m_arbitrating || isTaking) ? kIcrAip : 0));
             break;
 
         case 2:
-            value = m_mode;
+            result.value = m_mode;
             break;
 
         case 3:
-            value = (Byte) (m_tcr & kTcrMask);
+            result.value = (Byte) (m_tcr & kTcrMask);
             break;
 
         case 4:
-            value = (Byte) (GetBusStatus() | (isTaking ? kBusBsy : 0));
+            result.value = (Byte) (GetBusStatus() | (isTaking ? kBusBsy : 0));
             break;
 
         case 5:
-            value = PeekBusAndStatus();
+            EvaluatePhaseCheck (result);
+            result.value = GetBusAndStatus (result);
             break;
 
         case 6:
-            value = m_idr;
+            result.value = m_idr;
             break;
 
         default:
+            result.irq       = false;
+            result.busyError = false;
             break;
     }
 
-    return value;
+    return result;
 }
 
 
@@ -210,17 +177,37 @@ void Ncr5380::WriteRegister (int reg, Byte value)
 
 Byte Ncr5380::ReadDma()
 {
-    bool  isDrq = IsDrq();
+    ReadResult  result = EvaluateDma();
 
 
 
-    if (isDrq && m_dma == DmaMode::InitiatorReceive)
-    {
-        m_idr = m_bus.GetData();
-        PulseAck();
-    }
+    Apply (result);
+    return result.value;
+}
 
-    return m_idr;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EvaluateDma
+//
+//  ReadDma's byte: the byte on the bus while a receive has a request
+//  pending, which the read takes, otherwise the last byte read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Ncr5380::ReadResult Ncr5380::EvaluateDma() const
+{
+    ReadResult  result = EvaluateDrq();
+
+
+
+    result.takesByte = result.isDrq && m_dma == DmaMode::InitiatorReceive;
+    result.value     = result.takesByte ? m_bus.GetData() : m_idr;
+
+    return result;
 }
 
 
@@ -259,41 +246,18 @@ void Ncr5380::WriteDma (Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PeekDma
-//
-//  ReadDma's byte: the byte on the bus while a receive has a request
-//  pending, otherwise the last byte read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Ncr5380::PeekDma() const
-{
-    bool  isTaking = PeekDrq() && m_dma == DmaMode::InitiatorReceive;
-
-
-
-    return isTaking ? m_bus.GetData() : m_idr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IsDrq
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Ncr5380::IsDrq()
 {
-    bool  isDmaMode = (m_mode & kModeDma) != 0;
+    ReadResult  result = EvaluateDrq();
 
 
 
-    CheckPhaseMismatch();
-
-    return m_dma != DmaMode::None && isDmaMode && m_bus.IsReq() && IsPhaseMatch();
+    Apply (result);
+    return result.isDrq;
 }
 
 
@@ -302,20 +266,24 @@ bool Ncr5380::IsDrq()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PeekDrq
+//  EvaluateDrq
 //
-//  IsDrq's answer. A phase mismatch ends the transfer in IsDrq and fails the
-//  phase match here, so both return false.
+//  DRQ, and the phase check that comes with it. A phase mismatch ends the
+//  transfer and fails the phase match, so DRQ is off either way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Ncr5380::PeekDrq() const
+Ncr5380::ReadResult Ncr5380::EvaluateDrq() const
 {
-    bool  isDmaMode = (m_mode & kModeDma) != 0;
+    ReadResult  result    = { .irq = m_irq, .busyError = m_busyError };
+    bool        isDmaMode = (m_mode & kModeDma) != 0;
 
 
 
-    return m_dma != DmaMode::None && isDmaMode && m_bus.IsReq() && IsPhaseMatch();
+    EvaluatePhaseCheck (result);
+    result.isDrq = m_dma != DmaMode::None && isDmaMode && m_bus.IsReq() && IsPhaseMatch();
+
+    return result;
 }
 
 
@@ -380,21 +348,24 @@ void Ncr5380::Drive()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WouldTakeBus
+//  StartRead
 //
-//  True when UpdateArbitration would start arbitrating: ARBITRATE is set,
-//  the chip isn't arbitrating and the bus is free.
+//  A register read's changes before its register is chosen: arbitration
+//  starts when ARBITRATE is set, the chip isn't arbitrating and the bus
+//  is free.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Ncr5380::WouldTakeBus() const
+Ncr5380::ReadResult Ncr5380::StartRead() const
 {
-    bool  wantsBus = (m_mode & kModeArbitrate) != 0 && !m_arbitrating;
-    bool  isFree   = !m_bus.IsBsy() && !m_bus.IsSel();
+    bool        wantsBus = (m_mode & kModeArbitrate) != 0 && !m_arbitrating;
+    bool        isFree   = !m_bus.IsBsy() && !m_bus.IsSel();
+    ReadResult  result   = { .irq = m_irq, .busyError = m_busyError };
 
 
 
-    return wantsBus && isFree;
+    result.takesBus = wantsBus && isFree;
+    return result;
 }
 
 
@@ -411,16 +382,7 @@ bool Ncr5380::WouldTakeBus() const
 
 void Ncr5380::UpdateArbitration()
 {
-    bool  wantsBus = (m_mode & kModeArbitrate) != 0 && !m_arbitrating;
-    bool  isFree   = !m_bus.IsBsy() && !m_bus.IsSel();
-
-
-
-    if (wantsBus && isFree)
-    {
-        m_arbitrating = true;
-        Drive();
-    }
+    Apply (StartRead());
 }
 
 
@@ -481,20 +443,24 @@ Byte Ncr5380::GetBusStatus() const
 //
 //  GetBusAndStatus
 //
+//  The bus and status register, with the interrupt and busy error as they
+//  are after the read.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Ncr5380::GetBusAndStatus()
+Byte Ncr5380::GetBusAndStatus (const ReadResult & result) const
 {
-    Byte  value = 0;
+    ReadResult  drq   = EvaluateDrq();
+    Byte        value = 0;
 
 
 
-    value |= IsDrq()          ? kBsrDrq        : 0;
-    value |= m_irq            ? kBsrIrq        : 0;
-    value |= IsPhaseMatch()   ? kBsrPhaseMatch : 0;
-    value |= m_busyError      ? kBsrBusyError  : 0;
-    value |= m_bus.IsAtn()    ? kBsrAtn        : 0;
-    value |= m_bus.IsAck()    ? kBsrAck        : 0;
+    value |= drq.isDrq           ? kBsrDrq        : 0;
+    value |= result.irq          ? kBsrIrq        : 0;
+    value |= IsPhaseMatch()      ? kBsrPhaseMatch : 0;
+    value |= result.busyError    ? kBsrBusyError  : 0;
+    value |= m_bus.IsAtn()       ? kBsrAtn        : 0;
+    value |= m_bus.IsAck()       ? kBsrAck        : 0;
 
     return value;
 }
@@ -505,63 +471,68 @@ Byte Ncr5380::GetBusAndStatus()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PeekBusAndStatus
-//
-//  GetBusAndStatus's byte with CheckPhaseMismatch's changes counted but not
-//  made: the interrupt and the busy error it would set.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Ncr5380::PeekBusAndStatus() const
-{
-    bool  isMonitoring = (m_mode & kModeMonitorBsy) != 0;
-    bool  isBusy       = m_bus.IsBsy() || WouldTakeBus();
-    bool  isMismatch   = m_dma != DmaMode::None && m_bus.IsReq() && !IsPhaseMatch();
-    bool  isLost       = isMonitoring && !isBusy;
-    Byte  value        = 0;
-
-
-
-    value |= PeekDrq()                          ? kBsrDrq        : 0;
-    value |= (m_irq || isMismatch || isLost)    ? kBsrIrq        : 0;
-    value |= IsPhaseMatch()                     ? kBsrPhaseMatch : 0;
-    value |= (m_busyError || isLost)            ? kBsrBusyError  : 0;
-    value |= m_bus.IsAtn()                      ? kBsrAtn        : 0;
-    value |= m_bus.IsAck()                      ? kBsrAck        : 0;
-
-    return value;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CheckPhaseMismatch
+//  EvaluatePhaseCheck
 //
 //  A target that requests in a phase other than the one the transfer is for
 //  raises the interrupt, and the transfer ends. With MONITOR BUSY set, a
-//  target that lets go of BSY is a busy error.
+//  target that lets go of BSY is a busy error. A read that starts
+//  arbitration asserts BSY.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ncr5380::CheckPhaseMismatch()
+void Ncr5380::EvaluatePhaseCheck (ReadResult & result) const
 {
     bool  isMonitoring = (m_mode & kModeMonitorBsy) != 0;
+    bool  isBusy       = m_bus.IsBsy() || result.takesBus;
 
 
 
     if (m_dma != DmaMode::None && m_bus.IsReq() && !IsPhaseMatch())
     {
-        m_irq = true;
+        result.irq     = true;
+        result.endsDma = true;
+    }
+
+    if (isMonitoring && !isBusy)
+    {
+        result.busyError = true;
+        result.irq       = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apply
+//
+//  Makes a read's changes: arbitration, the interrupt and busy error, the
+//  end of the transfer, and a DMA byte taken with its handshake.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ncr5380::Apply (const ReadResult & result)
+{
+    if (result.takesBus)
+    {
+        m_arbitrating = true;
+        Drive();
+    }
+
+    m_irq       = result.irq;
+    m_busyError = result.busyError;
+
+    if (result.endsDma)
+    {
         m_dma = DmaMode::None;
     }
 
-    if (isMonitoring && !m_bus.IsBsy())
+    if (result.takesByte)
     {
-        m_busyError = true;
-        m_irq       = true;
+        m_idr = result.value;
+        PulseAck();
     }
 }
 

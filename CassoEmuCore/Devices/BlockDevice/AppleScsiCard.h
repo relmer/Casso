@@ -65,9 +65,10 @@ public:
 
     // IExpansionRomCard
     Byte  OnSlotPageAccess       (Word address, bool isWrite, Byte value) override;
-    bool  TryPeekSlotPage        (Word address, Byte & value) const override;
+    Byte  PeekSlotPage           (Word address) const override;
     bool  IsExpansionRomSelected () const override { return m_selected; }
     Byte  ReadExpansionRom       (Word address) override;
+    Byte  PeekExpansionRom       (Word address) const override;
     void  DeselectExpansionRom   () override { m_selected = false; }
     void  WriteExpansionRom      (Word address, Byte value) override;
     bool  UsesStrobePage         () const override { return true; }

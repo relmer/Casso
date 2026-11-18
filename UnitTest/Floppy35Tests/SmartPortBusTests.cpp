@@ -341,7 +341,7 @@ public:
             Assert::AreEqual (card.Read ((Word) (0xC0D0 + offset)), peeked, std::format (L"offset {}", offset).c_str());
         }
 
-        Assert::IsTrue   (card.TryPeekSlotPage (0xC5FF, peeked));
+        peeked = card.PeekSlotPage (0xC5FF);
         Assert::AreEqual (rom[0x5FF], peeked);
         Assert::IsFalse  (card.IsExpansionRomSelected());
     }

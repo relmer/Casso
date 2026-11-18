@@ -16,11 +16,8 @@
 
 bool Apple2cSmartPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte & outValue)
 {
-    Byte  result     = m_port.Access (offset, isWrite, value);
-    bool  isDriveTwo = m_port.GetIwm().GetDrive() == kDriveTwo;
-    bool  hasDrives  = m_port.GetDriveCount() > 0;
-    bool  hasBus     = !m_hasFloppyAfter || m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset();
-    bool  isPorts    = isDriveTwo && hasDrives && hasBus;
+    Byte  result  = m_port.Access (offset, isWrite, value);
+    bool  isPorts = IsPorts (m_port.GetIwm().GetSwitches());
 
 
 
@@ -30,6 +27,31 @@ bool Apple2cSmartPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte &
     }
 
     return isPorts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPorts
+//
+//  Whether an access is the port's, with the switches as they are after it:
+//  drive 2 selected, a drive on the chain, and the bus enabled when a
+//  5.25-inch drive follows the chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cSmartPort::IsPorts (const Iwm::SwitchState & after) const
+{
+    bool  isDriveTwo = after.drive == kDriveTwo;
+    bool  hasDrives  = m_port.GetDriveCount() > 0;
+    bool  hasBus     = !m_hasFloppyAfter || m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset();
+
+
+
+    return isDriveTwo && hasDrives && hasBus;
 }
 
 
@@ -48,16 +70,12 @@ bool Apple2cSmartPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte &
 
 bool Apple2cSmartPort::TryPeekIwmAccess (int offset, bool & outIsPorts, Byte & outValue) const
 {
-    Iwm::SwitchState  after      = m_port.GetSwitchesAfter (offset);
-    bool              isDriveTwo = after.drive == kDriveTwo;
-    bool              hasDrives  = m_port.GetDriveCount() > 0;
-    bool              hasBus     = !m_hasFloppyAfter || m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset();
-    Byte              byte       = 0;
-    bool              canPeek    = m_port.TryPeekAccess (offset, byte);
+    Byte  byte    = 0;
+    bool  canPeek = m_port.GetIwm().TryPeekAccess (offset, byte);
 
 
 
-    outIsPorts = isDriveTwo && hasDrives && hasBus;
+    outIsPorts = IsPorts (m_port.GetIwm().GetSwitchesAfter (offset));
     outValue   = outIsPorts ? byte : (Byte) 0;
 
     return canPeek || !outIsPorts;

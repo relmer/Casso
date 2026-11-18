@@ -61,9 +61,10 @@ public:
 
     // IExpansionRomCard
     Byte  OnSlotPageAccess       (Word address, bool isWrite, Byte value) override;
-    bool  TryPeekSlotPage        (Word address, Byte & value) const override;
+    Byte  PeekSlotPage           (Word address) const override;
     bool  IsExpansionRomSelected () const override { return m_selected; }
     Byte  ReadExpansionRom       (Word address) override;
+    Byte  PeekExpansionRom       (Word address) const override;
     void  DeselectExpansionRom   () override { m_selected = false; }
 
     // IBlockDeviceEventSource
@@ -94,6 +95,7 @@ private:
     static constexpr Word  kSlotIoStride = 0x10;
     static constexpr Word  kExpansionAt  = 0xC800;
 
+    Byte  PeekIo       (Word offset) const;
     void  OnLineAccess (Byte offset);
 
     int                             m_slot     = 0;

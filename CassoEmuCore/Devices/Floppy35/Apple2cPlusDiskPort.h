@@ -58,10 +58,9 @@ public:
     void  Reset     () override { m_port.Reset(); }
 
     // IDiskPortHook
-    bool  OnIwmAccess         (int offset, bool isWrite, Byte value, Byte & outValue) override;
-    bool  AreFloppiesEnabled  () override;
-    bool  PeekFloppiesEnabled () const override;
-    bool  TryPeekIwmAccess    (int offset, bool & outIsPorts, Byte & outValue) const override;
+    bool  OnIwmAccess        (int offset, bool isWrite, Byte value, Byte & outValue) override;
+    bool  AreFloppiesEnabled () const override;
+    bool  TryPeekIwmAccess   (int offset, bool & outIsPorts, Byte & outValue) const override;
 
     // IFloppy35EventSource
     void  SetFloppy35EventSink (IFloppy35EventSink * sink) override;
@@ -130,6 +129,8 @@ private:
         int                    m_drive  = 0;
         IDiskDriveBus        * m_driven = nullptr;
     };
+
+    static bool      IsPorts      (bool areFloppiesEnabled, const Iwm::SwitchState & after);
 
     bool             IsInternal   () const;
     bool             IsDrivingBus (int drive) const;

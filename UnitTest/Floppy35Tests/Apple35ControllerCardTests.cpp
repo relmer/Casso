@@ -232,13 +232,13 @@ public:
 
         hostCycles = kHostHz / 10;
 
-        Assert::IsTrue   (card.TryPeekSlotPage (0xC501, peeked));
+        peeked = card.PeekSlotPage (0xC501);
         Assert::AreEqual ((Byte) 0, peeked, L"the card's CPU has not stored the byte yet");
         Assert::AreEqual (start, card.GetCardCpu().GetCycles(), L"the peek ran no cycle");
         Assert::IsFalse  (card.IsExpansionRomSelected());
 
         Assert::AreEqual ((Byte) 0x20, card.OnSlotPageAccess (0xC501, false, 0));
-        Assert::IsTrue   (card.TryPeekSlotPage (0xC501, peeked));
+        peeked = card.PeekSlotPage (0xC501);
         Assert::AreEqual ((Byte) 0x20, peeked);
     }
 
@@ -259,7 +259,7 @@ public:
         Assert::IsTrue   (card.TryPeekIo (0xC0D7, peeked));
         Assert::AreEqual ((Byte) 3, card.GetBank());
 
-        Assert::IsTrue   (card.TryPeekExpansionRom (0xC810, peeked));
+        peeked = card.PeekExpansionRom (0xC810);
         Assert::AreEqual ((Byte) 0x6C, peeked);
     }
 

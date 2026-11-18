@@ -126,7 +126,7 @@ Byte Disk2IwmPort::Access (int offset, bool isWrite, Byte value, IDiskPortHook *
 
 bool Disk2IwmPort::TryPeek (int offset, const IDiskPortHook * hook, Byte & value) const
 {
-    bool  isEnabled = hook == nullptr || hook->PeekFloppiesEnabled();
+    bool  isEnabled = hook == nullptr || hook->AreFloppiesEnabled();
     bool  isPorts   = false;
     bool  canPeek   = true;
     Byte  port      = 0;

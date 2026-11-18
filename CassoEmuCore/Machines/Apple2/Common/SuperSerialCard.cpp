@@ -213,22 +213,12 @@ void SuperSerialCard::PowerCycle (Prng & prng)
 
 Byte SuperSerialCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 {
-    constexpr Word  kPageMask = 0x00FF;
-    Byte            result    = m_bus.GetFloatingBusValue();
-
-
-
     (void) isWrite;
     (void) value;
 
     m_expansionSelected = true;
 
-    if (!m_firmware.empty())
-    {
-        result = m_firmware[kFirmwarePageOffset + (address & kPageMask)];
-    }
-
-    return result;
+    return PeekSlotPage (address);
 }
 
 
@@ -237,28 +227,17 @@ Byte SuperSerialCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeekSlotPage
-//
-//  The firmware's last page, with the expansion ROM's latch left as it is.
-//  The floating bus with no firmware has no side-effect-free value.
+//  PeekSlotPage
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SuperSerialCard::TryPeekSlotPage (Word address, Byte & value) const
+Byte SuperSerialCard::PeekSlotPage (Word address) const
 {
     constexpr Word  kPageMask = 0x00FF;
 
 
 
-    value = 0;
-
-    if (m_firmware.empty())
-    {
-        return false;
-    }
-
-    value = m_firmware[kFirmwarePageOffset + (address & kPageMask)];
-    return true;
+    return m_firmware.empty() ? m_bus.GetFloatingBusValue() : m_firmware[kFirmwarePageOffset + (address & kPageMask)];
 }
 
 
@@ -269,11 +248,26 @@ bool SuperSerialCard::TryPeekSlotPage (Word address, Byte & value) const
 //
 //  ReadExpansionRom
 //
+////////////////////////////////////////////////////////////////////////////////
+
+Byte SuperSerialCard::ReadExpansionRom (Word address)
+{
+    return PeekExpansionRom (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekExpansionRom
+//
 //  $C800-$CEFF is firmware $000-$6FF. $CF00-$CFFF is not mapped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte SuperSerialCard::ReadExpansionRom (Word address)
+Byte SuperSerialCard::PeekExpansionRom (Word address) const
 {
     Word  offset = static_cast<Word> (address - kExpansionRomStart);
     Byte  result = m_bus.GetFloatingBusValue();

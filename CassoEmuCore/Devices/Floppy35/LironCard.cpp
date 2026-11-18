@@ -94,7 +94,7 @@ Byte LironCard::Read (Word address)
 
 bool LironCard::TryPeekIo (Word address, Byte & value)
 {
-    return m_port.TryPeekAccess (address & s_kSwitchMask, value);
+    return m_port.GetIwm().TryPeekAccess (address & s_kSwitchMask, value);
 }
 
 
@@ -145,7 +145,7 @@ Byte LironCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 
     m_selected = true;
 
-    return m_rom.empty() ? (Byte) 0xFF : m_rom[(size_t) m_slot * 0x100 + (address & s_kPageMask)];
+    return PeekSlotPage (address);
 }
 
 
@@ -154,17 +154,15 @@ Byte LironCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeekSlotPage
+//  PeekSlotPage
 //
-//  The slot's ROM page, with the expansion ROM left as it is.
+//  The slot's ROM page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LironCard::TryPeekSlotPage (Word address, Byte & value) const
+Byte LironCard::PeekSlotPage (Word address) const
 {
-    value = m_rom.empty() ? (Byte) 0xFF : m_rom[(size_t) m_slot * 0x100 + (address & s_kPageMask)];
-
-    return true;
+    return m_rom.empty() ? (Byte) 0xFF : m_rom[(size_t) m_slot * 0x100 + (address & s_kPageMask)];
 }
 
 
@@ -178,6 +176,21 @@ bool LironCard::TryPeekSlotPage (Word address, Byte & value) const
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte LironCard::ReadExpansionRom (Word address)
+{
+    return PeekExpansionRom (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekExpansionRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte LironCard::PeekExpansionRom (Word address) const
 {
     return m_rom.empty() ? (Byte) 0xFF : m_rom[address - kExpansion];
 }

@@ -87,5 +87,7 @@ void SlotRomPage::Write (Word address, Byte value)
 
 bool SlotRomPage::TryPeekIo (Word address, Byte & value)
 {
-    return m_card.TryPeekSlotPage (address, value);
+    value = m_card.PeekSlotPage (address);
+
+    return true;
 }

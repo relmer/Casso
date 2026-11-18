@@ -269,16 +269,12 @@ void AppleScsiCard::PowerCycle (Prng & prng)
 
 Byte AppleScsiCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 {
-    constexpr Word  kPageMask = 0xFF;
-
-
-
     (void) isWrite;
     (void) value;
 
     m_selected = true;
 
-    return m_rom.empty() ? m_memoryBus.GetFloatingBusValue() : m_rom[address & kPageMask];
+    return PeekSlotPage (address);
 }
 
 
@@ -287,21 +283,17 @@ Byte AppleScsiCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeekSlotPage
-//
-//  The ROM's first page, with the expansion ROM left as it is.
+//  PeekSlotPage
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleScsiCard::TryPeekSlotPage (Word address, Byte & value) const
+Byte AppleScsiCard::PeekSlotPage (Word address) const
 {
     constexpr Word  kPageMask = 0xFF;
 
 
 
-    value = m_rom.empty() ? m_memoryBus.GetFloatingBusValue() : m_rom[address & kPageMask];
-
-    return true;
+    return m_rom.empty() ? m_memoryBus.GetFloatingBusValue() : m_rom[address & kPageMask];
 }
 
 
@@ -315,6 +307,24 @@ bool AppleScsiCard::TryPeekSlotPage (Word address, Byte & value) const
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte AppleScsiCard::ReadExpansionRom (Word address)
+{
+    return PeekExpansionRom (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekExpansionRom
+//
+//  The RAM bank below $CC00 and the ROM bank from it, as the bank latch
+//  selects them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleScsiCard::PeekExpansionRom (Word address) const
 {
     size_t  ramBank = (size_t) ((m_bankLatch >> s_kRamShift) & s_kRamBankMask);
     size_t  romBank = (size_t) (m_bankLatch & s_kRomBankMask);

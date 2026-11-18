@@ -212,7 +212,7 @@ public:
 
         Assert::AreEqual (S_OK, card.SetFirmware (MakeRom()));
 
-        Assert::IsTrue   (card.TryPeekSlotPage (0xC700, peeked));
+        peeked = card.PeekSlotPage (0xC700);
         Assert::AreEqual ((Byte) 0xA0, peeked);
         Assert::IsFalse  (card.IsExpansionRomSelected());
     }

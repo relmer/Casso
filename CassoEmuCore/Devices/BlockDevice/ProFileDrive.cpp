@@ -171,7 +171,7 @@ Byte ProFileDrive::PeekData() const
     {
         value = m_state;
     }
-    else if (m_phase == Phase::Sending && m_index < m_buffer.size())
+    else if (IsSendingByte())
     {
         value = m_buffer[m_index];
     }
@@ -231,33 +231,65 @@ void ProFileDrive::WriteData (Byte value)
 //  ReadData
 //
 //  The state byte during a handshake; otherwise the next byte of the status
-//  and block the drive is sending.
+//  and block the drive is sending, which the read takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte ProFileDrive::ReadData()
 {
-    Byte  value = 0;
+    Byte  value = PeekData();
 
 
 
-    if (m_presenting)
-    {
-        return m_state;
-    }
-
-    if (m_phase == Phase::Sending && m_index < m_buffer.size())
-    {
-        value = m_buffer[m_index++];
-
-        if (m_index == m_buffer.size())
-        {
-            m_phase = Phase::Idle;
-            m_state = kStateCommand;
-        }
-    }
-
+    TakeData();
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeData
+//
+//  Moves the transfer past the byte PeekData returns, when the drive is
+//  sending one; after the last byte the drive waits for a command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProFileDrive::TakeData()
+{
+    if (!IsSendingByte())
+    {
+        return;
+    }
+
+    m_index++;
+
+    if (m_index == m_buffer.size())
+    {
+        m_phase = Phase::Idle;
+        m_state = kStateCommand;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSendingByte
+//
+//  True when a read of the data latch returns a byte of the status and
+//  block: no handshake, and a byte left to send.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProFileDrive::IsSendingByte() const
+{
+    return !m_presenting && m_phase == Phase::Sending && m_index < m_buffer.size();
 }
 
 

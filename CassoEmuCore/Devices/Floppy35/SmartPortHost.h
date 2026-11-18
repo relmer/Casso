@@ -36,14 +36,6 @@ public:
     //  read returns.
     Byte  Access (int offset, bool isWrite, Byte value);
 
-    //  The byte a read of switch `offset` returns, as of the last access or
-    //  catch-up: the drives don't run, and the IWM doesn't change. False
-    //  where the byte cannot be worked out (Iwm::TryPeekAccess).
-    bool  TryPeekAccess (int offset, Byte & value) const { return m_iwm.TryPeekAccess (offset, value); }
-
-    //  The IWM's switches after an access to `offset`.
-    Iwm::SwitchState  GetSwitchesAfter (int offset) const { return m_iwm.GetSwitchesAfter (offset); }
-
     //  Runs the drives up to the Apple's time.
     void  CatchUp (CatchUpKind kind = CatchUpKind::Access);
 

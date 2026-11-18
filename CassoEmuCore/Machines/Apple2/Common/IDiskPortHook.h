@@ -18,8 +18,9 @@
 //  On the //c Plus the controller's drives are the 5.25-inch drives at the
 //  end of the port's chain, enabled only while the IWM isn't driving the
 //  internal drive or the SmartPort bus. Before each access the controller
-//  calls AreFloppiesEnabled; while it returns false, the access moves
-//  neither a head nor a motor, and the hook returns the byte.
+//  calls AreFloppiesEnabled, which works the answer out without changing
+//  anything, for an access and a peek alike; while it returns false, the
+//  access moves neither a head nor a motor, and the hook returns the byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,11 +30,7 @@ public:
     virtual ~IDiskPortHook() = default;
 
     virtual bool  OnIwmAccess        (int offset, bool isWrite, Byte value, Byte & outValue) = 0;
-    virtual bool  AreFloppiesEnabled () { return true; }
-
-    //  What AreFloppiesEnabled returns, without recording it. A false
-    //  return makes the controller's peek fail.
-    virtual bool  PeekFloppiesEnabled () const { return false; }
+    virtual bool  AreFloppiesEnabled () const { return true; }
 
     //  What OnIwmAccess returns for a read of `offset`, and the byte it
     //  returns in `outValue` when it returns true, without the access. False

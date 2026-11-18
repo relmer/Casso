@@ -185,15 +185,33 @@ void Apple35ControllerCard::SoftReset()
 
 Byte Apple35ControllerCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 {
-    constexpr Word  kPageMask = 0xFF;
-
-
-
     (void) isWrite;
     (void) value;
 
     CatchUp();
     m_selected = true;
+
+    return PeekSlotPage (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekSlotPage
+//
+//  The card's RAM page as of the card's last catch-up: the card's CPU
+//  doesn't run, and the expansion ROM's selection is left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple35ControllerCard::PeekSlotPage (Word address) const
+{
+    constexpr Word  kPageMask = 0xFF;
+
+
 
     return m_memory.GetRam()[kPageRam + (address & kPageMask)];
 }
@@ -204,31 +222,9 @@ Byte Apple35ControllerCard::OnSlotPageAccess (Word address, bool isWrite, Byte v
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeekSlotPage
-//
-//  The card's RAM page as of the card's last catch-up: the card's CPU
-//  doesn't run, and the expansion ROM's selection is left alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Apple35ControllerCard::TryPeekSlotPage (Word address, Byte & value) const
-{
-    constexpr Word  kPageMask = 0xFF;
-
-
-
-    value = m_memory.GetRam()[kPageRam + (address & kPageMask)];
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ReadExpansionRom
+//
+//  The card's CPU catches up first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,7 +232,7 @@ Byte Apple35ControllerCard::ReadExpansionRom (Word address)
 {
     CatchUp();
 
-    return m_memory.GetRam()[GetRamAddress (address)];
+    return PeekExpansionRom (address);
 }
 
 
@@ -245,18 +241,16 @@ Byte Apple35ControllerCard::ReadExpansionRom (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeekExpansionRom
+//  PeekExpansionRom
 //
 //  The card's RAM as of the card's last catch-up, without running the
 //  card's CPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Apple35ControllerCard::TryPeekExpansionRom (Word address, Byte & value) const
+Byte Apple35ControllerCard::PeekExpansionRom (Word address) const
 {
-    value = m_memory.GetRam()[GetRamAddress (address)];
-
-    return true;
+    return m_memory.GetRam()[GetRamAddress (address)];
 }
 
 

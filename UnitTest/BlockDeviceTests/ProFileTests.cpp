@@ -318,7 +318,7 @@ public:
             Assert::AreEqual (card.Read ((Word) (kIo + offset)), peeked, std::format (L"offset {}", offset).c_str());
         }
 
-        Assert::IsTrue   (card.TryPeekSlotPage (0xC507, peeked));
+        peeked = card.PeekSlotPage (0xC507);
         Assert::AreEqual ((Byte) 7, peeked, L"the page is the ROM's last");
         Assert::AreEqual ((Byte) 0, card.GetLines(), L"no handshake line was set");
         Assert::IsFalse  (card.IsExpansionRomSelected());

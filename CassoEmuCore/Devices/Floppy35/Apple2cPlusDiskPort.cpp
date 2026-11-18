@@ -80,7 +80,7 @@ Byte Apple2cPlusDiskPort::Read (Word address)
 
 bool Apple2cPlusDiskPort::TryPeekIo (Word address, Byte & value)
 {
-    return m_port.TryPeekAccess (address & kSwitchMask, value);
+    return m_port.GetIwm().TryPeekAccess (address & kSwitchMask, value);
 }
 
 
@@ -110,15 +110,36 @@ void Apple2cPlusDiskPort::Write (Word address, Byte value)
 //  5.25-inch drives were enabled for the access and Q7 is off: the
 //  controller has the floppy's data and status registers, and the write
 //  handshake is the IWM's whatever drive is enabled. ROM 05 waits on the
-//  handshake while it probes the SmartPort bus with drive 1 selected.
+//  handshake while it probes the SmartPort bus with drive 1 selected. The
+//  enable is the one the controller worked out before its access, from the
+//  IWM as it was then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Apple2cPlusDiskPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte & outValue)
 {
-    outValue = m_port.Access (offset, isWrite, value);
+    m_floppies = AreFloppiesEnabled();
+    outValue   = m_port.Access (offset, isWrite, value);
 
-    return !m_floppies || m_port.GetIwm().IsWriting();
+    return IsPorts (m_floppies, m_port.GetIwm().GetSwitches());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPorts
+//
+//  Whether a read's byte is the port's, with the switches as they are
+//  after the access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::IsPorts (bool areFloppiesEnabled, const Iwm::SwitchState & after)
+{
+    return !areFloppiesEnabled || after.q7;
 }
 
 
@@ -129,41 +150,16 @@ bool Apple2cPlusDiskPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byt
 //
 //  AreFloppiesEnabled
 //
-//  Called before each access, with the IWM's state from before it. A
-//  5.25-inch drive has no 3.5 select input: that pin is ground on the Disk
-//  IIc's connector. At startup, ROM 05 reads drive 1 with 3.5 select off; a
-//  5.25-inch drive returns nibbles there, and only then does ROM 05 run the
-//  slot 6 firmware. An Apple 3.5 Drive ahead of it on the chain is drive 1
-//  while 3.5 select is on.
+//  From the IWM's state before the access. A 5.25-inch drive has no 3.5
+//  select input: that pin is ground on the Disk IIc's connector. At
+//  startup, ROM 05 reads drive 1 with 3.5 select off; a 5.25-inch drive
+//  returns nibbles there, and only then does ROM 05 run the slot 6
+//  firmware. An Apple 3.5 Drive ahead of it on the chain is drive 1 while
+//  3.5 select is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Apple2cPlusDiskPort::AreFloppiesEnabled()
-{
-    int   drive  = m_port.GetIwm().GetDrive();
-    bool  hasBus = m_port.GetDriveCount() > 0 && (m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset());
-    bool  is35   = &GetDriven (drive) != &m_port.GetBus();
-
-
-
-    m_floppies = drive < m_floppyCount && !is35 && !hasBus;
-
-    return m_floppies;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PeekFloppiesEnabled
-//
-//  AreFloppiesEnabled's answer, without keeping it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Apple2cPlusDiskPort::PeekFloppiesEnabled() const
+bool Apple2cPlusDiskPort::AreFloppiesEnabled() const
 {
     int   drive  = m_port.GetIwm().GetDrive();
     bool  hasBus = m_port.GetDriveCount() > 0 && (m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset());
@@ -188,13 +184,9 @@ bool Apple2cPlusDiskPort::PeekFloppiesEnabled() const
 
 bool Apple2cPlusDiskPort::TryPeekIwmAccess (int offset, bool & outIsPorts, Byte & outValue) const
 {
-    Iwm::SwitchState  after = m_port.GetSwitchesAfter (offset);
+    outIsPorts = IsPorts (AreFloppiesEnabled(), m_port.GetIwm().GetSwitchesAfter (offset));
 
-
-
-    outIsPorts = !PeekFloppiesEnabled() || after.q7;
-
-    return m_port.TryPeekAccess (offset, outValue);
+    return m_port.GetIwm().TryPeekAccess (offset, outValue);
 }
 
 

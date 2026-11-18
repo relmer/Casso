@@ -70,18 +70,48 @@ std::unique_ptr<MemoryDevice> ProFileCard::Create (const DeviceConfig & config, 
 //
 //  Read
 //
+//  PeekIo's byte. A read of the data in latch takes its byte off the
+//  drive.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte ProFileCard::Read (Word address)
 {
     Word  offset = (Word) (address - m_ioStart);
-    Byte  value  = m_bus.GetFloatingBusValue();
+    Byte  value  = PeekIo (offset);
 
 
 
     if (offset == s_kDataIn)
     {
-        value = m_drive->ReadData();
+        m_drive->TakeData();
+    }
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekIo
+//
+//  The byte a read of the card's I/O offset returns, without the read's
+//  change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte ProFileCard::PeekIo (Word offset) const
+{
+    Byte  value = m_bus.GetFloatingBusValue();
+
+
+
+    if (offset == s_kDataIn)
+    {
+        value = m_drive->PeekData();
     }
     else if (offset == s_kStatus)
     {
@@ -99,26 +129,11 @@ Byte ProFileCard::Read (Word address)
 //
 //  TryPeekIo
 //
-//  Read's byte, with the data in latch's byte left on the drive.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ProFileCard::TryPeekIo (Word address, Byte & value)
 {
-    Word  offset = (Word) (address - m_ioStart);
-
-
-
-    value = m_bus.GetFloatingBusValue();
-
-    if (offset == s_kDataIn)
-    {
-        value = m_drive->PeekData();
-    }
-    else if (offset == s_kStatus)
-    {
-        value = (Byte) ((m_drive->IsBusy() ? 0 : s_kStatusIdle) | (m_drive->IsPresent() ? 0 : s_kStatusAbsent));
-    }
+    value = PeekIo ((Word) (address - m_ioStart));
 
     return true;
 }
@@ -209,7 +224,7 @@ Byte ProFileCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
         OnLineAccess (offset);
     }
 
-    return m_rom.empty() ? m_bus.GetFloatingBusValue() : m_rom[kRomPageAt + offset];
+    return PeekSlotPage (address);
 }
 
 
@@ -218,22 +233,19 @@ Byte ProFileCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryPeekSlotPage
+//  PeekSlotPage
 //
-//  The ROM's last page, with the handshake line and the expansion ROM's
-//  selection left as they are.
+//  The ROM's last page.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProFileCard::TryPeekSlotPage (Word address, Byte & value) const
+Byte ProFileCard::PeekSlotPage (Word address) const
 {
     constexpr Word  kPageMask = 0xFF;
 
 
 
-    value = m_rom.empty() ? m_bus.GetFloatingBusValue() : m_rom[kRomPageAt + (address & kPageMask)];
-
-    return true;
+    return m_rom.empty() ? m_bus.GetFloatingBusValue() : m_rom[kRomPageAt + (address & kPageMask)];
 }
 
 
@@ -247,6 +259,21 @@ bool ProFileCard::TryPeekSlotPage (Word address, Byte & value) const
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte ProFileCard::ReadExpansionRom (Word address)
+{
+    return PeekExpansionRom (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekExpansionRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte ProFileCard::PeekExpansionRom (Word address) const
 {
     Word  offset = (Word) (address - kExpansionAt);
 

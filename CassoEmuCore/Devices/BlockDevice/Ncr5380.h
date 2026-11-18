@@ -85,13 +85,12 @@ public:
 
     bool  IsDrq  ();
 
-    //  What ReadRegister, ReadDma and IsDrq return, worked out without their
-    //  changes: arbitration isn't taken, the interrupt and busy error aren't
-    //  set or cleared, no byte is taken off the bus.
-    Byte  PeekRegister (int reg) const;
-    Byte  PeekDma      () const;
-    bool  PeekDrq      () const;
-    bool  IsIrq        () const { return m_irq; }
+    //  What ReadRegister, ReadDma and IsDrq return, from the same evaluation
+    //  with its changes discarded.
+    Byte  PeekRegister (int reg) const { return EvaluateRegister (reg).value; }
+    Byte  PeekDma      () const        { return EvaluateDma().value; }
+    bool  PeekDrq      () const        { return EvaluateDrq().isDrq; }
+    bool  IsIrq        () const        { return m_irq; }
 
     //  The chip's reset input.
     void  Reset ();
@@ -108,15 +107,32 @@ private:
         InitiatorReceive,
     };
 
-    void  Drive              ();
-    void  UpdateArbitration  ();
-    bool  IsPhaseMatch       () const;
-    Byte  GetBusStatus       () const;
-    Byte  GetBusAndStatus    ();
-    Byte  PeekBusAndStatus   () const;
-    bool  WouldTakeBus       () const;
-    void  CheckPhaseMismatch ();
-    void  PulseAck           ();
+    //  A read's byte and the changes it makes to the chip, which Apply makes
+    //  and a peek discards.
+    struct ReadResult
+    {
+        Byte  value     = 0;
+        bool  isDrq     = false;
+        bool  takesBus  = false;
+        bool  irq       = false;
+        bool  busyError = false;
+        bool  endsDma   = false;
+        bool  takesByte = false;
+    };
+
+    ReadResult  EvaluateRegister   (int reg) const;
+    ReadResult  EvaluateDma        () const;
+    ReadResult  EvaluateDrq        () const;
+    ReadResult  StartRead          () const;
+    void        EvaluatePhaseCheck (ReadResult & result) const;
+    void        Apply              (const ReadResult & result);
+
+    void        Drive              ();
+    void        UpdateArbitration  ();
+    bool        IsPhaseMatch       () const;
+    Byte        GetBusStatus       () const;
+    Byte        GetBusAndStatus    (const ReadResult & result) const;
+    void        PulseAck           ();
 
     ScsiBus  & m_bus;
     Byte       m_odr         = 0;
