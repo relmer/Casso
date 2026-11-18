@@ -966,6 +966,7 @@
     <ClCompile Include="Machines\Apple3\Cpu6502Apple3.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3SystemVias.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Slots.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3TimeBase.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -1951,6 +1952,7 @@
     <ClInclude Include="Machines\Apple3\IExtendedAddressing.h" />
     <ClInclude Include="Machines\Apple3\Apple3SystemVias.h" />
     <ClInclude Include="Machines\Apple3\Apple3Slots.h" />
+    <ClInclude Include="Machines\Apple3\Apple3TimeBase.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
   </ItemGroup>
   <ItemGroup>
