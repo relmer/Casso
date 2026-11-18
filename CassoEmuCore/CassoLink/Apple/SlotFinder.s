@@ -1,20 +1,20 @@
 ; Casso's CassoLink: the slot finder.
 ;
 ; Typed in, or read from tape, ahead of the 6551 shim, and run in its place.
-; It writes the 6551's slot into the shim's header at $3B38 and starts the
-; shim at $3B00. The slot is the input hook's when IN# set it to a slot's
+; It writes the 6551's slot into the shim's header at $3A38 and starts the
+; shim at $3A00. The slot is the input hook's when IN# set it to a slot's
 ; firmware, which a bootstrap typed in through the Apple's serial input has;
 ; otherwise the first slot, from 7 down, whose firmware has the Super Serial
 ; Card's identification bytes, as after a bootstrap from tape; otherwise the
 ; slot the shim is assembled with. On a //c, IN#1 and IN#2 select ports 1
 ; and 2, whose 6551s are where slots 1's and 2's would be.
 ;
-; The shim saves the machine's zero page at $3A00 when it starts, over this
+; The shim saves the machine's zero page at $3900 when it starts, over this
 ; code, which has then run.
 ;
-; Built with SERIALLOAD, it is typed in alone, at $3A50, and reads the shim
+; Built with SERIALLOAD, it is typed in alone, at $3950, and reads the shim
 ; from the 6551 as raw bytes rather than as typed lines. It sends $A5 when it
-; is ready, then takes a page count, that many pages for $3B00 up, and the
+; is ready, then takes a page count, that many pages for $3A00 up, and the
 ; XOR of every byte. With the right XOR it writes the slot and starts the
 ; shim; otherwise it jumps to Applesoft's prompt, where the bootstrap was
 ; typed, and the PC's wait for Ready ends in an error. The warm start doesn't
@@ -32,17 +32,17 @@
 ; input buffer again, the command that read the tape, so the tape is read
 ; again when the PC sends the audio again, with nothing typed.
 
-SHIM     = $3B00
-SHIMSLOT = $3B38                ; the shim's 6551 slot
+SHIM     = $3A00
+SHIMSLOT = $3A38                ; the shim's 6551 slot
 KSWH     = $39                  ; the input hook's high byte
 CHKSUM   = $2E                  ; the monitor's XOR of the bytes it read from tape
 REPARSE  = $FF70                ; the monitor's prompt, past reading a line: the line read last is run again
 BASIC    = $E003                ; Applesoft's warm start, which doesn't clear the program or reset the hooks
 
         ifdef SERIALLOAD
-ORIGIN   = $3A50
+ORIGIN   = $3950
         else
-ORIGIN   = $3AA0
+ORIGIN   = $39A0
         endif
 
         .org ORIGIN

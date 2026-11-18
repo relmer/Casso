@@ -142,7 +142,7 @@ for the sector, $30 the data field did not decode, $40 the sector read back
 differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
-The shim occupies $3B00 to $3FFF, with its copy of the machine's zero page at $3A00, the 6551 control byte for its starting speed at $3B02, the speed's text at $3B06, a Wi-Fi modem's dial command, ending in a zero byte, at $3B0C (R24), and the 6551's slot at $3B38: 2 for the //c's port 2, or a Super Serial Card's slot. Before Load program, the program sets bit 7 of the dial command's first byte, and the shim does not dial a command marked this way. The W5100 shim has the same address and header. The program
+The shim occupies $3A00 to $3FFF, with its copy of the machine's zero page at $3900, the 6551 control byte for its starting speed at $3A02, the speed's text at $3A06, a Wi-Fi modem's dial command, ending in a zero byte, at $3A0C (R24), and the 6551's slot at $3A38: 2 for the //c's port 2, or a Super Serial Card's slot. The byte at $3A39 is 0 for a 6551, $80 for a card run through its Pascal 1.1 firmware and $C0 for a IIgs's port, driven through its 8530; the jumps at $3A3A, $3A3D and $3A40 are the status, read and write calls for the last two; $3A43 is a IIgs's speed register as the program found it, plus 1; and the jump at $3A44 sets a IIgs's port to the speed of the 6551 control byte in A, which is stored as the starting speed (R47). Before Load program, the program sets bit 7 of the dial command's first byte, and the shim does not dial a command marked this way. The W5100 shim has the same address and header. The program
 runs from $0800 and uses $4000 to $92FF for buffers, with no DOS or ProDOS
 in memory.
 
@@ -308,15 +308,20 @@ succeeds; and the last Label.
 
 Casso Explorer's boot disk works on every interface, as ADTPro's does. It
 loads a first stage at $2000, with the 6551 shim at $2C00 and the W5100
-shim at $3100, both built for $3B00, and the stage's copy of the zero page
-at $3600. The host writes both shims'
+shim at $3200, both built for $3A00, and the stage's copy of the zero page
+at $3800. The host writes both shims'
 headers as for their own disks.
 
 The stage finds:
 
 - on a //c, ports 1 and 2;
-- a Super Serial Card in any slot, by $Cn05 = $38, $Cn07 = $18, $Cn0B = $01
-  and $Cn0C = $31;
+- a Super Serial Card in any slot, by $Cn05 = $38, $Cn07 = $18, $Cn0B = $01,
+  a serial card's or a modem's class in $Cn0C, and a 6551;
+- on a IIgs, its modem and printer ports, by the same bytes, $Cn0C = $31 and
+  no 6551, each set to the shim's speed through its 8530 and listed as
+  SERIAL PORT 1 or SERIAL PORT 2;
+- up to two cards with the same bytes and no 6551, waited on through their
+  Pascal firmware;
 - an Uthernet II in any other slot but a Disk II's, by its mode register
   at $C084 plus 16 times the slot reading with bits 6, 5 and 2 clear, and
   then the W5100 taking two address pointer values and returning them.

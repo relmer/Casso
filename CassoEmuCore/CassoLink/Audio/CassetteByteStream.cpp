@@ -214,7 +214,7 @@ HRESULT CassetteByteStream::Receive (DWORD timeoutMs)
 
     while (m_received.empty() && !m_closed && spentMs < limitMs)
     {
-        if (spentMs >= budgetMs && !m_decoder.IsInBurst())
+        if (spentMs >= budgetMs && !IsReceiving())
         {
             break;
         }

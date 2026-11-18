@@ -8,6 +8,7 @@
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Audio/CassetteByteStream.h"
 #include "CassoLink/Audio/DiskAudioRecording.h"
+#include "CassoLink/Audio/DualCassetteByteStream.h"
 #include "CassoLink/Audio/WasapiCassetteAudio.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkAudioBootstrap.h"
@@ -48,8 +49,8 @@ TEST_CLASS (CassoLinkCassetteScenarioTests)
 {
 public:
 
-    //  A factory whose cassette link is the machine's cassette port; it has
-    //  no other line.
+    //  A factory whose cassette link is the machine's cassette port, over the
+    //  stream a cassette connection opens; it has no other line.
     class CassetteFactory : public IByteStreamFactory
     {
     public:
@@ -63,7 +64,7 @@ public:
         HRESULT  OpenCassette (const std::wstring &, const std::wstring &, std::unique_ptr<IByteStream> & outStream) override
         {
             m_audio   = std::make_shared<EmulatedCassetteAudio> (m_machine);
-            outStream = std::make_unique<CassetteByteStream> (m_audio);
+            outStream = std::make_unique<DualCassetteByteStream> (m_audio);
             return S_OK;
         }
 

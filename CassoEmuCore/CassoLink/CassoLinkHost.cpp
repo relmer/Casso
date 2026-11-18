@@ -982,12 +982,6 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     acked = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
     CBREx (acked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    //  After Set speed, a IIgs's port is driven through its 8530 and sends
-    //  each byte as itself rather than as two characters, so the form is
-    //  detected again from the next bytes.
-    m_textForm   = false;
-    m_textNibble = -1;
-
 Error:
     return hr;
 }
