@@ -1,7 +1,7 @@
 ; Casso's CassoLink: the universal boot disk's first stage.
 ;
-; Loaded at $2000 with both shims after it: the 6551 shim at $2C00 and the
-; W5100 shim at $3200, each built for $3A00 and with its header written by
+; Loaded at $2000 with both shims after it: the 6551 shim, with its startup
+; part, at $2C00 and the W5100 shim at $4400, each built for $3A00 and with its header written by
 ; the host. The stage finds every interface the machine
 ; has: a //c's ports 1 and 2; a Super Serial Card in any slot, by its
 ; firmware's Pascal 1.1 signature and a 6551; and an Uthernet II in any other
@@ -36,10 +36,10 @@
 ; NMOS 6502 code throughout.
 
 ACIMG    = $2C00                ; the 6551 shim, as built for SHIM
-W5IMG    = $3200                ; the W5100 shim, as built for SHIM
+W5IMG    = $4400                ; the W5100 shim, as built for SHIM
 SHIM     = $3A00
 ZPSAVE   = $3900                ; the shim's copy of the machine's zero page
-ZPCOPY   = $3800                ; the stage's, until a shim is chosen
+ZPCOPY   = $3600                ; the stage's, until a shim is chosen
 
 HCTL     = $02                  ; a shim's header: the 6551 control byte,
 HSPEED   = $06                  ; the speed's text, six characters,
@@ -351,15 +351,16 @@ wtpskip: ldx pidx
         inx
         bne wtpnext
 wtw5:   lda w5slot
-        beq wait
+        beq towait
         lda #$04
         sta skpage
         ldy #SKSR
         jsr wzsock
         jsr wzget
         cmp #STESTAB
-        beq w5go
-        inc annlo
+        bne w5idle
+        jmp w5go
+w5idle: inc annlo
         bne towait
         inc annhi
         lda annhi
@@ -404,6 +405,14 @@ acgocopy: lda ZPCOPY,x
         sta SHIM+$400,x
         lda ACIMG+$500,x
         sta SHIM+$500,x
+        lda ACIMG+$600,x
+        sta SHIM+$600,x
+        lda ACIMG+$700,x
+        sta SHIM+$700,x
+        lda ACIMG+$800,x
+        sta SHIM+$800,x
+        lda ACIMG+$900,x
+        sta SHIM+$900,x
         inx
         bne acgocopy
         jmp SHIM
@@ -447,8 +456,15 @@ addacia: ldx nacia
         asl a
         asl a
         tay
+        lda ACIMG+HCTL          ; rate 1, 230,400 baud on a IIgs's port, as
+        and #$0F                ; rate 0, 115,200 baud, the fastest a 6551 has
+        cmp #$01
+        bne acfull
         lda ACIMG+HCTL
-        sta ACIACTL,y
+        and #$F0
+        jmp acctl
+acfull: lda ACIMG+HCTL
+acctl:  sta ACIACTL,y
         lda #$0B
         sta ACIACMD,y
         lda ACIADATA,y
@@ -460,8 +476,9 @@ addacia: ldx nacia
 ; and RTS on and no interrupts. Slot 1's printer port is channel B and slot
 ; 2's modem port channel A. The 8530 is clocked by a 3.6864 MHz crystal at
 ; RTxC: the baud rate generator divides it by twice the time constant plus
-; 2, and the channel by 16 after that, or by 32 straight from RTxC for
-; 115,200 baud. Writes are absolute, set for the port, as an indexed store
+; 2, and the channel by 16 after that, or straight from RTxC by 32 for
+; 115,200 baud and by 16 for 230,400, which a 6551 control byte of rate 1,
+; 50 baud, indicates. Writes are absolute, set for the port, as an indexed store
 ; reads its address first, which changes the register selected or reads a
 ; byte received.
 addscc: ldx nacia
@@ -480,7 +497,7 @@ addscc: ldx nacia
         lda SCCBCMD,x           ; register 0 selected
         lda ACIMG+HCTL
         and #$0F
-        ldx #10
+        ldx #12
 asfind: cmp urates,x
         beq asfound
         dex
@@ -490,8 +507,13 @@ asfind: cmp urates,x
 asfound: lda urates+1,x
         ldx #u16-uregs
         ldy #uend-uregs
-        cmp #$FF
-        bne astc
+        cmp #$FE                ; a time constant, for the generator
+        bcc astc
+        lsr a                   ; straight from RTxC: $FF by 32, $FE by 16
+        lda #$84
+        bcs asclock
+        lda #$44
+asclock: sta uregs+1
         ldx #0
         ldy #u16-uregs
 astc:   sta u16tc
@@ -1432,8 +1454,9 @@ msgdhcp: .text ", GETTING AN ADDRESS"
 
 acslots: .ds 8                  ; each 6551's slot, or a //c's or a IIgs's port
 acscc:  .ds 8                   ; 0 for a 6551, or $80 plus a IIgs port's channel
-; Each 6551 rate's time constant: $FF for 115,200 baud, straight from RTxC.
-urates: .byte $00, $FF, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
+; Each 6551 rate's time constant: $FF for 115,200 baud and $FE for 230,400,
+; straight from RTxC.
+urates: .byte $00, $FF, $01, $FE, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
 ; Each 8530 register and its value, for 115,200 baud and then for the
 ; others, as the shim sets them.
 uregs:  .byte 4, $84, 14, $00, 11, $00, 1, $00, 3, $C1, 5, $EA

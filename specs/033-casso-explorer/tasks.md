@@ -2142,6 +2142,9 @@ rename, move and copy an image and find its thumbnail on each.
 - [ ] T1389 [US28] Write `CassoEmuCore/CassoLink/Apple/NetStack.s`: CS8900A and LAN91C96 drivers, ARP replies, IPv4, UDP, DHCP and the announcement, in a network shim at $B000 with its buffers from $9600, and the program's network build calling it through the shim's jumps (FR-210)
 - [ ] T1390 [US28] Add a UDP transport on the PC to `CassoLinkConnector`, one datagram for each send, and the network shim's image and the two cards' detection to the universal disk (FR-210)
 - [ ] T1391 [US28] Fake a CS8900A and a LAN91C96 in the tests, each passing frames to a UDP peer, and run the link's disk reads and writes over each in `ScenarioTests/CassoLinkNetworkTests.cpp` (FR-210)
+- [X] T1394 [US28] Split the 6551 shim into its resident code, below $4000, and a startup part after it that the program's tables are built over (R47 Update 4). Done: `startup` in `Shim.s`, the header's byte at $3A47, `LinkProgram::kShimResidentEnd`
+- [X] T1395 [US28] Send a sector whose bytes are all one value as Sector blank with the value, from the Apple in reply to Read sectors and from the host in Write track (spec Clarifications, 2026-11-18). Done: `isfill` and `sendfill` in `Program.s`; `SectorBlankParsesToTheValueInEveryByte`
+- [X] T1396 [US28] Run a IIgs's port at 230,400 baud, with a NAK and 115,200 on any other interface (R47 Update 4). Done: rate 1 in `sccspd` and `addscc`, `LinkProgram::kIIgsBaud`; `ASuperSerialCard_SendsANakForIIgsSpeed_AndReadsADisk`; the 8530 itself runs under T602
 - [ ] T1392 Take a multiple selection in Convert to, each file converted beside itself, the others passed over and listed in one report (spec Clarifications, 2026-11-18)
 - [ ] T1393 Add a "Get as" choice for a selection, with the options of each file kind in it that has options, stored as the defaults (spec Clarifications, 2026-11-18). Its menu text is the owner's to approve
 

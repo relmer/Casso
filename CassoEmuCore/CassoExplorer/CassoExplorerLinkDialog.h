@@ -39,7 +39,7 @@ public:
         { L"Cassette ports (audio)",       LinkTransport::Cassette     },
     };
 
-    static constexpr DWORD  kSpeeds[] = { 115200, 19200, 9600, 4800, 2400, 1200 };
+    static constexpr DWORD  kSpeeds[] = { 230400, 115200, 19200, 9600, 4800, 2400, 1200 };
 
     static std::vector<std::wstring>  GetTransportLabels ();
     static std::vector<std::wstring>  GetSpeedLabels     ();

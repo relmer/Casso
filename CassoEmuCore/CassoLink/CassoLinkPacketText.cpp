@@ -52,7 +52,7 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
             return (size >= 2) ? std::format ("Sector nibbles: track {}, sector {}", payload[0], payload[1]) : std::string ("Sector nibbles");
 
         case CassoLinkCodec::kSectorBlank:
-            return (size >= 2) ? std::format ("Blank sector: track {}, sector {}", payload[0], payload[1]) : std::string ("Blank sector");
+            return (size >= 3) ? std::format ("Blank sector: track {}, sector {}, value ${:02X}", payload[0], payload[1], payload[2]) : std::string ("Blank sector");
 
         case CassoLinkCodec::kSectorCrcs:
             return std::format ("Sector checksums: {} bytes", size);

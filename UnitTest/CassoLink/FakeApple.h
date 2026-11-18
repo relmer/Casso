@@ -885,7 +885,7 @@ private:
             }
             else if (packet.command == CassoLinkCodec::kSectorBlank)
             {
-                std::fill (data.begin(), data.end(), (Byte) 0);
+                CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
                 blanksReceived++;
             }
             else

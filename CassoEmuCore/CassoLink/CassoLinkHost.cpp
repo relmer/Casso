@@ -443,7 +443,7 @@ HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const 
             break;
         }
 
-        isData = packet.command == CassoLinkCodec::kSectorData;
+        isData = packet.command == CassoLinkCodec::kSectorData || packet.command == CassoLinkCodec::kSectorBlank;
         CBREx (isData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         hr = CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, one);
@@ -889,14 +889,15 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
 
         //  Write sectors takes each sector as its nibbles, written as they
         //  arrive; Write track takes the bytes, formatted with the track.
-        //  A sector of zeros goes to Write track as its numbers alone.
+        //  A sector of one value goes to Write track as its numbers and the
+        //  value.
         if (command == CassoLinkCodec::kWriteSectors)
         {
             hr = CassoLinkCodec::EncodeSectorNibbles (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
         }
         else if (IsBlank (data.subspan (index * kSectorSize, kSectorSize)))
         {
-            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], encoded);
+            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], data[index * kSectorSize], encoded);
         }
         else
         {
@@ -967,6 +968,7 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     const Byte       request[] = { control };
     CassoLinkPacket  packet;
     bool             acked     = false;
+    bool             refused   = false;
 
 
 
@@ -979,8 +981,12 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     hr = ReadReply (packet);
     CHR (hr);
 
-    acked = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
-    CBREx (acked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    acked   = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
+    refused = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak;
+    CBREx (acked || refused, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  A NAK is a speed the interface doesn't have, and the speed is as it was.
+    hr = acked ? S_OK : S_FALSE;
 
 Error:
     return hr;

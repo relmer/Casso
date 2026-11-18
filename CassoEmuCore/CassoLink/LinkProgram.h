@@ -96,12 +96,18 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 102;
+    static constexpr Word    kProgramVersion    = 104;
     static constexpr Byte    kShimVersion       = 11;
     static constexpr Word    kShimAddress       = 0x3A00;
+
+    //  A IIgs's ports alone run at kIIgsBaud; on any other interface the
+    //  program sends a NAK for it, and the link runs at kFallbackBaud.
+    static constexpr DWORD   kIIgsBaud          = 230400;
+    static constexpr DWORD   kFallbackBaud      = 115200;
     static constexpr Word    kZeroPageSave      = 0x3900;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
-    static constexpr size_t  kShimLimit         = 0x600;   // $3A00-$3FFF, below the program's tables
+    static constexpr size_t  kShimLimit         = 0xA00;   // $3A00-$43FF, the shim and its startup part
+    static constexpr Word    kShimResidentEnd   = 0x4000;  // the program's tables, over the startup part
 
     //  Where the host writes the shim's starting speed: the 6551 control
     //  byte, and its text, padded with spaces.
@@ -149,7 +155,7 @@ public:
     static constexpr Word    kUniversalAddress  = 0x2000;
     static constexpr size_t  kUniversalLimit    = 0xC00;
     static constexpr Word    kUniversalAcia     = 0x2C00;
-    static constexpr Word    kUniversalW5100    = 0x3200;
+    static constexpr Word    kUniversalW5100    = 0x4400;
 
     //  The UDP port a universal disk's W5100 broadcasts its announcements to.
     static constexpr uint16_t  kAnnouncePort  = 6510;

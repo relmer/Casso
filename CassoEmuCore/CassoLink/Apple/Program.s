@@ -8,7 +8,9 @@
 ;                   the PC is at work between an operation's requests,
 ;                   and the label and the motor stay.
 ;   Set speed       a 6551 control byte; ACK, then the new speed
-;   Read sectors    drive, track, count, sectors: Sector data for each
+;   Read sectors    drive, track, count, sectors: Sector data for each, or
+;                   Sector blank, its track, sector and value, for one whose
+;                   bytes are all one value
 ;   Write sectors   drive, track, count, sectors: for each, an Acknowledge
 ;                   with its number, ACK or NAK for another copy, and the
 ;                   host's Sector data, written and read back
@@ -1203,6 +1205,20 @@ cancel: jsr motoroff
 dospeed: lda #OPSPEED
         sta op
         jsr showop
+        ifndef BUFFERED
+        lda PKTBUF              ; 230,400 baud, rate 1, is for a IIgs's port
+        and #$0F                ; alone: for a 6551 or a card run through its
+        cmp #$01                ; firmware the program sends a NAK, and the
+        bne spdack              ; speed doesn't change
+        bit SHIMPAS
+        bvs spdack
+        lda #NAK
+        ldx #0
+        ldy #0
+        jsr sendack
+        jmp main
+spdack:
+        endif
         lda #ACK
         ldx #0
         ldy #0
@@ -1885,6 +1901,8 @@ statend:
 ; arrays of ready two-bit values, one per third of the sector; each byte is
 ; then one shift and one ORA, sent, and added to the EOR and the CRC, all
 ; inline, in less time than the 6551 takes to send a byte at 115,200 baud.
+; A sector whose bytes are all one value, as a disk's free space mostly is,
+; is sent as Sector blank instead, its value in place of its 256 bytes.
 sendsector: ldy #85
 ssaux:  lda (dst),y
         tax
@@ -1896,7 +1914,14 @@ ssaux:  lda (dst),y
         sta AUXA2,y
         dey
         bpl ssaux
-        ldy #0
+        ifdef FAULTS
+        lda fltact              ; a sector sent while a fault is armed goes whole
+        bne sdwhole
+        endif
+        jsr isfill
+        bcc sdwhole
+        jmp sendfill
+sdwhole: ldy #0
         sty crclo
         sty crchi
         ldx #0
@@ -1983,6 +2008,56 @@ sddone:
 datahdr: .byte $C1, $04, $01, CMDDATA, $C1 ^ $04 ^ $01 ^ CMDDATA
 dataend:
 
+; isfill: the carry set when the sector's 256 bytes are all one value, which
+; is then in A. Its six-bit values at (dstp) are all the same, and so are the
+; two-bit values sendsector put in AUXA0 to AUXA2, one page for the 256
+; bytes. Each check ends at the first difference, so a sector of other data
+; costs a few compares.
+isfill: ldy #0
+        lda (dstp),y
+        sta fillv
+ifpri:  lda (dstp),y
+        cmp fillv
+        bne ifno
+        iny
+        bne ifpri
+        lda AUXA0
+ifaux:  cmp AUXA0,y
+        bne ifno
+        iny
+        bne ifaux
+        lda fillv
+        asl a
+        asl a
+        ora AUXA0
+        sec
+        rts
+ifno:   clc
+        rts
+
+; sendfill: Sector blank, the track, the sector and the value in A.
+sendfill: sta fillv
+        ldx #0
+sfhdr:  lda fillhdr,x
+        jsr putb
+        inx
+        cpx #fillend-fillhdr
+        bne sfhdr
+        lda #0
+        sta peor
+        lda track
+        jsr putpe
+        lda sector
+        jsr putpe
+        lda fillv
+        jsr putpe
+        lda peor
+        jmp putb
+
+fillhdr: .byte $C1, $03, $00, CMDBLANK, $C1 ^ $03 ^ $00 ^ CMDBLANK
+fillend:
+fillv:  .byte 0                 ; isfill and sendfill: the value
+
 ; getsector: the host's Sector data into SECBUF. The carry is set when it
 ; times out, is not Sector data, is for another sector or fails its CRC.
 getsector: jsr getenvt
@@ -2032,21 +2107,24 @@ gscrc:  lda SECBUF,y
 gsfail: sec
         rts
 
-; A sector of zeros: its track and sector, then the payload's EOR, and SECBUF
-; filled with zeros here rather than sent.
+; A sector of one value: its track, sector and value, then the payload's
+; EOR, and SECBUF filled with the value here rather than sent.
 gsblank: jsr getbtq             ; track
         bcs gsfail
         jsr getbtq              ; sector
         bcs gsfail
         cmp sector
         bne gsfail
+        jsr getbtq              ; the value
+        bcs gsfail
+        sta fillv
         jsr getbtq              ; the payload's EOR
         bcs gsfail
-        lda #0
-        tay
-gszero: sta SECBUF,y
+        lda fillv
+        ldy #0
+gsfill: sta SECBUF,y
         iny
-        bne gszero
+        bne gsfill
         clc
         rts
 
@@ -4623,6 +4701,8 @@ s19200:  .text "19200"
          .byte 0
 s115200: .text "115200"
          .byte 0
+s230400: .text "230400"
+         .byte 0
 s4800:   .text "4800"
          .byte 0
 s2400:   .text "2400"
@@ -4636,6 +4716,7 @@ sother:  .text "Other"
 speeds: .byte $0E, <s9600, >s9600
         .byte $0F, <s19200, >s19200
         .byte $00, <s115200, >s115200
+        .byte $01, <s230400, >s230400
         .byte $0C, <s4800, >s4800
         .byte $0A, <s2400, >s2400
         .byte $08, <s1200, >s1200

@@ -40,7 +40,9 @@ public:
 
 
 
-    TEST_METHOD (Shim_AssemblesBelowTheProgramsTables)
+    //  AssembleShim fails a shim whose resident code extends to the program's
+    //  tables at $4000; its startup part, run once, may go past them.
+    TEST_METHOD (Shim_Assembles_WithItsResidentCodeBelowTheProgramsTables)
     {
         std::vector<Byte>  bytes;
         std::string        errors;
@@ -49,7 +51,7 @@ public:
         Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
         Assert::IsTrue (errors.empty());
         Assert::IsFalse (bytes.empty());
-        Assert::IsTrue (LinkProgram::kShimAddress + bytes.size() <= 0x4000u);
+        Assert::IsTrue (bytes.size() <= LinkProgram::kShimLimit, L"the shim and its startup part, below $4400");
     }
 
 
@@ -304,9 +306,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 102;
-        static constexpr uint64_t  s_kAciaHash      = 0x1003B8349DF880AF;
-        static constexpr uint64_t  s_kW5100Hash     = 0x709142586BFF5FDD;
+        static constexpr Word      s_kHashedVersion = 104;
+        static constexpr uint64_t  s_kAciaHash      = 0x2D4A8FDD739AD56E;
+        static constexpr uint64_t  s_kW5100Hash     = 0x28370183098D6DAB;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

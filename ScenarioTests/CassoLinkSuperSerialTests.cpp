@@ -385,7 +385,7 @@ public:
 
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("39A0.3FFFR 39A0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("39A0.4055R 39A0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
@@ -473,6 +473,31 @@ public:
         AssertSucceeded (rig.host->PromptReady());
         Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the card");
         Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
+    }
+
+
+
+    //  230,400 baud is a IIgs's port's alone: a Super Serial Card sends a NAK
+    //  for it, its speed doesn't change, and a disk is read at that speed.
+    TEST_METHOD (ASuperSerialCard_SendsANakForIIgsSpeed_AndReadsADisk)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+        Byte               control = 0;
+        Rig                rig (true);
+
+
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        AssertSucceeded (rig.host->PromptReady());
+        Assert::IsTrue (LinkProgram::GetSpeedControl (LinkProgram::kIIgsBaud, control));
+        Assert::AreEqual (S_FALSE, rig.host->SetSpeed (control), L"a NAK for 230,400 baud");
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog at the card's speed");
     }
 
 

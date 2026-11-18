@@ -29,15 +29,20 @@
 
 HRESULT LinkProgram::AssembleShim (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip)
 {
-    HRESULT  hr   = S_OK;
-    bool     fits = false;
+    HRESULT                                hr       = S_OK;
+    std::unordered_map<std::string, Word>  symbols;
+    size_t                                 resident = 0;
+    bool                                   fits     = false;
 
 
 
-    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors);
+    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors, false, &symbols);
     CHR (hr);
 
-    fits = outBytes.size() <= kShimLimit;
+    //  The resident code ends where the startup part begins, or with the
+    //  shim for a build with no startup part.
+    resident = symbols.contains ("startup") ? (size_t) (symbols["startup"] - kShimAddress) : outBytes.size();
+    fits     = outBytes.size() <= kShimLimit && kShimAddress + resident <= kShimResidentEnd;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -287,7 +292,7 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     CHR (hr);
 
     payload.insert (payload.end(), shim.begin(), shim.end());
-    payload.resize (kUniversalW5100 - kUniversalAddress + kShimLimit, 0);
+    payload.resize (kUniversalW5100 - kUniversalAddress + (kShimResidentEnd - kShimAddress), 0);
 
     spec.loadAddress  = kUniversalAddress;
     spec.entryAddress = kUniversalAddress;
@@ -774,7 +779,8 @@ Error:
 //
 //  LinkProgram::GetSpeedControl
 //
-//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c.
+//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c. Rate 1,
+//  50 baud on a 6551, indicates 230,400 on a IIgs's port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -782,7 +788,7 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 {
     static constexpr std::pair<DWORD, Byte>  s_kRates[] =
     {
-        { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
+        { 230400, 0x01 }, { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
     };
     static constexpr Byte  kEightBitsOneStop = 0x10;
     bool                   found             = false;
