@@ -47,9 +47,10 @@ public:
                                              std::vector<ZipEntry>  & outEntries);
     static std::uint32_t  ComputeCrc32      (std::span<const Byte> bytes);
 
-    //  The archive with the entry at `path` stored with `data`, or a stored
-    //  entry added at the end when no entry has that path. Every other
-    //  entry is copied with its compressed bytes.
+    //  The archive with the entry at `path` replaced by `data`, or added at
+    //  the end when no entry has that path. The data is deflated unless that
+    //  makes it no smaller. Every other entry is copied with its compressed
+    //  bytes.
     static HRESULT        Replace           (std::span<const Byte>    archive,
                                              const std::string      & path,
                                              std::span<const Byte>    data,

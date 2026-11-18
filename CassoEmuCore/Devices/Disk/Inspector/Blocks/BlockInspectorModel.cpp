@@ -209,8 +209,9 @@ uint32_t BlockInspectorModel::GetBlockCount() const
 //
 //  BlockInspectorModel::BuildVolumes
 //
-//  An Apple Partition Map first, then the layouts PartitionAccess reads,
-//  and with neither the image as one volume.
+//  An Apple Partition Map first, with DOS Master's volumes inside its
+//  ProDOS partitions, then the layouts PartitionAccess reads and the volume
+//  they are inside, and with neither the image as one volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,9 +228,19 @@ HRESULT BlockInspectorModel::BuildVolumes()
 
     AddPartitionMap();
 
+    for (size_t i = 0, count = m_volumes.size(); i < count; i++)
+    {
+        AddNestedPartitions (i);
+    }
+
     if (m_bands.empty())
     {
         AddPartitions();
+
+        if (!m_bands.empty())
+        {
+            AddContainingVolume();
+        }
     }
 
     if (m_bands.empty())
@@ -447,6 +458,159 @@ void BlockInspectorModel::AddPartitions()
 
 
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::AddContainingVolume
+//
+//  A file system over the whole image that the partitions are inside, as
+//  DOS Master's ProDOS volume around its DOS volumes. It is the first
+//  volume. In its map, each partition is a file over the blocks it marks
+//  used outside its files, so they are the partition's rather than in no
+//  file. A partition's blocks that it marks free stay free: on a DOS Master
+//  disk, some blocks of the larger DOS image are free in ProDOS's bitmap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::AddContainingVolume()
+{
+    std::unique_ptr<Volume>  volume = std::make_unique<Volume>();
+
+
+
+    volume->first = 0;
+    volume->count = GetBlockCount();
+    volume->store = std::make_unique<OffsetBlockStore> (m_file->GetStore(), 0, volume->count);
+    volume->image = std::make_unique<BlockImage> (*volume->store);
+
+    BlockMapBuilder::Build (*volume->image, volume->map);
+
+    if (volume->map.fileSystem == BlockFileSystem::None)
+    {
+        return;
+    }
+
+    BlockMap  & map = volume->map;
+
+    for (const BlockBand & band : m_bands)
+    {
+        if (!band.isMap && band.count > 0)
+        {
+            ClaimPartition (map, 0, band);
+        }
+    }
+
+    m_volumes.insert (m_volumes.begin(), std::move (volume));
+
+    for (BlockBand & band : m_bands)
+    {
+        band.volume += band.volume >= 0 ? 1 : 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::AddNestedPartitions
+//
+//  DOS Master's volumes inside a ProDOS partition of a partition map, each
+//  after the partitions found so far.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::AddNestedPartitions (size_t container)
+{
+    HRESULT                 hr        = S_OK;
+    PartitionLayoutKind     kind      = PartitionLayoutKind::None;
+    vector<PartitionEntry>  entries;
+    BlockBand               band;
+    Partition               partition;
+    uint32_t                first     = m_volumes[container]->first;
+    bool                    isProDos  = !m_volumes[container]->isSectors && m_volumes[container]->map.fileSystem == BlockFileSystem::ProDos;
+
+
+
+    if (!isProDos)
+    {
+        return;
+    }
+
+    hr = PartitionAccess::ListStore (*m_volumes[container]->store, kind, entries);
+
+    if (FAILED (hr) || kind == PartitionLayoutKind::None)
+    {
+        return;
+    }
+
+    for (const PartitionEntry & entry : entries)
+    {
+        partition             = entry.partition;
+        partition.firstBlock += first;
+
+        band       = BlockBand();
+        band.first = partition.firstBlock;
+        band.count = partition.blockCount;
+        band.label = TextEncoding::NarrowToWide (std::string (PartitionLayout::GetLayoutName (kind)) + " " + PartitionAccess::GetLabel (entry, false));
+
+        m_bands.push_back (band);
+        ClaimPartition (m_volumes[container]->map, first, band);
+
+        if (partition.dosSectors)
+        {
+            AddSectorVolume (partition);
+        }
+        else if (partition.span == PartitionSpan::WholeBlocks)
+        {
+            AddVolume (band.first, band.count, band.label);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::ClaimPartition
+//
+//  A partition as a file of the volume it is inside, over the blocks that
+//  volume marks used outside its files: they are the partition's rather
+//  than in no file. The volume's map starts at `first` in the image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::ClaimPartition (BlockMap & map, uint32_t first, const BlockBand & band)
+{
+    int       owner = 0;
+    uint32_t  block = 0;
+
+
+
+    map.CompleteEntries();
+
+    owner = (int) map.files.size();
+    map.files.push_back (band.label);
+    map.entries.push_back ({ .name = band.label });
+
+    for (block = band.first - first; block < band.first - first + band.count && block < map.GetBlockCount(); block++)
+    {
+        BlockMapEntry  & entry = map.blocks[block];
+
+        if (entry.role == SectorRole::AllocatedUnowned && entry.owners.empty())
+        {
+            entry.role = SectorRole::FileData;
+            entry.owners.push_back (owner);
+        }
+    }
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BlockInspectorModel::FindVolume
@@ -455,19 +619,23 @@ void BlockInspectorModel::AddPartitions()
 
 int BlockInspectorModel::FindVolume (uint32_t block) const
 {
-    int  i = 0;
+    int  i     = 0;
+    int  found = -1;
 
 
 
+    //  A partition's block is in the partition rather than in the volume it
+    //  is inside.
     for (i = 0; i < (int) m_volumes.size(); i++)
     {
-        if (!m_volumes[i]->isSectors && block >= m_volumes[i]->first && block - m_volumes[i]->first < m_volumes[i]->count)
+        if (!m_volumes[i]->isSectors && block >= m_volumes[i]->first && block - m_volumes[i]->first < m_volumes[i]->count &&
+            (found < 0 || m_volumes[i]->count < m_volumes[found]->count))
         {
-            return i;
+            found = i;
         }
     }
 
-    return -1;
+    return found;
 }
 
 
@@ -725,6 +893,9 @@ void BlockInspectorModel::FindPlaces (uint32_t block, vector<Place> & outPlaces)
     }
 
     std::erase_if (outPlaces, [this] (const Place & place) { return place.unit >= m_volumes[place.volume]->map.GetBlockCount(); });
+
+    //  A partition's place comes before the place of the volume it is inside.
+    std::stable_sort (outPlaces.begin(), outPlaces.end(), [this] (const Place & a, const Place & b) { return m_volumes[a.volume]->count < m_volumes[b.volume]->count; });
 }
 
 
@@ -776,9 +947,14 @@ SectorRole BlockInspectorModel::GetRole (uint32_t block) const
 
     FindPlaces (block, places);
 
+    //  A partition's block has the partition's role, not the role of the volume
+    //  the partition is inside.
     for (const Place & place : places)
     {
-        role = BlockMap::PickRole (role, m_volumes[place.volume]->map.blocks[place.unit].role);
+        if (m_volumes[place.volume]->count == m_volumes[places.front().volume]->count)
+        {
+            role = BlockMap::PickRole (role, m_volumes[place.volume]->map.blocks[place.unit].role);
+        }
     }
 
     return role;

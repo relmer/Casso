@@ -27,6 +27,12 @@ class RepairCopy
 public:
     static std::string  GetCopyPath (IDiskFileIo & io, const std::string & imagePath);
 
+    //  For an image in a ZIP, the copy of its host file with the same path
+    //  inside: "games (repaired).zip|disks/a.po". Any other image's copy is
+    //  GetCopyPath's. GetHostPath is the file a path is in.
+    static std::string  GetHostCopyPath (IDiskFileIo & io, const std::string & imagePath);
+    static std::string  GetHostPath     (const std::string & imagePath);
+
     //  The image file analyzed as saved, which a drive's copy with changes
     //  not yet saved may differ from; a file that can't be read or analyzed
     //  fails with the reason.

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Update/ZipArchive.h"
+#include "Update/Deflate.h"
 #include "Update/Inflate.h"
 
 
@@ -372,6 +373,7 @@ HRESULT ZipArchive::Replace (
     static constexpr std::uint32_t  kCentralSignature = 0x02014B50;
     static constexpr std::uint16_t  kVersion          = 20;
     static constexpr std::uint16_t  kMethodStored     = 0;
+    static constexpr std::uint16_t  kMethodDeflated   = 8;
     static constexpr std::uint16_t  kDosDate1980      = 0x0021;
     static constexpr size_t         kCentralSize      = 46;
     static constexpr size_t         kMadeByOffset     = 4;
@@ -392,6 +394,8 @@ HRESULT ZipArchive::Replace (
     bool                            isCdInside        = false;
     std::uint32_t                   dataCrc           = ComputeCrc32 (data);
     std::span<const Byte>           stored;
+    std::vector<Byte>               deflated;
+    std::uint16_t                   method            = kMethodDeflated;
     std::vector<Byte>               directory;
     std::vector<Byte>               added;
     CentralRecord                   record;
@@ -399,6 +403,15 @@ HRESULT ZipArchive::Replace (
 
 
     outArchive.clear();
+
+    //  The data is deflated, unless that would make it no smaller.
+    Deflate::Compress (data, deflated);
+
+    if (deflated.size() >= data.size())
+    {
+        deflated.assign (data.begin(), data.end());
+        method = kMethodStored;
+    }
 
     hr = FindEndRecord (archive, endOffset);
     CHR (hr);
@@ -418,7 +431,7 @@ HRESULT ZipArchive::Replace (
         if (record.path == path)
         {
             found = true;
-            AppendEntry (archive.subspan (offset, next - offset), kMethodStored, dataCrc, data, (std::uint32_t) data.size(), outArchive, directory);
+            AppendEntry (archive.subspan (offset, next - offset), method, dataCrc, deflated, (std::uint32_t) data.size(), outArchive, directory);
         }
         else
         {
@@ -441,7 +454,7 @@ HRESULT ZipArchive::Replace (
         SetU16 (added, kNameLenOffset, (std::uint16_t) path.size());
         added.insert (added.end(), path.begin(), path.end());
 
-        AppendEntry (added, kMethodStored, dataCrc, data, (std::uint32_t) data.size(), outArchive, directory);
+        AppendEntry (added, method, dataCrc, deflated, (std::uint32_t) data.size(), outArchive, directory);
         written++;
     }
 

@@ -11,8 +11,8 @@
 //  GzipFile
 //
 //  Reads and writes gzip (RFC 1952): a header with an optional name, raw
-//  Deflate data, then the CRC-32 and length of the data. Writing uses stored
-//  Deflate blocks, which every reader takes.
+//  Deflate data, then the CRC-32 and length of the data. Writing compresses
+//  the data with Deflate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,5 +33,4 @@ private:
     static constexpr Byte    kFlagNote   = 0x10;
     static constexpr size_t  kHeaderSize = 10;
     static constexpr size_t  kTrailer    = 8;
-    static constexpr size_t  kMaxStored  = 0xFFFF;
 };

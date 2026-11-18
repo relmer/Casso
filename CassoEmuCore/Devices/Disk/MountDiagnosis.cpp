@@ -61,11 +61,11 @@ string MountDiagnosis::Describe() const
             observed = FormatByteCount (fileByteSize);
             required = FormatByteCount ((size_t) NibblizationLayer::kImageByteSize);
 
-            //  An 800K image is a 3.5-inch disk, a real format rather than a damaged
-            //  140K one, so it is refused as unsupported, not as the wrong size.
-            if (fileByteSize == 800u * 1024u)
+            //  A 400K or 800K image is a 3.5-inch disk, a real format rather than
+            //  a damaged 140K one, so the message is about the drive.
+            if (fileByteSize == 400u * 1024u || fileByteSize == 800u * 1024u)
             {
-                snprintf (note, sizeof (note), "is an 800K 3.5-inch disk image, and 800K images are not supported yet");
+                snprintf (note, sizeof (note), "is a %zuK 3.5-inch disk image, which a 5.25-inch drive can't read", fileByteSize / 1024u);
             }
             else
             {

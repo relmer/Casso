@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CommandLineOptions.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Archives/GzipFile.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/FilePath.h"
@@ -706,5 +707,35 @@ public:
 
         Assert::IsTrue (map.blocks[seed].role != SectorRole::OwnedMarkedFree, L"SEED's block is marked used");
         Assert::IsTrue (map.blocks[kFarBlock].role == SectorRole::AllocatedUnowned, L"the block in no file stays marked used");
+    }
+
+    TEST_METHOD (Cli_Repair_OfAGzipImage_WritesARecompressedCopy)
+    {
+        FakeDiskFileIo     io;
+        uint32_t           seed   = 0;
+        vector<Byte>       gzip;
+        vector<Byte>       copy;
+        std::string        name;
+        std::string        error;
+        DiskCommandResult  result;
+        BlockMap           map;
+
+
+
+        GzipFile::Build (MakeDamagedVolume (seed), "Big.po", gzip);
+
+        io.files["C:\\Disks\\Big.po.gz"]  = gzip;
+        io.stamps["C:\\Disks\\Big.po.gz"] = { gzip.size(), kTime };
+        result                            = RunCli (io, CommandLineOptions::DiskOptions::Command::Repair, "C:\\Disks\\Big.po.gz");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::Utf8ToWide (result.diagnostics).c_str());
+        Assert::IsTrue   (result.output.contains ("repaired copy written to C:\\Disks\\Big (repaired).po.gz\n"), TextEncoding::Utf8ToWide (result.output).c_str());
+        Assert::IsTrue   (io.files["C:\\Disks\\Big.po.gz"] == gzip, L"the image isn't written");
+
+        AssertSucceeded (GzipFile::Expand (io.files["C:\\Disks\\Big (repaired).po.gz"], copy, name, error));
+        map = BuildMap (copy);
+
+        Assert::IsTrue (map.blocks[seed].role != SectorRole::OwnedMarkedFree, L"SEED's block is marked used in the copy");
+        Assert::IsTrue (io.files["C:\\Disks\\Big (repaired).po.gz"].size() < copy.size() / 20, L"the copy is compressed");
     }
 };

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
 #include "Devices/Disk/FileBlockStore.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -152,7 +153,7 @@ bool BlockImageFile::IsDiskCopyHeader (std::span<const Byte> header, uint64_t fi
 
 bool BlockImageFile::IsBlockExtension (const std::string & path)
 {
-    static constexpr LPCSTR  kExtensions[] = { ".po", ".hdv", ".2mg", ".2img", ".img", ".dc", ".dc42", ".image", ".iso", ".hd" };
+    static constexpr LPCSTR  kExtensions[] = { ".po", ".dsk", ".do", ".hdv", ".2mg", ".2img", ".img", ".dc", ".dc42", ".image", ".iso", ".hd" };
 
 
 
@@ -181,6 +182,8 @@ bool BlockImageFile::IsBlockExtension (const std::string & path)
 //
 //  BlockImageFile::IsBlockImage
 //
+//  An image in a gzip file or a ZIP is opened to look at its header.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockImageFile::IsBlockImage (IDiskFileIo & fileIo, const std::string & path)
@@ -188,12 +191,18 @@ bool BlockImageFile::IsBlockImage (IDiskFileIo & fileIo, const std::string & pat
     HRESULT       hr      = S_OK;
     FileStamp     stamp;
     vector<Byte>  header (kDcHeader);
-    bool  isBlock  = false;
-    bool  isListed = IsBlockExtension (path);
+    bool  isBlock   = false;
+    bool  isListed  = IsBlockExtension (path);
+    bool  isWrapped = WrappedImageFileIo::IsWrapped (path);
 
 
 
-    BAIL_OUT_IF (!isListed, S_OK);
+    if (isWrapped)
+    {
+        isBlock = IsWrappedBlockImage (fileIo, path);
+    }
+
+    BAIL_OUT_IF (isWrapped || !isListed, S_OK);
 
     hr = fileIo.Stat (path, stamp);
     CHR (hr);
@@ -227,6 +236,27 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockImageFile::IsWrappedBlockImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockImageFile::IsWrappedBlockImage (IDiskFileIo & fileIo, const std::string & path)
+{
+    WrappedImageFileIo  wrapped (fileIo, path);
+    std::wstring        error;
+    HRESULT             hr      = wrapped.Load (error);
+
+
+
+    return SUCCEEDED (hr) && IsBlockImage (wrapped, wrapped.GetInnerName());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockImageFile::Open
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,17 +267,25 @@ HRESULT BlockImageFile::Open (
     std::unique_ptr<BlockImageFile>   & outFile,
     std::wstring                      & outError)
 {
-    HRESULT                          hr       = S_OK;
+    HRESULT                          hr        = S_OK;
     std::unique_ptr<BlockImageFile>  file (new BlockImageFile (fileIo, path));
     FileStamp                        stamp;
     vector<Byte>                     header (kDcHeader);
-    uint64_t                         length   = 0;
-    bool                             isFit    = false;
-    bool                             isProDos = false;
+    uint64_t                         length    = 0;
+    bool                             isFit     = false;
+    bool                             isProDos  = false;
+    bool                             isWrapped = WrappedImageFileIo::IsWrapped (path);
 
 
 
     outFile.reset();
+
+    if (isWrapped)
+    {
+        hr = OpenWrapped (fileIo, path, outFile, outError);
+    }
+
+    BAIL_OUT_IF (isWrapped, hr);
 
     hr = fileIo.Stat (path, stamp);
     CHRF (hr, outError = L"The file can't be read.");
@@ -294,6 +332,43 @@ Error:
         outError = L"Only a 2IMG file in ProDOS order opens in the block inspector.";
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockImageFile::OpenWrapped
+//
+//  The image is read whole into memory from its containers and opened
+//  there. A commit writes the containers again around it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockImageFile::OpenWrapped (
+    IDiskFileIo                       & fileIo,
+    const std::string                 & path,
+    std::unique_ptr<BlockImageFile>   & outFile,
+    std::wstring                      & outError)
+{
+    HRESULT                              hr      = S_OK;
+    std::unique_ptr<WrappedImageFileIo>  wrapped = std::make_unique<WrappedImageFileIo> (fileIo, path);
+
+
+
+    hr = wrapped->Load (outError);
+    CHR (hr);
+
+    hr = Open (*wrapped, wrapped->GetInnerName(), outFile, outError);
+    CHR (hr);
+
+    outFile->m_path    = path;
+    outFile->m_wrapped = std::move (wrapped);
+
+Error:
     return hr;
 }
 
@@ -573,6 +648,13 @@ HRESULT BlockImageFile::Commit()
 
 Error:
     flushed = m_fileIo.FlushToStorage (m_path);
+
+    //  An image in a container is written to its file only by the flush.
+    if (m_wrapped != nullptr && SUCCEEDED (hr))
+    {
+        hr = flushed;
+    }
+
     IGNORE_RETURN_VALUE (flushed, S_OK);
 
     return hr;

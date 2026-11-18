@@ -319,10 +319,10 @@ public:
                 Logger::WriteMessage (line.c_str());
 
                 //  DOS Master's larger DOS image is in track 3 and the second
-                //  half of track 4 of its first volume, sectors that aren't in
-                //  any file and that the VTOC marks used. MultiPart's ProDOS
-                //  volume has 1,400 blocks in use by the volumes inside it.
-                if ((name == L"dos.master/dm-400x2+.po.gz" || name == L"turducken/MultiPart.hdv") && volume == 0)
+                //  half of track 4 of its first DOS volume, after its ProDOS
+                //  volume: sectors that aren't in any file and that the VTOC
+                //  marks used.
+                if (name == L"dos.master/dm-400x2+.po.gz" && volume == 1)
                 {
                     Assert::IsTrue   (verdict == FileSystemVerdict::Suspect, line.c_str());
                     Assert::AreEqual ((size_t) 1, plan.changes.size(), line.c_str());
@@ -408,6 +408,37 @@ public:
         Logger::WriteMessage (std::format ("{} blocks annotated\n", CheckEveryUsedBlockAnnotated (model)).c_str());
     }
 
+
+    TEST_METHOD (DosMasterAndMultiPart_ListTheProDosVolumeAroundTheDosVolumes)
+    {
+        for (const char * image : { "dos.master/dm-140x5.po.gz", "turducken/MultiPart.hdv" })
+        {
+            std::vector<Byte>     bytes;
+            FakeDiskFileIo        io;
+            BlockInspectorModel   model;
+            int                   dos   = 0;
+            std::wstring          name  = TextEncoding::Utf8ToWide (image);
+
+
+
+            if (!OpenImage (image, bytes))
+            {
+                continue;
+            }
+
+            OpenModel (bytes, io, model);
+
+            Assert::IsTrue (model.GetVolumeMap (0).fileSystem == BlockFileSystem::ProDos, name.c_str());
+            Assert::IsTrue (BlockRepair::GetVerdict (model.GetVolumeMap (0)) == FileSystemVerdict::Ok, L"the DOS volumes' blocks are in use, not in no file");
+
+            for (int volume = 0; volume < model.GetVolumeCount(); volume++)
+            {
+                dos += model.GetVolumeMap (volume).fileSystem == BlockFileSystem::Dos33 ? 1 : 0;
+            }
+
+            Assert::IsTrue (dos >= 3, std::format (L"{}: {} DOS volumes", name, dos).c_str());
+        }
+    }
 
     TEST_METHOD (Dos800Samples_HaveTwoSectorVolumesWithTheirVtocs)
     {

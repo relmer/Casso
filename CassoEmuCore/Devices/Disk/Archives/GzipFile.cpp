@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Archives/GzipFile.h"
+#include "Update/Deflate.h"
 #include "Update/Inflate.h"
 #include "Update/ZipArchive.h"
 
@@ -107,12 +108,9 @@ Error:
 
 
 
-////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //  GzipFile::Build
-//
-//  The data in stored blocks of up to 65,535 bytes, each a header byte, its
-//  length and the length's complement.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,8 +120,8 @@ void GzipFile::Build (std::span<const Byte> data, const std::string & name, std:
 
 
 
-    size_t    at  = 0;
-    uint32_t  crc = ZipArchive::ComputeCrc32 (data);
+    uint32_t           crc = ZipArchive::ComputeCrc32 (data);
+    std::vector<Byte>  deflated;
 
 
 
@@ -135,21 +133,8 @@ void GzipFile::Build (std::span<const Byte> data, const std::string & name, std:
         outBytes.push_back (0);
     }
 
-    do
-    {
-        size_t  take = std::min (kMaxStored, data.size() - at);
-        bool    last = at + take == data.size();
-
-        outBytes.push_back (last ? 1 : 0);
-        outBytes.push_back ((Byte) (take & 0xFF));
-        outBytes.push_back ((Byte) (take >> 8));
-        outBytes.push_back ((Byte) (~take & 0xFF));
-        outBytes.push_back ((Byte) ((~take >> 8) & 0xFF));
-        outBytes.insert (outBytes.end(), data.begin() + (ptrdiff_t) at, data.begin() + (ptrdiff_t) (at + take));
-
-        at += take;
-    }
-    while (at < data.size());
+    Deflate::Compress (data, deflated);
+    outBytes.insert (outBytes.end(), deflated.begin(), deflated.end());
 
     for (int shift = 0; shift < 32; shift += 8)
     {

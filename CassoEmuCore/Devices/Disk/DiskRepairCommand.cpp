@@ -167,15 +167,17 @@ void DiskRepairCommand::RunBlocks (IDiskFileIo & io, const CommandLineOptions & 
     isDone = repairs.empty() || options.disk.listOnly;
     BAIL_OUT_IF (isDone, S_OK);
 
-    target  = target.empty() ? RepairCopy::GetCopyPath (io, imagePath) : target;
-    isTaken = io.Exists (target);
-    CBRF (!isTaken, result.FailAction (imagePath, "write the repaired copy", fs::path (target).filename().string() + " already exists"));
+    //  An image in a container is copied with its host file, and the commit
+    //  to the copy writes the containers again around the repaired image.
+    target  = target.empty() ? RepairCopy::GetHostCopyPath (io, imagePath) : target + imagePath.substr (RepairCopy::GetHostPath (imagePath).size());
+    isTaken = io.Exists (RepairCopy::GetHostPath (target));
+    CBRF (!isTaken, result.FailAction (imagePath, "write the repaired copy", fs::path (RepairCopy::GetHostPath (target)).filename().string() + " already exists"));
 
-    hr       = io.ReadAllBytes (imagePath, bytes);
+    hr       = io.ReadAllBytes (RepairCopy::GetHostPath (imagePath), bytes);
     isCopied = SUCCEEDED (hr);
     CBRF (isCopied, result.FailAction (imagePath, "write the repaired copy", "the image couldn't be read"));
 
-    hr       = io.WriteAllBytes (target, bytes);
+    hr       = io.WriteAllBytes (RepairCopy::GetHostPath (target), bytes);
     isCopied = SUCCEEDED (hr);
     CBRF (isCopied, result.FailAction (imagePath, "write the repaired copy", "the copy couldn't be written"));
 
@@ -186,7 +188,7 @@ void DiskRepairCommand::RunBlocks (IDiskFileIo & io, const CommandLineOptions & 
 
         if (!isWritten)
         {
-            hr = io.Remove (target);
+            hr = io.Remove (RepairCopy::GetHostPath (target));
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 

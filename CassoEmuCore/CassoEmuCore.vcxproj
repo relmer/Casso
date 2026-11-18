@@ -176,6 +176,7 @@
     <ClCompile Include="Net\FirewallText.cpp" />
     <ClCompile Include="Net\WinHttpClient.cpp" />
     <ClCompile Include="Update\AuthenticodeVerifier.cpp" />
+    <ClCompile Include="Update\Deflate.cpp" />
     <ClCompile Include="Update\Inflate.cpp" />
     <ClCompile Include="Update\InstallTypeDetector.cpp" />
     <ClCompile Include="Update\MsixPackageDeployer.cpp" />
@@ -592,6 +593,7 @@
     <ClCompile Include="Devices\Disk\Archives\SqueezeDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Archives\LzcDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerPath.cpp" />
+    <ClCompile Include="Devices\Disk\Archives\WrappedImageFileIo.cpp" />
     <ClCompile Include="FileTypes\TextCharset.cpp" />
     <ClCompile Include="FileTypes\RtfWriter.cpp" />
     <ClCompile Include="FileTypes\CsvWriter.cpp" />
@@ -1410,6 +1412,7 @@
     <ClInclude Include="Net\WinHttpClient.h" />
     <ClInclude Include="Update\AuthenticodeVerifier.h" />
     <ClInclude Include="Update\IInstallEnvironment.h" />
+    <ClInclude Include="Update\Deflate.h" />
     <ClInclude Include="Update\Inflate.h" />
     <ClInclude Include="Update\InstallTypeDetector.h" />
     <ClInclude Include="Update\IPackageDeployer.h" />
@@ -1755,6 +1758,7 @@
     <ClInclude Include="Devices\Disk\Archives\SqueezeDecoder.h" />
     <ClInclude Include="Devices\Disk\Archives\LzcDecoder.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerPath.h" />
+    <ClInclude Include="Devices\Disk\Archives\WrappedImageFileIo.h" />
     <ClInclude Include="FileTypes\DecodedFile.h" />
     <ClInclude Include="FileTypes\TextCharset.h" />
     <ClInclude Include="FileTypes\RtfWriter.h" />

@@ -328,6 +328,7 @@
     <ClCompile Include="EmuTests\BlockBrowserTests.cpp" />
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />
     <ClCompile Include="EmuTests\BlockRepairTests.cpp" />
+    <ClCompile Include="EmuTests\WrappedBlockImageTests.cpp" />
     <ClCompile Include="EmuTests\BootLoaderIdTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
@@ -692,6 +693,7 @@
     <ClCompile Include="UiTests\FileBrowseModelTests.cpp" />
     <ClCompile Include="UiTests\GlobalUserPrefsTests.cpp" />
     <ClCompile Include="UpdateTests\AuthenticodeVerifierTests.cpp" />
+    <ClCompile Include="UpdateTests\DeflateTests.cpp" />
     <ClCompile Include="UpdateTests\InflateTests.cpp" />
     <ClCompile Include="UpdateTests\InstallTypeDetectorTests.cpp" />
     <ClCompile Include="UpdateTests\ReleaseInfoTests.cpp" />

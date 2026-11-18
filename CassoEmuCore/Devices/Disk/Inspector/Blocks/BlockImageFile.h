@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
 #include "Devices/Disk/IBlockStore.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/Blocks/BlockFieldList.h"
@@ -41,6 +42,9 @@ enum class BlockContainerKind
 //
 //  A Disk Copy 4.2 image's data checksum is written again after a commit.
 //
+//  An image in a gzip file or a ZIP is read whole into memory instead, and a
+//  commit writes its containers again around it, compressed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class BlockImageFile
@@ -69,6 +73,9 @@ public:
     const vector<Byte>  & GetHeader        () const { return m_header; }
     uint64_t              GetPayloadOffset () const { return m_payloadOffset; }
     const std::string   & GetPath          () const { return m_path; }
+
+    //  The image's containers, or null for an image that is a file itself.
+    WrappedImageFileIo  * GetWrapped       () const { return m_wrapped.get(); }
 
     //  A Disk Copy 4.2 block's 12 tag bytes, or false when the image has
     //  none.
@@ -122,19 +129,23 @@ private:
 
     BlockImageFile (IDiskFileIo & fileIo, std::string path) : m_fileIo (fileIo), m_path (std::move (path)) {}
 
+    static bool     IsWrappedBlockImage (IDiskFileIo & fileIo, const std::string & path);
+    static HRESULT  OpenWrapped         (IDiskFileIo & fileIo, const std::string & path, std::unique_ptr<BlockImageFile> & outFile, std::wstring & outError);
+
     HRESULT  ComputeDataChecksum (uint32_t & outSum);
     HRESULT  ComputeTagChecksum  (uint32_t & outSum);
     HRESULT  WriteDataChecksum   ();
     void     AnnotateTwoImg      (BlockFieldList & list);
     void     AnnotateDiskCopy    (BlockFieldList & list);
 
-    IDiskFileIo                   & m_fileIo;
-    std::string                     m_path;
-    std::unique_ptr<IBlockStore>    m_store;
-    BlockContainerKind              m_kind          = BlockContainerKind::Raw;
-    vector<Byte>                    m_header;
-    uint64_t                        m_payloadOffset = 0;
-    uint64_t                        m_tagOffset     = 0;
-    uint64_t                        m_tagBytes      = 0;
-    FileStamp                       m_stamp;
+    std::unique_ptr<WrappedImageFileIo>  m_wrapped;
+    IDiskFileIo                        & m_fileIo;
+    std::string                          m_path;
+    std::unique_ptr<IBlockStore>         m_store;
+    BlockContainerKind                   m_kind          = BlockContainerKind::Raw;
+    vector<Byte>                         m_header;
+    uint64_t                             m_payloadOffset = 0;
+    uint64_t                             m_tagOffset     = 0;
+    uint64_t                             m_tagBytes      = 0;
+    FileStamp                            m_stamp;
 };
