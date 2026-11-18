@@ -264,6 +264,38 @@ public:
         CheckMachineConfiguration (256);
     }
 
+    //  The Confidence Program's Memory Test on 128K: three passes with no
+    //  mark in the rows of banks 0 to 2.
+    TEST_METHOD (ConfidenceProgram_MemoryTestPasses)
+    {
+        TestMachine        machine ("Apple3");
+        std::vector<Byte>  bytes   = GuestSession::RequireRepoImage ("Disks/Apple/apple3-confidence-test.dsk");
+        std::string        screen;
+
+
+
+        MountBytes (machine, 0, "apple3-confidence-test.dsk", bytes);
+        Assert::IsTrue (RunUntilScreenHas (machine, "RETURN to accept", kSecondsToPrompt));
+
+        machine.GetApple3()->GetKeyboard().PressSpecialKey (AppleSpecialKey::Down);
+        machine.GetRunner().RunCycles (kTicksPerSecond);
+        Type (machine, "\r");
+
+        Assert::IsTrue (RunUntilScreenHas (machine, "Pass:      3", 60), L"the test runs three passes");
+
+        screen = GetScreenText (*machine.GetApple3());
+
+        for (const char * row : { "\n 64   0", "\n 96   1", "\n128   2" })
+        {
+            size_t       at   = screen.find (row);
+            std::string  rest = (at != std::string::npos) ? screen.substr (at + strlen (row), Apple3TextCells::kColumns * 2 - strlen (row) + 1) : std::string ("missing");
+
+
+
+            Assert::IsTrue (rest.find_first_not_of (' ') == std::string::npos, TextEncoding::Utf8ToWide (screen).c_str());
+        }
+    }
+
     TEST_METHOD (BusinessBasic_PrintsSixTimesSeven)
     {
         TestMachine  machine ("Apple3");
