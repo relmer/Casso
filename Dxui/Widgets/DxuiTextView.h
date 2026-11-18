@@ -399,35 +399,21 @@ private:
     int           GetTopForLast     (int lineIndex) const;
 
     //  IDxuiTextInputHost: the view, for its mouse and keys.
-    Position                   HitTestInput          (POINT point) const override                                    { return HitTest (point); }
-    bool                       TryGetInputLink       (POINT point, int & outRow, int & outSpan) const override { RECT  rect = {}; return TryGetLinkAt (point, outRow, outSpan, rect); }
-    void                       GetInputWordBounds    (Position pos, Position & outFirst, Position & outLast) const override { m_selection.GetWordBounds (pos, outFirst, outLast); }
-    RECT                       GetInputBounds        () const override                                               { return m_boundsDip; }
-    int                        GetInputTextLeft      () const override                                               { return GetTextBaseLeft(); }
-    bool                       IsInputNoWrap         () const override                                               { return m_layout.IsNoWrap(); }
-    bool                       HasInputRows          () const override                                               { return !m_layout.GetRows().empty(); }
-    bool                       HasInputSelection     () const override                                               { return HasSelection(); }
-    DxuiScrollbar            * GetInputVertBar       (POINT point) override                                         { return (IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (point.x, point.y)) ? &m_vertScroll : nullptr; }
-    DxuiScrollbar            * GetInputHorzBar       (POINT point) override                                         { return (IsHorzScrollbarVisible() && m_horzScroll.HitTest (point.x, point.y)) ? &m_horzScroll : nullptr; }
-    DxuiScrollbar            & GetVertBar            () override                                                     { return m_vertScroll; }
-    DxuiScrollbar            & GetHorzBar            () override                                                     { return m_horzScroll; }
-    void                       ScrollInputLines      (int delta) override                                            { ScrollLines (delta); }
-    void                       ScrollInputColumns    (int delta) override                                            { ScrollColumns (delta); }
-    void                       SetInputTopLine       (int line) override                                             { SetTopLine (line); }
-    void                       SetInputLeftColumn    (int column) override                                           { SetLeftColumn (column); }
-    int                        GetInputLeftColumn    () const override                                               { return m_leftColumn; }
-    int                        GetInputLineCap       () const override                                               { return GetLineCap(); }
-    int                        GetInputLineCount     () const override                                               { return GetLineCount(); }
-    void                       SetInputSelection     (Position anchor, Position caret) override                      { m_selection.Select (anchor, caret); }
-    void                       SetInputCaret         (Position caret) override                                       { m_selection.SetCaret (caret); }
-    void                       SelectAllInput        () override                                                     { SelectAll(); }
-    void                       CopyInputSelection    () const override                                               { CopySelection(); }
-    void                       FocusRowOnPress       (int row) override                                              { m_focusRow = m_rowFocus ? row : m_focusRow; }
-    bool                       TryMoveInputRow       (WPARAM vk, bool ctrl) override                                 { return m_rowFocus && TryMoveFocusRow (vk, ctrl); }
-    void                       ShowInputMenu         (POINT point) override                                          { if (m_onContextMenu) { m_onContextMenu (point); } }
-    void                       ClickInputLink        (int row, int span) override                                    { if (m_onLink) { m_onLink (row, span); } }
+    Position          HitTestInput       (POINT point) const override                              { return HitTest (point); }
+    bool              TryGetInputLink    (POINT point, int & outRow, int & outSpan) const override { RECT  rect = {}; return TryGetLinkAt (point, outRow, outSpan, rect); }
+    DxuiScrollbar   * GetInputBarAt      (POINT point) override;
+    RECT              GetInputBounds     () const override                                         { return m_boundsDip; }
+    int               GetInputTextLeft   () const override                                         { return GetTextBaseLeft(); }
+    void              CopyInputSelection () const override                                         { CopySelection(); }
+    void              FocusRowOnPress    (int row) override                                        { m_focusRow = m_rowFocus ? row : m_focusRow; }
+    bool              TryMoveInputRow    (WPARAM vk, bool ctrl) override                           { return m_rowFocus && TryMoveFocusRow (vk, ctrl); }
+    void              ShowInputMenu      (POINT point) override                                    { if (m_onContextMenu) { m_onContextMenu (point); } }
+    void              ClickInputLink     (int row, int span) override                              { if (m_onLink) { m_onLink (row, span); } }
 
     DxuiTextLayout          m_layout;
+    DxuiDpiScaler           m_scaler;
+    DxuiScrollbar           m_vertScroll;
+    DxuiScrollbar           m_horzScroll;
     bool                    m_cellPinned      = false;
     float                   m_zoom            = 1.0f;
     float                   m_textStrength    = 1.0f;
@@ -447,7 +433,7 @@ private:
     bool                            m_atEnd           = true;
     DxuiTextViewSelection           m_selection       { m_layout };
     DxuiTextViewFind                m_find            { m_layout, m_selection, *this };
-    DxuiTextViewInput               m_input           { *this };
+    DxuiTextViewInput               m_input           { *this, m_layout, m_selection, *this, m_vertScroll, m_horzScroll };
     HWND                            m_hwnd            = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
@@ -455,9 +441,6 @@ private:
     int                m_hoverRow      = -1;   // the link under the pointer, -1 for none
     int                m_hoverSpan     = -1;
 
-    DxuiDpiScaler      m_scaler;
-    DxuiScrollbar      m_vertScroll;
-    DxuiScrollbar      m_horzScroll;
     int                m_leftColumn    = 0;
     bool               m_rowFocus      = false;
     int                m_focusRow      = -1;

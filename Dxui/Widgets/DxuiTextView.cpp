@@ -1089,6 +1089,29 @@ bool DxuiTextView::TryMoveFocusRow (WPARAM vk, bool ctrl)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::GetInputBarAt
+//
+//  The vertical bar, then the horizontal one, when it is visible and under
+//  the point; null off both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiScrollbar * DxuiTextView::GetInputBarAt (POINT point)
+{
+    if (IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (point.x, point.y))
+    {
+        return &m_vertScroll;
+    }
+
+    return (IsHorzScrollbarVisible() && m_horzScroll.HitTest (point.x, point.y)) ? &m_horzScroll : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::GetHorzBarPx
 //
 ////////////////////////////////////////////////////////////////////////////////

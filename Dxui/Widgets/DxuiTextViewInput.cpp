@@ -2,7 +2,10 @@
 
 #include "DxuiTextViewInput.h"
 #include "DxuiScrollbar.h"
+#include "DxuiTextLayout.h"
+#include "DxuiTextViewSelection.h"
 #include "IDxuiTextInputHost.h"
+#include "IDxuiTextScroller.h"
 #include "Core/DxuiSystemSettings.h"
 
 
@@ -69,7 +72,7 @@ bool DxuiTextViewInput::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiTextViewInput::OnWheel (const DxuiMouseEvent & ev)
 {
-    bool  noWrap = m_host.IsInputNoWrap();
+    bool  noWrap = m_layout.IsNoWrap();
 
 
 
@@ -78,14 +81,14 @@ bool DxuiTextViewInput::OnWheel (const DxuiMouseEvent & ev)
         if (noWrap)
         {
             m_wheelColumns += (ev.wheelHorizontal ? ev.wheelDelta : -ev.wheelDelta) * (float) kWheelColumns;
-            m_host.ScrollInputColumns ((int) m_wheelColumns);
+            m_scroller.ScrollColumns ((int) m_wheelColumns);
             m_wheelColumns -= (float) (int) m_wheelColumns;
         }
     }
     else
     {
         m_wheelLines += -ev.wheelDelta * (float) kWheelLines;
-        m_host.ScrollInputLines ((int) m_wheelLines);
+        m_scroller.ScrollLines ((int) m_wheelLines);
         m_wheelLines -= (float) (int) m_wheelLines;
     }
 
@@ -111,8 +114,7 @@ bool DxuiTextViewInput::OnPress (const DxuiMouseEvent & ev)
 {
     POINT            point    = ev.positionDip;
     int64_t          nowMs    = (int64_t) GetTickCount64();
-    DxuiScrollbar  * vert     = m_host.GetInputVertBar (point);
-    DxuiScrollbar  * horz     = m_host.GetInputHorzBar (point);
+    DxuiScrollbar  * bar      = m_host.GetInputBarAt (point);
     bool             handled  = false;
     bool             twice    = false;
     bool             thrice   = false;
@@ -129,17 +131,17 @@ bool DxuiTextViewInput::OnPress (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (ev.button == DxuiMouseButton::Left && vert != nullptr)
+    if (ev.button == DxuiMouseButton::Left && bar == &m_vertBar)
     {
-        handled = vert->OnMouseDown (point.x, point.y);
-        m_host.SetInputTopLine (vert->GetScrollPos());
+        handled = m_vertBar.OnMouseDown (point.x, point.y);
+        m_scroller.SetTopLine (m_vertBar.GetScrollPos());
         return handled;
     }
 
-    if (ev.button == DxuiMouseButton::Left && horz != nullptr)
+    if (ev.button == DxuiMouseButton::Left && bar == &m_horzBar)
     {
-        handled = horz->OnMouseDown (point.x, point.y);
-        m_host.SetInputLeftColumn (horz->GetScrollPos());
+        handled = m_horzBar.OnMouseDown (point.x, point.y);
+        m_scroller.SetLeftColumn (m_horzBar.GetScrollPos());
         return handled;
     }
 
@@ -165,24 +167,24 @@ bool DxuiTextViewInput::OnPress (const DxuiMouseEvent & ev)
 
     if (thrice)
     {
-        m_host.SelectAllInput();
+        m_selection.SelectAll();
         m_clicks   = 0;
         m_dragging = false;
     }
     else if (twice)
     {
-        m_host.GetInputWordBounds (pos, m_wordFirst, m_wordLast);
-        m_host.SetInputSelection (m_wordFirst, m_wordLast);
+        m_selection.GetWordBounds (pos, m_wordFirst, m_wordLast);
+        m_selection.Select (m_wordFirst, m_wordLast);
         m_dragging = true;
     }
     else if (ev.shift)
     {
-        m_host.SetInputCaret (pos);
+        m_selection.SetCaret (pos);
         m_dragging = true;
     }
     else
     {
-        m_host.SetInputSelection (pos, pos);
+        m_selection.Select (pos, pos);
         m_dragging = true;
     }
 
@@ -204,10 +206,10 @@ bool DxuiTextViewInput::OnPress (const DxuiMouseEvent & ev)
 
 bool DxuiTextViewInput::OnDragMove (POINT point)
 {
-    DxuiScrollbar  & vert    = m_host.GetVertBar();
-    DxuiScrollbar  & horz    = m_host.GetHorzBar();
+    DxuiScrollbar  & vert    = m_vertBar;
+    DxuiScrollbar  & horz    = m_horzBar;
     RECT             bounds  = m_host.GetInputBounds();
-    bool             noWrap  = m_host.IsInputNoWrap();
+    bool             noWrap  = m_layout.IsNoWrap();
     bool             handled = false;
     Position         pos;
     Position         first;
@@ -218,14 +220,14 @@ bool DxuiTextViewInput::OnDragMove (POINT point)
     if (vert.IsDragging())
     {
         handled = vert.OnMouseMove (point.x, point.y);
-        m_host.SetInputTopLine (vert.GetScrollPos());
+        m_scroller.SetTopLine (vert.GetScrollPos());
         return handled;
     }
 
     if (horz.IsDragging())
     {
         handled = horz.OnMouseMove (point.x, point.y);
-        m_host.SetInputLeftColumn (horz.GetScrollPos());
+        m_scroller.SetLeftColumn (horz.GetScrollPos());
         return handled;
     }
 
@@ -236,33 +238,33 @@ bool DxuiTextViewInput::OnDragMove (POINT point)
 
     if (point.y < bounds.top)
     {
-        m_host.ScrollInputLines (-1);
+        m_scroller.ScrollLines (-1);
     }
     else if (point.y >= bounds.bottom)
     {
-        m_host.ScrollInputLines (1);
+        m_scroller.ScrollLines (1);
     }
 
     if (noWrap && point.x < m_host.GetInputTextLeft())
     {
-        m_host.SetInputLeftColumn (m_host.GetInputLeftColumn() - 1);
+        m_scroller.SetLeftColumn (m_scroller.GetLeftColumn() - 1);
     }
     else if (noWrap && point.x >= bounds.right)
     {
-        m_host.SetInputLeftColumn (m_host.GetInputLeftColumn() + 1);
+        m_scroller.SetLeftColumn (m_scroller.GetLeftColumn() + 1);
     }
 
     pos = m_host.HitTestInput (point);
 
     if (m_wordDrag)
     {
-        m_host.GetInputWordBounds (pos, first, last);
-        m_host.SetInputSelection ((pos < m_wordFirst) ? m_wordLast : m_wordFirst,
-                                  (pos < m_wordFirst) ? first      : (std::max) (last, m_wordLast));
+        m_selection.GetWordBounds (pos, first, last);
+        m_selection.Select ((pos < m_wordFirst) ? m_wordLast : m_wordFirst,
+                            (pos < m_wordFirst) ? first      : (std::max) (last, m_wordLast));
     }
     else
     {
-        m_host.SetInputCaret (pos);
+        m_selection.SetCaret (pos);
     }
 
     return true;
@@ -280,8 +282,8 @@ bool DxuiTextViewInput::OnDragMove (POINT point)
 
 bool DxuiTextViewInput::OnRelease (POINT point)
 {
-    DxuiScrollbar  & vert     = m_host.GetVertBar();
-    DxuiScrollbar  & horz     = m_host.GetHorzBar();
+    DxuiScrollbar  & vert     = m_vertBar;
+    DxuiScrollbar  & horz     = m_horzBar;
     int              linkRow  = -1;
     int              linkSpan = -1;
     bool             isOnLink = false;
@@ -304,7 +306,7 @@ bool DxuiTextViewInput::OnRelease (POINT point)
     }
 
     m_dragging = false;
-    isOnLink   = m_pressRow >= 0 && !m_host.HasInputSelection() && m_host.TryGetInputLink (point, linkRow, linkSpan) &&
+    isOnLink   = m_pressRow >= 0 && !m_selection.HasSelection() && m_host.TryGetInputLink (point, linkRow, linkSpan) &&
                  linkRow == m_pressRow && linkSpan == m_pressSpan;
     m_pressRow = -1;
 
@@ -349,13 +351,13 @@ bool DxuiTextViewInput::OnKey (const DxuiKeyEvent & ev)
 
     switch (ev.vk)
     {
-    case VK_UP:    m_host.ScrollInputLines (-1);                          break;
-    case VK_DOWN:  m_host.ScrollInputLines (1);                           break;
-    case VK_PRIOR: m_host.ScrollInputLines (-m_host.GetInputLineCap());   break;
-    case VK_NEXT:  m_host.ScrollInputLines (m_host.GetInputLineCap());    break;
-    case VK_HOME:  m_host.SetInputTopLine (0);                            break;
-    case VK_END:   m_host.SetInputTopLine (m_host.GetInputLineCount());   break;
-    default:       handled = false;                                       break;
+    case VK_UP:    m_scroller.ScrollLines (-1);                          break;
+    case VK_DOWN:  m_scroller.ScrollLines (1);                           break;
+    case VK_PRIOR: m_scroller.ScrollLines (-m_scroller.GetLineCap());    break;
+    case VK_NEXT:  m_scroller.ScrollLines (m_scroller.GetLineCap());     break;
+    case VK_HOME:  m_scroller.SetTopLine (0);                            break;
+    case VK_END:   m_scroller.SetTopLine (m_layout.GetLineCount());      break;
+    default:       handled = false;                                      break;
     }
 
     return handled;
@@ -379,12 +381,12 @@ bool DxuiTextViewInput::QueryCommand (DxuiStandardCommand command, bool & outEna
 
     if (command == DxuiStandardCommand::Copy)
     {
-        outEnabled = m_host.HasInputSelection();
+        outEnabled = m_selection.HasSelection();
         handled    = true;
     }
     else if (command == DxuiStandardCommand::SelectAll)
     {
-        outEnabled = m_host.HasInputRows();
+        outEnabled = !m_layout.GetRows().empty();
         handled    = true;
     }
 
@@ -414,7 +416,7 @@ bool DxuiTextViewInput::InvokeCommand (DxuiStandardCommand command)
     }
     else if (handled && enabled && command == DxuiStandardCommand::SelectAll)
     {
-        m_host.SelectAllInput();
+        m_selection.SelectAll();
     }
 
     return handled;

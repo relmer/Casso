@@ -6,7 +6,11 @@
 #include "DxuiTextPosition.h"
 
 
+class DxuiScrollbar;
+class DxuiTextLayout;
+class DxuiTextViewSelection;
 class IDxuiTextInputHost;
+class IDxuiTextScroller;
 
 
 
@@ -31,7 +35,12 @@ public:
     static constexpr int  kWheelLines   = 3;
     static constexpr int  kWheelColumns = 8;
 
-    explicit DxuiTextViewInput (IDxuiTextInputHost & host) : m_host (host) {}
+    DxuiTextViewInput (IDxuiTextInputHost           & host,
+                       const DxuiTextLayout         & layout,
+                       DxuiTextViewSelection        & selection,
+                       IDxuiTextScroller            & scroller,
+                       DxuiScrollbar                & vertBar,
+                       DxuiScrollbar                & horzBar) : m_host (host), m_layout (layout), m_selection (selection), m_scroller (scroller), m_vertBar (vertBar), m_horzBar (horzBar) {}
 
     bool  OnMouse       (const DxuiMouseEvent & ev);
     bool  OnKey         (const DxuiKeyEvent & ev);
@@ -50,16 +59,21 @@ private:
     bool  OnDragMove  (POINT point);
     bool  OnRelease   (POINT point);
 
-    IDxuiTextInputHost  & m_host;
-    Position              m_lastClick;
-    int64_t               m_lastClickMs  = 0;
-    int                   m_clicks       = 0;      // the clicks in a row on one spot, each within the double-click time
-    float                 m_wheelLines   = 0.0f;   // a touchpad's part notches, until they make a line
-    float                 m_wheelColumns = 0.0f;   // and until they make a column
-    bool                  m_dragging     = false;
-    bool                  m_wordDrag     = false;
-    Position              m_wordFirst;
-    Position              m_wordLast;
-    int                   m_pressRow     = -1;     // the link a press began on, -1 for none
-    int                   m_pressSpan    = -1;
+    IDxuiTextInputHost     & m_host;
+    const DxuiTextLayout   & m_layout;
+    DxuiTextViewSelection  & m_selection;
+    IDxuiTextScroller      & m_scroller;
+    DxuiScrollbar          & m_vertBar;
+    DxuiScrollbar          & m_horzBar;
+    Position                 m_lastClick;
+    int64_t                  m_lastClickMs  = 0;
+    int                      m_clicks       = 0;      // the clicks in a row on one spot, each within the double-click time
+    float                    m_wheelLines   = 0.0f;   // a touchpad's part notches, until they make a line
+    float                    m_wheelColumns = 0.0f;   // and until they make a column
+    bool                     m_dragging     = false;
+    bool                     m_wordDrag     = false;
+    Position                 m_wordFirst;
+    Position                 m_wordLast;
+    int                      m_pressRow     = -1;     // the link a press began on, -1 for none
+    int                      m_pressSpan    = -1;
 };
