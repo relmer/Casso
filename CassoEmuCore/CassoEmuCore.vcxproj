@@ -974,6 +974,7 @@
     <ClCompile Include="Machines\Apple3\Apple380ColTextMode.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Keyboard.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3DiskController.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3Video.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -1970,6 +1971,7 @@
     <ClInclude Include="Machines\Apple3\Apple380ColTextMode.h" />
     <ClInclude Include="Machines\Apple3\Apple3Keyboard.h" />
     <ClInclude Include="Machines\Apple3\Apple3DiskController.h" />
+    <ClInclude Include="Machines\Apple3\Apple3Video.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
   </ItemGroup>
   <ItemGroup>

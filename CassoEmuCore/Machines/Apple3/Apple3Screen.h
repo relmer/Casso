@@ -24,8 +24,9 @@ public:
     static constexpr Byte  kBlack  = 0;
     static constexpr Byte  kWhite  = 15;
 
-    void  Set (int x, int y, Byte color)  { m_pixels[(size_t) y * kWidth + (size_t) x] = color; }
-    Byte  Get (int x, int y) const        { return m_pixels[(size_t) y * kWidth + (size_t) x]; }
+    void  Set   (int x, int y, Byte color)  { m_pixels[(size_t) y * kWidth + (size_t) x] = color; }
+    Byte  Get   (int x, int y) const        { return m_pixels[(size_t) y * kWidth + (size_t) x]; }
+    void  Clear ()                          { m_pixels.fill (kBlack); }
 
 private:
     std::array<Byte, (size_t) kWidth * kHeight>  m_pixels = {};

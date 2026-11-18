@@ -86,7 +86,7 @@ the screen text.
 ### Implementation
 
 - [x] T030 [P] [US1] Implement `Apple3CharacterSet` and its loader behind a glyph source interface in `CassoEmuCore/Machines/Apple3/Apple3CharacterSet.h` and `.cpp`
-- [ ] T031 [US1] Implement `Apple3Video` (mode switches, display buffer, video enable, vertical blanking to the VIAs, beam position) in `CassoEmuCore/Machines/Apple3/Apple3Video.h` and `.cpp`
+- [x] T031 [US1] Implement `Apple3Video` (mode switches, display buffer, video enable, vertical blanking to the VIAs, beam position) in `CassoEmuCore/Machines/Apple3/Apple3Video.h` and `.cpp`
 - [x] T032 [P] [US1] Implement `Apple3TextMode`, `Apple3ColorTextMode` and `Apple380ColTextMode` in `CassoEmuCore/Machines/Apple3/`
 - [ ] T033 [P] [US1] Implement `Apple3Keyboard` and add the `Apple3` layout to the keyboard layout tables in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.h` and `.cpp`. Done except the layout tables, the settings key list and the input journal records for the KB port's modifier keys, which touch shell and debugger files and wait for the 035 merge
 - [x] T034 [US1] List in `specs/050-apple3/research.md` under R8 every place `Disk2Controller` and its consumers assume two drives
