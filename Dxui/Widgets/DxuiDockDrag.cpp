@@ -5,6 +5,8 @@
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiPaneMetrics.h"
 #include "Render/DxuiCoverageRaster.h"
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiDockGaps.h"
 #include "Widgets/DxuiDockGroups.h"
@@ -894,4 +896,58 @@ std::vector<RECT> DxuiDockDrag::GetOutlineStrips (const DxuiDockDragMark & mark)
     }
 
     return strips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockDrag::PaintMarks
+//
+//  Each mark, first to last: a fill, a dotted outline drawn as its strips,
+//  a solid outline, or a guide's picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockDrag::PaintMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::vector<DxuiDockDragMark> & marks)
+{
+    HRESULT  hr   = S_OK;
+    auto     fill = [&] (const RECT & r, uint32_t argb)
+    {
+        painter.FillRect ((float) r.left, (float) r.top,
+                          (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
+    };
+
+
+
+    for (const DxuiDockDragMark & mark : marks)
+    {
+        if (mark.image != nullptr)
+        {
+            hr = text.DrawIconBitmap (mark.image->bgraPremul.data(), mark.image->width, mark.image->height,
+                                      (float) mark.rect.left, (float) mark.rect.top,
+                                      (float) mark.image->width, (float) mark.image->height);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else if (mark.outlinePx == 0)
+        {
+            fill (mark.rect, mark.argb);
+        }
+        else if (mark.dotted)
+        {
+            for (const RECT & dot : GetOutlineStrips (mark))
+            {
+                fill (dot, mark.argb);
+            }
+        }
+        else
+        {
+            painter.OutlineRect ((float) mark.rect.left, (float) mark.rect.top,
+                                 (float) (mark.rect.right - mark.rect.left),
+                                 (float) (mark.rect.bottom - mark.rect.top),
+                                 (float) mark.outlinePx, mark.argb);
+        }
+    }
 }

@@ -12,6 +12,8 @@ class DxuiDockPanes;
 class DxuiDpiScaler;
 class DxuiPaneLayout;
 class IDxuiDockDragHost;
+class IDxuiPainter;
+class IDxuiTextRenderer;
 class IDxuiTheme;
 
 
@@ -87,8 +89,10 @@ public:
     const DxuiDockDropZone           * GetHoveredZone   () const;
     std::vector<DxuiDockDragMark>      GetMarks         (const IDxuiTheme & theme) const;
 
-    //  The filled rectangles that draw an outlined mark, solid or dotted.
+    //  The filled rectangles that draw an outlined mark, solid or dotted, and
+    //  marks drawn in order.
     static std::vector<RECT>  GetOutlineStrips (const DxuiDockDragMark & mark);
+    static void               PaintMarks       (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::vector<DxuiDockDragMark> & marks);
 
 private:
     //  Guide pictures already drawn, for each look of each guide.

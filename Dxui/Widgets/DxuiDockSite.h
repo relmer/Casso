@@ -342,6 +342,13 @@ public:
 
 private:
     void          Arrange        ();
+    void          ArrangeGroup   (DxuiTabGroup * group, const DxuiPaneLayout::GroupRect & arranged, std::unordered_set<const IDxuiControl *> & placed);
+    void          ArrangeSlid    ();
+    void          OnDragMouse    (const DxuiMouseEvent & ev);
+    void          OnSashMouse    (const DxuiMouseEvent & ev);
+    bool          OnChromeWheel  (const DxuiMouseEvent & ev);
+    bool          OnChromePress  (const DxuiMouseEvent & ev);
+    bool          OnGroupsMouse  (const DxuiMouseEvent & ev);
     RECT          GetDockedArea  () const { return m_edges.GetDockedArea(); }
     RECT          GetPaneArea    () const;
     int           HitTestEdgeTab (POINT pointDip) const { return m_edges.HitTest (pointDip); }
@@ -385,10 +392,6 @@ private:
     void                                      FloatPane             (const std::wstring & pane) override;
     void                                      FloatGroup            (const std::vector<std::wstring> & panes, const std::wstring & active) override;
     void                                      ClosePane             (const std::wstring & pane) override                              { m_onClosePane (pane); }
-
-    //  A group's corners that are the window's, as DxuiPaneFrame's kCorner
-    //  flags: none while the window's corners are square.
-    UINT  GetWindowCorners (const RECT & group) const;
 
     DxuiPaneLayout                                m_layout;
     DxuiPaneLayout::ShownFn                       m_shown;

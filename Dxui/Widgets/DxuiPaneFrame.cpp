@@ -955,3 +955,30 @@ bool DxuiPaneFrame::IsEmpty (const RECT & rect)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneFrame::GetWindowCorners
+//
+//  A pane is at a corner of the window when both of its edges at that
+//  corner lie on the window's: a lone pane in a floating window with no
+//  margin around it is at all four.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiPaneFrame::GetWindowCorners (const RECT & pane, const RECT & window)
+{
+    bool  isLeft   = pane.left   == window.left;
+    bool  isTop    = pane.top    == window.top;
+    bool  isRight  = pane.right  == window.right;
+    bool  isBottom = pane.bottom == window.bottom;
+    UINT  corners  = 0;
+
+
+
+    corners |= (isLeft  && isTop)    ? kCornerTopLeft     : 0;
+    corners |= (isRight && isTop)    ? kCornerTopRight    : 0;
+    corners |= (isLeft  && isBottom) ? kCornerBottomLeft  : 0;
+    corners |= (isRight && isBottom) ? kCornerBottomRight : 0;
+
+    return corners;
+}
