@@ -119,7 +119,7 @@ void BasicHandlers::SetVariable (DebugSession & session, const DebugCommand & co
     if (!ApplesoftProgram::TryParseReference (command.text, reference))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments",
-                        "BPBASICVAR takes a variable or an array element as a program writes it: A, B%, C$ or D(3,4).");
+                        "BPBASICVAR takes a variable or an array element as it appears in the program: A, B%, C$ or D(3,4).");
         return;
     }
 

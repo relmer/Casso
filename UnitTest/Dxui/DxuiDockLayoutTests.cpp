@@ -423,7 +423,7 @@ public:
         DxuiLayoutBand  body;
         IDxuiControl *  bands[4] = { &menu, &toolbar, &status, &body };
 
-        //  The arrangement Cassque's window docks: two strips on top, one on
+        //  The arrangement CassoExplorer's window docks: two strips on top, one on
         //  the bottom, and the panes in what is left.
         menu.SetThickness    (24);
         toolbar.SetThickness (38);

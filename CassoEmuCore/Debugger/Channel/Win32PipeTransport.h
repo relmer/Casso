@@ -47,7 +47,7 @@ public:
     static constexpr DWORD  kReadChunkBytes  = 4096;
     static constexpr DWORD  kPipeBufferBytes = 65536;
 
-    Win32PipeTransport (INamedPipeApi & api, uint32_t processId, std::vector<BYTE> userSid);
+    Win32PipeTransport (INamedPipeApi & api, uint32_t processId, std::vector<BYTE> userSid, DWORD integrityRid);
     ~Win32PipeTransport() override;
 
     Win32PipeTransport             (const Win32PipeTransport &) = delete;
@@ -101,6 +101,7 @@ private:
     INamedPipeApi                               & m_api;
     std::wstring                                  m_name;
     std::vector<BYTE>                             m_userSid;
+    DWORD                                         m_integrityRid    = 0;
     PipeSecurityDescriptor                        m_security;
     bool                                          m_isSecurityBuilt = false;
     bool                                          m_isListening     = false;

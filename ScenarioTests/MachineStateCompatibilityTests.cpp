@@ -122,7 +122,7 @@ private:
         AssertSucceeded (hr, std::format (L"{} loads into a {}", path.filename().wstring(), contents.machineName).c_str());
 
         before = machine->GetCpu()->GetTotalCycles();
-        machine->RunCycles (kOneSecondCycles);
+        machine->GetRunner().RunCycles (kOneSecondCycles);
 
         Assert::IsTrue (machine->GetCpu()->GetTotalCycles() >= before + kOneSecondCycles,
                         std::format (L"{} runs a second after it loads", path.filename().wstring()).c_str());
@@ -156,7 +156,7 @@ private:
             machine.GetRefs().diskController->SetExternalDisk (kDiskDrive, machine.GetDiskStore().GetImage (kDiskSlot, kDiskDrive));
         }
 
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
 
         hr = MachineStateFile::Build (machine, bytes, error);
         AssertSucceeded (hr, L"Build");

@@ -312,7 +312,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -440,6 +440,7 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     //  has the mnemonic of each instruction line, and its data directives.
     sources = isListing ? std::map<int, std::vector<std::string>>() : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name));
     session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(), sources));
+    session.SetDebugFileLines (ProgramCheck::GetDebugFileLineEntries (session.GetDebugFile(), sources));
     session.SetDebugFileData  (DebugFileData::GetBlocks (session.GetDebugFile(), sources));
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
@@ -681,7 +682,7 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
 
     if (HasOffset (command.text))
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "SAVE takes no offset; only LOAD moves the symbols.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "SAVE doesn't take an offset; only LOAD moves the symbols.");
         return;
     }
 
@@ -695,7 +696,7 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
@@ -915,7 +916,7 @@ bool SymbolHandlers::TryGetFileName (const std::string & text, std::string & nam
 
     if (trimmed.empty())
     {
-        error = "Give the symbol file's name.";
+        error = "Type the symbol file's name.";
         return false;
     }
 

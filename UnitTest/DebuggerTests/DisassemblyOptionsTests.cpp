@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "ControllerRig.h"
@@ -306,6 +306,10 @@ namespace DisassemblyOptionsTests
             Assert::AreEqual (2,  rows[4].codeLine, L"the data byte has no line, so no row above it");
             Assert::AreEqual (3,  DisassemblyOptions::GetRowOfLine (rows, 1));
             Assert::AreEqual (-1, DisassemblyOptions::GetLineOfRow (rows, 2));
+            Assert::AreEqual (1,  DisassemblyOptions::GetLineAtOrBelow (rows, 2), L"a source row's menu is its instruction's");
+            Assert::AreEqual (0,  DisassemblyOptions::GetLineAtOrBelow (rows, 0));
+            Assert::AreEqual (2,  DisassemblyOptions::GetLineAtOrBelow (rows, 4), L"an instruction row is its own");
+            Assert::AreEqual (-1, DisassemblyOptions::GetLineAtOrBelow (rows, 5), L"past the last row");
 
             rows = DisassemblyOptions::BuildRows (snapshot->codeViews[0], false, always);
             Assert::AreEqual ((size_t) 3, rows.size(), L"source off lists the instructions alone");
@@ -349,6 +353,47 @@ namespace DisassemblyOptionsTests
 
             Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, 1, lines, first, count), L"an instruction's row");
             Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, rows.size(), lines, first, count), L"no row");
+        }
+
+
+
+        //  A label alone on its line produces no instruction, so it goes above
+        //  the source line of the instruction it labels, back to the line of
+        //  the instruction before it and no further.
+        TEST_METHOD (LabelLinesGoAboveTheLineTheyLabel)
+        {
+            std::vector<DebuggerViewSnapshot::CodeLine>  lines (3);
+            std::vector<DisassemblyOptions::Row>         rows;
+            auto                                         always  = [] (int, int) { return true; };
+            auto                                         isLabel = [] (int, int line) { return line == 2 || (line >= 4 && line <= 7); };
+            std::vector<int>                             shown;
+            std::vector<int>                             expected = { 4, 5, 6, 7, -1, 8, -1, 9, -1 };
+
+
+
+            lines[0] = { .address = 0x6000, .bytes = "A9 41" };
+            lines[1] = { .address = 0x6002, .bytes = "60" };
+            lines[2] = { .address = 0x6003, .bytes = "00" };
+
+            lines[0].sourceFileId = 0;
+            lines[0].sourceLine   = 7;
+            lines[1].sourceFileId = 0;
+            lines[1].sourceLine   = 8;
+            lines[2].sourceFileId = 0;
+            lines[2].sourceLine   = 9;
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always, isLabel);
+
+            for (const DisassemblyOptions::Row & each : rows)
+            {
+                shown.push_back (each.codeLine < 0 ? each.sourceLine : -1);
+            }
+
+            Assert::IsTrue (expected == shown, L"lines 4 to 6 above line 7, not line 2 past the code on line 3, and not line 7 again above line 8");
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            Assert::AreEqual ((size_t) 6, rows.size(), L"no label lines without the check");
         }
 
 
@@ -465,7 +510,7 @@ namespace DisassemblyOptionsTests
                                  window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].background, L"RTS: written, in another color");
 
             window.GetCodeGroup().ToggleOption (Option::Heat);
-            Assert::IsFalse  (host.isHeatShown);
+            Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn), L"the column goes; the map is on for the memory windows' heat");
         }
 
 
@@ -764,7 +809,7 @@ namespace DisassemblyOptionsTests
             half = (float) list->GetRowHeightDip() / 2.0f;
             list->Paint (painter, text, theme);
 
-            Assert::IsTrue (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken));
+            Assert::IsTrue (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken));
             Assert::IsTrue (input.sourceY.has_value() && input.targetY.has_value());
             Assert::IsTrue (std::abs (*input.sourceY - (float) GetRowMiddle (*list, 0)) < half, L"from the BNE's source row");
             Assert::IsTrue (std::abs (*input.targetY - (float) GetRowMiddle (*list, 2)) < half, L"to the RTS's source row");
@@ -988,11 +1033,11 @@ namespace DisassemblyOptionsTests
 
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
+            Assert::IsTrue  (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
             Assert::AreEqual ((int) 0x0303, (int) goesTo);
 
             window.GetCodeGroup().ToggleOption (Option::BranchArrow);
-            Assert::IsFalse (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken));
+            Assert::IsFalse (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken));
         }
 
 
@@ -1041,10 +1086,10 @@ namespace DisassemblyOptionsTests
 
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
             Assert::AreEqual ((int) 0x0303, (int) goesTo);
             Assert::IsTrue   (input.sourceY.has_value() && input.targetY.has_value() && *input.sourceY < *input.targetY);
-            Assert::IsFalse  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
+            Assert::IsFalse  (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
         }
 
 
@@ -1090,7 +1135,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"drawn though $0300 is not in view");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken, true), L"drawn though $0300 is not in view");
             Assert::AreEqual ((int) 0x0401, (int) goesTo);
             Assert::IsFalse  (input.sourceY.has_value(), L"no source row: it runs in from the edge");
             Assert::IsTrue   (input.isTargetBelow,        L"from above, $0300 being before the lines");
@@ -1140,7 +1185,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"drawn though the PC's line is not in view");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"drawn though the PC's line is not in view");
             Assert::AreEqual ((int) 0x0500, (int) goesTo);
             Assert::IsTrue   (isTaken);
             Assert::IsFalse  (input.sourceY.has_value(), L"it runs in from the top edge");
@@ -1152,7 +1197,7 @@ namespace DisassemblyOptionsTests
             window.GetCodeList (0)->Paint (painter, text, theme);
 
             input = BranchArrow::Input();
-            Assert::IsFalse  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"from above the lines to above them");
+            Assert::IsFalse  (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"from above the lines to above them");
         }
 
 
@@ -1184,7 +1229,7 @@ namespace DisassemblyOptionsTests
             rig.controller.GetSession().GetTarget().SetRegisters (r);
 
             (void) rig.view.Build (rig.controller.GetSession());
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = std::make_shared<DebuggerViewSnapshot> (rig.view.Build (rig.controller.GetSession()));
 
             Assert::AreEqual ((int) 0x0300, (int) snapshot->pc);
@@ -1196,9 +1241,57 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
             Assert::AreEqual ((int) 0x0300, (int) goesTo);
             Assert::IsTrue   (window.HasTopLayer(), L"and the layer it is drawn on is painted, though the PC's NOP has no arrow");
+        }
+
+
+        //  The operand and result column fills the width after the columns
+        //  ahead of it. A long annotation, even one from rows replaced since,
+        //  is cut off at the pane's edge rather than widening the column past
+        //  it, so the pane doesn't scroll sideways.
+        TEST_METHOD (TheOperandColumnFitsThePaneWithoutScrolling)
+        {
+            constexpr LONG                                kPaneWidth = 700;
+            CassoTheme                                    theme      = CassoTheme::MakeSkeuomorphic();
+            DxuiDpiScaler                                 scaler;
+            DxuiListView                                  list;
+            MockDxuiPainter                               painter;
+            MockDxuiTextRenderer                          text;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+            int                                           right      = 0;
+
+
+
+            scaler.SetDpi (96);
+            DensePaneList::MakeDense   (&list);
+            DisassemblyCells::Configure (list);
+            list.Layout (RECT { 0, 0, kPaneWidth, 400 }, scaler);
+
+            for (const std::wstring & operand : { std::wstring (200, L'X'), std::wstring (L"A=41") })
+            {
+                rows.assign (1, std::vector<DxuiListView::Cell> (DisassemblyCells::kColumnCount));
+
+                rows[0][DisassemblyCells::kAddressColumn].text     = L"6000";
+                rows[0][DisassemblyCells::kInstructionColumn].text = L"LDA $C000";
+                rows[0][DisassemblyCells::kOperandColumn].text     = operand;
+
+                list.SetRows (std::move (rows));
+                list.Paint   (painter, text, theme);
+
+                Assert::IsFalse  (list.IsHorzScrollbarVisible(), operand.c_str());
+                Assert::AreEqual (0, list.GetMaxLeftPx(), operand.c_str());
+            }
+
+            right = list.GetPaneLeadPx();
+
+            for (size_t c = 0; c < DisassemblyCells::kColumnCount; c++)
+            {
+                right += list.GetColumnEffectiveWidthPx (c);
+            }
+
+            Assert::AreEqual ((int) kPaneWidth, right, L"the last column runs to the pane's edge");
         }
     };
 }

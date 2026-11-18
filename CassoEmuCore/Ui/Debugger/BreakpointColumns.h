@@ -87,11 +87,11 @@ public:
 
     using Cells = std::array<std::string, kCount>;
 
-    static std::wstring         GetHeading  (Column column);
-    static Cells                GetCells    (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp);
-    static RowKind              GetRowKind     (const BreakpointInfo & info);
-    static std::string          GetKindText    (RowKind kind);
-    static std::string          GetTriggerText (RowKind kind);
+    static std::wstring  GetHeading     (Column column);
+    static Cells         GetCells       (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp);
+    static RowKind       GetRowKind     (const BreakpointInfo & info);
+    static std::string   GetKindText    (RowKind kind);
+    static std::string   GetTriggerText (RowKind kind);
 
     //  The snapshot's breakpoint indexes in the order the column sorts them,
     //  ties kept in the engine's order.
@@ -111,6 +111,9 @@ public:
     //  line that produced the code at its address.
     static bool  TryGetSourcePlace (const DebuggerViewSnapshot & snapshot, const DebuggerViewSnapshot::BreakpointLine & bp,
                                     int & fileId, int & line);
+
+    //  The file and line a breakpoint was set on, for one set by source line.
+    static bool  TryGetSourceLine  (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);
 
     //  Whether a breakpoint stops at an address: an opcode, a register
     //  condition, BRK and an interrupt stop anywhere.
@@ -136,7 +139,6 @@ private:
     static std::string  GetDiskAddress   (const BreakpointInfo & info);
     static std::string  GetRange         (const BreakpointInfo & info);
     static std::string  GetWhenHit       (const BreakpointInfo & info);
-    static bool         TryGetSourceLine (const DebuggerViewSnapshot & snapshot, int id, std::string & file, int & line);
     static bool         TryReadMask      (const std::string & token, const char * pszToken, unsigned & mask);
     static Shown        MakeShown        (unsigned mask);
     static Shown        MigrateShown     (unsigned mask);

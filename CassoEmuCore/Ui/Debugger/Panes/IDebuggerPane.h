@@ -37,6 +37,24 @@ struct PaneMenu
     static std::wstring  MakeInSubmenu (const std::wstring & submenu, const std::wstring & label) { return submenu + kSubmenu + label; }
 
     static std::pair<std::wstring, std::function<void()>>  MakeSeparator () { return { std::wstring(), nullptr }; }
+
+    //  A code line's breakpoint rows, as both code views list them: Set
+    //  breakpoint on a line without one; otherwise Enable breakpoint or
+    //  Disable breakpoint for its state, then Remove breakpoint. A row with
+    //  no action is drawn disabled.
+    static void  AddBreakpointRows (PaneMenuItems & items, std::optional<bool> isEnabled,
+                                    std::function<void()> set, std::function<void (bool enable)> enable, std::function<void()> remove)
+    {
+        if (!isEnabled.has_value())
+        {
+            items.push_back ({ L"Set breakpoint", std::move (set) });
+            return;
+        }
+
+        items.push_back ({ *isEnabled ? L"Disable breakpoint" : L"Enable breakpoint",
+                           enable ? std::function<void()> ([enable, on = !*isEnabled] { enable (on); }) : std::function<void()>() });
+        items.push_back ({ L"Remove breakpoint", std::move (remove) });
+    }
 };
 
 
@@ -96,15 +114,21 @@ public:
     virtual void                   ShowPcCode       () = 0;
 
     //  An Applesoft listing the user picks, loaded as the program in memory,
-    //  and the program saved to a file the user picks.
-    virtual void                   OpenBasicProgram () = 0;
-    virtual void                   SaveBasicProgram () = 0;
-    virtual void                   ShowMemoryAddress (Word address) = 0;
-    virtual void                   GoToMemory       (Word address) = 0;
+    //  the program saved to a file the user picks, and the program cleared,
+    //  as NEW clears it, once the user confirms.
+    virtual void  OpenBasicProgram  () = 0;
+    virtual void  SaveBasicProgram  () = 0;
+    virtual void  ClearBasicProgram () = 0;
+    virtual void  PasteBasicProgram () = 0;
+    virtual void  ShowMemoryAddress (Word address) = 0;
+    virtual void  GoToMemory        (Word address) = 0;
 
     //  The rows a menu gets to show an address or a Go to text in each open
     //  memory window.
     virtual void                   AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) = 0;
+
+    //  Add bookmark for a code address, or Remove bookmark when it has one.
+    virtual void                   AddBookmarkItem      (Word address, PaneMenuItems & items) = 0;
 
     //  A routine's Never step into this routine row: checked while the step
     //  filter has it, a click then taking it out; otherwise a click adds it
@@ -139,9 +163,9 @@ public:
     virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
 
     //  The theme in force, the text colors and the heat map's colors in it.
-    virtual const DxuiTheme      * GetTheme         () const = 0;
-    virtual DebuggerTextColors::Set  GetTextColors  () const = 0;
-    virtual HeatMapView::Palette   GetHeatPalette   () const = 0;
+    virtual const DxuiTheme          * GetTheme       () const = 0;
+    virtual DebuggerTextColors::Set    GetTextColors  () const = 0;
+    virtual HeatMapView::Palette       GetHeatPalette () const = 0;
 
     //  The rows a menu on a byte gets for its last write and read in a bank:
     //  show each in the disassembly, or go back to it.
@@ -149,7 +173,7 @@ public:
 
     //  The breakpoints' color in the theme, and the code views' gutter mark
     //  for one on or off.
-    virtual uint32_t               GetBreakpointArgb () const = 0;
+    virtual uint32_t                              GetBreakpointArgb () const = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled) = 0;
 
     //  Opens a source file's document at a line and brings it forward; and
@@ -168,9 +192,12 @@ public:
 
     //  The PC's arrow, over a gutter mark when the line has one, and its
     //  row's color in the theme; and the source views' syntax colors.
-    virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
-    virtual uint32_t               GetPcRowArgb     () const = 0;
-    virtual SourceSyntax::Colors   GetSyntaxColors  () const = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker     (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
+
+    //  A bookmark's outline, over a line's dot when the line has one.
+    virtual std::shared_ptr<const DxuiIconImage>  GetBookmarkMark (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
+    virtual uint32_t                              GetPcRowArgb    () const = 0;
+    virtual SourceSyntax::Colors                  GetSyntaxColors () const = 0;
 
     //  Whether the disassembly views' heat column is on, which the other
     //  listings match.
@@ -182,11 +209,11 @@ public:
     virtual uint32_t               GetPcMarkerArgb  () const = 0;
 
     //  The PC's marker on a tab, which the tabs' band and fills are behind.
-    virtual uint32_t               GetPcTabMarkArgb () const { return GetPcMarkerArgb(); }
-    virtual uint32_t               GetResultArgb    () const = 0;
+    virtual uint32_t                              GetPcTabMarkArgb       () const { return GetPcMarkerArgb(); }
+    virtual uint32_t                              GetResultArgb          () const = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () = 0;
-    virtual uint32_t               GetNavigatedRowArgb () const = 0;
-    virtual uint32_t               GetTargetRowArgb () const = 0;
+    virtual uint32_t                              GetNavigatedRowArgb    () const = 0;
+    virtual uint32_t                              GetTargetRowArgb       () const = 0;
 
     //  The column of a list at a point, counted from the list's pane lead;
     //  and a register's value now, none before the first snapshot.
@@ -206,6 +233,10 @@ public:
     //  it once it loads.
     virtual void                   OpenSymbolFile   (const std::wstring & thenShow) = 0;
 
+    //  A source file the user picks, opened as a file dropped on the window
+    //  is, for a debug file's source that wasn't found.
+    virtual void                   BrowseForSource  () {}
+
     //  Sets the steps to follow a view, by source line for a source document
     //  and by instruction for the disassembly.
     virtual void                   NoteViewFocus    (bool isSource) = 0;
@@ -213,8 +244,8 @@ public:
     //  Builds the window's menus again, after what they list changes; a
     //  menu of rows at a point in the window; and a pane's tab marked for
     //  new output while the pane is out of sight.
-    virtual void                   UpdateWindowMenus () = 0;
-    virtual void                   ShowPopupMenu    (const PaneMenuItems & items, POINT clientPx) = 0;
+    virtual void  UpdateWindowMenus () = 0;
+    virtual void  ShowPopupMenu     (const PaneMenuItems & items, POINT clientPx) = 0;
 
     //  A list of rows over a control, at exactly its width, rising from its
     //  top edge in the look given.
@@ -231,11 +262,14 @@ public:
 
     //  Runs a key scheme's action, as its key does, true when it acted; and a
     //  command bar entry, as a click on it does.
-    virtual bool                   RunKeyAction     (DebuggerKeySchemes::Action action) = 0;
-    virtual void                   RunCommandBarEntry (int id) = 0;
+    virtual bool  RunKeyAction       (DebuggerKeySchemes::Action action) = 0;
+    virtual void  RunCommandBarEntry (int id) = 0;
 
     //  Opens a pane and brings it forward, as its row on the View menu does.
     virtual void                   OpenPane         (const std::wstring & pane) = 0;
+
+    //  Opens a pane and brings it forward without moving the focus.
+    virtual void                   RaisePane        (const std::wstring & pane) = 0;
 
     //  A question put to the user in a message box centered on owner, with
     //  the user's answer; a test supplies the answer instead.
@@ -270,6 +304,12 @@ public:
     virtual void                   UpdateTooltip    (POINT clientPx) = 0;
     virtual bool                   IsTooltipVisible () const = 0;
 
+    //  The same for a pane's tip outside a mouse event, such as after what it
+    //  lists comes in, in the window the pane is in now: the debugger window
+    //  or the floating one.
+    virtual void                   UpdatePaneTooltip    (const std::wstring & pane, POINT clientPx) { (void) pane; UpdateTooltip (clientPx); }
+    virtual bool                   IsPaneTooltipVisible (const std::wstring & pane) const { (void) pane; return IsTooltipVisible(); }
+
     //  Whether a pane is open and not closed from its close button, as the
     //  View menu's check has it.
     virtual bool                   IsPaneOpen       (const std::wstring & pane) const = 0;
@@ -277,13 +317,17 @@ public:
     //  The control with the keyboard focus, the floating window's focused
     //  control while an event from it is routed, and the step that moves it
     //  to the command line, for a pane whose focused control is hidden.
-    virtual IDxuiControl         * GetFocusedControl () const = 0;
-    virtual void                   FocusDefault     () = 0;
+    virtual IDxuiControl  * GetFocusedControl () const = 0;
+    virtual void            FocusDefault      () = 0;
 
     //  Writes lines to the console; and the line the user types in a dialog,
     //  none when canceled, which a test supplies instead.
     virtual void                   AppendConsole    (const std::vector<std::string> & lines) = 0;
-    virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label) = 0;
+
+    //  A reply to something done in a pane, in an infobar over the pane, or
+    //  in a message box with no pane or when the pane isn't on screen.
+    virtual void                   ShowPaneReply    (const std::wstring & pane, const std::vector<std::string> & lines, bool isError) = 0;
+    virtual std::optional<Byte>    RunByteDialog    (const std::wstring & title, const std::wstring & label, const std::wstring & description) = 0;
     virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
                                                         TextDialog::CheckFn check) = 0;
 
@@ -335,8 +379,8 @@ public:
 class IDebuggerPane
 {
 public:
-    explicit IDebuggerPane (IDebuggerPaneHost & host) : m_host (host) {}
-    virtual ~IDebuggerPane() = default;
+    explicit  IDebuggerPane  (IDebuggerPaneHost & host) : m_host (host) {}
+    virtual   ~IDebuggerPane () = default;
 
     IDebuggerPane (const IDebuggerPane &)             = delete;
     IDebuggerPane & operator= (const IDebuggerPane &) = delete;
@@ -414,8 +458,8 @@ public:
 
     //  The pane's controls a press is offered to ahead of the lists, and its
     //  text boxes, which follow the pointer and type the characters typed.
-    virtual std::vector<IDxuiControl *>  GetPressTargets () const { return {}; }
-    virtual std::vector<DxuiTextInput *> GetTextBoxes   () const { return {}; }
+    virtual std::vector<IDxuiControl *>   GetPressTargets () const { return {}; }
+    virtual std::vector<DxuiTextInput *>  GetTextBoxes    () const { return {}; }
 
     //  The pane a control several panes share is in now, such as the memory
     //  windows' bar; empty for a control not the pane's.
@@ -427,15 +471,15 @@ public:
     //  Whether the pane saves its lists' column widths in its own settings,
     //  in place of the debug project's; and whether its lists are in the
     //  proportional face, as every list but a disassembly's is.
-    virtual bool                         HasOwnColumnWidths () const { return false; }
-    virtual bool                         HasTextLists   () const { return true; }
+    virtual bool  HasOwnColumnWidths () const { return false; }
+    virtual bool  HasTextLists       () const { return true; }
 
     //  The pane's info button, none for a pane without one.
     virtual std::optional<PaneColorKeySpec>  GetColorKey () const { return std::nullopt; }
 
     virtual void                         Apply          (const DebuggerViewSnapshot & snapshot) { (void) snapshot; }
 
-    //  The panes' text size, as a fraction of the usual.
+    //  The pane's text size, as a fraction of the usual.
     virtual void                         SetTextZoom    (float zoom) { (void) zoom; }
 
     //  Moves what moves between snapshots; true while something does.
@@ -446,8 +490,8 @@ public:
 
     //  Reads the pane's settings again after another debug project opens,
     //  and saves what it has to as the window closes.
-    virtual void                         OnProjectSwitched () {}
-    virtual void                         OnWindowClose  () {}
+    virtual void  OnProjectSwitched () {}
+    virtual void  OnWindowClose     () {}
 
     //  The machine's log events sent since the last frame, each frame.
     virtual void                         ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) { (void) deltas; (void) isWindowVisible; }
@@ -456,13 +500,24 @@ public:
     virtual void                         PlaceBar       () {}
 
     //  The mouse, at four points of the window's routing: a box being
-    //  edited in place; ahead of every other control, as a Ctrl+wheel over a
-    //  map that zooms it; at the pane's bar, ahead of the panes' contents; and
-    //  at what the pane draws, after the dock's strips and sashes.
+    //  edited in place; ahead of every other control, as the wheel over the
+    //  profiler's timeline, which zooms it; at the pane's bar, ahead of the
+    //  panes' contents; and at what the pane draws, after the dock's strips
+    //  and sashes.
     virtual bool                         RouteEditMouse    (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteEarlyMouse   (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteBarMouse     (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteContentMouse (const DxuiMouseEvent & ev) { (void) ev; return false; }
+
+    //  The zoom of a pane whose content zooms apart from the panes' text,
+    //  such as the heat map: a step of notches about a point in the window,
+    //  or about the content's middle with none; and back to the zoom the
+    //  content starts at. Ctrl+wheel anywhere over the pane, and Ctrl+Plus,
+    //  Ctrl+Minus and Ctrl+0 while it has the focus, are routed here first.
+    //  False for a pane with no zoom apart from the text, whose Ctrl+wheel
+    //  and keys then size that pane's text alone.
+    virtual bool                         ZoomContent       (float notches, std::optional<POINT> clientPx) { (void) notches; (void) clientPx; return false; }
+    virtual bool                         ResetContentZoom  () { return false; }
 
     //  A key for a box being edited in place, or for the pane's own control
     //  with the focus, ahead of the window's keys.
@@ -471,6 +526,10 @@ public:
     //  A key scheme's action, such as Find, while a control of the pane has
     //  the focus; and Enter in one of the pane's boxes.
     virtual bool                         OnMappedAction    (DebuggerKeySchemes::Action action, IDxuiControl * focused) { (void) action; (void) focused; return false; }
+
+    //  Ctrl+G with the focus in the pane: true when the pane has a go-to and
+    //  started it.
+    virtual bool                         OnGoToKey         () { return false; }
     virtual bool                         SubmitTextBox     (DxuiTextInput * box) { (void) box; return false; }
 
     //  A press on one of the pane's lists ended at a point, the list having

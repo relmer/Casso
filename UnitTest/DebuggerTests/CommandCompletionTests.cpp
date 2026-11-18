@@ -31,7 +31,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.ExecuteConsoleLine (rig.controller.GetSession(), "nobp 0");
+            rig.view.GetCommands().ExecuteConsoleLine (rig.controller.GetSession(), "nobp 0");
             after = rig.view.Build (rig.controller.GetSession(), true);
 
             Assert::AreEqual (std::string ("bpc 0"), after.suggestion);
@@ -108,6 +108,32 @@ namespace DebuggerTests
             Assert::AreEqual (first, back, L"Shift+Tab steps back");
         }
 
+
+
+        //  A word after the command word completes from the symbols, in their
+        //  case, and cycles; its first match shows in gray, and Right arrow
+        //  takes it.
+        TEST_METHOD (Tab_CompletesASymbolAfterTheCommandWord)
+        {
+            CommandCompletion  completion;
+            std::wstring       first;
+            std::wstring       second;
+            std::wstring       right;
+
+
+
+            completion.SetMode    (CommandMode::AppleWin);
+            completion.SetSymbols ({ L"draw_row", L"draw_bar", L"count" });
+
+            Assert::AreEqual (std::wstring (L"ar"), completion.GetGhost (L"bp draw_b", true, {}), L"the rest of draw_bar in gray");
+            Assert::IsTrue   (completion.TryComplete (L"bp DRAW", true, first));
+            Assert::AreEqual (std::wstring (L"bp draw_bar"), first, L"the first match, in its case");
+            Assert::IsTrue   (completion.TryComplete (first, true, second));
+            Assert::AreEqual (std::wstring (L"bp draw_row"), second, L"a second press steps to the next");
+            Assert::IsTrue   (completion.TryAcceptHistory (L"w cou", {}, right));
+            Assert::AreEqual (std::wstring (L"w count"), right, L"Right arrow takes the gray text");
+            Assert::AreEqual (std::wstring(), completion.GetGhost (L"draw", true, {}), L"the command word is no symbol");
+        }
 
 
         TEST_METHOD (Tab_WordNoCommandStartsWith_CompletesNothing)

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -30,6 +31,10 @@ public:
     //  Empty formatted volume (data-only). Buffer must be kImageByteSize.
     static HRESULT  Write (vector<Byte> & buffer, Byte volumeNumber);
 
+    //  The same for any geometry. The buffer is geometry.GetImageByteSize()
+    //  bytes.
+    static HRESULT  Write (vector<Byte> & buffer, Byte volumeNumber, const Dos33Geometry & geometry);
+
     //  Copies tracks 0-2 verbatim from the System Master image.
     static HRESULT  InstallDos (vector<Byte> & buffer, const vector<Byte> & masterSectors);
 
@@ -38,27 +43,32 @@ public:
     //  sectors the same single way -- matching ProDosSkeleton::GetBlockByteOffset.
     static size_t   GetSectorOffset (int track, int sector);
 
-private:
     //  DOS 3.3 on-disk geometry (Beneath Apple DOS ch. 4). The VTOC lives at
     //  T17 S0; the catalog chains T17 S15 down to S1.
     static constexpr int   kVtocTrack             = 17;
-    static constexpr int   kCatalogFirstSector    = 15;
+
+    //  The fields that identify a VTOC, which the nibblizer reads for the
+    //  volume its address fields have.
     static constexpr int   kVtocOffCatalogTrack   = 0x01;   // -> 17
-    static constexpr int   kVtocOffCatalogSector  = 0x02;   // -> 15
-    static constexpr int   kVtocOffDosRelease     = 0x03;   // -> 3
     static constexpr int   kVtocOffVolumeNumber   = 0x06;
     static constexpr int   kVtocOffMaxTsPairs     = 0x27;   // -> 122
-    static constexpr int   kVtocOffLastAllocTrack = 0x30;   // allocation hint
-    static constexpr int   kVtocOffAllocDirection = 0x31;   // +1 outward
     static constexpr int   kVtocOffTrackCount     = 0x34;   // -> 35
     static constexpr int   kVtocOffSectorCount    = 0x35;   // -> 16
+    static constexpr Byte  kMaxTsPairs            = 122;
+
+private:
+    static constexpr int   kCatalogFirstSector    = 15;
+    static constexpr int   kVtocOffCatalogSector  = 0x02;   // -> 15
+    static constexpr int   kVtocOffDosRelease     = 0x03;   // -> 3
+    static constexpr int   kVtocOffLastAllocTrack = 0x30;   // allocation hint
+    static constexpr int   kVtocOffAllocDirection = 0x31;   // +1 outward
     static constexpr int   kVtocOffSectorBytesLo  = 0x36;   // -> 0x00
     static constexpr int   kVtocOffSectorBytesHi  = 0x37;   // -> 0x01 (256)
     static constexpr int   kVtocOffFreeBitmap     = 0x38;   // 4 bytes / track
     static constexpr int   kCatalogOffNextTrack   = 0x01;
     static constexpr int   kCatalogOffNextSector  = 0x02;
     static constexpr Byte  kDosRelease            = 3;
-    static constexpr Byte  kMaxTsPairs            = 122;
+    static constexpr Byte  kDos32Release          = 2;
     static constexpr int   kDosImageTracks        = 3;      // tracks 0-2 carry DOS
 
     friend class Dos33FileWriter;

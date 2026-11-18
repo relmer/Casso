@@ -424,7 +424,10 @@ cantilever, and ejecting swings it open again. The IN USE lamp is a real red
 light in the shading pass, lit whenever the motor runs. The mounted image's
 name sits under each drive, and a write-protected disk wears a padlock beside
 its name, with hover text explaining why it is protected. Click a drive's door
-to pick an image, or drag one onto the drive.
+to pick an image, or drag one onto the drive. The picker lists only the images
+that drive can use, most recently used first.
+
+<p align="center"><img src="Assets/feat-disk-picker.png" alt="The picker for drive 1: the Casso node's list of 5.25-inch images with Form factor, Formatted size, File system and Volume name columns, the Stock disks and Demo disks nodes in the tree, and Create new disk, Insert and Cancel at the bottom" width="700" /></p>
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Two Disk II drives on the desk: Drive 1 loaded with Karateka.woz, its red IN USE lamp lit and a padlock beside the name, Drive 2 empty with its door open" width="700" /></p>
 
@@ -460,13 +463,13 @@ images straight off the wire — protection schemes and all.
 | ![Karateka on the Apple //e desk scene, the hero squaring off with the first guard](Assets/game-karateka.png) | ![Choplifter's title screen on the desk scene, the drive lamp still lit from loading](Assets/game-choplifter.png) | ![Lode Runner's demo running on the desk scene](Assets/game-loderunner.png) |
 
 `.woz` (including WOZ 2.1 flux tracks), `.dsk`, `.do`, `.po`, `.nib` and `.nb2`
-images all mount — drag one onto a drive, pick it from the dialog, or name it on
+images all mount — drag one onto a drive, pick it in the drive's picker, or name it on
 the command line. Casso can **create blank disks in-app** — DOS 3.3, ProDOS, or
 unformatted raw media, across WOZ (with bit or flux tracks), DSK, PO and NIB,
 optionally bootable from the stock masters — and a created disk is usable
 immediately, with no `INIT` step.
 
-<p align="center"><img src="Assets/feat-create-disk.png" alt="Create new disk dialog with folder browsing, format and image-type dropdowns, Make-bootable checkbox, and name field" width="540" /></p>
+<p align="center"><img src="Assets/feat-create-disk-picker.png" alt="New disk image dialog opened from a drive's picker: file name, image type, format, size and volume fields, and a Bootable checkbox" width="540" /></p>
 
 Mounted disks carry a **write-protect toggle**: WOZ images hold the flag inside
 the file so it travels with the image, sector formats use the host file's

@@ -1,34 +1,15 @@
 #include "Pch.h"
 
 #include "Shell/MachineHost.h"
-
 #include "Core/Prng.h"
-#include "Core/StateHash.h"
-#include "Core/StateReader.h"
-#include "Core/StateWriter.h"
-#include "Debugger/DebugHook.h"
-#include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Devices/Disk/DiskImage.h"
-#include "Devices/RomDevice.h"
-#include "Devices/RomGeneration.h"
-#include "Audio/IDriveAudioSink.h"
-#include "Machines/Apple2/Common/AppleSpeaker.h"
+#include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
-#include "Machines/Apple2/Common/Disk2Controller.h"
-#include "Machines/Apple2/Common/AppleGamePort.h"
-#include "Machines/Apple2/Common/AppleKeyboard.h"
-#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
-#include "Machines/Apple2/Common/MockingboardCard.h"
-#include "Machines/Apple2/Common/PrinterCard.h"
-#include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
-#include "Devices/IAciaEndpoint.h"
-#include "Machines/Apple2/Common/SuperSerialCard.h"
-#include "Machines/Apple2/Common/UthernetCard.h"
-#include "Devices/Acia6551.h"
+#include "Machines/Apple2/Common/SiriusJoyport.h"
 
 
 
@@ -38,26 +19,54 @@
 //
 //  MachineHost::MachineHost
 //
+//  A disk leaving a bay is stamped with the position, and a disk change is
+//  a boundary in reverse execution's history. The store frees an image on
+//  an eject or a remount, so the controller is pointed again on every bay
+//  change rather than by each caller. After a restored state, the bay has
+//  the same image and the controller has its restored state.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 MachineHost::MachineHost() :
-    m_memoryBus (std::make_unique<MemoryBus>()),
-    m_charRom   (std::make_unique<CharacterRomData>()),
-    m_diskStore (std::make_unique<DiskImageStore>()),
-    m_config    (std::make_unique<MachineConfig>()),
-    m_tapeDeck  (std::make_unique<TapeDeck>())
+    m_diskStore      (std::make_unique<DiskImageStore>()),
+    m_config         (std::make_unique<MachineConfig>()),
+    m_printerRing    (std::make_unique<PrinterByteRing>()),
+    m_connectors     (m_parts.refs, *m_printerRing, *m_config),
+    m_stateStream    (*this, *m_diskStore, *m_config, m_currentMachineName),
+    m_runner         (m_parts, m_connectors),
+    m_hostInput      (m_parts, m_runner.GetPositionPtr()),
+    m_storage        (m_parts, *m_config, *m_diskStore),
+    m_outputMute     (m_parts, m_connectors),
+    m_observerWiring (m_parts),
+    m_tape           (m_parts),
+    m_clockPanel     (m_parts, *m_config, m_connectors, m_tape)
 {
-    // A disk leaving a bay is stamped with the position, and a disk change is
-    // a boundary in reverse execution's history.
-    m_diskStore->SetPositionSource (&m_position);
+    m_diskStore->SetPositionSource (m_runner.GetPositionPtr());
     m_diskStore->SetMediaChangeListener ([this] () { OnMediaChanged(); });
 
-    //  The store frees an image on an eject or a remount, so the controller
-    //  is re-pointed on every bay change rather than by each caller.
-    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange change)
     {
-        ConnectDiskToController (slot, drive);
+        if (change != BayChange::Restored)
+        {
+            m_storage.ConnectDiskToController (slot, drive);
+        }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::~MachineHost
+//
+//  Out of line, where the types of the parts are complete.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachineHost::~MachineHost()
+{
 }
 
 
@@ -72,9 +81,13 @@ MachineHost::MachineHost() :
 
 void MachineHost::OnMediaChanged()
 {
-    if (m_historyRecorder != nullptr)
+    HistoryRecorder  * recorder = m_runner.GetHistoryRecorder();
+
+
+
+    if (recorder != nullptr)
     {
-        m_historyRecorder->OnMediaChanged (*this);
+        recorder->OnMediaChanged (*this);
     }
 }
 
@@ -90,118 +103,14 @@ void MachineHost::OnMediaChanged()
 
 void MachineHost::NoteDebuggerEdit()
 {
-    if (m_historyRecorder != nullptr)
+    HistoryRecorder  * recorder = m_runner.GetHistoryRecorder();
+
+
+
+    if (recorder != nullptr)
     {
-        m_historyRecorder->OnMachineEdited (*this);
+        recorder->OnMachineEdited (*this);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SetOutputMuted
-//
-//  Sound and the printer together.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::SetOutputMuted (bool isMuted)
-{
-    SetOutputMuted (isMuted, isMuted);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SetOutputMuted
-//
-//  The speaker and the printer card hold their own flag. The Disk II's
-//  drive sounds go out through its audio sink, which is held here and
-//  detached while muted. The serial chips are muted with the printer, since
-//  what they send goes to a file or another machine. Muting twice, or
-//  unmuting twice, changes nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::SetOutputMuted (bool isSoundMuted, bool isPrinterMuted)
-{
-    if (isPrinterMuted != m_isPrinterMuted && m_refs.printerCard != nullptr)
-    {
-        m_refs.printerCard->SetMuted (isPrinterMuted);
-    }
-
-    m_isPrinterMuted = isPrinterMuted;
-
-    for (Acia6551 * acia : m_refs.serialChips)
-    {
-        acia->SetOutputMuted (isPrinterMuted);
-    }
-
-    if (isSoundMuted == m_isSoundMuted)
-    {
-        return;
-    }
-
-    m_isSoundMuted = isSoundMuted;
-
-    if (m_refs.speaker != nullptr)
-    {
-        m_refs.speaker->SetMuted (isSoundMuted);
-    }
-
-    if (m_refs.diskController == nullptr)
-    {
-        return;
-    }
-
-    if (isSoundMuted)
-    {
-        m_mutedDiskAudio   = m_refs.diskController->GetAudioSink();
-        m_wasMotorOnAtMute = m_refs.diskController->IsMotorOn();
-        m_refs.diskController->SetAudioSink (nullptr);
-        return;
-    }
-
-    m_refs.diskController->SetAudioSink (m_mutedDiskAudio);
-
-    // The motor's hum follows the drive's state, so a motor that started or
-    // stopped while muted is told to the sink now.
-    if (m_mutedDiskAudio != nullptr && m_refs.diskController->IsMotorOn() != m_wasMotorOnAtMute)
-    {
-        if (m_wasMotorOnAtMute)
-        {
-            m_mutedDiskAudio->OnMotorDisengaged();
-        }
-        else
-        {
-            m_mutedDiskAudio->OnMotorEngaged();
-        }
-    }
-
-    m_mutedDiskAudio = nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::~MachineHost
-//
-//  Out of line so the header can forward-declare the types it holds by
-//  unique_ptr rather than including all of them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MachineHost::~MachineHost()
-{
 }
 
 
@@ -212,16 +121,14 @@ MachineHost::~MachineHost()
 //
 //  MachineHost::SetCpu
 //
+//  The new CPU watches the opcodes the runner has.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::SetCpu (std::unique_ptr<EmuCpu> cpu)
 {
-    m_cpu = std::move (cpu);
-
-    if (m_cpu != nullptr)
-    {
-        m_cpu->GetCpu6502()->SetOpcodeWatch (m_watchOpcodes, m_watcher);
-    }
+    m_parts.cpu = std::move (cpu);
+    m_runner.ApplyOpcodeWatch();
 }
 
 
@@ -236,7 +143,7 @@ void MachineHost::SetCpu (std::unique_ptr<EmuCpu> cpu)
 
 void MachineHost::SetPrng (std::unique_ptr<Prng> prng)
 {
-    m_prng = std::move (prng);
+    m_parts.prng = std::move (prng);
 }
 
 
@@ -251,7 +158,7 @@ void MachineHost::SetPrng (std::unique_ptr<Prng> prng)
 
 void MachineHost::SetMmu (std::unique_ptr<Apple2eMmu> mmu)
 {
-    m_mmu = std::move (mmu);
+    m_parts.mmu = std::move (mmu);
 }
 
 
@@ -266,7 +173,7 @@ void MachineHost::SetMmu (std::unique_ptr<Apple2eMmu> mmu)
 
 void MachineHost::SetApple2cRomBank (std::unique_ptr<Apple2cRomBank> romBank)
 {
-    m_apple2cRomBank = std::move (romBank);
+    m_parts.apple2cRomBank = std::move (romBank);
 }
 
 
@@ -281,7 +188,26 @@ void MachineHost::SetApple2cRomBank (std::unique_ptr<Apple2cRomBank> romBank)
 
 void MachineHost::SetMouse (std::unique_ptr<AppleMouse> mouse)
 {
-    m_mouse = std::move (mouse);
+    m_parts.mouse = std::move (mouse);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetAccelerator
+//
+//  The memory bus watches the soft switches for the accelerator, so the
+//  bus is pointed at the new one before the old one is deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetAccelerator (std::unique_ptr<Apple2cPlusAccelerator> accelerator)
+{
+    m_parts.memoryBus->SetIoObserver (accelerator.get());
+    m_parts.accelerator = std::move (accelerator);
 }
 
 
@@ -296,7 +222,7 @@ void MachineHost::SetMouse (std::unique_ptr<AppleMouse> mouse)
 
 void MachineHost::SetJoyport (std::unique_ptr<SiriusJoyport> joyport)
 {
-    m_joyport = std::move (joyport);
+    m_parts.joyport = std::move (joyport);
 }
 
 
@@ -315,7 +241,7 @@ void MachineHost::SetJoyport (std::unique_ptr<SiriusJoyport> joyport)
 
 void MachineHost::SetVideoTiming (std::unique_ptr<VideoTiming> videoTiming)
 {
-    m_videoTiming = std::move (videoTiming);
+    m_parts.videoTiming = std::move (videoTiming);
 }
 
 
@@ -335,7 +261,7 @@ std::filesystem::path MachineHost::GetPendingPrintDir() const
 
 
 
-    return (dir);
+    return dir;
 }
 
 
@@ -344,402 +270,14 @@ std::filesystem::path MachineHost::GetPendingPrintDir() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineHost::StepOne
-//
-//  One instruction, and the devices that measure time in instructions.
-//
-//  The Disk ][ nibble engine is pumped per instruction rather than per slice
-//  because the boot ROM sits in a tight LDA $C0EC / BPL loop reading the data
-//  latch: advance the engine only at slice boundaries and the CPU sees one
-//  valid nibble per ~1000 cycles instead of ~32, and never accumulates enough
-//  sync bytes to find a sector header.
-//
-//  AddCycles is what moves the machine's clock, and through it the //e video
-//  timing and the //c mouse. It belongs here, with the instruction that spent
-//  the cycles, rather than at each call site -- a single-step that ticked the
-//  disk controller but left the clock standing was the shape of the defect
-//  this consolidates away.
+//  MachineHost::AttachDevices
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MachineHost::StepOne()
+void MachineHost::AttachDevices()
 {
-    if (m_cpu == nullptr)
-    {
-        return (0);
-    }
-
-    if (m_debugHook != nullptr)
-    {
-        return StepOneWithHook();
-    }
-
-    // StepOne polls the interrupt lines itself and dispatches a pending
-    // NMI/IRQ vector in place of the opcode fetch, reporting the cost through
-    // GetLastInstructionCycles either way -- so a bare StepOne is the whole
-    // step, and a separate interrupt poll would be a second, redundant one.
-    if (m_historyRecorder != nullptr)
-    {
-        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502());
-    }
-
-    m_cpu->StepOne();
-
-    return FinishStep();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::StepOneWithHook
-//
-//  StepOne while a debug hook is installed. The hook is asked before the
-//  instructions on the pages its filter marks (StepOneAsked); the rest run
-//  without it. This runs once per instruction, so the test is one load.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte MachineHost::StepOneWithHook()
-{
-    const DebugHookFilter  & filter = m_debugHook->GetFilter();
-    Word                     pc     = m_cpu->GetPC();
-
-
-
-    if (filter.pages[pc >> 8])
-    {
-        return StepOneAsked (filter, pc);
-    }
-
-    if (m_historyRecorder != nullptr)
-    {
-        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502());
-    }
-
-    m_cpu->StepOne();
-    return FinishStep();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::StepOneAsked
-//
-//  An instruction on a page the filter marks, which the hook may stop before.
-//  While only an opcode can stop the machine, only an instruction with that
-//  opcode, or with one that cannot be read without side effects, is asked
-//  about. The opcode is read from the shadow read page, which is what the CPU
-//  is about to fetch; I/O and a device's ROM have none there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-__declspec (noinline) Byte MachineHost::StepOneAsked (const DebugHookFilter & filter, Word pc)
-{
-    static constexpr Word  kPageMask = 0xFF;
-    const Byte           * page      = m_memoryBus->GetShadowReadPage (pc);
-    bool                   isAsked   = !filter.opcodesStop || filter.everyInstruction || page == nullptr || filter.opcodes[page[pc & kPageMask]];
-
-
-
-    if (isAsked && m_debugHook->ShouldStopBefore (pc))
-    {
-        return (0);
-    }
-
-    if (m_historyRecorder != nullptr)
-    {
-        m_historyRecorder->OnInstructionStart (*m_cpu->GetCpu6502());
-    }
-
-    m_cpu->StepOne();
-    return FinishStep();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::RecordInput
-//
-//  Stamps a host input with the CPU's cycle count. Called on the CPU thread
-//  at an instruction boundary, before or in the same breath as the input is
-//  applied, so the stamp is the point the guest first sees it. A machine with
-//  no CPU yet stamps zero.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::RecordInput (
-    InputKind         kind,
-    Byte              value,
-    uint16_t          detail,
-    std::string_view  payload)
-{
-    uint64_t  cycle = 0;
-
-
-
-    if (!m_inputJournal.IsOn())
-    {
-        return;
-    }
-
-    if (m_cpu != nullptr)
-    {
-        cycle = m_cpu->GetTotalCycles();
-    }
-
-    m_inputJournal.Record (cycle, kind, value, detail, payload);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SetInputJournalOn
-//
-//  Turns the journal on or off and points the devices at it, or at nothing,
-//  so a device whose reads see host input pays one null test while it is
-//  off. CPU thread, between instructions.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::SetInputJournalOn (bool isOn)
-{
-    m_inputJournal.SetOn (isOn);
-    AttachInputJournal();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::AttachInputJournal
-//
-//  Hands the journal to every device that records the host input its reads
-//  see, or null when the journal is off. A machine switch builds new
-//  devices, so the builder calls this again once they are wired. The serial
-//  chips also get the host input gate, checked before an attachment's bytes
-//  are taken, so that behind live they wait.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::AttachInputJournal()
-{
-    InputJournal  * journal = m_inputJournal.IsOn() ? &m_inputJournal : nullptr;
-    size_t          i       = 0;
-
-
-
-    m_inputJournal.SetCycleSource    ((m_cpu != nullptr) ? m_cpu->GetCycleCounterPtr() : nullptr);
-    m_inputJournal.SetCycleBase      ((m_cpu != nullptr) ? m_cpu->GetCycleBasePtr() : nullptr);
-    m_inputJournal.SetPositionSource (&m_position);
-
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->SetInputJournal (journal);
-    }
-
-    if (m_refs.gamePort != nullptr)
-    {
-        m_refs.gamePort->SetInputJournal (journal);
-    }
-
-    if (m_refs.iieSoftSwitches != nullptr)
-    {
-        m_refs.iieSoftSwitches->SetInputJournal (journal);
-    }
-
-    if (m_mouse != nullptr)
-    {
-        m_mouse->SetInputJournal (journal);
-    }
-
-    if (m_joyport != nullptr)
-    {
-        m_joyport->SetInputJournal (journal);
-    }
-
-    for (i = 0; i < m_refs.serialChips.size(); i++)
-    {
-        m_refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
-        m_refs.serialChips[i]->SetHostInputGate (&m_hostInputGate);
-    }
-
-    if (m_refs.uthernet != nullptr)
-    {
-        m_refs.uthernet->SetInputJournal  (journal);
-        m_refs.uthernet->SetHostInputGate (&m_hostInputGate);
-    }
-
-    AttachCommEventSink (m_commSink);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::ApplyDeviceInput
-//
-//  Replay: hands one journal record a device made at a read back to that
-//  device, which stores the value so the same read returns the same result.
-//  The caller applies each record just before the instruction that begins at
-//  its cycle. Returns false for a record no device here holds -- a reset,
-//  power cycle or disk change, which the replayer dispatches as a command.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool MachineHost::ApplyDeviceInput (const InputRecord & record)
-{
-    bool  isApplied = false;
-
-
-
-    if (m_refs.keyboard != nullptr)
-    {
-        isApplied = m_refs.keyboard->ApplyInput (record);
-    }
-
-    if (!isApplied && m_refs.iieSoftSwitches != nullptr)
-    {
-        isApplied = m_refs.iieSoftSwitches->ApplyInput (record);
-    }
-
-    if (!isApplied && m_refs.gamePort != nullptr)
-    {
-        isApplied = m_refs.gamePort->ApplyInput (record);
-    }
-
-    if (!isApplied && m_mouse != nullptr)
-    {
-        isApplied = m_mouse->ApplyInput (record);
-    }
-
-    if (!isApplied && m_joyport != nullptr)
-    {
-        isApplied = m_joyport->ApplyInput (record);
-    }
-
-    if (!isApplied && IsSerialInput (record.kind) && record.detail < m_refs.serialChips.size())
-    {
-        isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
-    }
-
-    if (!isApplied && m_refs.uthernet != nullptr)
-    {
-        isApplied = m_refs.uthernet->ApplyInput (record);
-    }
-
-    return isApplied;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::CloseSerialAttachments
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::CloseSerialAttachments()
-{
-    for (Acia6551 * acia : m_refs.serialChips)
-    {
-        acia->SetEndpoint (nullptr);
-    }
-
-    m_ownedAciaEndpoints.clear();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::IsSerialInput
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool MachineHost::IsSerialInput (InputKind kind)
-{
-    return kind == InputKind::AciaByte || kind == InputKind::AciaLines || kind == InputKind::AciaConnection;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::DropHostConnections
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::DropHostConnections()
-{
-    if (m_refs.uthernet != nullptr)
-    {
-        m_refs.uthernet->DropHostConnections();
-    }
-
-    for (Acia6551 * acia : m_refs.serialChips)
-    {
-        acia->DropConnection();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::ResyncHostConnections
-//
-//  Each serial chip receives again, behind what was restored with the point,
-//  the bytes it took after the point, each with its receive errors. The
-//  serial attachments are not called: each poll sets the 6551's CTS, DSR
-//  and DCD from the attachment, so the first poll after the resume corrects
-//  the restored levels.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::ResyncHostConnections (size_t cursor)
-{
-    size_t  index = 0;
-
-
-
-    for (index = cursor; index < m_inputJournal.GetEndIndex(); index++)
-    {
-        const InputRecord  & record = m_inputJournal.GetRecord (index);
-
-        if (record.kind == InputKind::AciaByte && record.detail < m_refs.serialChips.size())
-        {
-            m_refs.serialChips[record.detail]->ReceiveFromHostNow (record.value, (Byte) record.data);
-        }
-    }
-
-    if (m_refs.uthernet != nullptr)
-    {
-        m_refs.uthernet->ResyncHostConnections (&m_inputJournal, cursor);
-    }
+    m_hostInput.AttachJournal();
+    m_observerWiring.AttachAgain();
 }
 
 
@@ -750,44 +288,12 @@ void MachineHost::ResyncHostConnections (size_t cursor)
 //
 //  MachineHost::SetHeldInputWatch
 //
-//  The devices whose reads see host input, pointed at the watch or at
-//  nothing, with the watch told where the machine's position is kept.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::SetHeldInputWatch (HeldInputWatch * watch)
 {
-    m_heldInputWatch = watch;
-
-    if (watch != nullptr)
-    {
-        watch->SetPositionSource (&m_position);
-    }
-
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->SetHeldInputWatch (watch);
-    }
-
-    if (m_refs.gamePort != nullptr)
-    {
-        m_refs.gamePort->SetHeldInputWatch (watch);
-    }
-
-    if (m_refs.iieSoftSwitches != nullptr)
-    {
-        m_refs.iieSoftSwitches->SetHeldInputWatch (watch);
-    }
-
-    if (m_mouse != nullptr)
-    {
-        m_mouse->SetHeldInputWatch (watch);
-    }
-
-    if (m_joyport != nullptr)
-    {
-        m_joyport->SetHeldInputWatch (watch);
-    }
+    m_hostInput.SetHeldInputWatch (watch);
+    m_runner.SetHeldInputWatch (watch);
 }
 
 
@@ -796,280 +302,14 @@ void MachineHost::SetHeldInputWatch (HeldInputWatch * watch)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MachineHost::SampleHostInputs
-//
-//  A key pressed or a paddle moved between two guest reads is in the live
-//  machine from the moment the host wrote it, but a read records it only
-//  when the guest looks. Sampling at each slice boundary puts the change in
-//  the journal where the CPU thread first held it, as a boundary record, so
-//  every position after it replays with it. Within a slice a change still
-//  waits for the next read or the next sample, whichever comes first.
+//  MachineHost::DetachSerialPorts
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineHost::SampleHostInputs()
+void MachineHost::DetachSerialPorts()
 {
-    if (!m_inputJournal.IsOn())
-    {
-        return;
-    }
-
-    m_inputJournal.SetSampling (true);
-
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->SampleHostInputs();
-    }
-
-    if (m_refs.gamePort != nullptr)
-    {
-        m_refs.gamePort->SampleHostInputs();
-    }
-
-    if (m_refs.iieSoftSwitches != nullptr)
-    {
-        m_refs.iieSoftSwitches->SampleHostInputs();
-    }
-
-    if (m_mouse != nullptr)
-    {
-        m_mouse->SampleHostInputs();
-    }
-
-    if (m_joyport != nullptr)
-    {
-        m_joyport->SampleHostInputs();
-    }
-
-    m_inputJournal.SetSampling (false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SaveHostInputState
-//
-//  Each device's own section, back to back, in GetHostInputParts order.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::SaveHostInputState (StateWriter & writer) const
-{
-    HRESULT  hr = S_OK;
-
-
-
-    const_cast<MachineHost &> (*this).GetHostInputParts (m_stateParts);
-
-    for (const IMachineState * part : m_stateParts)
-    {
-        hr = part->SaveState (writer);
-        CHR (hr);
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::LoadHostInputState
-//
-//  A blob saved by this machine's devices loads back into the same devices;
-//  one from another machine fails on the first section tag that differs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::LoadHostInputState (std::string_view blob)
-{
-    HRESULT      hr     = S_OK;
-    StateReader  reader (reinterpret_cast<const Byte *> (blob.data()), blob.size());
-
-
-
-    GetHostInputParts (m_stateParts);
-
-    for (IMachineState * part : m_stateParts)
-    {
-        hr = part->LoadState (reader);
-        CHR (hr);
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::GetHostInputParts
-//
-//  The devices whose state the UI and controller threads write, each once:
-//  the keyboard through its most derived type, as GetStateParts saves it.
-//  Filled into the caller's list, which keeps its capacity from call to call.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::GetHostInputParts (std::vector<IMachineState *> & outParts)
-{
-    IMachineState  * candidates[] =
-    {
-        dynamic_cast<IMachineState *> (m_refs.keyboard),
-        m_refs.iieSoftSwitches,
-        m_refs.gamePort,
-        m_mouse.get(),
-        m_joyport.get(),
-    };
-
-
-
-    outParts.clear();
-
-    for (IMachineState * part : candidates)
-    {
-        if (part != nullptr)
-        {
-            outParts.push_back (part);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SetOpcodeWatch
-//
-//  Kept here as well as in the CPU, so a CPU the machine is rebuilt with
-//  watches the same opcodes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher)
-{
-    m_watchOpcodes = opcodes;
-    m_watcher      = watcher;
-
-    if (m_cpu != nullptr)
-    {
-        m_cpu->GetCpu6502()->SetOpcodeWatch (opcodes, watcher);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::FinishStep
-//
-//  What the instruction or interrupt just executed cost, added to the clock
-//  and to the devices that count cycles.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte MachineHost::FinishStep()
-{
-    Byte  cycles = m_cpu->GetLastInstructionCycles();
-
-
-
-    m_cpu->AddCycles (cycles);
-
-    if (m_refs.diskController != nullptr)
-    {
-        m_refs.diskController->Tick (cycles);
-    }
-
-    if (m_refs.mockingboard != nullptr)
-    {
-        m_refs.mockingboard->Tick (cycles);
-    }
-
-    for (Acia6551 * acia : m_refs.serialChips)
-    {
-        acia->Tick (cycles);
-    }
-
-    if (m_refs.uthernet != nullptr)
-    {
-        m_refs.uthernet->Tick (cycles);
-    }
-
-    m_position++;
-
-    if (m_historyRecorder != nullptr)
-    {
-        m_historyRecorder->OnInstructionEnd();
-    }
-
-    return (cycles);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::RunCycles
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
-{
-    uint64_t  spent  = 0;
-    Byte      cycles = 0;
-
-
-
-    if (m_cpu == nullptr)
-    {
-        return (0);
-    }
-
-    while (spent < cycleBudget)
-    {
-        // A pause raised on another thread ends the slice here, between two
-        // instructions. Relaxed, since the stop only has to be seen: the CPU
-        // thread takes the pause mutex before it parks.
-        if (m_stopFlag != nullptr && m_stopFlag->load (std::memory_order_relaxed))
-        {
-            break;
-        }
-
-        cycles  = StepOne();
-        spent  += cycles;
-
-        // A hook stop returns a short slice: StepOne declined to execute, or
-        // the instruction it just ran raised a stop for the next boundary.
-        if (m_debugHook != nullptr && (cycles == 0 || (m_debugHook->GetFilter().everyInstruction && m_debugHook->HasPendingStop())))
-        {
-            break;
-        }
-
-        // The instruction just run read a line the input held back behind
-        // live would change: the caller puts the machine back before it.
-        if (m_heldInputWatch != nullptr && m_heldInputWatch->HasHit())
-        {
-            break;
-        }
-    }
-
-    return (spent);
+    m_connectors.DetachSerialPorts();
+    m_parts.ownedAciaEndpoints.clear();
 }
 
 
@@ -1080,50 +320,53 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
 //
 //  MachineHost::SoftReset
 //
+//  Dirty disks are flushed through the store before the devices reset, so
+//  the guest's writes survive a reset and every safeguard on a write
+//  applies: not while reverse execution has the disks, nor during a replay
+//  of a reset from history. The tape stops, and stays in.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::SoftReset()
 {
-    // Flush dirty disks through the store before the devices reset, so a
-    // reset doesn't lose the guest's writes and every safeguard on a write
-    // applies. Not while reverse execution holds the disks, nor during a
-    // replay of a recorded reset.
     m_diskStore->SoftReset();
+    m_tape.Stop();
 
-    // A reset stops the recorder, as pressing reset mid-load would leave a real
-    // one running into a guest that is no longer listening. The tape stays in.
-    StopTape();
+    m_parts.memoryBus->SoftResetAll();
 
-    m_memoryBus->SoftResetAll();
-
-    if (m_mmu != nullptr)
+    if (m_parts.accelerator != nullptr)
     {
-        m_mmu->OnSoftReset();
+        m_parts.accelerator->Reset();
     }
 
-    m_interruptController.SoftReset();
-
-    // //c IOU mouse: /RESET clears the interrupt latches + enables and
-    // shuts the IOU access gate (matches power-on state).
-    if (m_mouse != nullptr)
+    if (m_parts.mmu != nullptr)
     {
-        m_mouse->Reset();
+        m_parts.mmu->OnSoftReset();
     }
 
-    if (m_videoTiming != nullptr)
+    m_parts.interruptController.SoftReset();
+
+    // //c IOU mouse: /RESET clears the interrupt latches and enables and
+    // shuts the IOU access gate, as at power-on.
+    if (m_parts.mouse != nullptr)
     {
-        m_videoTiming->SoftReset();
+        m_parts.mouse->Reset();
     }
 
-    if (m_cpu != nullptr)
+    if (m_parts.videoTiming != nullptr)
     {
-        m_cpu->SoftReset();
+        m_parts.videoTiming->SoftReset();
+    }
+
+    if (m_parts.cpu != nullptr)
+    {
+        m_parts.cpu->SoftReset();
     }
 
     // Last, so the window is stamped from the CPU's post-reset counter.
-    if (m_joyport != nullptr)
+    if (m_parts.joyport != nullptr)
     {
-        m_joyport->OnMachineReset();
+        m_parts.joyport->OnMachineReset();
     }
 }
 
@@ -1136,7 +379,10 @@ void MachineHost::SoftReset()
 //  MachineHost::PowerCycle
 //
 //  Refills every DRAM-owning device with the power-on pattern, then runs the
-//  reset sequence.
+//  reset sequence. Dirty disks are flushed first, so the writes survive;
+//  the mounts persist (see DiskImageStore::PowerCycle for the variant that
+//  unmounts everything). Not while reverse execution has the disks, nor
+//  during a replay of a power cycle from history.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1146,51 +392,49 @@ void MachineHost::PowerCycle()
 
 
 
-    if (m_prng == nullptr)
+    if (m_parts.prng == nullptr)
     {
         return;
     }
 
-    StopTape();
+    m_tape.Stop();
 
-    // Auto-flush dirty disks before reseeding device state so writes don't
-    // get lost across a power cycle. Mounts persist (matching
-    // DiskImageStore::SoftReset semantics -- see the comment block on
-    // DiskImageStore::PowerCycle, which is the unmount-everything variant
-    // tests can opt into directly). Not while reverse execution holds the
-    // disks, nor during a replay of a recorded power cycle.
     hrFlush = m_diskStore->FlushAllUnlessHeld();
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
-    m_memoryBus->PowerCycleAll (*m_prng);
+    m_parts.memoryBus->PowerCycleAll (*m_parts.prng);
 
-    // The Disk II's power cycle points each drive at its empty internal
-    // disk, but the mounts persist: the drives go back to the disks in the
-    // bays, which a replayed power cycle must do the same way.
-    BindDiskDrives();
+    // The Disk II's power cycle points each drive at its empty disk, but the
+    // mounts persist: the drives go back to the disks in the bays, which a
+    // replayed power cycle must do the same way.
+    m_storage.BindDiskDrives();
 
-    if (m_mmu != nullptr)
+    if (m_parts.accelerator != nullptr)
     {
-        m_mmu->OnPowerCycle (*m_prng);
+        m_parts.accelerator->Reset();
     }
 
-    m_interruptController.PowerCycle();
-
-    // //c IOU mouse: power-on state (latches clear, interrupts masked, IOU
-    // access gate shut).
-    if (m_mouse != nullptr)
+    if (m_parts.mmu != nullptr)
     {
-        m_mouse->Reset();
+        m_parts.mmu->OnPowerCycle (*m_parts.prng);
     }
 
-    if (m_videoTiming != nullptr)
+    m_parts.interruptController.PowerCycle();
+
+    // //c IOU mouse: latches clear, interrupts masked, IOU access gate shut.
+    if (m_parts.mouse != nullptr)
     {
-        m_videoTiming->PowerCycle (*m_prng);
+        m_parts.mouse->Reset();
     }
 
-    if (m_cpu != nullptr)
+    if (m_parts.videoTiming != nullptr)
     {
-        m_cpu->PowerCycle (*m_prng);
+        m_parts.videoTiming->PowerCycle (*m_parts.prng);
+    }
+
+    if (m_parts.cpu != nullptr)
+    {
+        m_parts.cpu->PowerCycle (*m_parts.prng);
     }
 
     // After the CPU's power cycle, which is what fills main RAM.
@@ -1198,416 +442,10 @@ void MachineHost::PowerCycle()
 
     // Last: the CPU's power cycle zeroes the cycle counter, and the window
     // is measured from that zero.
-    if (m_joyport != nullptr)
+    if (m_parts.joyport != nullptr)
     {
-        m_joyport->OnMachineReset();
+        m_parts.joyport->OnMachineReset();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SaveState
-//
-//  One section holding the header, then every stateful part in the order
-//  GetStateParts gives.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::SaveState (StateWriter & writer) const
-{
-    HRESULT  hr = S_OK;
-
-
-
-    // GetStateParts hands out mutable pointers so LoadState can share it;
-    // only SaveState, which is const on every part, is called through them.
-    const_cast<MachineHost &> (*this).GetStateParts (m_stateParts);
-
-    writer.BeginSection (kStateTag, kStateVersion);
-
-    WriteStateHeader (writer, m_stateParts.size());
-
-    for (const IMachineState * part : m_stateParts)
-    {
-        hr = part->SaveState (writer);
-        CHR (hr);
-    }
-
-    hr = writer.EndSection();
-    CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::LoadState
-//
-//  The header is checked before any part is touched, so a state from another
-//  machine fails without disturbing this one. A failure after that leaves the
-//  machine partly loaded.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::LoadState (StateReader & reader)
-{
-    return LoadStateSeating (reader, false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::LoadStateOverMountedMedia
-//
-//  A state file's disks are mounted from the file before the load, so they
-//  are new media to the disk store, which has never seen the ones the state
-//  recorded. The bays are checked against the state instead, as occupied or
-//  empty, and the Disk II is pointed at what they hold.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::LoadStateOverMountedMedia (StateReader & reader)
-{
-    return LoadStateSeating (reader, true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::LoadStateSeating
-//
-//  The load behind both entry points; isOverMounted picks how the saved
-//  disks are found.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
-{
-    HRESULT   hr         = S_OK;
-    uint16_t  version    = 0;
-    uint32_t  savedParts = 0;
-    size_t    partCount  = 0;
-
-
-
-    hr = reader.BeginSection (kStateTag, kStateVersion, version);
-    CHR (hr);
-
-    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    hr = CheckStateHeader (reader, isOverMounted, savedParts);
-    CHR (hr);
-
-    // After the header, which put the saved disks back in their bays.
-    GetStateParts (m_stateParts);
-    partCount = m_stateParts.size();
-
-    CBREx (savedParts == partCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    for (IMachineState * part : m_stateParts)
-    {
-        hr = part->LoadState (reader);
-        CHR (hr);
-    }
-
-    hr = reader.EndSection();
-    CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::LoadStateForPicture
-//
-//  Each saved part is matched by its section tag against this machine's
-//  parts, in order: a match loads, anything else is skipped whole. The
-//  saved disks never match, since this machine holds none, so no disk is
-//  seated and no image is touched.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::LoadStateForPicture (StateReader & reader)
-{
-    HRESULT                 hr         = S_OK;
-    uint16_t                version    = 0;
-    uint32_t                savedParts = 0;
-    uint32_t                i          = 0;
-    uint32_t                tag        = 0;
-    size_t                  next       = 0;
-    std::vector<uint32_t>   tags;
-
-
-
-    hr = reader.BeginSection (kStateTag, kStateVersion, version);
-    CHR (hr);
-
-    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    hr = ReadPictureHeader (reader, savedParts);
-    CHR (hr);
-
-    GetStateParts (m_stateParts);
-    tags.resize (m_stateParts.size());
-
-    for (next = 0; next < tags.size(); next++)
-    {
-        hr = GetPartTag (*m_stateParts[next], tags[next]);
-        CHR (hr);
-    }
-
-    next = 0;
-
-    for (i = 0; i < savedParts; i++)
-    {
-        hr = reader.PeekSectionTag (tag);
-        CHR (hr);
-
-        if (next < tags.size() && tags[next] == tag)
-        {
-            hr = m_stateParts[next]->LoadState (reader);
-            CHR (hr);
-
-            next++;
-            continue;
-        }
-
-        hr = reader.SkipSection();
-        CHR (hr);
-    }
-
-    hr = reader.EndSection();
-    CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::ReadSavedMedia
-//
-//  The header as WriteStateHeader lays it out, read as far as the bays: the
-//  machine's name, its ROM identity, then the medium in each bay.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::ReadSavedMedia (
-    const std::vector<Byte>  & state,
-    MediaIds                 & outIds)
-{
-    constexpr uint32_t  kLongestName = 256;
-    HRESULT             hr           = S_OK;
-    StateReader         reader       (state);
-    uint16_t            version      = 0;
-    uint32_t            nameLength   = 0;
-    Word                ch           = 0;
-    uint64_t            romIdentity  = 0;
-    uint32_t            i            = 0;
-
-
-
-    outIds.fill (0);
-
-    hr = reader.BeginSection (kStateTag, kStateVersion, version);
-    CHR (hr);
-
-    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    reader.ReadUInt32 (nameLength);
-    CBREx (nameLength <= kLongestName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    for (i = 0; i < nameLength; i++)
-    {
-        reader.ReadWord (ch);
-    }
-
-    reader.ReadUInt64 (romIdentity);
-
-    for (uint64_t & mediaId : outIds)
-    {
-        reader.ReadUInt64 (mediaId);
-    }
-
-    hr = reader.GetResult();
-    CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::ReadPictureHeader
-//
-//  The header as CheckStateHeader reads it, holding the state to the same
-//  machine and ROM set, with the drive bays and the Prng left alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::ReadPictureHeader (
-    StateReader  & reader,
-    uint32_t     & outParts) const
-{
-    HRESULT       hr          = S_OK;
-    uint32_t      nameLength  = 0;
-    std::wstring  name;
-    Word          ch          = 0;
-    uint64_t      romIdentity = 0;
-    uint64_t      mediaId     = 0;
-    bool          hasPrng     = false;
-    uint64_t      prngState   = 0;
-    uint32_t      i           = 0;
-    size_t        bayCount    = (size_t) DiskImageStore::kSlotCount * DiskImageStore::kDriveCount;
-    size_t        ownLength   = m_currentMachineName.size();
-    uint64_t      ownRom      = GetRomIdentity();
-
-
-
-    outParts = 0;
-
-    reader.ReadUInt32 (nameLength);
-    CBREx (nameLength == ownLength, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    for (i = 0; i < nameLength; i++)
-    {
-        reader.ReadWord (ch);
-        name.push_back (static_cast<wchar_t> (ch));
-    }
-
-    reader.ReadUInt64 (romIdentity);
-
-    for (i = 0; i < bayCount; i++)
-    {
-        reader.ReadUInt64 (mediaId);
-    }
-
-    reader.ReadUInt32 (outParts);
-    reader.ReadBool   (hasPrng);
-    reader.ReadUInt64 (prngState);
-
-    hr = reader.GetResult();
-    CHR (hr);
-
-    CBREx (name        == m_currentMachineName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (romIdentity == ownRom,               HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::GetPartTag
-//
-//  A part's section tag: the first four bytes of what it saves.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::GetPartTag (
-    const IMachineState  & part,
-    uint32_t             & outTag)
-{
-    HRESULT                    hr      = S_OK;
-    StateWriter                writer;
-    const std::vector<Byte>  & bytes   = writer.GetBytes();
-    bool                       hasTag  = false;
-    size_t                     i       = 0;
-
-
-
-    outTag = 0;
-
-    hr = part.SaveState (writer);
-    CHR (hr);
-
-    hasTag = bytes.size() >= sizeof (outTag);
-    CBRA (hasTag);
-
-    for (i = 0; i < sizeof (outTag); i++)
-    {
-        outTag |= static_cast<uint32_t> (bytes[i]) << (CHAR_BIT * i);
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::CheckSharedSave
-//
-//  A sharing save keeps each RAM chunk nobody wrote since the last one by
-//  reference, trusting the written-page marks, and each disk track by
-//  reference while its generation is unchanged; a write either one missed
-//  would leave a stale run in this and every later save. In a debug build
-//  every run the save kept is compared with the live buffer it stands for,
-//  and a difference asserts. A release build does nothing.
-//
-//  Only the kept runs are compared, not the whole blob against a second
-//  save. The keyboard, the game port and the Joyport save values the UI
-//  thread writes, so a key or a joystick move landing between two saves
-//  makes them differ although no write was missed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::CheckSharedSave (const StateWriter & writer) const
-{
-#ifdef _DEBUG
-    HRESULT  hr     = S_OK;
-    size_t   size   = 0;
-    bool     isSame = false;
-
-
-
-    for (const StateSegment & segment : writer.GetSegments())
-    {
-        size   = segment.bytes->size();
-        isSame = size == 0 || (segment.source != nullptr && memcmp (segment.bytes->data(), segment.source, size) == 0);
-        CBRA (isSame);
-    }
-
-Error:
-    return;
-#else
-    UNREFERENCED_PARAMETER (writer);
-#endif
 }
 
 
@@ -1623,8 +461,8 @@ Error:
 //  before the slot cards, so the Disk II controller loads against restored
 //  media. The keyboard is one owned device, so it is saved once, through its
 //  most derived type. Device wiring is not here: the machine builder made it.
-//  Filled into the caller's list, which keeps its capacity from call to call,
-//  so a save allocates nothing for it.
+//  Filled into the caller's list, whose capacity is reused from call to
+//  call, so a save doesn't allocate for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1632,11 +470,12 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
 {
     IMachineState  * optional[] =
     {
-        m_mmu.get(),
-        m_apple2cRomBank.get(),
-        m_videoTiming.get(),
-        m_mouse.get(),
-        m_joyport.get(),
+        m_parts.mmu.get(),
+        m_parts.apple2cRomBank.get(),
+        m_parts.videoTiming.get(),
+        m_parts.mouse.get(),
+        m_parts.joyport.get(),
+        m_parts.accelerator.get(),
     };
     IMachineState  * device     = nullptr;
     DiskImage      * image      = nullptr;
@@ -1647,13 +486,13 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
 
     outParts.clear();
 
-    if (m_cpu != nullptr)
+    if (m_parts.cpu != nullptr)
     {
-        outParts.push_back (m_cpu.get());
+        outParts.push_back (m_parts.cpu.get());
     }
 
-    outParts.push_back (&m_interruptController);
-    outParts.push_back (m_memoryBus.get());
+    outParts.push_back (&m_parts.interruptController);
+    outParts.push_back (m_parts.memoryBus.get());
 
     for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
     {
@@ -1676,7 +515,7 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
         }
     }
 
-    for (const std::unique_ptr<MemoryDevice> & owned : m_ownedDevices)
+    for (const std::unique_ptr<MemoryDevice> & owned : m_parts.ownedDevices)
     {
         device = dynamic_cast<IMachineState *> (owned.get());
 
@@ -1695,370 +534,15 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
 //
 //  MachineHost::GetRomIdentity
 //
-//  A hash over every ROM image the machine reads: the ROM devices in device
-//  order, the //e internal $Cxxx ROM and the slot ROMs, then the //c
-//  firmware banks. A debugger ROM patch changes it: a patched ROM is a
-//  different ROM. On the //c the internal $Cxxx ROM is a slice of whichever
-//  bank is switched in, so it is left out of the hash for the banks
-//  themselves, and a state saved in one bank loads in the other.
-//
-//  Every snapshot carries it, so the hash is kept and taken again only once
-//  RomGeneration says a ROM image changed since.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t MachineHost::GetRomIdentity() const
 {
-    constexpr int          kRomBankCount = 2;
-    uint64_t               hash          = StateHash::kSeed;
-    const RomDevice      * rom           = nullptr;
-    const CxxxRomRouter  * router        = nullptr;
-    size_t                 size          = 0;
-    int                    index         = 0;
-    uint64_t               generation    = RomGeneration::Get();
+    const CxxxRomRouter  * router = (m_parts.mmu != nullptr) ? m_parts.mmu->GetCxxxRouter() : nullptr;
 
 
 
-    if (generation == m_romIdentityGeneration)
-    {
-        return m_romIdentity;
-    }
-
-    for (const std::unique_ptr<MemoryDevice> & owned : m_ownedDevices)
-    {
-        rom = dynamic_cast<const RomDevice *> (owned.get());
-
-        if (rom != nullptr)
-        {
-            size = static_cast<size_t> (rom->GetEnd() - rom->GetStart()) + 1;
-            hash = HashBytes (hash, rom->GetData(), size);
-        }
-    }
-
-    router = (m_mmu != nullptr) ? m_mmu->GetCxxxRouter() : nullptr;
-
-    for (index = 0; router != nullptr && index < DiskImageStore::kSlotCount; index++)
-    {
-        hash = HashBytes (hash, router->GetSlotRom (index));
-    }
-
-    if (router != nullptr && m_apple2cRomBank == nullptr)
-    {
-        hash = HashBytes (hash, router->GetInternalRom());
-    }
-
-    for (index = 0; m_apple2cRomBank != nullptr && index < kRomBankCount; index++)
-    {
-        hash = HashBytes (hash, m_apple2cRomBank->GetBankImage (index));
-    }
-
-    m_romIdentity           = hash;
-    m_romIdentityGeneration = generation;
-    m_romIdentityHashes++;
-
-    return hash;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::HashBytes
-//
-//  StateHash continuing from hash. Every snapshot carries the ROM identity,
-//  so this runs at every keyframe; a byte-at-a-time hash over the
-//  ROMs cost more than saving the rest of the machine.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t MachineHost::HashBytes (uint64_t hash, const Byte * data, size_t size)
-{
-    return StateHash::Hash (data, size, hash);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::HashBytes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t MachineHost::HashBytes (uint64_t hash, const std::vector<Byte> & bytes)
-{
-    return HashBytes (hash, bytes.data(), bytes.size());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::WriteStateHeader
-//
-//  Which machine and ROM set, which disk each drive bay holds, how many parts
-//  follow, and the power-on Prng.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::WriteStateHeader (StateWriter & writer, size_t partCount) const
-{
-    int  slot  = 0;
-    int  drive = 0;
-
-
-
-    writer.WriteUInt32 (static_cast<uint32_t> (m_currentMachineName.size()));
-
-    for (wchar_t ch : m_currentMachineName)
-    {
-        writer.WriteWord (static_cast<Word> (ch));
-    }
-
-    writer.WriteUInt64 (GetRomIdentity());
-
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
-    {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-        {
-            writer.WriteUInt64 (m_diskStore->GetMediaId (slot, drive));
-        }
-    }
-
-    writer.WriteUInt32 (static_cast<uint32_t> (partCount));
-    writer.WriteBool   (m_prng != nullptr);
-    writer.WriteUInt64 ((m_prng != nullptr) ? m_prng->GetState() : 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::CheckStateHeader
-//
-//  Fails with ERROR_INVALID_DATA unless the state was saved by a machine of
-//  the same name and ROM set, and every disk it held is mounted or kept by
-//  the disk store. Only then are the saved disks put back in their bays and
-//  the Prng restored; the part count is the caller's to check, since it
-//  depends on the disks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::CheckStateHeader (
-    StateReader  & reader,
-    bool           isOverMounted,
-    uint32_t     & outParts)
-{
-    HRESULT       hr             = S_OK;
-    uint32_t      nameLength     = 0;
-    size_t        expectedLength = 0;
-    std::wstring  name;
-    Word          ch             = 0;
-    uint64_t      romIdentity    = 0;
-    uint64_t      expectedRom    = 0;
-    MediaIds      mediaIds       = {};
-    bool          canSeat        = false;
-    uint32_t      savedParts     = 0;
-    bool          hasPrng        = false;
-    uint64_t      prngState      = 0;
-    uint32_t      i              = 0;
-
-
-
-    reader.ReadUInt32 (nameLength);
-
-    expectedLength = m_currentMachineName.size();
-    CBREx (nameLength == expectedLength, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    for (i = 0; i < nameLength; i++)
-    {
-        reader.ReadWord (ch);
-        name.push_back (static_cast<wchar_t> (ch));
-    }
-
-    reader.ReadUInt64 (romIdentity);
-
-    for (uint64_t & mediaId : mediaIds)
-    {
-        reader.ReadUInt64 (mediaId);
-    }
-
-    reader.ReadUInt32 (savedParts);
-    reader.ReadBool   (hasPrng);
-    reader.ReadUInt64 (prngState);
-
-    hr = reader.GetResult();
-    CHR (hr);
-
-    expectedRom = GetRomIdentity();
-
-    CBREx (name        == m_currentMachineName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (romIdentity == expectedRom,          HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    canSeat = isOverMounted ? AreBaysAsSaved (mediaIds) : CanSeatMedia (mediaIds);
-    CBREx (canSeat, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    if (isOverMounted)
-    {
-        BindDiskDrives();
-    }
-    else
-    {
-        hr = SeatMedia (mediaIds);
-        CHR (hr);
-    }
-
-    if (hasPrng && m_prng != nullptr)
-    {
-        m_prng->SetState (prngState);
-    }
-
-    outParts = savedParts;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::CanSeatMedia
-//
-//  Whether every saved disk is mounted or kept, so the bays can be put back
-//  without failing part way.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool MachineHost::CanSeatMedia (const MediaIds & mediaIds) const
-{
-    bool  canSeat = true;
-    int   slot    = 0;
-    int   drive   = 0;
-
-
-
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
-    {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-        {
-            canSeat = canSeat && m_diskStore->CanSeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive]);
-        }
-    }
-
-    return canSeat;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::AreBaysAsSaved
-//
-//  Whether every bay that held a disk at the save holds one now, and every
-//  bay that was empty is empty.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool MachineHost::AreBaysAsSaved (const MediaIds & mediaIds) const
-{
-    bool  isSame    = true;
-    bool  wasLoaded = false;
-    int   slot      = 0;
-    int   drive     = 0;
-
-
-
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
-    {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-        {
-            wasLoaded = mediaIds[slot * DiskImageStore::kDriveCount + drive] != 0;
-            isSame    = isSame && wasLoaded == m_diskStore->IsMounted (slot, drive);
-        }
-    }
-
-    return isSame;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::SeatMedia
-//
-//  Puts each saved disk back in its bay, and points the Disk II at whatever
-//  its bays now hold, whether or not a bay changed: something since the save
-//  may have pointed a drive elsewhere. Nothing is flushed: a disk that leaves
-//  a bay here is kept by the store with its writes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT MachineHost::SeatMedia (const MediaIds & mediaIds)
-{
-    HRESULT  hr        = S_OK;
-    bool     isChanged = false;
-    int      slot      = 0;
-    int      drive     = 0;
-
-
-
-    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
-    {
-        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-        {
-            hr = m_diskStore->SeatMedia (slot, drive, mediaIds[slot * DiskImageStore::kDriveCount + drive], isChanged);
-            CHR (hr);
-        }
-    }
-
-    BindDiskDrives();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::BindDiskDrives
-//
-//  Each drive of the Disk II the refs hold reads the disk in its bay, or its
-//  own empty disk when the bay is empty.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::BindDiskDrives()
-{
-    int  drive = 0;
-
-
-
-    if (m_refs.diskController == nullptr)
-    {
-        return;
-    }
-
-    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
-    {
-        m_refs.diskController->SetExternalDisk (drive, m_diskStore->GetImage (kDiskControllerSlot, drive));
-    }
+    return m_romIdentity.Get (m_parts.ownedDevices, router, m_parts.apple2cRomBank.get());
 }
 
 
@@ -2070,7 +554,7 @@ void MachineHost::BindDiskDrives()
 //  MachineHost::ApplyPowerOnOverrides
 //
 //  Bytes whose power-on contents software reads before writing, and which the
-//  fill must not decide.
+//  fill must not set.
 //
 //  $03F2-$03F4: the autostart ROM treats a reset as warm, and jumps through
 //  the soft-entry vector at $03F2, when the power-up byte at $03F4 equals the
@@ -2080,7 +564,7 @@ void MachineHost::BindDiskDrives()
 //
 //  $4E/$4F: the monitor's random seed, counted up while the ROM waits for a
 //  key. A disk that autostarts never waits, so a program that seeds from it
-//  sees the fill, and the pattern puts 00 00 here. Pooyan loops forever on a
+//  reads the fill, and the pattern puts 00 00 here. Pooyan loops forever on a
 //  zero seed, so each byte is forced nonzero, the rest of it from the Prng.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2095,228 +579,17 @@ void MachineHost::ApplyPowerOnOverrides()
 
 
 
-    Word  address = 0;
+    MemoryBus  & bus     = *m_parts.memoryBus;
+    Prng       & prng    = *m_parts.prng;
+    Word         address = 0;
 
 
 
     for (address = kSoftEntryLo; address <= kPowerUpByte; address++)
     {
-        m_memoryBus->WriteByte (address, 0);
+        bus.WriteByte (address, 0);
     }
 
-    m_memoryBus->WriteByte (kRandomSeedLo, static_cast<Byte> (kNonzeroBit | m_prng->NextByte()));
-    m_memoryBus->WriteByte (kRandomSeedHi, static_cast<Byte> (kNonzeroBit | m_prng->NextByte()));
+    bus.WriteByte (kRandomSeedLo, static_cast<Byte> (kNonzeroBit | prng.NextByte()));
+    bus.WriteByte (kRandomSeedHi, static_cast<Byte> (kNonzeroBit | prng.NextByte()));
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::AttachObservers
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::AttachObservers (const MachineObservers & observers, ObserverSlot slot)
-{
-    if (m_refs.diskController != nullptr)
-    {
-        m_refs.diskController->SetEventSink (slot, observers.disk);
-    }
-
-    if (m_refs.keyboard != nullptr)
-    {
-        m_refs.keyboard->SetInputEventSink (slot, observers.input);
-    }
-
-    // The //e soft-switch bank reports the switches the keyboard does not
-    // own (80COL, 80STORE, ALTCHARSET); null on a ][ or ][+.
-    if (m_refs.iieSoftSwitches != nullptr)
-    {
-        m_refs.iieSoftSwitches->SetInputEventSink (slot, observers.input);
-    }
-
-    if (m_refs.gamePort != nullptr)
-    {
-        m_refs.gamePort->SetInputEventSink (slot, observers.input);
-    }
-
-    if (m_memoryBus != nullptr)
-    {
-        m_memoryBus->SetIoAccessSink (slot, (observers.ioFilter != nullptr) ? observers.io : nullptr, (observers.ioFilter != nullptr) ? *observers.ioFilter : IoAccessFilter());
-    }
-
-    if (slot == ObserverSlot::History)
-    {
-        AttachCommEventSink (observers.comm);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::AttachCommEventSink
-//
-//  Each serial chip, numbered as the input journal numbers it, and the
-//  network card. AttachInputJournal calls this again, for the devices of a
-//  machine the builder switched to.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::AttachCommEventSink (ICommEventSink * sink)
-{
-    m_commSink = sink;
-
-    for (Acia6551 * acia : m_refs.serialChips)
-    {
-        acia->SetCommEventSink (sink);
-    }
-
-    if (m_refs.uthernet != nullptr)
-    {
-        m_refs.uthernet->SetCommEventSink (sink);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::GetDiagnosticsProviders
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders() const
-{
-    std::vector<const IDiagnosticsProvider *>  providers = { this };
-    const IDiagnosticsProvider               * devices[] =
-    {
-        m_refs.keyboard,
-        m_refs.softSwitches,
-        m_mmu.get(),
-        m_refs.diskController,
-        m_refs.mockingboard,
-        m_refs.printerCard,
-        m_refs.superSerialCard,
-        m_refs.uthernet,
-    };
-
-
-
-    for (const IDiagnosticsProvider * device : devices)
-    {
-        if (device != nullptr)
-        {
-            providers.push_back (device);
-        }
-    }
-
-    //  A 6551 that is a port by itself, as each of the //c's is; a card's
-    //  is in the card's panel.
-    for (const Acia6551 * acia : m_refs.serialChips)
-    {
-        if (!acia->GetDiagnosticsId().empty())
-        {
-            providers.push_back (acia);
-        }
-    }
-
-    if (m_refs.cassettePort != nullptr)
-    {
-        providers.push_back (&m_cassetteDiagnostics);
-    }
-
-    return providers;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::GetDiagnostics
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
-{
-    static constexpr const char * kSpeeds[] = { "authentic", "double", "maximum" };
-    DiagnosticsGroup              cpu       { "CPU", {} };
-    DiagnosticsGroup              video     { "Video", {} };
-
-
-
-    cpu.rows.push_back (MakeTextRow ("Cycles", std::format ("{}", (m_cpu != nullptr) ? m_cpu->GetTotalCycles() : 0)));
-    cpu.rows.push_back (MakeTextRow ("Clock",  std::format ("{} Hz", m_config->clockSpeed)));
-    cpu.rows.push_back (MakeTextRow ("Speed",  kSpeeds[(size_t) m_speedMode]));
-    snapshot.groups.push_back (std::move (cpu));
-
-    if (m_videoTiming != nullptr)
-    {
-        video.rows.push_back (MakeTextRow ("Scanline",       std::format ("{}", m_videoTiming->GetCurrentScanline())));
-        video.rows.push_back (MakeTextRow ("Cycle in line",  std::format ("{}", m_videoTiming->GetHorizontalPos())));
-        video.rows.push_back (MakeTextRow ("Cycle in frame", std::format ("{}", m_videoTiming->GetCycleInFrame())));
-        snapshot.groups.push_back (std::move (video));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::ConnectDiskToController
-//
-//  Points the slot 6 controller's drive at the store's image for that bay. A
-//  null image, on an eject, selects the controller's own empty disk. Only
-//  slot 6 has a controller in the machine references.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::ConnectDiskToController (int slot, int drive)
-{
-    Disk2Controller  *  controller = m_refs.diskController;
-
-
-
-    if (slot != 6 || controller == nullptr)
-    {
-        return;
-    }
-
-    controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MachineHost::StopTape
-//
-//  Stops the recorder at the current bus cycle; the tape stays inserted.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MachineHost::StopTape()
-{
-    uint64_t  now = m_cpu != nullptr ? *m_cpu->GetBusCyclePtr() : 0;
-
-
-
-    m_tapeDeck->Stop (now);
-    m_tapeResetCount.fetch_add (1, std::memory_order_release);
-}
-
-
-
-

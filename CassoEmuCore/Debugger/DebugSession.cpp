@@ -1,32 +1,20 @@
 #include "Pch.h"
 
-#include "Core/TextEncoding.h"
 #include "Debugger/DebugSession.h"
 
-#include "OpcodeTable.h"
-#include "Debugger/AppleWinFormatter.h"
-#include "Debugger/AppleWinParser.h"
-#include "Debugger/CommandModeHelp.h"
 #include "Disassembler.h"
-#include "Debugger/EffectiveAddress.h"
+#include "Debugger/AppleWinFormatter.h"
+#include "Debugger/CommandModeHelp.h"
+#include "Debugger/CommandModeNames.h"
+#include "Debugger/DiskCallVector.h"
+#include "Debugger/DiskValueSymbols.h"
+#include "Debugger/GSSquaredFormatter.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/IDebugNotificationSink.h"
 #include "Debugger/IInstructionObserver.h"
-#include "Debugger/LineAssembler.h"
 #include "Debugger/MonitorFormatter.h"
-#include "Debugger/MonitorParser.h"
-#include "Debugger/GSSquaredFormatter.h"
-#include "Debugger/GSSquaredParser.h"
-#include "Debugger/CommandModeNames.h"
-#include "Debugger/CommandSuggestion.h"
-#include "Debugger/DiskCallVector.h"
-#include "Debugger/DiskValueSymbols.h"
-#include "Debugger/WinDbgFormatter.h"
-#include "Debugger/WinDbgParser.h"
 #include "Debugger/RomSymbols.h"
-#include "Machines/Apple2/Common/VideoTiming.h"
-#include "Core/TextEncoding.h"
-#include "Debugger/DebugSessionView.h"
+#include "Debugger/WinDbgFormatter.h"
 
 
 
@@ -59,10 +47,6 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetTarget           (&m_target);
     m_diskMonitor.SetNotice           ([this] (const std::string & line) { m_sink.OnDiskNotice (line); });
     m_watchpoints.SetVectorWriteSink  ([this] { ResolveDiskCalls(); });
-    m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
-    m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
-    m_callRecorder.SetClock           ([this] { return m_target.GetHistoryCycleCount(); });
-    CallStackRecorder::MarkOpcodes    (m_callOpcodes.data());
     RefreshHookFilter();
     LoadRomSymbols();
 }
@@ -101,49 +85,6 @@ void DebugSession::LoadRomSymbols()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::SetDebugFile
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path, const std::string & key)
-{
-    m_debugFile     = std::move (file);
-    m_debugFilePath = path;
-    m_debugFileKey  = key;
-    m_debugFileTable.reset();
-    m_debugFileData.Clear();
-    m_lineTable.Build (m_debugFile);
-    m_filesRevision++;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::SetDebugFileData
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetDebugFileData (std::vector<DataBlockEntry> blocks)
-{
-    m_debugFileData.Clear();
-
-    for (const DataBlockEntry & block : blocks)
-    {
-        m_debugFileData.Insert (block);
-    }
-
-    m_filesRevision++;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::TryFindData
 //
 //  A data directive's block first, then the debug file's, which counts only
@@ -159,7 +100,7 @@ bool DebugSession::TryFindData (Word address, DataBlockEntry & block, DataOrigin
     {
         origin = DataOrigin::Marked;
     }
-    else if (HasDebugFile() && !IsDebugFileStale() && m_debugFileData.TryFindAt (address, block))
+    else if (m_files.TryFindDebugFileData (address, block))
     {
         origin = DataOrigin::DebugFile;
     }
@@ -180,51 +121,7 @@ bool DebugSession::TryFindData (Word address, DataBlockEntry & block, DataOrigin
 void DebugSession::RemoveData (Word first, Word last)
 {
     m_dataBlocks.Remove (first, last);
-    m_debugFileData.Remove (first, last);
-
-    //  The panes' copy of the debug file's data is taken again at a new
-    //  revision.
-    if (HasDebugFile())
-    {
-        m_filesRevision++;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::TryGetSourceLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::TryGetSourceLine (Word address, std::string & file, int & line) const
-{
-    const std::vector<SourcePosition>  & positions = m_lineTable.GetPositionsAt (address);
-    int                                  fileId    = 0;
-
-
-
-    if (positions.empty() || IsDebugFileStale())
-    {
-        return false;
-    }
-
-    fileId = positions.back().file;
-
-    for (const DebugSourceFile & each : m_debugFile.files)
-    {
-        if (each.id == fileId)
-        {
-            file = each.name;
-            line = positions.back().line;
-            return true;
-        }
-    }
-
-    return false;
+    m_files.RemoveDebugFileData (first, last);
 }
 
 
@@ -235,30 +132,18 @@ bool DebugSession::TryGetSourceLine (Word address, std::string & file, int & lin
 //
 //  DebugSession::SetDebugFileCheck
 //
-//  A debug file checks the tables of no symbol file loaded into its table.
+//  The check runs at once while the machine is paused, and otherwise at the
+//  next stop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries)
 {
-    ProgramChecks  checks = (m_programChecks != nullptr) ? *m_programChecks : ProgramChecks();
-
-
-
-    checks.debugFile        = std::move (entries);
-    checks.isDebugFileStale = false;
-
-    if (m_debugFileTable.has_value())
-    {
-        checks.tables.erase (*m_debugFileTable);
-        m_symbols.SetHidden (*m_debugFileTable, false);
-    }
-
-    m_programChecks = std::make_shared<const ProgramChecks> (std::move (checks));
+    m_files.SetDebugFileCheck (std::move (entries));
 
     if (m_state == RunState::Paused)
     {
-        CheckProgram();
+        m_files.CheckProgram();
     }
 }
 
@@ -270,180 +155,16 @@ void DebugSession::SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries)
 //
 //  DebugSession::SetLabelCheck
 //
-//  The labels in RAM, whose bytes are taken at the first stop in their
-//  range.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetLabelCheck (SymbolTableId table)
 {
-    ProgramChecks            checks = (m_programChecks != nullptr) ? *m_programChecks : ProgramChecks();
-    ProgramChecks::Labels    labels;
-    std::vector<SymbolInfo>  symbols;
-
-
-
-    m_symbols.GetAll (table, symbols);
-
-    for (const SymbolInfo & symbol : symbols)
-    {
-        if (!symbol.isConstant && ProgramCheck::IsRamLabel (symbol.address))
-        {
-            labels.labels.push_back (symbol.address);
-        }
-    }
-
-    checks.tables.erase (table);
-    m_symbols.SetHidden (table, false);
-
-    if (!labels.labels.empty())
-    {
-        labels.first         = *std::ranges::min_element (labels.labels);
-        labels.last          = *std::ranges::max_element (labels.labels);
-        checks.tables[table] = std::move (labels);
-    }
-
-    m_programChecks = std::make_shared<const ProgramChecks> (std::move (checks));
+    m_files.SetLabelCheck (table);
 
     if (m_state == RunState::Paused)
     {
-        CheckProgram();
+        m_files.CheckProgram();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::CheckProgram
-//
-//  A table whose labels have no bytes yet takes them at a stop in the
-//  labels' range, since a symbol file loaded before its program would
-//  otherwise be matched to whatever was in memory then.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::CheckProgram()
-{
-    ProgramChecks         checks;
-    ProgramCheck::PeekFn  peek  = [this] (Word address, Byte & value) { return m_target.TryPeek (address, value); };
-    const Microcode     * set   = m_target.GetInstructionSet();
-    Word                  pc    = m_target.GetRegisters().pc;
-
-
-
-    if (m_programChecks == nullptr)
-    {
-        return;
-    }
-
-    checks                  = *m_programChecks;
-    checks.isDebugFileStale = HasDebugFile() && !ProgramCheck::IsMatch (checks.debugFile, peek, set);
-
-    for (auto it = checks.tables.begin(); it != checks.tables.end(); )
-    {
-        auto & [table, labels] = *it;
-
-        //  A table cleared since its file loaded has nothing to check.
-        if (m_symbols.GetOrigins (table).empty())
-        {
-            it = checks.tables.erase (it);
-            continue;
-        }
-
-        if (labels.entries.empty() && labels.IsInRange (pc))
-        {
-            labels.entries = ProgramCheck::GetLabelEntries (labels.labels, peek);
-        }
-
-        labels.isStale = !labels.entries.empty() && !ProgramCheck::IsMatch (labels.entries, peek, set);
-        m_symbols.SetHidden (table, labels.isStale);
-        ++it;
-    }
-
-    if (m_debugFileTable.has_value())
-    {
-        m_symbols.SetHidden (*m_debugFileTable, checks.isDebugFileStale);
-    }
-
-    if (checks != *m_programChecks)
-    {
-        m_programChecks = std::make_shared<const ProgramChecks> (std::move (checks));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetStaleFileNames
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::string> DebugSession::GetStaleFileNames() const
-{
-    std::vector<std::string>  names;
-
-
-
-    if (m_programChecks == nullptr)
-    {
-        return names;
-    }
-
-    if (m_programChecks->isDebugFileStale)
-    {
-        names.push_back (TextEncoding::WideToUtf8 (fs::path (m_debugFilePath).filename().wstring()));
-    }
-
-    for (const auto & [table, labels] : m_programChecks->tables)
-    {
-        if (labels.isStale)
-        {
-            names.insert (names.end(), m_symbols.GetOrigins (table).begin(), m_symbols.GetOrigins (table).end());
-        }
-    }
-
-    return names;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ClearDebugFile
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ClearDebugFile()
-{
-    if (m_debugFileTable.has_value())
-    {
-        m_symbols.SetHidden (*m_debugFileTable, false);
-    }
-
-    if (m_programChecks != nullptr && (!m_programChecks->debugFile.empty() || m_programChecks->isDebugFileStale))
-    {
-        ProgramChecks  checks = *m_programChecks;
-
-        checks.debugFile.clear();
-        checks.isDebugFileStale = false;
-        m_programChecks         = std::make_shared<const ProgramChecks> (std::move (checks));
-    }
-
-    m_debugFile = DebugFile();
-    m_debugFilePath.clear();
-    m_debugFileKey.clear();
-    m_debugFileTable.reset();
-    m_debugFileData.Clear();
-    m_lineTable.Clear();
-    m_filesRevision++;
 }
 
 
@@ -481,7 +202,8 @@ DebugSession::~DebugSession()
 
 Reply DebugSession::Execute (const DebugCommand & command)
 {
-    Reply  reply;
+    Reply     reply;
+    uint64_t  failuresBefore = m_hostFiles.GetHostAccessFailures();
 
 
 
@@ -528,7 +250,7 @@ Reply DebugSession::Execute (const DebugCommand & command)
     if (IsMachineWrite (command.verb) && m_historyGuard && !m_historyGuard (command))
     {
         SetError (reply, CommandStatus::Error, "history kept",
-                  "This change discards the history recorded after this point. Answer the question in the Casso window to make it.");
+                  "This change discards the history after this point. Answer the question in the Casso window to make the change.");
         return reply;
     }
 
@@ -536,6 +258,8 @@ Reply DebugSession::Execute (const DebugCommand & command)
     {
         if (handler->TryExecute (*this, command, reply))
         {
+            m_hostFiles.ApplyHostAccessFailure (failuresBefore, reply);
+
             if (IsMachineWrite (command.verb))
             {
                 ResolveDiskCalls();
@@ -667,423 +391,6 @@ const char * DebugSession::GetPrompt (CommandMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::ExecuteLine
-//
-//  The line goes to the parser for the session's mode. A line while the
-//  assembler is active is source for it, whichever mode that is. Parse
-//  failures become replies with the parser's message as the detail.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecuteLine (const std::string & line)
-{
-    return ExecuteLine (line, m_mode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteLine
-//
-//  One line in a given mode, leaving the session's own mode alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecuteLine (const std::string & line, CommandMode mode)
-{
-    Reply                       reply;
-    std::optional<CommandMode>  previous = m_lineMode;
-
-
-
-    //  A handler that depends on the mode, such as HELP, reads the line's
-    //  mode: a pipe request carries its own, whatever the session's is.
-    if (m_assemblyAddress.has_value())
-    {
-        m_lineMode = mode;
-        ExecuteAssemblyLine (Trim (line), reply);
-        reply.command = line;
-        m_lineMode    = previous;
-        return reply;
-    }
-
-    return ExecutePaneLine (line, mode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecutePaneLine
-//
-//  One line as a command, whether or not an assembly is open.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
-{
-    Reply                       reply;
-    std::string                 text          = Trim (line);
-    std::optional<CommandMode>  outerLineMode = m_lineMode;
-
-
-
-    //  A handler that answers in the line's dialect, as HELP does, reads it
-    //  here; a script line run from inside this one sets its own.
-    m_lineMode = mode;
-
-    switch (mode)
-    {
-    case CommandMode::Monitor:    reply = ExecuteMonitorLine   (text, mode); break;
-    case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text, mode); break;
-    case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
-    default:                      reply = ExecuteAppleWinLine  (text); break;
-    }
-
-    m_lineMode    = outerLineMode;
-    reply.command = line;
-    reply.mode    = mode;
-    return reply;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteAppleWinLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecuteAppleWinLine (const std::string & text)
-{
-    AppleWinParseResult  parsed = AppleWinParser::Parse (text, *this);
-    Reply                reply;
-
-
-
-    switch (parsed.status)
-    {
-    case ParseStatus::Ok:
-        reply = Execute (parsed.command);
-        break;
-
-    case ParseStatus::Unknown:
-        SetError (reply, CommandStatus::Unknown, "unknown command", parsed.error);
-        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
-        break;
-
-    case ParseStatus::NotAvailable:
-    case ParseStatus::WindowOnly:
-        SetError (reply, CommandStatus::NotAvailable, "command not available", parsed.error);
-        break;
-
-    case ParseStatus::Invalid:
-        SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
-        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
-        break;
-
-    default:
-        break;
-    }
-
-    return reply;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteWinDbgLine
-//
-//  A WinDbg command outside this machine's world is an error of its own:
-//  it has no meaning here, which is not the same as being unavailable.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecuteWinDbgLine (const std::string & text)
-{
-    WinDbgParseResult  parsed = WinDbgParser::Parse (text, *this);
-    Reply              reply;
-
-
-
-    switch (parsed.status)
-    {
-    case ParseStatus::Ok:
-        reply = Execute (parsed.command);
-        break;
-
-    case ParseStatus::Unknown:
-        SetError (reply, CommandStatus::Unknown, "unknown command", parsed.error);
-        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
-        break;
-
-    case ParseStatus::NotAvailable:
-    case ParseStatus::WindowOnly:
-        SetError (reply, CommandStatus::NotAvailable, parsed.label.empty() ? "command not available" : parsed.label, parsed.error);
-        break;
-
-    case ParseStatus::Invalid:
-        SetError (reply, CommandStatus::Error, "invalid arguments", parsed.error);
-        CommandSuggestion::Annotate (reply, text, m_lineMode.value_or (m_mode), *this);
-        break;
-
-    default:
-        break;
-    }
-
-    return reply;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteMonitorLine
-//
-//  A Monitor line can hold several commands, so this is the one place a line
-//  produces more than one reply and they have to become one.
-//
-//  ONE COMMAND KEEPS ITS REPLY WHOLE, data and all, because that is nearly
-//  every line and a JSON reader should see the structure. Several commands
-//  are run in order, each rendered in the line's output format as a
-//  one-command line would be, and their text is concatenated, with the
-//  first failure as the line's status; the merged reply carries no data of
-//  its own, so formatting it again adds nothing. A JSON reader sees one record
-//  with the whole line's text, which is the honest report of what a line
-//  like `300.30F 400.40F` did.
-//
-//  A write turned away because the machine is running leaves the Monitor's
-//  state as the line found it: the store address does not move and a
-//  register edit stays armed, as though the line had not been typed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecuteMonitorLine (const std::string & text, CommandMode mode)
-{
-    MonitorState        before   = m_monitorState;
-    MonitorParseResult  parsed   = MonitorParser::Parse (text, m_monitorState);
-    Reply               merged;
-    bool                rejected = false;
-
-
-
-    //  A `/` line was never the Monitor's.
-    if (!parsed.appleWinLine.empty())
-    {
-        return ExecuteAppleWinLine (parsed.appleWinLine);
-    }
-
-    if (parsed.status == ParseStatus::Invalid)
-    {
-        SetError (merged, CommandStatus::Error, "invalid arguments", parsed.error);
-        return merged;
-    }
-
-    if (parsed.commands.size() == 1)
-    {
-        rejected = IsMachineWrite (parsed.commands.front().verb) && m_state != RunState::Paused;
-        merged   = Execute (parsed.commands.front());
-
-        KeepRegisterEditArmed (parsed.commands.front(), merged);
-
-        if (rejected)
-        {
-            m_monitorState = before;
-        }
-
-        return merged;
-    }
-
-    for (const DebugCommand & command : parsed.commands)
-    {
-        Reply  one;
-
-
-
-        if (IsMachineWrite (command.verb) && m_state != RunState::Paused)
-        {
-            rejected = true;
-        }
-
-        one = Execute (command);
-
-        KeepRegisterEditArmed (command, one);
-        FormatReply (one, mode);
-        merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
-        merged.files.insert (merged.files.end(), one.files.begin(), one.files.end());
-        merged.isFormatted = true;
-
-        if (merged.status == CommandStatus::Ok)
-        {
-            merged.status = one.status;
-            merged.error  = one.error;
-        }
-    }
-
-    if (rejected)
-    {
-        m_monitorState = before;
-    }
-
-    return merged;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::KeepRegisterEditArmed
-//
-//  The parser spends the `^E` arming when it reads the colon, before the
-//  session knows whether the edit can run. An edit that did not happen --
-//  the machine was running -- leaves it armed, so the same colon after a
-//  pause still sets the registers rather than storing into memory.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::KeepRegisterEditArmed (const DebugCommand & command, const Reply & reply)
-{
-    if (command.verb == DebugVerb::EditRegisters && reply.status != CommandStatus::Ok)
-    {
-        m_monitorState.registerEditPending = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteGSSquaredLine
-//
-//  A GSSquared line is one command, or one per address for `watch
-//  first.last`; several are run in order and merged as a Monitor line's are.
-//  A `nobp` number becomes an id or an address here, against the tables.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Reply DebugSession::ExecuteGSSquaredLine (const std::string & text, CommandMode mode)
-{
-    GSSquaredParseResult  parsed = GSSquaredParser::Parse (text, *this);
-    Reply                 merged;
-
-
-
-    switch (parsed.status)
-    {
-    case ParseStatus::Ok:
-        break;
-
-    case ParseStatus::Unknown:
-        SetError (merged, CommandStatus::Unknown, "unknown command", parsed.error);
-        CommandSuggestion::Annotate (merged, text, mode, *this);
-        return merged;
-
-    case ParseStatus::NotAvailable:
-    case ParseStatus::WindowOnly:
-        SetError (merged, CommandStatus::NotAvailable, "command not available", parsed.error);
-        return merged;
-
-    case ParseStatus::Invalid:
-        SetError (merged, CommandStatus::Error, "invalid arguments", parsed.error);
-        CommandSuggestion::Annotate (merged, text, mode, *this);
-        return merged;
-
-    default:
-        return merged;
-    }
-
-    if (parsed.isIdOrAddress && !TryResolveIdOrAddress (parsed.commands.front(), merged))
-    {
-        return merged;
-    }
-
-    if (parsed.commands.size() == 1)
-    {
-        return Execute (parsed.commands.front());
-    }
-
-    for (const DebugCommand & command : parsed.commands)
-    {
-        Reply  one = Execute (command);
-
-        FormatReply (one, mode);
-        merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
-        merged.files.insert (merged.files.end(), one.files.begin(), one.files.end());
-        merged.isFormatted = true;
-
-        if (merged.status == CommandStatus::Ok)
-        {
-            merged.status = one.status;
-            merged.error  = one.error;
-        }
-    }
-
-    return merged;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::TryResolveIdOrAddress
-//
-//  GSSquared's `nobp N`: an id when an entry has that id, and otherwise the
-//  address of an execution breakpoint, which is how GSSquared reads it. The
-//  command becomes the BPC of the entry found.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::TryResolveIdOrAddress (DebugCommand & command, Reply & reply)
-{
-    bool         isId     = command.text.find_first_not_of ("0123456789") == std::string::npos;
-    Breakpoint   breakpoint;
-    Watchpoint   watchpoint;
-
-
-
-    if (isId && (m_breakpoints.TryFind ((int) command.count, breakpoint) || m_watchpoints.TryFind ((int) command.count, watchpoint)))
-    {
-        return true;
-    }
-
-    for (const Breakpoint & entry : m_breakpoints.GetAll())
-    {
-        if (command.hasA1 && entry.kind == BreakpointKind::Address && entry.first == command.a1)
-        {
-            command.count = (uint32_t) entry.id;
-            return true;
-        }
-    }
-
-    SetError (reply, CommandStatus::Error, "unknown breakpoint",
-              std::format ("No breakpoint has the id or address {}.", command.text));
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::FormatReply
 //
 //  In the session's output format, which MODE sets and OUTPUT changes.
@@ -1149,338 +456,6 @@ void DebugSession::RenderReply (Reply & reply, OutputFormat format)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::ResolvePath
-//
-//  Quotes around the name are dropped. A rooted path is used as given; any
-//  other is taken from the directory CD set or, with none, the process's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebugSession::ResolvePath (const std::string & path) const
-{
-    std::string      bare      = Trim (path);
-    std::wstring     wide;
-    std::wstring     directory = m_currentDirectory;
-    std::error_code  code;
-    bool             isRooted  = false;
-
-
-
-    if (bare.size() >= 2 && (bare.front() == '"' || bare.front() == '\'') && bare.back() == bare.front())
-    {
-        bare = bare.substr (1, bare.size() - 2);
-    }
-
-    wide     = TextEncoding::NarrowToWide (bare);
-    isRooted = wide.starts_with (L'\\') || wide.starts_with (L'/') || (wide.size() > 1 && wide[1] == L':');
-
-    if (isRooted || wide.empty())
-    {
-        return wide;
-    }
-
-    //  With no directory set by CD, the process's own is the one a relative
-    //  path is opened from, so it is given in full.
-    if (directory.empty())
-    {
-        directory = std::filesystem::current_path (code).wstring();
-    }
-
-    if (directory.empty())
-    {
-        return wide;
-    }
-
-    return directory + (directory.ends_with (L'\\') ? L"" : L"\\") + wide;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetPathEcho
-//
-//  A path that resolved to something other than what was typed is the
-//  relative one; a rooted path resolves to itself, less any quotes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebugSession::GetPathEcho (const std::string & path, const char * preposition) const
-{
-    std::string   bare     = Trim (path);
-    std::wstring  resolved = ResolvePath (path);
-
-
-
-    if (bare.size() >= 2 && (bare.front() == '"' || bare.front() == '\'') && bare.back() == bare.front())
-    {
-        bare = bare.substr (1, bare.size() - 2);
-    }
-
-    if (resolved.empty() || resolved == TextEncoding::NarrowToWide (bare))
-    {
-        return std::string();
-    }
-
-    return std::format (" {} {}", preposition, TextEncoding::WideToNarrow (resolved));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetPathEcho
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebugSession::GetPathEcho (const std::string & path, const char * preposition, Reply & reply) const
-{
-    std::string  echo = GetPathEcho (path, preposition);
-
-
-
-    if (!echo.empty())
-    {
-        reply.files.push_back (TextEncoding::WideToNarrow (ResolvePath (path)));
-    }
-
-    return echo;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::BeginAssembly
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::BeginAssembly (Word address)
-{
-    m_assemblyAddress = address;
-    m_assemblyOpcodes = std::make_unique<OpcodeTable> (m_target.GetInstructionSet());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteAssemblyLine
-//
-//  A blank line ends the mode. Anything else is one instruction, assembled at
-//  the current address, or at the address before a colon, written, and shown
-//  as the disassembler reads it back. A line starting with `$` is a Monitor
-//  command. A line that does not assemble leaves the address and the mode as
-//  they are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
-{
-    LineAssembler            assembler (*m_assemblyOpcodes);
-    Disassembler             disassembler (m_target.GetInstructionSet());
-    DisassemblyData          data;
-    DisassemblyLine          shown;
-    std::vector<Byte>        bytes;
-    std::vector<Byte>        originals;
-    std::string              error;
-    std::string              source    = line;
-    LineAssemblyStatus       status    = LineAssemblyStatus::Ok;
-    Word                     address   = *m_assemblyAddress;
-    size_t                   prefixEnd = 0;
-    HRESULT                  hr        = S_OK;
-
-
-
-    if (line.empty())
-    {
-        m_assemblyAddress.reset();
-        m_assemblyOpcodes.reset();
-        reply.data = MessageData { { "Assembly ended." } };
-        return;
-    }
-
-    //  `$cmd` runs a Monitor command and leaves the assembler active.
-    if (line[0] == '$')
-    {
-        reply = ExecuteMonitorLine (Trim (line.substr (1)), CommandMode::Monitor);
-        return;
-    }
-
-    if (m_state != RunState::Paused)
-    {
-        SetError (reply, CommandStatus::Error, "machine running", "Assembly changes memory. Pause the machine first.");
-        return;
-    }
-
-    //  `addr:MNE operand` moves the assembly address first.
-    while (prefixEnd < line.size() && prefixEnd < 4 && std::isxdigit ((unsigned char) line[prefixEnd]))
-    {
-        ++prefixEnd;
-    }
-
-    if (prefixEnd > 0 && prefixEnd < line.size() && line[prefixEnd] == ':')
-    {
-        address = (Word) std::stoul (line.substr (0, prefixEnd), nullptr, 16);
-        source  = Trim (line.substr (prefixEnd + 1));
-    }
-
-    status = assembler.TryAssemble (address, source, bytes, error);
-
-    if (status != LineAssemblyStatus::Ok)
-    {
-        SetError (reply, CommandStatus::Error, "assembly error", error);
-        return;
-    }
-
-    //  All of the instruction is written or none of it: the old bytes are
-    //  read first, and put back when a later byte cannot be written.
-    for (size_t i = 0; i < bytes.size(); ++i)
-    {
-        Byte  original = 0;
-
-        m_target.TryPeek ((Word) (address + i), original);
-        originals.push_back (original);
-
-        if (!m_target.TryPoke ((Word) (address + i), bytes[i]))
-        {
-            for (size_t j = 0; j < i; ++j)
-            {
-                m_target.TryPoke ((Word) (address + j), originals[j]);
-            }
-
-            SetError (reply, CommandStatus::Error, "memory not writable",
-                      std::format ("${:04X} cannot be written.", (Word) (address + i)));
-            return;
-        }
-    }
-
-    hr = disassembler.DisassembleOne (address, bytes, shown.instruction);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    data.lines.push_back (shown);
-    reply.data        = data;
-    m_assemblyAddress = (Word) (address + bytes.size());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::NoteSymbolLoad
-//
-//  A load replaces its table's symbols, so it replaces the table's earlier
-//  load too. Otherwise every file ever loaded into the table was replayed
-//  in turn, and one passed over as loaded was replaced by an earlier one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::NoteSymbolLoad (SymbolTableId table, const std::wstring & path, int offset)
-{
-    std::erase_if (m_symbolLoads, [&] (const SymbolLoad & load) { return load.table == table; });
-    m_symbolLoads.push_back ({ table, path, offset });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ForgetSymbolLoads
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ForgetSymbolLoads (SymbolTableId table)
-{
-    std::erase_if (m_symbolLoads, [table] (const SymbolLoad & load) { return load.table == table; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::NoteAddedSymbol
-//
-//  A name matches without regard to case, as the symbol tables match it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::NoteAddedSymbol (SymbolTableId table, const std::string & name, Word address)
-{
-    ForgetAddedSymbol (table, name);
-    m_addedSymbols.push_back ({ table, name, address });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ForgetAddedSymbol
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ForgetAddedSymbol (SymbolTableId table, const std::string & name)
-{
-    std::string  upper = SymbolTable::ToUpper (name);
-
-
-
-    std::erase_if (m_addedSymbols, [&] (const AddedSymbol & added) { return added.table == table && SymbolTable::ToUpper (added.name) == upper; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ForgetAddedSymbols
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ForgetAddedSymbols (SymbolTableId table)
-{
-    std::erase_if (m_addedSymbols, [table] (const AddedSymbol & added) { return added.table == table; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::NoteBinaryLoad
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::NoteBinaryLoad (const std::string & hash, Word address, const std::string & name, const std::wstring & path)
-{
-    m_binaryKey  = std::format ("{}@{:04X}", hash, address);
-    m_binaryName = name;
-    m_binaryPath = path;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::OnStopConditionsChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1509,15 +484,10 @@ void DebugSession::ClearAllBreakpoints()
 {
     m_breakpoints.ClearAll();
     m_watchpoints.ClearAll();
-    m_videoBreak.reset();
-    m_videoBreakHit = false;
-    m_beamBreak.reset();
-    m_beamBreakHit  = false;
-    m_frameBreak.reset();
-    m_frameBreakHit = false;
-    m_nextId        = 0;
+    m_nextId = 0;
 
-    SetUnwrittenBreak (false);
+    m_stops.ClearBreaks();
+    UpdateHookInstalled();
 }
 
 
@@ -1547,7 +517,7 @@ void DebugSession::OnInstruction (Word pc)
 
     if (m_watchpoints.HasEnabled())
     {
-        NoteCpuOwnReads (pc);
+        m_stops.NoteCpuOwnReads (pc);
     }
 
     if (isDebuggerRun && m_instructionObserver != nullptr)
@@ -1596,99 +566,6 @@ void DebugSession::OnInterrupt (Word pc)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::NoteCpuOwnReads
-//
-//  The reads the instruction at pc makes that are not the program reading
-//  memory: the fetch of its own bytes, and the read an indexed store makes of
-//  its target before writing it. A read watchpoint passes over them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::NoteCpuOwnReads (Word pc)
-{
-    Word                 length      = 0;
-    std::optional<Word>  storeTarget;
-
-
-
-    GetCpuOwnReads (pc, length, storeTarget);
-    m_watchpoints.SetCpuOwnReads (pc, length, storeTarget);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetCpuOwnReads
-//
-//  The instruction at pc's own bytes, as a length, and the target an indexed
-//  store reads before writing it; a length of zero where the instruction
-//  cannot be read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::GetCpuOwnReads (
-    Word                  pc,
-    Word                & length,
-    std::optional<Word> & storeTarget) const
-{
-    const Microcode      * set         = m_target.GetInstructionSet();
-    const Microcode      * microcode   = nullptr;
-    Byte                   opcode      = 0;
-    AccessPrediction       prediction;
-    HRESULT                hr          = S_OK;
-
-
-
-    length = 0;
-    storeTarget.reset();
-
-    if (set == nullptr || !m_target.TryPeek (pc, opcode))
-    {
-        return;
-    }
-
-    microcode = &set[opcode];
-    length    = microcode->isLegal ? (Word) (1 + OpcodeTable::GetOperandSize (microcode->globalAddressingMode)) : (Word) 1;
-
-    if (microcode->isLegal && EffectiveAddress::ClassifyOperand (*microcode) == PredictedAccess::Write)
-    {
-        hr = EffectiveAddress::Predict (set, pc, m_target.GetRegisters(), *this, prediction);
-
-        if (SUCCEEDED (hr) && !prediction.touches.empty() && prediction.touches.back().access == PredictedAccess::Write)
-        {
-            storeTarget = prediction.touches.back().address;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::OnWatchedFetch
-//
-//  The CPU reports only the opcodes that can change the call record, the
-//  instruction after each and every interrupt; any other instruction leaves
-//  the record as it was, so the record is what it would be shown them all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
-{
-    m_callRecorder.OnInstruction (pc, sp, opcode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::OnMachineChanged
 //
 //  A different machine makes every address meaningless, so breakpoints,
@@ -1698,55 +575,35 @@ void DebugSession::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
 //  ends, since its opcodes were the old CPU's, and so does what is left of a
 //  counted step. The new machine is paused or running as the caller says.
 //
+//  In a state loaded into the same kind of machine the addresses mean what
+//  they did, so with isKeepingStops the breakpoints and watchpoints stay,
+//  with their ids, and only what the old run built starts over.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::OnMachineChanged (const std::string & machineName, bool isPaused)
+void DebugSession::OnMachineChanged (const std::string & machineName, bool isPaused, bool isKeepingStops)
 {
-    m_breakpoints.ClearAll();
-    m_watchpoints.ClearAll();
-    m_watchpoints.ClearPending();
-    m_target.ClearUnwrittenStop();
-    m_videoBreak.reset();
-    m_videoBreakHit = false;
-    m_beamBreak.reset();
-    m_beamBreakHit  = false;
-    m_frameBreak.reset();
-    m_frameBreakHit = false;
-    m_nextId = 0;
-    m_isUnwrittenBreak = false;
-    m_target.SetUnwrittenBreak (false);
-    m_lastBreakpointId.reset();
-    m_beforeHit.reset();
-    m_monitorReturn.reset();
-    m_monitorReturned = false;
-    m_assemblyAddress.reset();
-    m_assemblyOpcodes.reset();
+    if (!isKeepingStops)
+    {
+        m_breakpoints.ClearAll();
+        m_watchpoints.ClearAll();
+        m_nextId = 0;
+    }
+
+    m_stops.OnMachineChanged (isKeepingStops);
+    m_interpreter.EndAssembly();
     m_nextStep.reset();
     m_stepsLeft     = 0;
     m_stepCycles    = 0;
     m_isStepPending = false;
     m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
-    m_basicMonitor.EndStep();
-    m_basicMonitor.ClearStop();
-    m_basicMonitor.Rebase();
-    m_isBasicStop   = false;
     m_target.ClearTrace();
     m_target.ClearHeatMap();
-    m_isStepOutOnRecord = false;
 
     //  The new machine's bus has no watch sink.
     m_target.SetWatchSink (&m_watchpoints);
 
-    if (m_isRecordingEndDeferred)
-    {
-        SetCallRecording (false);
-    }
-
-    if (m_callRecorder.IsActive())
-    {
-        m_callRecorder.End();
-        SetCallRecording (true);
-    }
+    m_callRecords.OnMachineChanged();
 
     if (m_instructionObserver != nullptr)
     {
@@ -1755,6 +612,12 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 
     UpdateHookInstalled();
     LoadRomSymbols();
+
+    if (isKeepingStops)
+    {
+        OnStopConditionsChanged();
+    }
+
     m_sink.OnMachineChanged (machineName);
 }
 
@@ -1766,30 +629,16 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 //
 //  DebugSession::OnReset
 //
-//  A reset abandons the stack a Monitor `G` pushed its return onto, so the
-//  stop at that return is disarmed. The call record starts over from the
-//  reset, so a rebuild of the old one from history is no longer of use.
+//  The call record starts over from the reset, and the stop at a Monitor
+//  `G`'s return is disarmed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::OnReset (bool isPowerCycle)
 {
-    Word  pc = m_target.GetRegisters().pc;
-
-
-
-    m_monitorReturn.reset();
-    m_monitorReturned = false;
-    m_basicMonitor.Rebase();
+    m_stops.OnReset();
     UpdateHookInstalled();
-
-    if (m_callRecorder.IsActive())
-    {
-        m_callRecordGeneration++;
-    }
-
-    m_callRecorder.OnReset (pc, PeekByte (pc), isPowerCycle);
-    m_stopPc = pc;
+    m_callRecords.OnReset (isPowerCycle);
     m_sink.OnReset (isPowerCycle);
 }
 
@@ -1823,7 +672,7 @@ void DebugSession::OnUserPaused()
 
     m_state = RunState::Paused;
     UpdateHookInstalled();
-    SettleCallRecord();
+    m_callRecords.Settle();
 
     stop.reason    = StopReason::Pause;
     stop.registers = m_target.GetRegisters();
@@ -1884,491 +733,6 @@ void DebugSession::SetAttached (bool isAttached)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::ShouldStopBefore
-//
-//  Records the instruction address for watchpoint hits during the
-//  instruction, then checks the breakpoints, then the before-mode
-//  watchpoints against what the instruction would touch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::ShouldStopBefore (Word pc)
-{
-    Byte  opcode     = 0;
-    int   hitId      = -1;
-    bool  isHit      = false;
-    bool  isDiskHit  = false;
-    bool  isBasicHit = false;
-    bool  isPeeked   = false;
-
-
-
-    m_watchpoints.SetAccessPc (pc);
-    isPeeked = m_target.TryPeek (pc, opcode);
-
-    //  A disk event the last instruction made stops here, after it, as a
-    //  watchpoint hit does; with an address breakpoint here as well, the stop
-    //  has the breakpoint's reason and the disk report beside it. Applesoft's
-    //  boundary is polled here too, so its variable entries take every
-    //  boundary's values.
-    isDiskHit  = m_diskMonitor.Poll (*this);
-    isBasicHit = m_basicMonitor.Poll (pc, *this);
-    isHit      = m_breakpoints.TryMatchBeforeInstruction (pc, isPeeked ? std::optional<Byte> (opcode) : std::nullopt, *this, hitId);
-
-    if (isHit)
-    {
-        m_lastBreakpointId = hitId;
-        return true;
-    }
-
-    if (isDiskHit)
-    {
-        m_isDiskStop = true;
-        return true;
-    }
-
-    if (isBasicHit)
-    {
-        m_isBasicStop = true;
-        return true;
-    }
-
-    if (HasEnteredVideoBreak())
-    {
-        m_videoBreakHit = true;
-        return true;
-    }
-
-    //  Both are tested, so each follows the beam on every instruction.
-    m_beamBreakHit  = HasReachedBeamBreak (m_beamBreak);
-    m_frameBreakHit = HasReachedBeamBreak (m_frameBreak);
-
-    if (m_beamBreakHit || m_frameBreakHit)
-    {
-        return true;
-    }
-
-    //  A Monitor `G` returning through its pushed address. It takes no id and
-    //  is absent from BPL, because it is not the reader's breakpoint: it is
-    //  how the Monitor gets control back from a program that ends in RTS.
-    if (m_monitorReturn.has_value() && pc == *m_monitorReturn)
-    {
-        m_monitorReturn.reset();
-        m_monitorReturned = true;
-        return true;
-    }
-
-    return m_watchpoints.HasEnabledBefore() && TryMatchBeforeWatchpoint (pc);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ShouldStopAtRunStart
-//
-//  The instruction a run begins on stops only for a before-mode watchpoint,
-//  and not when that watchpoint's own stop left the PC here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::ShouldStopAtRunStart (Word pc)
-{
-    m_watchpoints.SetAccessPc (pc);
-
-    if (m_watchpoints.IsSuppressingAfterStopAt (pc))
-    {
-        return false;
-    }
-
-    return TryMatchBeforeWatchpoint (pc);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ShouldStopAfterInterrupt
-//
-//  pc is the first instruction of the handler of an interrupt just taken.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::ShouldStopAfterInterrupt (Word pc)
-{
-    int  hitId = -1;
-
-
-
-    m_watchpoints.SetAccessPc (pc);
-
-    if (!m_breakpoints.TryMatchInterrupt (*this, hitId))
-    {
-        return false;
-    }
-
-    m_lastBreakpointId = hitId;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::SetVideoBreak
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetVideoBreak (uint32_t first, uint32_t last)
-{
-    uint32_t  scanline = m_target.GetVideoPosition().scanline;
-
-
-
-    //  A beam already on the range's first line has not entered it, so the
-    //  break waits for the beam to come round again.
-    m_videoBreak = VideoBreak { first, last, scanline };
-    UpdateHookInstalled();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetVideoBreak
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<std::pair<uint32_t, uint32_t>> DebugSession::GetVideoBreak() const
-{
-    std::optional<std::pair<uint32_t, uint32_t>>  range;
-
-
-
-    if (m_videoBreak.has_value())
-    {
-        range = std::pair<uint32_t, uint32_t> (m_videoBreak->first, m_videoBreak->last);
-    }
-
-    return range;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ClearVideoBreak
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ClearVideoBreak()
-{
-    m_videoBreak.reset();
-    UpdateHookInstalled();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::HasEnteredVideoBreak
-//
-//  True only on the instruction at which the beam moves onto the range's
-//  first scanline, not on every instruction while it stays inside. The beam
-//  runs one way and an instruction is far shorter than a scanline, so every
-//  entry passes that line, even for a range that covers the whole frame.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::HasEnteredVideoBreak()
-{
-    uint32_t  scanline = 0;
-    uint32_t  previous = 0;
-
-
-
-    if (!m_videoBreak.has_value())
-    {
-        return false;
-    }
-
-    scanline                   = m_target.GetVideoPosition().scanline;
-    previous                   = m_videoBreak->lastScanline;
-    m_videoBreak->lastScanline = scanline;
-
-    return scanline == m_videoBreak->first && previous != m_videoBreak->first;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::SetBeamBreak
-//
-//  A beam already at the target has not reached it: the break waits for the
-//  beam to come round again, which is what makes FRAME run a whole frame.
-//  FRAME's break, for one run, is in m_frameBreak, separate from a BPBEAM's
-//  in m_beamBreak, so a BPBEAM set before FRAME stops the frame run too.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetBeamBreak (uint32_t cycleInFrame, uint32_t passes, bool isForOneRun)
-{
-    (isForOneRun ? m_frameBreak : m_beamBreak)       = BeamBreak { cycleInFrame, std::max (passes, 1u), GetBeamCycle(), isForOneRun };
-    (isForOneRun ? m_frameBreakHit : m_beamBreakHit) = false;
-    UpdateHookInstalled();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetBeamBreak
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<uint32_t> DebugSession::GetBeamBreak() const
-{
-    return (m_beamBreak.has_value() && !m_beamBreak->isOneRun) ? std::optional<uint32_t> (m_beamBreak->target) : std::nullopt;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ClearBeamBreak
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ClearBeamBreak (bool isForOneRun)
-{
-    (isForOneRun ? m_frameBreak : m_beamBreak).reset();
-    (isForOneRun ? m_frameBreakHit : m_beamBreakHit) = false;
-    UpdateHookInstalled();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::SetUnwrittenBreak
-//
-//  The heat map is what sees such a read, so the target turns it on with the
-//  break armed; a read held from before the break went off is dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetUnwrittenBreak (bool isOn)
-{
-    m_isUnwrittenBreak = isOn;
-    m_target.SetUnwrittenBreak (isOn);
-    UpdateHookInstalled();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetBeamCycle
-//
-//  The beam's place as the cycle within the frame.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DebugSession::GetBeamCycle() const
-{
-    VideoPosition  position = m_target.GetVideoPosition();
-
-
-
-    return position.scanline * VideoTiming::kCyclesPerScanline + position.cycleInLine;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::HasReachedBeamBreak
-//
-//  True on the instruction at which the beam has reached or passed the
-//  target since the instruction before. An instruction moves the beam several
-//  cycles, so it can step over the exact cycle; passing it counts. The end of
-//  a frame wraps the beam to zero, and a wrap passes every cycle after where
-//  the beam was and every one up to where it is now.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::HasReachedBeamBreak (std::optional<BeamBreak> & beamBreak)
-{
-    uint32_t  now      = 0;
-    uint32_t  previous = 0;
-    uint32_t  target   = 0;
-    bool      isWrap   = false;
-    bool      reached  = false;
-
-
-
-    if (!beamBreak.has_value())
-    {
-        return false;
-    }
-
-    now                  = GetBeamCycle();
-    previous             = beamBreak->lastCycle;
-    target               = beamBreak->target;
-    isWrap               = now < previous;
-    beamBreak->lastCycle = now;
-
-    if (now == previous)
-    {
-        return false;
-    }
-
-    reached = isWrap ? (target > previous || target <= now)
-                     : (target > previous && target <= now);
-
-    if (!reached)
-    {
-        return false;
-    }
-
-    beamBreak->passes--;
-    return beamBreak->passes == 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::TryMatchBeforeWatchpoint
-//
-//  Prediction runs only while a before-mode watchpoint is enabled. A hit
-//  stops before the instruction and arms the one-stop rule, so the accesses
-//  that instruction makes when the run resumes are not reported again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::TryMatchBeforeWatchpoint (Word pc)
-{
-    AccessPrediction  prediction;
-    WatchHit          hit;
-    HRESULT           hr = S_OK;
-
-
-
-    if (!m_watchpoints.HasEnabledBefore())
-    {
-        return false;
-    }
-
-    hr = EffectiveAddress::Predict (m_target.GetInstructionSet(), pc, m_target.GetRegisters(), *this, prediction);
-
-    if (FAILED (hr) || !m_watchpoints.TryMatchBefore (pc, prediction, hit))
-    {
-        return false;
-    }
-
-    for (const Watchpoint & entry : m_watchpoints.GetAll())
-    {
-        if (entry.id == hit.id)
-        {
-            m_watchpoints.SuppressAfterStopFor (pc, entry.first, entry.last);
-        }
-    }
-
-    m_beforeHit = hit;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::HasPendingStop
-//
-//  None while the debugger is detached, which a run's stop conditions must
-//  not pause the machine for.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::HasPendingStop() const
-{
-    HeatUnwrittenRead  read;
-
-
-
-    return m_isAttached && (m_watchpoints.HasPendingStop() || (m_isUnwrittenBreak && m_target.TryGetUnwrittenStop (read)));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetUnwrittenHit
-//
-//  The read before written the heat map is holding, as a watchpoint hit:
-//  the address read, the value and the instruction, under no watchpoint's
-//  id.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<WatchHit> DebugSession::GetUnwrittenHit() const
-{
-    HeatUnwrittenRead  read;
-    WatchHit           hit;
-
-
-
-    if (!m_isUnwrittenBreak || !m_target.TryGetUnwrittenStop (read))
-    {
-        return std::nullopt;
-    }
-
-    hit.id          = kUnwrittenHitId;
-    hit.address     = read.address;
-    hit.value       = read.value;
-    hit.access      = WatchAccess::Read;
-    hit.accessPc    = read.pc;
-    hit.isUnwritten = true;
-    return hit;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::OnFreeRunSlice
 //
 //  A slice of a free run has executed without stopping. What waits on the
@@ -2394,12 +758,8 @@ void DebugSession::OnFreeRunSlice()
 //  DebugSession::OnStopped
 //
 //  Every stop, whether it ends a debugger run or interrupts a free-running
-//  machine, leaves the session paused and is announced. The breakpoint or
-//  watchpoint that caused it is attached here, where it was recorded.
-//
-//  The Monitor's return stays armed across a stop that is not its own: the
-//  address a Monitor `G` pushed is still on the stack, so a breakpoint partway
-//  through the program does not let the final RTS run on into the ROM.
+//  machine, pauses the session and is announced, with the cause
+//  DebugStopMonitor stored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2444,87 +804,19 @@ void DebugSession::OnStopped (const StopEvent & stop)
     m_stepsLeft   = 0;
     m_nextStep.reset();
 
-    if (event.reason == StopReason::Breakpoint && m_beforeHit.has_value())
-    {
-        event.reason = StopReason::Watchpoint;
-        event.watch  = m_beforeHit;
-    }
-    else if (event.reason == StopReason::Breakpoint)
-    {
-        Breakpoint  breakpoint;
-
-
-
-        event.breakpointId = m_lastBreakpointId;
-
-        //  A BRK ON or BRKOP stop has its breakpoint's id and a reason of its
-        //  own, as an RWTS or driver call's stop does. A stop
-        //  at the Monitor's own return, with no breakpoint behind it, is the
-        //  program coming back: a run to there.
-        if (m_lastBreakpointId.has_value() && m_breakpoints.TryFind (*m_lastBreakpointId, breakpoint))
-        {
-            event.reason = (breakpoint.kind == BreakpointKind::Brk)    ? StopReason::Brk
-                         : (breakpoint.kind == BreakpointKind::Opcode) ? StopReason::InvalidOpcode
-                         : (breakpoint.IsDiskCall())                   ? StopReason::Disk
-                         :                                                StopReason::Breakpoint;
-        }
-        else if (!m_lastBreakpointId.has_value() && m_monitorReturned)
-        {
-            event.reason = StopReason::RunTo;
-        }
-    }
-    else if (event.reason == StopReason::Watchpoint)
-    {
-        event.watch = m_watchpoints.GetPendingHit();
-
-        if (!event.watch.has_value())
-        {
-            event.watch = GetUnwrittenHit();
-        }
-    }
-
-    AttachBasicReport (event);
-    AttachDiskCallReport (event);
-    AttachDiskReport (event);
-    AttachCondition (event);
-    CheckProgram();
+    m_stops.ReportStop (event);
+    m_files.CheckProgram();
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
     m_lastStopReason     = event.reason;
     m_lastStopBreakpoint = event.breakpointId;
-    m_stopPc             = event.pc;
+    m_callRecords.NoteStopPc (event.pc);
 
-    if (m_videoBreakHit)
-    {
-        m_videoBreak.reset();
-        m_videoBreakHit = false;
-    }
-
-    if (m_beamBreakHit)
-    {
-        m_beamBreak.reset();
-        m_beamBreakHit = false;
-    }
-
-    m_frameBreak.reset();
-    m_frameBreakHit = false;
-
-    m_watchpoints.ClearPending();
-    m_target.ClearUnwrittenStop();
-    m_lastBreakpointId.reset();
-    m_beforeHit.reset();
-    m_monitorReturned = false;
+    m_stops.OnStopped();
     m_state = RunState::Paused;
 
-    SettleCallRecord();
-    m_isStepOutOnRecord = false;
-
-    if (m_isRecordingEndDeferred)
-    {
-        SetCallRecording (false);
-    }
-
-    ClearTemporary (event);
+    m_callRecords.OnStopped();
+    m_stops.ClearTemporary (event);
     UpdateHookInstalled();
 
     if (m_instructionObserver != nullptr)
@@ -2533,39 +825,6 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
 
     m_sink.OnStopped (event);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::AttachBasicReport
-//
-//  An Applesoft stop's report: a stop of its own when its breakpoint, step
-//  or error stop made it, beside another stop at the same boundary
-//  otherwise. Any stop ends a BASIC step.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::AttachBasicReport (StopEvent & event)
-{
-    if (m_basicMonitor.HasStop())
-    {
-        event.basic = m_basicMonitor.GetStop().report;
-
-        if (m_isBasicStop)
-        {
-            event.basic->isBasicStop = true;
-            event.reason             = m_basicMonitor.GetStop().reason;
-            event.breakpointId       = m_basicMonitor.GetStop().breakpointId;
-        }
-    }
-
-    m_basicMonitor.ClearStop();
-    m_basicMonitor.EndStep();
-    m_isBasicStop = false;
 }
 
 
@@ -2618,92 +877,6 @@ void DebugSession::ExecuteBasicStep (const DebugCommand & command, Reply & reply
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::AttachDiskReport
-//
-//  The last instruction's disk events, for a stop that came another way,
-//  then the disk report: a stop of its own when the disk breakpoint made it
-//  or ended a step, beside a breakpoint's or watchpoint's stop otherwise
-//  (FR-153).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::AttachDiskReport (StopEvent & event)
-{
-    bool  isDiskReason = false;
-
-
-
-    m_diskMonitor.Poll (*this);
-
-    if (m_diskMonitor.HasStop() && !event.disk.has_value())
-    {
-        isDiskReason       = m_isDiskStop || event.reason == StopReason::Step || event.reason == StopReason::Pause;
-        event.disk         = m_diskMonitor.GetReport();
-        event.reason       = isDiskReason ? StopReason::Disk : event.reason;
-        event.breakpointId = isDiskReason ? std::optional<int> (event.disk->breakpointId) : event.breakpointId;
-    }
-
-    m_diskMonitor.ClearStop();
-    m_isDiskStop = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::AttachDiskCallReport
-//
-//  The request of the RWTS or driver call the PC is at: the stop of that
-//  breakpoint, or of an address breakpoint on the same routine, whose stop
-//  has its own reason and the report of the lowest RWTS or driver id whose
-//  request matches.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::AttachDiskCallReport (StopEvent & event)
-{
-    DebugDiskState  state;
-    DiskReport      report;
-    Breakpoint      entry;
-    bool            isStopped = event.breakpointId.has_value() && m_breakpoints.TryFind (*event.breakpointId, entry);
-    auto            found     = std::ranges::find_if (m_breakpoints.GetAll(), [&] (const Breakpoint & candidate)
-    {
-        return candidate.enabled && candidate.IsDiskCall() && candidate.resolved == event.pc && DiskCallVector::IsRequestMatch (*candidate.disk, *this);
-    });
-
-
-
-    if (!isStopped || (!entry.IsDiskCall() && found == m_breakpoints.GetAll().end()))
-    {
-        return;
-    }
-
-    entry = entry.IsDiskCall() ? entry : *found;
-    m_target.TryGetDiskState (state);
-
-    report.breakpointId = entry.id;
-    report.event        = entry.disk->event;
-    report.request      = DiskCallVector::ReadRequest (*entry.disk, *this);
-    report.vector       = DiskCallVector::GetVectorAddress (*entry.disk, state.slot);
-    report.slot         = state.slot;
-    report.drive        = std::clamp (report.request->drive - 1, 0, 1);
-    report.quarterTrack = state.quarterTrack[report.drive];
-    report.isMotorOn    = state.isMotorOn;
-    report.isProtected  = state.isProtected[report.drive];
-    report.phases       = state.phases;
-    report.imageName    = state.imageName[report.drive];
-    report.instruction  = event.pc;
-    event.disk          = report;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::ResolveDiskCalls
 //
 //  A machine with no Disk II controller resolves a driver breakpoint as
@@ -2744,86 +917,6 @@ void DebugSession::ResolveDiskCalls()
     bytes.erase (std::unique (bytes.begin(), bytes.end()), bytes.end());
     m_watchpoints.SetVectorBytes (bytes);
     RefreshHookFilter();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ClearTemporary
-//
-//  A temporary breakpoint or watchpoint goes once it has caused a stop.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ClearTemporary (const StopEvent & stop)
-{
-    Breakpoint  breakpoint;
-    Watchpoint  watchpoint;
-
-
-
-    if (stop.breakpointId.has_value() && m_breakpoints.TryFind (*stop.breakpointId, breakpoint) && breakpoint.temporary)
-    {
-        m_breakpoints.TryClear (breakpoint.id);
-    }
-
-    if (stop.watch.has_value() && m_watchpoints.TryFind (stop.watch->id, watchpoint) && watchpoint.temporary)
-    {
-        m_watchpoints.TryClear (watchpoint.id);
-    }
-
-    //  A value breakpoint stops as a watchpoint does, under its own id.
-    if (stop.watch.has_value() && m_breakpoints.TryFind (stop.watch->id, breakpoint) && breakpoint.temporary)
-    {
-        m_breakpoints.TryClear (breakpoint.id);
-        m_watchpoints.RefreshWatchedPages();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::AttachCondition
-//
-//  The IF expression of the entry that stopped the machine, and the value it
-//  had at the hit, which the table recorded then. A register breakpoint's
-//  condition is the breakpoint itself, not an IF, and is not repeated.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::AttachCondition (StopEvent & event) const
-{
-    Breakpoint  breakpoint;
-    Watchpoint  watchpoint;
-
-
-
-    if (event.breakpointId.has_value() && m_breakpoints.TryFind (*event.breakpointId, breakpoint) && breakpoint.kind != BreakpointKind::Register)
-    {
-        event.condition      = breakpoint.condition.text;
-        event.conditionValue = m_breakpoints.GetLastConditionValue();
-    }
-    else if (event.watch.has_value() && m_watchpoints.TryFind (event.watch->id, watchpoint))
-    {
-        event.condition      = watchpoint.condition.text;
-        event.conditionValue = event.watch->conditionValue;
-    }
-    else if (event.watch.has_value() && m_breakpoints.TryFind (event.watch->id, breakpoint))
-    {
-        event.condition      = breakpoint.condition.text;
-        event.conditionValue = event.watch->conditionValue;
-    }
-
-    if (event.condition.empty())
-    {
-        event.conditionValue.reset();
-    }
 }
 
 
@@ -3060,7 +1153,7 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
 
     case DebugVerb::ShowSource:
     case DebugVerb::SetSourceStepping:
-        ExecuteSource (command, reply);
+        m_files.ExecuteSource (command, m_target.GetRegisters().pc, reply);
         return true;
 
     case DebugVerb::ListStepFilter:
@@ -3097,58 +1190,6 @@ bool DebugSession::TryExecuteEngineCommand (const DebugCommand & command, Reply 
     }
 
     return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::ExecuteSource
-//
-//  SRC gives the source line at PC and how steps go; SRC ON and SRC OFF
-//  choose between source lines and instructions.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
-{
-    MessageData  message;
-    std::string  file;
-    int          line      = 0;
-    Word         pc        = m_target.GetRegisters().pc;
-    bool         hasSource = !m_lineTable.IsEmpty() && !IsDebugFileStale();
-
-
-
-    if (command.verb == DebugVerb::SetSourceStepping)
-    {
-        m_stepBySource = command.count != 0;
-    }
-
-    if (!HasDebugFile())
-    {
-        message.lines.push_back ("No debug file is loaded. Use SYM LOAD to load one.");
-    }
-    else if (!hasSource)
-    {
-        message.lines.push_back ("The debug file has no source lines.");
-    }
-    else if (TryGetSourceLine (pc, file, line))
-    {
-        message.lines.push_back (std::format ("${:04X} is {} line {}.", pc, file, line));
-    }
-    else
-    {
-        message.lines.push_back (std::format ("No source line produced ${:04X}.", pc));
-    }
-
-    message.lines.push_back ((m_stepBySource && hasSource)       ? "Source mode."
-                             : (m_stepBySource && HasDebugFile()) ? "Source mode. The debug file has no source lines, so steps go by instruction."
-                             : m_stepBySource                     ? "Source mode. Until a debug file is loaded, steps go by instruction."
-                             :                                      "Disassembly mode.");
-    reply.data = message;
 }
 
 
@@ -3321,14 +1362,20 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     //  The Monitor's T traces until a stop or the budget: no count is no end.
     request.count      = (command.count != 0) ? command.count : (request.kind == RunKind::Trace) ? UINT32_MAX : 1;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
-    request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty() && !IsDebugFileStale()) ? &m_lineTable : nullptr;
+    request.lineTable  = isStep ? m_files.GetSteppingLineTable() : nullptr;
     request.stepFilter = (isStep && !m_stepFilter.IsEmpty()) ? &m_stepFilter : nullptr;
 
     m_runNotice.clear();
 
     if (request.kind == RunKind::StepOut)
     {
-        SetStepOutFrame (request, reply);
+        m_callRecords.SetStepOutFrame (request, m_runNotice);
+
+        if (!m_runNotice.empty())
+        {
+            reply.text.push_back (m_runNotice);
+            reply.hasNotice = true;
+        }
     }
 
     //  The run stop hook counts instructions, which is what T n asks for. A
@@ -3343,10 +1390,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         request.count     = 1;
     }
 
-    //  A watch hit raised while the machine was paused, by IN or OUT, belongs
-    //  to no run, and would otherwise stop this one before it began.
-    m_watchpoints.ClearPending();
-    m_target.ClearUnwrittenStop();
+    m_stops.OnRunStarting();
 
     m_state = isStep ? RunState::Stepping : RunState::DebugRun;
     UpdateHookInstalled();
@@ -3385,7 +1429,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         m_target.TryPoke ((Word) (kStackPage + before.sp), stackHigh);
         m_target.TryPoke ((Word) (kStackPage + (Byte) (before.sp - 1)), stackLow);
         m_target.SetRegisters (before);
-        m_monitorReturn.reset();
+        m_stops.DisarmMonitorReturn();
     }
 
     if (FAILED (hr))
@@ -3422,74 +1466,6 @@ bool DebugSession::TryStartNextStep()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::SetStepOutFrame
-//
-//  A step out leaves the innermost recorded frame: a call by its return, an
-//  interrupt by the RTI that goes back to the instruction it stopped. The
-//  stack pointer alone cannot tell that when code between the handler and
-//  the interrupted instruction keeps a return frame of its own, as the
-//  enhanced //e's ROM does around an interrupt, or pulls bytes and jumps.
-//
-//  The record takes in each instruction at the next one's fetch, which is
-//  after the stop hook asks about it, so it is settled first, from the
-//  registers the next instruction will run with.
-//
-//  With no frame on record, or with the PC moved since the stop so that the
-//  innermost frame is the stopped code's, the step out ends at the first RTS
-//  or RTI that takes the stack above where it began. That frame may never
-//  end, and a step out waiting for it would run on with no indication. The
-//  console and the status bar have a line about it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetStepOutFrame (RunRequest & request, Reply & reply)
-{
-    Word            pc      = m_target.GetRegisters().pc;
-    bool            isMoved = m_stopPc.has_value() && *m_stopPc != pc;
-    CallStackFrame  frame;
-
-
-
-    SettleCallRecord();
-
-    if (!m_callRecorder.IsActive())
-    {
-        return;
-    }
-
-    if (m_callRecorder.GetFrames().empty() || isMoved)
-    {
-        m_runNotice = std::format ("No call on record was made by the code at ${:04X}, so the step out ends at the first RTS or RTI that raises the stack.", pc);
-        reply.text.push_back (m_runNotice);
-        reply.hasNotice = true;
-        return;
-    }
-
-    frame = m_callRecorder.GetFrames().back();
-    m_isStepOutOnRecord = true;
-
-    request.hasLeftFrame = [this, frame] (Word pc, Byte sp)
-    {
-        const std::vector<CallStackFrame> & frames = m_callRecorder.GetFrames();
-
-
-
-        m_callRecorder.Settle (pc, sp);
-
-        return std::none_of (frames.begin(), frames.end(), [&frame] (const CallStackFrame & each)
-        {
-            return each.callSite == frame.callSite && each.target == frame.target &&
-                   each.kind == frame.kind && each.stackLevel == frame.stackLevel;
-        });
-    };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebugSession::PushMonitorReturn
 //
 //  The address an RTS returns to, pushed as the 6502 pushes one: high byte
@@ -3516,165 +1492,8 @@ void DebugSession::PushMonitorReturn()
     registers.sp = (Byte) (registers.sp - 1);
 
     m_target.SetRegisters (registers);
-    m_monitorReturn = kMonitorReentry;
+    m_stops.ArmMonitorReturn (kMonitorReentry);
     RefreshHookFilter();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::FindStoreInProgress
-//
-//  Called from inside a bus write; see CallStackRecorder::FindStoreInProgress.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Word DebugSession::FindStoreInProgress() const
-{
-    return CallStackRecorder::FindStoreInProgress (m_target.GetInstructionSet(), m_target.GetRegisters().pc,
-                                                   [this] (Word address) { return PeekByte (address); });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::SetCallRecording
-//
-//  Turning recording off during a step out that ends on the record waits for
-//  that step to stop: the step would otherwise end at once, on a record
-//  that no longer holds its frame.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SetCallRecording (bool isOn)
-{
-    Word  pc = m_target.GetRegisters().pc;
-
-
-
-    m_isRecordingEndDeferred = !isOn && m_isStepOutOnRecord && m_callRecorder.IsActive();
-
-    if (isOn == m_callRecorder.IsActive() || m_isRecordingEndDeferred)
-    {
-        return;
-    }
-
-    m_callRecordGeneration++;
-
-    if (isOn)
-    {
-        m_callRecorder.Begin (pc, PeekByte (pc), m_target.GetCycleCount() == 0);
-        m_stopPc = pc;
-        m_target.SetOpcodeWatch (m_callOpcodes.data(), this);
-        m_watchpoints.SetStackWriteSink ([this] (Word address, Byte value, std::optional<Byte> previous)
-        {
-            m_callRecorder.OnStackWrite (address, value, previous);
-        });
-    }
-    else
-    {
-        m_target.SetOpcodeWatch (nullptr, nullptr);
-        m_watchpoints.SetStackWriteSink (nullptr);
-        m_callRecorder.End();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::RestartCallRecording
-//
-//  For a machine that moved through history, so the bottom is not where the
-//  debugger attached: the calls before here are in history, and until a
-//  rebuild from it replaces this record, none of them is in it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::RestartCallRecording()
-{
-    Word  pc = m_target.GetRegisters().pc;
-
-
-
-    if (!m_callRecorder.IsActive())
-    {
-        return;
-    }
-
-    m_callRecordGeneration++;
-    m_callRecorder.Begin (pc, PeekByte (pc), (m_target.GetCycleCount() == 0) ? CallBreakKind::PowerOn : CallBreakKind::HistoryBegan);
-    m_stopPc = pc;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::MarkCallRecordUnrebuilt
-//
-//  History was turned off, could not reach where the machine stands, or the
-//  rebuild failed or was not taken: the record keeps its calls, and its
-//  bottom marks only that the calls before it are not available, not where
-//  history starts. Any other bottom is left as it is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::MarkCallRecordUnrebuilt()
-{
-    m_callRecorder.RelabelBottom (CallBreakKind::HistoryBegan, CallBreakKind::TrackingRestarted);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetCallRecord
-//
-////////////////////////////////////////////////////////////////////////////////
-
-CallRecord DebugSession::GetCallRecord()
-{
-    SettleCallRecord();
-
-    return m_callRecorder.GetRecord();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::AdoptCallRecord
-//
-//  The record replaces the one kept since recording began, and the next
-//  instruction the CPU reports goes on from it. A record that is off takes
-//  nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::AdoptCallRecord (const CallRecord & record)
-{
-    if (!m_callRecorder.IsActive() || !record.isActive)
-    {
-        return;
-    }
-
-    m_callRecorder.SetRecord (record);
-    m_stopPc = m_target.GetRegisters().pc;
 }
 
 
@@ -3686,56 +1505,104 @@ void DebugSession::AdoptCallRecord (const CallRecord & record)
 //  DebugSession::GetCallStack
 //
 //  With a debug file loaded, the walk keeps only calls to a routine entry,
-//  which is any address a label in the file holds.
+//  which is any address a label in the file has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 CallStackData DebugSession::GetCallStack()
 {
-    std::set<Word>     entries;
-    CallStackData      data;
-    SymbolTableId      table = SymbolTableId::User;
-    Cpu6502Registers   registers;
+    std::set<Word>  entries;
+    bool            hasFile = m_files.HasCurrentFile();
 
 
 
-    SettleCallRecord();
-
-    if (HasDebugFile() && !IsDebugFileStale())
+    if (hasFile)
     {
-        for (const DebugSymbol & symbol : m_debugFile.symbols)
-        {
-            if (symbol.type == "lab")
-            {
-                entries.insert ((Word) symbol.value);
-            }
-        }
+        m_files.GetRoutineEntries (entries);
     }
 
-    registers = m_target.GetRegisters();
-    data      = CallStack::Build (m_callMechanism, m_callRecorder, registers.sp,
-                                  [this] (Word address) { return PeekByte (address); },
-                                  (HasDebugFile() && !IsDebugFileStale()) ? &entries : nullptr);
+    return m_callRecords.GetCallStack (m_symbols, hasFile ? &entries : nullptr);
+}
 
-    for (CallStackRow & row : data.rows)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TakePendingScript
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TakePendingScript (PendingScript & outScript)
+{
+    if (!m_pendingScript.has_value())
     {
-        if (row.frame.has_value())
-        {
-            m_symbols.TryFindName (row.frame->target, row.frame->symbol, table);
-        }
+        return false;
     }
 
-    if (data.lastReturn.has_value())
+    outScript = std::move (*m_pendingScript);
+    m_pendingScript.reset();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TakeHitLogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebugSession::TakeHitLogs()
+{
+    std::vector<std::string>  logs    = m_breakpoints.TakeLogs();
+    std::vector<std::string>  watches = m_watchpoints.TakeLogs();
+
+
+
+    std::ranges::copy (watches, std::back_inserter (logs));
+
+    for (const std::string & log : logs)
     {
-        m_symbols.TryFindName (data.lastReturn->target, data.lastReturn->symbol, table);
+        m_recentHitLogs.push_back (log);
     }
 
-    if (m_callRecorder.IsActive())
+    while (m_recentHitLogs.size() > kRecentHitLogs)
     {
-        data.rebuildProgress = m_callRebuildProgress;
+        m_recentHitLogs.pop_front();
     }
 
-    return data;
+    return logs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetRecentHitLogs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebugSession::GetRecentHitLogs (size_t count) const
+{
+    std::vector<std::string>  all (m_recentHitLogs.begin(), m_recentHitLogs.end());
+
+
+
+    std::ranges::copy (m_breakpoints.GetLogs(), std::back_inserter (all));
+    std::ranges::copy (m_watchpoints.GetLogs(), std::back_inserter (all));
+
+    if (all.size() > count)
+    {
+        all.erase (all.begin(), all.end() - (ptrdiff_t) count);
+    }
+
+    return all;
 }
 
 
@@ -3754,7 +1621,7 @@ CallStackData DebugSession::GetCallStack()
 
 void DebugSession::TakeView (DebugSessionView & out)
 {
-    SettleCallRecord();
+    m_callRecords.Settle();
 
     out.breakpoints      = m_breakpoints.GetAll();
     out.watchpoints      = m_watchpoints.GetAll();
@@ -3763,32 +1630,24 @@ void DebugSession::TakeView (DebugSessionView & out)
     out.bookmarks        = m_bookmarks;
     out.dataBlocks       = m_dataBlocks;
     out.mode             = m_mode;
-    out.assemblyAddress  = m_assemblyAddress;
-    out.isStepBySource   = m_stepBySource;
-    out.callMechanism    = m_callMechanism;
-    out.callRecord       = m_callRecorder.GetRecord();
-    out.callRebuild      = m_callRebuildProgress;
+    out.assemblyAddress  = m_interpreter.GetAssemblyAddress();
     out.cycleMarker      = m_cycleMarker;
     out.searchResults    = m_searchResults;
     out.searchSerial     = m_searchSerial;
     out.compareResults   = m_compareResults;
     out.compareSerial    = m_compareSerial;
-    out.fileSystem       = m_fileSystem;
-    out.currentDirectory = m_currentDirectory;
+    out.fileSystem       = m_hostFiles.GetFileSystem();
+    out.currentDirectory = m_hostFiles.GetCurrentDirectory();
+    out.nextId           = m_nextId;
+
+    m_callRecords.TakeView (out);
 
     if (out.symbols == nullptr || out.symbols->GetRevision() != m_symbols.GetRevision())
     {
         out.symbols = std::make_shared<const SymbolTable> (m_symbols);
     }
 
-    out.programChecks = m_programChecks;
-
-    if (out.files == nullptr || out.filesRevision != m_filesRevision)
-    {
-        out.files         = std::make_shared<const DebugSessionFiles> (DebugSessionFiles { m_debugFile, m_debugFilePath, m_debugFileKey,
-                                                                                           m_debugFileTable, m_lineTable, m_debugFileData });
-        out.filesRevision = m_filesRevision;
-    }
+    m_files.TakeView (out);
 }
 
 
@@ -3801,7 +1660,7 @@ void DebugSession::TakeView (DebugSessionView & out)
 //
 //  For a session that only builds the panes: its tables become the copy's,
 //  each entry keeping its id. The symbols and the debug file are copied in
-//  only when their revisions differ from what this session already holds.
+//  only when their revisions differ from the ones this session already has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3832,122 +1691,24 @@ void DebugSession::InstallView (const DebugSessionView & view)
     m_bookmarks        = view.bookmarks;
     m_dataBlocks       = view.dataBlocks;
     m_mode             = view.mode;
-    m_assemblyAddress  = view.assemblyAddress;
-    m_stepBySource     = view.isStepBySource;
-    m_callMechanism    = view.callMechanism;
     m_cycleMarker      = view.cycleMarker;
     m_searchResults    = view.searchResults;
     m_searchSerial     = view.searchSerial;
     m_compareResults   = view.compareResults;
     m_compareSerial    = view.compareSerial;
-    m_fileSystem       = view.fileSystem;
-    m_currentDirectory = view.currentDirectory;
+    m_nextId           = view.nextId;
 
-    m_callRecorder.SetRecord (view.callRecord);
-    m_callRebuildProgress = view.callRebuild;
+    m_interpreter.SetAssemblyAddress  (view.assemblyAddress);
+    m_hostFiles.SetFileSystem         (view.fileSystem);
+    m_hostFiles.SetCurrentDirectory   (view.currentDirectory);
+    m_callRecords.InstallView         (view);
 
     if (view.symbols != nullptr && view.symbols->GetRevision() != m_symbols.GetRevision())
     {
         m_symbols = *view.symbols;
     }
 
-    m_programChecks = view.programChecks;
-
-    if (view.files != nullptr && view.filesRevision != m_filesRevision)
-    {
-        m_debugFile      = view.files->debugFile;
-        m_debugFilePath  = view.files->path;
-        m_debugFileKey   = view.files->key;
-        m_debugFileTable = view.files->table;
-        m_lineTable      = view.files->lineTable;
-        m_debugFileData  = view.files->data;
-        m_filesRevision  = view.filesRevision;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::HasNoCallSince
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::HasNoCallSince (uint64_t cycle)
-{
-    SettleCallRecord();
-
-    return m_callRecorder.HasNoCallSince (cycle);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::GetCallerLinks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::GetCallerLinks (std::vector<CallerLink> & outLinks)
-{
-    SettleCallRecord();
-
-    m_callRecorder.GetCallerLinks (outLinks);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::SettleCallRecord
-//
-//  The record takes in the last instruction executed, from the registers
-//  after it; called only between instructions.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::SettleCallRecord()
-{
-    Cpu6502Registers  registers;
-
-
-
-    if (!m_callRecorder.IsActive())
-    {
-        return;
-    }
-
-    registers = m_target.GetRegisters();
-    m_callRecorder.Settle (registers.pc, registers.sp);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::PeekByte
-//
-//  A byte as the CPU sees it, or zero where the debugger cannot read one
-//  without disturbing the machine.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte DebugSession::PeekByte (Word address) const
-{
-    Byte  value = 0;
-
-
-
-    m_target.TryPeek (address, value);
-    return value;
+    m_files.InstallView (view);
 }
 
 
@@ -3962,13 +1723,13 @@ Byte DebugSession::PeekByte (Word address) const
 //  condition exists, a run is active or profiling is on, and removed
 //  otherwise, so a machine with no debugger interest pays only the null test.
 //  The call record is fed without it: the CPU reports the instructions the
-//  record uses (OnWatchedFetch).
+//  record uses (CallRecordKeeper::OnWatchedFetch).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::UpdateHookInstalled()
 {
-    bool  shouldInstall = m_isAttached && (HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling());
+    bool  shouldInstall = m_isAttached && (m_stops.HasStopConditions() || m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling());
 
 
 
@@ -3991,94 +1752,14 @@ void DebugSession::UpdateHookInstalled()
 //
 //  DebugSession::RefreshHookFilter
 //
-//  The instructions the session needs to see. Every one during a run the
-//  debugger started or while profiling is on, and while a watchpoint, a value
-//  breakpoint, a video break or a breakpoint on anything but an address or
-//  an opcode is armed:
-//  those are tested before or during any instruction, and a watchpoint hit
-//  reports the address of the instruction that made it. Otherwise only the
-//  pages holding an address breakpoint or the Monitor's return, and the
-//  opcodes a breakpoint names.
+//  Every instruction during a run the debugger started or while profiling
+//  is on; otherwise the ones DebugStopMonitor::BuildHookFilter marks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::RefreshHookFilter()
 {
-    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_frameBreak.has_value() ||
-                    m_isUnwrittenBreak || IsProfiling();
-
-
-
-    m_hookFilter       = DebugHookFilter();
-    m_hookFilter.pages = {};
-
-    for (const Breakpoint & entry : m_breakpoints.GetAll())
-    {
-        if (!entry.enabled)
-        {
-            continue;
-        }
-
-        switch (entry.kind)
-        {
-        case BreakpointKind::Address:
-            for (int page = entry.first >> 8; page <= (entry.last >> 8); ++page)
-            {
-                m_hookFilter.pages[page] = true;
-            }
-
-            break;
-
-        case BreakpointKind::Opcode:
-        case BreakpointKind::Brk:
-            m_hookFilter.opcodes[entry.opcode] = true;
-            m_hookFilter.opcodesStop           = true;
-            break;
-
-        //  A disk event is raised during an instruction and reported at the
-        //  next boundary, as a watchpoint hit is; an RWTS or driver call stops
-        //  before its routine, whose page the filter marks once it is resolved.
-        case BreakpointKind::Disk:
-            isEvery = isEvery || !entry.IsDiskCall();
-            m_hookFilter.pages[entry.resolved.value_or (0) >> 8] = m_hookFilter.pages[entry.resolved.value_or (0) >> 8] || entry.resolved.has_value();
-            break;
-
-        //  Applesoft's entries are tested where the interpreter passes, on
-        //  the pages the monitor marks below.
-        case BreakpointKind::BasicLine:
-        case BreakpointKind::BasicVariable:
-        case BreakpointKind::BasicError:
-            break;
-
-        default:
-            isEvery = true;
-            break;
-        }
-    }
-
-    if (m_monitorReturn.has_value())
-    {
-        m_hookFilter.pages[*m_monitorReturn >> 8] = true;
-    }
-
-    m_basicMonitor.ForgetDisabledValues();
-    m_basicMonitor.MarkPages (m_hookFilter.pages);
-
-    //  With only opcode breakpoints armed, the host asks about an instruction
-    //  only when its opcode is one of theirs. An address breakpoint beside
-    //  them is on no such list, so every instruction is asked about instead.
-    if (m_hookFilter.opcodesStop && std::ranges::any_of (m_hookFilter.pages, [] (bool marked) { return marked; }))
-    {
-        m_hookFilter.opcodesStop = false;
-        isEvery                  = true;
-    }
-
-    m_hookFilter.everyInstruction = isEvery;
-
-    if (isEvery || m_hookFilter.opcodesStop)
-    {
-        m_hookFilter.pages = DebugHookFilter::s_kAllMarked;
-    }
+    m_stops.BuildHookFilter (m_hookFilter, m_state == RunState::DebugRun || m_state == RunState::Stepping || IsProfiling());
 }
 
 
@@ -4087,29 +1768,13 @@ void DebugSession::RefreshHookFilter()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::HasStopConditions
+//  DebugSession::IsProfiling
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebugSession::IsProfiling() const
 {
     return m_instructionObserver != nullptr && m_instructionObserver->IsProfiling();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::HasStopConditions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::HasStopConditions() const
-{
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_frameBreak.has_value() || m_monitorReturn.has_value() ||
-           m_isUnwrittenBreak;
 }
 
 
@@ -4161,24 +1826,4 @@ void DebugSession::SetError (
     reply.status       = status;
     reply.error.label  = label;
     reply.error.detail = detail;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::Trim
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DebugSession::Trim (const std::string & text)
-{
-    size_t  first = text.find_first_not_of (" \t\r\n");
-    size_t  last  = text.find_last_not_of  (" \t\r\n");
-
-
-
-    return (first == std::string::npos) ? std::string() : text.substr (first, last - first + 1);
 }

@@ -205,8 +205,8 @@ namespace DebuggerControllerTests
 
 
 
-            rig.controller.RunLine ("R", CommandMode::AppleWin, {});
-            rig.controller.RunLine ("not a command", CommandMode::AppleWin, {});
+            rig.controller.RunLine ("R", CommandMode::AppleWin, {}, {}, false);
+            rig.controller.RunLine ("not a command", CommandMode::AppleWin, {}, {}, false);
 
             Assert::AreEqual (before + 2, rig.controller.GetLinesRun(), L"a line that fails is counted too");
         }
@@ -219,20 +219,21 @@ namespace DebuggerControllerTests
         //  session's mode would change it for every other client.
         TEST_METHOD (ARequestModeDoesNotSwitchTheSession)
         {
-            Rig    rig (true);
-            Reply  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
 
 
 
             //  `300.30F` is an examine in the Monitor and not a command at all
             //  in AppleWin, so its status says which mode the line ran in.
-            reply = rig.controller.RunLine ("300.30F", CommandMode::Monitor, {});
+            reply = rig.controller.RunLine ("300.30F", CommandMode::Monitor, {}, {}, false);
             Assert::IsTrue (reply.status == CommandStatus::Ok, L"the line ran in the mode the request named");
 
             Assert::IsTrue (rig.controller.GetSession().GetMode() == CommandMode::AppleWin,
                             L"and the session's own mode is unchanged");
 
-            reply = rig.controller.RunLine ("300.30F", {}, {});
+            reply = rig.controller.RunLine ("300.30F", {}, {}, {}, false);
             Assert::IsTrue (reply.status == CommandStatus::Unknown, L"a request naming no mode uses the session's");
         }
 
@@ -244,14 +245,15 @@ namespace DebuggerControllerTests
         //  session's own budget comes back afterwards.
         TEST_METHOD (ARequestBudgetIsPutBackAfterTheLine)
         {
-            Rig    rig (true);
-            Reply  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
 
 
 
             rig.controller.GetSession().SetBudget (5000);
 
-            reply = rig.controller.RunLine ("R", {}, 123);
+            reply = rig.controller.RunLine ("R", {}, 123, {}, false);
             Assert::IsFalse (reply.command.empty(), L"the line ran");
 
             Assert::IsTrue   (rig.controller.GetSession().GetBudget().has_value());
@@ -270,7 +272,7 @@ namespace DebuggerControllerTests
 
 
 
-            (void) rig.controller.RunLine ("BUDGET 777", {}, 123);
+            (void) rig.controller.RunLine ("BUDGET 777", {}, 123, {}, false);
 
             Assert::IsTrue   (rig.controller.GetSession().GetBudget().has_value());
             Assert::AreEqual ((uint64_t) 777, *rig.controller.GetSession().GetBudget());
@@ -281,18 +283,19 @@ namespace DebuggerControllerTests
         //  A blank line ends an A block and is otherwise nothing.
         TEST_METHOD (ABlankLineEndsAnAssemblyBlockAndIsOtherwiseNothing)
         {
-            Rig    rig (true);
-            Reply  reply = rig.controller.RunLine ("", {}, {});
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply  reply = rig.controller.RunLine ("", {}, {}, {}, false);
 
 
 
             Assert::IsTrue (reply.status == CommandStatus::Ok, L"outside a block, nothing");
 
-            (void) rig.controller.RunLine ("A 300", {}, {});
-            (void) rig.controller.RunLine ("LDA #$41", {}, {});
+            (void) rig.controller.RunLine ("A 300", {}, {}, {}, false);
+            (void) rig.controller.RunLine ("LDA #$41", {}, {}, {}, false);
             Assert::IsTrue  (rig.controller.GetSession().IsAssembling());
 
-            (void) rig.controller.RunLine ("", {}, {});
+            (void) rig.controller.RunLine ("", {}, {}, {}, false);
             Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the blank line ended the block");
         }
 
@@ -306,7 +309,7 @@ namespace DebuggerControllerTests
 
 
 
-            (void) rig.controller.RunLine ("A 300", {}, {});
+            (void) rig.controller.RunLine ("A 300", {}, {}, {}, false);
             Assert::IsTrue (rig.controller.GetSession().IsAssembling());
 
             rig.controller.GetSession().OnMachineChanged ("Apple //c", false);
@@ -341,8 +344,9 @@ namespace DebuggerControllerTests
         //  with, as it does in batch mode.
         TEST_METHOD (FileCommandsUseTheFileSystemItWasGiven)
         {
-            Rig    rig (true);
-            Reply  reply;
+            std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig> (true);   // heap: more than a function's stack allows (C6262)
+            Rig                   & rig      = *rigOwner;
+            Reply                   reply;
 
 
 

@@ -23,9 +23,9 @@ struct MachineBuildServices;
 //  ShellPrinter
 //
 //  The emulated ImageWriter as the emulator presents it: the worker that
-//  drains the printer card's ring into a raster, the print preview window,
-//  the toolbar's status light, and the system print dialog. The card itself
-//  is the machine's.
+//  drains the machine's printer ring into a raster, the print preview window,
+//  the toolbar's status light, and the system print dialog. The connector
+//  the printer is attached to is the machine's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +63,13 @@ public:
     void    UpdatePrinterPreview ();
     HRESULT RenderPanelFrame     ();
 
-    // Stops the drain thread before the card it reads is freed, and keeps the
-    // pending strip for the machine's next run, or clears a stale one.
+    // Stops the drain thread before the CPU that paces it is freed, and saves
+    // the pending strip for the machine's next run, or clears a stale one.
     void    StopAndSavePendingStrip ();
+
+    // Starts the drain thread for a printer attached while the machine runs,
+    // unless it is running.
+    void    StartDrain ();
 
     // Delivery outcome -> the printer status LED: failed=true lights the red
     // error state until a success / discard clears it or the guest prints
@@ -125,10 +129,10 @@ private:
     HRESULT  CopyPrintoutToClipboard (const class PrintRaster & raster);
 
     // Print-path helpers.
-    static HRESULT  HrFromSpoolResult (int ret, const wchar_t * call, int pageIx);
+    static HRESULT  HrFromSpoolResult         (int ret, const wchar_t * call, int pageIx);
     static void     PrimeDefaultPrinterDriver ();
-    static HDC      CreateDcFromDevNames (const PRINTDLGW & pd);
-    static HRESULT  BlitRgbaToDc (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
+    static HDC      CreateDcFromDevNames      (const PRINTDLGW & pd);
+    static HRESULT  BlitRgbaToDc              (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
     EmulatorShell                 & m_shell;
 
     // The toolbar's printer button carries this status light.

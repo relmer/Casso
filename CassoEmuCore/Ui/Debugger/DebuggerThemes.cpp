@@ -10,6 +10,7 @@
 static constexpr const char *  s_kpszSkeuomorphic  = "Skeuomorphic";
 static constexpr const char *  s_kpszDarkModern    = "DarkModern";
 static constexpr const char *  s_kpszRetroTerminal = "RetroTerminal";
+static constexpr const char *  s_kpszPhosphor      = "Phosphor";
 
 
 
@@ -32,6 +33,7 @@ const std::vector<DebuggerThemes::Choice> & DebuggerThemes::GetChoices()
         { s_kpszSkeuomorphic,  L"Casso Skeuomorphic"   },
         { s_kpszDarkModern,    L"Casso Dark Modern"    },
         { s_kpszRetroTerminal, L"Casso Retro Terminal" },
+        { s_kpszPhosphor,      L"Casso Phosphor"       },
         { kSystemLight,        L"System light"         },
         { kSystemDark,         L"System dark"          },
     };

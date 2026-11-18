@@ -26,6 +26,9 @@
 //  written out from the pump. That is the only shared state here, which is why
 //  it is the only lock.
 //
+//  A HELLO SETS THE CLIENT'S FILE ACCESS. Its name, folders and scripts
+//  setting apply to every command the connection sends after it.
+//
 //  A STOP CAUSED BY A COMMAND NAMES THAT COMMAND. A client that asked for a run
 //  can tell its own outcome from one another client started, which it could not
 //  do from a notification everybody receives.
@@ -61,16 +64,28 @@ public:
     void  OnMachineChanged (const std::string & machineName) override;
     void  OnModeChanged    (CommandMode mode) override;
 
+    //  The messages logging breakpoints wrote at their hits, each a log
+    //  notification to the clients whose hello set logs. A pump sends
+    //  at most kMaxLogsPerPump of them, then one log record that counts the
+    //  rest, so a breakpoint in a tight loop can't fill a client's pipe.
+    static constexpr size_t  kMaxLogsPerPump = 256;
+    void  SendHitLogs      (const std::vector<std::string> & logs);
+
 private:
-    void  HandleLine         (ChannelConnectionId connection, const std::string & line);
-    void  HandleRequest      (ChannelConnectionId connection, const ChannelRequest & request);
-    void  Queue              (std::string && record);
-    void  FlushNotifications ();
-    void  Broadcast          (const std::string & record);
+    void  HandleLine          (ChannelConnectionId connection, const std::string & line);
+    void  HandleRequest       (ChannelConnectionId connection, const ChannelRequest & request);
+    void  Queue               (std::string && record);
+    void  FlushNotifications  ();
+    void  Broadcast           (const std::string & record);
+    void  ForgetClosedClients ();
 
     IPipeTransport            & m_transport;
     IDebugCommandRunner       & m_runner;
     std::atomic<bool>           m_isOpen  = false;
+
+    //  What each connection's hello set; a connection without one has the
+    //  defaults. Pump thread only.
+    std::map<ChannelConnectionId, ChannelClient>  m_clients;
 
     //  The command whose run is still outstanding, so its stop can name it.
     //  Read and written under the lock, because the stop comes from the CPU
@@ -79,4 +94,6 @@ private:
 
     mutable std::mutex          m_lock;
     std::vector<std::string>    m_pending;
+    std::vector<std::string>    m_pendingLogs;
+    size_t                      m_droppedLogs = 0;
 };

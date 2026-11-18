@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Cassque/Model/IFolderWatcher.h"
+#include "CassoExplorer/Model/IFolderWatcher.h"
 
 
 
@@ -30,8 +30,12 @@
 //
 //  EVERY CALLBACK ARRIVES ON THE SERVICE THREAD, so a handler does no more
 //  than record. The re-read happens on the thread that owns the window.
-//  Unwatch waits for a callback of that folder already running, so what the
-//  callback captured can be destroyed once Unwatch returns.
+//
+//  A NETWORK FOLDER IS OPENED ON A THREAD OF ITS OWN. Opening one waits on
+//  the share until the network times out on an unreachable one,
+//  so Watch returns at once and the folder joins the set when its handle
+//  arrives. That thread shares only the state below, so it can outlive the
+//  watcher and close its handle itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,15 +68,29 @@ private:
     //  Starts the service thread if it is not already running. Called with the
     //  lock held.
     void  EnsureService ();
+    void  DropUnusable  (const std::vector<std::wstring> & directories);
+
+    //  Adds a folder whose handle is open, closing the handle instead when the
+    //  folder is already watched or the set is full.
+    bool  AddFolder (const std::wstring & directory, HANDLE notification, Callback callback);
 
     void  Stop ();
 
+    //  Network folders being opened, and whether the watcher is there to
+    //  receive them.
+    struct NetworkOpens
+    {
+        std::mutex              lock;
+        bool                    alive = true;
+        std::set<std::wstring>  pending;
+    };
+
     std::mutex                                     m_lock;
-    std::condition_variable                        m_callbackDone;
-    std::optional<std::wstring>                    m_running;     // the folder whose callback is running, on the service thread
     std::map<std::wstring, FolderEntry>            m_folders;
-    std::vector<HANDLE>                            m_retired;     // unwatched, for the service thread to close
+    std::wstring                                   m_calling;   // the folder whose callback is running
+    std::condition_variable                        m_called;
     std::thread                                    m_service;
-    HANDLE                                         m_stop = nullptr;
-    HANDLE                                         m_wake = nullptr;
+    HANDLE                                         m_stop    = nullptr;
+    HANDLE                                         m_wake    = nullptr;
+    std::shared_ptr<NetworkOpens>                  m_network = std::make_shared<NetworkOpens>();
 };

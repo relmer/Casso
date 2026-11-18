@@ -28,31 +28,31 @@ public:
     DevicePanelController (IDebuggerPaneHost & host, std::string panelId, std::wstring title);
     ~DevicePanelController() override;
 
-    const std::wstring             & GetId          () const override;
-    std::wstring                     GetTitle       () const override { return m_title; }
-    void                             CreateControls () override;
-    void                             Configure      () override;
-    bool                             TryGetOpened   (bool & isOpened) const override { isOpened = m_isOpen; return true; }
-    bool                             RequestOpen    () override;
-    bool                             RequestClose   () override;
-    bool                             IsFixed        () const override { return false; }
-    std::optional<int>               GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const override;
-    void                             AddToDock      (DxuiDockSite & dock) override;
-    IDxuiControl                   * GetContent     () const override;
-    std::vector<IDxuiControl *>      GetControls    () const override;
-    std::vector<DxuiListView *>      GetLists       () const override;
-    std::optional<PaneColorKeySpec>  GetColorKey    () const override;
-    void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
-    bool                             Tick           (int64_t nowMs) override;
-    bool                             TryGetTipAt    (POINT clientPx, DxuiTip & tip);
+    const std::wstring               & GetId           () const override;
+    std::wstring                       GetTitle        () const override { return m_title; }
+    void                               CreateControls  () override;
+    void                               Configure       () override;
+    bool                               TryGetOpened    (bool & isOpened) const override { isOpened = m_isOpen; return true; }
+    bool                               RequestOpen     () override;
+    bool                               RequestClose    () override;
+    bool                               IsFixed         () const override { return false; }
+    std::optional<int>                 GetViewMenuRank (const DebuggerViewSnapshot * snapshot) const override;
+    void                               AddToDock       (DxuiDockSite & dock) override;
+    IDxuiControl                     * GetContent      () const override;
+    std::vector<IDxuiControl *>        GetControls     () const override;
+    std::vector<DxuiListView *>        GetLists        () const override;
+    std::optional<PaneColorKeySpec>    GetColorKey     () const override;
+    void                               Apply           (const DebuggerViewSnapshot & snapshot) override;
+    bool                               Tick            (int64_t nowMs) override;
+    bool                               TryGetTipAt     (POINT clientPx, DxuiTip & tip);
 
     //  The Video panel's menu opens the video log, the Mockingboard panel's
     //  the sound log.
-    void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
-    bool                             RouteContentMouse (const DxuiMouseEvent & ev) override;
-    std::vector<DxuiToolbar *>       GetBars        () const override;
-    void                             PlaceBar       () override;
-    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override;
+    void                        AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    bool                        RouteContentMouse   (const DxuiMouseEvent & ev) override;
+    std::vector<DxuiToolbar *>  GetBars             () const override;
+    void                        PlaceBar            () override;
+    bool                        RouteBarMouse       (const DxuiMouseEvent & ev) override;
 
     //  The Disk II panel's choice of drives as it is saved, "1", "2" or
     //  "both", and back; anything else reads as both.

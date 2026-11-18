@@ -222,4 +222,54 @@ public:
         Assert::IsTrue (FAILED (hr), L"dates past the end of the file");
         Assert::IsTrue (error.find ("entry 8") != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
     }
+
+
+
+    //  Decode keeps a resource fork, so a rewrite through Encode keeps it.
+    TEST_METHOD (ResourceFork_IsKept)
+    {
+        std::vector<Byte>  bytes = { 0x00, 0x05, 0x16, 0x00,  0x00, 0x02, 0x00, 0x00 };
+        AppleSingleFile    decoded;
+        std::string        error;
+        auto               put32 = [&bytes] (uint32_t value) { for (int shift : { 24, 16, 8, 0 }) { bytes.push_back ((Byte) (value >> shift)); } };
+
+
+
+        bytes.resize (bytes.size() + 16, 0);
+        bytes.push_back (0x00);
+        bytes.push_back (0x02);
+        put32 (1);  put32 (50);  put32 (1);
+        put32 (2);  put32 (51);  put32 (1);
+        bytes.push_back (0xAA);
+        bytes.push_back (0xBB);
+
+        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), TextEncoding::NarrowToWide (error).c_str());
+        Assert::IsTrue   (decoded.data == std::vector<Byte> { 0xAA });
+        Assert::IsTrue   (decoded.hasResourceFork);
+        Assert::IsTrue   (decoded.resourceFork == std::vector<Byte> { 0xBB });
+        Assert::IsFalse  (decoded.hasOtherEntries);
+    }
+
+    TEST_METHOD (Double_RoundTripsTheForkAndFinderInfoWithoutTheData)
+    {
+        AppleSingleFile    file;
+        AppleSingleFile    decoded;
+        std::vector<Byte>  bytes;
+        std::string        error;
+
+
+
+        file.data            = { 1, 2, 3 };
+        file.resourceFork    = { 4, 5 };
+        file.hasResourceFork = true;
+        file.finderInfo.assign (32, 0x77);
+
+        AppleSingleCodec::EncodeDouble (file, bytes);
+
+        Assert::IsTrue (AppleSingleCodec::IsAppleDouble (bytes));
+        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error));
+        Assert::IsTrue (decoded.data.empty());
+        Assert::IsTrue (decoded.resourceFork == file.resourceFork);
+        Assert::IsTrue (decoded.finderInfo == file.finderInfo);
+    }
 };

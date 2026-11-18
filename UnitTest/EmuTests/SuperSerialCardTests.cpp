@@ -147,6 +147,31 @@ namespace SuperSerialCardTestNs
         }
 
 
+        //  The debugger's peeks: the page's firmware byte without selecting the
+        //  expansion ROM, and the registers' bytes without a status bit cleared.
+        TEST_METHOD (PeeksReadThePageAndRegistersWithoutTheirEffects)
+        {
+            MemoryBus        bus;
+            SuperSerialCard  card (kSlot, bus);
+            vector<Byte>     firmware = MakeFirmware();
+            Byte             value    = 0;
+
+
+
+            Assert::AreEqual (S_OK, card.SetFirmware (firmware));
+            card.Write (kAddrControl, 0x1E);
+
+            Assert::IsTrue   (card.GetSlotPage().TryPeekIo (0xC205, value));
+            Assert::AreEqual (firmware[0x705], value);
+            Assert::IsFalse  (card.IsExpansionRomSelected(), L"a peek does not select the expansion ROM");
+
+            Assert::IsTrue   (card.TryPeekIo (kAddrControl, value));
+            Assert::AreEqual<Byte> (0x1E, value, L"the 6551's register");
+            Assert::IsTrue   (card.TryPeekIo (kAddrDipSw1, value));
+            Assert::AreEqual (card.Read (kAddrDipSw1), value, L"a switch register, as Read has it");
+        }
+
+
         TEST_METHOD (ExpansionReadsTheFirmwaresFirstPart)
         {
             MemoryBus        bus;

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Cli/CommandLineQuoting.h"
 #include "Cli/ICassoLauncher.h"
 
 #include "Core/TextEncoding.h"
@@ -42,7 +43,7 @@ std::wstring Win32CassoLauncher::GetCassoPath()
 uint32_t Win32CassoLauncher::Launch (const std::wstring & arguments, std::string & error)
 {
     std::wstring         exe         = GetCassoPath();
-    std::wstring         commandLine = L"\"" + exe + L"\" " + arguments;
+    std::wstring         commandLine = CommandLineQuoting::QuoteArgument (exe) + L" " + arguments;
     STARTUPINFOW         startup     = {};
     PROCESS_INFORMATION  process     = {};
     BOOL                 isStarted   = FALSE;

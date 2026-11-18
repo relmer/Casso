@@ -11,6 +11,8 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/MemoryMap.h"
 #include "Sha1.h"
+#include "Core/AppleSingleCodec.h"
+#include "Ui/Debugger/DroppedFiles.h"
 
 
 
@@ -40,6 +42,7 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::SaveBinary:        SaveBinary   (session, command, reply); return true;
     case DebugVerb::LoadBasic:         LoadBasic    (session, command, reply); return true;
     case DebugVerb::SaveBasic:         SaveBasic    (session, command, reply); return true;
+    case DebugVerb::ClearBasic:        ClearBasic   (session, reply);          return true;
     case DebugVerb::SaveText:          SaveText     (session, command, reply); return true;
     case DebugVerb::ReadIo:            ReadIo       (session, command, reply); return true;
     case DebugVerb::WriteIo:           WriteIo      (session, command, reply); return true;
@@ -57,8 +60,9 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //
 //  MemoryHandlers::MakeRows
 //
-//  An unreadable byte, which is any in $C000-$C0FF, is an empty cell. A row
-//  ends early where the region changes, so its region holds for every byte.
+//  An I/O byte is what its device's side-effect-free peek returns, and a byte
+//  no peek can read is an empty cell. A row ends early where the region
+//  changes, so its region applies to every byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +88,11 @@ MemoryData MemoryHandlers::MakeRows (IDebugTarget & target, Word first, Word las
 
 
 
-            row.bytes.push_back (target.TryPeek ((Word) address, value) ? std::optional<Byte> (value) : std::nullopt);
+            bool  isRead = (row.region == MemoryRegion::Io) ? target.TryPeekIo ((Word) address, value) : target.TryPeek ((Word) address, value);
+
+
+
+            row.bytes.push_back (isRead ? std::optional<Byte> (value) : std::nullopt);
         }
 
         data.rows.push_back (row);
@@ -230,7 +238,7 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
 
     if (!command.hasA3)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a destination and a source range.", command.sourceName));
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} takes a destination and a source range.", command.sourceName));
         return;
     }
 
@@ -501,7 +509,7 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -695,7 +703,7 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", Unquote (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (Unquote (command.text))));
         return;
     }
 
@@ -713,13 +721,44 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryHandlers::DescribeListingError
+//
+//  The tokenizer's reason as a sentence: most reasons are about a line,
+//  "is numbered above ...", so the line's number or `subject` goes first;
+//  one about the whole listing or program starts with "the".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MemoryHandlers::DescribeListingError (const ApplesoftListingError & error, const char * subject)
+{
+    std::string  reason = error.reason;
+
+
+
+    if (reason.starts_with ("the "))
+    {
+        reason[0] = 'T';
+        return reason + ".";
+    }
+
+    return error.hasLineNumber ? std::format ("Line {} {}.", error.lineNumber, reason) : std::format ("{} {}.", subject, reason);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryHandlers::LoadBasic
 //
 //  BASICLOAD file tokenizes a listing and puts it at $0801 in place of the
 //  program there, with Applesoft's pointers set as its LOAD sets them: the
 //  variables, arrays and strings empty after the program, and string space
 //  from the top of memory down. Nothing is written when the listing does not
-//  tokenize.
+//  tokenize. An AppleSingle file, or one whose name has its ProDOS type as
+//  CiderPress writes it ("HELLO#fc0801"), is loaded as the emulator window
+//  loads it when dropped (DroppedFiles::TryGetBasicProgram).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -731,7 +770,6 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
     std::string              content;
     std::vector<Byte>        bytes;
     ApplesoftListingError    error;
-    Word                     end     = 0;
     Word                     top     = 0;
     size_t                   lines   = 0;
     bool                     isBlank = true;
@@ -754,35 +792,39 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
-    hr = ApplesoftTokenizer::Tokenize (content, bytes, error);
-
-    if (FAILED (hr))
+    if (AppleSingleCodec::IsAppleSingle (std::vector<Byte> (content.begin(), content.end())) || IsCiderPressBasic (name))
     {
-        reply.SetError (CommandStatus::Error, "file not loadable",
-                        error.hasLineNumber ? std::format ("Line {}: {}", error.lineNumber, error.reason) : error.reason);
-        return;
+        if (!TryGetPackedBasic (name, content, bytes, reply))
+        {
+            return;
+        }
     }
+    else
+    {
+        hr = ApplesoftTokenizer::Tokenize (content, bytes, error);
 
-    end = (Word) (ApplesoftTokenizer::kProgramBase + bytes.size());
+        if (FAILED (hr))
+        {
+            reply.SetError (CommandStatus::Error, "file not loadable", DescribeListingError (error, "A line"));
+            return;
+        }
+    }
 
     if (!IsWritable (target, ApplesoftTokenizer::kProgramBase, bytes.size(), reply) || !TryPeekWord (target, kMemSiz, top, reply))
     {
         return;
     }
 
-    if (!TryPokeRange (target, ApplesoftTokenizer::kProgramBase, bytes, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kTxtTab, ApplesoftTokenizer::kProgramBase, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kVarTab, end, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kAryTab, end, reply) ||
-        !TryPokeWord  (target, ApplesoftProgram::kStrEnd, end, reply) ||
-        !TryPokeWord  (target, kPrgEnd, end, reply) ||
-        !TryPokeWord  (target, kFreTop, top, reply))
+    for (const auto & [address, write] : ApplesoftProgram::MakeLoadWrites (bytes, top))
     {
-        return;
+        if (!TryPokeRange (target, address, write, reply))
+        {
+            return;
+        }
     }
 
     //  The lines that have anything on them.
@@ -799,7 +841,115 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
         }
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, from {} as the BASIC program.", lines, bytes.size(), name) } };
+    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, as the BASIC program{}.", lines, bytes.size(), session.GetPathEcho (name, "from", reply)) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::IsCiderPressBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::IsCiderPressBasic (const std::string & name)
+{
+    std::wstring  file = std::filesystem::path (TextEncoding::Utf8ToWide (name)).filename().wstring();
+
+
+
+    std::ranges::transform (file, file.begin(), [] (wchar_t ch) { return (wchar_t) towlower (ch); });
+
+    return file.find (L"#fc") != std::wstring::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::TryGetPackedBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::TryGetPackedBasic (const std::string & name, std::string & content, std::vector<Byte> & bytes, Reply & reply)
+{
+    std::vector<Byte>      raw     (content.begin(), content.end());
+    std::string            reason;
+    std::string            listing;
+    ApplesoftListingError  error;
+    HRESULT                hr      = S_OK;
+
+
+
+    if (!DroppedFiles::TryGetBasicProgram (TextEncoding::Utf8ToWide (name), raw, bytes, reason))
+    {
+        reply.SetError (CommandStatus::Error, "file not loadable", reason);
+        return false;
+    }
+
+    hr = ApplesoftTokenizer::Detokenize (bytes, listing, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not loadable", DescribeListingError (error, "A line in the file"));
+        return false;
+    }
+
+    content = listing;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::ClearBasic
+//
+//  BASICCLEAR does what Applesoft's NEW does: the program at TXTTAB is made
+//  the empty one, a zero link, and the variables, arrays and strings are
+//  empty after it, with string space from the top of memory down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::ClearBasic (DebugSession & session, Reply & reply)
+{
+    IDebugTarget             & target = session.GetTarget();
+    const std::vector<Byte>    empty  = { 0x00, 0x00 };
+    Word                       start  = 0;
+    Word                       end    = 0;
+    Word                       top    = 0;
+
+
+
+    if (!TryPeekWord (target, ApplesoftProgram::kTxtTab, start, reply) || !TryPeekWord (target, kMemSiz, top, reply))
+    {
+        return;
+    }
+
+    end = (Word) (start + empty.size());
+
+    if (!IsWritable (target, start, empty.size(), reply))
+    {
+        return;
+    }
+
+    if (!TryPokeRange (target, start, empty, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kVarTab, end, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kAryTab, end, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kStrEnd, end, reply) ||
+        !TryPokeWord  (target, kPrgEnd, end, reply) ||
+        !TryPokeWord  (target, kFreTop, top, reply))
+    {
+        return;
+    }
+
+    reply.data = MessageData { { "Cleared the BASIC program." } };
 }
 
 
@@ -864,7 +1014,8 @@ void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "program not listable", error.reason);
+        reply.SetError (CommandStatus::Error, error.reason == kNoLinesReason ? "no program" : "program not listable",
+                        error.reason == kNoLinesReason ? std::string ("There is no Applesoft program in memory.") : DescribeListingError (error, "A line in memory"));
         return;
     }
 
@@ -872,11 +1023,11 @@ void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes, to {}.", bytes.size(), name) } };
+    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes{}.", bytes.size(), session.GetPathEcho (name, "to", reply)) } };
 }
 
 
@@ -984,7 +1135,7 @@ void MemoryHandlers::SaveText (DebugSession & session, const DebugCommand & comm
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 

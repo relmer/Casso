@@ -152,5 +152,67 @@ namespace DebuggerTests
             Assert::AreEqual ((LONG) ((DxuiHexView::kGutterCells + 1) * kCellW), value.left - offset.right,
                               L"the gap and the outlines' gutter between the address and the values");
         }
+
+
+        //  The find box searches all of memory: bytes, or text by its low
+        //  seven bits, with Match case, Whole word and Regular expression.
+        TEST_METHOD (TheFindOptionsApplyToAMemorySearch)
+        {
+            auto    image  = std::make_shared<DebugMemoryImage>();
+            size_t  length = 0;
+            auto    put    = [&image] (Word at, const char * text) { for (size_t each = 0; text[each] != 0; each++) { image->bytes[(size_t) at + each] = (Byte) (text[each] | 0x80); } };
+
+
+
+            put (0x0400, "HELLO WORLD");
+            put (0x2000, "hello");
+            put (0x3000, "HELLOS");
+            image->bytes[0x0300] = 0xA9;
+            image->bytes[0x0301] = 0x42;
+
+            Assert::IsTrue   (MemoryPane::FindHits (*image, L"A9 42", false, false, false, length) == std::vector<Word> { 0x0300 }, L"bytes");
+            Assert::AreEqual ((size_t) 2, length);
+            Assert::IsTrue   (MemoryPane::FindHits (*image, L"$A9 $42", false, false, false, length) == std::vector<Word> { 0x0300 }, L"bytes with dollar signs");
+            Assert::AreEqual ((size_t) 3, MemoryPane::FindHits (*image, L"hello", false, false, false, length).size(), L"text, any case");
+            Assert::IsTrue   (MemoryPane::FindHits (*image, L"hello", true,  false, false, length) == std::vector<Word> { 0x2000 }, L"Match case");
+            Assert::AreEqual ((size_t) 2, MemoryPane::FindHits (*image, L"HELLO", false, true, false, length).size(), L"Whole word skips HELLOS");
+            Assert::IsTrue   (MemoryPane::FindHits (*image, L"W.RLD", true, false, true, length) == std::vector<Word> { 0x0406 }, L"Regular expression");
+        }
+
+
+        //  Next and Previous move through the hits from the caret and wrap at
+        //  the ends of memory.
+        TEST_METHOD (NextAndPreviousMoveThroughTheHitsAndWrap)
+        {
+            DxuiHexView     view;
+            DxuiDpiScaler   scaler;
+            MemoryPane      pane (1, &view, [] (int, Word) {}, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
+            auto            image = std::make_shared<DebugMemoryImage>();
+            int             index = 0;
+            int             count = 0;
+
+
+
+            image->bytes[0x1000] = 0xEA;
+            image->bytes[0x2000] = 0xEA;
+
+            scaler.SetDpi (96);
+            pane.Configure (nullptr);
+            view.SetCellSizeDip (8, 16);
+            view.Layout (RECT { 0, 0, 800, 320 }, scaler);
+            pane.SetMemoryImage (image);
+            pane.GoTo (0x0000);
+
+            Assert::IsTrue   (pane.SelectMatch (L"EA", false, false, false, true, index, count) == DxuiFindResult::Found);
+            Assert::AreEqual (2, count);
+            Assert::AreEqual (1, index, L"the first hit after the caret");
+            Assert::IsTrue   (pane.SelectMatch (L"EA", false, false, false, true, index, count) == DxuiFindResult::Found);
+            Assert::AreEqual (2, index);
+            Assert::IsTrue   (pane.SelectMatch (L"EA", false, false, false, true, index, count) == DxuiFindResult::Wrapped, L"past the last hit, round to the first");
+            Assert::AreEqual (1, index);
+            Assert::IsTrue   (pane.SelectMatch (L"EA", false, false, false, false, index, count) == DxuiFindResult::Wrapped, L"before the first, round to the last");
+            Assert::AreEqual (2, index);
+            Assert::AreEqual (1, pane.GetFindCurrent(), L"the current hit is drawn in the current-match color");
+        }
     };
 }

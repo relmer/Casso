@@ -83,8 +83,12 @@ public:
     virtual ~IHostSocket () = default;
 
     virtual HRESULT  Bind         (const HostEndpoint & local, bool allowBroadcast)        = 0;
-    virtual HRESULT  GetLocal     (HostEndpoint & outLocal) const                          = 0;
-    virtual HRESULT  Listen       ()                                                       = 0;
+
+    //  Sends to a broadcast address permitted on a socket with no explicit
+    //  bind, which the first send binds to a temporary port.
+    virtual HRESULT  AllowBroadcast ()                                                     = 0;
+    virtual HRESULT  GetLocal       (HostEndpoint & outLocal) const                          = 0;
+    virtual HRESULT  Listen         ()                                                       = 0;
     virtual HRESULT  Accept       (std::unique_ptr<IHostSocket>  & outAccepted,
                                    HostEndpoint                  & outPeer,
                                    bool                          & outWouldBlock)          = 0;

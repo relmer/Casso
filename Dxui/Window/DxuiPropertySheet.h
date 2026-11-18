@@ -56,8 +56,8 @@ public:
     DxuiPropertySheet  () = default;
     ~DxuiPropertySheet () override = default;
 
-    int  GetActiveIndex () const { return m_active; }
-    void SetActivePage (int index);
+    int   GetActiveIndex () const { return m_active; }
+    void  SetActivePage  (int index);
 
     //
     //  Page (tab) visibility. A hidden page contributes no tab, is skipped by
@@ -82,12 +82,16 @@ public:
     //  relabel at runtime with just a repaint (the row does not reflow
     //  between resizes).
     //
-    void  SetApplyVisible (bool visible);
-    bool  ApplyVisible    () const { return m_applyVisible; }
-    void  SetOkText       (std::wstring text);
-    const std::wstring &  GetOkText () const { return m_okText; }
-    void  SetOkWidthDip (int widthDip);
-    int   GetOkWidthDip () const { return m_okWidthDip; }
+    void                  SetApplyVisible (bool visible);
+
+    //  False while the pages have a value that can't be saved: OK and Apply
+    //  are disabled until it is fixed.
+    void                  SetConfirmable  (bool confirmable);
+    bool                  ApplyVisible    () const { return m_applyVisible; }
+    void                  SetOkText       (std::wstring text);
+    const std::wstring  & GetOkText       () const { return m_okText; }
+    void                  SetOkWidthDip   (int widthDip);
+    int                   GetOkWidthDip   () const { return m_okWidthDip; }
 
     //
     //  Pure layout helper (exposed for tests). Right-aligns a row of buttons
@@ -192,14 +196,16 @@ protected:
     //  sheet's pixels and its label. Null while the page has no tab.
     const DxuiTabStrip::Tab *  FindTabOfPage (int pageIndex) const;
 
-    void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
-    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
-    void  OnCreate () override;
-    bool  OnDialogTabSwitch (bool backward) override;
-    void  OnDialogKeyHandled (IDxuiControl * focused) override;
-    bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
+    void     Layout                (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse               (const DxuiMouseEvent & ev) override;
+    bool     ShowScrollbarMenu     (HWND hwnd, POINT pt) override { return m_scrollable && m_scrollbar.ShowContextMenu (hwnd, pt.x, pt.y, pt); }
+    LPCWSTR  GetCursorForPoint     (POINT clientPx) const override;
+    void     OnCreate              () override;
+    bool     OnDialogTabSwitch     (bool backward) override;
+    void     OnDialogKeyHandled    (IDxuiControl * focused) override;
+    bool     TryGetMaxClientSizePx (SIZE & outSizePx) const override;
+    bool     TryGetMaxTrackSizePx  (SIZE & outSizePx) const override;
 
     //
     //  Commit hooks (Template Method). The button row calls these so a
@@ -227,6 +233,7 @@ private:
     int   PageIndexOfTab      (int tabIndex) const;
     void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;
     void  MeasureTabs         (std::vector<DxuiSheetTab> & out) const;
+    int   GetTabsWidthPx      () const;
 
     void                LayoutPages                (const RECT & pageAreaPx, const DxuiDpiScaler & scaler);
     void                PlacePages                 (const DxuiDpiScaler & scaler);
@@ -253,6 +260,7 @@ private:
     // Button-row customization (see SetApplyVisible / SetOkText /
     // SetOkWidthDip). Honored at OnCreate and by Layout's reflow.
     bool                             m_applyVisible = true;
+    bool                             m_confirmable  = true;
     std::wstring                     m_okText       = L"OK";
     int                              m_okWidthDip   = 0;   // 0 => s_kButtonWidthDip
 

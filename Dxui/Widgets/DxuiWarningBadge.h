@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
 
 
 
@@ -36,4 +37,26 @@ public:
     static void  Draw (IDxuiPainter & painter,
                        float left, float top, float w, float h,
                        uint32_t fill, uint32_t edge, uint32_t mark);
+
+    static void  Draw (IDxuiTextRenderer & text,
+                       float left, float top, float w, float h,
+                       uint32_t fill, uint32_t edge, uint32_t mark);
+
+private:
+    //  The mark's points, shared by both Draws so the two cannot differ.
+    struct Geometry
+    {
+        float  left   = 0.0f;
+        float  top    = 0.0f;
+        float  right  = 0.0f;
+        float  apexX  = 0.0f;
+        float  baseY  = 0.0f;
+        float  barW   = 0.0f;
+        float  barX   = 0.0f;
+        float  barTop = 0.0f;
+        float  barH   = 0.0f;
+        float  dotY   = 0.0f;
+    };
+
+    static Geometry  Measure (float left, float top, float w, float h);
 };

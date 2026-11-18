@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/JsonValue.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 
 class ICassoLauncher;
 class IInstanceDirectory;
@@ -60,7 +61,16 @@ public:
     static constexpr uint64_t  kDefaultBudget       = 100000000;
     static constexpr int       kMaxReadLength       = 0x1000;
 
-    McpTools (IInstanceDirectory & directory, ICassoLauncher & launcher);
+    //  The client name in the hello, which is in the console lines for host
+    //  file access.
+    static constexpr const char * kClientName = "MCP client";
+
+    //  `client` is what the hello sends each Casso: the name, the extra
+    //  folders and the scripts setting. `scratchFolder` is where a screenshot
+    //  is written for its bytes to be read back; the temporary folder when
+    //  empty. It has to be one of the client's folders for the write to be
+    //  allowed.
+    McpTools (IInstanceDirectory & directory, ICassoLauncher & launcher, ChannelClient client = {}, std::wstring scratchFolder = {});
     ~McpTools();
 
     McpTools (const McpTools &)             = delete;
@@ -99,7 +109,7 @@ private:
 
     bool  EnsureAttached   (McpToolResult & result);
     bool  Connect          (uint32_t processId, std::string & error);
-    void  RunLine          (const std::string & line, const std::string & mode, DWORD timeoutMs, uint64_t budget, McpToolResult & result);
+    void  RunLine          (const std::string & line, const std::string & mode, DWORD timeoutMs, uint64_t budget, bool overwrite, McpToolResult & result);
     void  RunLine          (const std::string & line, McpToolResult & result);
     void  ToResult         (const McpChannelResult & channel, McpToolResult & result);
     void  AddMachineState  (McpToolResult & result);
@@ -107,34 +117,37 @@ private:
     static std::string  GetString (const JsonValue & arguments, const char * key, const std::string & fallback = std::string());
     static int          GetInt    (const JsonValue & arguments, const char * key, int fallback);
 
-    void  ListInstances    (const JsonValue & arguments, McpToolResult & result);
-    void  Launch           (const JsonValue & arguments, McpToolResult & result);
-    void  Attach           (const JsonValue & arguments, McpToolResult & result);
-    void  Close            (const JsonValue & arguments, McpToolResult & result);
-    void  Command          (const JsonValue & arguments, McpToolResult & result);
-    void  Run              (const JsonValue & arguments, McpToolResult & result);
-    void  Resume           (const JsonValue & arguments, McpToolResult & result);
-    void  Pause            (const JsonValue & arguments, McpToolResult & result);
-    void  Step             (const JsonValue & arguments, McpToolResult & result);
-    void  Registers        (const JsonValue & arguments, McpToolResult & result);
-    void  ReadMemory       (const JsonValue & arguments, McpToolResult & result);
-    void  WriteMemory      (const JsonValue & arguments, McpToolResult & result);
-    void  Disassemble      (const JsonValue & arguments, McpToolResult & result);
-    void  SetBreakpoint    (const JsonValue & arguments, McpToolResult & result);
-    void  ClearBreakpoint  (const JsonValue & arguments, McpToolResult & result);
-    void  ListBreakpoints  (const JsonValue & arguments, McpToolResult & result);
-    void  Reset            (const JsonValue & arguments, McpToolResult & result);
-    void  TypeText         (const JsonValue & arguments, McpToolResult & result);
-    void  PressKeys        (const JsonValue & arguments, McpToolResult & result);
-    void  InsertDisk       (const JsonValue & arguments, McpToolResult & result);
-    void  EjectDisk        (const JsonValue & arguments, McpToolResult & result);
-    void  ReadScreen       (const JsonValue & arguments, McpToolResult & result);
-    void  Screenshot       (const JsonValue & arguments, McpToolResult & result);
-    void  Wait             (const JsonValue & arguments, McpToolResult & result);
+    void  ListInstances      (const JsonValue & arguments, McpToolResult & result);
+    void  Launch             (const JsonValue & arguments, McpToolResult & result);
+    void  Attach             (const JsonValue & arguments, McpToolResult & result);
+    void  Close              (const JsonValue & arguments, McpToolResult & result);
+    void  Command            (const JsonValue & arguments, McpToolResult & result);
+    void  Run                (const JsonValue & arguments, McpToolResult & result);
+    void  Resume             (const JsonValue & arguments, McpToolResult & result);
+    void  Pause              (const JsonValue & arguments, McpToolResult & result);
+    void  Step               (const JsonValue & arguments, McpToolResult & result);
+    void  Registers          (const JsonValue & arguments, McpToolResult & result);
+    void  BreakpointMessages (const JsonValue & arguments, McpToolResult & result);
+    void  ReadMemory         (const JsonValue & arguments, McpToolResult & result);
+    void  WriteMemory        (const JsonValue & arguments, McpToolResult & result);
+    void  Disassemble        (const JsonValue & arguments, McpToolResult & result);
+    void  SetBreakpoint      (const JsonValue & arguments, McpToolResult & result);
+    void  ClearBreakpoint    (const JsonValue & arguments, McpToolResult & result);
+    void  ListBreakpoints    (const JsonValue & arguments, McpToolResult & result);
+    void  Reset              (const JsonValue & arguments, McpToolResult & result);
+    void  TypeText           (const JsonValue & arguments, McpToolResult & result);
+    void  PressKeys          (const JsonValue & arguments, McpToolResult & result);
+    void  InsertDisk         (const JsonValue & arguments, McpToolResult & result);
+    void  EjectDisk          (const JsonValue & arguments, McpToolResult & result);
+    void  ReadScreen         (const JsonValue & arguments, McpToolResult & result);
+    void  Screenshot         (const JsonValue & arguments, McpToolResult & result);
+    void  Wait               (const JsonValue & arguments, McpToolResult & result);
 
     IInstanceDirectory           & m_directory;
     ICassoLauncher               & m_launcher;
     std::unique_ptr<McpChannel>    m_channel;
     uint32_t                       m_processId = 0;
+    ChannelClient                  m_client;
+    std::wstring                   m_scratchFolder;
     std::set<uint32_t>             m_launched;
 };

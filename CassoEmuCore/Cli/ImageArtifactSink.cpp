@@ -72,14 +72,18 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
                                            DiskImageSession::OpenedImage & opened,
                                            std::vector<Byte>             & outSectors)
 {
-    HRESULT      hr     = S_OK;
-    bool         named  = !options.onDiskName.empty();
+    HRESULT      hr        = S_OK;
+    bool         named     = !options.onDiskName.empty();
     std::string  onDisk;
     std::string  typeErr;
     FilePayload  payload;
     FilePath     path;
+    bool         placeable = opened.kind == VolumeKind::Dos33 || opened.kind == VolumeKind::ProDos;
 
 
+
+    CBRFEx (placeable, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, "", "doesn't have a DOS 3.3 or ProDOS file system, which assembler output goes on") + "\n");
 
     outSectors = opened.sectors;
 
@@ -101,13 +105,9 @@ HRESULT ImageArtifactSink::ComposeOutputs (const AssemblyResult          & resul
         path = FilePath::Parse (onDisk);
 
         {
-            Dos33Volume   dos (outSectors);
-            ProDosVolume  pro (outSectors);
-            IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                                 ? static_cast<IVolume &> (dos)
-                                 : static_cast<IVolume &> (pro);
+            std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, outSectors);
 
-            hr = volume.Write (path, payload, edited);
+            hr = volume->Write (path, payload, edited);
         }
 
         CHRF (hr, m_diagnostics += DiskCommandResult::FormatFailure (options.imagePath, onDisk,
@@ -164,17 +164,13 @@ HRESULT ImageArtifactSink::ApplyStartupProgram (const CommandLineOptions        
     path = FilePath::Parse (onDisk);
 
     {
-        Dos33Volume   dos (inOutSectors);
-        ProDosVolume  pro (inOutSectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, inOutSectors);
 
-        hr = volume.SetStartupProgram (path, edited);
+        hr = volume->SetStartupProgram (path, edited);
 
         if (SUCCEEDED (hr) && opened.kind == VolumeKind::Dos33)
         {
-            listHr = volume.Enumerate (listing);
+            listHr = volume->Enumerate (listing);
             IGNORE_RETURN_VALUE (listHr, S_OK);
 
             runnable = Dos33Volume::IsRunnableAsGreeting (listing, onDisk);

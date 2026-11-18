@@ -75,6 +75,16 @@ public:
     // Port forwards whose host port could not be bound, as sentences.
     const std::vector<std::string> & GetNetworkErrors () const { return m_network.GetErrors(); }
 
+    // The PC ports the guest's sockets and flows have, which other computers
+    // send to while LAN access is on, as of the last pump. Safe from any
+    // thread: the pump copies them under a lock.
+    std::vector<FirewallPort>  GetInboundPorts () const;
+
+    // The gate the guest's listeners and the port forwards wait on, and the
+    // ports deferred until it admits them. GetDeferredPorts is for the CPU thread.
+    void                       SetListenGate    (const ListenGate * gate) { m_bridge.SetListenGate (gate); m_network.SetListenGate (gate); }
+    std::vector<FirewallPort>  GetDeferredPorts () const;
+
     void  Tick (uint32_t cycles)
     {
         m_cyclesSincePump += cycles;
@@ -97,9 +107,9 @@ public:
     // W5100's mode, addresses and interrupt register, and each socket.
     std::string  GetDiagnosticsId    () const override { return "uthernet"; }
     std::string  GetDiagnosticsTitle () const override { return "Uthernet II"; }
-    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
-    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
-    uint64_t             GetCycles () const { return m_cycles; }
+    void      GetDiagnostics (DiagnosticsSnapshot & snapshot) const override;
+    void      AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const override;
+    uint64_t  GetCycles      () const { return m_cycles; }
 
     // IMachineState: the W5100's section, then the pump's count.
     HRESULT  SaveState (StateWriter & writer) const override;
@@ -179,4 +189,6 @@ private:
     std::deque<ReplayedCall>                 m_replayed;   // journaled calls a replay applied ahead of their instruction
     ICommEventSink                         * m_commSink        = nullptr;
     std::array<Byte, W5100::kSocketCount>    m_notedStates     = {};   // the socket states in the last network log entries
+    std::vector<FirewallPort>                m_inboundPorts;
+    mutable std::mutex                       m_inboundLock;
 };

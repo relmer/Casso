@@ -155,7 +155,7 @@ public:
 
 
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         return writer.GetBytes();
@@ -168,7 +168,7 @@ public:
 
 
 
-        return KeyframeStore::ComputeChecksum (state.data(), state.size());
+        return KeyframeCodec::ComputeChecksum (state.data(), state.size());
     }
 
 

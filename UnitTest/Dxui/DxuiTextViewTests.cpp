@@ -1,5 +1,8 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -70,6 +73,58 @@ public:
     }
 
 
+    //  A picture row is as many lines as the picture is tall, and the picture
+    //  is drawn once, a pixel a DIP.
+    TEST_METHOD (Picture_TakesTheLinesOfItsHeightAndIsDrawnOnce)
+    {
+        DxuiTextView          view;
+        DxuiTextView::Row     row     = MakeRow ({ L"" });
+        auto                  picture = std::make_shared<DxuiTextView::Picture>();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        int                   drawn   = 0;
+
+        picture->bgra.assign (10 * 40, 0xFF336699);
+        picture->width  = 10;
+        picture->height = 40;
+        row.picture     = picture;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
+
+        Assert::AreEqual (5, view.GetLineCount(), L"a line above, three for 40 pixels of 16-pixel lines, and one below");
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            drawn += (call.kind == RecordedTextKind::DrawFramebuffer) ? 1 : 0;
+        }
+
+        Assert::AreEqual (1,  drawn);
+        Assert::AreEqual (10, text.GetLastFramebufferWidth());
+    }
+
+
+    //  A row's wrap indent starts each wrapped line that many characters past
+    //  the last cell's first, as source code wraps under its operand.
+    TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)
+    {
+        DxuiTextView       view;
+        DxuiTextView::Row  row = MakeRow ({ L"10", L"X LDA AAAA BBBB" });
+
+        row.wrapIndent = 6;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetRows ({ row });
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (14, view.HitTest (POINT { 6 + 10 * 8, 6 + 16 + 4 }).offset, L"BBBB starts under the first A");
+        Assert::AreEqual (15, view.HitTest (POINT { 6 + 11 * 8, 6 + 16 + 4 }).offset);
+    }
+
+
     //  A row with a wrap indent continues its last cell that many characters
     //  in, so a help row's description wraps under itself.
     TEST_METHOD (WrapIndent_StartsEachWrappedLineThatFarIn)
@@ -87,6 +142,45 @@ public:
         Assert::AreEqual (2, view.GetLineCount(), L"sixteen columns, so the row wraps once");
         Assert::AreEqual (16, view.HitTest (POINT { 6 + 6 * 8, 6 + 16 + 4 }).offset,
             L"the wrapped line starts six columns in, with CCCC under AAAA");
+    }
+
+
+    //  An inverse span is filled with its color, and its characters are drawn
+    //  in the background color over the fill.
+    TEST_METHOD (Span_Inverse_FillsItsColorAndDrawsInTheBackground)
+    {
+        DxuiTextView           view;
+        DxuiTextView::Row      row     = MakeRow ({ L"10", L"PRINT \"^DX\"" });
+        DxuiTextView::Span     span;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        bool                   filled  = false;
+        bool                   drawn   = false;
+
+        span.cell    = 1;
+        span.start   = 7;
+        span.length  = 2;
+        span.argb    = 0xFF112233;
+        span.inverse = true;
+        row.spans.push_back (span);
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            filled = filled || (call.kind == RecordedPaintKind::FillRect && call.argb == 0xFF112233 && call.width == 16.0f && call.height == 16.0f);
+        }
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            drawn = drawn || (call.text == L"^D" && call.argb == theme.ContentBackground());
+        }
+
+        Assert::IsTrue (filled, L"The span's two cells are filled with its color");
+        Assert::IsTrue (drawn,  L"and its characters are drawn in the background color");
     }
 
 
@@ -181,6 +275,74 @@ public:
         view.SetNoWrap (false);
         Assert::AreEqual (0, view.GetLeftColumn());
         Assert::IsTrue   (view.GetLineCount() > 1, L"wrapped again");
+    }
+
+
+    //  A bold run is measured bold, so the text after it starts where the
+    //  bold run ends, not where the same characters end in the regular face.
+    TEST_METHOD (Proportional_MeasuresABoldRunBold)
+    {
+        DxuiTextView          view;
+        DxuiTextView::Row     row = MakeRow ({ L"XXXYY" });
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        DxuiTextView::Span    bold;
+
+        bold.length = 3;
+        bold.bold   = true;
+        row.spans.push_back (bold);
+        text.SetBoldGlyphWidth (9.0f);
+
+        LayOut (view, 400, 400);
+        view.SetProportional (true);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (2, view.HitTest (POINT { 6 + 18, 6 + 4 }).offset, L"Two bold characters are 18 wide, not 14");
+        Assert::AreEqual (4, view.HitTest (POINT { 6 + 27 + 7, 6 + 4 }).offset, L"and a regular one after them starts at 27");
+    }
+
+
+    //  An empty last cell adds nothing to how far the text scrolls sideways,
+    //  not even the gap ahead of it: a view wide enough for every character
+    //  has no bar along the bottom. The ten characters end at column 14, and
+    //  the view has room for 14 beside its scroll bar.
+    TEST_METHOD (NoWrap_AnEmptyLastCellDoesNotScroll)
+    {
+        DxuiTextView  view;
+
+
+
+        LayOut (view, 12 + 10 + 14 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"ab", L"0123456789", L"" }) });
+
+        Assert::AreEqual (14, view.GetVisibleColumns());
+        Assert::IsFalse  (view.IsHorzScrollbarVisible(), L"the empty cell's gap is not text to scroll to");
+
+        view.SetRows ({ MakeRow ({ L"ab", L"0123456789", L"x" }) });
+        Assert::IsTrue   (view.IsHorzScrollbarVisible(), L"a character there is");
+    }
+
+
+    //  A clipped column's text is cut off at the right edge and adds nothing
+    //  to the sideways scroll. A long cell in a column ahead of it scrolls.
+    TEST_METHOD (NoWrap_AClippedColumnIsCutOffRatherThanScrolled)
+    {
+        DxuiTextView  view;
+
+
+
+        LayOut (view, 200, 400);
+        view.SetNoWrap             (true);
+        view.SetFirstClippedColumn (2);
+        view.SetRows ({ MakeRow ({ L"1", L"lda #$41", std::wstring (200, L'x') }) });
+
+        Assert::IsFalse (view.IsHorzScrollbarVisible(), L"the long annotation is cut off");
+
+        view.SetRows ({ MakeRow ({ L"1", std::wstring (200, L'y'), L"A=41" }) });
+        Assert::IsTrue  (view.IsHorzScrollbarVisible(), L"a long line of code scrolls");
     }
 
 
@@ -294,6 +456,99 @@ public:
 
         Assert::IsTrue   (view.OnKey (down));
         Assert::AreEqual (1, view.GetTopLine(),  L"Down alone scrolls a line");
+    }
+
+
+    //  With row focus on, a press focuses its row, and the keys move it: a
+    //  row, a page, the top and bottom row in view, and the first and last
+    //  row, scrolled into view. Ctrl+Up is left to the host.
+    TEST_METHOD (RowFocus_APressFocusesARowAndTheKeysMoveIt)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows;
+        auto                            key = [&view] (WPARAM vk, bool ctrl)
+        {
+            return view.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Down, vk, false, false, ctrl, false });
+        };
+
+
+
+        for (int i = 0; i < 100; i++)
+        {
+            rows.push_back (MakeRow ({ std::to_wstring (i) }));
+        }
+
+        LayOut (view, 400, 12 + 16 * 10);
+        view.SetRowFocus (true);
+        view.SetRows     (std::move (rows));
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 4, 6 + 2 * 16 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 4, 6 + 2 * 16 + 4);
+        Assert::AreEqual (2, view.GetFocusRow(), L"the row pressed");
+
+        Assert::IsTrue   (key (VK_DOWN, false));
+        Assert::AreEqual (3, view.GetFocusRow());
+        Assert::IsTrue   (key (VK_UP, false));
+        Assert::AreEqual (2, view.GetFocusRow());
+        Assert::IsTrue   (key (VK_NEXT, false));
+        Assert::AreEqual (12, view.GetFocusRow(), L"a page of ten rows");
+        Assert::AreEqual (3, view.GetTopLine(), L"scrolled into view");
+
+        Assert::IsTrue   (key (VK_HOME, false));
+        Assert::AreEqual (3, view.GetFocusRow(), L"the top row in view");
+        Assert::IsTrue   (key (VK_END, false));
+        Assert::AreEqual (12, view.GetFocusRow(), L"the bottom row in view");
+        Assert::IsTrue   (key (VK_PRIOR, true));
+        Assert::AreEqual (3, view.GetFocusRow(), L"Ctrl+Page Up: the top row in view");
+        Assert::IsTrue   (key (VK_NEXT, true));
+        Assert::AreEqual (12, view.GetFocusRow(), L"Ctrl+Page Down: the bottom row in view");
+
+        Assert::IsTrue   (key (VK_END, true));
+        Assert::AreEqual (99, view.GetFocusRow(), L"Ctrl+End: the last row");
+        Assert::AreEqual (90, view.GetTopLine());
+        Assert::IsTrue   (key (VK_HOME, true));
+        Assert::AreEqual (0, view.GetFocusRow(), L"Ctrl+Home: the first row");
+        Assert::AreEqual (0, view.GetTopLine());
+
+        Assert::IsFalse  (key (VK_UP, true), L"Ctrl+Up is a shortcut");
+    }
+
+
+    //  The focused row is drawn as a list draws its selected row, while the
+    //  view has the focus and no text is selected.
+    TEST_METHOD (RowFocus_TheFocusedRowIsFilledWhileTheViewHasTheFocus)
+    {
+        DxuiTheme             theme = DxuiTheme::Light();
+        DxuiTextView          view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        auto                  isFilled = [&painter, &theme]
+        {
+            return std::ranges::any_of (painter.Calls(), [&theme] (const RecordedPaintCall & call)
+            {
+                return call.kind == RecordedPaintKind::FillRoundedRect && call.argb == theme.ContentSelection() && call.y == 6.0f + 16.0f;
+            });
+        };
+
+
+
+        LayOut (view, 400, 400);
+        view.SetRowFocus (true);
+        view.SetRows     ({ MakeRow ({ L"one" }), MakeRow ({ L"two" }) });
+        view.SetFocusRow (1);
+
+        view.Paint (painter, text, theme);
+        Assert::IsFalse (isFilled(), L"not while the view lacks the focus");
+
+        view.OnFocusChanged (true);
+        painter.Reset();
+        view.Paint (painter, text, theme);
+        Assert::IsTrue  (isFilled(), L"the second row");
+
+        view.SelectAll();
+        painter.Reset();
+        view.Paint (painter, text, theme);
+        Assert::IsFalse (isFilled(), L"not while text is selected");
     }
 
 
@@ -639,5 +894,171 @@ public:
 
             Assert::IsTrue (overBar > 0, (L"and the sweep crossed it " + at).c_str());
         }
+    }
+
+
+    TEST_METHOD (NoWrap_KeepsARowOnOneLine_AndScrollsSideways)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"SYSTEM.APPLE 32 3-Sep-85 Datafile" }) });
+
+        Assert::AreEqual (1, view.GetLineCount());
+        Assert::IsTrue   (view.IsHorzScrollbarVisible());
+
+        view.ScrollColumns (7);
+
+        Assert::AreEqual (7, view.GetLeftColumn());
+        Assert::AreEqual (7, view.HitTest (POINT { 6, 6 + 4 }).offset, L"The character at the left edge is the one scrolled to");
+
+        view.ScrollColumns (1000);
+
+        Assert::AreEqual (33 - 16, view.GetLeftColumn(), L"The row's last character stops at the right edge");
+    }
+
+
+    TEST_METHOD (NoWrap_HasNoHorizontalBar_WhenRowsFit)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"SHORT" }) });
+
+        view.ScrollColumns (3);
+
+        Assert::IsFalse  (view.IsHorzScrollbarVisible());
+        Assert::AreEqual (0, view.GetLeftColumn());
+    }
+
+
+    TEST_METHOD (NoWrap_Off_WrapsTheRow_AndResetsTheScroll)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"PRINT AAAA BBBB CCCC DDDD" }) });
+        view.ScrollColumns (5);
+        view.SetNoWrap (false);
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (0, view.GetLeftColumn());
+        Assert::IsFalse  (view.IsHorzScrollbarVisible());
+    }
+
+
+    TEST_METHOD (Wheel_WithShift_ScrollsSideways)
+    {
+        DxuiTextView    view;
+        DxuiMouseEvent  ev;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ std::wstring (60, L'X') }) });
+
+        ev.kind       = DxuiMouseEventKind::Wheel;
+        ev.wheelDelta = -1.0f;
+        ev.shift      = true;
+        view.OnMouse (ev);
+
+        Assert::AreEqual (DxuiTextView::kWheelColumns, view.GetLeftColumn());
+    }
+
+
+    //  A span draws its characters in its own color, and the rest of the cell
+    //  in the text color, each stretch of one color as one string.
+    TEST_METHOD (Span_DrawsItsCharactersInItsColor)
+    {
+        DxuiTextView           view;
+        DxuiTextView::Row      row     = MakeRow ({ L"10", L"LDA #1" });
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        bool                   colored = false;
+        bool                   plain   = false;
+
+        row.spans.push_back ({ 1, 0, 3, 0xFF112233 });
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            colored = colored || (call.text == L"LDA" && call.argb == 0xFF112233);
+            plain   = plain   || (call.text == L" #1" && call.argb != 0xFF112233);
+        }
+
+        Assert::IsTrue (colored, L"The span's characters are in its color");
+        Assert::IsTrue (plain,   L"and the rest of the cell in the text color");
+    }
+
+
+    //  Proportional text is laid out once a paint has measured its
+    //  characters, and a point is hit-tested by those measured places.
+    TEST_METHOD (Proportional_LaysOutAndHitTestsByMeasuredPlaces)
+    {
+        DxuiTextView          view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        LayOut (view, 400, 400);
+        view.SetProportional (true);
+        view.SetRows ({ MakeRow ({ L"Format", L"WOZ 2" }), MakeRow ({ L"", L"second line" }) });
+
+        Assert::AreEqual (0, view.GetLineCount(), L"Nothing is laid out until a paint measures the characters");
+
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (0,  view.HitTest (POINT { 0, 6 + 4 }).offset, L"The row's left edge is its first character");
+        Assert::AreEqual (12, view.HitTest (POINT { 399, 6 + 4 }).offset, L"and past its end is the end of its text");
+
+        view.SelectAll();
+        Assert::AreEqual (std::wstring (L"Format\tWOZ 2\r\n\tsecond line"), view.GetSelectionText());
+    }
+
+
+    //  A double-click selects a word, and a third click on the same spot
+    //  selects everything.
+    TEST_METHOD (TripleClick_SelectsEverything)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"A", L"one two" }), MakeRow ({ L"B", L"three" }) });
+
+        for (int click = 0; click < 2; click++)
+        {
+            Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+            Mouse (view, DxuiMouseEventKind::Up,   6 + 3 * 8, 6 + 4);
+        }
+
+        Assert::AreEqual (std::wstring (L"one"), view.GetSelectionText(), L"Two clicks select the word");
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 3 * 8, 6 + 4);
+
+        Assert::AreEqual (std::wstring (L"A\tone two\r\nB\tthree"), view.GetSelectionText(), L"and a third selects everything");
+    }
+
+
+    //  The horizontal bar takes a line's height, so a view whose rows just fit
+    //  needs the vertical bar as well.
+    TEST_METHOD (NoWrap_HorizontalBar_CanBringOnTheVerticalBar)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows (10, MakeRow ({ std::wstring (60, L'X') }));
+
+        LayOut (view, 12 + 16 * 8, 12 + 16 * 10);
+        view.SetNoWrap (true);
+        view.SetRows (std::move (rows));
+
+        Assert::IsTrue (view.IsHorzScrollbarVisible());
+        Assert::IsTrue (view.IsScrollbarVisible());
     }
 };

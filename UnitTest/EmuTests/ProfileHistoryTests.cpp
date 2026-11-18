@@ -47,7 +47,7 @@ namespace ProfileHistoryTests
             logs.Start (&controller);
             logs.GetProfileHistory().SetIsStopped ([] { return true; });
 
-            machine.RunCycles (kRunCycles);
+            machine.GetRunner().RunCycles (kRunCycles);
 
             hr = controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");
@@ -104,7 +104,7 @@ namespace ProfileHistoryTests
         {
             ProfileRig        rig;
             ProfileCountsPtr  counts = rig.BuildFrom (0);
-            uint64_t          first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t          first  = rig.controller.GetKeyframes().GetArena().GetInfo (0).cycle;
             uint64_t          span   = rig.machine.GetCpu()->GetTotalCycles() - first;
 
 
@@ -159,7 +159,7 @@ namespace ProfileHistoryTests
         TEST_METHOD (ARangeCountsOnlyItsOwnCycles)
         {
             ProfileRig        rig;
-            uint64_t          first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t          first  = rig.controller.GetKeyframes().GetArena().GetInfo (0).cycle;
             uint64_t          span   = rig.machine.GetCpu()->GetTotalCycles() - first;
             uint64_t          from   = first + span / 4;
             uint64_t          to     = first + span / 2;
@@ -200,7 +200,7 @@ namespace ProfileHistoryTests
             std::vector<ProfileHistory::Block>  blocks;
             ProfileCountsPtr                    counts;
             ProfileCountsPtr                    again;
-            uint64_t                            first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t                            first  = rig.controller.GetKeyframes().GetArena().GetInfo (0).cycle;
             uint64_t                            span   = rig.machine.GetCpu()->GetTotalCycles() - first;
 
 
@@ -249,13 +249,13 @@ namespace ProfileHistoryTests
 
             rig.machine.GetMemoryBus().WriteByte (kEdited, 0x5A);
 
-            hr = rig.controller.OnMachineChanged();
+            hr = rig.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
-            boundary = keyframes.GetInfo (keyframes.GetCount() - 1).position;
-            Assert::IsTrue (keyframes.GetInfo (keyframes.GetCount() - 1).isBoundary, L"the edit took a boundary keyframe");
+            boundary = keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position;
+            Assert::IsTrue (keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).isBoundary, L"the edit took a boundary keyframe");
 
-            rig.machine.RunCycles (kMoreCycles);
+            rig.machine.GetRunner().RunCycles (kMoreCycles);
 
             hr = rig.controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");

@@ -39,11 +39,11 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("Breakpoint set at video scanline $10, cycle $20. It clears after it fires."), rig.RunOk ("BPBEAM 10 20").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint set at video scanline $10, cycle $20. It is removed after its first stop."), rig.RunOk ("BPBEAM 10 20").text.at (0));
             Assert::IsTrue   (rig.session.HasBeamBreak());
             Assert::IsTrue   (rig.target.hookInstalled);
 
-            Assert::AreEqual (std::string ("Breakpoint set at the start of vertical blank, scanline $C0. It clears after it fires."), rig.RunOk ("BPBEAM vbl").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint set at the start of vertical blank, scanline $C0. It is removed after its first stop."), rig.RunOk ("BPBEAM vbl").text.at (0));
         }
 
 

@@ -6,7 +6,8 @@
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
-#include "Debugger/AppleWinParser.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
+#include "Debugger/AppleWinArgumentForms.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -60,7 +61,7 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::ListPanels:
     case DebugVerb::OpenPanel:
     case DebugVerb::ClosePanel:
-        reply.SetError (CommandStatus::NotAvailable, "command not available", "PANEL needs the debugger window.");
+        reply.SetError (CommandStatus::NotAvailable, "command not available", "PANEL is available only in the debugger window.");
         return true;
 
     default:
@@ -77,7 +78,11 @@ bool ConfigHandlers::TryExecute (DebugSession & session, const DebugCommand & co
 //  ConfigHandlers::RunScript
 //
 //  Each line's text is rendered as it runs and kept in order; the first line
-//  that fails sets the script's status, and the lines after it still run.
+//  that fails sets the script's status, and the lines after it run too.
+//  After a line that starts a run that goes on, as G does in the window,
+//  or a move through history, as LIVE and SEEK make, the rest of the script
+//  waits in the session, for the host to run once the machine stops or the
+//  move lands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +126,14 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
             if (!mode.has_value() && session.GetMode() != modeBefore)
             {
                 lineMode = session.GetMode();
+            }
+
+            if ((session.GetRunState() != RunState::Paused || session.IsReversePending()) && end != std::string::npos &&
+                content.find_first_not_of (" \t\r\n", end + 1) != std::string::npos)
+            {
+                session.SetPendingScript ({ content.substr (end + 1), mode.has_value() ? mode : std::optional<CommandMode> (lineMode) });
+                result.data = MessageData { result.text };
+                return;
             }
         }
 
@@ -243,6 +256,11 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
         directory.pop_back();
     }
 
+    if (!session.CheckHostAccess (directory, HostAccess::Read, reply))
+    {
+        return;
+    }
+
     session.SetCurrentDirectory (directory);
     PrintDirectory (session, reply);
 }
@@ -271,7 +289,7 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
 
     if (name.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "Give the script file to run.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "Type the name of the script file to run.");
         return;
     }
 
@@ -281,11 +299,13 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
         return;
     }
 
+    session.NoteScriptRun (session.ResolvePath (name));
+
     hr = files->ReadAllText (session.ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -346,7 +366,7 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 
@@ -490,6 +510,11 @@ void ConfigHandlers::InsertOrEject (DebugSession & session, const DebugCommand &
 
     path = session.ResolvePath (name);
 
+    if (!session.CheckHostAccess (path, HostAccess::Read, reply))
+    {
+        return;
+    }
+
     if (GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
         reply.SetError (CommandStatus::Error, "file not found", std::format ("{} doesn't exist.", TextEncoding::WideToNarrow (path)));
@@ -603,6 +628,11 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     if (keys != nullptr)
     {
+        if (!session.CheckHostAccess (session.ResolvePath (name), HostAccess::Read, reply))
+        {
+            return;
+        }
+
         keys->InsertTapeFile (session.ResolvePath (name));
         reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetPathEcho (name, "from", reply)) } };
         return;
@@ -618,7 +648,7 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
         return;
     }
 
@@ -1041,7 +1071,7 @@ bool ConfigHandlers::TryUnquote (const std::string & item, std::string & text)
 
 bool ConfigHandlers::TryEvaluate (DebugSession & session, const std::string & text, Word & value, std::string & error)
 {
-    return AppleWinParser::TryEvaluate (text, session, value, error);
+    return AppleWinArgumentForms::TryEvaluate (text, session, value, error);
 }
 
 

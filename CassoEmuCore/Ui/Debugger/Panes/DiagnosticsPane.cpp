@@ -216,6 +216,9 @@ std::vector<std::vector<DxuiListView::Cell>> DiagnosticsPane::MakeRows (const Di
 
             rows.back()[0].tip = TextEncoding::NarrowToWide (row.tip);
             rows.back()[1].tip = rows.back()[0].tip;
+
+            //  A switch's name is as bright or as dim as its value.
+            rows.back()[0].dim = rows.back()[1].dim;
         }
     }
 
@@ -231,7 +234,8 @@ std::vector<std::vector<DxuiListView::Cell>> DiagnosticsPane::MakeRows (const Di
 //  DiagnosticsPane::MakeValueCell
 //
 //  A switch that is on reads as ON in the list's full-strength text, and one
-//  that is off as off in its muted text, so the set switches stand out.
+//  that is off as off in its muted text, so the set switches are easy to find; the
+//  row's name takes the same strength.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

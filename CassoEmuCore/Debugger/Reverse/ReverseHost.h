@@ -47,8 +47,8 @@ public:
 
     void     SetLiveCallback (std::function<void()> onLive) { m_onLive = std::move (onLive); }
 
-    bool     IsRecording    () const { return m_controller.IsRecording(); }
-    bool     IsBehindLive   () const { return m_controller.IsInHistory(); }
+    bool     IsRecording    () const { return m_controller.GetSpan().IsRecording(); }
+    bool     IsBehindLive   () const { return m_controller.GetSpan().IsInHistory(); }
 
     //  How far behind live the machine stands; the outcome is left empty.
     HistoryStatus  GetStatus () const;
@@ -62,6 +62,10 @@ public:
 
     //  How full the store's budget is and where its history begins.
     static void             FillBudget   (const KeyframeStore & store, HistoryStatus & status);
+
+    //  The cycle a number of milliseconds of emulated time before liveEnd, or
+    //  the first cycle when the time is longer than the machine has run.
+    static uint64_t         GetCycleBack (uint64_t liveEnd, uint64_t milliseconds);
 
 private:
     HRESULT  Move (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);

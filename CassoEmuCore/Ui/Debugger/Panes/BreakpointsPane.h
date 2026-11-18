@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
+#include "Ui/Debugger/Panes/ListValueFilters.h"
 
 class BreakpointBarCommands;
 class DebuggerPaneFrame;
@@ -18,7 +19,8 @@ class DebuggerPaneFrame;
 //
 //  The breakpoints: a toolbar over a list of every breakpoint, each row its
 //  checkbox, the gutter's mark and a cell for each visible column, sorted
-//  by the heading last clicked. A breakpoint is renamed in a box laid over its
+//  by the heading last clicked and filtered from the Kind, Trigger and File
+//  headings. A breakpoint is renamed in a box laid over its
 //  Name cell. Each change is one step on the pane's undo list.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,9 +53,12 @@ public:
     void                             ToggleColumn   (BreakpointColumns::Column column);
     void                             Sort           (BreakpointColumns::Column column);
 
+    //  The filters of the Kind, Trigger and File headings.
+    ListValueFilters               & GetFilters     () { return m_filters; }
+
     //  Whether a bar entry can act, and its step.
-    bool                             IsBarEntryEnabled (int id) const;
-    void                             RunBarEntry    (int id);
+    bool  IsBarEntryEnabled (int id) const;
+    void  RunBarEntry       (int id);
 
     //  A box over a row's Name cell with its name, all of it selected so
     //  typing replaces it; and its end, Enter or a click away committing
@@ -67,23 +72,39 @@ public:
 
     const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"Breakpoints"; }
-    void                             CreateControls () override;
-    void                             CreateOverlays () override;
-    std::vector<IDxuiControl *>      GetOverlays    () const override { return { m_nameEditor }; }
-    void                             Configure      () override;
-    void                             AddToDock      (DxuiDockSite & dock) override;
-    IDxuiControl                   * GetContent     () const override;
-    std::vector<IDxuiControl *>      GetControls    () const override;
-    std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
-    std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
-    std::optional<PaneColorKeySpec>  GetColorKey    () const override;
-    void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
-    void                             PlaceBar       () override { m_bar.Place(); }
-    bool                             RouteEditMouse (const DxuiMouseEvent & ev) override;
-    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    bool                             RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
-    bool                             AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
+    void                               CreateControls     () override;
+    void                               CreateOverlays     () override;
+    std::vector<IDxuiControl *>        GetOverlays        () const override { return { m_nameEditor }; }
+    void                               Configure          () override;
+    void                               AddToDock          (DxuiDockSite & dock) override;
+    IDxuiControl                     * GetContent         () const override;
+    std::vector<IDxuiControl *>        GetControls        () const override;
+    std::vector<DxuiListView *>        GetLists           () const override { return { m_list }; }
+    IDxuiFindTarget                  * GetFindView        () const override { return m_list; }
+    DebuggerPaneFrame                * GetFindFrame       () const override { return m_frame.get(); }
+    std::vector<DxuiToolbar *>         GetBars            () const override { return { m_bar.GetBar() }; }
+    std::optional<PaneColorKeySpec>    GetColorKey        () const override;
+    void                               Apply              (const DebuggerViewSnapshot & snapshot) override;
+    void                               PlaceBar           () override { m_bar.Place(); }
+    bool                               RouteEditMouse     (const DxuiMouseEvent & ev) override;
+    bool                               RouteBarMouse      (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    bool                               RouteEditKey       (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
+    bool                               AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                               AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
+
+    //  The loaded debug file's sources by name; empty without a debug file.
+    static std::vector<std::wstring>  GetSourceFiles (const DebuggerViewSnapshot * snapshot);
+
+    //  The actions the breakpoint dialog's OK runs: the definition, as an
+    //  edit of editedId or a new breakpoint, then BPLOG when the message or
+    //  whether a hit goes on running differs from the original's. A new
+    //  breakpoint's message is set on nextId, the id it takes.
+    static std::vector<DebuggerAction>  GetDialogActions (const BreakpointDialog::Result & result, std::optional<int> editedId, const BreakpointInfo & original,
+                                                          int nextId, CommandMode mode);
+
+    //  A group heading's menu: Enable all, Disable all, Rename group...,
+    //  Ungroup, and Delete group and its breakpoints.
+    void  AddHeadingItems (const std::string & group, PaneMenuItems & items);
 
 private:
     static constexpr int  kNoId = INT_MIN;     // GetIdOfRow's id for no row; a session stop's id is negative
@@ -95,19 +116,30 @@ private:
         std::wstring  opened;
     };
 
-    void                             SetColumns     ();
-    void                             ApplyRows      ();
-    void                             SetBarMenus    ();
-    void                             NewBreakpoint  (BreakpointDialog::Type type);
-    BreakpointDialog::Validator      MakeValidator  (std::optional<int> editedId);
-    bool                             ConfirmDeleteAll ();
-    std::shared_ptr<DxuiCommand>     MakeTypeCommand (BreakpointDialog::Type type, const wchar_t * label);
-    DebuggerAction                   GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const;
-    void                             RunStep        (BreakpointStep step);
-    std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
-    int                              GetIdOfRow     (int row) const;
-    int                              GetRowOfId     (int id) const;
-    std::vector<std::wstring>        GetRowKeys     () const;
+    void                                               SetColumns       ();
+    void                                               ApplyRows        ();
+    void                                               FilterOrder      (const std::vector<BreakpointColumns::Cells> & allCells);
+
+    //  The rows in groups: the breakpoints in no group first, then each
+    //  group's, in the order of each group's first breakpoint; and each
+    //  group's heading and the name it is for.
+    std::vector<DxuiListView::Group>                   GroupOrder       (const DebuggerViewSnapshot & snapshot);
+    void                                               AddGroupItems    (const std::vector<DebuggerViewSnapshot::BreakpointLine> & selected, PaneMenuItems & items);
+    void                                               RunGroupAction   (const std::string & arguments);
+    std::optional<std::string>                         AskGroupName     (const std::wstring & title, const std::wstring & placeholder);
+    static std::string                                 MakeIdList       (const std::vector<DebuggerViewSnapshot::BreakpointLine> & lines);
+    void                                               SetBarMenus      ();
+    void                                               NewBreakpoint    (BreakpointDialog::Type type);
+    BreakpointDialog::Validator                        MakeValidator    (std::optional<int> editedId);
+    void                                               EditInDialog     (const DebuggerViewSnapshot::BreakpointLine & bp);
+    bool                                               ConfirmDeleteAll ();
+    std::shared_ptr<DxuiCommand>                       MakeTypeCommand  (BreakpointDialog::Type type, const wchar_t * label);
+    DebuggerAction                                     GetClearAction   (const DebuggerViewSnapshot::BreakpointLine & bp) const;
+    void                                               RunStep          (BreakpointStep step);
+    std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected      () const;
+    int                                                GetIdOfRow       (int row) const;
+    int                                                GetRowOfId       (int id) const;
+    std::vector<std::wstring>                          GetRowKeys       () const;
 
     PaneBarSlot                              m_bar;
     DxuiListView                           * m_list       = nullptr;
@@ -116,8 +148,10 @@ private:
     std::unique_ptr<DebuggerPaneFrame>       m_frame;
     std::unique_ptr<BreakpointBarCommands>   m_commands;
     Shown                                    m_shown      = BreakpointColumns::GetDefaultShown();
+    ListValueFilters                         m_filters;
     std::vector<size_t>                      m_order;
     std::vector<int>                         m_rowIds;          // each row's breakpoint id, as the rows were last set
+    std::vector<std::string>                 m_groupNames;      // each heading's group, as the rows were last set
     int                                      m_sort       = -1;
     bool                                     m_isReverse  = false;
 };

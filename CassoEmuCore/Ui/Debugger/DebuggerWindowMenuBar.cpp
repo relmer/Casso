@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/SymbolTable.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -213,6 +216,7 @@ void DebuggerWindow::SetWindowMenus()
     add (file, DebuggerMenuCommand::Make (L"Save memory to file...", [this] { SaveMemoryToFile(); }));
     add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", [this] { OpenBasicProgram(); }));
     add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", [this] { SaveBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Clear BASIC program...", [this] { ClearBasicProgram(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Open project...", [this] { OpenProject(); }));
     add (file, DebuggerMenuCommand::Make (L"Save project as...", [this] { SaveProjectAs(); }));
@@ -279,7 +283,7 @@ void DebuggerWindow::SetWindowMenus()
     {
         if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
         {
-            RunAction (DebuggerActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
+            RunAction (RunActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
         }
     });
     row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
@@ -332,6 +336,7 @@ void DebuggerWindow::SetWindowMenus()
         row = DebuggerMenuCommand::Make (choice.label, current, [this, name]
         {
             m_themeBeforePreview.reset();
+            UnpinMenuFont();
 
             if (m_host != nullptr)
             {
@@ -377,8 +382,9 @@ void DebuggerWindow::SetWindowMenus()
 //
 //  DebuggerWindow::AddUnloadSymbolsRow
 //
-//  File's Unload symbol file: a row for each symbol or debug file loaded,
-//  which clears its table as SYM<table> CLEAR does; disabled with none loaded.
+//  File's Unload symbol or debug file: a row for each file loaded, which
+//  clears its table as SYM<table> CLEAR does, or for the debug file unloads
+//  it and its symbols as SRC CLEAR does; disabled with none loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -386,21 +392,29 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
 {
     std::vector<DxuiPopupMenuItem>  files;
     std::shared_ptr<DxuiCommand>    row;
+    std::wstring                    debugFile;
 
 
+
+    if (m_snapshot != nullptr && m_snapshot->source.has_value())
+    {
+        debugFile = std::filesystem::path (m_snapshot->source->debugFilePath).filename().wstring();
+    }
 
     for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
     {
-        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), [this, name = table.name]
+        bool  isDebugFile = !debugFile.empty() && std::filesystem::path (TextEncoding::NarrowToWide (table.origins.back())).filename().wstring() == debugFile;
+
+        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), [this, name = table.name, isDebugFile]
         {
-            RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
+            RunAction (isDebugFile ? SymbolActions::GetUnloadDebugFile (GetMode()) : SymbolActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
         });
 
         m_menuCommands.push_back (row);
         files.push_back (DxuiPopupMenuItem::ForCommand (row));
     }
 
-    row = DebuggerMenuCommand::Make (L"Unload symbol file", [] {});
+    row = DebuggerMenuCommand::Make (L"Unload symbol or debug file", [] {});
     m_menuCommands.push_back (row);
 
     if (files.empty())
@@ -513,15 +527,66 @@ void DebuggerWindow::OpenOptions()
 
 void DebuggerWindow::PreviewTheme (const std::string & name)
 {
-    if (!m_themeBeforePreview.has_value())
+    if (!m_themeBeforePreview.has_value() && m_typographyInForce != nullptr)
     {
         m_themeBeforePreview = m_themeName;
+        m_menuTypography     = *m_typographyInForce;
     }
+
+    PinMenuFont();
 
     if (name != m_themeName)
     {
         ApplyTheme (name);
     }
+
+    if (GetPopupHost() != nullptr)
+    {
+        GetPopupHost()->MarkPopupsDirty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PinMenuFont
+//
+//  The menus open when the preview began, and those opened during it, are
+//  measured and drawn in a copy of the typography the menus opened with, so
+//  the preview's face doesn't change the menus' text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PinMenuFont()
+{
+    if (GetPopupHost() != nullptr && !m_isMenuFontPinned)
+    {
+        GetPopupHost()->PinPopupTypography (&m_menuTypography);
+        m_isMenuFontPinned = true;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UnpinMenuFont
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UnpinMenuFont()
+{
+    if (GetPopupHost() != nullptr && m_isMenuFontPinned)
+    {
+        GetPopupHost()->PinPopupTypography (nullptr);
+    }
+
+    m_isMenuFontPinned = false;
 }
 
 
@@ -548,6 +613,7 @@ void DebuggerWindow::EndThemePreview()
         return;
     }
 
+    UnpinMenuFont();
     restore = *m_themeBeforePreview;
     m_themeBeforePreview.reset();
 
@@ -812,6 +878,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::BrowseForSource
+//
+//  The file picked is taken as one dropped on the window, which matches it
+//  against the debug file's sources.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BrowseForSource()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    spec.filters = { { L"Source files", L"*.s;*.a65;*.asm;*.inc;*.a;*.src;*.txt" }, { L"All files", L"*.*" } };
+
+    hr = PickFileToOpen ("source", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    (void) OnFilesDropped ({ chosen.wstring() });
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OpenSymbolFile
 //
 //  SYM LOAD of a debug or symbol file the user picks, in AppleWin's words
@@ -838,7 +939,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunAction (DebuggerActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
+    RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
     m_sources->SetPendingLoose (thenShow);
 
 Error:
@@ -956,10 +1057,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::LoadBasicProgram (const std::wstring & path)
+void DebuggerWindow::LoadBasicProgram (const std::wstring & path, const std::wstring & label)
 {
     bool          isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
-    std::wstring  name         = std::filesystem::path (path).filename().wstring();
+    std::wstring  name         = label.empty() ? std::filesystem::path (path).filename().wstring() : label;
 
 
 
@@ -969,7 +1070,7 @@ void DebuggerWindow::LoadBasicProgram (const std::wstring & path)
         return;
     }
 
-    RunAction (DebuggerActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
+    RunAction (SessionActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
     ShowPane  (DebuggerLayout::kBasicProgram);
 }
 
@@ -1011,6 +1112,83 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::PasteBasicProgram
+//
+//  The clipboard's text is written to a listing in the temporary folder and
+//  loaded from there as a dropped or opened listing is, after the same
+//  question when it would replace a program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PasteBasicProgram()
+{
+    std::wstring           text;
+    std::filesystem::path  path;
+    std::error_code        error;
+    std::ofstream          file;
+
+
+
+    if (!DxuiClipboard::GetText (GetHwnd(), text) || text.find_first_not_of (L" \t\r\n") == std::wstring::npos)
+    {
+        return;
+    }
+
+    path = std::filesystem::temp_directory_path (error) / L"Casso pasted listing.bas";
+
+    if (error)
+    {
+        return;
+    }
+
+    file.open (path, std::ios::binary | std::ios::trunc);
+    file << TextEncoding::WideToNarrow (text);
+    file.close();
+
+    if (file.fail())
+    {
+        return;
+    }
+
+    LoadBasicProgram (path.wstring(), L"the pasted listing");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClearBasicProgram
+//
+//  The user confirms first, as for a load over the program, unless the
+//  program is known to be empty. BASIC breakpoints aren't removed, so the
+//  same program loaded again has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ClearBasicProgram()
+{
+    bool  isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
+
+
+
+    if (!isKnownEmpty &&
+        ShowMessageBox (GetHwnd(), L"Clear the BASIC program in memory?", L"Clear BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    RunAction (SessionActions::GetClearBasic (GetMode()));
+    ShowPane  (DebuggerLayout::kBasicProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::SaveBasicProgram
 //
 //  In the folder of the listing loaded or saved last.
@@ -1039,7 +1217,7 @@ void DebuggerWindow::SaveBasicProgram()
     BAIL_OUT_IF (!picked, S_OK);
 
     m_host->SetDebuggerWindowState ("folder.basic", SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
-    RunAction (DebuggerActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
+    RunAction (SessionActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
 
 Error:
     return;
@@ -1071,9 +1249,9 @@ std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label)
+std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label, const std::wstring & description)
 {
-    return ByteDialog::RunModal (GetRoutingHwnd(), m_theme, title, label);
+    return ByteDialog::RunModal (GetRoutingHwnd(), m_theme, title, label, description);
 }
 
 

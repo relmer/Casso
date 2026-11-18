@@ -87,9 +87,15 @@ namespace DebuggerTests
         }
 
 
-        //  The address tip says what a byte's color means: changed, I/O or
-        //  ROM, in the order the colors take; plain RAM, or a byte outside
-        //  the read, gives the address alone.
+        static std::wstring  GetFirstLine (const std::wstring & tip)
+        {
+            return tip.substr (0, tip.find (L'\n'));
+        }
+
+
+        //  The tip's first line has what a byte's color means: changed, I/O
+        //  or ROM, in the order the colors take; plain RAM, or a byte outside
+        //  the read, has the address alone.
         TEST_METHOD (TheAddressTipSaysWhatTheBytesColorMeans)
         {
             MemoryEditModel                   model;
@@ -103,27 +109,52 @@ namespace DebuggerTests
             Show (model, 0xAA);
 
             Assert::IsTrue   (model.TryGetByteTip (0x0305, tip));
-            Assert::AreEqual (std::wstring (L"$0305  changed"), tip);
+            Assert::AreEqual (std::wstring (L"$0305  changed"), GetFirstLine (tip));
 
             Assert::IsTrue   (model.TryGetByteTip (0x0304, tip));
-            Assert::AreEqual (std::wstring (L"$0304"), tip, L"plain RAM");
+            Assert::AreEqual (std::wstring (L"$0304"), GetFirstLine (tip), L"plain RAM");
 
             model.SetContents (0xC030, bytes, regions);
 
             Assert::IsTrue   (model.TryGetByteTip (0xC030, tip));
-            Assert::AreEqual (std::wstring (L"$C030  I/O"), tip);
+            Assert::AreEqual (std::wstring (L"$C030  I/O"), GetFirstLine (tip));
 
             Assert::IsTrue   (model.TryGetByteTip (0xC031, tip));
-            Assert::AreEqual (std::wstring (L"$C031  ROM"), tip);
+            Assert::AreEqual (std::wstring (L"$C031  ROM"), GetFirstLine (tip));
 
             Assert::IsTrue   (model.TryGetByteTip (0xC032, tip));
-            Assert::AreEqual (std::wstring (L"$C032  ROM"), tip, L"a slot's ROM is colored as ROM");
+            Assert::AreEqual (std::wstring (L"$C032  ROM"), GetFirstLine (tip), L"a slot's ROM is colored as ROM");
 
             Assert::IsTrue   (model.TryGetByteTip (0xC033, tip));
-            Assert::AreEqual (std::wstring (L"$C033"), tip);
+            Assert::AreEqual (std::wstring (L"$C033"), GetFirstLine (tip));
 
             Assert::IsTrue   (model.TryGetByteTip (0x0400, tip));
-            Assert::AreEqual (std::wstring (L"$0400  not read yet"), tip, L"outside every read, which the window has not reached");
+            Assert::AreEqual (std::wstring (L"$0400  not read yet"), GetFirstLine (tip), L"outside every read, which the window has not reached");
+        }
+
+
+        //  Below the address and its symbol, a byte read has its value in hex,
+        //  in decimal and as a character, and its region; a byte without a
+        //  symbol has the rest.
+        TEST_METHOD (TheTipHasTheBytesSymbolValueAndRegion)
+        {
+            MemoryEditModel                   model;
+            std::vector<std::optional<Byte>>  bytes   = { 0xC1, 0x05 };
+            std::vector<MemoryRegion>         regions = { MemoryRegion::MainRam, MemoryRegion::MainRam };
+            auto                              symbols = std::make_shared<std::vector<SymbolInfo>> (std::vector<SymbolInfo> { { "COUNT", 0x0300 } });
+            std::wstring                      tip;
+
+
+
+            model.SetContents (0x0300, bytes, regions);
+            model.SetSymbols  (symbols);
+
+            Assert::IsTrue (model.TryGetByteTip (0x0300, tip));
+            Assert::IsTrue (tip.starts_with (L"$0300  COUNT\n$C1  193  'A'\n"), tip.c_str());
+            Assert::IsTrue (tip.size() > std::wstring (L"$0300  COUNT\n$C1  193  'A'\n").size(), L"and the region");
+
+            Assert::IsTrue (model.TryGetByteTip (0x0301, tip));
+            Assert::IsTrue (tip.starts_with (L"$0301\n$05  5\n"), tip.c_str());
         }
 
 

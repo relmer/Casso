@@ -1,11 +1,14 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiSeverityBadge.h"
 #include "Widgets/DxuiWarningBadge.h"
+#include "Core/DxuiUnicodeSymbols.h"
 
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
+#include "Window/DxuiButtonRow.h"
 
 
 
@@ -167,7 +170,7 @@ float DxuiInfoBanner::ResolveCenteredBoxPx (IDxuiTextRenderer   &  text,
     }
 
     hr = text.MeasureString (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                             DxuiTheme::kBodyFace, measuredW, measuredH);
+                             DxuiTheme::GetUiFace(), measuredW, measuredH);
 
     //  A measurement that failed says nothing about the text; the full width
     //  is what the banner used before it was centered, and it wraps to the
@@ -247,7 +250,7 @@ float DxuiInfoBanner::FitCenteredBoxPx (IDxuiTextRenderer   &  text,
     for (step = 0; step < kMaxSteps; step++)
     {
         hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                                        DxuiTheme::kBodyFace, box, wrappedW, wrappedH);
+                                        DxuiTheme::GetUiFace(), box, wrappedW, wrappedH);
 
         //  A renderer that cannot measure a wrap leaves the split as it was,
         //  which is what this widget did before.
@@ -287,7 +290,7 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
     float   padX      = scaler.ToPxf (s_kPadXDip);
     float   padY      = scaler.ToPxf (m_padYDip);
     float   iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
-    float   textWidth = widthPx - padX * 2.0f - iconCol - m_trailingReservePx;
+    float   textWidth = widthPx - padX * 2.0f - iconCol - GetTextReservePx (widthPx, scaler);
     float   lineH     = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
     float   lineBox   = (textWidth > 1.0f) ? textWidth : 1.0f;
     int     lines     = 0;
@@ -314,8 +317,12 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
 
 
 
-    // The content is the taller of the wrapped text and the icon, plus padding.
-    return ((textH > iconH) ? textH : iconH) + padY * 2.0f;
+    // The content is the taller of the wrapped text and the icon, plus padding,
+    // and never shorter than the controls, since a clipped button offers nothing.
+    (void) iconH;
+    (void) padY;
+
+    return GetBoxHeightPx (textH, widthPx, scaler);
 }
 
 
@@ -336,7 +343,7 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
     float    padX      = scaler.ToPxf (s_kPadXDip);
     float    padY      = scaler.ToPxf (m_padYDip);
     float    iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
-    float    textWidth = widthPx - padX * 2.0f - iconCol - m_trailingReservePx;
+    float    textWidth = widthPx - padX * 2.0f - iconCol - GetTextReservePx (widthPx, scaler);
     float    iconH     = scaler.ToPxf (s_kIconBoxDip);
     float    outW      = 0.0f;
     float    outH      = 0.0f;
@@ -358,14 +365,17 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
     }
 
     hr = text.MeasureStringWrapped (m_text.c_str(), scaler.ToPxf (s_kFontDip),
-                                    DxuiTheme::kBodyFace, textWidth, outW, outH);
+                                    DxuiTheme::GetUiFace(), textWidth, outW, outH);
 
     if (FAILED (hr) || outH <= 0.0f)
     {
         return GetPreferredHeightPx (widthPx, scaler);
     }
 
-    return ((outH > iconH) ? outH : iconH) + padY * 2.0f;
+    (void) iconH;
+    (void) padY;
+
+    return GetBoxHeightPx (outH, widthPx, scaler);
 }
 
 
@@ -431,6 +441,10 @@ void DxuiInfoBanner::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme 
     {
         argb = theme.WarningAccent();
     }
+    else if (m_severity == Severity::Error)
+    {
+        argb = theme.ErrorForeground();
+    }
 
     hr = text.DrawString (m_iconGlyph,
                           iconLeft,
@@ -489,10 +503,13 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float           iconGap  = m_scaler.ToPxf (s_kIconGapDip);
     float           fontPx   = m_scaler.ToPxf (s_kFontDip);
     float           textX    = left + padX + iconBox + iconGap;
-    float           textW    = width - padX * 2.0f - iconBox - iconGap - m_trailingReservePx;
+    bool            stacked  = IsStacked (width, m_scaler);
+    float           reserve  = GetTextReservePx (width, m_scaler);
+    float           textH    = height - padY * 2.0f - (stacked ? GetControlHeightPx (m_scaler) - m_scaler.ToPxf (s_kEdgePadDip) : 0.0f);
+    float           textW    = width - padX * 2.0f - iconBox - iconGap - reserve;
     float           iconR    = iconBox * 0.5f;
     float           iconCx   = left + padX + iconR;
-    float           iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+    float           iconCy   = top + padY + textH * 0.5f;   // vertically centered on the text
     DxuiTextHAlign  hAlign   = DxuiTextHAlign::Left;
 
 
@@ -515,7 +532,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     {
         float  lineBox = ResolveCenteredBoxPx (text, textW, m_scaler);
         float  groupW  = iconBox + iconGap + lineBox;
-        float  startX  = left + (width - m_trailingReservePx - groupW) * 0.5f;
+        float  startX  = left + (width - reserve - groupW) * 0.5f;
 
         if (startX < left + padX)
         {
@@ -532,10 +549,20 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     // reads as a notice, not a button. A warning carries its own hue rather
     // than the theme accent -- caution should not depend on what the accent
     // happens to be.
+    if (m_isOverContent)
+    {
+        painter.FillRect (left, top, width, height, theme.Background());
+    }
+
     if (m_severity == Severity::Warning)
     {
         painter.FillRect    (left, top, width, height, theme.InfoBannerWarningBackground());
         painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerWarningBorder());
+    }
+    else if (m_severity == Severity::Error)
+    {
+        painter.FillRect    (left, top, width, height, theme.InfoBannerErrorBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerErrorBorder());
     }
     else
     {
@@ -555,6 +582,10 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                 iconCx - iconR, iconCy - iconR,
                                 iconBox, iconBox,
                                 theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
+    }
+    else if (m_severity == Severity::Error)
+    {
+        DxuiSeverityBadge::Draw (painter, DxuiSeverity::Error, iconCx - iconR, iconCy - iconR, iconBox, theme);
     }
     else
     {
@@ -601,13 +632,398 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           textX,
                           top + padY,
                           (textW > 1.0f) ? textW : 1.0f,
-                          height - padY * 2.0f,
+                          textH,
                           theme.InfoBannerForeground(),
                           fontPx,
-                          DxuiTheme::kBodyFace,
+                          DxuiTheme::GetUiFace(),
                           hAlign,
                           DxuiTextVAlign::Center,
                           DxuiFontWeight::Normal,
                           true);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const std::unique_ptr<DxuiButton> & action : m_actions)
+    {
+        action->Paint (painter, text, theme);
+    }
+
+    if (m_dismissible)
+    {
+        PaintCloseBox (painter, text, theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::SetActions
+//
+//  REPLACED RATHER THAN ADDED TO. A standing notice absorbs further changes
+//  instead of stacking, so setting its actions again must result in one
+//  Restart button and not three.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::SetActions (const std::vector<std::wstring> & labels)
+{
+    size_t  i = 0;
+
+
+
+    m_actions.clear();
+
+    for (i = 0; i < labels.size(); i++)
+    {
+        auto    button = std::make_unique<DxuiButton> (labels[i]);
+        size_t  index  = i;
+
+        //  PRIMARY, NOT DEFAULT. A neutral button sits on the banner's tinted
+        //  fill at almost the same value and disappears -- measured on the dark
+        //  themes, where the notice's text was visible and its action could not
+        //  be found at all. The accent fill is what makes the one thing here that
+        //  can be pressed look pressable.
+        button->SetVariant (DxuiButton::Variant::Primary);
+        button->SetOnClick ([this, index] ()
+        {
+            if (m_onAction)
+            {
+                m_onAction (index);
+            }
+        });
+
+        m_actions.push_back (std::move (button));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiButton * DxuiInfoBanner::GetAction (size_t index)
+{
+    return (index < m_actions.size()) ? m_actions[index].get() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetControlColumnPx
+//
+//  The buttons and the close box, a gap after each, and the trailing edge pad
+//  the last of them is inset by. Leaving the pad out reserves less than Layout
+//  then uses, so the text runs the last few pixels underneath a button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::GetControlColumnPx (const DxuiDpiScaler & scaler) const
+{
+    float  width = 0.0f;
+
+
+
+    if (!m_actions.empty() || m_dismissible)
+    {
+        for (const std::unique_ptr<DxuiButton> & action : m_actions)
+        {
+            width += scaler.ToPxf (GetActionWidthDip (*action)) + scaler.ToPxf (s_kActionGapDip);
+        }
+
+        width += scaler.ToPxf (s_kEdgePadDip);
+    }
+
+    if (m_dismissible)
+    {
+        width += scaler.ToPxf (s_kCloseBoxDip) + scaler.ToPxf (s_kActionGapDip);
+    }
+
+    return width;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetTextReservePx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::GetTextReservePx (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    return m_trailingReservePx + (IsStacked (widthPx, scaler) ? 0.0f : GetControlColumnPx (scaler));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::IsStacked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiInfoBanner::IsStacked (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    float  iconCol = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
+    float  besideW = widthPx - scaler.ToPxf (s_kPadXDip) * 2.0f - iconCol - m_trailingReservePx - GetControlColumnPx (scaler);
+
+
+
+    return !m_actions.empty() && (m_isActionsBelow || (m_stackBelowDip > 0.0f && besideW < scaler.ToPxf (m_stackBelowDip)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetBoxHeightPx
+//
+//  Stacked, the controls' row is under the padded text, its bottom pad
+//  replacing the text's; beside it, the box is at least the controls' height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::GetBoxHeightPx (float textH, float widthPx, const DxuiDpiScaler & scaler) const
+{
+    float  padY    = scaler.ToPxf (m_padYDip);
+    float  iconH   = scaler.ToPxf (s_kIconBoxDip);
+    float  content = ((textH > iconH) ? textH : iconH) + padY * 2.0f;
+
+
+
+    if (IsStacked (widthPx, scaler))
+    {
+        return content + GetControlHeightPx (scaler) - scaler.ToPxf (s_kEdgePadDip);
+    }
+
+    return (std::max) (content, GetControlHeightPx (scaler));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetControlHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::GetControlHeightPx (const DxuiDpiScaler & scaler) const
+{
+    float  height = 0.0f;
+
+
+
+    if (!m_actions.empty())
+    {
+        height = scaler.ToPxf (s_kActionHeightDip);
+    }
+
+    if (m_dismissible)
+    {
+        height = (std::max) (height, scaler.ToPxf (s_kCloseBoxDip));
+    }
+
+    if (height > 0.0f)
+    {
+        height += scaler.ToPxf (s_kEdgePadDip) * 2.0f;
+    }
+
+    return height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::Layout
+//
+//  The strip takes the whole bounds, and the controls sit inside it against
+//  the trailing edge, vertically centered: the close box last, the buttons
+//  before it in the order given. The border spans everything; the text
+//  reserve, not a narrower box, separates the text from the controls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    float  actionW = 0.0f;
+    float  actionH = scaler.ToPxf (s_kActionHeightDip);
+    float  gap     = scaler.ToPxf (s_kActionGapDip);
+    float  closeW  = scaler.ToPxf (s_kCloseBoxDip);
+    float  right   = (float) boundsDip.right - scaler.ToPxf (s_kEdgePadDip);
+    float  midY    = (float) (boundsDip.top + boundsDip.bottom) * 0.5f;
+    size_t i       = 0;
+
+
+
+    //  Stacked, the controls are centered on a row along the bottom.
+    if (IsStacked ((float) (boundsDip.right - boundsDip.left), scaler))
+    {
+        midY = (float) boundsDip.bottom - scaler.ToPxf (s_kEdgePadDip) - actionH * 0.5f;
+    }
+
+
+
+    SetBounds (boundsDip);
+    m_scaler.SetDpi (scaler.GetDpi());
+
+    m_dismissRect = {};
+
+    if (m_dismissible)
+    {
+        m_dismissRect = RECT { (LONG) (right - closeW), (LONG) (midY - closeW * 0.5f), (LONG) right, (LONG) (midY + closeW * 0.5f) };
+        right        -= closeW + gap;
+    }
+
+    //  From the trailing edge back, so the first action is the one furthest
+    //  from the edge and the buttons read left to right in the order given.
+    for (i = m_actions.size(); i > 0; i--)
+    {
+        actionW = scaler.ToPxf (GetActionWidthDip (*m_actions[i - 1]));
+
+        RECT  slot = { (LONG) (right - actionW), (LONG) (midY - actionH * 0.5f), (LONG) right, (LONG) (midY + actionH * 0.5f) };
+
+        m_actions[i - 1]->Layout (slot, scaler);
+
+        right -= actionW + gap;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::OnMouse
+//
+//  Offered to each action, then to the close box, which closes on a release
+//  inside it after a press inside it, as a button does. The strip itself
+//  takes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiInfoBanner::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool    handled = false;
+    bool    inClose = m_dismissible && PtInRect (&m_dismissRect, ev.positionDip);
+    size_t  i       = 0;
+
+
+
+    for (i = 0; i < m_actions.size() && !handled; i++)
+    {
+        handled = m_actions[i]->OnMouse (ev);
+    }
+
+    if (!handled && m_dismissible)
+    {
+        if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+        {
+            m_dismissHover = inClose && ev.kind == DxuiMouseEventKind::Move;
+        }
+        else if (ev.kind == DxuiMouseEventKind::Down && inClose)
+        {
+            m_dismissPressed = true;
+            handled          = true;
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up && m_dismissPressed)
+        {
+            m_dismissPressed = false;
+            handled          = true;
+
+            if (inClose && m_onDismiss)
+            {
+                m_onDismiss();
+            }
+        }
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::PaintCloseBox
+//
+//  The X a tab closes with, in the notice's text color, over a faint wash of
+//  that color while the pointer is on it and a stronger one while pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::PaintCloseBox (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    constexpr uint32_t  kHoverAlpha   = 0x1F000000u;
+    constexpr uint32_t  kPressedAlpha = 0x33000000u;
+    constexpr wchar_t   kMdl2Family[] = L"Segoe MDL2 Assets";
+    HRESULT             hr            = S_OK;
+    float               left          = (float) m_dismissRect.left;
+    float               top           = (float) m_dismissRect.top;
+    float               width         = (float) (m_dismissRect.right  - m_dismissRect.left);
+    float               height        = (float) (m_dismissRect.bottom - m_dismissRect.top);
+    uint32_t            glyph         = theme.InfoBannerForeground();
+
+
+
+    if (m_dismissHover || m_dismissPressed)
+    {
+        painter.FillRoundedRect (left, top, width, height, m_scaler.ToPxf (4.0f),
+                                 (glyph & 0x00FFFFFFu) | (m_dismissPressed ? kPressedAlpha : kHoverAlpha));
+    }
+
+    hr = text.DrawString (s_kpszMdl2ChromeClose, left, top, width, height, glyph,
+                          m_scaler.ToPxf (s_kCloseGlyphDip), kMdl2Family,
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetActionWidthDip
+//
+//  A fixed width put a longer label such as "Show invocation" against the
+//  button's sides, so each is sized to its label as dialog buttons are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::GetActionWidthDip (const DxuiButton & action) const
+{
+    float  width = (float) DxuiButtonRow::GetWidthForLabel (action.GetAccessibleName());
+
+
+
+    if (m_isActionWidthSet)
+    {
+        return m_actionWidthDip;
+    }
+
+    return (width > s_kActionWidthDip) ? width : s_kActionWidthDip;
 }

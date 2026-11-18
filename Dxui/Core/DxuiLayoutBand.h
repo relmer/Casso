@@ -11,7 +11,7 @@
 //
 //  DxuiLayoutBand
 //
-//  A control that holds nothing and draws nothing: it is here to carry a rect
+//  A control that holds nothing and draws nothing: it is here to reserve a rect
 //  through a layout. Stamp the thickness a band needs, hand it to a
 //  DxuiDockLayout among the other children, and read back the rect the layout
 //  gave it to place the widget that band stands for. A band docked Fill takes

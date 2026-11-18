@@ -22,8 +22,8 @@
 void HistoryWallTimes::Sync (const KeyframeStore & keyframes)
 {
     std::lock_guard<std::mutex>  held (m_lock);
-    size_t                       count  = keyframes.GetCount();
-    uint64_t                     oldest = (count > 0) ? keyframes.GetInfo (0).position : 0;
+    size_t                       count  = keyframes.GetArena().GetCount();
+    uint64_t                     oldest = (count > 0) ? keyframes.GetArena().GetInfo (0).position : 0;
     size_t                       i      = 0;
 
 
@@ -129,7 +129,7 @@ HistoryWallTimes::Mark HistoryWallTimes::MakeMark (
     const KeyframeStore  & keyframes,
     size_t                 index)
 {
-    const KeyframeInfo  & info = keyframes.GetInfo (index);
+    const KeyframeInfo  & info = keyframes.GetArena().GetInfo (index);
 
 
 
@@ -161,14 +161,14 @@ bool HistoryWallTimes::IsPrefixOf (const KeyframeStore & keyframes) const
         return true;
     }
 
-    if (count > keyframes.GetCount())
+    if (count > keyframes.GetArena().GetCount())
     {
         return false;
     }
 
-    return keyframes.GetInfo (0).position == m_marks.front().position &&
-           keyframes.GetInfo (count - 1).position == m_marks.back().position &&
-           keyframes.GetInfo (count - 1).wallTime == m_marks.back().wallTime;
+    return keyframes.GetArena().GetInfo (0).position == m_marks.front().position &&
+           keyframes.GetArena().GetInfo (count - 1).position == m_marks.back().position &&
+           keyframes.GetArena().GetInfo (count - 1).wallTime == m_marks.back().wallTime;
 }
 
 

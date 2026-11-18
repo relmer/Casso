@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ConsolePanes.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -106,7 +109,7 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
 
 
 
-    while (m_lines.empty() && first != lines.end() && (first->empty() || DebuggerViewState::IsCommandGap (*first)))
+    while (m_lines.empty() && first != lines.end() && (first->empty() || DebuggerViewCommands::IsCommandGap (*first)))
     {
         ++first;
     }
@@ -116,9 +119,11 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
         return;
     }
 
+    //  No full path is written out in the console: each is its file's name,
+    //  linked, with the path in its tip.
     for (auto line = first; line != lines.end(); ++line)
     {
-        m_lines.push_back (Line { *line, time, stamp });
+        m_lines.push_back (Line { ConsoleLinks::LinkPaths (*line), time, stamp });
     }
 
     if ((int) m_lines.size() > kLineLimit)
@@ -209,7 +214,7 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
     {
         size_t  end = start + 1;
 
-        while (end < m_lines.size() && !DebuggerViewState::IsCommandGap (m_lines[end].text))
+        while (end < m_lines.size() && !DebuggerViewCommands::IsCommandGap (m_lines[end].text))
         {
             end++;
         }
@@ -235,10 +240,10 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
 
 
 
-            if (DebuggerViewState::IsCommandGap (text))
+            if (DebuggerViewCommands::IsCommandGap (text))
             {
                 row.cells  = { std::wstring() };
-                row.height = DebuggerViewState::kCommandGapHeight;
+                row.height = DebuggerViewCommands::kCommandGapHeight;
                 m_rowLines.push_back (-1);
             }
             else
@@ -390,7 +395,7 @@ void ConsoleOutput::RestoreSaved (const std::string & text, bool keepCurrent)
         time.wMinute = (WORD) minute;
         time.wSecond = (WORD) second;
 
-        m_lines.push_back (Line { line.substr (tab + 1), time, GetTimeStamp (time) });
+        m_lines.push_back (Line { ConsoleLinks::LinkPaths (line.substr (tab + 1)), time, GetTimeStamp (time) });
     }
 
     m_lines.insert (m_lines.end(), std::make_move_iterator (current.begin()), std::make_move_iterator (current.end()));
@@ -731,10 +736,11 @@ void CommandLine::Create()
 
 void CommandLine::Configure()
 {
-    m_box->SetHwnd        (m_host.GetOwnerHwnd());
-    m_box->SetMaxLength   (256);
-    m_box->SetPrompt      (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
-    m_box->SetPlaceholder (L"Command (Enter to run, HELP for help)");
+    m_box->SetHwnd         (m_host.GetOwnerHwnd());
+    m_box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_box->SetMaxLength    (256);
+    m_box->SetPrompt       (ConsoleModeBar::GetPromptText (CommandMode::AppleWin));
+    m_box->SetPlaceholder  (L"Command (Enter to run, HELP for help)");
 }
 
 
@@ -756,6 +762,23 @@ void CommandLine::Apply (const DebuggerViewSnapshot & snapshot)
     m_box->SetPlaceholder (std::format (L"Command (Enter to run, {} for help)", ConsoleModeBar::GetHelpCommand (snapshot.mode)));
 
     m_completion.SetMode (snapshot.mode);
+
+    //  The symbols are taken again only when they change.
+    if (snapshot.symbols != nullptr && snapshot.symbols != m_completionSymbols)
+    {
+        std::vector<std::wstring>  names;
+
+
+
+        m_completionSymbols = snapshot.symbols;
+
+        for (const SymbolInfo & symbol : snapshot.symbols->symbols)
+        {
+            names.push_back (TextEncoding::NarrowToWide (symbol.name));
+        }
+
+        m_completion.SetSymbols (std::move (names));
+    }
 
     if (snapshot.suggestionSerial != m_offeredSuggestion)
     {
@@ -796,9 +819,9 @@ void CommandLine::Submit()
 
     BAIL_OUT_IF (host == nullptr, S_OK);
 
-    fileVerb = DebuggerViewState::GetMissingFileVerb (line,
-                                                      snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
-                                                      snapshot != nullptr && snapshot->isAssembling);
+    fileVerb = DebuggerCommandLines::GetMissingFileVerb (line,
+                                                         snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
+                                                         snapshot != nullptr && snapshot->isAssembling);
 
     if (fileVerb.has_value())
     {
@@ -810,11 +833,20 @@ void CommandLine::Submit()
 
         BAIL_OUT_IF (!picked, S_OK);
 
-        line = DebuggerViewState::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
+        line = DebuggerCommandLines::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
     }
 
     m_history.Add (typed);
     SaveHistory();
+
+    //  CLS clears the output here, in every command mode, as the output's
+    //  menu does; it isn't a command for the machine.
+    if (IsClearCommand (line))
+    {
+        m_output.Clear();
+        m_box->SetText (L"");
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     m_output.ScrollToEnd();
 
@@ -823,6 +855,44 @@ void CommandLine::Submit()
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::IsClearCommand
+//
+//  CLS or CLEAR, in either case, alone on the line, with or without a mode's
+//  prefix (/ for Monitor mode, ! for WinDbg mode).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommandLine::IsClearCommand (const std::string & line)
+{
+    size_t       first = line.find_first_not_of (" \t");
+    size_t       last  = line.find_last_not_of (" \t");
+    std::string  word;
+
+
+
+    if (first == std::string::npos)
+    {
+        return false;
+    }
+
+    word = line.substr (first, last - first + 1);
+
+    if (!word.empty() && (word[0] == '/' || word[0] == '!'))
+    {
+        word.erase (0, 1);
+    }
+
+    std::ranges::transform (word, word.begin(), [] (char c) { return (char) toupper ((unsigned char) c); });
+
+    return word == "CLS" || word == "CLEAR";
 }
 
 
@@ -1082,7 +1152,7 @@ void ConsoleModeBar::Configure()
 
     label.command       = m_label->GetCommand();
     label.custom        = m_label.get();
-    label.neverOverflow = true;
+    label.pinned        = true;
 
     m_dialect        = std::make_shared<DxuiCommand>();
     m_dialect->id    = kDialectEntry;
@@ -1091,7 +1161,7 @@ void ConsoleModeBar::Configure()
 
     dialect.command       = m_dialect;
     dialect.kind          = DxuiToolbar::Kind::DropDown;
-    dialect.neverOverflow = true;
+    dialect.pinned        = true;
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries ({ label, dialect, m_host.GetFindEntry (DebuggerLayout::kConsole) });
@@ -1163,7 +1233,7 @@ void ConsoleModeBar::SetMenus()
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (label, current, [this, target]
         {
-            DebuggerAction  action = DebuggerActions::GetSetMode (target, m_host.GetMode());
+            DebuggerAction  action = SessionActions::GetSetMode (target, m_host.GetMode());
 
 
 
@@ -1446,8 +1516,8 @@ bool ConsolePane::Tick (int64_t nowMs)
 //
 //  The command line's own keys: Ctrl+C with nothing selected in it copies
 //  what is selected in the text above, since a click in the text puts the
-//  focus in the command line; the completion keys; and Up and Down, which
-//  walk the lines run before.
+//  focus in the command line; Ctrl+L, which clears the output; the
+//  completion keys; and Up and Down, which walk the lines run before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1466,6 +1536,13 @@ bool ConsolePane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
     if (ev.ctrl && ev.vk == 'C' && box->GetSelectionStart() == box->GetSelectionEnd() && view->HasSelection())
     {
         view->CopySelection();
+        return true;
+    }
+
+    //  Ctrl+L clears the output, as CLS does.
+    if (ev.ctrl && !ev.shift && ev.vk == 'L')
+    {
+        m_output.Clear();
         return true;
     }
 

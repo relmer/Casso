@@ -92,6 +92,7 @@ enum class DebugVerb
     StepBackOut,
     ReverseGo,
     GoLive,
+    Seek,
     SaveState,
     LoadState,
     Project,
@@ -126,6 +127,9 @@ enum class DebugVerb
     ChangeBreakpoint,
     SaveBreakpoints,
     SetBreakpointName,
+    SetBreakpointLog,
+    ListBreakpointLogs,
+    GroupBreakpoints,
 
     // Registers and stack
     ShowRegisters,
@@ -254,6 +258,7 @@ enum class DebugVerb
     ShowBasicStack,
     LoadBasic,
     SaveBasic,
+    ClearBasic,
     ShowHistory,
     SetHistory,
     SaveHistory,
@@ -310,4 +315,8 @@ struct DebugCommand
     OutputFormat             output             = OutputFormat::AppleWin;
 
     std::optional<DiskBreakSpec>  disk;    // BPDISK
+
+    //  BPEDIT from the debugger window: the breakpoint's new definition as
+    //  the command that would set it, in place of text to parse.
+    std::shared_ptr<const DebugCommand>  definition;
 };

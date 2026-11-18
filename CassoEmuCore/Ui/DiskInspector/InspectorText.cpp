@@ -1,0 +1,884 @@
+#include "Pch.h"
+
+#include "Ui/DiskInspector/InspectorText.h"
+#include "Core/UnicodeSymbols.h"
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
+#include "Ui/DiskInspector/FileMapText.h"
+#include "Ui/DiskInspector/PlatterGeometry.h"
+#include "Core/NumberFormat.h"
+
+
+
+
+
+//  Between items on a line.
+static const std::wstring  s_kSeparator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildChips
+//
+//  In display order; a chip with a count of zero is left out, and so is the
+//  volume chip on a disk with no standard sectors (FR-018).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary)
+{
+    vector<SummaryChip>  chips;
+    std::wstring         good;
+
+
+
+    chips.push_back ({ SummaryChipKind::Format, FormatDiskFormat (summary.format), false });
+
+    if (summary.tracksWithData > 0)
+    {
+        chips.push_back ({ SummaryChipKind::TracksWithData, FormatCount (summary.tracksWithData, L"track with data", L"tracks with data"), false });
+    }
+
+    if (summary.sectorsFound > 0)
+    {
+        good = std::format (L"{} of {} sectors good", NumberFormat::FormatInteger (summary.sectorsGood), NumberFormat::FormatInteger (summary.sectorsFound));
+
+        if (summary.sectorsNotChecked > 0)
+        {
+            good += std::format (L", {} not checked", NumberFormat::FormatInteger (summary.sectorsNotChecked));
+        }
+
+        chips.push_back ({ SummaryChipKind::SectorsGood, good, summary.badSectors > 0 });
+    }
+
+    if (summary.badSectors > 0)
+    {
+        chips.push_back ({ SummaryChipKind::BadSectors, FormatCount (summary.badSectors, L"bad sector", L"bad sectors"), true });
+    }
+
+    if (summary.nonstandardTracks > 0)
+    {
+        chips.push_back ({ SummaryChipKind::Nonstandard, FormatCount (summary.nonstandardTracks, L"nonstandard track", L"nonstandard tracks"), false });
+    }
+
+    if (summary.unformattedTracks > 0)
+    {
+        chips.push_back ({ SummaryChipKind::Unformatted, FormatCount (summary.unformattedTracks, L"unformatted track", L"unformatted tracks"), false });
+    }
+
+    if (summary.fluxTracks > 0)
+    {
+        chips.push_back ({ SummaryChipKind::Flux, FormatCount (summary.fluxTracks, L"flux track", L"flux tracks"), false });
+    }
+
+    if (summary.damagedTracks > 0)
+    {
+        chips.push_back ({ SummaryChipKind::Damaged, FormatCount (summary.damagedTracks, L"damaged track", L"damaged tracks"), true });
+    }
+
+    if (summary.commonVolume >= 0 && summary.sectorsFound > 0)
+    {
+        chips.push_back ({ SummaryChipKind::Volume, std::format (L"Volume {}", summary.commonVolume), false });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildBlockChips
+//
+//  An image of one volume has its file system, its volume name, its blocks,
+//  its blocks in use, its files, not counting directories, and any
+//  cross-linked blocks. A partitioned image has its partitions and its
+//  blocks. Blocks in use are counted rather than free blocks, as the blocks
+//  of an image past its volume's end are free on the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & model)
+{
+    vector<SummaryChip>   chips;
+    const BlockMap      * map        = nullptr;
+    uint32_t              first      = 0;
+    uint32_t              inner      = 0;
+    int                   partitions = 0;
+    int                   used       = 0;
+    int                   crossed    = 0;
+    std::wstring          volume;
+
+
+
+    for (const BlockBand & band : model.GetBands())
+    {
+        if (!band.isMap)
+        {
+            first = partitions == 0 ? band.first : first;
+            partitions++;
+        }
+    }
+
+    map = partitions <= 1 ? model.FindMap (first, inner) : nullptr;
+
+    if (partitions > 1)
+    {
+        chips.push_back ({ SummaryChipKind::Partitions, FormatCount (partitions, L"partition", L"partitions"), false });
+    }
+    else
+    {
+        chips.push_back ({ SummaryChipKind::Format, FormatFileSystem (map != nullptr ? map->fileSystem : BlockFileSystem::None), false });
+    }
+
+    if (map != nullptr && !map->volumeName.empty())
+    {
+        volume = map->fileSystem == BlockFileSystem::ProDos || map->fileSystem == BlockFileSystem::Sos ? L"/" + map->volumeName : map->volumeName;
+        chips.push_back ({ SummaryChipKind::Volume, volume, false });
+    }
+
+    chips.push_back ({ SummaryChipKind::Blocks, FormatCount (static_cast<int> (model.GetBlockCount()), L"block", L"blocks"), false });
+
+    if (map != nullptr && map->fileSystem != BlockFileSystem::None)
+    {
+        for (const BlockMapEntry & entry : map->blocks)
+        {
+            used    += entry.role != SectorRole::Free        ? 1 : 0;
+            crossed += entry.role == SectorRole::CrossLinked ? 1 : 0;
+        }
+
+        chips.push_back ({ SummaryChipKind::BlocksUsed, FormatCount (used, L"block used", L"blocks used"), false });
+        chips.push_back ({ SummaryChipKind::Files, FormatCount (static_cast<int> (std::ranges::count_if (map->entries, [] (const BlockFileEntry & entry) { return !entry.isDirectory; })), L"file", L"files"), false });
+    }
+
+    if (crossed > 0)
+    {
+        chips.push_back ({ SummaryChipKind::CrossLinked, FormatCount (crossed, L"cross-linked block", L"cross-linked blocks"), true });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildChips
+//
+//  The same with the file-system verdict after the format, in the
+//  error color for Bad; a disk with nothing recorded doesn't get one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary, FileSystemVerdict verdict)
+{
+    vector<SummaryChip>  chips = BuildChips (summary);
+    std::wstring         text  = L"File system: " + FileSystemCheck::FormatVerdict (verdict);
+
+
+
+    //  The chip is short: no file system as it is, and possible
+    //  inconsistencies as the one word.
+    if (verdict == FileSystemVerdict::None)
+    {
+        text = FileSystemCheck::FormatVerdict (verdict);
+    }
+    else if (verdict == FileSystemVerdict::Suspect)
+    {
+        text = L"Inconsistencies";
+    }
+
+
+
+    if (summary.tracksWithData > 0)
+    {
+        chips.insert (chips.begin() + 1, { SummaryChipKind::FileSystem, text, verdict == FileSystemVerdict::Bad });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatFileSystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
+{
+    std::wstring  text = L"No file system";
+
+
+
+    switch (fileSystem)
+    {
+        case BlockFileSystem::None:                      break;
+        case BlockFileSystem::ProDos: text = L"ProDOS";  break;
+        case BlockFileSystem::Sos:    text = L"SOS";     break;
+        case BlockFileSystem::Pascal: text = L"Pascal";  break;
+        case BlockFileSystem::Hfs:    text = L"HFS";     break;
+        case BlockFileSystem::Dos33:  text = L"DOS 3.3"; break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatWindowTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt)
+{
+    std::wstring  title = L"Disk inspector - ";
+
+
+
+    title    += isWriteProtected ? std::wstring (s_kpszLock) + L" " : std::wstring();
+    title    += path;
+    outMarkAt = hasEdits ? title.size() : std::wstring::npos;
+    title    += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
+
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatUnsavedChanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatUnsavedChanges (int count, LPCWSTR singular, LPCWSTR plural, const std::wstring & fileName)
+{
+    return L"There are unsaved changes to " + FormatCount (count, singular, plural) + L" in " + fileName + L".";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatDiskFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatDiskFormat (DiskFormatClass format)
+{
+    std::wstring  text;
+
+
+
+    switch (format)
+    {
+        case DiskFormatClass::NothingRecorded:    text = L"Nothing recorded";   break;
+        case DiskFormatClass::ThirteenAndSixteen: text = L"13- and 16-sector"; break;
+        case DiskFormatClass::Sixteen:            text = L"16-sector";          break;
+        case DiskFormatClass::Thirteen:           text = L"13-sector";          break;
+        case DiskFormatClass::Nonstandard:        text = L"Nonstandard";        break;
+        case DiskFormatClass::Unformatted:        text = L"Unformatted";        break;
+        case DiskFormatClass::Damaged:            text = L"Damaged";            break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatOrdinal
+//
+//  1st, 2nd, 3rd, 4th ... 11th, 12th, 13th ... 21st.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatOrdinal (int n)
+{
+    static constexpr int  kTens     = 10;
+    static constexpr int  kHundreds = 100;
+
+
+
+    LPCWSTR  suffix = L"th";
+    int      teen   = n % kHundreds;
+
+
+
+    if (teen < 11 || teen > 13)
+    {
+        switch (n % kTens)
+        {
+            case 1: suffix = L"st"; break;
+            case 2: suffix = L"nd"; break;
+            case 3: suffix = L"rd"; break;
+            default:                break;
+        }
+    }
+
+    return std::to_wstring (n) + suffix;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatCount (int count, LPCWSTR singular, LPCWSTR plural)
+{
+    return NumberFormat::FormatInteger (static_cast<uint64_t> (count)) + L" " + (count == 1 ? singular : plural);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatTrackTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatTrackTitle (int quarterTrack)
+{
+    return L"Track " + InspectorFormat::FormatQuarterTrack (quarterTrack);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatTrackClass
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatTrackClass (TrackClass trackClass)
+{
+    std::wstring  text;
+
+
+
+    switch (trackClass)
+    {
+        case TrackClass::NothingRecorded:    text = L"Nothing recorded"; break;
+        case TrackClass::Damaged:            text = L"Damaged";          break;
+        case TrackClass::Sixteen:            text = L"16-sector";        break;
+        case TrackClass::Thirteen:           text = L"13-sector";        break;
+        case TrackClass::ThirteenAndSixteen: text = L"13- and 16-sector"; break;
+        case TrackClass::Unformatted:        text = L"Unformatted";      break;
+        case TrackClass::Nonstandard:        text = L"Nonstandard";      break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatTrackLine
+//
+//  "51,007 cells · 6,352 nibbles · 16 sectors, 16 good · flux" (FR-032).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatTrackLine (const TrackAnalysis * track)
+{
+    std::wstring  text = L"Nothing recorded on this quarter track";
+
+
+
+    if (track != nullptr && track->framed.cellCount > 0)
+    {
+        text = NumberFormat::FormatInteger (track->framed.cellCount) + L" cells" + s_kSeparator
+             + NumberFormat::FormatInteger (track->framed.nibbles.size()) + L" nibbles" + s_kSeparator
+             + (track->sectorsFound > 0
+                ? FormatCount (track->sectorsFound, L"sector", L"sectors") +
+                  (track->sectorsFound > track->sectorsGood ? std::format (L", {} bad", track->sectorsFound - track->sectorsGood) : std::wstring())
+                : std::wstring (L"no standard sectors"));
+
+        if (track->framed.isFlux)
+        {
+            text += s_kSeparator + std::wstring (L"flux");
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatMeasureLine
+//
+//  "300.6 RPM (199.6 ms per revolution) · mean cell 3.93µs (+0.5%) · longest sync 40
+//  nibbles at cell 12,400", the turn and cell items on flux tracks only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatMeasureLine (const TrackAnalysis & track)
+{
+    static constexpr double  kTicksPerMs = 8000.0;
+
+
+
+    const TrackMeasurements &  m    = track.measurements;
+    vector<std::wstring>       items;
+    std::wstring               text;
+
+
+
+    if (track.framed.isFlux && m.turnTicks > 0)
+    {
+        items.push_back (std::format (L"{:.1f} RPM ({:.1f} ms per revolution)", m.rpm, m.turnTicks / kTicksPerMs));
+        items.push_back (L"mean cell " + InspectorFormat::FormatMicroseconds (m.meanCellTicks) + L" (" + InspectorFormat::FormatPercent (m.deviation) + L")");
+    }
+
+    if (m.longestSync.count > 0)
+    {
+        items.push_back (std::format (L"longest sync {} at cell {}", FormatCount (m.longestSync.count, L"nibble", L"nibbles"),
+                                      NumberFormat::FormatInteger (m.longestSync.startCell)));
+    }
+
+    for (const std::wstring & item : items)
+    {
+        text += (text.empty() ? L"" : s_kSeparator) + item;
+    }
+
+    if (!text.empty() && text[0] >= L'a' && text[0] <= L'z')
+    {
+        text[0] = static_cast<wchar_t> (text[0] - L'a' + L'A');
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatSectorTooltip
+//
+//  "Sector $5", the address field's volume and track, and which checksum
+//  failed (FR-039).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatSectorTooltip (const AnalyzedSector & sector, const TrackAnalysis & track)
+{
+    const LocatedField &  address = track.fields[sector.addressField];
+    std::wstring          text;
+
+
+
+    text = std::format (L"Sector {}\nAddress field: volume {}, track {}", InspectorFormat::FormatSector (sector.sector), address.volume, address.track);
+
+    switch (sector.state)
+    {
+        case SectorState::BadAddress:  text += L"\nAddress field checksum error"; break;
+        case SectorState::BadData:     text += L"\nData field checksum error";    break;
+        case SectorState::NoDataField: text += L"\nNo data field";                break;
+        default:                                                                    break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatAccessCounts
+//
+//  How many times the guest read, wrote and scanned a sector, one to a line, as
+//  "Read: 2 times" over "Scanned: 1 time", leaving out each that is 0; empty when
+//  all three are (FR-161).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatAccessCounts (uint32_t reads, uint32_t writes, uint32_t scans)
+{
+    std::wstring  text;
+
+
+
+    for (const std::pair<LPCWSTR, uint32_t> & item : { std::pair<LPCWSTR, uint32_t> { L"Read", reads }, { L"Written", writes }, { L"Scanned", scans } })
+    {
+        if (item.second > 0)
+        {
+            text += (text.empty() ? L"" : L"\n") + std::format (L"{}: {} {}", item.first, NumberFormat::FormatInteger (item.second), (item.second == 1) ? L"time" : L"times");
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatSelection
+//
+//  What is selected, for the status band: "Selected: LOADER.OBJ0, data
+//  sector 5 of 5 at track 21, sector $3" for a sector of a file, "Selected:
+//  track 17, sector $3" for any other sector, "Selected: 8 nibbles from
+//  offset $1A3 on track 17" for nibbles, and "Selected: track 17" for a
+//  track alone. Sectors are numbered as the sector buttons number them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatSelection (const TrackAnalysis * track, int quarterTrack, int sectorIndex, int firstNibble, int nibbleCount,
+                                             const FileMap * map)
+{
+    std::wstring  where  = L"track " + InspectorFormat::FormatQuarterTrack (quarterTrack);
+    std::wstring  owners;
+    int           half   = 0;
+    int           cell   = -1;
+    int           sector = -1;
+
+
+
+    if (track != nullptr && sectorIndex >= 0 && sectorIndex < static_cast<int> (track->sectors.size()))
+    {
+        sector = track->sectors[static_cast<size_t> (sectorIndex)].sector;
+        cell   = (map != nullptr && quarterTrack % DiskImage::kQuarterTracksPerWholeTrack == 0)
+               ? map->GetCellOf (quarterTrack / DiskImage::kQuarterTracksPerWholeTrack, sector, half) : -1;
+        owners = (cell >= 0 && !map->cells[static_cast<size_t> (cell)].owners.empty()) ? FileMapText::FormatOwners (*map, cell) + L" at " : L"";
+
+        return L"Selected: " + owners + where + L", sector " + InspectorFormat::FormatSector (static_cast<Byte> (sector));
+    }
+
+    if (track != nullptr && nibbleCount > 0)
+    {
+        return std::format (L"Selected: {} from offset {} on {}", FormatCount (nibbleCount, L"nibble", L"nibbles"), InspectorFormat::FormatHexOffset (firstNibble), where);
+    }
+
+    return L"Selected: " + where;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatNoSectors
+//
+//  What the sector row shows in place of buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatNoSectors (const QuarterTrackEntry & entry)
+{
+    return (entry.content == QuarterTrackContent::Nothing) ? L"No track" : L"No sectors in the standard format";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeaderItem::MakeResult
+//
+//  A check's result, all of it in the error color when it is "Bad".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeaderItem HeaderItem::MakeResult (LPCWSTR label, const std::wstring & value)
+{
+    HeaderItem  item = { label, value };
+
+
+
+    if (value == L"Bad")
+    {
+        item.badStart  = 0;
+        item.badLength = value.size();
+    }
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildSectorHeader
+//
+//  The Sector data header (FR-040): the sector, its address fields, both
+//  results and the encoding, and on a 16-sector track the DOS-order sector index and
+//  ProDOS block it has under the standard skew.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sector, const TrackAnalysis & track)
+{
+    const LocatedField &  address = track.fields[sector.addressField];
+    vector<HeaderItem>    items;
+    std::wstring          dataResult;
+    std::wstring          trackText;
+    HeaderItem            location;
+
+
+
+    if (sector.dataField < 0)
+    {
+        dataResult = L"Missing";
+    }
+    else if (!sector.isDataCheck)
+    {
+        dataResult = L"Not checked";
+    }
+    else
+    {
+        dataResult = sector.isDataGood ? L"Good" : L"Bad";
+    }
+
+    //  The track in the address field is in the error color when it is neither
+    //  whole track the record is read as.
+    trackText = std::format (L"track {}", address.track);
+    location  = { L"Address field", std::format (L"{}, sector {}", trackText, InspectorFormat::FormatSector (sector.sector)) };
+
+    if (address.track != track.context.physicalTrack && address.track != track.context.alsoTrack)
+    {
+        location.badStart  = 0;
+        location.badLength = trackText.size();
+    }
+
+    items.push_back (location);
+    items.push_back ({ L"Volume",   std::to_wstring (address.volume) });
+    items.push_back (HeaderItem::MakeResult (L"Address checksum", !sector.isAddressCheck ? L"Not checked" : (sector.isAddressGood ? L"Good" : L"Bad")));
+    items.push_back (HeaderItem::MakeResult (L"Data", dataResult));
+    items.push_back ({ L"Encoding", sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
+
+    if (sector.kind == DiskFieldKind::Sixteen && sector.dosOrderIndex >= 0)
+    {
+        items.push_back ({ L"DOS-order sector index", InspectorFormat::FormatSector (sector.dosOrderIndex) });
+        items.push_back ({ L"ProDOS block",   std::format (L"{} ({} half)", sector.prodosBlock, sector.prodosHalf == 0 ? L"first" : L"second") });
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatNoSectorData
+//
+//  What the Sector data tab shows when there are no bytes to show (FR-040).
+//  A sector with no data field keeps its header; the caller adds this text
+//  after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatNoSectorData (const QuarterTrackEntry & entry, const TrackAnalysis * track)
+{
+    std::wstring  text;
+
+
+
+    if (entry.content == QuarterTrackContent::Damaged)
+    {
+        text = L"This quarter track is damaged: " + FindingFormatter::FormatDamageReason (entry.damageReason) + L".";
+    }
+    else if (entry.content == QuarterTrackContent::Nothing || track == nullptr)
+    {
+        text = L"Nothing recorded on this quarter track.";
+    }
+    else if (track->sectors.empty())
+    {
+        text = L"No standard sectors on this track. The Nibbles tab shows what is recorded on it.";
+    }
+    else
+    {
+        text = L"This sector has no data field.";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatNibbleKind
+//
+//  A failed address field is an address field whose checksum failed, never
+//  a data field (FR-023).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatNibbleKind (NibbleKind kind, bool isFailedChecksum)
+{
+    std::wstring  text;
+
+
+
+    switch (kind)
+    {
+        case NibbleKind::Sync:            text = L"Sync";             break;
+        case NibbleKind::AddressPrologue: text = L"Address prologue"; break;
+        case NibbleKind::AddressField:    text = L"Address field";    break;
+        case NibbleKind::AddressEpilogue: text = L"Address epilogue"; break;
+        case NibbleKind::DataPrologue:    text = L"Data prologue";    break;
+        case NibbleKind::DataField:       text = L"Data field";       break;
+        case NibbleKind::DataEpilogue:    text = L"Data epilogue";    break;
+        case NibbleKind::Other:           text = L"Other";            break;
+        case NibbleKind::Noise:           text = L"Noise";            break;
+    }
+
+    if (isFailedChecksum)
+    {
+        text += L", checksum failed";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatStripReadout
+//
+//  The cells in the strip's view, as "Cells 12,400-13,016" (FR-034), then the drive's state when the head is on the selected
+//  track (FR-066).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatStripReadout (uint32_t firstCell, uint32_t lastCell, const std::wstring & driveState)
+{
+    return L"Cells " + NumberFormat::FormatInteger (firstCell) + L"-" + NumberFormat::FormatInteger (lastCell)
+         + (driveState.empty() ? std::wstring() : s_kSeparator + driveState);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatSelection
+//
+//  A run of nibbles' length in nibbles and cells, and on a flux track in
+//  time (FR-043).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatSelection (const TrackAnalysis & track, int firstNibble, int nibbleCount)
+{
+    const FramedTrack &  framed = track.framed;
+    size_t               n      = framed.nibbles.size();
+    uint32_t             count  = framed.cellCount;
+    uint32_t             start  = 0;
+    uint32_t             cells  = 0;
+    uint32_t             k      = 0;
+    double               ticks  = 0;
+    std::wstring         text;
+
+
+
+    if (n > 0 && count > 0 && firstNibble >= 0 && nibbleCount > 0)
+    {
+        start = framed.nibbles[static_cast<size_t> (firstNibble) % n].startCell % count;
+        cells = (framed.nibbles[static_cast<size_t> (firstNibble + nibbleCount) % n].startCell % count + count - start) % count;
+        cells = (cells == 0) ? count : cells;
+        text  = FormatCount (nibbleCount, L"nibble", L"nibbles") + s_kSeparator + FormatCount (static_cast<int> (cells), L"cell", L"cells");
+
+        if (framed.isFlux && framed.cellTicks.size() >= count)
+        {
+            for (k = 0; k < cells; k++)
+            {
+                ticks += framed.cellTicks[(start + k) % count];
+            }
+
+            text += s_kSeparator + InspectorFormat::FormatMicroseconds (ticks);
+        }
+
+        text += L" selected";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatWriteProtect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatWriteProtect (const WriteProtectInfo & info, const std::wstring & program)
+{
+    std::wstring  causes;
+
+
+
+    auto  add = [&causes] (bool isCause, LPCWSTR text) { causes += isCause ? (causes.empty() ? L"" : L"; ") + std::wstring (text) : L""; };
+
+    add (info.imageFlag,        L"the image's write-protect flag is set");
+    add (info.userSetting,      L"write protection is on for this drive");
+    add (info.readOnlyFile,     L"the file is read-only");
+    add (info.noPermission,     (program + L" cannot write the file").c_str());
+    add (info.checksumMismatch, L"the image's checksum does not match its contents");
+    add (info.damagedTracks,    L"the image has damaged track records");
+
+    return causes;
+}

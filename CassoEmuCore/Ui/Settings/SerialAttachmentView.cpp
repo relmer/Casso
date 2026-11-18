@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SerialAttachmentView.h"
+#include "Ui/Settings/HardwarePage.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostSerialPort.h"
 
@@ -11,6 +12,9 @@
 static constexpr float  s_kNoteFontDp  = 12.0f;
 static constexpr int    s_kPortWidthDp = 90;
 
+static constexpr const char *     s_kDevices[] = { "", kpszSerialLoopback, kpszSerialFileOut, kpszSerialFileIn, kpszSerialComPort, kpszSerialTcp, kpszSerialModem };
+static constexpr const wchar_t *  s_kLabels[]  = { L"None", L"Loopback plug", L"Write output to file", L"Read input from file", L"COM port", L"TCP connection", L"Modem" };
+
 
 
 
@@ -19,7 +23,9 @@ static constexpr int    s_kPortWidthDp = 90;
 //
 //  SerialAttachmentView::SerialAttachmentView
 //
-//  None, an empty device, is first in the list, then the loopback plug.
+//  None, an empty device, is first in the list, then the loopback plug. A
+//  device set outside this list, such as the ImageWriter II from the
+//  Printing tab, is added at the end while it is staged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,9 +35,8 @@ SerialAttachmentView::SerialAttachmentView (
     : m_kind  (kind),
       m_label (std::move (label))
 {
-    m_devices = { "", kpszSerialLoopback, kpszSerialFileOut, kpszSerialFileIn, kpszSerialComPort, kpszSerialTcp, kpszSerialModem };
-
-    m_attach.SetItems    ({ L"None", L"Loopback plug", L"Write output to file", L"Read input from file", L"COM port", L"TCP connection", L"Modem" });
+    m_devices.assign     (std::begin (s_kDevices), std::end (s_kDevices));
+    m_attach.SetItems    ({ std::begin (s_kLabels), std::end (s_kLabels) });
     m_attach.SetSelected (0);
     m_connect.SetItems   ({ L"Connect to a host", L"Listen for a connection" });
 
@@ -136,10 +141,24 @@ void SerialAttachmentView::SetChoice (const SerialAttachmentChoice & choice)
 
 void SerialAttachmentView::SyncControls()
 {
-    int  selected = 0;
-    int  i        = 0;
+    std::vector<std::string>   devices (std::begin (s_kDevices), std::end (s_kDevices));
+    std::vector<std::wstring>  labels  (std::begin (s_kLabels),  std::end (s_kLabels));
+    int                        selected = 0;
+    int                        i        = 0;
 
 
+
+    if (std::find (devices.begin(), devices.end(), m_choice.device) == devices.end())
+    {
+        devices.push_back (m_choice.device);
+        labels.push_back  (HardwarePage::DescribeSerialDevice (m_choice.device));
+    }
+
+    if (devices != m_devices)
+    {
+        m_devices = devices;
+        m_attach.SetItems (labels);
+    }
 
     for (i = 0; i < (int) m_devices.size(); i++)
     {
@@ -369,6 +388,18 @@ std::wstring SerialAttachmentView::GetNote (const std::string & device) const
     else if (device == kpszSerialModem)
     {
         note = L"A Hayes-compatible modem that dials over TCP: ATDT host:port. With a listen port, a call to it rings.";
+    }
+    else if (device == kpszImageWriterDevice)
+    {
+        note = L"The emulated ImageWriter II, connected on the Printing tab.";
+    }
+    else if (device.starts_with ("tcp:"))
+    {
+        note = std::format (L"A program on this PC, such as Casso Explorer's CassoLink, connects to this port. Bytes arrive at the {} at its baud rate.", owner);
+    }
+    else if (device.starts_with ("com:"))
+    {
+        note = std::format (L"The {}'s lines are this PC's COM port, at the {}'s baud rate.", owner, owner);
     }
 
     return note;

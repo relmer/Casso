@@ -1,0 +1,143 @@
+#pragma once
+
+#include "Pch.h"
+
+class StateReader;
+class StateWriter;
+
+#include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
+#include "Devices/Floppy35/IDiskDriveBus.h"
+#include "Devices/Floppy35/IFloppy35EventSink.h"
+#include "Devices/Floppy35/ISony35Disk.h"
+
+class IDiskFileIo;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Sony35Drive
+//
+//  The Sony 800K mechanism in Apple's 3.5-inch drives, from its controller's
+//  it. The controller selects one of sixteen registers with CA1, CA0, SEL and
+//  CA2 (bit 3 down to bit 0) and reads it on the sense line, 0 meaning yes:
+//
+//      $0 step direction (0 in)   $1, $3 head 0, head 1    $2 disk in place
+//      $4 stepping                $6 write protected       $8 motor on
+//      $9 single-sided            $A at track 0            $B ready
+//      $D drive installed         $E tachometer            $F HD disk
+//
+//  A command is the register index strobed by LSTRB, CA2 its value: $0 and
+//  $1 step direction in and out, $4 step, $8 and $9 motor on and off, $D
+//  eject. SEL is also the head. The motor-on command is latched, and
+//  register $8 reads the latch; the spindle turns only while a disk is in.
+//  A disabled drive doesn't take commands. A second after the drive is
+//  disabled the motor stops and the latch clears, unless it is enabled
+//  again first. A drive is enabled until its controller sets it.
+//
+//  The disk is a block image of 800K or 400K, its tracks built as GCR bit
+//  streams the first time the head is on them; a track written to is decoded
+//  back to its blocks on Flush, which turning the motor off calls. A WOZ 2
+//  3.5-inch image's tracks are its bit streams, TMAP entry track * 2 + side,
+//  and Flush writes the changed tracks back into the WOZ file. The drive
+//  moves one bit cell, 2 microseconds, a call to ReadCell or WriteCell while
+//  the motor runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class Sony35Drive : public IFloppy35EventSource, public IDiskDriveBus, public IReplayMedia
+{
+public:
+    static constexpr int       kSides  = 2;
+    static constexpr uint32_t  kCellNs = 2000;
+
+    explicit Sony35Drive (int driveIndex) : m_driveIndex (driveIndex) {}
+    ~Sony35Drive() override;
+
+    // IFloppy35EventSource
+    void  SetFloppy35EventSink (IFloppy35EventSink * sink) override { m_sink = sink; }
+
+    HRESULT  Insert (IDiskFileIo & fileIo, const std::string & path, const WriteProtectInfo & hostProtect, std::wstring & outError);
+    HRESULT  Eject  ();
+    HRESULT  Flush  ();
+
+    bool  HasDisk          () const { return m_disk != nullptr; }
+    bool  IsWriteProtected () const { return m_disk != nullptr && m_disk->IsWriteProtected(); }
+    bool  IsWoz            () const { return m_disk != nullptr && m_disk->IsWoz(); }
+
+    const std::string &  GetImagePath () const;
+    int                  GetSides     () const { return m_sides; }
+
+    // IDiskDriveBus: the phases are CA0, CA1, CA2 and LSTRB; time passing,
+    // in nanoseconds, runs stepping, spin-up and eject; a cell is the bit
+    // under the head, read or written.
+    void      SetPhases (bool ca0, bool ca1, bool ca2, bool lstrb) override;
+    bool      GetSense  () const override;
+    Byte      ReadCell  (uint64_t cellEndNs) override;
+    void      WriteCell (Byte bit, uint64_t cellEndNs) override;
+    void      Advance   (uint64_t elapsedNs) override;
+    uint32_t  GetCellNs () const override { return kCellNs; }
+
+    //  A cell reads 0, with the disk left where it is, while the motor is off,
+    //  the drive is empty or the head is on a side the disk doesn't have.
+    uint64_t  GetQuietUntil () const override { return (!m_motorOn || !HasDisk() || GetSide() >= m_sides) ? kQuietForever : 0; }
+    void      SetEnabled    (bool isEnabled) override;
+
+    void      SetSel    (bool sel);
+
+    bool  IsMotorOn  () const { return m_motorOn && HasDisk(); }
+
+    //  Nothing changes with time alone: the motor is off and no step or
+    //  eject is under way.
+    bool  IsIdle     () const { return !IsMotorOn() && m_stepLeftNs == 0 && m_ejectLeftNs == 0; }
+    int   GetTrack   () const { return m_track; }
+    int   GetSide    () const { return m_sel ? 1 : 0; }
+
+    //  The mechanism, the tracks written since the disk last flushed, and
+    //  the disk, written into and read from the owner's state section. A
+    //  state saved with another disk in the drive, or with none, doesn't
+    //  load.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
+
+    //  IReplayMedia: a WOZ image's file as last read or written, or the
+    //  block media's copy.
+    HRESULT  CopyForReplay   (ReplayBlockMedia & outCopy) override;
+    HRESULT  MountReplayCopy (const ReplayBlockMedia & copy) override;
+
+private:
+    static constexpr uint64_t  kStepNs     = 12'000'000;
+    static constexpr uint64_t  kSpinUpNs   = 50'000'000;
+    static constexpr uint64_t  kEjectNs    = 100'000'000;
+    static constexpr uint64_t  kMotorOffNs = 1'000'000'000;
+
+    int                  GetRegister  () const;
+    void                 RunCommand   (int command);
+    std::vector<Byte>  & GetTrackBits ();
+    void                 Emit         (Floppy35Op op);
+
+    int                                         m_driveIndex = 0;
+    std::unique_ptr<ISony35Disk>                m_disk;
+    IFloppy35EventSink                        * m_sink       = nullptr;
+    int                                         m_sides      = kSides;
+    bool                                        m_ca0        = false;
+    bool                                        m_ca1        = false;
+    bool                                        m_ca2        = false;
+    bool                                        m_lstrb      = false;
+    bool                                        m_sel        = false;
+    bool                                        m_stepOut    = false;
+    bool                                        m_motorOn    = false;
+    bool                                        m_enabled    = true;
+    bool                                        m_diskSwitched = true;
+    int                                         m_track      = 0;
+    uint64_t                                    m_stepLeftNs = 0;
+    uint64_t                                    m_spinLeftNs = 0;
+    uint64_t                                    m_ejectLeftNs = 0;
+    uint64_t                                    m_offLeftNs   = 0;
+    size_t                                      m_position   = 0;
+    std::map<int, std::vector<Byte>>            m_tracks;
+    std::set<int>                               m_dirty;
+};

@@ -49,7 +49,7 @@ void DebuggerWindow::ConfigureTimeline()
     entry.command       = m_timelineCommand;
     entry.custom        = &m_timelineStrip;
     entry.group         = kStripGroup;
-    entry.neverOverflow = true;
+    entry.pinned        = true;
     entry.fill          = true;
 
     m_timelineStrip.SetSource        (thumbnails);

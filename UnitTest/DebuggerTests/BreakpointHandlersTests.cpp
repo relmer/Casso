@@ -1,9 +1,12 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
+#include "Debugger/Handlers/BreakpointGroupHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
 #include "TestHelpers.h"
+#include "MockExpressionContext.h"
+#include "Debugger/BreakpointTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -60,6 +63,204 @@ namespace DebuggerTests
             return opcodes;
         }
 
+
+
+        //  BPLOG sets a breakpoint's message, GO makes its hits run on, and
+        //  CLEAR takes the message off and makes hits stop again.
+        TEST_METHOD (BplogSetsAMessageAndWhetherAHitStops)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 0300");
+            rig.RunOk (std::format ("BPLOG {} GO \"A={{A}} X={{X}}\"", rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            Assert::AreEqual (std::string ("A={A} X={X}"), rig.session.GetBreakpoints().GetAll().at (0).log);
+            Assert::IsFalse  (rig.session.GetBreakpoints().GetAll().at (0).stops, L"GO runs on");
+
+            rig.RunOk (std::format ("BPLOG {} \"stopping\"", rig.session.GetBreakpoints().GetAll().at (0).id));
+            Assert::IsTrue   (rig.session.GetBreakpoints().GetAll().at (0).stops, L"without GO a hit stops");
+
+            rig.RunOk (std::format ("BPLOG {} CLEAR", rig.session.GetBreakpoints().GetAll().at (0).id));
+            Assert::IsTrue   (rig.session.GetBreakpoints().GetAll().at (0).log.empty());
+        }
+
+
+        //  BPGROUP puts breakpoints and watchpoints in a group, a name matching
+        //  it without regard to case and written as first typed; ! takes them
+        //  out, and the group is gone once nothing is in it. An unknown id is
+        //  an error, and grouping is all or nothing.
+        TEST_METHOD (BpgroupPutsBreakpointsInAGroupAndTakesThemOut)
+        {
+            Rig  rig;
+            int  first  = 0;
+            int  second = 0;
+            int  memory = 0;
+
+
+
+            rig.RunOk ("BP 0300");
+            rig.RunOk ("BP 0310");
+            rig.RunOk ("BPM 0400");
+
+            first  = rig.session.GetBreakpoints().GetAll().at (0).id;
+            second = rig.session.GetBreakpoints().GetAll().at (1).id;
+            memory = rig.session.GetWatchpoints().GetAll().at (0).id;
+
+            rig.RunOk (std::format ("BPGROUP Loop {},{}", first, memory));
+            rig.RunOk (std::format ("BPGROUP LOOP #{}", second));
+
+            Assert::AreEqual (std::string ("Loop"), rig.session.GetBreakpoints().GetAll().at (1).group, L"written as first typed");
+            Assert::AreEqual (std::string ("Loop"), rig.session.GetWatchpoints().GetAll().at (0).group, L"a watchpoint too");
+            Assert::IsTrue   (rig.RunOk ("BPGROUP").text.at (0).starts_with ("Group \"Loop\":"), L"listed");
+
+            rig.RunFails (std::format ("BPGROUP Other {} 999", first), "no such breakpoint");
+            Assert::AreEqual (std::string ("Loop"), rig.session.GetBreakpoints().GetAll().at (0).group, L"all or nothing");
+
+            rig.RunOk (std::format ("BPGROUP ! {} {} {}", first, second, memory));
+
+            Assert::IsTrue   (BreakpointGroupHandlers::GetGroups (rig.session).empty(), L"an empty group is gone");
+            Assert::AreEqual (std::string ("No breakpoint groups."), rig.RunOk ("BPGROUP").text.at (0));
+        }
+
+
+        //  ENABLE, DISABLE, RENAME, UNGROUP and DELETE act on every breakpoint
+        //  in a group; an unknown group, or a rename to another group's name,
+        //  is an error.
+        TEST_METHOD (BpgroupActsOnAWholeGroup)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 0300");
+            rig.RunOk ("BP 0310");
+            rig.RunOk ("BP 0320");
+            rig.RunOk (std::format ("BPGROUP \"Two words\" {} {}", rig.session.GetBreakpoints().GetAll().at (0).id, rig.session.GetBreakpoints().GetAll().at (1).id));
+            rig.RunOk (std::format ("BPGROUP Other {}", rig.session.GetBreakpoints().GetAll().at (2).id));
+
+            rig.RunOk ("BPGROUP DISABLE \"two words\"");
+            Assert::IsFalse (rig.session.GetBreakpoints().GetAll().at (0).enabled);
+            Assert::IsFalse (rig.session.GetBreakpoints().GetAll().at (1).enabled);
+            Assert::IsTrue  (rig.session.GetBreakpoints().GetAll().at (2).enabled, L"another group's is left alone");
+
+            rig.RunOk ("BPGROUP ENABLE \"Two words\"");
+            Assert::IsTrue  (rig.session.GetBreakpoints().GetAll().at (0).enabled);
+
+            rig.RunFails ("BPGROUP RENAME \"Two words\" OTHER", "group exists");
+            rig.RunOk    ("BPGROUP RENAME \"Two words\" Pair");
+            Assert::AreEqual (std::string ("Pair"), rig.session.GetBreakpoints().GetAll().at (1).group);
+
+            rig.RunOk ("BPGROUP UNGROUP Pair");
+            Assert::IsTrue   (rig.session.GetBreakpoints().GetAll().at (0).group.empty(), L"ungrouped");
+            Assert::AreEqual ((size_t) 3, rig.session.GetBreakpoints().GetAll().size(), L"and are set");
+
+            rig.RunOk ("BPGROUP DELETE Other");
+            Assert::AreEqual ((size_t) 2, rig.session.GetBreakpoints().GetAll().size(), L"the group's breakpoint deleted");
+
+            rig.RunFails ("BPGROUP DELETE Nothing", "no such group");
+            rig.RunFails ("BPGROUP FROB Pair", "invalid arguments");
+        }
+
+
+        //  After BPEDIT a breakpoint is in the same group. BPSAVE writes
+        //  AppleWin's script, which has no groups; the debug project saves them.
+        TEST_METHOD (TheGroupIsTheSameAfterBpeditAndNotInTheAppleWinScript)
+        {
+            Rig          rig;
+            int          id     = 0;
+            std::string  script;
+
+
+
+            rig.RunOk ("BP 0300");
+            id = rig.session.GetBreakpoints().GetAll().at (0).id;
+            rig.RunOk (std::format ("BPGROUP Loop {}", id));
+            rig.RunOk (std::format ("BPEDIT {} BP 0304", id));
+
+            Assert::AreEqual (std::string ("Loop"), rig.session.GetBreakpoints().GetAll().at (0).group, L"after BPEDIT");
+
+            script = BreakpointHandlers::MakeScript (rig.session);
+
+            Assert::IsTrue (script.find ("BPGROUP") == std::string::npos, TextEncoding::NarrowToWide (script).c_str());
+        }
+
+
+        //  BPLOGS lists the last messages, before they are taken and after;
+        //  a count of 0, past the limit or not a number is an error.
+        TEST_METHOD (BplogsListsTheLastMessages)
+        {
+            auto  rig = std::make_unique<MachineHandlerRig<BreakpointHandlers>> ("Apple2e", TestMachine::Slots::Empty);
+
+
+
+            //  LDA #$42 / JMP $0300
+            for (Word at = 0; at < 5; at++)
+            {
+                (void) rig->session.GetTarget().TryPoke ((Word) (0x0300 + at), std::array<Byte, 5> { 0xA9, 0x42, 0x4C, 0x00, 0x03 }[at]);
+            }
+
+            rig->machine.GetCpu()->SetPC (0x0300);
+            rig->session.SetBudget (200);
+            rig->RunOk ("BP 0302");
+            rig->RunOk (std::format ("BPLOG {} GO \"A={{A}}\"", rig->session.GetBreakpoints().GetAll().at (0).id));
+            rig->RunOk ("G");
+
+            Assert::AreEqual ((size_t) 3, rig->RunOk ("BPLOGS 3").text.size(), L"the last three, not yet taken");
+            Assert::AreEqual (std::string ("Breakpoint #0: A=$42"), rig->RunOk ("BPLOGS 3").text.back());
+
+            (void) rig->session.TakeHitLogs();
+
+            Assert::AreEqual ((size_t) 3, rig->RunOk ("BPLOGS 3").text.size(), L"and once taken");
+
+            for (const char * bad : { "BPLOGS 0", "BPLOGS 1001", "BPLOGS x", "BPLOGS 99999999999999999999" })
+            {
+                rig->RunFails (bad, "invalid arguments");
+            }
+        }
+
+
+        //  A hit's message has each {expression} evaluated in hex, and one that
+        //  can't be evaluated left as {?expression}.
+        TEST_METHOD (ALogsExpressionsAreEvaluatedAtTheHit)
+        {
+            MockExpressionContext  context;
+
+
+
+            context.registers["A"] = 0x42;
+            context.memory[0x0300] = 0x07;
+            context.symbols["COUNT"] = 0x0300;
+
+            Assert::AreEqual (std::string ("Breakpoint #3: A=$42 count=$07 at $0300"),
+                              BreakpointTable::FormatLog (3, "A={A} count={count.b} at {count}", context));
+            Assert::AreEqual (std::string ("Breakpoint #3: {?nosuch}"), BreakpointTable::FormatLog (3, "{nosuch}", context));
+        }
+
+
+        //  BPEDIT changes a definition; the breakpoint's message and
+        //  whether a hit stops are copied to the new one, on a breakpoint and on
+        //  a memory breakpoint.
+        TEST_METHOD (AnEditKeepsTheLogMessage)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BP 0300");
+            rig.RunOk ("BPM 0400");
+            rig.RunOk (std::format ("BPLOG {} GO \"pc={{PC}}\"", rig.session.GetBreakpoints().GetAll().at (0).id));
+            rig.RunOk (std::format ("BPLOG {} \"a write\"",      rig.session.GetWatchpoints().GetAll().at (0).id));
+
+            rig.RunOk (std::format ("BPEDIT {} BP 0310",  rig.session.GetBreakpoints().GetAll().at (0).id));
+            rig.RunOk (std::format ("BPEDIT {} BPM 0410", rig.session.GetWatchpoints().GetAll().at (0).id));
+
+            Assert::AreEqual ((int) 0x0310, (int) rig.session.GetBreakpoints().GetAll().at (0).first);
+            Assert::AreEqual (std::string ("pc={PC}"), rig.session.GetBreakpoints().GetAll().at (0).log);
+            Assert::IsFalse  (rig.session.GetBreakpoints().GetAll().at (0).stops);
+            Assert::AreEqual (std::string ("a write"), rig.session.GetWatchpoints().GetAll().at (0).log);
+        }
 
 
         //  BRKOP, BRK and BRKINT take an IF clause, and their definitions
@@ -133,12 +334,12 @@ namespace DebuggerTests
             rig.session.SetVideoBreak (0xA0, 0xA0);
 
             lines = List (rig);
-            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, cleared when it fires."), lines.at (0));
+            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, removed after its first stop."), lines.at (0));
 
             rig.RunOk ("BP 300");
             lines = List (rig);
             Assert::AreEqual ((size_t) 2, lines.size());
-            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, cleared when it fires."), lines.at (1));
+            Assert::AreEqual (std::string ("Video break on scanlines $A0-$A0, removed after its first stop."), lines.at (1));
 
             rig.session.ClearVideoBreak();
             Assert::AreEqual ((size_t) 1, List (rig).size(), L"the line goes with the break");

@@ -1,10 +1,13 @@
 #include "Pch.h"
 
+#include "Cli/CommandLineQuoting.h"
 #include "Cli/ICassoLauncher.h"
+#include "Cli/McpMode.h"
 #include "Cli/McpServer.h"
 #include "Cli/McpTools.h"
 #include "Core/JsonParser.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 #include "Debugger/Channel/IInstanceDirectory.h"
 
 #include "CppUnitTest.h"
@@ -473,6 +476,90 @@ namespace DebuggerTests
             Assert::IsFalse  (IsError (result), TextEncoding::NarrowToWide (GetText (result)).c_str());
             Assert::AreEqual (std::string ("EXIT"), rig.directory.instances[4242].lines.back());
             Assert::IsFalse  (rig.directory.instances[4242].isRunning);
+        }
+
+
+
+        //  A quote in a value used to end its argument, so the rest of the
+        //  value became switches on Casso's command line.
+        TEST_METHOD (LaunchArgumentsRoundTripThroughCommandLineToArgvW)
+        {
+            Rig                        rig;
+            JsonValue                  result;
+            std::wstring               commandLine;
+            int                        count       = 0;
+            LPWSTR                   * argv        = nullptr;
+            std::vector<std::wstring>  args;
+            std::vector<std::wstring>  original    = { L"Casso.exe",
+                                                       L"--debugger",
+                                                       L"--title",   L"x\" --script \"C:\\evil.txt",
+                                                       L"--machine", L"Apple2c\\",
+                                                       L"--disk1",   L"C:\\a b\\\\",
+                                                       L"--disk2",   L"a\\\\\"b\\\" --script c" };
+
+
+
+            result = rig.Call ("launch", R"({"title":"x\" --script \"C:\\evil.txt","machine":"Apple2c\\","disk1":"C:\\a b\\\\","disk2":"a\\\\\"b\\\" --script c"})");
+            Assert::IsFalse (IsError (result), TextEncoding::NarrowToWide (GetText (result)).c_str());
+
+            commandLine = L"Casso.exe " + rig.launcher.launched;
+            argv        = CommandLineToArgvW (commandLine.c_str(), &count);
+            Assert::IsNotNull (argv);
+
+            args.assign (argv, argv + count);
+            LocalFree (argv);
+
+            Assert::AreEqual (original.size(), args.size(), commandLine.c_str());
+
+            for (size_t i = 0; i < original.size(); i++)
+            {
+                Assert::AreEqual (original[i], args[i], commandLine.c_str());
+            }
+        }
+
+
+
+        TEST_METHOD (QuoteArgumentEscapesQuotesAndTheBackslashesBeforeThem)
+        {
+            Assert::AreEqual (std::wstring (L"\"\""),                          CommandLineQuoting::QuoteArgument (L""));
+            Assert::AreEqual (std::wstring (L"\"C:\\Program Files\\Casso.exe\""), CommandLineQuoting::QuoteArgument (L"C:\\Program Files\\Casso.exe"));
+            Assert::AreEqual (std::wstring (L"\"a\\\\b\""),                    CommandLineQuoting::QuoteArgument (L"a\\\\b"), L"backslashes before a letter are literal");
+            Assert::AreEqual (std::wstring (L"\"a\\\\\\\"b\""),                CommandLineQuoting::QuoteArgument (L"a\\\"b"));
+            Assert::AreEqual (std::wstring (L"\"a\\\\\""),                     CommandLineQuoting::QuoteArgument (L"a\\"));
+        }
+
+
+
+        //  A line one byte past the limit gets the "line too long" error
+        //  without being parsed. The rest of it is discarded, and the line
+        //  after it is served.
+        TEST_METHOD (OneLinePastTheLimitIsAnErrorAndTheNextLineIsServed)
+        {
+            Rig                       rig;
+            std::string               atLimit  (ChannelProtocol::kMaxLineBytes, 'x');
+            std::string               tooLong  (ChannelProtocol::kMaxLineBytes + 5000, 'x');
+            std::istringstream        in       (atLimit + "\n" + tooLong + "\n" + R"({"jsonrpc":"2.0","id":7,"method":"ping"})" + "\n");
+            std::ostringstream        out;
+            std::istringstream        written;
+            std::vector<std::string>  responses;
+            std::string               each;
+
+
+
+            McpMode::Serve (rig.server, in, out);
+
+            written.str (out.str());
+
+            while (std::getline (written, each))
+            {
+                responses.push_back (each);
+            }
+
+            Assert::AreEqual ((size_t) 3, responses.size());
+            Assert::IsTrue   (responses[0].find ("-32700") != std::string::npos, L"a line at the limit is parsed");
+            Assert::IsTrue   (responses[1].find ("line too long") != std::string::npos, TextEncoding::NarrowToWide (responses[1].substr (0, 200)).c_str());
+            Assert::IsTrue   (responses[1].find ("-32600") != std::string::npos);
+            Assert::IsTrue   (responses[2].find ("\"id\":7") != std::string::npos, TextEncoding::NarrowToWide (responses[2]).c_str());
         }
 
 

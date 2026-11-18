@@ -149,7 +149,7 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     nameH   = Scale (kCompactNameHeightPx,    dpi);
     barGap  = Scale (kCompactBarGapPx,        dpi);
     barH    = Scale (kCompactBarHeightPx,     dpi);
-    capW    = Scale (kCompactCaptionWidthPx,  dpi);
+    capW    = Scale ((m_captionWidthDip > 0) ? m_captionWidthDip : kCompactCaptionWidthPx, dpi);
     capGapX = Scale (kCompactCaptionGapXPx,   dpi);
     capH    = Scale (kCompactCaptionHeightPx, dpi);
     bandX   = x + capW + capGapX;
@@ -550,6 +550,7 @@ void DriveWidget::Paint (
     float               capFontDip = 0.0f;
     const CassoTheme  & theme      = static_cast<const CassoTheme &> (dxuiTheme);
     wchar_t             label[32]  = {};
+    bool                clipPushed = false;
 
 
 
@@ -557,6 +558,15 @@ void DriveWidget::Paint (
 
     // No Disk ][ controller -> Hide() latched: draw nothing at all.
     BAIL_OUT_IF (m_hidden, S_OK);
+
+    if (m_hasTextClip)
+    {
+        hr = text.PushClipRect ((float) m_textClip.left, (float) m_textClip.top,
+                                (float) (m_textClip.right  - m_textClip.left),
+                                (float) (m_textClip.bottom - m_textClip.top));
+        clipPushed = SUCCEEDED (hr);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     dpi        = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
     capFontDip = kCompactCaptionFontDip * (float) dpi / (float) kBaseDpi;
@@ -593,10 +603,28 @@ void DriveWidget::Paint (
     PaintCompactHeadBar (painter, theme, dpi);
 
     swprintf_s (label, L"DRIVE %d", m_drive + 1);
+
+    // On the drive bar, the drive's name is level with the image's name, and
+    // the form factor takes the caption's place on the rail.
+    if (!m_barTitle.empty())
+    {
+        hr = text.DrawString (m_barTitle.c_str(),
+                              (float) m_captionRect.left,
+                              (float) m_labelRect.top,
+                              (float) (m_captionRect.right - m_captionRect.left),
+                              (float) (m_labelRect.bottom  - m_labelRect.top),
+                              theme.driveLabel,
+                              capFontDip,
+                              kFontFamily,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     // Bottom aligned so the caption sits on the rail's baseline rather than
     // floating in the middle of a taller box. Centering it left the word
     // riding above the bar it labels.
-    hr = text.DrawString (label,
+    hr = text.DrawString (m_barTitle.empty() ? label : m_barDetail.c_str(),
                           (float) m_captionRect.left,
                           (float) m_captionRect.top,
                           (float) (m_captionRect.right  - m_captionRect.left),
@@ -656,6 +684,12 @@ void DriveWidget::Paint (
     }
 
 Error:
+    if (clipPushed)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     return;
 }
 

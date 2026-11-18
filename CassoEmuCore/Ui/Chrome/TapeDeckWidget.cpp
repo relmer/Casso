@@ -49,17 +49,12 @@ bool TapeDeckWidget::UpdateHover (int x, int y)
     TapeDeckRegion  region  = TapeDeckRegion::None;
     bool            moved   = false;
     bool            isNear  = IsNearControls (x, y);
-    bool            wasNear = m_isNear;
+    bool            wasNear = m_magnifier.IsNear();
     int64_t         nowMs   = GetNowMs();
 
 
 
-    if (isNear != m_isNear)
-    {
-        m_presenceFrom = GetPresence (nowMs);
-        m_presenceMs   = nowMs;
-        m_isNear       = isNear;
-    }
+    m_magnifier.SetNear (isNear, nowMs);
 
     m_mouseX = x;
     m_mouseY = y;
@@ -478,30 +473,11 @@ float TapeDeckWidget::GetMarqueeOffset (int64_t nowMs, int64_t startMs, float pe
 //
 //  GetMagnification
 //
-//  A raised cosine: full size right under the pointer, falling off smoothly
-//  with no corner at either end, so a control grows and shrinks without a
-//  jump as the pointer passes.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 float TapeDeckWidget::GetMagnification (float distance, float reach)
 {
-    constexpr float  kPi   = 3.14159265f;
-    float            t     = 0.0f;
-
-
-
-    // Either side alike, and nothing past the reach on either side: comparing
-    // the signed distance let every control to the right of the pointer
-    // through, where the cosine comes back up to full size two reaches out.
-    t = (reach > 0.0f) ? fabsf (distance) / reach : 1.0f;
-
-    if (t >= 1.0f)
-    {
-        return 1.0f;
-    }
-
-    return 1.0f + (kMagnifyMax - 1.0f) * 0.5f * (1.0f + cosf (kPi * t));
+    return DxuiMagnifiedRow::GetMagnification (distance, reach, kMagnifyMax);
 }
 
 
@@ -519,29 +495,7 @@ float TapeDeckWidget::GetMagnification (float distance, float reach)
 
 bool TapeDeckWidget::IsMagnifying() const
 {
-    return m_isNear || GetPresence (GetNowMs()) > 0.0f;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetPresence
-//
-//  How strongly the magnification applies, 0 to 1: ramping up after the
-//  pointer arrives and down after it leaves.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float TapeDeckWidget::GetPresence (int64_t nowMs) const
-{
-    float  step = (float) (nowMs - m_presenceMs) / (float) kMagnifyFadeMs;
-
-
-
-    return clamp (m_presenceFrom + (m_isNear ? step : -step), 0.0f, 1.0f);
+    return m_magnifier.IsActive (GetNowMs());
 }
 
 
@@ -593,33 +547,26 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
 //
 //  ComputeControlRects
 //
-//  The buttons and the counter as drawn this moment: each scaled by how near
-//  the pointer is to it, then laid side by side again so they spread apart
-//  rather than overlap, the row centered where it stands and every control
-//  standing on the row's bottom edge. At rest this is exactly the layout.
+//  The buttons and the counter as drawn this moment: magnified as a row
+//  centered where it is, every control on the row's bottom edge. At rest
+//  this is exactly the layout.
 //
 //  The row stays where it is as the pointer moves along it. The reach is
-//  exactly two pitches, and raised cosines that far apart at that spacing add
-//  up to the same total wherever the pointer stands -- so the row's width,
-//  and with it a centered row's position, does not change; only the controls
-//  within it grow and shrink. Anchoring the row to the pointer instead slid
-//  the whole row a few pixels as the pointer crossed each control.
+//  exactly two pitches, so the row's width, and with it a centered row's
+//  position, does not change; only the controls within it grow and shrink.
+//  Anchoring the row to the pointer instead slid the whole row a few pixels
+//  as the pointer crossed each control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TapeDeckWidget::ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const
 {
-    constexpr size_t  kCount         = kButtonCount + 1;
-    RECT              base[kCount]   = {};
-    float             widths[kCount] = {};
-    float             gaps[kCount]   = {};
-    float             presence       = GetPresence (nowMs);
-    float             pitch          = (float) (m_buttons[1].left - m_buttons[0].left);
-    float             reach          = pitch * kMagnifyReachPitches;
-    float             total          = 0.0f;
-    float             center         = (float) (m_buttons[0].left + m_counterRect.right) * 0.5f;
-    float             x              = 0.0f;
-    float             bottom         = (float) m_counterRect.bottom;
+    constexpr size_t           kCount        = kButtonCount + 1;
+    RECT                       base[kCount]  = {};
+    DxuiMagnifiedItem          items[kCount] = {};
+    DxuiMagnifiedSpan          spans[kCount] = {};
+    DxuiMagnifiedRow::Options  options;
+    float                      bottom        = (float) m_counterRect.bottom;
 
 
 
@@ -632,23 +579,20 @@ void TapeDeckWidget::ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kB
 
     for (size_t i = 0; i < kCount; i++)
     {
-        float  cx    = (float) (base[i].left + base[i].right) * 0.5f;
-        float  full  = GetMagnification ((float) m_mouseX - cx, reach);
-
-        scales[i] = 1.0f + (full - 1.0f) * presence;
-        widths[i] = (float) (base[i].right - base[i].left) * scales[i];
-        gaps[i]   = (i + 1 < kCount) ? (float) (base[i + 1].left - base[i].right) : 0.0f;
-        total    += widths[i] + gaps[i];
+        items[i] = { (float) base[i].left, (float) (base[i].right - base[i].left), kMagnifyMax };
     }
 
-    x = center - total * 0.5f;
+    options.reach  = (float) (m_buttons[1].left - m_buttons[0].left) * kMagnifyReachPitches;
+    options.anchor = DxuiMagnifiedRow::Anchor::Center;
+
+    DxuiMagnifiedRow::Lay (items, (float) m_mouseX, m_magnifier.GetStrength (nowMs), options, spans);
 
     for (size_t i = 0; i < kCount; i++)
     {
-        float  height = (float) (base[i].bottom - base[i].top) * scales[i];
+        float  height = (float) (base[i].bottom - base[i].top) * spans[i].scale;
 
-        rects[i] = { x, bottom - height, x + widths[i], bottom };
-        x       += widths[i] + gaps[i];
+        scales[i] = spans[i].scale;
+        rects[i]  = { spans[i].left, bottom - height, spans[i].left + spans[i].width, bottom };
     }
 }
 
@@ -779,12 +723,22 @@ void TapeDeckWidget::Paint (
     ControlBox          rects[kButtonCount + 1]  = {};
     float               scales[kButtonCount + 1] = {};
     const ControlBox  & counterBox = rects[kButtonCount];
+    bool                clipPushed = false;
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
 
     BAIL_OUT_IF (m_hidden, S_OK);
+
+    if (m_hasTextClip)
+    {
+        hr = text.PushClipRect ((float) m_textClip.left, (float) m_textClip.top,
+                                (float) (m_textClip.right  - m_textClip.left),
+                                (float) (m_textClip.bottom - m_textClip.top));
+        clipPushed = SUCCEEDED (hr);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 
     ComputeControlRects (GetNowMs(), rects, scales);
 
@@ -841,7 +795,7 @@ void TapeDeckWidget::Paint (
     // The nearest control's label shows under it while the pointer is near
     // the row. One label only: under a magnified row, several at once
     // would run into each other.
-    if (m_isNear)
+    if (m_magnifier.IsNear())
     {
         size_t  nearest = 0;
         float   best    = FLT_MAX;
@@ -871,6 +825,12 @@ void TapeDeckWidget::Paint (
     }
 
 Error:
+    if (clipPushed)
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     return;
 }
 

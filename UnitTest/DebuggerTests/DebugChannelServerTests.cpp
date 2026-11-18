@@ -39,6 +39,8 @@ namespace DebuggerTests
             std::string                 line;
             std::optional<CommandMode>  mode;
             std::optional<uint64_t>     budget;
+            ChannelClient               client;
+            bool                        overwrite = false;
         };
 
         std::vector<Ran>       ran;
@@ -50,11 +52,12 @@ namespace DebuggerTests
         IDebugNotificationSink *  stopFrom = nullptr;
         std::optional<StopReason> stopWith;
 
-        Reply RunLine (const std::string & line, std::optional<CommandMode> mode, std::optional<uint64_t> budget) override
+        Reply RunLine (const std::string & line, std::optional<CommandMode> mode, std::optional<uint64_t> budget,
+                       const ChannelClient & client, bool overwrite) override
         {
             Reply  reply;
 
-            ran.push_back (Ran { line, mode, budget });
+            ran.push_back (Ran { line, mode, budget, client, overwrite });
             reply.command = line;
 
             if (startsRun)
@@ -319,6 +322,44 @@ namespace DebuggerTests
             server.Pump();
 
             Assert::IsTrue (transport.Written (client).empty(), L"no stale stop or resume");
+        }
+
+
+
+        //  A logging breakpoint's messages go to the client whose hello set
+        //  logs, as log notifications, and to no other; past kMaxLogsPerPump
+        //  in one pump, one notification counts the rest.
+        TEST_METHOD (HitLogsGoToTheClientsWhoseHelloSetLogs)
+        {
+            InMemoryPipeTransport     transport;
+            RecordingRunner           runner;
+            DebugChannelServer        server (transport, runner);
+            ChannelConnectionId       logging = 0;
+            ChannelConnectionId       silent  = 0;
+            std::vector<std::string>  flood (DebugChannelServer::kMaxLogsPerPump + 5, "Breakpoint #3: A=$42");
+
+
+
+            server.Open();
+            logging = transport.Connect();
+            silent  = transport.Connect();
+            transport.Send (logging, "{\"type\":\"hello\",\"id\":1,\"logs\":true}");
+            transport.Send (silent,  "{\"type\":\"hello\",\"id\":2}");
+            server.Pump();
+
+            server.SendHitLogs ({ "Breakpoint #3: A=$42" });
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, transport.Written (logging).size(), L"its hello's reply, then the log");
+            Assert::AreEqual (std::string ("log"), TypeOf (transport.Written (logging).back()));
+            Assert::IsTrue   (transport.Written (logging).back().find ("Breakpoint #3: A=$42") != std::string::npos);
+            Assert::AreEqual ((size_t) 1, transport.Written (silent).size(), L"its hello's reply alone");
+
+            server.SendHitLogs (flood);
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2 + DebugChannelServer::kMaxLogsPerPump + 1, transport.Written (logging).size());
+            Assert::IsTrue   (transport.Written (logging).back().find ("5 more breakpoint messages were not sent.") != std::string::npos);
         }
 
 
@@ -685,6 +726,55 @@ namespace DebuggerTests
 
 
 
+        //  Lines a broken or hostile client might send: each gets one record
+        //  back, an error or a reply, and none throws or stops the next line
+        //  from being read.
+        TEST_METHOD (HostileLinesEachGetOneRecord)
+        {
+            static const std::vector<std::string>  kLines =
+            {
+                "", " ", "{", "}", "[]", "null", "true", "42", "\"text\"", "{}", "{\"type\":null}",
+                "{\"type\":\"command\"}", "{\"type\":\"command\",\"id\":1}", "{\"type\":\"command\",\"id\":-1,\"line\":\"r\"}",
+                "{\"type\":\"command\",\"id\":1.5,\"line\":\"r\"}", "{\"type\":\"command\",\"id\":1e300,\"line\":\"r\"}",
+                "{\"type\":\"command\",\"id\":9007199254740993,\"line\":\"r\"}", "{\"type\":\"command\",\"id\":\"1\",\"line\":\"r\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":42}", "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"mode\":\"nosuch\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"budget\":0}", "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"budget\":-5}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"r\",\"overwrite\":\"yes\"}", "{\"type\":\"hello\",\"id\":1,\"allowPaths\":\"C:\\\\\"}",
+                "{\"type\":\"hello\",\"id\":1,\"allowPaths\":[1,2]}", "{\"type\":\"hello\",\"id\":1,\"protocol\":\"x\"}",
+                "{\"type\":\"hello\",\"id\":1,\"logs\":1}", "{\"type\":\"nosuch\",\"id\":1}", "{\"type\":\"pause\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"r\"", "{\"type\":\"command\",\"id\":1,\"line\":\"\\u00\"}",
+                "{\"type\":\"command\",\"id\":1,\"line\":\"\\uD800\"}", "{\"a\":" + std::string (200, '['),
+                std::string (500, '[') + std::string (500, ']'), "\xFF\xFE\x00\x01", "{\"type\":\"command\",\"id\":1,\"line\":\"\xC3\x28\"}",
+            };
+
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+            size_t                 before = 0;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            for (const std::string & line : kLines)
+            {
+                before = transport.Written (client).size();
+                transport.Send (client, line);
+                server.Pump();
+
+                Assert::AreEqual (before + 1, transport.Written (client).size(), (L"one record for: " + Widen (line)).c_str());
+            }
+
+            transport.Send (client, Command ("r", 2));
+            server.Pump();
+
+            Assert::AreEqual (std::string ("reply"), TypeOf (transport.Written (client).back()), L"a good line after them gets a reply");
+        }
+
+
+
         //  A per-line mode and budget reach the runner, which is where the
         //  contract says they apply: this line only.
         TEST_METHOD (APerLineModeAndBudgetReachTheRunner)
@@ -801,6 +891,64 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 0, runner.ran.size());
             Assert::IsTrue   (transport.Written (client).empty());
+        }
+
+
+
+        //  A hello's name, folders and scripts setting apply to that client's
+        //  commands and no one else's: a client without a hello has the
+        //  defaults.
+        TEST_METHOD (AHellosFileAccess_AppliesToThatClientsCommandsOnly)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    first  = 0;
+            ChannelConnectionId    second = 0;
+
+
+
+            Assert::AreEqual (S_OK, server.Open());
+
+            first  = transport.Connect();
+            second = transport.Connect();
+
+            transport.Send (first,  ChannelProtocol::WriteHelloRequest (1, ChannelClient { "MCP client", { L"C:\\Work" } }));
+            transport.Send (first,  Command ("r", 2));
+            transport.Send (second, Command ("r", 3));
+
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, runner.ran.size());
+            Assert::AreEqual (std::string ("MCP client"), runner.ran[0].client.name);
+            Assert::AreEqual ((size_t) 1, runner.ran[0].client.allowPaths.size());
+            Assert::AreEqual (std::wstring (L"C:\\Work"), runner.ran[0].client.allowPaths[0]);
+
+            Assert::IsTrue   (runner.ran[1].client.name.empty(), L"the other client sent no hello");
+            Assert::IsTrue   (runner.ran[1].client.allowPaths.empty());
+        }
+
+
+
+        TEST_METHOD (ACommandsOverwriteOption_ReachesTheRunner)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+
+
+
+            Assert::AreEqual (S_OK, server.Open());
+
+            client = transport.Connect();
+            transport.Send (client, R"({"type":"command","id":1,"line":"BSAVE x 300,1","overwrite":true})");
+            transport.Send (client, Command ("BSAVE x 300,1", 2));
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, runner.ran.size());
+            Assert::IsTrue   (runner.ran[0].overwrite);
+            Assert::IsFalse  (runner.ran[1].overwrite);
         }
     };
 }

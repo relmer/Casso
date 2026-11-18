@@ -169,8 +169,8 @@ void MachineManager::ShowMachinePicker()
 //    debug panels    hold raw pointers into the OLD CPU's cycle counter
 //    event sinks     keyboard, //e soft switches, and game port all point at
 //                    panels that outlive the devices
-//    printer worker  its drain thread holds a reference into the card's ring,
-//                    which clearing the owned devices is about to free
+//    printer worker  its drain thread paces off the OLD CPU's cycle counter,
+//                    and the build clears the ring it drains
 //    audio mixer     borrows PSG sources owned by the Mockingboard card
 //    IRQ tokens      reclaimed before their holders are destroyed
 //    //c ROM bank    references the language card and the MMU
@@ -414,7 +414,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // ApplyPersistedMachinePrefs) applied to switching.
     //
     // State only -- this runs on the CPU thread, and the selector sync asserts
-    // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
+    // the UI thread. The post-switch reflow (AppMessage::ShellUpdateTitle) puts it
     // on the chrome. The nudge follows the adopt, so the //c mouse default
     // sees the restored mapping rather than being overwritten by it.
     m_shell.m_input->AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);
@@ -434,7 +434,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Reverse execution's history belongs to the machine being left, whose
     // devices are about to go; stopping it also lets the flush below write.
-    m_shell.m_debugger->StopReverseRecording();
+    m_shell.m_debugger->GetHistory().StopRecording();
 
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
@@ -463,10 +463,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
     //
-    // Stop the printer drain thread first: its job holds a reference into the
-    // card's ring, which clearing the owned devices is about to free.
+    // Stop the printer drain thread first: it paces off the outgoing CPU's
+    // cycle counter, and the build clears the ring it drains.
     //
-    // Persist the outgoing machine's pending strip before its card is freed.
+    // Persist the outgoing machine's pending strip before it goes.
     m_shell.m_printer->StopAndSavePendingStrip();
 
     {
@@ -488,15 +488,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
         // The recorder outlives the machine; stop it while the old CPU's
         // cycle count is still valid. The tape stays inserted.
-        m_shell.m_machine.StopTape();
+        m_shell.m_machine.GetTape().Stop();
 
         m_shell.m_machine.SetCpu (nullptr);
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.
         m_shell.m_machine.SetApple2cRomBank (nullptr);
-        // A serial attachment's COM port or connection closes before the new
-        // machine's attachments open theirs, which may be the same ones.
-        m_shell.m_machine.CloseSerialAttachments();
+        m_shell.m_machine.SetAccelerator (nullptr);
+        m_shell.m_machine.DetachSerialPorts();
         m_shell.m_machine.GetOwnedDevices().clear();
         m_shell.m_machine.GetVideoModes().clear();
         m_shell.m_machine.GetMemoryBus() = MemoryBus();
@@ -582,6 +581,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     m_shell.m_disks->GetManager()->MountCommandLineDisks (carryDisk1, carryDisk2);
+    m_shell.m_debugger->NotifyDebugDisksMounted();
 
     // Each machine keeps its own tape, as it keeps its own disks.
     m_shell.m_tapeDeck->GetManager()->OnMachineSwitched();
@@ -596,7 +596,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // The new machine's history starts here, built, power cycled and with
     // its disks in.
-    m_shell.m_debugger->StartReverseRecording();
+    m_shell.m_debugger->GetHistory().StartRecording();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

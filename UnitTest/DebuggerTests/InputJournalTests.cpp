@@ -134,14 +134,14 @@ public:
         MachineHost  host;
 
         Build (host);
-        host.GetInputJournal().SetOn (true);
+        host.GetHostInput().GetJournal().SetOn (true);
 
-        host.RunCycles (s_kJournalRunCycles);
-        host.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        host.GetRunner().RunCycles (s_kJournalRunCycles);
+        host.GetHostInput().Record (InputKind::PowerCycle, 0, 0, {});
 
-        Assert::AreEqual<size_t> (1, host.GetInputJournal().GetEndIndex());
+        Assert::AreEqual<size_t> (1, host.GetHostInput().GetJournal().GetEndIndex());
         Assert::AreEqual<uint64_t> (host.GetCpu()->GetTotalCycles(),
-                                    host.GetInputJournal().GetRecord (0).cycle,
+                                    host.GetHostInput().GetJournal().GetRecord (0).cycle,
             L"the stamp must be the cycle the CPU had reached");
     }
 

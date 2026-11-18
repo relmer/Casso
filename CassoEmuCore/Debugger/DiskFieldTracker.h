@@ -94,13 +94,13 @@ private:
         int                                sinceAddress = 0;
     };
 
-    void  Reset();
-    void  Step            (const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
-    void  StepWritten     (DriveState & state, int drive, const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
-    void  StepAddress     (DriveState & state, int drive, const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
-    void  StepData        (DriveState & state, const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
-    void  FindPrologue    (DriveState & state);
-    void  FinishAddress   (DriveState & state, int drive, Word lastInstruction, bool isChecksumRead, std::vector<DiskFieldEvent> * outEvents);
+    void  Reset         ();
+    void  Step          (const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
+    void  StepWritten   (DriveState & state, int drive, const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
+    void  StepAddress   (DriveState & state, int drive, const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
+    void  StepData      (DriveState & state, const Disk2NibbleRecord::Entry & entry, std::vector<DiskFieldEvent> * outEvents);
+    void  FindPrologue  (DriveState & state);
+    void  FinishAddress (DriveState & state, int drive, Word lastInstruction, bool isChecksumRead, std::vector<DiskFieldEvent> * outEvents);
 
     int   MatchAddress    (const std::array<Byte, kWindow> & nibbles, int inWindow, DiskFieldKind & outFormat) const;
     int   MatchData       (const std::array<Byte, kWindow> & nibbles, int inWindow) const;

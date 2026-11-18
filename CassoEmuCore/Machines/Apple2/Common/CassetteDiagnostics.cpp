@@ -4,7 +4,7 @@
 #include "Devices/Tape/TapeDeck.h"
 #include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/CassettePort.h"
-#include "Shell/MachineHost.h"
+#include "Shell/MachineRefs.h"
 
 
 
@@ -21,8 +21,8 @@
 
 void CassetteDiagnostics::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 {
-    const TapeDeck      & tapeDeck = m_machine.GetTapeDeck();
-    const CassettePort  * jacks    = m_machine.GetRefs().cassettePort;
+    const TapeDeck      & tapeDeck = m_deck;
+    const CassettePort  * jacks    = m_refs.cassettePort;
     TapeDeck::Snapshot    deck     = tapeDeck.GetSnapshot();
     DiagnosticsGroup      tape     { "Tape", {} };
     DiagnosticsGroup      port     { "Port", {} };

@@ -137,7 +137,7 @@ HRESULT BinaryImageReader::ReadRaw (std::span<const Byte> content, std::optional
 
 
 
-    CBRFEx (hasAddress, E_INVALIDARG, error = "A raw file has no load address. Give the address to load it at.");
+    CBRFEx (hasAddress, E_INVALIDARG, error = "A raw file has no load address. Type the address to load it at.");
     CBRFEx (hasBytes,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is empty.");
 
     AddBytes (image, *address, content);
@@ -176,7 +176,7 @@ HRESULT BinaryImageReader::ReadDos33 (std::span<const Byte> content, std::option
     length     = (size_t) (content[2] | (content[3] << kByteBits));
     isComplete = content.size() >= kDosHeaderSize + length;
     CBRFEx (isComplete, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
-            error = std::format ("The header says {} bytes but the file holds {}.", length, content.size() - kDosHeaderSize));
+            error = std::format ("The header's length is {} bytes, but the file has {}.", length, content.size() - kDosHeaderSize));
 
     AddBytes (image, address.value_or (start), content.subspan (kDosHeaderSize, length));
 
@@ -209,7 +209,7 @@ HRESULT BinaryImageReader::ReadAppleSingle (std::span<const Byte> content, std::
     CHR (hr);
 
     hasAddress = address.has_value() || file.hasProDosInfo;
-    CBRFEx (hasAddress, E_INVALIDARG, error = "The AppleSingle file has no load address. Give the address to load it at.");
+    CBRFEx (hasAddress, E_INVALIDARG, error = "The AppleSingle file has no load address. Type the address to load it at.");
 
     AddBytes (image, address.value_or ((Word) file.auxType), file.data);
 
@@ -245,7 +245,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
 
 
 
-    CBRFEx (noAddress, E_INVALIDARG, error = "An Intel HEX file holds its own addresses. Load it without an address.");
+    CBRFEx (noAddress, E_INVALIDARG, error = "An Intel HEX file has its load addresses in it. Load it without an address.");
 
     SplitLines (content, lines);
 
@@ -277,7 +277,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
         CBRFEx (isRecord, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "A line does not start with ':', so it is not an Intel HEX record.");
 
         isHex = TryReadHexBytes (line.substr (1), bytes);
-        CBRFEx (isHex, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An Intel HEX record holds something other than hex digits.");
+        CBRFEx (isHex, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An Intel HEX record has characters other than hex digits.");
 
         count   = bytes[0];
         offset  = ((uint32_t) bytes[1] << kByteBits) | bytes[2];
@@ -296,7 +296,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
         //  A segment or linear base is two data bytes; a start address, four.
         wanted  = (type == 0x02 || type == 0x04) ? 2 : (type == 0x03 || type == 0x05) ? 4 : count;
         isSized = count == wanted;
-        CBRFEx (isSized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("An Intel HEX record of type {:02X} has {} data bytes. The type takes {}.", type, count, wanted));
+        CBRFEx (isSized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("An Intel HEX record of type {:02X} has {} data bytes. A record of that type has {}.", type, count, wanted));
 
         switch (type)
         {
@@ -324,7 +324,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
         }
     }
 
-    CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The Intel HEX file holds no data records.");
+    CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The Intel HEX file has no data records.");
 
 Error:
     return hr;
@@ -355,7 +355,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
 
 
 
-    CBRFEx (noAddress, E_INVALIDARG, error = "An S-record file holds its own addresses. Load it without an address.");
+    CBRFEx (noAddress, E_INVALIDARG, error = "An S-record file has its load addresses in it. Load it without an address.");
 
     SplitLines (content, lines);
 
@@ -385,7 +385,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
 
         type  = line[1];
         isHex = TryReadHexBytes (line.substr (2), bytes);
-        CBRFEx (isHex, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An S-record holds something other than hex digits.");
+        CBRFEx (isHex, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An S-record has characters other than hex digits.");
 
         isWhole = bytes.size() == (size_t) bytes[0] + 1;
         CBRFEx (isWhole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An S-record's length does not match its byte count.");
@@ -429,7 +429,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
         }
     }
 
-    CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The S-record file holds no data records.");
+    CBRFEx (hasData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The S-record file has no data records.");
 
 Error:
     return hr;

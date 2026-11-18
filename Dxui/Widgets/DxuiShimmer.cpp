@@ -554,3 +554,115 @@ void DxuiShimmer::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAreaShimmer::GetBandPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiAreaShimmer::GetBandPx (const RECT & boxPx)
+{
+    double  shorter = (double) std::min (boxPx.right - boxPx.left, boxPx.bottom - boxPx.top);
+
+
+
+    return std::clamp (kBandShare * shorter, kMinBandPx, kMaxBandPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAreaShimmer::GetBandCenter
+//
+//  In pixels of (x + y) from the box's top left; between sweeps, far
+//  enough past its bottom right that none of the band touches it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiAreaShimmer::GetBandCenter (double nowMs, const RECT & boxPx)
+{
+    double  span    = std::max (1.0, (double) ((boxPx.right - boxPx.left) + (boxPx.bottom - boxPx.top)));
+    double  overrun = kReach * GetBandPx (boxPx);
+    double  t       = std::fmod (nowMs, (double) (kSweepMs + kRestMs));
+
+
+
+    return (t < kSweepMs) ? t / kSweepMs * (span + 2.0 * overrun) - overrun : span + 4.0 * overrun;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAreaShimmer::GetBand
+//
+//  1 at the center, falling off as a bell curve as wide as the band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double DxuiAreaShimmer::GetBand (double distance, const RECT & boxPx)
+{
+    return std::exp (-std::pow (distance / GetBandPx (boxPx), 2.0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiAreaShimmer::Paint
+//
+//  Only the stripes that cross the rectangle are drawn: x + y runs from
+//  x + y at its top left to (x + w) + (y + h) at its bottom right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiAreaShimmer::Paint (IDxuiPainter & painter, float x, float y, float w, float h, double nowMs, const RECT & boxPx)
+{
+    constexpr uint32_t  kWhite   = 0x00FFFFFFu;
+    double              bandPx   = GetBandPx (boxPx);
+    double              stripePx = std::clamp (bandPx / 12.0, 1.0, 4.0);
+    double              center   = GetBandCenter (nowMs, boxPx) + boxPx.left + boxPx.top;
+    double              span     = kReach * bandPx;
+    double              alpha    = 0.0;
+    RECT                prior    = {};
+    RECT                box      = { (LONG) std::floor (x), (LONG) std::floor (y), (LONG) std::ceil (x + w), (LONG) std::ceil (y + h) };
+    RECT                clip     = box;
+    bool                hasPrior = painter.GetClipRect (prior);
+    bool                isShown  = !hasPrior || IntersectRect (&clip, &box, &prior) != FALSE;
+
+
+
+    painter.FillRect (x, y, w, h, ((uint32_t) (kPeakAlpha * kGlowShare) << 24) | kWhite);
+
+    if (!isShown || center + span <= x + y || center - span >= x + w + y + h)
+    {
+        return;
+    }
+
+    painter.SetClipRect (&clip);
+
+    for (double k = center - span; k < center + span; k += stripePx)
+    {
+        alpha = kPeakAlpha * (1.0 - kGlowShare) * GetBand (k + stripePx / 2.0 - center, boxPx);
+
+        painter.FillConvexQuad ((float) (k - y),                y,
+                                (float) (k + stripePx - y),     y,
+                                (float) (k + stripePx - y - h), y + h,
+                                (float) (k - y - h),            y + h,
+                                ((uint32_t) std::clamp (alpha, 0.0, 255.0) << 24) | kWhite);
+    }
+
+    painter.SetClipRect (hasPrior ? &prior : nullptr);
+}

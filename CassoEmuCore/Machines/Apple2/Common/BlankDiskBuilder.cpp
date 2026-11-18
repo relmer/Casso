@@ -4,9 +4,12 @@
 #include "Devices/Disk/FluxTrack.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/ProDosStartup.h"
 
 
 
@@ -102,6 +105,8 @@ std::vector<DiskFormat> BlankDiskBuilder::GetContainers (BlankDiskContents conte
 //           as one
 //      Po   pairs with ProDOS or unformatted (ProDOS sector order)
 //
+//  Apple Pascal and CP/M pair with every container.
+//
 //  Flux tracks need a WOZ container, the only one that can hold them.
 //
 //  Bootable requires formatted contents -- there is no OS to install on raw
@@ -129,6 +134,8 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
     bool              fluxOk               = false;
     bool              nameOk               = true;
     bool              isProDos             = spec.contents == BlankDiskContents::ProDos;
+    bool              isPascal             = spec.contents == BlankDiskContents::Pascal;
+    bool              anyContainer         = isPascal || spec.contents == BlankDiskContents::Cpm;
     size_t            i                    = 0;
 
 
@@ -144,12 +151,12 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
 
         case DiskFormat::Dsk:
         case DiskFormat::Do:
-            formatOk = (spec.contents == BlankDiskContents::Dos33 ||
+            formatOk = (anyContainer || spec.contents == BlankDiskContents::Dos33 ||
                         spec.contents == BlankDiskContents::Unformatted);
             break;
 
         case DiskFormat::Po:
-            formatOk = (spec.contents == BlankDiskContents::ProDos ||
+            formatOk = (anyContainer || spec.contents == BlankDiskContents::ProDos ||
                         spec.contents == BlankDiskContents::Unformatted);
             break;
 
@@ -165,6 +172,9 @@ BlankDiskVerdict BlankDiskBuilder::CheckSpec (const BlankDiskSpec & spec)
 
     bootableOk = !spec.bootable || spec.contents != BlankDiskContents::Unformatted;
     CBRF (bootableOk, verdict = BlankDiskVerdict::BootableNeedsFilesystem);
+
+    nameOk = !isPascal || PascalVolume::IsValidVolumeName (spec.volumeName);
+    CBRF (nameOk, verdict = BlankDiskVerdict::PascalNameUnusable);
 
     //  The rest is the ProDOS volume name, so a disk that has none is done.
     BAIL_OUT_IF (!isProDos, S_OK);
@@ -347,8 +357,9 @@ HRESULT BlankDiskBuilder::Build (
     const BootPayload   & payload,
     vector<Byte>        & outBytes)
 {
-    HRESULT       hr    = S_OK;
+    HRESULT       hr       = S_OK;
     vector<Byte>  buffer;
+    std::string   sosError;
 
 
 
@@ -380,13 +391,51 @@ HRESULT BlankDiskBuilder::Build (
         hr = ProDosSkeleton::Write (buffer, spec.volumeName);
         CHR (hr);
 
-        if (spec.bootable)
+        if (spec.bootable && spec.bootSystem != ProDosBootSystem::AppleIII)
         {
             bool  havePayload = !payload.proDosUsersDisk.empty();
 
             CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
             hr = ProDosSkeleton::InstallBoot (buffer, payload.proDosUsersDisk);
+            CHR (hr);
+        }
+
+        if (spec.bootable && spec.bootSystem != ProDosBootSystem::AppleII)
+        {
+            bool  havePayload = !payload.sosSystemDisk.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = ProDosStartup::InstallSos (buffer, payload.sosSystemDisk, sosError);
+            CHR (hr);
+        }
+    }
+    else if (spec.contents == BlankDiskContents::Pascal)
+    {
+        PascalVolume::WriteBlank (spec.volumeName, spec.pascalDate, buffer);
+
+        if (spec.bootable)
+        {
+            bool  havePayload = !payload.pascalSystem.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = PascalVolume::InstallSystem (payload.pascalSystem, buffer);
+            CHR (hr);
+        }
+    }
+    else if (spec.contents == BlankDiskContents::Cpm)
+    {
+        CpmVolume::WriteBlank (buffer);
+
+        if (spec.bootable)
+        {
+            bool  havePayload = !payload.cpmSystem.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = CpmVolume::InstallSystem (payload.cpmSystem, buffer);
             CHR (hr);
         }
     }
@@ -534,6 +583,8 @@ std::wstring BlankDiskBuilder::GetContentsCaption (BlankDiskContents contents)
         case BlankDiskContents::Unformatted: caption = L"Unformatted";   break;
         case BlankDiskContents::Dos33:       caption = L"DOS 3.3";       break;
         case BlankDiskContents::ProDos:      caption = L"ProDOS 1.1.1";  break;
+        case BlankDiskContents::Pascal:      caption = L"Apple Pascal";  break;
+        case BlankDiskContents::Cpm:         caption = L"CP/M";          break;
     }
 
     return caption;

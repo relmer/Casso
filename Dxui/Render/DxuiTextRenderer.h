@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Render/IDxuiTextRenderer.h"
+#include "Render/DxuiRenderTargets.h"
+#include "Render/DxuiRenderIcons.h"
+#include "Render/DxuiGdiText.h"
 
 
 
@@ -62,6 +65,63 @@ public:
     //  fonts checks first.
     static bool  IsFontFamilyInstalled (const wchar_t * family);
 
+    //  The height of text wrapped at a width, in DIPs, measured as DrawString
+    //  lays it out, for sizing a window before its renderer exists.
+    static HRESULT  MeasureWrappedDip (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, DxuiFontWeight weight,
+                                       float widthDip, float & outHeightDip);
+
+    // A theme's typography: the face drawn for DxuiTheme::kBodyFace and the
+    // scale it is drawn at, the text glow, and whether color glyphs are drawn
+    // in the text color. Changed only through the setters below, which assign
+    // each change a generation no other change has, so a renderer drops its
+    // caches when the typography it uses changes.
+    struct Typography
+    {
+        ComPtr<IDWriteFontCollection1>  bodyFaceFonts;
+        std::wstring                    bodyFaceFamily;
+        const void                    * bodyFaceSource   = nullptr;
+        float                           bodyFaceScale    = 1.0f;
+        uint8_t                         glowAlpha        = 0;
+        float                           glowRadiusEm     = 0.0f;
+        bool                            monochromeGlyphs = false;
+        uint32_t                        generation       = 0;
+    };
+
+    // The process default typography, set from the emulator's theme. A
+    // window with a different theme attaches a typography (AttachTypography),
+    // and every renderer drawing for that window or a window it owns uses it.
+    static HRESULT  SetBodyFace               (const void * pFontBytes,
+                                               size_t       byteCount,
+                                               float        sizeScale)   { return SetBodyFace (s_typography, pFontBytes, byteCount, sizeScale); }
+    static void          ClearBodyFace             ()                         { ClearBodyFace (s_typography); }
+    static void          SetTextGlow               (uint8_t alpha, float radiusEm) { SetTextGlow (s_typography, alpha, radiusEm); }
+    static void          SetMonochromeGlyphsForced (bool forced)              { SetMonochromeGlyphsForced (s_typography, forced); }
+    static Typography  & GetDefaultTypography      ()                         { return s_typography; }
+
+    static HRESULT  SetBodyFace               (Typography & typography,
+                                               const void * pFontBytes,
+                                               size_t       byteCount,
+                                               float        sizeScale);
+    static void     ClearBodyFace             (Typography & typography);
+    static void     SetTextGlow               (Typography & typography, uint8_t alpha, float radiusEm);
+    static void     SetMonochromeGlyphsForced (Typography & typography, bool forced);
+
+    // A window's typography, for the window and every window it owns. Null
+    // returns them to the process default. The typography must outlive the
+    // attachment, so a window detaches it before it is destroyed.
+    static void     AttachTypography          (HWND hwnd, const Typography * typography);
+
+    // The typography attached to a window or the nearest window that owns
+    // it, or the process default.
+    static const Typography &  FindTypography (HWND hwnd);
+
+    // The window this renderer draws for, whose typography it uses.
+    void     SetTypographyWindow (HWND hwnd);
+
+    // A typography used in place of the window's, or null to go back to the
+    // window's. The typography must outlive its use here.
+    void     SetFixedTypography  (const Typography * typography);
+
     HRESULT  BindBackBuffer   (IDXGISurface * pBackBufferSurface,
                                UINT           dpiX,
                                UINT           dpiY);
@@ -70,8 +130,8 @@ public:
     HRESULT  BeginDraw        ();
     HRESULT  EndDraw          ();
 
-    HRESULT  BeginDrawOffscreen ();
-    HRESULT  EndDrawComposite   ();
+    HRESULT  BeginDrawOffscreen () { return m_targets.BeginDrawOffscreen(); }
+    HRESULT  EndDrawComposite   () { return m_targets.EndDrawComposite(); }
 
     // Record this pass instead of drawing it, and replay it at EndDrawDeferred.
     //
@@ -87,15 +147,22 @@ public:
     // a full-screen clear and a full-screen blit every frame for it -- 16 ms
     // at 2880x1824, which is the window-area cost GH #131 is about. This pays
     // neither.
-    HRESULT  BeginDrawDeferred ();
-    HRESULT  EndDrawDeferred   ();
+    HRESULT  BeginDrawDeferred () { return m_targets.BeginDrawDeferred(); }
+    HRESULT  EndDrawDeferred   () { return m_targets.EndDrawDeferred(); }
+
+    // Replays the command list so far onto the back buffer and continues the
+    // pass in a new one, so a fill drawn after this covers the text drawn
+    // before it. IDxuiPainter::FlushLayer calls it through the host's text
+    // flush, after drawing the queued fills. Pushed clips, the origin and any
+    // skew apply in the new command list too. A no-op outside a deferred pass.
+    HRESULT  FlushDeferred     () { return m_targets.FlushDeferred(); }
 
     // Glyphs as a TEXTURE. See IDxuiTextRenderer for what these are for;
     // the target is created on demand and grown to fit, and the view handed
     // back stays valid until the next BeginDrawToTexture.
-    HRESULT  BeginDrawToTexture (UINT widthPx, UINT heightPx) override;
-    HRESULT  EndDrawToTexture   (ID3D11ShaderResourceView ** outSrv) override;
-    void     GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const override;
+    HRESULT  BeginDrawToTexture   (UINT widthPx, UINT heightPx) override { return m_targets.BeginDrawToTexture (widthPx, heightPx); }
+    HRESULT  EndDrawToTexture     (ID3D11ShaderResourceView ** outSrv) override { return m_targets.EndDrawToTexture (outSrv); }
+    void     GetDrawToTextureSize (UINT & outWidthPx, UINT & outHeightPx) const override { m_targets.GetDrawToTextureSize (outWidthPx, outHeightPx); }
 
     // Source-compatibility aliases for existing call sites that
     // reference `DxuiTextRenderer::HAlign` / `::VAlign`. The canonical
@@ -133,6 +200,7 @@ public:
     // PopClipRect. Used by single-line text inputs to clip their
     // scrolling text content to the visible inner rect.
     HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip) override;
+    HRESULT  EraseRoundedRect (float xDip, float yDip, float widthDip, float heightDip, float radiusDip);
     HRESULT  PopClipRect      () override;
 
     void     PushTextSkew     (float tanX, float yPivotDip) override;
@@ -143,7 +211,11 @@ public:
     void     PushMonochromeGlyphs () override { m_monochromeGlyphs = true;  }
     void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }
 
+    HRESULT  BeginShadowCapture () override                                             { return m_targets.BeginShadowCapture(); }
+    HRESULT  EndShadowCapture   (float spreadDip, float blurDip, float opacity) override { return m_targets.EndShadowCapture (spreadDip, blurDip, opacity); }
+
     HRESULT  FillEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, uint32_t argbColor) override;
+    HRESULT  FillVectorIcon   (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override { return m_icons.FillVectorIcon (icon, xDip, yDip, sizeDip, foreground, accent); }
     HRESULT  DrawEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, float thicknessDip, uint32_t argbColor) override;
     HRESULT  DrawLine         (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor) override;
     HRESULT  FillPolygon      (const DxuiPointF * points, size_t count, uint32_t argbColor) override;
@@ -166,7 +238,10 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip) override;
+                               float            destHeightDip) override
+    {
+        return m_icons.DrawFramebuffer (srcBgraPixels, srcWidthPx, srcHeightPx, destXDip, destYDip, destWidthDip, destHeightDip);
+    }
 
     // Same shape as DrawFramebuffer but keeps its own cache, one bitmap per
     // distinct picture, so the emulator framebuffer cache (refreshed every
@@ -179,7 +254,10 @@ public:
                                float            destXDip,
                                float            destYDip,
                                float            destWidthDip,
-                               float            destHeightDip) override;
+                               float            destHeightDip) override
+    {
+        return m_icons.DrawIconBitmap (srcBgraPremul, srcWidthPx, srcHeightPx, destXDip, destYDip, destWidthDip, destHeightDip);
+    }
 
     HRESULT  MeasureString    (const wchar_t * text,
                                float           fontSizeDip,
@@ -201,6 +279,20 @@ public:
                                    float         & outWidthDip,
                                    float         & outHeightDip) override;
 
+    HRESULT  MeasureStringGdi  (const wchar_t * text, float fontSizePx, const wchar_t * fontFamily, float & outWidthPx) override { return m_gdi.MeasureStringGdi (text, fontSizePx, fontFamily, outWidthPx); }
+    HRESULT  GetLineHeightGdi  (float fontSizePx, const wchar_t * fontFamily, float & outHeightPx) override { return m_gdi.GetLineHeightGdi (fontSizePx, fontFamily, outHeightPx); }
+    bool     SetGdiClassicText (bool on) override  { bool was = m_gdiClassic; m_gdiClassic = on; return was; }
+
+    HRESULT  DrawSvgIcon       (const std::string & svg, float xDip, float yDip, float sizeDip) override { return m_icons.DrawSvgIcon (svg, xDip, yDip, sizeDip); }
+
+    HRESULT  HitTestText       (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily,
+                                float widthDip, float heightDip, DxuiTextHAlign hAlign, DxuiTextVAlign vAlign,
+                                float xDip, float yDip, size_t & outIndex) override;
+
+    HRESULT  GetTextRangeRects (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily,
+                                float widthDip, float heightDip, DxuiTextHAlign hAlign, DxuiTextVAlign vAlign,
+                                size_t start, size_t length, std::vector<TextRangeRect> & outRects) override;
+
     HRESULT  OnDeviceLost     ();
     HRESULT  OnDeviceRestored (ID3D11Device * pDevice);
 
@@ -216,6 +308,13 @@ public:
 
 private:
     static D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor);
+
+    static HRESULT       CreateMemoryFontCollection (const void                      * pFontBytes,
+                                                     size_t                            byteCount,
+                                                     ComPtr<IDWriteFontCollection1>  & outCollection,
+                                                     std::wstring                    & outFamilyName);
+
+    static bool          IsBodyFaceRequest          (const wchar_t * family);
 
     struct TextFormatKey
     {
@@ -247,9 +346,11 @@ private:
         bool                wrap    = false;
         float               maxW    = 0.0f;
         float               maxH    = 0.0f;
+        bool                gdi     = false;
 
         bool operator < (const LayoutCacheKey & o) const
         {
+            if (gdi     != o.gdi)     { return gdi     < o.gdi;     }
             if (text    != o.text)    { return text    < o.text;    }
             if (family  != o.family)  { return family  < o.family;  }
             if (sizeDip != o.sizeDip) { return sizeDip < o.sizeDip; }
@@ -322,58 +423,17 @@ private:
 
 
     ComPtr<ID2D1Factory1>       m_d2dFactory;
+
     ComPtr<ID2D1Device>         m_d2dDevice;
     ComPtr<ID2D1DeviceContext>  m_d2dContext;
-    D2D1_MATRIX_3X2_F           m_savedTransform     = D2D1::Matrix3x2F::Identity();
-    ComPtr<ID2D1Bitmap1>        m_target;
-    ComPtr<ID2D1Bitmap1>        m_offscreen;
 
-    // The page pass's recording, live only between BeginDrawDeferred and
-    // EndDrawDeferred. A command list cannot be reopened once closed, so this
-    // is a fresh one per frame rather than a cached resource.
-    ComPtr<ID2D1CommandList>    m_cmdList;
+    D2D1_MATRIX_3X2_F        m_savedTransform = D2D1::Matrix3x2F::Identity();
+    ComPtr<ID2D1Bitmap1>     m_target;
 
-    // The text-as-texture target, and the D3D texture behind it that the
-    // scene samples. Kept across calls and only recreated when a larger
-    // one is asked for, since a label is re-rendered only when it changes.
     // The D3D device the D2D one rides on, kept so the text-as-texture
     // target can be created. Everything else here works through D2D.
     ComPtr<ID3D11Device>              m_d3dDevice;
 
-    ComPtr<ID3D11Texture2D>           m_textureTarget;
-    ComPtr<ID3D11ShaderResourceView>  m_textureSrv;
-    ComPtr<ID2D1Bitmap1>              m_textureBitmap;
-    ComPtr<ID2D1Image>                m_savedTarget;
-    UINT                              m_textureW           = 0;
-    UINT                              m_textureH           = 0;
-    UINT                              m_offscreenW         = 0;
-    UINT                              m_offscreenH         = 0;
-    ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
-    int                               m_framebufferBitmapW = 0;
-    int                               m_framebufferBitmapH = 0;
-    // One cached bitmap per distinct picture. D2D batches the draws of a
-    // frame, so pixels uploaded into a bitmap already drawn once would show
-    // up in that earlier draw as well: every picture of a given size would
-    // come out as whichever was uploaded last.
-    struct IconBitmap
-    {
-        ComPtr<ID2D1Bitmap>  bitmap;
-        uint64_t             key    = 0;
-        int                  width  = 0;
-        int                  height = 0;
-    };
-
-    static constexpr size_t           s_kMaxIconBitmaps    = 64;
-
-    // Creates a bitmap for the picture, uploads it, and adds it to the cache,
-    // dropping the oldest entry once the cache is full.
-    HRESULT  AddIconBitmap (const uint32_t * srcBgraPremul, int srcWidthPx, int srcHeightPx,
-                            uint64_t key, ID2D1Bitmap * & outBitmap);
-
-    // Tells one picture from another; equal pixels share a cache entry.
-    static uint64_t  HashPixels (const uint32_t * pixels, size_t count);
-
-    std::vector<IconBitmap>           m_iconBitmaps;
 
     ComPtr<IDWriteFactory>            m_dwriteFactory;
 
@@ -382,6 +442,37 @@ private:
     // nothing looks a family up in it by name.
     static inline ComPtr<IDWriteFontCollection1>  s_symbolFonts;
     static inline ComPtr<IDWriteFontFallback>     s_fontFallback;
+
+    // One loader for every in-memory font, registered with the shared factory
+    // when the first in-memory font is loaded. DirectWrite has no way to
+    // unregister a loader that existing formats reference, so a loader per
+    // call would accumulate one per theme switch.
+    static inline ComPtr<IDWriteInMemoryFontFileLoader>  s_memoryFontLoader;
+
+    // The process default typography. s_typographyGeneration counts changes
+    // to every typography, so no two changes have the same generation, and
+    // s_attachGeneration counts attachments, so a renderer looks its window's
+    // typography up again only after one.
+    static constexpr const wchar_t              * s_kpszTypographyProp   = L"DxuiTypography";
+    static inline Typography                      s_typography;
+    static inline uint32_t                        s_typographyGeneration = 0;
+    static inline uint32_t                        s_attachGeneration     = 0;
+
+    // The typography this renderer draws in, the one fixed in place of the
+    // window's, the window it was found from, the attachment it was found at,
+    // and the generation the caches were built for.
+    const Typography                            * m_typography           = &s_typography;
+    const Typography                            * m_fixedTypography      = nullptr;
+    HWND                                          m_typographyHwnd       = nullptr;
+    uint32_t                                      m_attachGeneration     = 0;
+    uint32_t                                      m_typographyGeneration = 0;
+
+    void     SyncTypography ();
+    HRESULT  DrawGlow       (IDWriteTextLayout      * pLayout,
+                             D2D1_POINT_2F            origin,
+                             uint32_t                 argbColor,
+                             float                    fontSizeDip,
+                             D2D1_DRAW_TEXT_OPTIONS   options);
 
     std::map<TextFormatKey,
              ComPtr<IDWriteTextFormat>>  m_formatCache;
@@ -404,6 +495,9 @@ private:
     std::map<LayoutCacheKey,
              ComPtr<IDWriteTextLayout>>     m_oldLayoutCache;
 
+    //  Laid out and drawn by GDI's whole-pixel advances while set.
+    bool                              m_gdiClassic = false;
+
     //  Pushes the stored origin into the D2D transform. Called on BeginDraw
     //  and on a SetOrigin made while drawing.
     void  ApplyOrigin ();
@@ -416,4 +510,24 @@ private:
 
     // See PushMonochromeGlyphs: while set, DrawString leaves color fonts off.
     bool                              m_monochromeGlyphs = false;
+
+    // The clips PushClipRect has pushed and PopClipRect has not popped, each
+    // with the transform it was pushed under. Direct2D requires an empty clip
+    // stack at EndDraw, so FlushDeferred pops them and pushes them again in
+    // the new recording.
+    struct PushedClip
+    {
+        D2D1_RECT_F        rect      = {};
+        D2D1_MATRIX_3X2_F  transform = {};
+    };
+
+    std::vector<PushedClip>           m_pushedClips;
+
+    friend class DxuiRenderTargets;
+    friend class DxuiRenderIcons;
+    friend class DxuiGdiText;
+
+    DxuiRenderTargets  m_targets { *this };
+    DxuiRenderIcons    m_icons   { *this };
+    DxuiGdiText        m_gdi     { *this };
 };

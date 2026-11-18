@@ -292,8 +292,8 @@ of speech and song through the SSI-263.
    bass, and the second the chord pad and the drums.
 3. Click the mute on the first chip's channel A. The melody drops out of the
    host's audio, and that channel's scope is unaffected. Click it again.
-4. Open **View > Logs > Sound log**. Use the Source column's Filter to list the
-   AY-3-8910s alone.
+4. Open **View > Logs > Sound log**. Click the chevron at the right of the
+   Source heading and check the AY-3-8910s to list them alone.
 5. Choose **Debug > Break** and type `SOUNDLOG LIST 20` for the last entries in
    the console.
 6. Type `DISK INSERT D1 Apple2\Demos\mockingboard-speech-demo-hgr.dsk`, then

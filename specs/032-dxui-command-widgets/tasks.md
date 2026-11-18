@@ -210,7 +210,7 @@ Every phase leaves the tree building and the emulator identical, so the branch c
 
 ### Minimum useful slice
 
-Phases 1 through 4: one dropdown under the menu bar and the context menus, with `DxuiCommand` in place. That alone removes one duplicate dropdown and gives Cassque its context menus.
+Phases 1 through 4: one dropdown under the menu bar and the context menus, with `DxuiCommand` in place. That alone removes one duplicate dropdown and gives Casso Explorer its context menus.
 
 ### Master merges
 

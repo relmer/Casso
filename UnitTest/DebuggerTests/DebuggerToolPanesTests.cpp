@@ -1,7 +1,10 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/SymbolActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Acia6551.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -14,12 +17,17 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/ProfilerPane.h"
 #include "Ui/Debugger/Panes/CommGraph.h"
 #include "Ui/Debugger/Panes/CommLogController.h"
 #include "Ui/Debugger/Panes/CommLogPane.h"
 #include "Ui/Debugger/Panes/CommSignalGraph.h"
 #include "Ui/Debugger/Panes/DevicePanelController.h"
+#include "Ui/Debugger/Panes/DiskHeadView.h"
+#include "Ui/Debugger/Panes/MemoryMapBar.h"
+#include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
@@ -117,6 +125,12 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::GetProfilerPane;
         using DebuggerWindow::GetPaneHostForTest;
         using DebuggerWindow::ShowPane;
+        using DebuggerWindow::OnMouse;
+        using DebuggerWindow::OnKey;
+        using DebuggerWindow::FocusControl;
+        using DebuggerWindow::GetTextZoom;
+        using DebuggerWindow::FindPaneForTest;
+        using DebuggerWindow::GetPaneContentForTest;
 
         //  The name typed in a text dialog, Add symbol's among them.
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring &, TextDialog::CheckFn check) override
@@ -195,10 +209,48 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual ((size_t) 2, machine.size(), L"main's heading and its symbol");
             Assert::AreEqual (std::string ("main"), machine[0].table);
             Assert::IsTrue   (user[0].isHeading);
-            Assert::AreEqual (std::format (L"{} user (2)", s_kpszTriangleDown), cells[0][0].text);
-            Assert::IsFalse  (cells[0][0].check.value_or (true), L"user is off");
+            Assert::AreEqual (std::format (L"{} user (2)", s_kpszSmallTriangleDown), cells[0][0].text);
+            Assert::IsTrue   (cells[0][0].check == DxuiListView::Cell::Check::Off, L"user is off");
             Assert::AreEqual (std::wstring (L"$0300"), cells[1][1].text);
             Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[2][1].text, L"a constant is not an address");
+        }
+
+
+        //  A table's symbols are in name order, ignoring case, or in address
+        //  order, either way reversed on request; each table is sorted under
+        //  its own heading.
+        TEST_METHOD (EachTablesSymbolsSortByNameOrAddress)
+        {
+            auto                           symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+            std::set<std::string>          open    = { "user" };
+            std::vector<SymbolsPane::Row>  rows;
+            auto                           names   = [&rows] ()
+            {
+                std::vector<std::string>  each;
+
+
+
+                for (const SymbolsPane::Row & row : rows)
+                {
+                    each.push_back (row.isHeading ? "[" + row.table + "]" : row.name);
+                }
+
+                return each;
+            };
+
+
+
+            symbols->symbols.push_back ({ "draw", 0x6000, SymbolTableId::User });
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, open);
+            Assert::IsTrue (names() == std::vector<std::string> { "[user]", "draw", "LOOP", "WIDTH" }, L"by name, ignoring case");
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, open, SymbolsPane::Sort::Address);
+            Assert::IsTrue (names() == std::vector<std::string> { "[user]", "WIDTH", "LOOP", "draw" }, L"by address");
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, open, SymbolsPane::Sort::Name, true);
+            Assert::IsTrue (names() == std::vector<std::string> { "[user]", "WIDTH", "LOOP", "draw" }, L"by name, reversed");
+            Assert::IsTrue (rows[1].isConstant, L"a constant is marked on its row");
         }
 
 
@@ -217,7 +269,7 @@ namespace DebuggerToolPanesTests
             cells = SymbolsPane::GetCells (*symbols, rows, {});
 
             Assert::AreEqual ((size_t) 1, rows.size(), L"only the heading");
-            Assert::AreEqual (std::format (L"{} demo.dbg (2)", s_kpszTriangleRight), cells[0][0].text);
+            Assert::AreEqual (std::format (L"{} demo.dbg (2)", s_kpszSmallTriangleRight), cells[0][0].text);
         }
 
 
@@ -258,6 +310,222 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  A heading sorts by its column, backward on the second click, and
+        //  rows that compare equal stay in the order given.
+        TEST_METHOD (BookmarksAndDataRangesSortByAColumn)
+        {
+            std::vector<DebuggerViewSnapshot::WatchLine>  bookmarks = { { 2, 0x0400, "", true }, { 0, 0x0300, "", true }, { 1, 0x0400, "", true } };
+            std::vector<DataBlockEntry>                   blocks    = { { "table", 0x0900, 0x090F, DataBlockKind::Words }, { "Hello", 0x0800, 0x0805, DataBlockKind::Text },
+                                                                        { "ZERO",  0x0A00, 0x0A01, DataBlockKind::Bytes } };
+            std::vector<DebuggerViewSnapshot::WatchLine>  sorted;
+            std::vector<DataBlockEntry>                   sortedBlocks;
+
+
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, -1, false);
+            Assert::AreEqual (2, sorted[0].id, L"as given for no column");
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, 0, false);
+            Assert::AreEqual (0, sorted[0].id);
+            Assert::AreEqual (2, sorted[2].id);
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, 1, false);
+            Assert::AreEqual (0, sorted[0].id, L"$0300 first");
+            Assert::AreEqual (2, sorted[1].id, L"equal addresses in the order given");
+            Assert::AreEqual (1, sorted[2].id);
+
+            sorted = BookmarksPane::GetSorted (bookmarks, nullptr, 1, true);
+            Assert::AreEqual (2, sorted[0].id);
+            Assert::AreEqual (0, sorted[2].id, L"$0300 last");
+
+            sortedBlocks = DataBlocksPane::GetSorted (blocks, 0, false);
+            Assert::AreEqual (std::string ("Hello"), sortedBlocks[0].name, L"case is ignored");
+            Assert::AreEqual (std::string ("ZERO"),  sortedBlocks[2].name);
+
+            sortedBlocks = DataBlocksPane::GetSorted (blocks, 1, true);
+            Assert::AreEqual ((Word) 0x0A00, sortedBlocks[0].first);
+
+            sortedBlocks = DataBlocksPane::GetSorted (blocks, 2, false);
+            Assert::AreEqual (std::string ("ZERO"),  sortedBlocks[0].name, L"Bytes, Text, Words");
+            Assert::AreEqual (std::string ("table"), sortedBlocks[2].name);
+        }
+
+
+
+        //  A hidden value is in the heading's menu after its rows are gone,
+        //  and the heading has the funnel until the filter is cleared.
+        TEST_METHOD (AHeadingFilterHidesAValueAndListsItInTheMenu)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost          host;
+            ToolWindow                 window (theme, host);
+            ListValueFilters           filters (window.GetPaneHostForTest());
+            std::vector<std::wstring>  values;
+
+
+
+            values = ListValueFilters::MergeValues ({ L"words", L"Bytes" }, { L"Text", L"Bytes" });
+            Assert::AreEqual ((size_t) 3, values.size(), L"each value once");
+            Assert::AreEqual (std::wstring (L"Bytes"), values[0]);
+            Assert::AreEqual (std::wstring (L"Text"),  values[1]);
+            Assert::AreEqual (std::wstring (L"words"), values[2], L"in order ignoring case");
+
+            Assert::AreEqual (std::wstring (L"(Blank)"), ListValueFilters::GetLabel (L""));
+            Assert::AreEqual (std::wstring (L"Text"),    ListValueFilters::GetLabel (L"Text"));
+
+            filters.SetValues (2, { L"Bytes", L"Text" });
+            Assert::IsTrue  (filters.IsShown (2, L"Text"));
+            Assert::IsFalse (filters.IsAnyFiltered());
+
+            filters.Toggle (2, L"Text");
+            Assert::IsFalse (filters.IsShown (2, L"Text"));
+            Assert::IsTrue  (filters.IsShown (2, L"Bytes"));
+            Assert::IsTrue  (filters.IsFiltered (2));
+            Assert::IsFalse (filters.IsFiltered (1));
+
+            filters.SetValues (2, { L"Bytes" });
+            Assert::AreEqual ((size_t) 2, filters.GetMenuValues (2).size(), L"the hidden value is listed with no row left");
+
+            filters.Toggle (2, L"Text");
+            Assert::IsFalse (filters.IsFiltered (2), L"checked again");
+
+            filters.Toggle (2, L"Bytes");
+            filters.Clear  (2);
+            Assert::IsTrue (filters.IsShown (2, L"Bytes"));
+        }
+
+
+
+        //  Several bookmarks selected go with one Delete, the higher number
+        //  first so no clear moves the other's number.
+        TEST_METHOD (DeleteRemovesEverySelectedBookmark)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            ToolWindow                        window   (theme, host);
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            BookmarksPane                   * pane     = nullptr;
+            DebuggerViewSnapshot::WatchLine   first;
+            DebuggerViewSnapshot::WatchLine   second;
+            DxuiKeyEvent                      remove   = { DxuiKeyEventKind::Down, VK_DELETE, false, false, false, false };
+
+
+
+            first.id            = 1;
+            first.address       = 0x0300;
+            second.id           = 2;
+            second.address      = 0x0400;
+            snapshot->bookmarks = { first, second };
+
+            window.OnCreate();
+
+            pane = dynamic_cast<BookmarksPane *> (window.FindPaneForTest (DebuggerLayout::kBookmarks));
+            Assert::IsNotNull (pane);
+
+            window.TakeSnapshot (snapshot);
+            pane->Apply (*snapshot);
+
+            Assert::IsTrue (pane->GetList()->IsMultiSelect(), L"the bookmarks take a selection of several rows");
+
+            pane->GetList()->SetSelectedRows ({ 0, 1 }, 0);
+            host.commands.clear();
+
+            Assert::IsTrue   (pane->RouteEditKey (remove, pane->GetList()), L"Delete is taken");
+            Assert::AreEqual ((size_t) 2, host.commands.size());
+            Assert::AreEqual (WatchActions::GetClearBookmark (2, CommandMode::AppleWin).echo, host.commands[0], L"the higher number first");
+            Assert::AreEqual (WatchActions::GetClearBookmark (1, CommandMode::AppleWin).echo, host.commands[1]);
+        }
+
+
+        TEST_METHOD (DataRangesLeaveOutAHiddenKind)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            ToolWindow         window   (theme, host);
+            auto               snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DataBlocksPane   * pane     = nullptr;
+
+
+
+            snapshot->symbols    = MakeSymbols();
+            snapshot->dataBlocks = { { "TABLE", 0x0900, 0x090F, DataBlockKind::Words }, { "HELLO", 0x0800, 0x0805, DataBlockKind::Text } };
+
+            window.OnCreate();
+
+            pane = dynamic_cast<DataBlocksPane *> (window.FindPaneForTest (DebuggerLayout::kDataBlocks));
+            Assert::IsNotNull (pane);
+
+            window.TakeSnapshot (snapshot);
+            pane->Apply (*snapshot);
+            Assert::AreEqual (2, pane->GetList()->GetRowCount());
+            Assert::IsFalse  (pane->GetList()->IsColumnFiltered (2));
+
+            pane->GetFilters().Toggle (2, L"Words");
+            pane->GetFilters().ShowState();
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (1, pane->GetList()->GetRowCount());
+            Assert::AreEqual (std::string ("HELLO"), pane->GetBlock (0)->name);
+            Assert::IsTrue   (pane->GetList()->IsColumnFiltered (2), L"the Kind heading has the funnel");
+            Assert::AreEqual ((size_t) 2, pane->GetFilters().GetMenuValues (2).size(), L"Words is in the menu to check again");
+
+            pane->GetFilters().Toggle (2, L"Text");
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (1, pane->GetList()->GetRowCount(), L"one line for no match");
+            Assert::IsFalse  (pane->GetBlock (0).has_value());
+        }
+
+
+
+        TEST_METHOD (BreakpointsLeaveOutAHiddenKind)
+        {
+            CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                       host;
+            ToolWindow                              window   (theme, host);
+            auto                                    snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::BreakpointLine    bp;
+            BreakpointsPane                       * pane     = nullptr;
+            size_t                                  kind     = (size_t) BreakpointColumns::Column::Kind;
+            std::vector<std::wstring>               kinds;
+
+
+
+            bp.id      = 1;
+            bp.address = 0x0300;
+
+            snapshot->symbols     = MakeSymbols();
+            snapshot->breakpoints = { bp };
+
+            window.OnCreate();
+
+            pane = dynamic_cast<BreakpointsPane *> (window.FindPaneForTest (DebuggerLayout::kBreakpoints));
+            Assert::IsNotNull (pane);
+
+            window.TakeSnapshot (snapshot);
+            pane->Apply (*snapshot);
+            Assert::AreEqual (1, pane->GetList()->GetRowCount());
+
+            kinds = pane->GetFilters().GetMenuValues (kind);
+            Assert::AreEqual ((size_t) 1, kinds.size());
+
+            pane->GetFilters().Toggle (kind, kinds[0]);
+            pane->GetFilters().ShowState();
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (0, pane->GetList()->GetRowCount());
+            Assert::IsTrue   (pane->GetList()->IsColumnFiltered (kind));
+
+            pane->GetFilters().Clear (kind);
+            pane->GetFilters().ShowState();
+            pane->Apply (*snapshot);
+
+            Assert::AreEqual (1, pane->GetList()->GetRowCount());
+            Assert::IsFalse  (pane->GetList()->IsColumnFiltered (kind));
+        }
+
+
+
         TEST_METHOD (TheProfilerAndTheDataRangesListTheirRows)
         {
             ProfileData                                   profile;
@@ -289,6 +557,24 @@ namespace DebuggerToolPanesTests
             cells = DataBlocksPane::GetCells ({ { "TABLE", 0x0800, 0x080F, DataBlockKind::Words } });
             Assert::AreEqual (std::wstring (L"$0800-$080F"), cells[0][1].text);
             Assert::AreEqual (std::wstring (L"Words"), cells[0][2].text);
+        }
+
+
+        //  Rename marks a range again under its new name, with the directive
+        //  that makes a range of the same kind and as many items to a line.
+        TEST_METHOD (ADataRangesRenameMarksItAgainAsTheSameKind)
+        {
+            DebuggerAction  action = SymbolActions::GetMarkData ("DW4", 0x0800, 0x080F, CommandMode::AppleWin, "TABLE");
+
+
+
+            Assert::AreEqual (std::string ("DW4"), DataBlocksPane::GetDirective ({ "T", 0x0800, 0x080F, DataBlockKind::Words, 4 }));
+            Assert::AreEqual (std::string ("DB8"), DataBlocksPane::GetDirective ({ "T", 0x0800, 0x080F, DataBlockKind::Bytes, 8 }));
+            Assert::AreEqual (std::string ("ASC"), DataBlocksPane::GetDirective ({ "T", 0x0800, 0x080F, DataBlockKind::Text, 40 }));
+
+            Assert::AreEqual (std::string ("DW4 TABLE 0800:080F"), action.echo);
+            Assert::AreEqual (std::string ("TABLE"), action.command.text);
+            Assert::IsTrue   (action.command.verb == DebugVerb::DefineWords);
         }
 
 
@@ -534,6 +820,111 @@ namespace DebuggerToolPanesTests
             snapshot = std::make_shared<DebuggerViewSnapshot> (*snapshot);
             window.TakeSnapshot (snapshot);
             Assert::IsTrue (pane.GetZoom().CanGoBack(), L"the stack is the same after the same build again");
+        }
+
+
+        //  Ctrl+wheel anywhere in the profiler zooms its timeline rather than
+        //  the panes' text, not only over the timeline, and Ctrl+Plus and
+        //  Ctrl+0 zoom it while the pane has the focus.
+        TEST_METHOD (CtrlWheelAnywhereInTheProfilerZoomsItsTimeline)
+        {
+            constexpr int64_t   kFrame   = (int64_t) RoutineProfile::kCyclesPerFrame;
+            CassoTheme          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            ToolWindow          window   (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DxuiListView      * list     = nullptr;
+            DxuiMouseEvent      wheel;
+            DxuiKeyEvent        plus     = { DxuiKeyEventKind::Down, VK_OEM_PLUS, false, false, true, false };
+            DxuiKeyEvent        zero     = { DxuiKeyEventKind::Down, '0',         false, false, true, false };
+            RECT                bounds   = {};
+            float               zoom     = 0.0f;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane (DebuggerLayout::kProfiler);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            ProfilerPane & pane = window.GetProfilerPane();
+
+            snapshot->isPaused              = true;
+            snapshot->history.hasHistory    = true;
+            snapshot->history.cycle         = 600 * kFrame;
+            snapshot->profile               = ProfileData();
+            snapshot->profile->historyRange = CycleRange (0, 600 * kFrame);
+            snapshot->profile->historyBuild = 1;
+            window.TakeSnapshot (snapshot);
+
+            list   = pane.GetLists().front();
+            bounds = list->GetBounds();
+            zoom   = window.GetTextZoom();
+
+            Assert::IsTrue  (list->IsVisible() && bounds.bottom > bounds.top, L"the routines are listed under the timeline");
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::IsTrue   (pane.GetZoom().GetState().view.has_value(), L"over the list, the timeline zoomed in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
+
+            window.FocusControl (list);
+            Assert::IsTrue   (window.OnKey (zero));
+            Assert::IsFalse  (pane.GetZoom().GetState().view.has_value(), L"Ctrl+0 zooms back out to the whole profile");
+
+            Assert::IsTrue   (window.OnKey (plus));
+            Assert::IsTrue   (pane.GetZoom().GetState().view.has_value(), L"Ctrl+Plus zoomed the timeline in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and not the text");
+        }
+
+
+        //  Ctrl+wheel anywhere in the serial log zooms its graph, as its Zoom
+        //  in and Zoom out do, rather than sizing the panes' text.
+        TEST_METHOD (CtrlWheelAnywhereInTheSerialLogZoomsItsGraph)
+        {
+            CassoTheme           theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost    host;
+            ToolWindow           window (theme, host);
+            DxuiDpiScaler        scaler;
+            CommLogController  * serial = nullptr;
+            DxuiMouseEvent       wheel;
+            RECT                 bounds = {};
+            float                zoom   = 0.0f;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane (DebuggerLayout::kSerialLog);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            serial = dynamic_cast<CommLogController *> (window.FindPaneForTest (DebuggerLayout::kSerialLog));
+            Assert::IsNotNull (serial, L"the window has a serial log");
+
+            bounds = serial->GetLists().front()->GetBounds();
+            zoom   = window.GetTextZoom();
+
+            Assert::IsTrue (serial->GetLists().front()->IsVisible() && bounds.bottom > bounds.top, L"the serial log is open and laid out");
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::AreEqual (CommLogController::kDefaultSpan / 2, serial->GetSpan(), L"over the list, the graph zoomed in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
+
+            wheel.wheelDelta = -1.0f;
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::AreEqual (CommLogController::kDefaultSpan, serial->GetSpan(), L"and back out");
         }
 
 
@@ -1106,43 +1497,55 @@ namespace DebuggerToolPanesTests
 
 
 
-        //  The input log's guest and host input are chosen on the Source
-        //  column's Filter cascade, and the heading has a funnel while any of
-        //  it is left out; another column has no filter.
-        TEST_METHOD (TheInputLogsSourceColumnHasTheFilterCascade)
+        //  The input log's columns of a few values filter by the values
+        //  checked, the Source column among them, and its address by a
+        //  comparison; the meaning, free text, has no filter. Checking a
+        //  value filters the column until the filter is cleared.
+        TEST_METHOD (TheInputLogsColumnsFilterByValueOrComparison)
         {
-            CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
-            QuietDebuggerHost                          host;
-            ToolWindow                                 window (theme, host);
-            InputLogController                         log    (window.GetPaneHostForTest());
-            std::vector<std::shared_ptr<DxuiCommand>>  commands;
-            std::vector<DxuiPopupMenuItem>             items;
-            DxuiListView                             * list   = nullptr;
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            ToolWindow          window (theme, host);
+            InputLogController  log    (window.GetPaneHostForTest());
+            IEventLogFilter   * model  = nullptr;
 
 
 
             window.OnCreate();
             log.CreateControls();
             log.Configure();
-            list = log.GetLists().front();
+            model = &log.GetModel();
 
-            items = log.GetColumnFilterItems (list, InputLogPane::kSource, commands);
-            Assert::AreEqual ((size_t) 6, items.size(), L"three guest inputs, a separator and two host inputs");
-            Assert::AreEqual ((size_t) 5, commands.size());
-            Assert::AreEqual (std::wstring (L"Guest keyboard"), commands[0]->label);
-            Assert::IsTrue   (log.GetColumnFilterItems (list, InputLogPane::kMeaning, commands).empty(), L"the meaning has a filter");
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kSource)  == IEventLogFilter::Kind::Values);
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kAddress) == IEventLogFilter::Kind::Compare);
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kCycle)   == IEventLogFilter::Kind::Compare);
+            Assert::IsTrue (model->GetFilterKind (InputLogPane::kMeaning) == IEventLogFilter::Kind::None, L"free text has no filter");
 
-            log.ApplyLogDeltas ({}, false);
-            Assert::IsFalse  (list->IsColumnFiltered (InputLogPane::kSource), L"a funnel with every input shown");
+            model->ToggleValue (InputLogPane::kSource, L"Guest keyboard");
+            Assert::IsTrue  (model->IsFiltered (InputLogPane::kSource));
+            Assert::IsTrue  (model->IsValueChecked (InputLogPane::kSource, L"Guest keyboard"));
 
-            commands[0]->dispatch();
-            Assert::IsTrue   (list->IsColumnFiltered (InputLogPane::kSource), L"no funnel with the guest's keyboard left out");
+            model->ClearFilter (InputLogPane::kSource);
+            Assert::IsFalse (model->IsFiltered (InputLogPane::kSource));
         }
 
 
+        //  A number in a comparison is typed as the column shows it: a count
+        //  with its commas, an address in hex, and the time of day.
+        TEST_METHOD (AComparisonsNumberIsTypedAsTheColumnShowsIt)
+        {
+            Assert::AreEqual ((uint64_t) 1234567,  InputLogPane::ParseCount (L"1,234,567").value_or (0));
+            Assert::AreEqual ((uint64_t) 0xC000,   InputLogPane::ParseCount (L"$C000").value_or (0));
+            Assert::IsFalse  (InputLogPane::ParseCount (L"abc").has_value());
+
+            Assert::AreEqual ((uint64_t) (22 * 3600000 + 42 * 60000 + 7 * 1000 + 123), InputLogPane::ParseTimeOfDay (L"10:42:07.123 PM").value_or (0));
+            Assert::AreEqual ((uint64_t) (22 * 3600000 + 42 * 60000),                  InputLogPane::ParseTimeOfDay (L"22:42").value_or (0));
+            Assert::AreEqual ((uint64_t) 7000,                                         InputLogPane::ParseTimeOfDay (L"12:00:07 AM").value_or (1));
+        }
+
         //  FR-198: the sound log's Clear and Save run SOUNDLOG, so the pane
-        //  and the console agree on what the log holds; its Source column has
-        //  the sources' filter. The video log has no filter.
+        //  and the console agree on what the log holds; its Source column
+        //  filters by the sources.
         TEST_METHOD (TheIoLogsClearAndSaveRunTheLogCommand)
         {
             CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
@@ -1174,8 +1577,7 @@ namespace DebuggerToolPanesTests
             video.Clear();
             Assert::AreEqual (std::string ("VIDEOLOG CLEAR"), host.commands.back());
 
-            Assert::AreEqual ((size_t) 4, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522, AY and SSI-263");
-            Assert::IsTrue   (video.GetColumnFilterItems (video.GetLists().front(), IoLogPane::kSource, commands).empty());
+            Assert::IsTrue   (static_cast<IEventLogFilter &> (sound.GetModel()).GetFilterKind (IoLogPane::kSource) == IEventLogFilter::Kind::Values, L"the sources are the Source column's values");
         }
 
 
@@ -1318,6 +1720,31 @@ namespace DebuggerToolPanesTests
 
             Assert::IsTrue (serial.GetGraph().GetLast() > 50'000,  L"just after the last row before the position");
             Assert::IsTrue (serial.GetGraph().GetLast() < 60'000,  L"and not at the newest row");
+        }
+
+
+        //  A device panel's graphics take the focus on a press, so the zoom
+        //  keys size the panel's text as Ctrl+wheel does over them.
+        TEST_METHOD (APanelsGraphicsTakeTheFocus)
+        {
+            CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost      host;
+            ToolWindow             window (theme, host);
+            DevicePanelController  panel  (window.GetPaneHostForTest(), "mmu", L"MMU");
+
+
+
+            window.OnCreate();
+            panel.CreateControls();
+
+            for (IDxuiControl * control : panel.GetControls())
+            {
+                if (dynamic_cast<MemoryMapBar *> (control) != nullptr || dynamic_cast<DiskHeadView *> (control) != nullptr ||
+                    dynamic_cast<MeterBar *> (control) != nullptr     || dynamic_cast<SoundBoardView *> (control) != nullptr)
+                {
+                    Assert::IsTrue (control->IsFocusable(), control->GetAccessibleName().c_str());
+                }
+            }
         }
 
 

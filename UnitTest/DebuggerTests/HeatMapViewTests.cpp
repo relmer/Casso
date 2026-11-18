@@ -30,9 +30,9 @@ namespace DebuggerTests
 
         static constexpr uint32_t  kBackground = 0xFF000000;
         static constexpr uint32_t  kCold       = 0xFF303030;
-        static constexpr uint32_t  kExecute    = 0xFF0000FF;
-        static constexpr uint32_t  kRead       = 0xFF00FF00;
-        static constexpr uint32_t  kWrite      = 0xFFFF0000;
+        static constexpr uint32_t  kExecute    = 0xFFE0201C;   // the heat column's hottest run color, HeatStrip::GetScaleStops
+        static constexpr uint32_t  kRead       = 0xFF9AEEFF;
+        static constexpr uint32_t  kWrite      = 0xFFFFA6E8;
 
         //  The pane's size, at 96 dpi.
         static constexpr int       kWidth      = 600;
@@ -127,7 +127,7 @@ namespace DebuggerTests
 
         TEST_METHOD (AColdAddressIsTheColdGrayNotThePage)
         {
-            Assert::AreEqual (kCold, HeatMapView::GetColor (Mode::All, 0, 0, 0, MakePalette()));
+            Assert::AreEqual (kCold, HeatMapCells::GetColor (Mode::All, 0, 0, 0, MakePalette()));
         }
 
 
@@ -138,11 +138,11 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (kExecute, HeatMapView::GetColor (Mode::All, 255, 0,   0,   palette));
-            Assert::AreEqual (kRead,    HeatMapView::GetColor (Mode::All, 0,   255, 0,   palette));
-            Assert::AreEqual (kWrite,   HeatMapView::GetColor (Mode::All, 0,   0,   255, palette));
-            Assert::AreEqual (kExecute, HeatMapView::GetColor (Mode::All, 255, 255, 0,   palette), L"code shows where code and data are as hot");
-            Assert::AreEqual (kRead,    HeatMapView::GetColor (Mode::All, 10,  255, 0,   palette), L"the hotter kind shows");
+            Assert::AreEqual (kExecute, HeatMapCells::GetColor (Mode::All, 255, 0,   0,   palette));
+            Assert::AreEqual (kRead,    HeatMapCells::GetColor (Mode::All, 0,   255, 0,   palette));
+            Assert::AreEqual (kWrite,   HeatMapCells::GetColor (Mode::All, 0,   0,   255, palette));
+            Assert::AreEqual (kExecute, HeatMapCells::GetColor (Mode::All, 255, 255, 0,   palette), L"code shows where code and data are as hot");
+            Assert::AreEqual (kRead,    HeatMapCells::GetColor (Mode::All, 10,  255, 0,   palette), L"the hotter kind shows");
         }
 
 
@@ -153,24 +153,24 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (kCold,    HeatMapView::GetColor (Mode::Code, 0,   255, 255, palette));
-            Assert::AreEqual (kExecute, HeatMapView::GetColor (Mode::Code, 255, 255, 255, palette));
-            Assert::AreEqual (kCold,    HeatMapView::GetColor (Mode::Data, 255, 0,   0,   palette));
-            Assert::AreEqual (kWrite,   HeatMapView::GetColor (Mode::Data, 255, 10,  255, palette));
+            Assert::AreEqual (kCold,    HeatMapCells::GetColor (Mode::Code, 0,   255, 255, palette));
+            Assert::AreEqual (kExecute, HeatMapCells::GetColor (Mode::Code, 255, 255, 255, palette));
+            Assert::AreEqual (kCold,    HeatMapCells::GetColor (Mode::Data, 255, 0,   0,   palette));
+            Assert::AreEqual (kWrite,   HeatMapCells::GetColor (Mode::Data, 255, 10,  255, palette));
         }
 
 
 
         TEST_METHOD (AFaintAddressIsStillSetApartFromTheColdGray)
         {
-            uint32_t  faint = HeatMapView::GetColor (Mode::All, 1, 0, 0, MakePalette());
-            uint32_t  hot   = HeatMapView::GetColor (Mode::All, 255, 0, 0, MakePalette());
+            uint32_t  faint = HeatMapCells::GetColor (Mode::All, 1, 0, 0, MakePalette());
+            uint32_t  hot   = HeatMapCells::GetColor (Mode::All, 255, 0, 0, MakePalette());
 
 
 
             Assert::AreNotEqual (kCold, faint);
-            Assert::IsTrue      ((faint & 0xFF) > 0x60, L"at least kFaintest of the way to the color");
-            Assert::IsTrue      ((faint & 0xFF) < (hot & 0xFF));
+            Assert::AreEqual    (0xFFD8C060u, faint, L"the first stop of the heat column's run scale");
+            Assert::AreNotEqual (hot, faint);
         }
 
 
@@ -189,7 +189,7 @@ namespace DebuggerTests
             execute[0x0102] = 255;
             view.SetLevels (execute, none, none);
             map   = view.GetMapRect();
-            pitch = view.GetCellPx() + HeatMapView::kStreetPx;
+            pitch = view.GetCellPx() + HeatMapSections::kStreetPx;
 
             Assert::AreEqual (kExecute, view.GetCellColor (0x0102));
             Assert::AreEqual (kCold,    view.GetCellColor (0x0103));
@@ -311,10 +311,154 @@ namespace DebuggerTests
                 view.ZoomAt ({ map.left, map.top }, 1.0f);
             }
 
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx(), L"the zoom stops at its largest");
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view.GetCellPx(), L"the zoom stops at its largest");
         }
 
 
+
+        //  The panel grows out of the button: its bottom right is the
+        //  button's, the slider's row is above the button, and Reset is on
+        //  the button's row at the panel's left. The wheel over the button
+        //  or the panel zooms.
+        TEST_METHOD (TheZoomPanelGrowsOutOfTheButton)
+        {
+            HeatMapView     view;
+            DxuiMouseEvent  ev;
+            RECT            button = {};
+            RECT            panel  = {};
+            RECT            track  = {};
+            RECT            reset  = {};
+            int             before = 0;
+
+
+
+            Place (view);
+            button = view.GetZoomWidget().GetButtonRect();
+
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"open on hover");
+
+            panel = view.GetZoomWidget().GetPanelRect();
+            track = view.GetZoomWidget().GetTrackRect();
+            reset = view.GetZoomWidget().GetResetRect();
+
+            Assert::AreEqual (button.right,  panel.right);
+            Assert::AreEqual (button.bottom, panel.bottom);
+            Assert::IsTrue   (track.bottom <= button.top,                     L"the slider's row above the button");
+            Assert::IsTrue   (reset.top >= button.top && reset.bottom <= button.bottom && reset.right <= button.left, L"Reset left of the percentage on its row");
+
+            before         = view.GetCellPx();
+            ev.kind        = DxuiMouseEventKind::Wheel;
+            ev.wheelDelta  = 1.0f;
+            ev.positionDip = POINT { (track.left + track.right) / 2, panel.top + 1 };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetCellPx() > before, L"the wheel over the panel zooms in");
+        }
+
+
+
+        //  The slider stays open with the pointer over it or near it, and
+        //  closes once the pointer moves further away or off the map. During a
+        //  drag of its thumb it is open wherever the pointer goes.
+        //  Opened, the panel is drawn at the button's rect first, grows to the
+        //  panel's rect over kAnimateMs, and shrinks back to the button's rect
+        //  when it closes.
+        TEST_METHOD (TheZoomPanelGrowsOutOfTheButtonAndShrinksBack)
+        {
+            HeatMapZoomWidget  widget;
+            DxuiDpiScaler      scaler;
+            RECT               button = {};
+            RECT               drawn  = {};
+            RECT               panel  = {};
+
+
+
+            widget.Place (RECT { 0, 0, 600, 400 }, RECT { 0, 0, 600, 400 }, scaler);
+            button = widget.GetButtonRect();
+
+            widget.SetOpen (true);
+            Assert::IsTrue (widget.Tick (1000), L"opening");
+            drawn = widget.GetShownPanelRect();
+            Assert::IsTrue (EqualRect (&drawn, &button) != FALSE, L"from the button");
+
+            Assert::IsTrue (widget.Tick (1000 + HeatMapZoomWidget::kAnimateMs / 2));
+            drawn = widget.GetShownPanelRect();
+            Assert::IsTrue (drawn.left < button.left && drawn.left > widget.GetPanelRect().left, L"part of the way");
+
+            Assert::IsTrue  (widget.Tick (1000 + HeatMapZoomWidget::kAnimateMs));
+            Assert::IsFalse (widget.Tick (2000), L"done");
+            drawn = widget.GetShownPanelRect();
+            panel = widget.GetPanelRect();
+            Assert::IsTrue (EqualRect (&drawn, &panel) != FALSE, L"to the panel");
+
+            widget.SetOpen (false);
+            Assert::IsTrue  (widget.IsShown(), L"drawn while it closes");
+            Assert::IsTrue  (widget.Tick (3000));
+            Assert::IsTrue  (widget.Tick (3000 + HeatMapZoomWidget::kAnimateMs));
+            Assert::IsFalse (widget.IsShown(), L"and gone once closed");
+        }
+
+
+
+        TEST_METHOD (TheZoomSliderClosesWhenThePointerMovesAway)
+        {
+            HeatMapView     view;
+            DxuiMouseEvent  ev;
+            RECT            button = {};
+            RECT            panel  = {};
+            RECT            track  = {};
+            DxuiDpiScaler   scaler;
+            int             nearPx = scaler.ToPx (HeatMapZoomWidget::kNearDip);
+
+
+
+            Place (view);
+            button = view.GetZoomWidget().GetButtonRect();
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen());
+
+            panel  = view.GetZoomWidget().GetPanelRect();
+            track  = view.GetZoomWidget().GetTrackRect();
+
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.button      = DxuiMouseButton::None;
+            ev.positionDip = POINT { panel.left - nearPx / 2, (panel.top + panel.bottom) / 2 };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"nearPx the panel");
+
+            ev.positionDip = POINT { panel.left - nearPx - 4, (panel.top + panel.bottom) / 2 };
+            view.OnMouse (ev);
+            Assert::IsFalse (view.GetZoomWidget().IsOpen(), L"away from it");
+
+            //  Open again, then drag the thumb far away.
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.positionDip = POINT { (track.left + track.right) / 2, (track.top + track.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind        = DxuiMouseEventKind::Move;
+            ev.positionDip = POINT { panel.left - 10 * nearPx, panel.top - 10 * nearPx };
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"open while its thumb is dragged");
+
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Leave;
+            view.OnMouse (ev);
+            Assert::IsFalse (view.GetZoomWidget().IsOpen(), L"the pointer moved off the map");
+        }
 
         //  A click in another pane is not routed to the map, so the slider
         //  closes when the focus moves from the map's pane.
@@ -348,19 +492,19 @@ namespace DebuggerTests
 
         TEST_METHOD (ARowHoldsThePowerOfTwoOfAddressesNearestTheZoom)
         {
-            Assert::AreEqual (256,  HeatMapView::GetColumnsFor (1024,   4), L"256 cells of four pixels fill 1,024");
-            Assert::AreEqual (128,  HeatMapView::GetColumnsFor (700,    4), L"128 stretched 1.37 times fill 700");
-            Assert::AreEqual (256,  HeatMapView::GetColumnsFor (1023,   4), L"128 would stretch twice over, so 256 a little narrower");
-            Assert::AreEqual (256,  HeatMapView::GetColumnsFor (800,    4), L"and past one and a half times, too");
-            Assert::AreEqual (128,  HeatMapView::GetColumnsFor (500,    2), L"never narrower than a pixel and its street");
-            Assert::AreEqual (512,  HeatMapView::GetColumnsFor (2048,   4), L"more than a page when wide");
-            Assert::AreEqual (1024, HeatMapView::GetColumnsFor (100000, 2), L"no more than kMaxColumns");
-            Assert::AreEqual (2,    HeatMapView::GetColumnsFor (10,     4), L"two cells of four pixels in ten");
-            Assert::AreEqual (8,    HeatMapView::GetColumnsFor (538,   65), L"eight of the largest cells in a pane 600 wide");
-            Assert::AreEqual (2,    HeatMapView::GetColumnsFor (138,   65), L"two of them in a narrow pane");
-            Assert::AreEqual (2,    HeatMapView::GetColumnsFor (100,   65), L"one would stretch past one and a half times, so two narrower");
-            Assert::AreEqual (1,    HeatMapView::GetColumnsFor (40,    65), L"one cell narrowed to a pane narrower than it");
-            Assert::AreEqual (1,    HeatMapView::GetColumnsFor (0,      4), L"one cell in no width at all");
+            Assert::AreEqual (256,  HeatMapSections::GetColumnsFor (1024,   4), L"256 cells of four pixels fill 1,024");
+            Assert::AreEqual (128,  HeatMapSections::GetColumnsFor (700,    4), L"128 stretched 1.37 times fill 700");
+            Assert::AreEqual (256,  HeatMapSections::GetColumnsFor (1023,   4), L"128 would stretch twice over, so 256 a little narrower");
+            Assert::AreEqual (256,  HeatMapSections::GetColumnsFor (800,    4), L"and past one and a half times, too");
+            Assert::AreEqual (128,  HeatMapSections::GetColumnsFor (500,    2), L"never narrower than a pixel and its street");
+            Assert::AreEqual (512,  HeatMapSections::GetColumnsFor (2048,   4), L"more than a page when wide");
+            Assert::AreEqual (1024, HeatMapSections::GetColumnsFor (100000, 2), L"no more than kMaxColumns");
+            Assert::AreEqual (2,    HeatMapSections::GetColumnsFor (10,     4), L"two cells of four pixels in ten");
+            Assert::AreEqual (8,    HeatMapSections::GetColumnsFor (538,   65), L"eight of the largest cells in a pane 600 wide");
+            Assert::AreEqual (2,    HeatMapSections::GetColumnsFor (138,   65), L"two of them in a narrow pane");
+            Assert::AreEqual (2,    HeatMapSections::GetColumnsFor (100,   65), L"one would stretch past one and a half times, so two narrower");
+            Assert::AreEqual (1,    HeatMapSections::GetColumnsFor (40,    65), L"one cell narrowed to a pane narrower than it");
+            Assert::AreEqual (1,    HeatMapSections::GetColumnsFor (0,      4), L"one cell in no width at all");
         }
 
 
@@ -385,7 +529,7 @@ namespace DebuggerTests
 
                 Place (view, width, kHeight);
 
-                for (int cell = 1; cell <= HeatMapView::kMaxCellPx; cell++)
+                for (int cell = 1; cell <= HeatMapGrid::kMaxCellPx; cell++)
                 {
                     RECT          map     = {};
                     RECT          first   = {};
@@ -399,7 +543,7 @@ namespace DebuggerTests
                     view.ZoomTo (cell);
                     map     = view.GetMapRect();
                     columns = view.GetColumns();
-                    room    = width - HeatMapView::kInsetDip - (view.HasVerticalScroll() ? HeatMapView::kScrollbarDip : 0);
+                    room    = width - HeatMapGrid::kInsetDip - (view.HasVerticalScroll() ? HeatMapGrid::kScrollbarDip : 0);
                     first   = view.GetCellRect (0);
                     last    = view.GetCellRect ((Word) (columns - 1));
 
@@ -407,7 +551,7 @@ namespace DebuggerTests
                     Assert::IsTrue   (columns >= 1 && (columns & (columns - 1)) == 0, (L"a power of two to a row " + at).c_str());
                     Assert::AreEqual (room,      map.right, (L"the map spans the room " + at).c_str());
                     Assert::AreEqual (map.left,  first.left, (L"the row starts at the map's left " + at).c_str());
-                    Assert::AreEqual (map.right, last.right + HeatMapView::kStreetPx, (L"and its last cell ends the map " + at).c_str());
+                    Assert::AreEqual (map.right, last.right + HeatMapSections::kStreetPx, (L"and its last cell ends the map " + at).c_str());
                     Assert::AreEqual (first.top, last.top, (L"on one line " + at).c_str());
                     placed++;
                 }
@@ -430,24 +574,24 @@ namespace DebuggerTests
 
 
             Place (view, 200, kHeight);
-            view.ZoomTo (HeatMapView::kMaxCellPx);
+            view.ZoomTo (HeatMapGrid::kMaxCellPx);
             map  = view.GetMapRect();
             cell = view.GetCellRect (0);
 
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx(), L"the zoom is at its largest");
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view.GetCellPx(), L"the zoom is at its largest");
             Assert::AreEqual (2, view.GetColumns(), L"two to a row");
-            Assert::AreEqual ((long) HeatMapView::kMaxCellPx, cell.bottom - cell.top, L"each as tall as the zoom");
+            Assert::AreEqual ((long) HeatMapGrid::kMaxCellPx, cell.bottom - cell.top, L"each as tall as the zoom");
             Assert::IsTrue   (view.HasVerticalScroll(), L"and the rows run on down");
-            Assert::AreEqual ((long) HeatMapView::kAddressCount / 2, (long) view.GetRows());
+            Assert::AreEqual ((long) HeatMapSections::kAddressCount / 2, (long) view.GetRows());
 
             Place (view, 120, kHeight);
-            view.ZoomTo (HeatMapView::kMaxCellPx);
+            view.ZoomTo (HeatMapGrid::kMaxCellPx);
             map  = view.GetMapRect();
             cell = view.GetCellRect (0x0001);
 
             Assert::AreEqual (1, view.GetColumns(), L"one to a row where even one is wider than the pane");
             Assert::AreEqual (map.left, cell.left, L"$0001 starts the second row");
-            Assert::AreEqual (map.right, cell.right + HeatMapView::kStreetPx, L"and spans the map");
+            Assert::AreEqual (map.right, cell.right + HeatMapSections::kStreetPx, L"and spans the map");
         }
 
 
@@ -474,10 +618,11 @@ namespace DebuggerTests
 
                 for (int offset = 0; offset < view.GetColumns() * 3; offset++)
                 {
-                    Word          address = (Word) (view.GetColumns() + offset);
-                    RECT          rect    = view.GetCellRect (address);
-                    RECT          anchor  = {};
-                    std::wstring  tip;
+                    Word                   address  = (Word) (view.GetColumns() + offset);
+                    RECT                   rect     = view.GetCellRect (address);
+                    RECT                   anchor   = {};
+                    std::wstring           tip;
+                    std::vector<uint32_t>  swatches;
                     std::wstring  label   = std::format (L"${:04X}", address);
                     POINT         nearEnd = { rect.left,      rect.top + 1 };
                     POINT         farEnd  = { rect.right - 1, rect.bottom - 1 };
@@ -494,8 +639,9 @@ namespace DebuggerTests
                         Assert::AreEqual (address, view.GetAddressAt (street).value_or (0), (L"its street " + label).c_str());
                     }
 
-                    Assert::IsTrue (view.TryGetTipAt (farEnd, anchor, tip), label.c_str());
+                    Assert::IsTrue (view.TryGetTipAt (farEnd, anchor, tip, swatches), label.c_str());
                     Assert::IsTrue (tip.starts_with (label), tip.c_str());
+                    Assert::AreEqual ((size_t) 1, swatches.size(), L"a swatch for the first line");
 
                     view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, farEnd));
                     view.OnMouse (MakeEvent (DxuiMouseEventKind::Up,   farEnd));
@@ -533,12 +679,12 @@ namespace DebuggerTests
 
                 Place (view, width, kHeight);
                 map   = view.GetMapRect();
-                pitch = view.GetCellPx() + HeatMapView::kStreetPx;
-                right = width - HeatMapView::kInsetDip - (view.HasVerticalScroll() ? HeatMapView::kScrollbarDip : 0);
+                pitch = view.GetCellPx() + HeatMapSections::kStreetPx;
+                right = width - HeatMapGrid::kInsetDip - (view.HasVerticalScroll() ? HeatMapGrid::kScrollbarDip : 0);
                 last  = view.GetCellRect ((Word) (view.GetColumns() - 1));
 
                 Assert::AreEqual (right, map.right, (L"no empty strip right of the map " + at).c_str());
-                Assert::AreEqual (map.right, last.right + HeatMapView::kStreetPx, (L"the last cell and its street end the map " + at).c_str());
+                Assert::AreEqual (map.right, last.right + HeatMapSections::kStreetPx, (L"the last cell and its street end the map " + at).c_str());
 
                 for (int column = 0; column < view.GetColumns(); column++)
                 {
@@ -656,7 +802,7 @@ namespace DebuggerTests
             columns = view.GetColumns();
             point   = GetPointOf (view, 0x1456);
 
-            while (view.GetCellPx() < HeatMapView::kMaxCellPx)
+            while (view.GetCellPx() < HeatMapGrid::kMaxCellPx)
             {
                 under = view.GetAddressAt (point).value_or (0);
 
@@ -664,7 +810,7 @@ namespace DebuggerTests
                 notches++;
 
                 Assert::IsTrue   (view.GetColumns() <= columns, L"no more addresses to a row than before");
-                Assert::AreEqual (map.right, view.GetCellRect ((Word) (view.GetColumns() - 1)).right + HeatMapView::kStreetPx, L"and the row ends at the map's edge");
+                Assert::AreEqual (map.right, view.GetCellRect ((Word) (view.GetColumns() - 1)).right + HeatMapSections::kStreetPx, L"and the row ends at the map's edge");
                 Assert::IsTrue   (IsAtHeight (view, under, point.y), L"the pointer's row stays under it");
 
                 columns = view.GetColumns();
@@ -678,6 +824,163 @@ namespace DebuggerTests
             view.ZoomAt (point, -3.0f);
             Assert::IsTrue   (view.GetColumns() > 8, L"zoomed out, more to a row again");
             Assert::IsTrue   (IsAtHeight (view, under, point.y), L"and the row is under the pointer");
+        }
+
+
+
+        //  A touchpad turns the wheel in fractions of a notch. Over a row far
+        //  down the map, the row stays under the pointer after each one, all
+        //  the way in and back out.
+        TEST_METHOD (FractionalNotchesKeepARowFarDownUnderThePointer)
+        {
+            HeatMapView  view;
+            POINT        point = {};
+            RECT         cell  = {};
+            Word         under = 0;
+            int          steps = 0;
+
+
+
+            Place (view, 420, 700);
+            view.ZoomAt (GetPointOf (view, 0x1000), 2.0f);
+            view.ScrollBy ((int) (view.GetCellRect (0xC283).top - (view.GetMapRect().top + view.GetMapRect().bottom) / 2));
+
+            cell  = view.GetCellRect (0xC283);
+            point = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+
+            for (float notch : { 0.25f, -0.25f })
+            {
+                for (steps = 0; steps < 60; steps++)
+                {
+                    under = view.GetAddressAt (point).value_or (0);
+
+                    view.ZoomAt (point, notch);
+
+                    //  Zoomed out, the map stops at an end of memory.
+                    if (notch < 0.0f && (view.GetScrollTop() == 0 || view.GetScrollTop() >= view.GetRows() * (view.GetCellPx() + HeatMapSections::kStreetPx) - (view.GetMapRect().bottom - view.GetMapRect().top)))
+                    {
+                        break;
+                    }
+
+                    Assert::IsTrue (IsAtHeight (view, under, point.y),
+                                    std::format (L"${:04X} under the pointer after step {} of {}", under, steps, notch).c_str());
+                }
+            }
+        }
+
+
+
+        //  At the sizes at which all of memory fits the pane, a zoom in scrolls
+        //  the map past an end where the pointer's row would otherwise move. A
+        //  scroll then moves it back toward the end and not farther past. A zoom
+        //  out and Reset zoom put memory back at the top.
+        TEST_METHOD (ZoomingAtTheFitSizesKeepsThePointersRow)
+        {
+            HeatMapView  view;
+            POINT        point = {};
+            Word         under = 0;
+            long         past  = 0;
+
+
+
+            Place (view, 420, 2400);
+            view.ResetZoom();
+            view.ZoomAt (GetPointOf (view, 0x0000), -1.0f);
+
+            point = GetPointOf (view, 0x8000);
+            under = view.GetAddressAt (point).value_or (0);
+
+            view.ZoomAt (point, 1.0f);
+            Assert::IsTrue (IsAtHeight (view, under, point.y), L"zoomed in from a size that fits, the row is under the pointer");
+            Assert::IsTrue (view.GetScrollTop() < 0 || view.GetScrollTop() > view.GetRows() * (view.GetCellPx() + HeatMapSections::kStreetPx) - (view.GetMapRect().bottom - view.GetMapRect().top),
+                            L"the map is scrolled past an end, so the row is where it was");
+
+            past = view.GetScrollTop();
+            view.ScrollBy (past < 0 ? -1 : 1);
+            Assert::AreEqual (past, view.GetScrollTop(), L"a scroll farther past the end is not taken");
+
+            view.ScrollBy (past < 0 ? 1 : -1);
+            Assert::AreEqual (past < 0 ? past + 1 : past - 1, view.GetScrollTop(), L"a scroll back toward it is");
+
+            view.ZoomAt (point, -1.0f);
+            Assert::AreEqual (0L, view.GetScrollTop(), L"zoomed back out to a size that fits, memory is at the top");
+
+            view.ZoomAt (point, 1.0f);
+            view.ResetZoom();
+            Assert::AreEqual (0L, view.GetScrollTop(), L"Reset zoom puts memory back at the top");
+        }
+
+
+
+        //  An instruction that wraps to the next row after its first cell has
+        //  the mnemonic in that cell and the operand in the next. One that
+        //  wraps after two cells has all of its text in those two.
+        TEST_METHOD (AWrappedInstructionIsSplitAtItsMnemonic)
+        {
+            HeatMapView::InstructionLines  lines;
+
+
+
+            lines = HeatMapCellText::SplitInstruction (L"LDA KBD", L"AD 00 C0", { 1, 2 });
+            Assert::AreEqual (std::wstring (L"LDA"),   lines[0].first);
+            Assert::AreEqual (std::wstring (L"AD"),    lines[0].second);
+            Assert::AreEqual (std::wstring (L"KBD"),   lines[1].first);
+            Assert::AreEqual (std::wstring (L"00 C0"), lines[1].second);
+
+            lines = HeatMapCellText::SplitInstruction (L"BNE $0300", L"D0 FE", { 1, 1 });
+            Assert::AreEqual (std::wstring (L"BNE"),   lines[0].first);
+            Assert::AreEqual (std::wstring (L"$0300"), lines[1].first);
+
+            lines = HeatMapCellText::SplitInstruction (L"LDA KBD", L"AD 00 C0", { 2, 1 });
+            Assert::AreEqual (std::wstring (L"LDA KBD"),  lines[0].first);
+            Assert::AreEqual (std::wstring (L"AD 00 C0"), lines[0].second);
+            Assert::IsTrue   (lines[1].first.empty() && lines[1].second.empty(), L"the wrapped cell has no text");
+
+            lines = HeatMapCellText::SplitInstruction (L"LDA KBD", L"AD 00 C0", { 3 });
+            Assert::AreEqual (std::wstring (L"LDA KBD"), lines[0].first);
+        }
+
+
+
+        //  The arrows move the framed cell a cell or a row, Ctrl+End to the last
+        //  address, scrolling it into view, and Enter opens it in a memory
+        //  window as a click does.
+        TEST_METHOD (TheKeysMoveTheFramedCell)
+        {
+            HeatMapView   view;
+            DxuiKeyEvent  key;
+            Word          opened = 0;
+            RECT          cell   = {};
+            auto          press  = [&view, &key] (WPARAM vk, bool ctrl = false)
+            {
+                key.vk   = vk;
+                key.ctrl = ctrl;
+                return view.OnKey (key);
+            };
+
+
+
+            Place (view);
+            view.SetOnPickAddress ([&opened] (Word address) { opened = address; });
+
+            Assert::IsTrue   (press (VK_RIGHT), L"the first key frames a cell");
+            Assert::AreEqual ((Word) 0x0000, view.GetHover().value_or (0xFFFF));
+
+            Assert::IsTrue   (press (VK_RIGHT));
+            Assert::AreEqual ((Word) 0x0001, *view.GetHover());
+
+            Assert::IsTrue   (press (VK_DOWN));
+            Assert::AreEqual ((Word) (0x0001 + view.GetColumns()), *view.GetHover(), L"a row down");
+
+            Assert::IsTrue   (press (VK_END, true));
+            Assert::AreEqual ((Word) 0xFFFF, *view.GetHover(), L"Ctrl+End, the last address");
+            cell = view.GetCellRect (0xFFFF);
+            Assert::IsTrue   (cell.bottom <= view.GetMapRect().bottom, L"scrolled into view");
+
+            Assert::IsTrue   (press (VK_RETURN));
+            Assert::AreEqual ((Word) 0xFFFF, opened, L"Enter opens it");
+
+            Assert::IsFalse  (press ('A'), L"other keys are left to the window");
         }
 
 
@@ -714,7 +1017,7 @@ namespace DebuggerTests
 
             Place (view);
             map     = view.GetMapRect();
-            content = view.GetRows() * (view.GetCellPx() + HeatMapView::kStreetPx);
+            content = view.GetRows() * (view.GetCellPx() + HeatMapSections::kStreetPx);
 
             view.ScrollBy (-50);
             Assert::AreEqual (0L, view.GetScrollTop());
@@ -749,7 +1052,7 @@ namespace DebuggerTests
         //  its middle is the cell halfway in scale, and each end its size.
         TEST_METHOD (TheZoomWidgetShowsAPercentageAndSlidesInScale)
         {
-            constexpr int  kMax = HeatMapView::kMaxCellPx;
+            constexpr int  kMax = HeatMapGrid::kMaxCellPx;
 
 
 
@@ -768,6 +1071,44 @@ namespace DebuggerTests
             {
                 Assert::AreEqual (cell, HeatMapZoomWidget::GetCellPxAtPosition (HeatMapZoomWidget::GetPosition (cell, kMax), kMax), L"every cell size has its place");
             }
+        }
+
+
+
+        //  The zoom's percentage is the user's zoom, not a size in pixels, so
+        //  it is the same after a floating map is dragged to a monitor of
+        //  another scale. The cells grow with the monitor's scale as the text
+        //  does.
+        TEST_METHOD (AMoveToAnotherScaleKeepsTheZoomPercentage)
+        {
+            constexpr int   kZoom     = 4;
+            HeatMapView     view;
+            DxuiDpiScaler   landscape;
+            DxuiDpiScaler   portrait;
+            int             startPx   = 0;
+            int             zoomedPx  = 0;
+
+
+
+            landscape.SetDpi (96);
+            portrait.SetDpi  (192);
+
+            view.SetPalette (MakePalette());
+            view.Layout     (RECT { 0, 0, kWidth * 2, kHeight * 3 }, landscape);
+            view.ZoomTo     (view.GetStartCellPx() * kZoom);
+
+            startPx  = view.GetStartCellPx();
+            zoomedPx = view.GetCellPx();
+            Assert::AreEqual (400, HeatMapZoomWidget::GetPercent (view.GetCellPx(), view.GetStartCellPx()), L"zoomed to 400%");
+
+            view.Layout (RECT { 0, 0, kWidth * 4, kHeight * 6 }, portrait);
+            Assert::AreEqual (400, HeatMapZoomWidget::GetPercent (view.GetCellPx(), view.GetStartCellPx()), L"400% at twice the scale");
+            Assert::IsTrue   (view.GetStartCellPx() > startPx, std::format (L"the size that fits the larger pane is larger: {} then {}", startPx, view.GetStartCellPx()).c_str());
+            Assert::IsTrue   (view.GetCellPx() > zoomedPx, L"the cells grow with the scale");
+
+            view.Layout (RECT { 0, 0, kWidth * 2, kHeight * 3 }, landscape);
+            Assert::AreEqual (400,      HeatMapZoomWidget::GetPercent (view.GetCellPx(), view.GetStartCellPx()), L"400% back at the first scale");
+            Assert::AreEqual (zoomedPx, view.GetCellPx(), L"at the cell it had there");
         }
 
 
@@ -808,7 +1149,7 @@ namespace DebuggerTests
             Assert::IsTrue   (view.OnMouse (MakeWheel (GetPointOf (view, 0x0000), -1.0f, false, false)));
             Assert::AreEqual (3, view.GetCellPx(), L"the wheel alone does not zoom");
             Assert::IsTrue   (view.GetScrollTop() > 0, L"the wheel down scrolls down");
-            Assert::AreEqual (0L, view.GetScrollTop() % (view.GetCellPx() + HeatMapView::kStreetPx), L"by whole rows");
+            Assert::AreEqual (0L, view.GetScrollTop() % (view.GetCellPx() + HeatMapSections::kStreetPx), L"by whole rows");
         }
 
 
@@ -846,7 +1187,7 @@ namespace DebuggerTests
             Assert::AreEqual (0L, view.GetScrollTop());
 
             view.ZoomAt ({ map.left, map.top }, 30.0f);
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx());
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view.GetCellPx());
 
             Assert::IsFalse  (view.OnMouse (MakeWheel (GetPointOf (view, 0x0000), -1.0f, false, true)), L"nor at the largest zoom");
             Assert::AreEqual (0L, view.GetScrollTop(), L"and the map stays where it was");
@@ -980,12 +1321,13 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (WhileCellsAreSmallTheHottestCellNearbyIsPicked)
+        TEST_METHOD (WhileCellsAreSmallTheNearestHotCellIsPicked)
         {
             HeatMapView        view;
             std::vector<Byte>  read (0x10000, 0);
             std::vector<Byte>  none;
             Word               below = 0;
+            RECT               hot   = {};
 
 
 
@@ -995,12 +1337,40 @@ namespace DebuggerTests
             read[below]  = 200;
             read[0x2010] = 255;
             view.SetLevels (none, read, none);
+            hot = view.GetCellRect (0x2001);
 
-            //  Over cold $2000, three pixels from $2001 and four from the cell
-            //  under it.
-            Assert::AreEqual (below,         view.GetPickAt (GetPointOf (view, 0x2000, 2)).value_or (0), L"the hotter of the two near it");
+            Assert::AreEqual ((Word) 0x2001, view.GetPickAt ({ hot.left - 1, hot.top }).value_or (0),     L"a pixel from $2001's edge, $2001 over the hotter cell further off");
             Assert::AreEqual ((Word) 0x2001, view.GetPickAt (GetPointOf (view, 0x2001)).value_or (0),    L"a touched cell under the mouse is its own");
             Assert::AreEqual ((Word) 0x2008, view.GetPickAt (GetPointOf (view, 0x2008)).value_or (0),    L"nothing touched near it, the cell under it");
+        }
+
+
+
+        //  In a cumulative map a row nothing touched can lie between two hot
+        //  rows; its cells are picked from their middles, not skipped.
+        TEST_METHOD (AColdRowBetweenHotRowsCanBePicked)
+        {
+            HeatMapView        view;
+            std::vector<Byte>  read (0x10000, 0);
+            std::vector<Byte>  none;
+            Word               columns = 0;
+            RECT               cell    = {};
+
+
+
+            Place (view);
+            columns = (Word) view.GetColumns();
+
+            for (Word column = 0; column < columns; column++)
+            {
+                read[(Word) (0x0000 + column)]               = 255;
+                read[(Word) (0x0000 + 2 * columns + column)] = 255;
+            }
+
+            view.SetLevels (none, read, none);
+            cell = view.GetCellRect ((Word) (0x0000 + columns + 5));
+
+            Assert::AreEqual ((Word) (0x0000 + columns + 5), view.GetPickAt ({ (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 }).value_or (0));
         }
 
 
@@ -1018,7 +1388,7 @@ namespace DebuggerTests
             read[0x2001] = 255;
             view.SetLevels (none, read, none);
             view.ZoomAt (GetPointOf (view, 0x2000), 5.0f);
-            Assert::IsTrue (view.GetCellPx() >= HeatMapView::kComfortCellDip);
+            Assert::IsTrue (view.GetCellPx() >= HeatMapPicker::kComfortCellDip);
 
             at = { view.GetCellRect (0x2000).right - 1, view.GetCellRect (0x2000).bottom - 1 };
             Assert::AreEqual ((Word) 0x2000, view.GetPickAt (at).value_or (0), L"the cell's far corner, next to the hot one");
@@ -1080,11 +1450,12 @@ namespace DebuggerTests
         {
             HeatMapView        view;
             std::vector<Byte>  read (0x10000, 0);
-            std::vector<Byte>  none;
-            RECT               anchor   = {};
-            RECT               expected = {};
-            std::wstring       text;
-            POINT              beside   = {};
+            std::vector<Byte>      none;
+            RECT                   anchor   = {};
+            RECT                   expected = {};
+            std::wstring           text;
+            std::vector<uint32_t>  swatches;
+            POINT                  beside   = {};
 
 
 
@@ -1094,16 +1465,18 @@ namespace DebuggerTests
             view.SetLevels (none, read, none);
             beside   = GetPointOf (view, 0x2000, 2);
             expected = view.GetCellRect (0x2001);
-            InflateRect (&expected, HeatMapView::kStreetPx, HeatMapView::kStreetPx);
+            InflateRect (&expected, HeatMapSections::kStreetPx, HeatMapSections::kStreetPx);
 
-            Assert::IsTrue   (view.TryGetTipAt (beside, anchor, text));
-            Assert::IsTrue   (text.starts_with (L"$2001  read "), text.c_str());
+            Assert::IsTrue   (view.TryGetTipAt (beside, anchor, text, swatches));
+            Assert::IsTrue   (text.starts_with (L"Read\n$2001  read "), text.c_str());
+            Assert::AreEqual ((size_t) 1, swatches.size(), L"the color of the cell, beside the first line");
+            Assert::AreEqual (view.GetCellColor (0x2001), swatches.front());
             Assert::IsTrue   (EqualRect (&anchor, &expected) != FALSE, L"anchored on the busier cell the pick snapped to");
 
-            Assert::IsFalse  (view.TryGetTipAt ({ 2, 100 }, anchor, text), L"none over the row labels");
+            Assert::IsFalse  (view.TryGetTipAt ({ 2, 100 }, anchor, text, swatches), L"none over the row labels");
 
             view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, beside));
-            Assert::IsFalse  (view.TryGetTipAt (beside, anchor, text), L"none while the button is down");
+            Assert::IsFalse  (view.TryGetTipAt (beside, anchor, text, swatches), L"none while the button is down");
         }
 
 
@@ -1139,6 +1512,37 @@ namespace DebuggerTests
 
 
 
+        //  The tip is up at once: the last writer and reader lines end in an
+        //  ellipsis until the machine's answer for the cell is in, then are
+        //  replaced by it.
+        TEST_METHOD (TheWriterAndReaderLinesAreFilledInWhenTheyArrive)
+        {
+            HeatMapView      view;
+            HeatAccessHover  hover;
+            std::wstring     text;
+
+
+
+            Place (view);
+            Assert::IsFalse (view.GetTipText (0x2000).contains (L"Last written by"), L"no lines when nothing looks them up");
+
+            view.SetOnHoverChanged ([] (std::optional<Word>) {});
+            text = view.GetTipText (0x2000);
+            Assert::IsTrue (text.ends_with (std::wstring (L"\nLast written by ") + s_kchEllipsis + L"\nLast read by " + s_kchEllipsis), text.c_str());
+
+            hover.address = 0x2001;
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            Assert::IsTrue (view.GetTipText (0x2000).contains (s_kchEllipsis), L"the ellipses remain with another cell's answer");
+
+            hover.address = 0x2000;
+            view.SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+            text = view.GetTipText (0x2000);
+            Assert::IsFalse (text.contains (s_kchEllipsis), text.c_str());
+            Assert::IsTrue  (text.ends_with (L"\nNot written since counting started\nNot read since counting started"), text.c_str());
+        }
+
+
+
         TEST_METHOD (WhileTheHeatIsRebuiltTheBarSaysSo)
         {
             HeatMapView           view;
@@ -1152,14 +1556,14 @@ namespace DebuggerTests
             Place (view);
 
             view.Paint (painter, text, theme);
-            notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapView::kpszRebuildingNote; });
+            notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapPainter::kpszRebuildingNote; });
             Assert::AreEqual ((size_t) 0, notes, L"no note while nothing is rebuilt");
 
             view.SetRebuilding (true);
-            view.SetNoteRect   (RECT { 0, 0, 400, HeatMapView::kBarDip });
+            view.SetNoteRect   (RECT { 0, 0, 400, HeatMapGrid::kBarDip });
             text.Reset();
             view.Paint (painter, text, theme);
-            notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapView::kpszRebuildingNote; });
+            notes = std::ranges::count_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == HeatMapPainter::kpszRebuildingNote; });
             Assert::AreEqual ((size_t) 1, notes, L"one note while the heat is rebuilt");
         }
 

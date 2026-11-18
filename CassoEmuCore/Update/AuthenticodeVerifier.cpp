@@ -2,6 +2,8 @@
 
 #include "Update/AuthenticodeVerifier.h"
 
+#pragma comment(lib, "wintrust.lib")
+
 
 
 

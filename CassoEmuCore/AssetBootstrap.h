@@ -2,7 +2,10 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Shell/DiskMru.h"
+
+class JsonValue;
 
 
 
@@ -10,32 +13,16 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MediaFilter, MediaPickerKind
+//  MediaFilter
 //
-//  What the insert picker is choosing. Disks and tapes share one picker, one
-//  recent list and one set of scanned folders; the filter keeps each picker to
-//  its own kind of file, and the kind holds the wording and the stock-download
-//  rows, which only disks have.
+//  Which files of a folder a scan lists: disks, tapes, or both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 using MediaFilter = bool (*) (const std::wstring & path);
 
 class IDxuiTheme;
-
-
-
-
-
-struct MediaPickerKind
-{
-    std::wstring  title;
-    std::wstring  intro;            // shown when there are recent entries
-    std::wstring  emptyIntro;       // shown when there are none
-    std::wstring  createLabel;      // the pinned <Create new ...> row
-    std::wstring  mediaColumn;      // the list header over the file names
-    bool          offerDownloads = false;
-};
+struct CassoTheme;
 
 
 
@@ -93,6 +80,12 @@ public:
     // key rather than showing a missing-glyph box that says nothing.
     static HRESULT  RegisterSymbolFont    (HINSTANCE hInstance);
 
+    // Apply a theme's body face and text glow to the process default
+    // typography, or to a window's. Best-effort: when the face's font is
+    // missing from the module image, the system face is used.
+    static HRESULT  ApplyThemeTypography  (HINSTANCE hInstance, const CassoTheme & theme);
+    static HRESULT  ApplyThemeTypography  (HINSTANCE hInstance, const CassoTheme & theme, DxuiTextRenderer::Typography & typography);
+
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at
@@ -101,8 +94,8 @@ public:
     // controller ROMs.
     static fs::path GetAssetBaseDirectory();
 
-    static fs::path GetDiskDirectory();
-    static fs::path GetStateDirectory();
+    static fs::path  GetDiskDirectory  ();
+    static fs::path  GetStateDirectory ();
 
     // Append disk images bundled in an Apple2/Demos directory to
     // `mountable`, sorted and de-duplicated against existing entries. A repo
@@ -145,10 +138,22 @@ public:
                                            vector<string>         & outRomFiles,
                                            string                 & outError);
 
+    // The machine's name from its embedded config, such as "Apple //e";
+    // the id when the config can't be read.
+    static wstring  GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & machineName);
+
     static HRESULT  HasDiskController     (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            bool                   & outHasDiskController,
                                            string                 & outError);
+
+    // Whether the machine has slot 6's drives: an enabled Disk II card in
+    // slot 6, or the //c's built-in drive.
+    static HRESULT  HasSlot6Drives        (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           bool                   & outHasDrives,
+                                           string                 & outError);
+    static bool     HasSlot6Drives        (const JsonValue        & config);
 
     // In-memory OGG Vorbis fetch + decode + resample to mono float32
     // at `targetSampleRate`. Stereo input is downmixed to mono via
@@ -176,65 +181,6 @@ public:
                                             uint32_t                 sampleRate,
                                             string                 & outError);
 
-    // Themed boot-disk picker. Lists the user's recent disk images
-    // plus "Download" rows for the DOS 3.3 and ProDOS stock masters
-    // (sourced from the Asimov archive). Always shown when the
-    // machine has a Disk ][ controller and no boot disk has been
-    // resolved yet, even when the MRU is empty -- the download rows
-    // give a fresh install somewhere to go. Picking a row mounts it
-    // (downloading on demand for the stock rows); Skip leaves the
-    // slot empty. A stock download that fails is reported in a themed
-    // box and the picker comes back; outError is set only for a failure
-    // that ends the picker (an embedded config that cannot be read).
-    //
-    // On return:
-    //   outDiskPath = path to mount, or empty if the user skipped /
-    //                 the machine has no Disk ][ controller.
-    static HRESULT  PromptBootDiskMru     (HINSTANCE                hInstance,
-                                           HWND                     hwndParent,
-                                           const wstring          & machineName,
-                                           const vector<DiskMru::Entry> & mruEntries,
-                                           const fs::path         & diskDir,
-                                           std::string_view         themeName,
-                                           wstring                & outDiskPath,
-                                           bool                   & outUserClosed,
-                                           string                 & outError);
-
-    // Themed runtime disk-insert picker. Mirrors PromptBootDiskMru
-    // but is used when the user clicks a drive widget (or invokes
-    // Disk -> Insert in drive N) on a running machine. Lists the
-    // user's recent disk images plus "Download" rows for the DOS 3.3
-    // and ProDOS stock masters so the picker is never empty even on
-    // a fresh install. The "Browse..." footer button falls through to
-    // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
-    // leaves the slot untouched. A stock download that fails is reported
-    // in a themed box and the picker comes back, so it is not returned as
-    // a failure. A non-null `anchorRectPx` (screen pixels) opens the
-    // picker centered below that rect; null centers it on `hwndParent`.
-    //
-    // On return:
-    //   outDiskPath  = path to mount, or empty if the user canceled
-    //                  or chose Browse (caller then runs IFileOpenDialog)
-    //   outBrowse    = true if the user clicked Browse... (caller
-    //                  should fall through to its file-picker path)
-    //   outCreateNew = true if the user chose the pinned
-    //                  <Create new disk...> row (caller runs
-    //                  the create-disk flow for the same drive)
-    static MediaPickerKind  MakeDiskPickerKind (int drive);
-    static MediaPickerKind  MakeTapePickerKind ();
-
-    static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
-                                           HWND                     hwndParent,
-                                           const MediaPickerKind  & kind,
-                                           const RECT             * anchorRectPx,
-                                           const vector<DiskMru::Entry> & mruEntries,
-                                           const fs::path         & diskDir,
-                                           std::string_view         themeName,
-                                           wstring                & outDiskPath,
-                                           bool                   & outBrowse,
-                                           bool                   & outCreateNew,
-                                           string                 & outError);
-
     // Unified startup downloader. Inspects the current install for
     // every required-or-optional asset that's missing (ROMs from the
     // catalog, Disk II drive audio per mechanism) and presents a
@@ -254,7 +200,7 @@ public:
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
     // flushing prefs to disk after this returns. Boot-disk selection is
-    // not handled here -- it is owned solely by PromptBootDiskMru.
+    // StartupDiskPicker's.
     static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,
@@ -268,11 +214,7 @@ public:
     // The stock OS masters the create-disk flow installs from. Availability
     // is the download cache under GetDiskDirectory(); Ensure downloads on
     // demand (blocking, no UI -- the caller owns consent and reporting).
-    enum class StockBootDisk
-    {
-        Dos33Master,
-        ProDosUsersDisk,
-    };
+    using StockBootDisk = StockBootDisks::Which;
 
     static fs::path  GetStockBootDiskPath  (StockBootDisk disk);
     static bool      IsStockBootDiskCached (StockBootDisk disk);
@@ -299,6 +241,41 @@ public:
                                                bool               & outDownloaded,
                                                string             & outError);
 
+    // The startup download dialog for every ROM the machines lack, each
+    // machine a group, with `title` and `intro` in place of the startup
+    // wording and Cancel in place of Exit. Modal on `owner`. `outDownloaded`
+    // is true when every ROM was written, and false with nothing missing.
+    static HRESULT   OfferMachineRoms (HWND                    owner,
+                                       const IDxuiTheme      * theme,
+                                       const vector<wstring> & machineNames,
+                                       const wstring         & title,
+                                       const wstring         & intro,
+                                       bool                  & outDownloaded,
+                                       string                & outError);
+
     // Whether that ROM is in its device folder under the asset base, at the
     // size the catalog lists.
-    static bool      IsOptionalRomInstalled (string_view cassoName);};
+    static bool      IsOptionalRomInstalled (string_view cassoName);
+
+    // A device ROM's row in the download catalog: its size, and whether a
+    // download is checked against a SHA-256. False when there is no row.
+    static bool      TryGetCatalogRom      (string_view cassoName, size_t & outSize, bool & outHasSha256);
+
+    // The catalog ROM a SmartPort or hard disk card runs by default, when
+    // none of `searchPaths` has it. Empty when one does, or for a device
+    // that isn't such a card.
+    static string    GetMissingCardRom     (const string & device, const vector<fs::path> & searchPaths);
+
+private:
+    static HRESULT  LoadMergedConfig      (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           JsonValue              & outMerged,
+                                           string                 & outError);
+
+    // The startup download rows for the machine's missing card ROMs.
+    static void     AddCardRomEntries     (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           const vector<fs::path> & searchPaths,
+                                           const fs::path         & assetBaseDir,
+                                           struct StartupDownloadSet & set);
+};

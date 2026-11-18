@@ -161,6 +161,37 @@ std::vector<Byte> GuestSession::RequireRepoImage (const char * repoPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::FindGameImage
+//
+//  The image in the Casso Disks folder under Documents, where Casso makes new
+//  disks. READ-ONLY.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::FindGameImage (const wchar_t * fileName)
+{
+    PWSTR              documents = nullptr;
+    std::vector<Byte>  bytes;
+    HRESULT            hr        = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        bytes = ReadFileOrEmpty (std::filesystem::path (documents) / L"Casso Disks" / fileName);
+    }
+
+    CoTaskMemFree (documents);
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::RequireDos33Master
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +256,102 @@ std::vector<Byte> GuestSession::RequireProDosUsersDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::RequireGutenbergJrDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireGutenbergJrDisk()
+{
+    return RequireFetchedDisk (kpszGutenbergDiskName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireFetchedDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireFetchedDisk (const char * fileName)
+{
+    std::filesystem::path  folder = GetTestDisksFolder();
+    std::vector<Byte>      bytes  = ReadFileOrEmpty (folder / fileName);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        std::format (L"{} is REQUIRED by this gate and was not found in {}. To get it, run "
+                     L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs",
+                     std::wstring (fileName, fileName + strlen (fileName)), folder.wstring()).c_str());
+
+    Assert::AreEqual (kImageBytes, bytes.size(), L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::FindTestDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::FindTestDisk (const char * fileName)
+{
+    return ReadFileOrEmpty (GetTestDisksFolder() / fileName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::GetTestDisksFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::filesystem::path GuestSession::GetTestDisksFolder()
+{
+    std::filesystem::path  folder;
+    PWSTR                  downloads        = nullptr;
+    wchar_t                chosen[MAX_PATH] = {};
+    DWORD                  length           = GetEnvironmentVariableW (L"CASSO_TEST_DISKS", chosen, MAX_PATH);
+    HRESULT                hr               = S_OK;
+
+
+
+    if (length > 0 && length < MAX_PATH)
+    {
+        folder = chosen;
+    }
+    else
+    {
+        hr = SHGetKnownFolderPath (FOLDERID_Downloads, 0, nullptr, &downloads);
+
+        if (SUCCEEDED (hr))
+        {
+            folder = std::filesystem::path (downloads) / L"Casso" / L"TestDisks";
+        }
+
+        CoTaskMemFree (downloads);
+    }
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::RequireKermitDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,6 +368,61 @@ std::vector<Byte> GuestSession::RequireKermitDisk()
         L"it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs. "
         L"This case fails rather than skipping: a guest-visible gate that never started "
         L"a guest has checked nothing");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireSosUtilitiesDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireSosUtilitiesDisk()
+{
+    std::vector<Byte>  bytes = FindStockImage (kpszSosRepoPath, kpszSosCacheName);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the Apple /// System Utilities disk is REQUIRED by this gate and was not found, "
+        L"either as Disks/Apple/sos-utilities.dsk in a parent of the working directory or "
+        L"as %LOCALAPPDATA%\\Casso\\Disks\\Apple III System Utilities.dsk. To get it, run "
+        L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RequireSosDemoDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireSosDemoDisk()
+{
+    std::vector<Byte>  bytes = FindInRepo (kpszSosDemoRepoPath);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the Apple /// System Demo disk is REQUIRED by this gate and was not found as "
+        L"Disks/Apple/sos-demo.dsk in a parent of the working directory. To get it, run "
+        L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
 
     Assert::AreEqual (kImageBytes, bytes.size(),
         L"and it must be a whole 5.25-inch sector image");
@@ -686,10 +868,7 @@ void GuestSession::Mount (MachineHost              & host,
     AssertTheDrivePresentsWhatWasMounted (*image, bytes, L"the image this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,        L"the image this gate mounts");
 
-    RunOldMonitorReset (host);
-
-    host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-    host.GetCpu()->SetPC (kBootRomEntry);
+    StartFromPowerOn (host);
 }
 
 
@@ -698,18 +877,22 @@ void GuestSession::Mount (MachineHost              & host,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GuestSession::RunOldMonitorReset
+//  GuestSession::StartFromPowerOn
 //
-//  The boot starts at the controller ROM straight from power-on, which skips
-//  the monitor's RESET. The Autostart ROM's BASIC sets up its own text flags,
-//  but Integer BASIC on the original ][ does not, and without RESET the
-//  inverse mask at $32 is whatever power-on left in RAM; every character is
-//  then written to the screen as an inverse @. So on that machine RESET runs
-//  to the * prompt first, as it does before a user types C600G.
+//  Puts the processor where a real machine is at power-on. On an Autostart
+//  machine that is the reset vector: RESET runs the monitor's INIT, which sets
+//  the text window at $20-$23 and the normal-video mask at $32, and then boots
+//  the disk in slot 6. A disk whose boot code relies on that setup, as Zork's
+//  interpreter does, fails when the boot starts at $C600 over the power-on
+//  fill instead.
+//
+//  The original ][ monitor does not boot a disk. Its RESET sets up the screen
+//  and waits at the * prompt, so on that machine RESET runs first and the boot
+//  starts at $C600, as when a user types C600G.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GuestSession::RunOldMonitorReset (MachineHost & host)
+void GuestSession::StartFromPowerOn (MachineHost & host)
 {
     MemoryBus &  bus    = host.GetMemoryBus();
     Word         vector = static_cast<Word> (bus.ReadByte (kResetVector) | (bus.ReadByte (kResetVector + 1) << 8));
@@ -721,6 +904,8 @@ void GuestSession::RunOldMonitorReset (MachineHost & host)
     {
         ran = MachineIdle::RunUntilIdle (host, kMonitorResetCycles);
         IGNORE_RETURN_VALUE (ran, 0);
+
+        host.GetCpu()->SetPC (kBootRomEntry);
     }
 }
 
@@ -801,10 +986,7 @@ void GuestSession::MountWoz (MachineHost              & host,
     AssertTheDrivePresentsWhatWasMounted (*image, expectedSectors, L"the WOZ this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,                  L"the WOZ this gate mounts");
 
-    RunOldMonitorReset (host);
-
-    host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-    host.GetCpu()->SetPC (kBootRomEntry);
+    StartFromPowerOn (host);
 }
 
 

@@ -48,6 +48,9 @@ public:
     void  SetError    (bool error)                  { m_error = error; }
     bool  IsInError   () const                      { return m_error; }
 
+    //  The narrowest the strip may shrink the field to.
+    void  SetMinWidthDip (int widthDip) { m_minWidthDip = widthDip; }
+
     //  Told on every edit, on Enter and on Escape.
     void  SetOnChange (TextFn fn)   { m_onChange = std::move (fn); }
     void  SetOnSubmit (ActionFn fn) { m_onSubmit = std::move (fn); }
@@ -60,13 +63,18 @@ public:
     void                  SetText (const std::wstring & text) { m_input.SetText (text); }
 
     bool  IsFocused  () const { return m_focused; }
-    void  SetFocused (bool focused);
+    bool  IsCaretOn  () const { return m_input.IsCaretOn(); }
+
+    //  Where the strip last laid the field out, in the host's pixels.
+    const RECT  & GetRect    () const { return m_rc; }
+    void          SetFocused (bool focused);
 
     //  Key and character events while the field has focus. Tab, and keys the
     //  field has no use for, are left for the host.
     bool  OnKey (const DxuiKeyEvent & ev);
 
     int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
+    int              GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
     void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override;
     void             Paint         (IDxuiPainter      & painter,
                                     IDxuiTextRenderer & text,
@@ -81,11 +89,12 @@ public:
     bool             OnLButtonDown (int x, int y) override;
     void             OnLButtonUp   (int x, int y) override;
 
-    static constexpr int    kDefaultWidthDip = 220;
-    static constexpr float  kFontDip         = 14.0f;
+    static constexpr int    kDefaultWidthDip    = 220;
+    static constexpr int    kDefaultMinWidthDip = 80;
+    static constexpr float  kFontDip            = 14.0f;
 
 private:
-    bool  Contains (int x, int y) const;
+    bool  Contains       (int x, int y) const;
     void  EditThenNotify (const std::function<void()> & edit);
 
     static constexpr int  s_kInsetDip     = 4;
@@ -96,6 +105,7 @@ private:
     RECT             m_rc             = {};
     const wchar_t  * m_glyph          = nullptr;
     int              m_widthDip       = kDefaultWidthDip;
+    int              m_minWidthDip    = kDefaultMinWidthDip;
     std::wstring     m_tooltip;
     bool             m_focused        = false;
     bool             m_hover          = false;

@@ -8,19 +8,27 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/TextDialog.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 
 
 
 
 
+//  The address box's entry on the bar, and its tip while what it has is an
+//  address.
+static constexpr int              s_kAddressEntryId = 1000;
+static constexpr const wchar_t *  s_kAddressTip     = L"Address: a hex address, a register, a symbol or an expression; Enter moves the map to it at the largest zoom";
+
 //  The rows a menu on a byte or a heat map cell gets for its last accesses.
-static constexpr std::pair<const wchar_t *, HeatMapView::PickAction>  s_kAccessRows[] =
+static constexpr HeatMapView::PickAction  s_kAccessRows[] =
 {
-    { L"Show last writer", HeatMapView::PickAction::ShowWriter    },
-    { L"Show last reader", HeatMapView::PickAction::ShowReader    },
-    { L"Go to last write", HeatMapView::PickAction::RewindToWrite },
-    { L"Go to last read",  HeatMapView::PickAction::RewindToRead  },
+    HeatMapView::PickAction::ShowWriter,
+    HeatMapView::PickAction::ShowReader,
+    HeatMapView::PickAction::RewindToWrite,
+    HeatMapView::PickAction::RewindToRead,
 };
 
 
@@ -89,6 +97,7 @@ void HeatMapPane::CreateControls()
     m_view->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_bar.Create();
     m_viewBar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
+    m_box     = m_host.GetControlParent().CreateChild<DxuiTextInput>();
 }
 
 
@@ -129,15 +138,24 @@ void HeatMapPane::Configure()
 
     m_bar.Configure();
     m_bar.SetOnPress ([this] { SetBarMenus(); });
-    m_bar.GetBar()->SetEntries (m_commands->BuildEntries (options.cumulative));
+    m_box->SetHwnd        (m_host.GetOwnerHwnd());
+    m_box->SetMaxLength   (256);
+    m_box->SetPlaceholder (L"Address: 0300, PC");
+    m_box->SetVisible     (false);
+
+    m_addressEntry = std::make_unique<MemoryAddressEntry> (m_box);
+    m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
+
+    SetBarEntries (options.cumulative);
 
     //  The set of ranges and the bank, beside the map's tabs, as tall as
     //  their row.
     m_viewBar->SetTextRenderer (m_host.GetPaneTextRenderer());
+    m_box->SetTextRenderer     (m_host.GetPaneTextRenderer());
     m_viewBar->SetPopupHost    (m_host.GetPanePopupHost());
     m_viewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_viewBar->SetCompact      (true);
-    m_viewBar->SetBandDp       (HeatMapView::kBarDip);
+    m_viewBar->SetBandDp       (HeatMapGrid::kBarDip);
     m_viewBar->SetBottomEdge   (false);
     m_viewBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_viewBar->SetEntries      (m_commands->BuildViewRowEntries());
@@ -224,7 +242,7 @@ IDxuiControl * HeatMapPane::GetContent() const
 
 std::vector<IDxuiControl *> HeatMapPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_view, m_bar.GetBar(), m_viewBar };
+    return { m_bar.GetSlot(), m_view, m_bar.GetBar(), m_viewBar, m_box };
 }
 
 
@@ -239,7 +257,16 @@ std::vector<IDxuiControl *> HeatMapPane::GetControls() const
 
 std::optional<PaneColorKeySpec> HeatMapPane::GetColorKey() const
 {
-    return PaneColorKeySpec { m_bar.GetSlot(), ColorLegend::Pane::HeatMap, nullptr };
+    auto  legend = [this]() -> std::optional<ColorLegend::Pane>
+    {
+        HeatMapOptions  options = (m_view != nullptr) ? m_view->GetOptions() : HeatMapOptions();
+
+        return ColorLegend::GetHeatMapPane (options.view, options.blend);
+    };
+
+
+
+    return PaneColorKeySpec { m_bar.GetSlot(), ColorLegend::GetHeatMapPane (HeatMapOptions::View::All, false), legend };
 }
 
 
@@ -260,7 +287,7 @@ void HeatMapPane::SaveOptions (const HeatMapOptions & options)
 
     if (windowHost != nullptr)
     {
-        windowHost->SetDebuggerHeatMapOptions (options.ToText());
+        windowHost->SetDebuggerHeatMapOptions (options);
     }
 }
 
@@ -285,7 +312,7 @@ void HeatMapPane::SendHover (std::optional<Word> address)
 
     if (windowHost != nullptr)
     {
-        windowHost->SendDebuggerHeatMapRequest (address.has_value() ? std::format ("hover {:04X}", *address) : std::string ("hover none"));
+        windowHost->SetDebuggerHeatMapHover (address);
     }
 }
 
@@ -338,7 +365,7 @@ void HeatMapPane::SetOptions (const HeatMapOptions & options)
 
     if (options.cumulative != wasCumulative)
     {
-        m_bar.GetBar()->SetEntries (m_commands->BuildEntries (options.cumulative));
+        SetBarEntries (options.cumulative);
         PlaceBar();
     }
 
@@ -412,7 +439,7 @@ void HeatMapPane::SetBarMenus()
     {
         HeatMapView::Mode  mode = (HeatMapView::Mode) index;
 
-        command = DebuggerMenuCommand::Make (HeatMapView::GetModeLabel (mode), mode == shown.view, [this, mode]
+        command = DebuggerMenuCommand::Make (HeatMapCells::GetModeLabel (mode), mode == shown.view, [this, mode]
         {
             HeatMapOptions  options = m_view->GetOptions();
 
@@ -522,7 +549,6 @@ void HeatMapPane::SendIgnore()
 {
     IDebuggerWindowHost                 * windowHost = m_host.GetWindowHost();
     std::vector<std::pair<Word, Word>>    spans;
-    std::string                           words;
 
 
 
@@ -531,15 +557,14 @@ void HeatMapPane::SendIgnore()
         spans.emplace_back (span.first, span.last);
     }
 
-    words = HeatMapRangeSets::FormatSpanWords (spans);
-
-    if (windowHost == nullptr || words == m_ignoreWords)
+    if (windowHost == nullptr || (m_isIgnoreSent && spans == m_ignoreSpans))
     {
         return;
     }
 
-    m_ignoreWords = words;
-    windowHost->SendDebuggerHeatMapRequest ("ignore " + words);
+    m_ignoreSpans  = spans;
+    m_isIgnoreSent = true;
+    windowHost->SetDebuggerHeatMapIgnore (spans);
 }
 
 
@@ -636,6 +661,7 @@ void HeatMapPane::PlaceBar()
 
 
     m_bar.Place();
+    m_box->SetVisible (m_bar.GetBar()->IsVisible() && m_view->IsVisible());
 
     row   = m_view->GetViewRowFreeRect();
     shown = m_bar.GetBar()->IsVisible() && m_view->IsVisible() && row.right > row.left;
@@ -650,6 +676,7 @@ void HeatMapPane::PlaceBar()
     host = m_host.GetPaneWindow (GetId());
 
     m_viewBar->SetTextRenderer   (host->GetTextRenderer());
+    m_box->SetTextRenderer       (host->GetTextRenderer());
     m_viewBar->SetPopupHost      (host->GetPopupHost());
     m_viewBar->SetHostClientRect (host->GetBounds());
     m_viewBar->Layout            (row, m_host.GetPaneScaler());
@@ -669,12 +696,24 @@ void HeatMapPane::PlaceBar()
 //
 //  HeatMapPane::RouteBarMouse
 //
-//  The strip and the bar, each with whatever menu it has open.
+//  The strip and the bar, each with whatever menu it has open, less the
+//  Address box: the box is a separate control and takes its presses as
+//  every box does, as the memory windows' does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapPane::RouteBarMouse (const DxuiMouseEvent & ev)
 {
+    bool  isOverBox = m_box->IsVisible() && DxuiDockSite::Contains (m_box->GetBounds(), ev.positionDip);
+
+
+
+    if (isOverBox && !m_viewBar->IsMenuOpen())
+    {
+        m_viewBar->OnToolbarMouseLeave();
+        return false;
+    }
+
     return PaneBarSlot::RouteToolbarMouse (m_host, GetId(), m_viewBar, ev, [this] { SetBarMenus(); }) || m_bar.RouteMouse (ev);
 }
 
@@ -753,7 +792,7 @@ std::wstring HeatMapPane::GetBarLabel (int id) const
 
     if (id == HeatMapBarCommands::kView)
     {
-        return HeatMapView::GetModeLabel (m_view->GetOptions().view);
+        return HeatMapCells::GetModeLabel (m_view->GetOptions().view);
     }
 
     if (id == HeatMapBarCommands::kIgnoreSet)
@@ -821,25 +860,70 @@ void HeatMapPane::RunBarEntry (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapPane::RouteEarlyMouse
+//  HeatMapPane::ZoomContent
 //
-//  Ctrl+wheel over the map zooms the map rather than the panes' text.
+//  The map zooms rather than the panes' text, wherever over the pane the
+//  wheel turns: over the map about the pointer, framing the cell then under
+//  it, and over the bar or the empty space under a map zoomed out about the
+//  map's middle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
+bool HeatMapPane::ZoomContent (float notches, std::optional<POINT> clientPx)
 {
-    bool  isZoom = ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && m_host.IsRoutable (m_view) && m_view->IsVisible() &&
-                   m_view->IsOverMap (ev.positionDip);
+    RECT            map   = {};
+    DxuiMouseEvent  wheel;
 
 
 
-    if (isZoom)
+    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
     {
-        m_zoomedAtMs = (int64_t) GetTickCount64();
+        return false;
     }
 
-    return isZoom && RouteContentMouse (ev);
+    m_zoomedAtMs = (int64_t) GetTickCount64();
+
+    if (clientPx.has_value() && m_view->IsOverMap (*clientPx))
+    {
+        wheel.kind        = DxuiMouseEventKind::Wheel;
+        wheel.ctrl        = true;
+        wheel.wheelDelta  = notches;
+        wheel.positionDip = *clientPx;
+
+        (void) RouteContentMouse (wheel);
+        return true;
+    }
+
+    map = m_view->GetMapRect();
+    m_view->ZoomAt ({ (map.left + map.right) / 2, (map.top + map.bottom) / 2 }, notches);
+    m_host.RepaintLater();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::ResetContentZoom
+//
+//  The map fitted to the pane again, as the zoom widget's Reset does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::ResetContentZoom()
+{
+    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
+    {
+        return false;
+    }
+
+    m_zoomedAtMs = (int64_t) GetTickCount64();
+
+    m_view->ResetZoom();
+    m_host.RepaintLater();
+    return true;
 }
 
 
@@ -908,10 +992,9 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 //  HeatMapPane::TryGetTipAt
 //
 //  Over the zoom, how to zoom, as a control's tip. Over the map, the cell the
-//  mouse picks and what touched it, at once and following the pointer. Until
-//  the machine has looked up the cell's last writer and reader, a tip already
-//  up stays as it is and none is put up, so a tip never shows one line and
-//  then grows; Apply shows it whole once they arrive.
+//  mouse picks and what touched it, at once and following the pointer. The
+//  cell's last writer and reader come from the machine a frame or more later;
+//  until then their lines end in an ellipsis, and Apply fills them in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -928,22 +1011,25 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
     }
 
     m_tipAt.reset();
-    m_isTipPending = false;
 
     if ((int64_t) GetTickCount64() - m_zoomedAtMs < kZoomQuietMs)
     {
         return false;
     }
 
-    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text))
+    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text, tip.lineSwatches, tip.gradient, tip.gradientMark))
     {
         return false;
     }
 
-    m_tipAt        = clientPx;
-    m_isTipPending = !m_view->IsTipComplete (clientPx);
-    tip.placement  = DxuiTip::Placement::FollowPointer;
-    tip.isPending  = m_isTipPending;
+    m_tipAt       = clientPx;
+    tip.placement = DxuiTip::Placement::FollowPointer;
+
+    if (m_view->GetPickAt (clientPx).has_value())
+    {
+        m_view->GetTipFrame (*m_view->GetPickAt (clientPx), tip.frameLabel, tip.frameArgb);
+        m_view->GetTipTag   (*m_view->GetPickAt (clientPx), tip.cornerTag,  tip.cornerTagArgb);
+    }
 
     return true;
 }
@@ -1008,7 +1094,7 @@ void HeatMapPane::RequestAccess (Word address, HeatMapView::PickAction action, H
     request.bank     = bank;
     request.address  = address;
 
-    windowHost->SendDebuggerHeatMapRequest (HeatAccessJump::FormatWords (request));
+    windowHost->RunDebuggerHeatMapAccess (request);
 }
 
 
@@ -1023,10 +1109,77 @@ void HeatMapPane::RequestAccess (Word address, HeatMapView::PickAction action, H
 
 void HeatMapPane::AddAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items)
 {
-    for (const auto & [label, action] : s_kAccessRows)
+    const HeatAccessHover  * hover = (m_hover != nullptr && m_hover->address == address && m_hover->bank == bank) ? m_hover.get() : nullptr;
+
+
+
+    for (HeatMapView::PickAction action : s_kAccessRows)
     {
-        items.push_back ({ label, [this, address, bank, action = action] { RequestAccess (address, action, bank); } });
+        bool  isWrite  = action == HeatMapView::PickAction::ShowWriter || action == HeatMapView::PickAction::RewindToWrite;
+        bool  isRewind = action == HeatMapView::PickAction::RewindToWrite || action == HeatMapView::PickAction::RewindToRead;
+
+
+
+        items.push_back ({ GetAccessLabel (action, hover, m_cycles, m_isBehindLive),
+                           IsAccessRowEnabled (hover, isWrite, isRewind) ? std::function<void()> ([this, address, bank, action] { RequestAccess (address, action, bank); })
+                                                                         : std::function<void()>() });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::GetAccessLabel
+//
+//  "Show last writer", "Show last reader", and for a jump to the access's
+//  time "Rewind to last write time", or "Fast-forward to last write time"
+//  while the history is replayed from before it. A live machine is past
+//  every access, whatever cycle its last snapshot had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapPane::GetAccessLabel (HeatMapView::PickAction action, const HeatAccessHover * hover, uint64_t cycles, bool isBehindLive)
+{
+    bool                    isWrite = action == HeatMapView::PickAction::ShowWriter || action == HeatMapView::PickAction::RewindToWrite;
+    const HeatAccessInfo  * info    = (hover == nullptr) ? nullptr : (isWrite ? &hover->writer : &hover->reader);
+    bool                    isAhead = isBehindLive && info != nullptr && info->has && info->cycle > cycles;
+
+
+
+    switch (action)
+    {
+    case HeatMapView::PickAction::ShowWriter: return L"Show last writer";
+    case HeatMapView::PickAction::ShowReader: return L"Show last reader";
+    default:                                  break;
+    }
+
+    return std::format (L"{} to last {} time", isAhead ? L"Fast-forward" : L"Rewind", isWrite ? L"write" : L"read");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::IsAccessRowEnabled
+//
+//  Until the machine has looked up the cell's accesses, every row is on. A
+//  cell never written has no writer to show or go back to, and one written
+//  before the history kept has no time to go back to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::IsAccessRowEnabled (const HeatAccessHover * hover, bool isWrite, bool isRewind)
+{
+    const HeatAccessInfo  * info = (hover == nullptr) ? nullptr : (isWrite ? &hover->writer : &hover->reader);
+
+
+
+    return info == nullptr || (info->has && (!isRewind || !info->isTooOld));
 }
 
 
@@ -1080,9 +1233,11 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 
 
+    ApplyGoTo (snapshot);
+
     for (const DebuggerViewSnapshot::BreakpointLine & line : snapshot.breakpoints)
     {
-        std::optional<HeatMapView::BreakKind>  kind = HeatMapView::GetBreakKind (line.info);
+        std::optional<HeatMapView::BreakKind>  kind = HeatMapCells::GetBreakKind (line.info);
 
 
 
@@ -1102,6 +1257,9 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetCpuMarks     (state.pc, state.stack);
     m_view->SetBreakpoints  (std::move (breakpoints));
     m_view->SetRebuilding   (state.isRebuilding);
+    m_view->SetSlotCards    (snapshot.slotCards);
+    m_view->SetMachineId    (snapshot.machineId);
+    m_view->SetRegionColors (MemoryRegionKeys::GetColors (m_host.GetTextColors()));
 
     //  The machine reads its map only now and then while it runs, and the
     //  snapshots between have the same reading, whose cells are already
@@ -1112,17 +1270,136 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
 
         m_view->SetOpcodes       (state.opcodes);
         m_view->SetValues        (state.values);
+        m_view->SetRegions       (state.regions);
         m_view->SetChannelLevels (state.unwritten, state.changed, state.edited);
         m_view->SetLevels        (state.execute, state.read, state.write);
     }
 
     m_view->SetHoverAccess (state.hover);
+    m_cycles       = snapshot.cycles;
+    m_isBehindLive = snapshot.history.isBehindLive;
+
+    if (state.hover != nullptr)
+    {
+        m_hover = state.hover;
+    }
 
     //  The tip over the map lists the last writer and reader as soon as they
-    //  come in, without waiting for the mouse to move, and a tip held back
-    //  for them shows now.
-    if (isNewHover && m_tipAt.has_value() && (m_host.IsTooltipVisible() || m_isTipPending))
+    //  come in, without waiting for the mouse to move, in place of the
+    //  ellipses. The tip is drawn in the window the pane is in, so a
+    //  floating pane's tip is drawn in its floating window.
+    if (isNewHover && m_tipAt.has_value() && m_host.IsPaneTooltipVisible (GetId()))
     {
-        m_host.UpdateTooltip (*m_tipAt);
+        m_host.UpdatePaneTooltip (GetId(), *m_tipAt);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::SetBarEntries
+//
+//  The bar's commands, then the address box.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapPane::SetBarEntries (bool isCumulative)
+{
+    std::vector<DxuiToolbar::Entry>  entries = m_commands->BuildEntries (isCumulative);
+    DxuiToolbar::Entry               address;
+    auto                             command = std::make_shared<DxuiCommand>();
+
+
+
+    command->id    = s_kAddressEntryId;
+    command->label = L"Address";
+    command->tip   = s_kAddressTip;
+
+    address.command = command;
+    address.custom  = m_addressEntry.get();
+    address.pinned  = true;
+    entries.push_back (std::move (address));
+
+    m_bar.GetBar()->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::SubmitTextBox
+//
+//  A hex address is shown at once; anything else goes to the CPU thread,
+//  which evaluates it as the Memory pane's box does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::SubmitTextBox (DxuiTextInput * box)
+{
+    std::wstring  text    = (box != nullptr) ? box->GetText() : std::wstring();
+    Word          address = 0;
+
+
+
+    if (box != m_box || text.find_first_not_of (L" \t") == std::wstring::npos)
+    {
+        return false;
+    }
+
+    if (text != L"A" && text != L"a" && TextDialog::TryParseHexWord (text, address))
+    {
+        m_view->ShowAddress (address);
+        m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
+        m_host.Repaint();
+    }
+    else if (m_host.GetWindowHost() != nullptr)
+    {
+        m_host.GetWindowHost()->GoToDebuggerMemory (DebuggerViewState::kHeatMapGoTo, SourcePathList::WideToUtf8 (text));
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::ApplyGoTo
+//
+//  The address box's text as the CPU thread evaluated it, once: the map
+//  moves to the address, or the reason it isn't one is over the pane and in
+//  the box's tip, the map left where it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapPane::ApplyGoTo (const DebuggerViewSnapshot & snapshot)
+{
+    std::wstring  reason;
+
+
+
+    if (!snapshot.goTo.has_value() || snapshot.goTo->serial == m_goToSerial || snapshot.goTo->window != DebuggerViewState::kHeatMapGoTo)
+    {
+        return;
+    }
+
+    m_goToSerial = snapshot.goTo->serial;
+
+    if (snapshot.goTo->address.has_value())
+    {
+        m_view->ShowAddress (*snapshot.goTo->address);
+        m_addressEntry->SetTooltips (s_kAddressTip, s_kAddressTip);
+        return;
+    }
+
+    reason = std::format (L"\"{}\" is not an address. {}", TextEncoding::NarrowToWide (snapshot.goTo->text), TextEncoding::NarrowToWide (snapshot.goTo->error));
+    m_addressEntry->SetTooltips (reason, reason);
+    m_host.ShowPaneReply (GetId(), { std::format ("\"{}\" is not an address.", snapshot.goTo->text), snapshot.goTo->error }, true);
 }

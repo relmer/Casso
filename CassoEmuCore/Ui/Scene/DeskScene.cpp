@@ -91,6 +91,9 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
         m_hasRecorder = true;
     }
 
+    m_hasExtraModel.fill (false);
+    m_extraModels.fill (DeskSceneModel {});
+
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
     // them here beats making every caller say it twice and disagree once.
@@ -154,6 +157,8 @@ HRESULT DeskScene::AdoptModelsFrom (const DeskScene & other)
 
     m_recorder    = other.m_recorder;
     m_hasRecorder = other.m_hasRecorder;
+    m_extraModels   = other.m_extraModels;
+    m_hasExtraModel = other.m_hasExtraModel;
 
     m_driveLabelVerts[0] = other.m_driveLabelVerts[0];
     m_driveLabelVerts[1] = other.m_driveLabelVerts[1];
@@ -210,6 +215,19 @@ void DeskScene::BuildDerivedGeometry()
     {
         BuildContactShadow (m_recorder, kShadowMarginSideMm, kShadowMarginDepthMm,
                             m_recorderShadowVerts);
+    }
+
+    for (int kind = 0; kind < kModelKinds; kind++)
+    {
+        m_extraShadowVerts[(size_t) kind].clear();
+        m_extraDiskVerts[(size_t) kind].clear();
+
+        if (m_hasExtraModel[(size_t) kind])
+        {
+            BuildContactShadow (m_extraModels[(size_t) kind], kShadowMarginSideMm, kShadowMarginDepthMm,
+                                m_extraShadowVerts[(size_t) kind]);
+            m_extraModels[(size_t) kind].BuildDiskInSlot (m_extraDiskVerts[(size_t) kind]);
+        }
     }
 
     m_modelsLoaded = true;
@@ -271,12 +289,42 @@ DeskSceneMetrics DeskScene::Metrics() const
 
     // The room the contact shadows need on the floor, so the containment
     // solve keeps them inside the picture instead of clipping them away.
-    metrics.monitorPadSideMm  = kMonitorShadowMarginSideMm;
-    metrics.monitorPadDepthMm = kMonitorShadowMarginDepthMm;
+    //
+    // The monitor reserves only a drive's room, not its full shadow. The
+    // reserve matters only when the monitor is on the desk alone, and
+    // there its long forward margin, nearer the eye than the monitor, framed
+    // the monitor in a wide band of empty floor. The near end of its shadow
+    // is under its bezel anyway, and only the faint outer penumbra is cut.
+    metrics.monitorPadSideMm  = kShadowMarginSideMm;
+    metrics.monitorPadDepthMm = kShadowMarginDepthMm;
     metrics.drivePadSideMm    = kShadowMarginSideMm;
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
     metrics.hasRecorder = HasRecorder();
+    // Every desk drive is listed, a missing model's with empty bounds, so
+    // the composition's extras are in the plan's order.
+    metrics.extraCount    = (int) std::min (m_extras.size(), (size_t) kMaxDeskExtras);
+    metrics.driveSpot     = m_driveSpot;
+    metrics.driveLevel[0] = m_driveLevel[0];
+    metrics.driveLevel[1] = m_driveLevel[1];
+
+    for (int i = 0; i < metrics.extraCount; i++)
+    {
+        const ExtraDrive  & extra = m_extras[(size_t) i];
+        size_t              kind  = (size_t) extra.drive.model;
+
+
+
+        metrics.extras[i].model = extra.drive.model;
+        metrics.extras[i].spot  = extra.spot;
+        metrics.extras[i].level = extra.level;
+
+        if (m_hasExtraModel[kind])
+        {
+            m_extraModels[kind].BoundsMin (metrics.extras[i].min);
+            m_extraModels[kind].BoundsMax (metrics.extras[i].max);
+        }
+    }
 
     if (HasRecorder())
     {
@@ -434,7 +482,18 @@ void DeskScene::SetModelLighting (const DeskSceneModel & model,
         lighting.shadowStrength = m_stripPass ? 0.0f : kShadowStrength;
     }
 
-    lighting.refDist = DeskSceneModel::kLightRefMm;
+    // The lights are moved into model space through the inverse placement, so
+    // for a device placed at a uniform scale below 1, every light is farther
+    // away by 1 / scale, and the falloff dimmed it. The reference distance is
+    // scaled to match, so a scaled device is lit as brightly as at full size.
+    {
+        float  scale = std::sqrt (world[0] * world[0] + world[1] * world[1] + world[2] * world[2]);
+
+
+
+        lighting.refDist = (scale > 0.0f) ? DeskSceneModel::kLightRefMm / scale : DeskSceneModel::kLightRefMm;
+    }
+
     lighting.span    = DeskSceneModel::kShadeSpan;
     lighting.gain    = 2.05f;
 
@@ -1098,6 +1157,23 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
     {
         accumulate (m_recorder, comp.recorderWorld);
     }
+
+    for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
+    {
+        if (!comp.IsExtraShown (i))
+        {
+            continue;
+        }
+
+        size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
+
+
+
+        if (m_hasExtraModel[kind])
+        {
+            accumulate (m_extraModels[kind], comp.extraWorld[i]);
+        }
+    }
 }
 
 
@@ -1278,6 +1354,30 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
             hr = m_renderer.DrawStatic (m_recorderOpaqueMesh,
                                         m_recorder.OpaqueVerts().data(),
                                         m_recorder.OpaqueVerts().size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+        }
+
+        for (int i = 0; i < comp.extraCount && i < (int) m_extras.size() && SUCCEEDED (hr); i++)
+        {
+            if (!comp.IsExtraShown (i))
+            {
+                continue;
+            }
+
+            size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
+
+
+
+            if (!m_hasExtraModel[kind])
+            {
+                continue;
+            }
+
+            SceneCamera::Mul44 (comp.extraWorld[i], m_lightVp[k], mvp);
+
+            hr = m_renderer.DrawStatic (m_extraOpaqueMesh[kind],
+                                        m_extraModels[kind].OpaqueVerts().data(),
+                                        m_extraModels[kind].OpaqueVerts().size(),
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
@@ -1726,6 +1826,212 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskScene::DrawExtras
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::DrawExtras (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_lampsDirty)
+    {
+        RebuildLampVerts();
+    }
+
+    for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
+    {
+        if (!comp.IsExtraShown (i))
+        {
+            continue;
+        }
+
+        const ExtraDrive  & extra   = m_extras[(size_t) i];
+        size_t              kind    = (size_t) extra.drive.model;
+        size_t              lit     = extra.lampOn ? 1 : 0;
+        float               mvp[16] = {};
+
+
+
+        if (!m_hasExtraModel[kind])
+        {
+            continue;
+        }
+
+        SceneCamera::Mul44 (comp.extraWorld[i], comp.viewProj, mvp);
+        SetModelLighting (m_extraModels[kind], comp.extraWorld[i]);
+
+        hr = m_renderer.DrawStatic (m_extraOpaqueMesh[kind],
+                                    m_extraModels[kind].OpaqueVerts().data(),
+                                    m_extraModels[kind].OpaqueVerts().size(),
+                                    m_geometryRev, mvp, false, viewport, true);
+        CHRA (hr);
+
+        if (extra.hasDisk && !m_extraDiskVerts[kind].empty())
+        {
+            hr = m_renderer.DrawStatic (m_extraDiskMesh[kind], m_extraDiskVerts[kind].data(), m_extraDiskVerts[kind].size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (!extra.labelVerts.empty())
+        {
+            hr = m_renderer.DrawStatic (m_extraLabelMesh[(size_t) i], extra.labelVerts.data(), extra.labelVerts.size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (!m_extraLampVerts[kind][lit].empty())
+        {
+            hr = m_renderer.DrawStatic (m_extraLampMesh[kind][lit], m_extraLampVerts[kind][lit].data(), m_extraLampVerts[kind][lit].size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::LoadExtraModel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeskScene::LoadExtraModel (DeskDriveModel model, std::span<const uint8_t> mesh)
+{
+    HRESULT  hr   = S_OK;
+    size_t   kind = (size_t) model;
+
+
+
+    hr = m_extraModels[kind].Load (DeskDeviceKind::HardDisk20SC, mesh);
+    CHRA (hr);
+
+    m_hasExtraModel[kind] = true;
+
+    m_extraShadowVerts[kind].clear();
+    BuildContactShadow (m_extraModels[kind], kShadowMarginSideMm, kShadowMarginDepthMm, m_extraShadowVerts[kind]);
+    m_extraModels[kind].BuildDiskInSlot (m_extraDiskVerts[kind]);
+
+    m_lampsDirty = true;
+    TouchGeometry();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetDrivePlan
+//
+//  The Disk II pair's drives in a stack are at the plan's levels;
+//  the other drives on the desk are the extras.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetDrivePlan (const std::vector<DeskDrivePlacement> & plan)
+{
+    m_extras.clear();
+    m_driveSpot     = DeskDriveSpot::UnderMonitor;
+    m_driveLevel[0] = 0;
+    m_driveLevel[1] = 1;
+
+    for (const DeskDrivePlacement & placed : plan)
+    {
+        bool  isDiskII = placed.drive.model == DeskDriveModel::DiskII || placed.drive.model == DeskDriveModel::Disk2c;
+
+
+
+        if (placed.spot == DeskDriveSpot::DriveBar)
+        {
+            continue;
+        }
+
+        if (isDiskII)
+        {
+            m_driveSpot = placed.spot;
+
+            if (placed.drive.drive >= 0 && placed.drive.drive < 2)
+            {
+                m_driveLevel[placed.drive.drive] = placed.level;
+            }
+        }
+        else if (m_extras.size() < (size_t) kMaxDeskExtras)
+        {
+            ExtraDrive  extra;
+
+
+
+            extra.drive = placed.drive;
+            extra.spot  = placed.spot;
+            extra.level = placed.level;
+            m_extras.push_back (std::move (extra));
+        }
+    }
+
+    TouchGeometry();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetExtraVisuals
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetExtraVisuals (int index, bool lampOn, bool hasDisk, const std::wstring & label)
+{
+    ExtraDrive  * extra = (index >= 0 && index < (int) m_extras.size()) ? &m_extras[(size_t) index] : nullptr;
+
+
+
+    if (extra == nullptr)
+    {
+        return;
+    }
+
+    if (lampOn != extra->lampOn || hasDisk != extra->hasDisk)
+    {
+        extra->lampOn  = lampOn;
+        extra->hasDisk = hasDisk;
+        InvalidatePlate();
+    }
+
+    if (label != extra->label)
+    {
+        extra->label = label;
+        extra->labelVerts.clear();
+
+        if (extra->drive.model == DeskDriveModel::HardDisk20SC)
+        {
+            DeskSceneModel::StampHardDiskLabel (extra->labelVerts, label);
+        }
+
+        TouchGeometry();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskScene::BuildTiltMatrix
 //
 //  A rigid rotation about the X-axis line at (pivotY, pivotZ), in the row-
@@ -2074,6 +2380,13 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
 
     for (int drive = 0; drive < comp.driveCount && !m_driveShadowVerts.empty(); drive++)
     {
+        // A drive standing on another in a desk stack casts no shadow on
+        // the desk; only the stack's bottom drive does.
+        if (&comp == &m_comp && m_driveSpot != DeskDriveSpot::UnderMonitor && m_driveLevel[drive] != 0)
+        {
+            continue;
+        }
+
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
         hr = m_renderer.DrawStatic (m_driveShadowMesh, m_driveShadowVerts.data(), m_driveShadowVerts.size(), m_geometryRev,
@@ -2086,6 +2399,31 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
         SceneCamera::Mul44 (comp.recorderWorld, comp.viewProj, mvp);
 
         hr = m_renderer.DrawStatic (m_recorderShadowMesh, m_recorderShadowVerts.data(), m_recorderShadowVerts.size(),
+                                    m_geometryRev, mvp, false, viewport, false);
+        CHRA (hr);
+    }
+
+    // A drive standing on another casts its shadow on that one, so only a
+    // stack's bottom drive gets a contact shadow on the desk.
+    for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
+    {
+        if (!comp.IsExtraShown (i))
+        {
+            continue;
+        }
+
+        size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
+
+
+
+        if (m_extras[(size_t) i].level != 0 || m_extraShadowVerts[kind].empty())
+        {
+            continue;
+        }
+
+        SceneCamera::Mul44 (comp.extraWorld[i], comp.viewProj, mvp);
+
+        hr = m_renderer.DrawStatic (m_extraShadowMesh[kind], m_extraShadowVerts[kind].data(), m_extraShadowVerts[kind].size(),
                                     m_geometryRev, mvp, false, viewport, false);
         CHRA (hr);
     }
@@ -2195,6 +2533,9 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     hr = DrawRecorder (strip, viewport);
     CHRA (hr);
 
+    hr = DrawExtras (strip, viewport);
+    CHRA (hr);
+
     hr = DrawLampGlows (strip, viewport, false);
     CHRA (hr);
 
@@ -2219,6 +2560,12 @@ void DeskScene::RebuildLampVerts()
     TintInto (m_monitor.LampVerts(), m_powerLampOn ? 1.0f : kLampOffDim, m_monitorLampVerts);
     TintInto (m_drive.LampVerts(),   m_driveActive[0] ? 1.0f : kLampOffDim, m_driveLampVerts[0]);
     TintInto (m_drive.LampVerts(),   m_driveActive[1] ? 1.0f : kLampOffDim, m_driveLampVerts[1]);
+
+    for (int kind = 0; kind < kModelKinds; kind++)
+    {
+        TintInto (m_extraModels[(size_t) kind].LampVerts(), kLampOffDim, m_extraLampVerts[(size_t) kind][0]);
+        TintInto (m_extraModels[(size_t) kind].LampVerts(), 1.0f,        m_extraLampVerts[(size_t) kind][1]);
+    }
 
     m_lampsDirty = false;
 
@@ -2422,6 +2769,9 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
         hr = DrawRecorder (m_comp, viewport);
         CHRA (hr);
+
+        hr = DrawExtras (m_comp, viewport);
+        CHRA (hr);
     }
 
     // THE TILTING ASSEMBLY, on its own transform. Lit through that same
@@ -2555,6 +2905,24 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
 
             hr = DrawRecorder (m_comp, viewport);
             CHRA (hr);
+
+            hr = DrawExtras (m_comp, viewport);
+            CHRA (hr);
+        }
+
+        // Glass only, the sliding drives and recorder are the only bodies,
+        // and they are in front of the tube: they go in this plate, over the
+        // raster, depth-tested against the glass already in the buffer.
+        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0 || m_comp.extraCount > 0))
+        {
+            hr = DrawDrives (m_comp, viewport);
+            CHRA (hr);
+
+            hr = DrawRecorder (m_comp, viewport);
+            CHRA (hr);
+
+            hr = DrawExtras (m_comp, viewport);
+            CHRA (hr);
         }
 
         // The mask and the sheen are the faceplate's own layers, so they ride
@@ -2591,14 +2959,24 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
     // they test depth without writing it, which is what keeps a name from
     // leaving its transparent rectangle in the buffer.
     //
-    // Both belong to bodies the glass-only presentation leaves out: the names
-    // are anchored to the drives, and the only glow is the power lamp's.
+    // Glass only, the disk labels and drive lamps are drawn only while the
+    // sliding drives are in the composition.
     if (!glassOnly)
     {
         hr = DrawDiskLabels (m_comp, viewport);
         CHRA (hr);
 
         hr = DrawLampGlows (m_comp, viewport, true);
+        CHRA (hr);
+    }
+    else if (m_comp.driveCount > 0)
+    {
+        // The sliding drives' labels and lamps. The monitor's lamp is on the
+        // case, which is not drawn glass-only.
+        hr = DrawDiskLabels (m_comp, viewport);
+        CHRA (hr);
+
+        hr = DrawLampGlows (m_comp, viewport, false);
         CHRA (hr);
     }
 
@@ -2864,6 +3242,9 @@ HRESULT DeskScene::DrawEnvironmentFace (const DeskSceneComposition & comp, const
     hr = DrawRecorder (comp, viewport);
     CHRA (hr);
 
+    hr = DrawExtras (comp, viewport);
+    CHRA (hr);
+
 Error:
     return hr;
 }
@@ -3093,7 +3474,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
-                              const float uv[4])
+                              const float uv[4], float alpha)
 {
     // Two triangles over the corner order the layout hands over -- top-left,
     // top-right, bottom-left, bottom-right -- with v running down the
@@ -3121,7 +3502,9 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
             v.z = corners[corner][2];
             v.u = (corner & 1) ? uv[2] : uv[0];
             v.v = (corner & 2) ? uv[3] : uv[1];
-            v.r = 1.0f;  v.g = 1.0f;  v.b = 1.0f;  v.a = 1.0f;
+            // The whole tint scales with the fade, which fades a
+            // premultiplied texel as it fades a straight one.
+            v.r = alpha;  v.g = alpha;  v.b = alpha;  v.a = alpha;
 
             next.push_back (v);
         }
@@ -3147,6 +3530,32 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
     // upload path with it.
     m_diskLabelRev++;
     InvalidatePlate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::GetExtraModelBounds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskScene::GetExtraModelBounds (int index, float outMin[3], float outMax[3]) const
+{
+    size_t  kind     = (index >= 0 && index < (int) m_extras.size()) ? (size_t) m_extras[(size_t) index].drive.model : 0;
+    bool    isLoaded = index >= 0 && index < (int) m_extras.size() && m_hasExtraModel[kind];
+
+
+
+    if (isLoaded)
+    {
+        m_extraModels[kind].BoundsMin (outMin);
+        m_extraModels[kind].BoundsMax (outMax);
+    }
+
+    return isLoaded;
 }
 
 

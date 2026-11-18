@@ -148,7 +148,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     m_dialogRect = MakeRect (left, top, dialogW, dialogH);
 
     m_title.SetRect (MakeRect (x, y, dialogW - pad * s_kDialogPadCount, rowH));
-    m_title.SetText (L"Custom text color");
+    m_title.SetText (m_titleText);
     m_title.SetFontSizeDip (s_kTitleFontDip);
     m_title.SetFontWeight (DxuiFontWeight::SemiBold);
     m_title.SetTextRole (DxuiTextRole::Heading);

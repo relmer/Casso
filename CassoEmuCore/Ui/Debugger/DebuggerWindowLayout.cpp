@@ -16,7 +16,7 @@
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
-#include "Cassque/CassquePromptDialog.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
@@ -546,7 +546,7 @@ void DebuggerWindow::ConfigureDockSite()
     constexpr int   kMemoryBarDip = DxuiToolbar::kCompactBandDp;
     auto            boxHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
     auto            barHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kMemoryBarDip); };
-    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (kPaneRowDip)); };
+    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (DensePaneList::kRowDip)); };
     std::wstring    savedText;
     DxuiPaneLayout  restored;
     InputFilter     dragFilter;
@@ -596,6 +596,10 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->SetOnTearOffGroup   ([this] (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx)
     {
         m_floating->TearOffGroup (panes, active, clientPx);
+    });
+    m_dockSite->SetOnFloatGroupRequested ([this] (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx)
+    {
+        m_floating->RequestFloatGroup (panes, active, clientPx);
     });
 
     //  Every change the user makes is saved as it happens, so a crash or a
@@ -675,13 +679,67 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
     //  Under a slid-out pane, which lies over the disassembly and the source.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
     {
-        m_code->PaintBranchArrow (painter, view);
+        m_code->GetArrows().PaintBranchArrow (painter, view);
     }
 
     m_dockSite->PaintSlidUnder (painter, theme);
     DxuiWindow::PaintTopLayer  (painter, text, theme);
     m_dockSite->PaintSlidOver  (painter, text, theme);
     PaintZoomPopup             (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsTimelineShimmering
+//
+//  While the machine is behind live in its history, the timeline toolbar
+//  shimmers, so a rewound machine is plain to see.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsTimelineShimmering() const
+{
+    return m_snapshot != nullptr && m_snapshot->history.isBehindLive && m_timelineBar != nullptr && m_timelineBar->IsVisible() &&
+           IsRoutable (m_timelineBar);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintTimelineShimmer
+//
+//  The window's animation layer: while it is all that moves, a frame paints
+//  the shimmer alone over the frame saved under it.
+//
+//  Timed by the steady clock, to a fraction of a millisecond: the band moves
+//  about 20 pixels a frame, and with GetTickCount64's 15.6 ms steps some
+//  frames moved it twice as far as others, and some not at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintTimelineShimmer (IDxuiPainter & painter)
+{
+    RECT    bar   = {};
+    double  nowMs = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now().time_since_epoch()).count();
+
+
+
+    if (!IsTimelineShimmering())
+    {
+        return;
+    }
+
+    bar = m_timelineBar->GetBounds();
+
+    DxuiAreaShimmer::Paint (painter, (float) bar.left, (float) bar.top, (float) (bar.right - bar.left), (float) (bar.bottom - bar.top),
+                            nowMs, bar);
 }
 
 
@@ -700,7 +758,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 bool DebuggerWindow::HasTopLayer() const
 {
-    if (DxuiWindow::HasTopLayer() || m_zoomOpen)
+    if (DxuiWindow::HasTopLayer() || m_windowZoom.IsShown())
     {
         return true;
     }
@@ -884,7 +942,7 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ShowPane (const std::wstring & pane)
+void DebuggerWindow::ShowPane (const std::wstring & pane, bool isFocused)
 {
     //  A pane turned on opens docked and shown, not slid in at an edge.
     if (!IsPaneShown (pane) && m_dockSite->GetPaneLayout().IsAutoHidden (pane))
@@ -917,7 +975,8 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 
     m_floating->MarkSyncNeeded();
     m_dockSite->Relayout();
-    m_pendingShowPane = pane;
+    m_pendingShowPane      = pane;
+    m_isPendingShowFocused = isFocused;
     ShowPendingPane();
     SetWindowMenus();
     SaveLayout();
@@ -934,7 +993,8 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 //
 //  The pane the View menu chose comes forward once it shows: its tab is
 //  selected, an auto-hidden one slides out, and a floating one's window is
-//  raised. It takes the focus, as a click on it would.
+//  raised. It takes the focus, as a click on it would, unless it was raised
+//  without the focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -955,6 +1015,11 @@ void DebuggerWindow::ShowPendingPane()
     m_floating->Show (pane);
 
     //  The focus moves to the pane, in whichever window it is in.
+    if (!m_isPendingShowFocused)
+    {
+        return;
+    }
+
     if (m_dockSite->GetPaneLayout().IsFloating (pane))
     {
         FloatingPanes::RouteScope  scope (*m_floating, pane);
@@ -1384,8 +1449,7 @@ void DebuggerWindow::OnWindowFocusChanged (bool focused)
 //
 //  Of this window and the floating ones, the one that took the focus last
 //  shows the accent. The focus messages run this as well as each frame, so
-//  the window losing the accent repaints without it in the same message
-//  rather than at its next frame paint, up to kIdlePaintMs later.
+//  the window losing the accent repaints without it in the same message.
 //
 //  The pane with the focus is saved as the focus moves to it, once the focus
 //  saved last time has been placed, so the focus comes back to it however
@@ -1432,36 +1496,6 @@ void DebuggerWindow::ShowFocusAccent()
 void DebuggerWindow::CloseFloatingPane (const std::wstring & pane)
 {
     ClosePane (pane);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetPaneLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const DxuiPaneLayout & DebuggerWindow::GetPaneLayout() const
-{
-    return m_dockSite->GetPaneLayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::EditPaneLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiPaneLayout & DebuggerWindow::EditPaneLayout()
-{
-    return m_dockSite->EditPaneLayout();
 }
 
 

@@ -14,6 +14,7 @@ class DxuiPopupHost;
 class DxuiPopupMenu;
 class IDxuiHostClient;
 class DxuiCaptionBar;
+class DxuiTooltip;
 
 // Opaque declaration rather than including IDxuiHostClient.h: this header keeps
 // the client interface to a forward declaration (it only ever holds a pointer),
@@ -108,6 +109,7 @@ enum class DxuiHwndSourceBackdrop
 {
     None,
     Mica,
+    MicaAlt,   // the tabbed-window backdrop, more strongly tinted; File Explorer's
 };
 
 
@@ -182,6 +184,15 @@ public:
         // are composed by DWM at vsync either way, so 0 doesn't tear.
         UINT                     presentSyncInterval      = 1;
 
+        // When true, the swap chain holds one frame at most, and each paint
+        // waits for the frame before it to leave the queue before it draws.
+        // A frame is then drawn a steady two vsyncs before it is seen, so an
+        // animation that reads the clock as it draws moves evenly on screen.
+        // Left to queue three, frames drawn back to back, as several paints
+        // for one input are, read times milliseconds apart and are shown a
+        // vsync apart, and the animation crawls before it catches up.
+        bool                     paceFrames               = false;
+
         // When true (the default), Create() stands up a D3D11 device
         // + DXGI flip-discard swap chain on the host HWND so the
         // internal panel tree paints through GetSwapChain() /
@@ -222,6 +233,14 @@ public:
         // flip-discard CreateSwapChainForHwnd path.
         bool                     composited               = false;
 
+        // When true, the window keeps its frame and draws through a
+        // composition swap chain over its system backdrop: the frame is
+        // extended across the whole client area and each frame clears to
+        // transparent, so the backdrop (Mica) shows wherever the content
+        // paints nothing. Unlike composited, the window stays framed,
+        // because the frame is what DWM draws the backdrop into.
+        bool                     drawOverBackdrop         = false;
+
         // When true, the window is created WITHOUT stealing activation:
         // CreateWindowEx activates a new top-level captioned window even
         // when it is created hidden, which yanks keyboard focus off the
@@ -255,6 +274,12 @@ public:
         // the owner rather than the owner's whole frame. Ignored by every
         // other mode.
         RECT                     placementAnchorRectPx    = {};
+
+        // Shrink the initial size to the work area of the monitor the window
+        // opens on, so a tall dialog on a small or scaled display keeps its
+        // bottom edge above the taskbar. Only for content that can scroll or
+        // reflow into less room. Ignored when useInitialWindowRectPx is set.
+        bool                     fitToWorkArea            = false;
     };
 
 
@@ -403,6 +428,10 @@ public:
     //  tree. Tests may pass nullptr for existingHwnd to drive the
     //  classifier without standing up a real top-level window.
     //
+    //  The source a window belongs to, for a widget that holds only its
+    //  window's handle; null for a window this class does not run.
+    static DxuiHwndSource *  FromHwnd (HWND hwnd);
+
     static HRESULT  CreateInAdoptMode  (HWND                              existingHwnd,
                                         const CreateParams              & params,
                                         std::unique_ptr<DxuiHwndSource> & outHost);
@@ -429,21 +458,25 @@ public:
     //
     bool  HandleMessage  (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult);
 
-    HWND          GetHwnd          () const { return m_hwnd; }
-    DxuiPanel  &  GetRoot          ()       { return *GetRootPanel(); }
-    const DxuiDpiScaler &  GetScaler  () const { return m_scaler; }
+    HWND                   GetHwnd   () const { return m_hwnd; }
+    DxuiPanel            & GetRoot   ()       { return *GetRootPanel(); }
+    const DxuiDpiScaler  & GetScaler () const { return m_scaler; }
 
     //  Where the placement this window was created with puts a frame of
     //  `windowSizePx`. False for a Default placement, or when the system
     //  will not say where the anchor or its monitor is.
     bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
 
+    //  The window returned to the size it was created at, about its center on
+    //  the monitor it is on, for a "Default size" command.
+    HRESULT  RestoreInitialPlacement();
+
     //  The rect of the system button (minimize, maximize, close) under a
     //  screen point, in client pixels -- the space a tooltip anchor takes.
     //  False when the point is over no system button.
-    bool  GetNcSystemButtonRectPx (POINT screenPx, RECT & outClientPx) const;
-    void          SetTheme      (const IDxuiTheme * theme);
-    const IDxuiTheme *  GetTheme () const { return m_theme; }
+    bool                GetNcSystemButtonRectPx (POINT screenPx, RECT & outClientPx) const;
+    void                SetTheme                (const IDxuiTheme * theme);
+    const IDxuiTheme  * GetTheme                () const { return m_theme; }
 
     //  The one menu this window raises for a right-click, created on first
     //  use. Owned here so every context menu in the window shares one popup
@@ -460,9 +493,14 @@ public:
     //  top-strip height in physical pixels (0 when no host caption) so
     //  the consumer can lay its own content out beneath it.
     //
-    void          SetTitle        (const std::wstring & title);
-    void          SetCaptionIcon  (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
-    int           GetCaptionHeightPx () const;
+    void  SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
+    void  SetCaptionIcon     (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
+    int   GetCaptionHeightPx () const;
+
+    //  The width in pixels of the resize band along each edge of the client
+    //  area. Lay a scrollbar out past it. 0 for a window that isn't resizable
+    //  or is maximized.
+    int   GetResizeBorderPx  () const;
 
     // Hides the host-owned caption strip outright (fullscreen
     // presentations): it stops painting, reserves no height, and routes no
@@ -473,9 +511,9 @@ public:
     // A consumer control shown in the host caption, left of the system
     // buttons (see DxuiCaptionBar::SetAccessory). Non-owning; pass null to
     // remove it before the control is destroyed. No-op without a host caption.
-    void          SetCaptionAccessory (IDxuiControl * accessory);
-    void          SetCaptionAccessoryWidth (int widthDip);
-    int           GetCaptionReservedWidthDip () const;
+    void  SetCaptionAccessory        (IDxuiControl * accessory);
+    void  SetCaptionAccessoryWidth   (int widthDip);
+    int   GetCaptionReservedWidthDip () const;
 
     // Turns the resize borders off and on at runtime. A window that has gone
     // borderless-fullscreen fills the monitor and has nothing to resize TO:
@@ -606,10 +644,10 @@ public:
     //  it before walking the panel tree but does NOT guarantee any
     //  particular OM state on hook entry.
     //
-    ID3D11Device         *  GetDevice          () const { return m_device.Get();    }
-    ID3D11DeviceContext  *  GetContext         () const { return m_context.Get();   }
-    IDXGISwapChain1      *  GetSwapChain       () const { return m_swapChain.Get(); }
-    ID3D11RenderTargetView * GetBackBufferRtv  () const override { return m_rtv.Get(); }
+    ID3D11Device            * GetDevice        () const { return m_device.Get();    }
+    ID3D11DeviceContext     * GetContext       () const { return m_context.Get();   }
+    IDXGISwapChain1         * GetSwapChain     () const { return m_swapChain.Get(); }
+    ID3D11RenderTargetView  * GetBackBufferRtv () const override { return m_rtv.Get(); }
     // Host-owned text renderer; null in adopt / synthetic mode (host owns no paint pump).
     IDxuiTextRenderer    *  GetTextRenderer    () const { return m_textRenderer.get(); }
 
@@ -674,6 +712,11 @@ public:
     void  SetDragLayerHooks (std::function<bool()> isActive,
                              std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
 
+    //  A layer that moves while the rest of the window stands still, painted
+    //  last; while a drag layer or a modal overlay is up, it is not.
+    void  SetAnimationLayerHooks (std::function<bool()> isActive,
+                                  std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
@@ -684,6 +727,15 @@ public:
     //
     DxuiPopupHost  *  AcquirePopup ();
     void              ReleasePopup (DxuiPopupHost * popup);
+
+    //  The popups open now, and those acquired after, are measured and drawn
+    //  in this typography, not this window's, until it is called again with
+    //  none, so the menus' face is fixed while the window's face changes.
+    void              PinPopupTypography      (const DxuiTextRenderer::Typography * typography);
+    bool              IsPopupTypographyPinned () const { return m_pinnedPopupTypography != nullptr; }
+
+    //  Each open popup is drawn again, as after a theme change.
+    void              MarkPopupsDirty         ();
 
     //
     //  Adopt-mode popup device. A full-ownership host seeds its popup
@@ -699,9 +751,9 @@ public:
                                             ID3D11DeviceContext  * context);
 
 #ifdef _DEBUG
-    size_t  GetPopupHits   () const { return m_popupHits;   }
-    size_t  GetPopupMisses () const { return m_popupMisses; }
-    size_t  GetPopupPoolSize () const { return m_popupPool.size(); }
+    size_t  GetPopupHits        () const { return m_popupHits;   }
+    size_t  GetPopupMisses      () const { return m_popupMisses; }
+    size_t  GetPopupPoolSize    () const { return m_popupPool.size(); }
     size_t  GetPopupActiveCount () const { return m_popupActive.size(); }
 #endif
 
@@ -752,7 +804,12 @@ public:
     //  unit tests can assert the final NC return without instantiating
     //  the full WndProc dispatch.
     //
-    static LRESULT  KindToHt  (DxuiHitTestKind kind);
+    static LRESULT  KindToHt            (DxuiHitTestKind kind);
+    HRESULT         ShowSystemMenu      (POINT ptScreen);
+    bool            IsSystemMenuDropped () const;
+    POINT           GetSystemMenuPoint  () const;
+    HMENU           GetWindowSystemMenu () const;
+    static HMENU    DropSystemMenuStyle (HWND hwnd);
 
     //
     //  The extended window style Create gives a window of these params.
@@ -796,8 +853,8 @@ private:
         LPCWSTR   id           = nullptr;
     };
 
-    static BOOL CALLBACK  FirstIconGroupProc  (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param);
-    static HICON          GetDefaultAppIcon      (bool big);
+    static BOOL CALLBACK  FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param);
+    static HICON          GetDefaultAppIcon  (bool big);
 
     // Win32 half of every non-Default placement: owner frame + owner
     // monitor work area in, the chosen geometry helper's answer out.
@@ -815,6 +872,8 @@ private:
     static bool           TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork);
 
     HRESULT  CreateDeviceAndSwapChain  ();
+    HRESULT  CreateFrameWait           ();
+    void     WaitForFrameSlot          ();
     HRESULT  CreateRenderResources     ();
     void     ReleaseRenderResources    ();
     HRESULT  CreateBackBufferRtv       ();
@@ -825,16 +884,19 @@ private:
     //  DxuiRenderTarget surface contract. The base's RenderFrame (driven from
     //  PaintPump) clears + presents through these; PaintContent walks the panel
     //  tree + caption + modal overlay onto `target`.
-    SIZE                      GetBackBufferSizePx  () const override;
-    ComPtr<IDXGISurface>      GetBackBufferSurface () const override;
-    UINT                      GetTargetDpi         () const override { return m_scaler.GetDpi(); }
-    void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
-    void  PresentFrame  () override;
+    SIZE                  GetBackBufferSizePx  () const override;
+    ComPtr<IDXGISurface>  GetBackBufferSurface () const override;
+    UINT                  GetTargetDpi         () const override { return m_scaler.GetDpi(); }
+    void                  PaintContent         (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
+    void                  PresentFrame         () override;
 
     //  One layer above the page, in a fill+text flush of its own.
     using LayerPaintFn = std::function<void (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)>;
 
     HRESULT  PaintLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme, const LayerPaintFn & paint);
+
+    bool  HasAnimationLayer   () const override;
+    void  PaintAnimationLayer (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
 
     // What to do with the frame after the client claims a message. Most
     // handlers want nothing; input handlers repaint. `IfNotSuppressed` is the
@@ -845,33 +907,38 @@ private:
     // The message pump, split by who owns the message rather than by message
     // number. WndProc itself is then three lines: ask the host, ask the client,
     // else DefaultProc.
-    bool     DispatchHostMessage       (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
-    bool     DispatchClientMessage     (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
-    bool     IsClaimed                   (DxuiMessageResult clientResult, RepaintOnClaim repaint);
+    bool  DispatchHostMessage   (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
+    bool  DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
+    bool  IsClaimed             (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
-    LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
-    LRESULT  HandleNcHitTest           (LPARAM lp);
-    LRESULT  HandleNcMouse             (UINT msg, WPARAM wp, LPARAM lp);
-    LRESULT  DefaultProc               (UINT msg, WPARAM wp, LPARAM lp);
-    BOOL     TrackMouseEventHost       (TRACKMOUSEEVENT * pEvent);
-    void     TrackClientMouseLeave     ();
-    void     DispatchNcUpToTrackedButton (LPARAM lp);
-    void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
-    void     ClampMinTrackToMonitor    (MINMAXINFO & info) const;
-    void     HandleSize                (WPARAM wp, LPARAM lp);
-    void     HandleSettingChange       ();
-    void     HandleThemeChange         ();
-    void     MaybeRelayoutRoot         (const RECT & clientPx);
-    DxuiPanel *  GetRootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
-    void     LayoutCaption             (const RECT & clientDip);
-    void     RelayoutCaptionNow        ();
-    void     BuildCaption              ();
-    bool     RouteCaptionNcMouse       (UINT msg, WPARAM wp, LPARAM lp);
+    LRESULT      HandleNcCalcSize            (WPARAM wp, LPARAM lp);
+    int          GetMaximizedFramePx         () const;
+    LRESULT      HandleNcHitTest             (LPARAM lp);
+    LRESULT      HandleNcMouse               (UINT msg, WPARAM wp, LPARAM lp);
+    void         UpdateCaptionTip            (UINT msg, WPARAM wp, LPARAM lp);
+    void         TickCaptionTip              ();
+    LRESULT      DefaultProc                 (UINT msg, WPARAM wp, LPARAM lp);
+    BOOL         TrackMouseEventHost         (TRACKMOUSEEVENT * pEvent);
+    void         TrackClientMouseLeave       ();
+    void         DispatchNcUpToTrackedButton (LPARAM lp);
+    void         HandleDpiChanged            (WPARAM wp, LPARAM lp);
+    void         ClampMinTrackToMonitor      (MINMAXINFO & info) const;
+    void         HandleSize                  (WPARAM wp, LPARAM lp);
+    void         HandleSettingChange         ();
+    void         HandleThemeChange           ();
+    void         MaybeRelayoutRoot           (const RECT & clientPx);
+    DxuiPanel  * GetRootPanel                () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
+    void         LayoutCaption               (const RECT & clientDip);
+    void         RelayoutCaptionNow          ();
+    void         BuildCaption                ();
+    bool         RouteCaptionNcMouse         (UINT msg, WPARAM wp, LPARAM lp);
 
-    DxuiHitTestKind  ClassifyHitInternal       (POINT clientDip, RECT clientBoundsDip) const;
-    IDxuiControl   *  FindNcSystemControlAt    (POINT clientDip) const;
-    void              NotifySystemButtonsMaximized (bool maximized);
-    void              InitializePooledPopup    (DxuiPopupHost * popup);
+    DxuiHitTestKind    ClassifyHitInternal          (POINT clientDip, RECT clientBoundsDip) const;
+    bool               HasResizeBand                () const;
+    int                GetResizeBorderDip           () const;
+    IDxuiControl     * FindNcSystemControlAt        (POINT clientDip) const;
+    void               NotifySystemButtonsMaximized (bool maximized);
+    void               InitializePooledPopup        (DxuiPopupHost * popup);
 
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
@@ -890,6 +957,7 @@ private:
     static constexpr UINT    s_kDefaultDpi           = 96;
     static constexpr LONG    s_kExtendFrameInsetPx   = 1;
     static constexpr size_t  s_kPopupPoolInitialSize = 3;
+    static constexpr DWORD   s_kFrameWaitMs          = 50;   // three frames at 60 Hz; see WaitForFrameSlot
 
     // Distinct per-instance window class names — every Create()
     // generates a fresh class so multiple host windows in one
@@ -924,6 +992,8 @@ private:
     // / Destroy, and owns the HWND-bound swap chain + back-buffer RTV below.
     ComPtr<IDXGISwapChain1>           m_swapChain;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
+    UINT                              m_swapChainFlags     = 0;         // what ResizeBuffers must pass back
+    HANDLE                            m_frameWait          = nullptr;   // CreateParams::paceFrames' frame latency waitable
 
     // Composited-transparent mode (CreateParams::composited): the HWND
     // carries WS_EX_NOREDIRECTIONBITMAP and the swap chain is bound to
@@ -939,9 +1009,15 @@ private:
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
     bool                              m_captionVisible     = true;
+
+    //  The last Alt key-down was a shortcut the client took, so the character
+    //  that follows it is not a mnemonic.
+    bool                              m_sysKeyClaimed      = false;
+    std::unique_ptr<DxuiTooltip>      m_captionTip;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
     std::unique_ptr<DxuiPopupMenu>    m_contextMenu;
+    HMENU                             m_systemMenu         = nullptr;   // taken before the system menu style is dropped
 
     bool  m_ownsHwnd                = false;
     bool  m_ownsPaintPump           = false;
@@ -950,7 +1026,6 @@ private:
     bool  m_hasSyntheticCapture     = false;
     bool  m_adoptMode               = false;
     bool  m_classRegistered         = false;
-    bool  m_sysKeyDownClaimed       = false;
 
     RECT                              m_syntheticRectPx    = {};
     WorkAreaReader                    m_readWorkArea;
@@ -966,6 +1041,8 @@ private:
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_topLayerPaintHook;
     std::function<bool()>                                                       m_dragLayerActiveHook;
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_dragLayerPaintHook;
+    std::function<bool()>                                                       m_animationLayerActiveHook;
+    std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_animationLayerPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
     IDxuiControl  * m_lastHoveredNcControl     = nullptr;
@@ -977,6 +1054,7 @@ private:
     // (WM_DPICHANGED_BEFOREPARENT) to live popups.
     std::vector<std::unique_ptr<DxuiPopupHost>>  m_popupPool;
     std::vector<DxuiPopupHost *>                 m_popupActive;
+    const DxuiTextRenderer::Typography         * m_pinnedPopupTypography = nullptr;
 
     // Adopt-mode popup device/context (non-owning). Null in
     // full-ownership mode (m_device/m_context are used instead).

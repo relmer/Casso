@@ -198,7 +198,8 @@ Error:
 //  changes; a state another machine kind saved opens that machine first, as
 //  opening a machine does, and the rest is checked on it. History is dropped
 //  and starts again at the loaded point, and the debugger is notified of a
-//  machine replaced.
+//  state loaded: its breakpoints and watchpoints stay, since the machine is
+//  the kind that saved the state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,11 +241,11 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
     hr = MachineStateFile::Check (m_machine, contents, outError);
     CHR (hr);
 
-    m_debugger->StopReverseRecording();
+    m_debugger->GetHistory().StopRecording();
 
     hr = MachineStateFile::Apply (m_machine, contents, outError);
 
-    m_debugger->StartReverseRecording();
+    m_debugger->GetHistory().StartRecording();
 
     CHR (hr);
 
@@ -256,9 +257,9 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
         speaker->BeginFrame();
     }
 
-    m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string());
+    m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string(), true);
 
-    m_debugger->MarkViewDirty();
+    m_debugger->GetViewModel().MarkDirty();
 
     m_renderer->RenderFramebuffer();
     m_renderer->PublishFramebuffer();

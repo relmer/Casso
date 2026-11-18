@@ -63,7 +63,10 @@ public:
         //  Nothing below is reached: the store reads, writes and stats through
         //  its own seams, and this exists for the two questions above.
         HRESULT  ReadAllBytes  (const std::string &, std::vector<Byte> &) override { return E_NOTIMPL; }
+        HRESULT  ListFiles     (const std::string &, std::vector<std::string> &) override { return E_NOTIMPL; }
         HRESULT  WriteAllBytes (const std::string &, const std::vector<Byte> &) override { return E_NOTIMPL; }
+        HRESULT  WriteAt       (const std::string &, uint64_t, std::span<const Byte>) override { return E_NOTIMPL; }
+        HRESULT  ReadAt        (const std::string &, uint64_t, std::span<Byte>) override { return E_NOTIMPL; }
         HRESULT  Stat          (const std::string &, FileStamp &) override { return E_NOTIMPL; }
         HRESULT  Remove        (const std::string &) override { return E_NOTIMPL; }
         HRESULT  ReplaceAtomically (const std::string &, const std::string &) override { return E_NOTIMPL; }
@@ -258,13 +261,14 @@ public:
         //  says what it meant by one, and a real session that gets both gets
         //  them in this order.
         void  FireAndSettle (const std::string & path,
-                             ExternalChangeIntent        intent = ExternalChangeIntent::Unstated)
+                             ExternalChangeIntent        intent = ExternalChangeIntent::Unstated,
+                             bool                        fromCassoExplorer = false)
         {
             watcher.Fire (kDirectory, path);
 
             if (intent != ExternalChangeIntent::Unstated)
             {
-                store.NoteExternalChange (path, intent);
+                store.NoteExternalChange (path, intent, fromCassoExplorer);
             }
 
             nowMs += MountedImageState::kQuietPeriodMs;
@@ -963,6 +967,27 @@ public:
 
 
 
+    //  Casso Explorer states its intent as the command line does, and passes a
+    //  window for the reply; the notice credits the change to it, not to
+    //  CassoCli.
+    TEST_METHOD (AChangeStatedByCassoExplorerIsReportedAsItsOwn)
+    {
+        Rig  rig;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+        rig.WriteImage (kImagePath, 0x22);
+        rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace, true);
+
+        Assert::AreEqual ((size_t) 1, rig.reports.size());
+        Assert::IsTrue (rig.reports[0].message.find (L"Casso Explorer modified") != std::wstring::npos, rig.reports[0].message.c_str());
+        Assert::IsTrue (rig.reports[0].message.find (L"CassoCli") == std::wstring::npos);
+    }
+
+
+
     TEST_METHOD (TheStoreDoesNotReportItsOwnWriteAsAnExternalChange)
     {
         Rig  rig;
@@ -1573,6 +1598,26 @@ public:
 
             Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
             Assert::IsTrue (rig->bayChanges[1] == BayChange::Swapped);
+        }
+
+        //  A restored machine state -> Restored, with a new media id and the
+        //  same bytes as inserted.
+        {
+            auto          rig      = std::make_unique<Rig>();
+            uint64_t      before   = 0;
+            vector<Byte>  inserted;
+
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+            before   = rig->store.GetViewerMediaId (kSlot, kDrive);
+            inserted = rig->store.GetImage (kSlot, kDrive)->GetSourceBytes();
+
+            rig->store.NoteStateRestored (kSlot, kDrive);
+
+            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
+            Assert::IsTrue   (rig->bayChanges[1] == BayChange::Restored);
+            Assert::AreNotEqual (before, rig->store.GetViewerMediaId (kSlot, kDrive), L"a viewer analyzes it again");
+            Assert::IsTrue   (inserted == rig->store.GetImage (kSlot, kDrive)->GetSourceBytes(), L"As inserted is the disk as first inserted");
         }
 
         //  User eject -> Ejected.

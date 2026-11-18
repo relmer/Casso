@@ -107,7 +107,6 @@ namespace HeatMapRangesPaneTests
         using DebuggerWindow::GetHeatRangesPane;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::IsFramePaintDue;
-        using DebuggerWindow::kIdlePaintMs;
 
         //  Each question asked, answered with `answer` rather than shown.
         int  ShowMessageBox (HWND, const std::wstring & text, const wchar_t * caption, UINT type) override
@@ -434,7 +433,7 @@ namespace HeatMapRangesPaneTests
 
             Assert::IsTrue   (row >= 0);
             Assert::AreEqual (std::wstring (L"Yes"), GetCell (window, row, 4));
-            Assert::IsFalse  (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (true), L"left out to start");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check == DxuiListView::Cell::Check::Off, L"left out to start");
 
             window.GetHeatRangesPane().GetList()->SetSelectedRow (row);
             Assert::IsFalse  (window.GetHeatRangesPane().IsBarEnabled (HeatMapRangeBarCommands::kRemove), L"no Remove");
@@ -447,7 +446,7 @@ namespace HeatMapRangesPaneTests
             Assert::AreEqual (row, FindRow (window, L"Hi-res page 1"), L"still there");
 
             window.GetHeatRangesPane().ToggleRange (row, true);
-            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"checked in");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check == DxuiListView::Cell::Check::On, L"checked in");
             Assert::IsTrue   (host.ranges.find ("preset hires1 on") != std::string::npos);
 
             window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kUp);
@@ -517,16 +516,13 @@ namespace HeatMapRangesPaneTests
 
 
 
-        TEST_METHOD (AFrameRepaintsOnAnUpdateOrMovementAndOtherwiseOnlyNowAndThen)
+        //  A frame repaints on an update or while something moves, a caret's
+        //  blink among them, and otherwise not at all.
+        TEST_METHOD (AFrameRepaintsOnlyOnAnUpdateOrMovement)
         {
-            constexpr int64_t  kPainted = 5000;
-
-
-
-            Assert::IsTrue  (RangesWindow::IsFramePaintDue (true,  false, kPainted + 1, kPainted), L"a snapshot or console line came in");
-            Assert::IsTrue  (RangesWindow::IsFramePaintDue (false, true,  kPainted + 1, kPainted), L"a menu slides or a scrollbar fades");
-            Assert::IsFalse (RangesWindow::IsFramePaintDue (false, false, kPainted + RangesWindow::kIdlePaintMs - 1, kPainted), L"nothing changed");
-            Assert::IsTrue  (RangesWindow::IsFramePaintDue (false, false, kPainted + RangesWindow::kIdlePaintMs, kPainted), L"a caret still blinks");
+            Assert::IsTrue  (RangesWindow::IsFramePaintDue (true,  false), L"a snapshot or console line came in");
+            Assert::IsTrue  (RangesWindow::IsFramePaintDue (false, true),  L"a menu slides, a scrollbar fades or a caret blinks");
+            Assert::IsFalse (RangesWindow::IsFramePaintDue (false, false), L"nothing changed");
         }
 
 
@@ -683,7 +679,7 @@ namespace HeatMapRangesPaneTests
             Assert::AreEqual (std::string ("Default"), window.GetHeatRangesPane().GetEditedSetName());
             row = FindRow (window, L"Hi-res page 1");
             Assert::IsTrue   (row >= 0);
-            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"included");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check == DxuiListView::Cell::Check::On, L"included");
             Assert::IsTrue   (window.GetHeatRangesPane().GetList()->IsAddRow (window.GetHeatRangesPane().GetList()->GetDataRowCount()));
             Assert::AreEqual (std::wstring (L"Add new range"), window.GetHeatRangesPane().GetList()->GetCellsOfRow (window.GetHeatRangesPane().GetList()->GetDataRowCount())[2].text);
 

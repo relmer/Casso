@@ -3,6 +3,10 @@
 #include "Pch.h"
 
 
+enum class DxuiKeyEventKind;
+struct DxuiKeyEvent;
+
+
 
 
 
@@ -30,6 +34,10 @@ public:
     //  Whether a key is down, from its state.
     static bool   IsKeyDown        (int vk)               { return (GetKeyState (vk) & kDownBit) != 0; }
 
+    //  A key event of `kind` for `vk`, with Shift, Ctrl and Alt as they are
+    //  now.
+    static DxuiKeyEvent  MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk);
+
     //  Null restores the Win32 call.
     static void   SetKeyReader      (KeyReader reader)     { s_readKey      = std::move (reader); }
     static void   SetAsyncKeyReader (KeyReader reader)     { s_readAsyncKey = std::move (reader); }
@@ -38,7 +46,10 @@ public:
 private:
     static constexpr SHORT  kDownBit = static_cast<SHORT> (0x8000);
 
-    static inline KeyReader     s_readKey;
-    static inline KeyReader     s_readAsyncKey;
-    static inline CursorReader  s_readCursor;
+    //  Defined in DxuiInputState.cpp, not inline here: an inline one is
+    //  constructed in every object that includes this header, so a program
+    //  that links any of those objects links them all.
+    static KeyReader     s_readKey;
+    static KeyReader     s_readAsyncKey;
+    static CursorReader  s_readCursor;
 };

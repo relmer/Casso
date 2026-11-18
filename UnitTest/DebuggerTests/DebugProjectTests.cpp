@@ -4,6 +4,7 @@
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/Project/DebugProject.h"
 #include "Debugger/Project/DebugProjectStore.h"
+#include "Debugger/Project/ProjectSwitchGuard.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -55,6 +56,39 @@ namespace DebuggerTests
             return text;
         }
 
+
+        //  Two projects that each open the other switch back and forth until
+        //  the guard pauses switching; a scope outside them ends the pause.
+        TEST_METHOD (SwitchesBackAndForthAreHeld)
+        {
+            ProjectSwitchGuard  guard;
+            ProjectScope        demo;
+            ProjectScope        machine;
+            ProjectScope        other;
+            uint64_t            now     = 1000;
+            int                 allowed = 0;
+
+
+
+            demo.kind    = ProjectScopeKind::DebugFile;
+            demo.key     = "demo";
+            machine.kind = ProjectScopeKind::Machine;
+            machine.key  = "Apple //e Enhanced";
+            other.kind   = ProjectScopeKind::DebugFile;
+            other.key    = "other";
+
+            for (int i = 0; i < 20; i++, now += 16)
+            {
+                allowed += guard.TryAllow ((i % 2 == 0) ? machine : demo, now) ? 1 : 0;
+            }
+
+            Assert::AreEqual ((int) ProjectSwitchGuard::kMaxSwitches, allowed, L"a few switches, then none");
+            Assert::IsTrue   (guard.IsHeld());
+            Assert::IsFalse  (guard.TryAllow (demo, now + 10 * ProjectSwitchGuard::kWindowMs), L"paused however long it lasts");
+            Assert::IsTrue   (guard.TryAllow (other, now), L"a new debug file ends the pause");
+            Assert::IsFalse  (guard.IsHeld());
+            Assert::IsTrue   (guard.TryAllow (demo, now + 1), L"and the old scopes switch again");
+        }
 
         //  Breakpoints with a name and a disabled one, a watch, a zero-page
         //  pointer, a bookmark, a data block, a step filter and a symbol file
@@ -254,6 +288,92 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("five"), list.breakpoints[1].name);
         }
 
+        //  A number in a project's line too large to be an index is no
+        //  breakpoint's, rather than an exception.
+        TEST_METHOD (AnOversizedBreakpointNumberIsNoBreakpoints)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            project.engineScript = { "BPC *", "BP 0400", "BPD 99999999999999999999999" };
+            project.ApplyEngine (session.rig.session, failures);
+
+            BreakpointHandlers::ListAll (session.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::IsTrue   (list.breakpoints[0].enabled, L"no breakpoint was disabled");
+        }
+
+        //  A logging breakpoint's message and its running on come back with
+        //  the project, through its JSON.
+        TEST_METHOD (ABreakpointsLogComesBackWithTheProject)
+        {
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            first.rig.RunOk ("BP 0300");
+            first.rig.RunOk (std::format ("BPLOG {} GO \"A={{A}}\"", first.rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+
+            BreakpointHandlers::ListAll (second.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::AreEqual (std::string ("A={A}"), list.breakpoints[0].log);
+            Assert::IsFalse  (list.breakpoints[0].stops, L"GO runs on");
+        }
+
+        //  A breakpoint's group comes back with the project, and a project
+        //  with no groups loads with none.
+        TEST_METHOD (ABreakpointsGroupComesBack)
+        {
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            first.rig.RunOk ("BP 0300");
+            first.rig.RunOk (std::format ("BPGROUP Loop {}", first.rig.session.GetBreakpoints().GetAll().at (0).id));
+
+            project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
+
+            Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            read.ApplyEngine (second.rig.session, failures);
+
+            BreakpointHandlers::ListAll (second.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, list.breakpoints.size());
+            Assert::AreEqual (std::string ("Loop"), list.breakpoints[0].group);
+
+            read.breakpointGroups.clear();
+            Assert::IsTrue (DebugProject::TryParse (read.ToJson (L"C:\\Work"), L"C:\\Work", project, error), L"a project with no groups");
+            Assert::IsTrue (project.breakpointGroups.empty());
+        }
+
         //  The session's other state comes back too: a symbol table turned
         //  off, the CD directory, the stopwatch, the profiler, the command
         //  mode and the trip count's mark; and the window's states by name.
@@ -278,7 +398,7 @@ namespace DebuggerTests
             first.rig.RunOk ("MODE MONITOR");
 
             project.CaptureEngine (first.rig.session, &first.handlers.GetExecution());
-            project.windowStrings = { { "console", "BP 300\nG\n" }, { "focusedPane", "watches" } };
+            project.windowStrings = { { "console", "BP 300\nG\n" }, { "heatMapOptions", "reads" } };
 
             Assert::IsTrue (DebugProject::TryParse (project.ToJson (L"C:\\Work"), L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
             read.ApplyEngine (second.rig.session, failures);
@@ -292,6 +412,32 @@ namespace DebuggerTests
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("STOPWATCH 0300 0310")) != read.engineScript.end());
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("PROFILE ON")) != read.engineScript.end());
             Assert::IsTrue   (read.windowStrings == project.windowStrings, L"the window's states through the JSON");
+        }
+
+        //  The window's layout is the window's: a project doesn't write it,
+        //  and one saved with it loads without it.
+        TEST_METHOD (TheLayoutIsNeitherSavedNorRestored)
+        {
+            DebugProject  project;
+            DebugProject  read;
+            DebugProject  older;
+            std::string   error;
+            std::string   text;
+            std::string   olderText = "{\"format\":\"casso-debug-project\",\"window\":{\"layout\":\"split\",\"openViews\":\"panel=mmu\",\"closedPanes\":\"watches\","
+                                      "\"focusedPane\":\"mmu\",\"commandBarDock\":\"left\",\"timelineDock\":\"bottom\",\"console\":\"G\"}}";
+
+
+
+            project.windowStrings = { { "console", "G" }, { "focusedPane", "mmu" }, { "closedPanes", "watches" } };
+            text = project.ToJson (L"C:\\Work");
+
+            Assert::IsTrue (text.find ("focusedPane") == std::string::npos, TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (text.find ("closedPanes") == std::string::npos, TextEncoding::NarrowToWide (text).c_str());
+            Assert::IsTrue (DebugProject::TryParse (text, L"C:\\Work", read, error), TextEncoding::NarrowToWide (error).c_str());
+            Assert::IsTrue (read.windowStrings == std::map<std::string, std::string> { { "console", "G" } }, L"only the console's text is read back");
+
+            Assert::IsTrue (DebugProject::TryParse (olderText, L"C:\\Work", older, error), TextEncoding::NarrowToWide (error).c_str());
+            Assert::IsTrue (older.windowStrings == std::map<std::string, std::string> { { "console", "G" } }, L"an older project's layout is left out");
         }
 
         //  Every breakpoint, watchpoint, watch and bookmark comes back under

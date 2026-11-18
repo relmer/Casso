@@ -2,6 +2,7 @@
 
 #include "Debugger/Channel/Win32InstanceDirectory.h"
 
+#include "Debugger/Channel/ChannelLineBuffer.h"
 #include "Debugger/Channel/Win32PipeTransport.h"
 
 
@@ -50,15 +51,13 @@ public:
     bool IsClosed  () const override { return m_isClosed; }
 
 private:
-    bool TakeLine (std::string & line);
-
     HANDLE                  m_pipe          = INVALID_HANDLE_VALUE;
     HANDLE                  m_event         = nullptr;
     OVERLAPPED              m_overlapped    = {};
     bool                    m_isReadPending = false;
     bool                    m_isClosed      = false;
     std::array<char, 4096>  m_buffer        = {};
-    std::string             m_pending;
+    ChannelLineBuffer       m_lines;
 };
 
 
@@ -119,42 +118,12 @@ bool Win32PipeClient::WriteLine (const std::string & line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32PipeClient::TakeLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Win32PipeClient::TakeLine (std::string & line)
-{
-    size_t  newline = m_pending.find ('\n');
-
-
-
-    if (newline == std::string::npos)
-    {
-        return false;
-    }
-
-    line = m_pending.substr (0, newline);
-    m_pending.erase (0, newline + 1);
-
-    if (!line.empty() && line.back() == '\r')
-    {
-        line.pop_back();
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Win32PipeClient::ReadLine
 //
 //  A read left pending by a timeout stays pending and is picked up by the next
-//  call, so no bytes are lost between calls.
+//  call, so no bytes are lost between calls. A server that sends a line longer
+//  than ChannelProtocol::kMaxLineBytes fails the read, and the client is then
+//  closed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,7 +140,7 @@ bool Win32PipeClient::ReadLine (std::string & line, DWORD timeoutMs)
 
 
 
-        if (TakeLine (line))
+        if (m_lines.TryTakeLine (line))
         {
             return true;
         }
@@ -188,7 +157,12 @@ bool Win32PipeClient::ReadLine (std::string & line, DWORD timeoutMs)
 
             if (ReadFile (m_pipe, m_buffer.data(), (DWORD) m_buffer.size(), &read, &m_overlapped))
             {
-                m_pending.append (m_buffer.data(), read);
+                if (!m_lines.TryAppend (m_buffer.data(), read))
+                {
+                    m_isClosed = true;
+                    return false;
+                }
+
                 continue;
             }
 
@@ -214,7 +188,11 @@ bool Win32PipeClient::ReadLine (std::string & line, DWORD timeoutMs)
             return false;
         }
 
-        m_pending.append (m_buffer.data(), read);
+        if (!m_lines.TryAppend (m_buffer.data(), read))
+        {
+            m_isClosed = true;
+            return false;
+        }
     }
 }
 

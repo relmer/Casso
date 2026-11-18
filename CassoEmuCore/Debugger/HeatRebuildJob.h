@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Debugger/AccessHeatMap.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 
@@ -74,6 +75,7 @@ struct HeatRebuildJob
     size_t                          inputsFrom  = 0;
     std::vector<InputRecord>        inputs;
     std::vector<ReplayDisk>         disks;
+    std::vector<ReplayBlockMedia>   blockMedia;
     uint64_t                        countFrom   = 0;
     double                          fadeSeconds = 0.0;
     Query                           query;

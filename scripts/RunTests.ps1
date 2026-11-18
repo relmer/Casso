@@ -65,6 +65,17 @@
     fails when the output holds an AddressSanitizer report, even if vstest
     itself exits 0. See docs/testing.md.
 
+.PARAMETER Serial
+    Run the suite in one vstest.console process. By default an unfiltered run
+    is split across several processes by RunTestShards.ps1, one shard of test
+    classes each, because vstest runs one DLL's tests on one thread. Use this
+    when a parallel run runs out of memory, or to rule out two tests
+    interfering. A filtered run is always serial.
+
+.PARAMETER Shards
+    How many processes an unfiltered run uses. Default: the logical core
+    count, up to 12.
+
 .EXAMPLE
     ./scripts/RunTests.ps1 -Build -Scenario
     Builds, then runs the scenario suite -- the system tests that need the
@@ -87,6 +98,10 @@ param(
     [switch]$Scenario,
 
     [switch]$Sanitize,
+
+    [switch]$Serial,
+
+    [int]$Shards = [Math]::Min([Environment]::ProcessorCount, 12),
 
     [switch]$NormalPriority,
 
@@ -366,6 +381,15 @@ if ($insideGit) {
     $stateBefore = Get-TrackedFileState
 }
 
+#  Sharded unless asked for one process. A filtered run stays serial: it is
+#  usually a handful of tests, and combining the filter with the shards'
+#  filters is not worth the complexity.
+$runSerial = $Serial -or $Filter
+
+if (-not $runSerial) {
+    Write-Host "Sharded run: up to $Shards vstest.console processes (-Serial for one)." -ForegroundColor DarkGray
+}
+
 if ($Sanitize) {
     #  CONTINUE-ON-ERROR HIDES A REPORT. With ASAN_OPTIONS asking to carry on,
     #  a use-after-free prints its report and the test still passes, exit 0.
@@ -374,7 +398,12 @@ if ($Sanitize) {
     Remove-Item Env:ASAN_OPTIONS -ErrorAction SilentlyContinue
 
     try {
-        & $vstestPath @vstestArgs 2>&1 | Tee-Object -Variable vstestOutput
+        if ($runSerial) {
+            & $vstestPath @vstestArgs 2>&1 | Tee-Object -Variable vstestOutput
+        } else {
+            & (Join-Path $PSScriptRoot 'RunTestShards.ps1') -TestDll $testAssembly -Shards $Shards -VSTestPath $vstestPath 2>&1 |
+                Tee-Object -Variable vstestOutput
+        }
         $testExit = $LASTEXITCODE
     } finally {
         if ($null -ne $asanOptionsWas) { $env:ASAN_OPTIONS = $asanOptionsWas }
@@ -387,8 +416,12 @@ if ($Sanitize) {
         $testExit = 1
     }
 }
-else {
+elseif ($runSerial) {
     & $vstestPath @vstestArgs
+    $testExit = $LASTEXITCODE
+}
+else {
+    & (Join-Path $PSScriptRoot 'RunTestShards.ps1') -TestDll $testAssembly -Shards $Shards -VSTestPath $vstestPath
     $testExit = $LASTEXITCODE
 }
 

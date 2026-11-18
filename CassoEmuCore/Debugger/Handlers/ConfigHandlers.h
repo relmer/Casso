@@ -60,9 +60,9 @@ private:
     static void  Output          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  MessageOfTheDay (DebugSession & session, Reply & reply);
 
-    static void  SplitItems      (const std::string & text, std::vector<std::string> & items);
-    static bool  TryUnquote      (const std::string & item, std::string & text);
-    static bool  TryEvaluate     (DebugSession & session, const std::string & text, Word & value, std::string & error);
-    static std::string  ToUpper  (const std::string & text);
+    static void         SplitItems   (const std::string & text, std::vector<std::string> & items);
+    static bool         TryUnquote   (const std::string & item, std::string & text);
+    static bool         TryEvaluate  (DebugSession & session, const std::string & text, Word & value, std::string & error);
+    static std::string  ToUpper      (const std::string & text);
     static std::string  DescribeTape (const TapeDeck & deck, uint64_t now);
 };

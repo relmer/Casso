@@ -1,0 +1,1418 @@
+#include "Pch.h"
+#include "ExplorerWindowPartsRig.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerWindowPartsTests
+//
+//  The Casso Explorer window's creation, private messages and timers, run
+//  through ExplorerWindowParts with no window: what the window sets up when
+//  it opens, and where each of its messages goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (ExplorerWindowPartsTests)
+{
+public:
+
+    using Rig = ExplorerWindowPartsRig;
+
+
+
+    TEST_METHOD (Open_ListsTheSavedConnectionsAsRoots)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetTreeModel().GetLinks().size());
+        Assert::AreEqual (std::wstring (L"Test"), rig.browser.GetTreeModel().GetLinks()[0].name);
+    }
+
+
+
+    TEST_METHOD (Open_TakesTheTypedPathsFromThePrefs)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        Assert::IsTrue (rig.browser.GetTypedPaths().GetEntries() == rig.prefs.typedPaths);
+    }
+
+
+
+    TEST_METHOD (Open_StartsTheServicesWithTheWindowsMessages)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        Assert::AreEqual ((UINT) AppMessage::ExplorerRecycleBin, rig.verbs->recycleBinMessage);
+        Assert::AreEqual ((UINT) AppMessage::ExplorerInfoTip,    rig.tips->startMessage);
+        Assert::IsTrue   (rig.icons->sizePx > 0);
+    }
+
+
+
+    //  A card reader with a card Windows can't read, counting each query of
+    //  its volumes, since each such query reads the card.
+    struct CountingCardHost : public IPhysicalCardHost
+    {
+        int  volumeQueries = 0;
+
+        HRESULT ListDrives (std::vector<PhysicalDrive> & outDrives) override
+        {
+            PhysicalDrive  drive;
+
+            drive.number    = 5;
+            drive.bytes     = 2'048'094'720;
+            drive.bus       = "USB";
+            drive.removable = true;
+            outDrives       = { drive };
+
+            return S_OK;
+        }
+
+        HRESULT HasUnmountedPartition (int, bool & outHasUnmounted) override             { volumeQueries++; outHasUnmounted = true; return S_OK; }
+        HRESULT ListVolumes           (int, std::vector<WindowsVolume> & outVolumes) override { volumeQueries++; outVolumes.clear(); return S_OK; }
+        HRESULT FindVolumeDrive       (const std::wstring &, int &) override                { return E_NOTIMPL; }
+        HRESULT InitializeDrive       (int, HWND, uint64_t, const WriteProgress &) override { return E_NOTIMPL; }
+        HRESULT FormatFirstPartition  (int, const WriteProgress &, bool &) override         { return E_NOTIMPL; }
+        bool    IsBrokerRunning       () override                                           { return false; }
+        HRESULT OpenDrive             (int, HWND, PhysicalDrive &, std::unique_ptr<IBlockStore> &) override { return E_NOTIMPL; }
+    };
+
+
+    TEST_METHOD (DrivePoll_AsksAboutTheCardsVolumesOnlyAfterADeviceChange)
+    {
+        Rig               rig;
+        CountingCardHost  host;
+        PhysicalCards     cards (host);
+
+
+
+        rig.app.cards = &cards;
+        rig.Open();
+
+        host.volumeQueries = 0;
+
+        for (int tick = 0; tick < 5; tick++)
+        {
+            rig.parts->folderSync.PollDrives();
+        }
+
+        Assert::AreEqual (0, host.volumeQueries, L"a poll with the same drive letters doesn't query the card");
+
+        rig.parts->folderSync.HandleDeviceTimer ((UINT_PTR) AppTimerId::ExplorerDeviceSoon);
+        Assert::IsTrue (host.volumeQueries > 0, L"a device attached or removed lists the cards again");
+    }
+
+
+    TEST_METHOD (Open_StartsTheFolderWatch)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        Assert::IsTrue (rig.parts->folderSync.IsWatching());
+    }
+
+
+
+    TEST_METHOD (Open_CreatesTheControlsAsChildren)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        Assert::IsTrue (rig.window.panel.GetChildCount() > 10);
+    }
+
+
+
+    TEST_METHOD (HandleAppMessage_TakesEveryExplorerMessageButALaunch)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        for (AppMessage message : { AppMessage::ExplorerFolderChanged, AppMessage::ExplorerShellListed, AppMessage::ExplorerCassoLink,
+                                    AppMessage::ExplorerInfoTip, AppMessage::ExplorerContentDetails, AppMessage::ExplorerIconsLoaded,
+                                    AppMessage::ExplorerNewChoices, AppMessage::ExplorerReply, AppMessage::ExplorerRecycleBin,
+                                    AppMessage::ExplorerCardProgress, AppMessage::ExplorerCardArrivals })
+        {
+            Assert::IsTrue (rig.parts->HandleAppMessage ((UINT) message, 0, 0));
+        }
+
+        Assert::IsFalse (rig.parts->HandleAppMessage ((UINT) AppMessage::ExplorerLaunch, 0, 0));
+        Assert::IsFalse (rig.parts->HandleAppMessage (WM_APP + 0x7F, 0, 0));
+    }
+
+
+
+    TEST_METHOD (HandleAppMessage_RunCommandDispatchesTheCommand)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+        rig.parts->HandleAppMessage ((UINT) AppMessage::ExplorerRunCommand, CassoExplorerCommands::kExit, 0);
+
+        Assert::IsTrue (rig.window.closed);
+    }
+
+
+
+    TEST_METHOD (CtrlV_InADiskImage_RunsPaste)
+    {
+        Rig           rig;
+        DxuiKeyEvent  key;
+        int           checks = 0;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (rig.browser.IsVolumeLocation());
+
+        rig.parts->input.SetFocusPane (ExplorerPane::List);
+        checks   = rig.verbs->clipboardChecks;
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = 'V';
+        key.ctrl = true;
+
+        Assert::IsTrue (rig.parts->listPane.HandleShortcutKey (key));
+        Assert::IsTrue (rig.verbs->clipboardChecks > checks, L"Paste asks whether the clipboard has files");
+    }
+
+
+
+    //  A VAR file with A = 1, N% = -2, S$ = "HI", FN F, B%(2) and C(1,2),
+    //  whose copy of memory starts at $95AE and ends at HIMEM, $9600.
+    static std::vector<Byte> BuildVariablesFile()
+    {
+        std::vector<Byte>  file =
+        {
+            80, 0, 28, 0, 0x96,
+            0x41, 0x00,  0x81, 0x00, 0x00, 0x00, 0x00,
+            0xCE, 0x80,  0xFF, 0xFE, 0x00, 0x00, 0x00,
+            0x53, 0x80,  0x02, 0xFE, 0x95, 0x00, 0x00,
+            0xC6, 0x00,  0x01, 0x08, 0x10, 0x90, 0xB0,
+            0xC2, 0x80,  13, 0,  1,  0x00, 0x03,  0x00, 0x01,  0x00, 0x02,  0x00, 0x03,
+            0x43, 0x00,  39, 0,  2,  0x00, 0x03,  0x00, 0x02,
+            0x00, 0x00, 0x00, 0x00, 0x00,  0x81, 0x00, 0x00, 0x00, 0x00,  0x82, 0x00, 0x00, 0x00, 0x00,
+            0x82, 0x40, 0x00, 0x00, 0x00,  0x83, 0x00, 0x00, 0x00, 0x00,  0x83, 0x20, 0x00, 0x00, 0x00,
+            0x48, 0x49,
+        };
+
+        file.resize (file.size() + 256);
+
+        return file;
+    }
+
+
+
+    //  The preview's search box, clicked and typed into through the window's
+    //  input handlers, filters a VAR file's variables.
+    TEST_METHOD (VarPreview_SearchBox_TakesAClickAndFiltersAsTyped)
+    {
+        Rig                            rig;
+        std::vector<Byte>              bytes = BuildVariablesFile();
+        RECT                           box   = {};
+        DxuiMouseEvent                 mouse;
+        DxuiKeyEvent                   key;
+        int                            all   = 0;
+        std::vector<std::wstring>      names;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Drop\\SAVED#FD95AE", std::string (bytes.begin(), bytes.end())));
+        rig.io.files["C:\\Drop\\SAVED#FD95AE"]  = bytes;
+        rig.io.stamps["C:\\Drop\\SAVED#FD95AE"] = FileStamp { bytes.size(), 100 };
+        rig.Open();
+
+        //  The name's suffix sets the file's type and aux type, as in CiderPress.
+        Assert::IsTrue (rig.browser.GetOperations().Put ("C:\\Disks\\prodos.po", "C:\\Drop\\SAVED#FD95AE", std::string(), std::string(), false, 0,
+                                                         DiskOperations::Encoding::Verbatim).Succeeded());
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"SAVED"));
+
+        rig.parts->preview.FillPreview();
+        rig.parts->layout.RecomputeLayout();
+
+        Assert::IsTrue (rig.parts->preview.GetListing().IsVariables(), L"A VAR file's preview is its variables");
+
+        all = rig.parts->preview.GetListing().GetList()->GetRowCount();
+
+        for (int row = 0; row < all; row++)
+        {
+            names.push_back (rig.parts->preview.GetListing().GetVariableNameAt (row));
+        }
+
+        Assert::IsTrue (names == std::vector<std::wstring> { L"A", L"B%(2)", L"C(1,2)", L"FN F", L"N%", L"S$" },
+                        L"The arrays, closed, sort in among the simple variables by name");
+        box = rig.parts->preview.GetFind().GetSearchBox()->GetRect();
+        Assert::IsTrue (box.right > box.left, L"The search box is on the preview's toolbar");
+
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { (box.left + box.right) / 2, (box.top + box.bottom) / 2 };
+        rig.parts->input.HandleMouse (mouse);
+        mouse.kind = DxuiMouseEventKind::Up;
+        rig.parts->input.HandleMouse (mouse);
+
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Search, L"A click in the search box gives it focus");
+
+        for (wchar_t ch : std::wstring (L"hi"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->input.HandleKey (key);
+        }
+
+        Assert::AreEqual (std::wstring (L"hi"), rig.parts->preview.GetFind().GetSearchBox()->GetText());
+        Assert::IsTrue   (rig.parts->preview.GetListing().GetList()->GetRowCount() < all, L"The rows are filtered as the search is typed");
+        Assert::AreEqual (1, rig.parts->preview.GetListing().GetList()->GetRowCount(), L"Only S$, whose value has HI in it");
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_ESCAPE;
+        rig.parts->input.HandleKey (key);
+
+        Assert::AreEqual (all, rig.parts->preview.GetListing().GetList()->GetRowCount(), L"Escape clears the search and every row is back");
+    }
+
+
+
+    //  Only a folder of Casso's whose label is its name gets its path as its
+    //  tip: not one labeled with its path, nor a folder or image below one.
+    TEST_METHOD (TreeTip_IsTheFullPathOfCassosFoldersShownByName)
+    {
+        auto                       owned = std::make_unique<Rig>();
+        Rig                      & rig   = *owned;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<DxuiTreeNode>  folders;
+        std::wstring               disksId;
+        std::wstring               tipOfSub;
+        std::wstring               tipOfImage;
+        std::wstring               tipOfDisks;
+        std::wstring               tipOfShared;
+        std::wstring               tipOfPath = L"unset";
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\Sub\\note.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\A\\games\\a.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\B\\games\\b.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Music\\c.txt", "x"));
+        AssertSucceeded (rig.fs.WriteAllText (L"D:\\Music\\d.txt", "x"));
+        rig.Open();
+
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks", L"C:\\A\\games", L"C:\\B\\games", L"C:\\Music", L"D:\\Music" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.browser.GetTreeRoots (roots);
+
+        for (const DxuiTreeNode & root : roots)
+        {
+            if (root.id == TreeModel::kCassoRootId)
+            {
+                folders = rig.browser.GetTreeChildren (root.id);
+            }
+        }
+
+        for (const DxuiTreeNode & folder : folders)
+        {
+            if (folder.label == L"Disks")
+            {
+                disksId    = folder.id;
+                tipOfDisks = rig.parts->treePane.GetFullPathTip (folder);
+            }
+            else if (folder.label == L"A\\games")
+            {
+                tipOfShared = rig.parts->treePane.GetFullPathTip (folder);
+            }
+            else if (folder.label == L"C:\\Music")
+            {
+                tipOfPath = rig.parts->treePane.GetFullPathTip (folder);
+            }
+        }
+
+        Assert::IsFalse (disksId.empty(), L"Casso has the Disks folder");
+
+        for (const DxuiTreeNode & child : rig.browser.GetTreeChildren (disksId))
+        {
+            if (child.label == L"Sub")
+            {
+                tipOfSub = rig.parts->treePane.GetFullPathTip (child);
+            }
+            else if (child.label == L"prodos.po")
+            {
+                tipOfImage = rig.parts->treePane.GetFullPathTip (child);
+            }
+        }
+
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), tipOfDisks, L"A folder shown by its name has its path");
+        Assert::AreEqual (std::wstring (L"C:\\A\\games"), tipOfShared, L"and so has one labeled with the folder above, to tell it from another");
+        Assert::IsTrue   (tipOfPath.empty(),            L"A folder labeled with its path has no tip");
+        Assert::IsTrue   (tipOfSub.empty(),             L"nor has a folder inside one");
+        Assert::IsTrue   (tipOfImage.empty(),           L"nor a disk image inside one");
+    }
+
+
+
+    TEST_METHOD (Rename_InADiskImage_SelectsTheRowUnderItsNewName)
+    {
+        Rig           rig;
+        DxuiKeyEvent  key;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
+
+        rig.parts->rename.BeginRename();
+
+        for (wchar_t ch : std::wstring (L"BYE"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->rename.HandleRenameKey (key);
+        }
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->rename.HandleRenameKey (key);
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"BYE"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name);
+    }
+
+
+
+    //  An image renamed in a Full Send folder is renamed in the folder's
+    //  manifest as well.
+    //  When an A2Pico card's drive image is renamed in the list, A2retroNET.txt
+    //  is written with the drive set to the new name.
+    TEST_METHOD (Rename_OfAnA2PicoDriveImage_RenamesItsDrive)
+    {
+        Rig           rig;
+        DxuiKeyEvent  key;
+        std::string   text = "# card\n[drives]\n1=games/zork.po\n";
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"E:\\games\\zork.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+        rig.verbs->onRename = [] (const std::wstring &, const std::wstring &) { return S_OK; };
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\games"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"zork.po"));
+
+        //  The name without its extension is selected, as in File Explorer.
+        rig.parts->rename.BeginRename();
+
+        for (wchar_t ch : std::wstring (L"zork1"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->rename.HandleRenameKey (key);
+        }
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->rename.HandleRenameKey (key);
+
+        Assert::AreEqual (std::string ("# card\n[drives]\n1=games/zork1.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
+    }
+
+
+    TEST_METHOD (Rename_OfAnImageInAFullSendFolder_RenamesItInTheManifest)
+    {
+        auto               owned = std::make_unique<Rig>();
+        Rig              & rig   = *owned;
+        DxuiKeyEvent       key;
+        FullSendManifest   manifest;
+        FullSendRow        row;
+        FullSendManifest   read;
+        std::wstring       renamed;
+        std::string        path    = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);
+
+
+
+        row.sequence    = 1;
+        row.file        = "Disk 001.dsk";
+        row.fingerprint = std::string (64, 'a');
+        row.hash        = std::string (64, 'b');
+        row.time        = "2026-11-08T10:00:00";
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Sends\\Disk 001.dsk");
+        rig.io.files[path] = manifest.Format();
+        rig.verbs->onRename = [&renamed] (const std::wstring &, const std::wstring & name) { renamed = name; return S_OK; };
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Sends"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"Disk 001.dsk"));
+
+        rig.parts->rename.BeginRename();
+
+        for (wchar_t ch : std::wstring (L"Archon"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->rename.HandleRenameKey (key);
+        }
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->rename.HandleRenameKey (key);
+
+        AssertSucceeded (read.Parse (rig.io.files[path]));
+        Assert::IsFalse  (renamed.empty(), L"the image is renamed");
+        Assert::AreEqual (TextEncoding::WideToNarrow (renamed), read.GetRows()[0].file, L"and the manifest has its new name");
+    }
+
+
+
+    //  An image deleted from a Full Send folder is removed from its manifest,
+    //  and put back when it is restored.
+    TEST_METHOD (Delete_OfAnImageInAFullSendFolder_RemovesItFromTheManifestUntilRestored)
+    {
+        auto               owned = std::make_unique<Rig>();
+        Rig              & rig   = *owned;
+        FullSendManifest   manifest;
+        FullSendRow        row;
+        FullSendManifest   read;
+        std::string        path  = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);
+        std::wstring       image = L"C:\\Sends\\Disk 001.dsk";
+
+
+
+        row.sequence    = 1;
+        row.file        = "Disk 001.dsk";
+        row.fingerprint = std::string (64, 'a');
+        row.hash        = std::string (64, 'b');
+        row.time        = "2026-11-08T10:00:00";
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        rig.io.files[path] = manifest.Format();
+        rig.Open();
+
+        rig.parts->manifestSync.NoteDeletes ({ image });
+        AssertSucceeded (read.Parse (rig.io.files[path]));
+        Assert::IsTrue (read.GetRows().empty(), L"the deleted image's row is removed");
+
+        rig.parts->manifestSync.NoteRestores ({ L"c:\\sends\\disk 001.DSK" });
+        AssertSucceeded (read.Parse (rig.io.files[path]));
+        Assert::AreEqual ((size_t) 1, read.GetRows().size(), L"and put back when it is restored");
+        Assert::AreEqual (std::string ("Disk 001.dsk"), read.GetRows()[0].file);
+    }
+
+
+    //  The manifest isn't changed for a file Windows didn't delete, as when
+    //  its confirmation was canceled.
+    TEST_METHOD (Delete_ThatLeftTheImage_LeavesTheManifest)
+    {
+        auto               owned = std::make_unique<Rig>();
+        Rig              & rig   = *owned;
+        FullSendManifest   manifest;
+        FullSendRow        row;
+        std::string        path  = "C:\\Sends\\" + std::string (FullSendManifest::kFileName);
+        std::vector<Byte>  before;
+
+
+
+        row.sequence    = 1;
+        row.file        = "Disk 001.dsk";
+        row.fingerprint = std::string (64, 'a');
+        row.hash        = std::string (64, 'b');
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        before = manifest.Format();
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Sends\\Disk 001.dsk");
+        rig.io.files[path] = before;
+        rig.Open();
+
+        rig.parts->manifestSync.NoteDeletes ({ L"C:\\Sends\\Disk 001.dsk" });
+
+        Assert::IsTrue (rig.io.files[path] == before);
+    }
+
+
+    //  After a delete the row now in the deleted row's place is selected, and
+    //  the last row when the deleted one was last.
+    TEST_METHOD (Delete_SelectsTheRowThatTakesTheDeletedRowsPlace)
+    {
+        Rig  rig;
+
+
+
+        for (const wchar_t * name : { L"C:\\Disks\\a.dsk", L"C:\\Disks\\b.dsk", L"C:\\Disks\\c.dsk" })
+        {
+            rig.Seed ("CassoExplorer/dos33.dsk", name);
+        }
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"b.dsk"));
+
+        AssertSucceeded (rig.fs.Delete (L"C:\\Disks\\b.dsk"));
+        AssertSucceeded (rig.browser.Reload (true));
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"c.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name, L"the next row moves up into its place");
+
+        AssertSucceeded (rig.fs.Delete (L"C:\\Disks\\c.dsk"));
+        AssertSucceeded (rig.browser.Reload (true));
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"a.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name, L"the last row, when the deleted one was last");
+    }
+
+
+    //  The disk inspector's buttons are on the command bar while disk images
+    //  are selected or one is open: Inspect, and Compare for two images.
+    TEST_METHOD (CommandBar_HasInspectForDiskImages_AndCompareForTwo)
+    {
+        Rig   rig;
+        auto  isShown = [&rig] (int id)
+        {
+            DxuiToolbar &  bar = rig.parts->toolbars.GetCommandBar();
+
+            for (int i = 0; i < bar.GetEntryCount(); i++)
+            {
+                if (bar.GetEntryCommandId (i) == id)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+        auto  isEnabled = [&rig] (int id) { return rig.parts->commands.Find (id)->IsEnabled(); };
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\b.dsk");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\readme.txt", "hello"));
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"nothing selected");
+        Assert::IsFalse (isEnabled (CassoExplorerCommands::kInspectDiskImage));
+
+        Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"one image");
+        Assert::IsFalse (isShown (CassoExplorerCommands::kCompareDiskImages));
+        Assert::IsTrue  (isEnabled (CassoExplorerCommands::kInspectDiskImage));
+        Assert::IsFalse (isEnabled (CassoExplorerCommands::kCompareDiskImages));
+
+        Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"readme.txt"));
+        Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"a text file");
+
+        Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+        rig.browser.SetSelectedRows ({ rig.browser.GetSelectedRows()[0], rig.browser.GetSelectedRows()[0] + 1 });
+        rig.parts->toolbars.UpdateCommandBar();
+        Assert::AreEqual (std::wstring (L"b.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[1]].name);
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"two images");
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kCompareDiskImages));
+        Assert::IsTrue  (isEnabled (CassoExplorerCommands::kCompareDiskImages));
+
+        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks\\a.dsk"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"inside an image");
+        Assert::IsFalse (isShown (CassoExplorerCommands::kCompareDiskImages));
+    }
+
+
+    TEST_METHOD (CreateImage_FromADrivesMenu_LeavesTheListWhereItIs)
+    {
+        Rig                 rig;
+        FakeHostDialogs   * dialogs = nullptr;
+        Location            drive   = Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string());
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+
+        dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
+        dialogs->picks = false;
+
+        rig.parts->linkDrives.ReadDiskToImage (drive);
+
+        Assert::AreEqual (1, dialogs->saves);
+        Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Create image from"));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
+    }
+
+
+
+
+    TEST_METHOD (WriteImage_FromADrivesMenu_LeavesTheListWhereItIs)
+    {
+        Rig                 rig;
+        FakeHostDialogs   * dialogs = nullptr;
+        Location            drive   = Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string());
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+
+        dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
+        dialogs->picks = false;
+
+        rig.parts->linkDrives.WriteImageToDisk (drive);
+
+        Assert::AreEqual (1, dialogs->opens);
+        Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Write image to"));
+        Assert::IsTrue   (dialogs->lastSpec.receivingDrive == ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, L"the picker lists the images a 5.25-inch drive can use");
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
+    }
+
+
+
+
+    //  A file that sorts ahead of the image the drag is over takes its row,
+    //  and a file is no drop target.
+    TEST_METHOD (DropHighlight_FollowsTheRowUnderTheDrag_WhenTheListRefills)
+    {
+        Rig    rig;
+        POINT  at  = {};
+        bool   hit = false;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\m.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+
+        for (at.x = 640, at.y = 0; at.y < 800 && !hit; at.y += 2)
+        {
+            hit = rig.parts->listPane.HitTestRow (at) == 0;
+        }
+
+        Assert::IsTrue (hit);
+        at.y -= 2;
+
+        rig.parts->dragDrop.ShowDropTarget (CassoExplorerWindow::kDropTagList, at, true);
+        Assert::AreEqual (0, rig.parts->listPane.GetDropRow());
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\a.txt", "text"));
+        AssertSucceeded (rig.browser.Refresh());
+        rig.parts->listPane.FillList();
+
+        Assert::AreEqual (std::wstring (L"a.txt"), rig.browser.GetRows()[0].name);
+        Assert::AreEqual (-1, rig.parts->listPane.GetDropRow());
+    }
+
+
+
+
+    //  The rows of the files in the list, in list order.
+    static std::vector<int> GetFileRows (Rig & rig)
+    {
+        std::vector<int>  rows;
+
+
+
+        for (size_t row = 0; row < rig.browser.GetRows().size(); row++)
+        {
+            if (!rig.browser.GetRows()[row].isDirectory)
+            {
+                rows.push_back ((int) row);
+            }
+        }
+
+        return rows;
+    }
+
+
+    static void PressKey (Rig & rig, WPARAM vk, bool alt = false, bool shift = false)
+    {
+        DxuiKeyEvent  key;
+
+
+
+        key.kind  = DxuiKeyEventKind::Down;
+        key.vk    = vk;
+        key.alt   = alt;
+        key.shift = shift;
+        rig.parts->input.HandleKey (key);
+    }
+
+
+    //  Alt+Shift+P lays the preview over the tab below the tab strip, Right
+    //  moves the list's selection to the next file, and Esc puts the panes
+    //  back as they were with the selection on the file last previewed.
+    TEST_METHOD (ExpandedPreview_FillsTheTabStepsAndCollapses)
+    {
+        Rig               rig;
+        std::vector<int>  files;
+        RECT              listBefore = {};
+        RECT              preview    = {};
+        RECT              list       = {};
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        files = GetFileRows (rig);
+        Assert::IsTrue (files.size() >= 2, L"The fixture has two files to step between");
+
+        rig.parts->listPane.SetListSelection ({ files[0] });
+        rig.parts->layout.RecomputeLayout();
+        listBefore = rig.parts->listPane.GetBounds();
+
+        Assert::IsTrue (rig.parts->preview.IsShown());
+        Assert::IsFalse (rig.parts->preview.CanStep (true), L"Previous and next are for an expanded preview");
+
+        PressKey (rig, 'P', true, true);
+
+        preview = rig.parts->preview.GetRect();
+        list    = rig.parts->listPane.GetBounds();
+
+        Assert::IsTrue (rig.parts->preview.IsExpanded());
+        Assert::AreEqual (0L, preview.left);
+        Assert::AreEqual (1280L, preview.right);
+        Assert::AreEqual (800L, preview.bottom, L"The status bar is hidden");
+        Assert::IsTrue (list.right <= list.left, L"The list is laid out empty");
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Preview);
+        Assert::IsFalse (rig.parts->preview.CanStep (false), L"The first file has no previous");
+
+        PressKey (rig, VK_RIGHT);
+
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[1] });
+        Assert::IsTrue (rig.parts->preview.CanStep (false));
+
+        PressKey (rig, VK_ESCAPE);
+
+        list = rig.parts->listPane.GetBounds();
+
+        Assert::IsFalse (rig.parts->preview.IsExpanded());
+        Assert::IsTrue (list.left == listBefore.left && list.right == listBefore.right && list.top == listBefore.top && list.bottom == listBefore.bottom);
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[1] });
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::List);
+    }
+
+
+    //  With files selected together, expanding selects the first of them alone
+    //  and the steps go only through them. A selection made in the list ends
+    //  the set.
+    TEST_METHOD (ExpandedPreview_StepsThroughTheSelectedFiles)
+    {
+        Rig               rig;
+        std::vector<int>  files;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        files = GetFileRows (rig);
+        Assert::IsTrue (files.size() >= 3, L"The fixture has three files");
+
+        rig.parts->listPane.SetListSelection ({ files[0], files[2] });
+        rig.parts->preview.SetExpanded (true);
+
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[0] }, L"The first selected file is selected alone");
+        Assert::IsTrue (rig.parts->preview.IsExpanded());
+
+        rig.parts->preview.Step (true);
+
+        Assert::IsTrue (rig.browser.GetSelectedRows() == std::vector<int> { files[2] }, L"The step skips the file not selected");
+        Assert::IsFalse (rig.parts->preview.CanStep (true), L"The set ends at its last file");
+
+        rig.parts->listPane.SetListSelection ({ files[0] });
+
+        Assert::IsTrue (rig.parts->preview.CanStep (true), L"A selection made in the list ends the set");
+    }
+
+
+    //  View as switches a BASIC program to its bytes and checks that choice,
+    //  and the next file opens in its default view.
+    TEST_METHOD (ViewAs_ShowsTheChosenViewUntilAnotherFile)
+    {
+        Rig               rig;
+        std::vector<int>  files;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing);
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
+        Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsDefault));
+        Assert::AreEqual (std::wstring (L"BASIC listing (default)"), rig.parts->commandManager.GetCommandLabel (CassoExplorerCommands::kViewAsDefault));
+
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHex);
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Hex);
+        Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsHex));
+
+        files = GetFileRows (rig);
+        rig.parts->listPane.SetListSelection ({ files[0] == rig.browser.GetSelectedRows()[0] ? files[1] : files[0] });
+
+        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+    }
+
+
+    //  Save as offers the picture first, and writes the type of the name
+    //  picked: the picture as a PNG, or the file's original bytes.
+    TEST_METHOD (SaveAs_WritesTheTypeOfTheNamePicked)
+    {
+        Rig          rig;
+        std::string  png;
+        std::string  raw;
+        HRESULT      read = S_OK;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"PICTURE"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kSavePreviewAs));
+
+        rig.dialogs->path = L"C:\\Out\\picture.png";
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kSavePreviewAs);
+
+        Assert::AreEqual (std::wstring (L"png"), rig.dialogs->lastSpec.defaultExtension, L"The picture is the first type");
+        AssertSucceeded (rig.fs.ReadAllText (L"C:\\Out\\picture.png", png));
+        Assert::IsTrue (png.starts_with ("\x89PNG"));
+
+        rig.dialogs->path = L"C:\\Out\\picture.bin";
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kSavePreviewAs);
+
+        Assert::IsTrue (rig.window.messages.empty());
+
+        //  Get's host name for the file is PICTURE.bin, so the .bin type is
+        //  Get's copy, which is written through the disk I/O.
+        read = rig.fs.ReadAllText (L"C:\\Out\\picture.bin", raw);
+
+        if (FAILED (read))
+        {
+            raw.assign (rig.io.files["C:\\Out\\picture.bin"].begin(), rig.io.files["C:\\Out\\picture.bin"].end());
+        }
+
+        Assert::AreEqual ((size_t) 8192, raw.size());
+    }
+
+
+    //  With Options' setting on, Enter on a file in the list expands its
+    //  preview, turning the pane on.
+    TEST_METHOD (Enter_ExpandsTheFilesPreviewWhenOptionsSetsIt)
+    {
+        Rig  rig;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        rig.prefs.previewVisible      = false;
+        rig.prefs.enterExpandsPreview = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
+        rig.parts->input.SetFocusPane (ExplorerPane::List);
+
+        PressKey (rig, VK_RETURN);
+
+        Assert::IsTrue (rig.prefs.previewVisible);
+        Assert::IsTrue (rig.parts->preview.IsExpanded());
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Preview);
+    }
+
+
+    //  SC-063: each step of the expanded preview, through a disk's files and a
+    //  64 KB binary, fills the preview within half a second.
+    TEST_METHOD (ExpandedPreview_StepsWithinHalfASecond)
+    {
+        static constexpr size_t  kBigBytes = 65536;
+        static constexpr double  kLimitMs  = 500.0;
+
+        Rig                rig;
+        std::vector<Byte>  big (kBigBytes, 0x5A);
+        double             slowest = 0.0;
+        int                steps   = 0;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Drop\\BIG#064000", std::string (big.begin(), big.end())));
+        rig.io.files["C:\\Drop\\BIG#064000"]  = big;
+        rig.io.stamps["C:\\Drop\\BIG#064000"] = FileStamp { big.size(), 100 };
+        rig.Open();
+
+        Assert::IsTrue (rig.browser.GetOperations().Put ("C:\\Disks\\prodos.po", "C:\\Drop\\BIG#064000", std::string(), std::string(), false, 0,
+                                                         DiskOperations::Encoding::Verbatim).Succeeded());
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\prodos.po"));
+        rig.parts->listPane.FillList();
+
+        rig.parts->listPane.SetListSelection ({ GetFileRows (rig)[0] });
+        rig.parts->preview.SetExpanded (true);
+
+        while (rig.parts->preview.CanStep (true))
+        {
+            auto    start = std::chrono::steady_clock::now();
+            double  ms    = 0.0;
+
+            rig.parts->preview.Step (true);
+            rig.parts->layout.RecomputeLayout();
+
+            ms      = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - start).count();
+            slowest = std::max (slowest, ms);
+            steps++;
+        }
+
+        Logger::WriteMessage (std::format ("{} steps, the slowest {:.1f} ms\n", steps, slowest).c_str());
+        Assert::IsTrue (steps >= 6);
+        Assert::IsTrue (slowest < kLimitMs, std::format (L"A step took {:.1f} ms", slowest).c_str());
+    }
+
+
+    //  A file in a host folder has View as: a plain 8 KB file is offered as a
+    //  hi-res picture, and a file exported with its type in its name previews
+    //  as it does in its disk.
+    TEST_METHOD (ViewAs_WorksOnFilesInAHostFolder)
+    {
+        Rig                     rig;
+        std::vector<Byte>       picture (8192, 0x55);
+        DiskOperations::Result  hello;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+
+        hello = rig.browser.GetOperations().Get ("C:\\Disks\\prodos.po", "HELLO", DiskOperations::Encoding::Verbatim, "");
+        Assert::IsTrue (hello.Succeeded());
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Host\\screen.bin",   std::string (picture.begin(), picture.end())));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Host\\HELLO#FC0801", std::string (hello.payload.begin(), hello.payload.end())));
+
+        rig.prefs.previewVisible = true;
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Host"));
+        rig.parts->listPane.FillList();
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"screen.bin"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHiRes);
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::HiRes);
+
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO#FC0801"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
+        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+    }
+
+
+    //  At an A2Pico card's root, the infobar has its drives in a sentence,
+    //  and Repair for a settings file with CR LF line ends writes it with LF
+    //  line ends. Another folder has no such bar.
+    TEST_METHOD (CardBar_SummarizesAnA2PicoCardAndRepairsItsSettings)
+    {
+        Rig          rig;
+        std::string  text = "[drives]\r\nnumber=2\r\n1=system.po\r\n";
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", L"E:\\system.po");
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\"));
+        rig.parts->listPane.FillList();
+
+        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+
+        Assert::IsTrue   (bar.IsVisible(), rig.browser.GetLocation().path.c_str());
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Warning, bar.GetText().c_str());
+        Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
+        Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
+
+        //  After a second fill the buttons are laid out. New buttons were
+        //  made on each fill before, with no bounds, and weren't drawn.
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (bar.GetAction (0)->GetBounds().right > bar.GetAction (0)->GetBounds().left, L"the button has a place in the bar");
+
+        rig.Click (bar.GetAction (1)->GetBounds());
+
+        Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
+
+        //  The repaired file isn't on the in-memory file system the bar reads
+        //  through IsA2PicoCard, so it is written there too.
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\nnumber=2\n1=system.po\n"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue   (bar.GetSeverity() == DxuiInfoBanner::Severity::Info, bar.GetText().c_str());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount(), L"A2retroNET drives alone");
+
+        Assert::IsTrue  (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsFalse (bar.IsVisible());
+    }
+
+
+    //  In a folder on an A2Pico card, where a copy lands, an image with a
+    //  ProDOS volume in DOS order is offered as a .po, which Write as .po
+    //  writes beside it.
+    TEST_METHOD (CardBar_OffersAPoForAnImageA2retroNetDoesntRead)
+    {
+        Rig                rig;
+        FixtureProvider    fixtures;
+        std::vector<Byte>  po;
+        std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
+        std::string        text = "[drives]\n";
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/prodos.po", po));
+
+        for (size_t at = 0; at < po.size(); at++)
+        {
+            dsk[ProDosSkeleton::GetBlockByteOffset ((int) (at / 512), at % 512)] = po[at];
+        }
+
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\A2retroNET.txt", text));
+        rig.io.files["E:\\A2retroNET.txt"].assign (text.begin(), text.end());
+        AssertSucceeded (rig.fs.WriteAllText (L"E:\\games\\zork.dsk", std::string (dsk.begin(), dsk.end())));
+        rig.io.files["E:\\games\\zork.dsk"]  = dsk;
+        rig.io.stamps["E:\\games\\zork.dsk"] = FileStamp { dsk.size(), 100 };
+
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"E:\\games"));
+        rig.parts->listPane.FillList();
+
+        DxuiInfoBanner &  bar = rig.parts->listPane.GetBars().GetCardBar();
+
+        Assert::IsTrue   (bar.IsVisible());
+        Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads."), bar.GetText());
+        Assert::AreEqual ((size_t) 1, bar.GetActionCount());
+
+        rig.Click (bar.GetAction (0)->GetBounds());
+
+        Assert::IsTrue (rig.io.files["E:\\games\\zork.po"] == po);
+    }
+
+
+    //  A control made with the window's CreateChild takes clicks with no
+    //  routing written for it.
+    TEST_METHOD (HandleMouse_RoutesToAControlNoPaneRoutes)
+    {
+        Rig              rig;
+        DxuiButton     * plain   = nullptr;
+        DxuiMouseEvent   mouse;
+        RECT             list    = {};
+        RECT             place   = {};
+        int              clicks  = 0;
+
+
+
+        rig.Open();
+
+        plain = rig.window.CreateChild<DxuiButton> (L"Plain");
+
+        plain->SetOnClick ([&clicks]() { clicks++; });
+
+        //  In front of the list.
+        list  = rig.parts->listPane.GetListView()->GetBounds();
+        place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { place.left + 5, place.top + 5 };
+
+        plain->Layout (place, rig.scaler);
+
+        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+        {
+            mouse.kind = kind;
+            Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        }
+
+        Assert::AreEqual (1, clicks, L"the press and release went to the control");
+
+        //  A press on the control, then a release off it: no click, and the
+        //  control has the release.
+        mouse.kind = DxuiMouseEventKind::Down;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Up;
+        mouse.positionDip = { place.right + 200, place.bottom + 200 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse), L"the release goes to the control pressed");
+        Assert::AreEqual (1, clicks);
+    }
+
+
+    //  A pane's mouse handler is called in place of its control's OnMouse,
+    //  and a press it takes has the release, wherever the pointer is.
+    TEST_METHOD (HandleMouse_CallsAPaneMouseHandlerForItsControl)
+    {
+        Rig                              rig;
+        DxuiButton                     * button = nullptr;
+        DxuiMouseEvent                   mouse;
+        RECT                             list   = {};
+        RECT                             place  = {};
+        int                              clicks = 0;
+        std::vector<DxuiMouseEventKind>  seen;
+
+
+
+        rig.Open();
+
+        button = rig.window.CreateChild<DxuiButton> (L"Handled");
+        button->SetOnClick ([&clicks]() { clicks++; });
+        rig.window.SetMouseHandler (button, [&seen] (const DxuiMouseEvent & ev)
+        {
+            seen.push_back (ev.kind);
+            return ev.kind != DxuiMouseEventKind::Move;
+        });
+
+        list  = rig.parts->listPane.GetListView()->GetBounds();
+        place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
+        button->Layout (place, rig.scaler);
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { place.left + 5, place.top + 5 };
+        mouse.kind        = DxuiMouseEventKind::Down;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Up;
+        mouse.positionDip = { place.right + 200, place.bottom + 200 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Down) != seen.end());
+        Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Up)   != seen.end(), L"the release goes to the handler of the control pressed");
+        Assert::AreEqual (0, clicks, L"the control's OnMouse isn't called");
+    }
+
+
+    //  A button on the navigation toolbar and one on the command bar under
+    //  it each take a click through the window's input, each from its row.
+    TEST_METHOD (HandleMouse_ClicksTheNavigationToolbarAndTheCommandBar)
+    {
+        Rig    rig;
+        RECT   up      = {};
+        RECT   preview = {};
+        bool   shown   = false;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+
+        Assert::IsTrue (rig.parts->toolbars.GetNavToolbar().TryGetEntryRect (CassoExplorerCommands::kUp, up));
+        rig.Click (up);
+        Assert::AreEqual (std::wstring (L"C:\\"), rig.browser.GetLocation().path, L"Up went to the folder above");
+
+        shown = rig.parts->commands.Find (CassoExplorerCommands::kTogglePreview)->IsChecked();
+
+        Assert::IsTrue (rig.parts->toolbars.GetCommandBar().TryGetEntryRect (CassoExplorerCommands::kTogglePreview, preview));
+        rig.Click (preview);
+        Assert::AreNotEqual (shown, rig.parts->commands.Find (CassoExplorerCommands::kTogglePreview)->IsChecked(), L"Preview turned the pane on or off");
+    }
+
+
+    //  While a rename is open, a press outside the box ends it, and goes on
+    //  to what is under the pointer.
+    TEST_METHOD (HandleMouse_APressOutsideARenameEndsIt)
+    {
+        Rig             rig;
+        DxuiMouseEvent  mouse;
+        RECT            tree  = {};
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+
+        rig.parts->rename.BeginRename();
+        Assert::IsTrue (rig.parts->rename.IsRenaming());
+
+        tree              = rig.parts->treePane.GetBounds();
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (tree.left + tree.right) / 2, tree.bottom - 10 };
+
+        Assert::IsTrue  (rig.parts->input.HandleMouse (mouse), L"the tree under the pointer takes the press");
+        Assert::IsFalse (rig.parts->rename.IsRenaming(), L"and the rename is over");
+        Assert::IsTrue  (rig.parts->input.GetFocusPane() == ExplorerPane::Tree);
+    }
+
+
+    //  A press in the list or the tree moves focus to it, through the
+    //  window's input with no routing in the pane.
+    TEST_METHOD (HandleMouse_PressInTheListOrTreeMovesFocusToIt)
+    {
+        Rig             rig;
+        RECT            list  = {};
+        RECT            tree  = {};
+        DxuiMouseEvent  mouse;
+
+
+
+        rig.Open();
+
+        list = rig.parts->listPane.GetListView()->GetBounds();
+        tree = rig.parts->treePane.GetBounds();
+
+        rig.parts->input.SetFocusPane (ExplorerPane::Tree);
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (list.left + list.right) / 2, list.bottom - 10 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::List);
+
+        mouse.kind = DxuiMouseEventKind::Up;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (tree.left + tree.right) / 2, tree.bottom - 10 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Tree);
+    }
+
+
+    //  In the large icon view, at 100% and at 150%, a disk image in a folder
+    //  has its picture in place of the floppy, made at a size that covers
+    //  the view's icon.
+    TEST_METHOD (IconViews_DrawADiskImagesThumbnail_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            Rig               rig;
+            FakeDiskPictures  pictures;
+            bool              loaded  = false;
+            int               iconPx  = 0;
+
+
+
+            rig.app.pictures = &pictures;
+            rig.scaler.SetDpi (dpi);
+            rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+            rig.Open();
+            Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+
+            rig.parts->listPane.GetColumns().SetView (DxuiListView::View::LargeIcons);
+            rig.parts->layout.RecomputeLayout();
+            rig.parts->listPane.FillList();
+
+            iconPx = rig.parts->listPane.GetListView()->GetViewIconPx();
+            Assert::IsTrue (iconPx > 0);
+
+            loaded = Rig::WaitFor (rig, [&rig]()
+            {
+                const std::vector<DxuiListView::Cell> &  cells = rig.parts->listPane.GetListRowCells (0);
+
+                return !cells.empty() && cells[0].icon != nullptr && !cells[0].icon->bgraPremul.empty()
+                    && cells[0].icon->bgraPremul[0] == FakeDiskPictures::kColor;
+            });
+
+            Assert::IsTrue (loaded, std::format (L"The row's icon is the picture at {} dpi", dpi).c_str());
+            Assert::IsFalse (pictures.GetLoaded().empty());
+            Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), pictures.GetLoaded()[0].first);
+            Assert::IsTrue (pictures.GetLoaded()[0].second >= iconPx, std::format (L"A picture of {} px for an icon of {} px at {} dpi", pictures.GetLoaded()[0].second, iconPx, dpi).c_str());
+        }
+    }
+
+
+    TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
+    {
+        Rig  rig;
+
+
+
+        rig.Open();
+
+        for (AppTimerId timer : { AppTimerId::ExplorerFolder, AppTimerId::ExplorerRecycleBin, AppTimerId::ExplorerRefresh })
+        {
+            Assert::IsTrue (rig.parts->HandleTimer ((UINT_PTR) timer));
+        }
+
+        Assert::IsFalse (rig.parts->HandleTimer ((UINT_PTR) AppTimerId::ExplorerTooltip));
+    }
+};

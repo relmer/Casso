@@ -65,7 +65,7 @@ private:
     static void  ClearListLook (DxuiPopupMenu & menu);
 
     //  Both of the above: the width floor is set on every show, since the
-    //  menu is shared and one caller's width would otherwise carry into the
+    //  menu is shared and one caller's width would otherwise leak into the
     //  next.
     static void  ShowBelow (DxuiHwndSource & host, const RECT & anchor, std::vector<DxuiPopupMenuItem> items, DxuiPopupMenu::ClosedFn onClosed, int minWidthPx);
 };

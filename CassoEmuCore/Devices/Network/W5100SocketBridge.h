@@ -3,8 +3,10 @@
 #include "Pch.h"
 
 #include "Devices/Network/IW5100Backend.h"
+#include "Seams/IHostFirewall.h"
 #include "Seams/IHostNetwork.h"
 
+class ListenGate;
 class VirtualNetwork;
 class W5100;
 
@@ -45,11 +47,37 @@ public:
         size_t                                                     firstFromGuestAfter = 0;
     };
 
+    //  A listener whose port the PC has in use moves to the next port, up to
+    //  this many ports from the guest's, so a second Casso on the PC listens
+    //  as well as the first.
+    static constexpr int  kListenPorts = 8;
+
+    //  A listen the PC could not open: the guest's port, the last port a
+    //  listen was attempted on, and why.
+    struct ListenFailure
+    {
+        uint16_t  port     = 0;
+        uint16_t  lastPort = 0;
+        HRESULT   hr       = S_OK;
+    };
+
+    //  A listener on a later PC port than the guest's.
+    struct MovedListen
+    {
+        uint16_t  guestPort = 0;
+        uint16_t  hostPort  = 0;
+    };
+
     W5100SocketBridge (W5100 & chip, VirtualNetwork & network) : m_chip (chip), m_network (network) {}
     ~W5100SocketBridge () override;
 
     void  SetHostNetwork (IHostNetwork * network) { m_hostNetwork = network; }
-    void  SetLanAccess   (bool lanAccess)         { m_lanAccess = lanAccess; }
+    void  SetLanAccess   (bool lanAccess);
+
+    //  While LAN access is on, a socket whose PC port the gate does not admit
+    //  is deferred: the guest's socket opens with no PC socket behind it, and
+    //  Pump opens the PC socket once the gate admits the port.
+    void  SetListenGate  (const ListenGate * gate) { m_gate = gate; }
 
     void  OnCommand      (int socket, Byte command) override;
     void  OnReset        ()                         override;
@@ -58,6 +86,30 @@ public:
     void  Pump           (uint64_t now);
     void  CloseAll       ();
     void  Resync         (const ResumeTraffic & traffic, uint64_t now);
+
+    //  The PC ports the guest's sockets have, which other computers send to
+    //  while LAN access is on: each listening TCP socket's, and each UDP
+    //  socket's bound to its guest port.
+    void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const;
+
+    //  The ports whose last listen failed, in port order. A port is removed
+    //  from the list when a listen on it succeeds or the card is reset, so a
+    //  guest that listens again every few seconds is one entry, not many.
+    std::vector<ListenFailure>  GetFailedListens () const;
+
+    //  The PC ports of the deferred sockets, in socket order.
+    std::vector<FirewallPort>   GetDeferredPorts     () const;
+
+    //  The listeners on a later PC port than the guest's, in socket order.
+    std::vector<MovedListen>    GetMovedListens      () const;
+
+    //  A failed listen as a notice's sentence. `serialPort` is the serial
+    //  port whose connector has the same TCP port, 0 for none, and `onCard`
+    //  is whether that port is a Super Serial Card's.
+    static std::string  DescribeListenFailure (const ListenFailure & failure, int serialPort, bool onCard);
+
+    //  A moved listener as a notice's sentence.
+    static std::string  DescribeMovedListen   (const MovedListen & moved);
 
 private:
 
@@ -93,39 +145,51 @@ private:
         std::deque<Datagram>           udpPending;                // received, waiting for RX space
         std::deque<std::vector<Byte>>  resent;                    // blocks received after a resume's point, for the RX buffer again
         bool                           isCloseAfterResent = false;
+        uint16_t                       hostPort           = 0;    // the PC port a listener or UDP socket has; 0 for an ephemeral one
+        bool                           deferred           = false;   // waiting for the gate to admit hostPort
     };
 
-    void  CloseSlot        (int socket);
-    void  OnOpen           (int socket);
-    void  OnConnect        (int socket);
-    void  OnListen         (int socket);
-    void  OnDisconnect     (int socket);
-    void  OnSend           (int socket);
-    void  SendTcp          (int socket);
-    void  SendUdp          (int socket);
-    void  SendMacRaw       (int socket, uint64_t now);
-    void  Fail             (int socket, Byte interrupt);
-    void  NoteEndpoints    (int socket);
-    bool  IsInStep         (int socket) const;
-    void  ResyncSocket     (int socket, const ResumeTraffic & traffic, uint64_t now);
-    bool  PumpResent       (int socket);
+    bool          IsDeferred          (HostSocketKind protocol, uint16_t port) const;
+    FirewallPort  GetListenRange      (int socket) const;
+    void          OpenDeferred        ();
+    void          OpenUdp             (int socket);
+    void          CloseSlot           (int socket);
+    void          OnOpen              (int socket);
+    void          OnConnect           (int socket);
+    void          OnListen            (int socket);
+    HRESULT       BindListener        (int socket);
+    void          Relisten            (int socket);
+    void          OnDisconnect        (int socket);
+    void          OnSend              (int socket);
+    void          SendTcp             (int socket);
+    void          SendUdp             (int socket);
+    void          RewriteAnnouncement (std::vector<Byte> & payload) const;
+    void          SendMacRaw          (int socket, uint64_t now);
+    void          Fail                (int socket, Byte interrupt);
+    void          NoteEndpoints       (int socket);
+    bool          IsInStep            (int socket) const;
+    void          ResyncSocket        (int socket, const ResumeTraffic & traffic, uint64_t now);
+    bool          PumpResent          (int socket);
 
-    void  PumpSocket       (int socket, uint64_t now);
-    void  PumpConnecting   (int socket);
-    void  PumpListening    (int socket);
-    void  PumpTcpTransfer  (int socket);
-    void  PumpTcpReceive   (int socket);
-    void  PumpUdpReceive   (int socket);
-    void  PumpMacRaw       (int socket);
+    void  PumpSocket         (int socket, uint64_t now);
+    void  PumpConnecting     (int socket);
+    void  PumpListening      (int socket);
+    void  PumpTcpTransfer    (int socket);
+    void  PumpTcpReceive     (int socket);
+    void  PumpUdpReceive     (int socket);
+    void  PumpMacRaw         (int socket);
     bool  TryDeliverDatagram (int socket, const Datagram & datagram);
 
     static uint64_t  PackEndpoint (const HostEndpoint & endpoint);
 
-    W5100                         & m_chip;
-    VirtualNetwork                & m_network;
-    IHostNetwork                  * m_hostNetwork = nullptr;
-    bool                            m_lanAccess   = false;
-    uint64_t                        m_now         = 0;
-    std::array<Slot, kSocketCount>  m_slots;
-    std::vector<Byte>               m_buffer;
+    W5100                              & m_chip;
+    VirtualNetwork                     & m_network;
+    IHostNetwork                       * m_hostNetwork   = nullptr;
+    const ListenGate                   * m_gate          = nullptr;
+    uint32_t                             m_gateVersion   = 0;   // the gate's version when deferred sockets were last tried
+    bool                                 m_lanAccess     = false;
+    uint64_t                             m_now           = 0;
+    std::array<Slot, kSocketCount>       m_slots;
+    std::vector<Byte>                    m_buffer;
+    std::map<uint16_t, ListenFailure>    m_failedListens;   // each guest port's last failed listen
 };

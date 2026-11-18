@@ -3,10 +3,15 @@
 #include "Cpu.h"
 #include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/BreakpointTable.h"
+#include "Debugger/CallRecordKeeper.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DebugHostFiles.h"
+#include "Debugger/DebugLineInterpreter.h"
+#include "Debugger/DebugProgramFiles.h"
 #include "Debugger/DebugSessionView.h"
+#include "Debugger/DebugStopMonitor.h"
 #include "Debugger/DiskBreakpointMonitor.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
@@ -19,6 +24,7 @@
 #include "Debugger/WatchpointTable.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 
+class HostAccessGuard;
 class IDebugCommandHandler;
 class IDebugNotificationSink;
 class IFileSystem;
@@ -26,8 +32,8 @@ class IInstructionObserver;
 class IIoEventSource;
 class IMachineControl;
 class ITapeControl;
-class OpcodeTable;
 struct DebugSessionView;
+enum class HostAccess;
 
 
 
@@ -78,14 +84,16 @@ enum class StateFileRequest
 //  started.
 //
 //  The session is also the target's stop-conditions hook, its run observer,
-//  the watcher of the opcodes the call record needs, and the context
-//  expressions are evaluated in.
+//  and the context expressions are evaluated in. Its parts are components:
+//  DebugLineInterpreter parses and runs command lines, DebugStopMonitor
+//  tests the stop conditions and reports a stop's cause, CallRecordKeeper
+//  has the call-stack record, DebugProgramFiles the loaded debug and symbol
+//  files, and DebugHostFiles the paths to host files.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebugSession : public DebugHook,
                      public IRunObserver,
-                     public IOpcodeWatcher,
                      public IDebugExpressionContext
 {
 public:
@@ -100,24 +108,24 @@ public:
 
     // One line in the session's mode, parsed and executed; the reply echoes
     // the line. FormatReply renders a reply's text in the session's mode.
-    Reply  ExecuteLine           (const std::string & line);
+    Reply  ExecuteLine           (const std::string & line) { return m_interpreter.ExecuteLine (line, m_mode); }
 
     // The same, in a mode the caller chose for this one line. The session's
     // own mode is left as it was, so a channel request naming a mode does not
     // switch the mode every other client is using.
-    Reply  ExecuteLine           (const std::string & line, CommandMode mode);
+    Reply  ExecuteLine           (const std::string & line, CommandMode mode) { return m_interpreter.ExecuteLine (line, mode); }
 
     // The same for a pane's read: it runs as a command even while the line
     // assembler waits for the user's next line.
-    Reply  ExecutePaneLine       (const std::string & line, CommandMode mode);
+    Reply  ExecutePaneLine       (const std::string & line, CommandMode mode) { return m_interpreter.ExecutePaneLine (line, mode); }
 
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
 
     //  A step forward, refused while the machine runs.
-    static bool  IsStepVerb      (DebugVerb verb);
-    void   FormatReply           (Reply & reply) const;
-    void   FormatReply           (Reply & reply, CommandMode mode) const;
+    static bool  IsStepVerb  (DebugVerb verb);
+    void         FormatReply (Reply & reply) const;
+    void         FormatReply (Reply & reply, CommandMode mode) const;
 
     // A reply's text in a given output format, whatever the session's is.
     static void  RenderReply     (Reply & reply, OutputFormat format);
@@ -126,11 +134,11 @@ public:
     void   SetBudget             (std::optional<uint64_t> budget) { m_budget = budget; }
 
     // Called by command handlers after they change a table.
-    void   OnStopConditionsChanged ();
-    void   ClearAllBreakpoints   ();
+    void  OnStopConditionsChanged ();
+    void  ClearAllBreakpoints     ();
 
     // Machine events the host reports.
-    void   OnMachineChanged      (const std::string & machineName, bool isPaused = true);
+    void   OnMachineChanged      (const std::string & machineName, bool isPaused = true, bool isKeepingStops = false);
     void   OnReset               (bool isPowerCycle);
 
     //  Takes each RWTS and driver breakpoint's routine from its vector again,
@@ -158,45 +166,45 @@ public:
 
     // The mode of the line being run, which a pipe request sets for itself;
     // the session's mode outside a line.
-    CommandMode             GetLineMode    () const { return m_lineMode.value_or (m_mode); }
-    OutputFormat            GetOutputFormat () const { return m_outputFormat; }
-    void                    SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
-    std::optional<uint64_t> GetBudget      () const { return m_budget; }
-    LogLevel                GetLogLevel    () const { return m_logLevel; }
-    void                    SetLogLevel    (LogLevel level) { m_logLevel = level; }
-    IDebugTarget          & GetTarget      ()       { return m_target; }
-    BreakpointTable       & GetBreakpoints ()       { return m_breakpoints; }
-    WatchpointTable       & GetWatchpoints ()       { return m_watchpoints; }
-    WatchTable            & GetWatches     ()       { return m_watches; }
-    WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
-    WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
-    DataBlockTable        & GetDataBlocks  ()       { return m_dataBlocks; }
+    CommandMode                GetLineMode     () const { return m_interpreter.GetLineMode().value_or (m_mode); }
+    OutputFormat               GetOutputFormat () const { return m_outputFormat; }
+    void                       SetOutputFormat (OutputFormat format) { m_outputFormat = format; }
+    std::optional<uint64_t>    GetBudget       () const { return m_budget; }
+    LogLevel                   GetLogLevel     () const { return m_logLevel; }
+    void                       SetLogLevel     (LogLevel level) { m_logLevel = level; }
+    IDebugTarget             & GetTarget       ()       { return m_target; }
+    BreakpointTable          & GetBreakpoints  ()       { return m_breakpoints; }
+    WatchpointTable          & GetWatchpoints  ()       { return m_watchpoints; }
+    WatchTable               & GetWatches      ()       { return m_watches; }
+    WatchTable               & GetZeroPage     ()       { return m_zeroPage; }
+    WatchTable               & GetBookmarks    ()       { return m_bookmarks; }
+    DataBlockTable           & GetDataBlocks   ()       { return m_dataBlocks; }
 
     //  The blocks the debug file's data directives laid down. They are data
     //  while the file matches memory and no data directive covers them; after
     //  X over one, its bytes are disassembled as code until the file loads
     //  again.
-    void                  SetDebugFileData (std::vector<DataBlockEntry> blocks);
-    bool                  TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
-    void                  RemoveData       (Word first, Word last);
-    SymbolTable           & GetSymbols     ()       { return m_symbols; }
-    const SymbolTable     & GetSymbols     () const { return m_symbols; }
+    void                 SetDebugFileData (std::vector<DataBlockEntry> blocks) { m_files.SetDebugFileData (std::move (blocks)); }
+    bool                 TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
+    void                 RemoveData       (Word first, Word last);
+    SymbolTable        & GetSymbols       ()       { return m_symbols; }
+    const SymbolTable  & GetSymbols       () const { return m_symbols; }
 
     // The program's debug file, loaded by SYM LOAD, and its lines indexed both
     // ways. The path is where it was read from, so its sources are looked for
     // beside it.
-    void                  SetDebugFile   (DebugFile file, const std::wstring & path, const std::string & key = {});
-    void                  ClearDebugFile ();
-    bool                  HasDebugFile   () const { return !m_debugFilePath.empty(); }
-    const DebugFile     & GetDebugFile   () const { return m_debugFile; }
-    const std::wstring  & GetDebugFilePath () const { return m_debugFilePath; }
-    const std::string   & GetDebugFileKey  () const { return m_debugFileKey; }
-    const LineTable     & GetLineTable   () const { return m_lineTable; }
+    void                  SetDebugFile     (DebugFile file, const std::wstring & path, const std::string & key = {}) { m_files.SetDebugFile (std::move (file), path, key); }
+    void                  ClearDebugFile   ()       { m_files.ClearDebugFile(); }
+    bool                  HasDebugFile     () const { return m_files.HasDebugFile(); }
+    const DebugFile     & GetDebugFile     () const { return m_files.GetDebugFile(); }
+    const std::wstring  & GetDebugFilePath () const { return m_files.GetDebugFilePath(); }
+    const std::string   & GetDebugFileKey  () const { return m_files.GetDebugFileKey(); }
+    const LineTable     & GetLineTable     () const { return m_files.GetLineTable(); }
 
     // The symbol table the debug file's symbols went into. Clearing that
     // table unloads the file as well.
-    void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; m_filesRevision++; }
-    std::optional<SymbolTableId>  GetDebugFileTable () const { return m_debugFileTable; }
+    void                          SetDebugFileTable (SymbolTableId table) { m_files.SetDebugFileTable (table); }
+    std::optional<SymbolTableId>  GetDebugFileTable () const { return m_files.GetDebugFileTable(); }
 
     // Whether the program in memory is the one each loaded file was made for
     // (ProgramCheck), checked at each stop and when a check is set while
@@ -206,16 +214,39 @@ public:
     // symbol file without lines loads into it.
     void                  SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries);
     void                  SetLabelCheck     (SymbolTableId table);
-    void                  CheckProgram      ();
-    bool                  IsDebugFileStale  () const { return m_programChecks != nullptr && m_programChecks->isDebugFileStale; }
+    void                  CheckProgram      ()       { m_files.CheckProgram(); }
+    bool                  IsDebugFileStale  () const { return m_files.IsDebugFileStale(); }
+
+    // Every instruction line of the debug file, as a check entry, and the
+    // lines among them whose bytes in memory are not the line's now.
+    void                           SetDebugFileLines       (std::vector<ProgramCheck::Entry> entries) { m_files.SetDebugFileLines (std::move (entries)); }
+    std::set<std::pair<int, int>>  GetUnmatchedSourceLines () const { return m_files.GetUnmatchedSourceLines(); }
+
+    // The debug file's instruction lines, as SetDebugFileLines set them.
+    const std::vector<ProgramCheck::Entry> &  GetDebugFileLines () const { return m_files.GetDebugFileLines(); }
+
+    // The messages logging breakpoints and watchpoints wrote at their hits
+    // since the last call, in that order. The debugger window and the batch
+    // runner print them.
+    std::vector<std::string>                  TakeHitLogs       ();
+
+    // The last count messages, oldest first, of the last kRecentHitLogs
+    // written: the ones taken and the ones not taken yet. BPLOGS lists them,
+    // for a client that doesn't receive them as they are written.
+    static constexpr size_t                   kRecentHitLogs    = 1000;
+    std::vector<std::string>                  GetRecentHitLogs  (size_t count) const;
+
+    // A count that goes up with each change to the debug file, its source
+    // lines or the symbol table it loads into.
+    uint64_t                                  GetFilesRevision  () const { return m_files.GetFilesRevision(); }
 
     // The files whose program isn't in memory, by name, for the banners.
-    std::vector<std::string>  GetStaleFileNames () const;
+    std::vector<std::string>  GetStaleFileNames () const { return m_files.GetStaleFileNames(); }
 
     // Whether T, P and RTS, and every dialect's step commands, step by source
     // line. Only while a debug file is loaded; otherwise by instruction.
-    void                  SetStepBySource (bool bySource) { m_stepBySource = bySource; }
-    bool                  IsStepBySource  () const        { return m_stepBySource; }
+    void                  SetStepBySource (bool bySource) { m_files.SetStepBySource (bySource); }
+    bool                  IsStepBySource  () const        { return m_files.IsStepBySource(); }
 
     //  The cycle count RCC last reset the trip count at: CYCLES PART and the
     //  Registers pane's Trip row count from it.
@@ -231,82 +262,70 @@ public:
     const StepFilter    & GetStepFilter  () const { return m_stepFilter; }
 
     //  Each symbol or debug file loaded, with the table and the offset, for
-    //  a debug project to load again; a later load of one path into one
-    //  table replaces the earlier, and clearing a table removes its loads.
-    struct SymbolLoad
-    {
-        SymbolTableId  table  = SymbolTableId::User;
-        std::wstring   path;
-        int            offset = 0;
-    };
+    //  a debug project to load again (DebugProgramFiles::SymbolLoad).
+    using SymbolLoad = DebugProgramFiles::SymbolLoad;
 
-    void                              NoteSymbolLoad    (SymbolTableId table, const std::wstring & path, int offset);
-    void                              ForgetSymbolLoads (SymbolTableId table);
-    const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_symbolLoads; }
+    void                              NoteSymbolLoad    (SymbolTableId table, const std::wstring & path, int offset) { m_files.NoteSymbolLoad (table, path, offset); }
+    void                              ForgetSymbolLoads (SymbolTableId table) { m_files.ForgetSymbolLoads (table); }
+    const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_files.GetSymbolLoads(); }
 
-    //  Each symbol the user added, with `SYM<table> name = addr` or Add
-    //  symbol here..., for a debug project to add again after its symbol files
-    //  load; adding a name again replaces it, and removing it or clearing
-    //  its table removes it.
-    struct AddedSymbol
-    {
-        SymbolTableId  table   = SymbolTableId::User;
-        std::string    name;
-        Word           address = 0;
-    };
+    //  Each symbol the user added, for a debug project to add again after
+    //  its symbol files load (DebugProgramFiles::AddedSymbol).
+    using AddedSymbol = DebugProgramFiles::AddedSymbol;
 
-    void                              NoteAddedSymbol    (SymbolTableId table, const std::string & name, Word address);
-    void                              ForgetAddedSymbol  (SymbolTableId table, const std::string & name);
-    void                              ForgetAddedSymbols (SymbolTableId table);
-    const std::vector<AddedSymbol>  & GetAddedSymbols    () const { return m_addedSymbols; }
+    void                              NoteAddedSymbol    (SymbolTableId table, const std::string & name, Word address) { m_files.NoteAddedSymbol (table, name, address); }
+    void                              ForgetAddedSymbol  (SymbolTableId table, const std::string & name) { m_files.ForgetAddedSymbol (table, name); }
+    void                              ForgetAddedSymbols (SymbolTableId table) { m_files.ForgetAddedSymbols (table); }
+    const std::vector<AddedSymbol>  & GetAddedSymbols    () const { return m_files.GetAddedSymbols(); }
 
     //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
     //  and its file's name and full path; a debug project's key while no
     //  debug file is loaded (FR-167).
-    void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name, const std::wstring & path);
-    const std::string   & GetBinaryKey   () const { return m_binaryKey; }
-    const std::string   & GetBinaryName  () const { return m_binaryName; }
-    const std::wstring  & GetBinaryPath  () const { return m_binaryPath; }
+    void                  NoteBinaryLoad   (const std::string & hash, Word address, const std::string & name, const std::wstring & path) { m_files.NoteBinaryLoad (hash, address, name, path); }
+    void                  ForgetBinaryLoad ()       { m_files.ForgetBinaryLoad(); }
+    const std::string   & GetBinaryKey     () const { return m_files.GetBinaryKey(); }
+    const std::string   & GetBinaryName    () const { return m_files.GetBinaryName(); }
+    const std::wstring  & GetBinaryPath    () const { return m_files.GetBinaryPath(); }
 
     // The call-stack record (FR-068), kept only while the debugger is attached:
     // while the window or the channel is open, and for a batch run. Turning it
     // on starts a new record at PC; off discards it.
-    void                  SetCallRecording (bool isOn);
-    bool                  IsCallRecording  () const { return m_callRecorder.IsActive(); }
+    void                  SetCallRecording (bool isOn) { m_callRecords.SetRecording (isOn); }
+    bool                  IsCallRecording  () const    { return m_callRecords.IsRecording(); }
 
     // A record started at PC again for a machine that moved through history,
     // its bottom where history starts until a rebuild from history replaces
     // it, or power-on at cycle 0. Nothing happens while it is off.
-    void                  RestartCallRecording ();
+    void                  RestartCallRecording () { m_callRecords.Restart(); }
 
     // A record started again after a move that no rebuild from history will
     // replace: its bottom stops claiming that history starts there.
-    void                  MarkCallRecordUnrebuilt ();
+    void                  MarkCallRecordUnrebuilt () { m_callRecords.MarkUnrebuilt(); }
 
     // Counts each time the record starts, ends, or is reset, so a rebuild of
     // it from history can detect that the record it was for has gone.
-    uint64_t              GetCallRecordGeneration () const { return m_callRecordGeneration; }
+    uint64_t              GetCallRecordGeneration () const { return m_callRecords.GetGeneration(); }
 
     // The break at the bottom of the record: where it began, power-on, a
     // reset or where history starts. Empty while nothing is recorded.
-    std::optional<CallStackBreak>  GetCallRecordBottom () const { return m_callRecorder.GetBottom(); }
+    std::optional<CallStackBreak>  GetCallRecordBottom () const { return m_callRecords.GetBottom(); }
 
     // A copy of the record, its last instruction settled; called only
     // between instructions.
-    CallRecord            GetCallRecord    ();
+    CallRecord            GetCallRecord    () { return m_callRecords.GetRecord(); }
 
     // A record rebuilt from history up to where the machine stands, taken as
     // this one, so recording goes on from it.
-    void                  AdoptCallRecord  (const CallRecord & record);
+    void                  AdoptCallRecord  (const CallRecord & record) { m_callRecords.Adopt (record); }
 
     // How far along a rebuild of the record from history is, 0 to 1, while
-    // one runs; the call stack the session builds holds it for the pane.
-    void                  SetCallRebuildProgress (std::optional<float> progress) { m_callRebuildProgress = progress; }
+    // one runs; the call stack the session builds has it for the pane.
+    void                  SetCallRebuildProgress (std::optional<float> progress) { m_callRecords.SetRebuildProgress (progress); }
 
     // CALLS and the call-stack pane: the chain to PC by the chosen mechanism,
     // each frame's target named from the symbol tables.
-    CallStackMechanism    GetCallMechanism () const                       { return m_callMechanism; }
-    void                  SetCallMechanism (CallStackMechanism mechanism) { m_callMechanism = mechanism; }
+    CallStackMechanism    GetCallMechanism () const                       { return m_callRecords.GetMechanism(); }
+    void                  SetCallMechanism (CallStackMechanism mechanism) { m_callRecords.SetMechanism (mechanism); }
     CallStackData         GetCallStack     ();
 
     // What the debugger's panes read, copied for a second session that builds
@@ -316,20 +335,20 @@ public:
 
     // Step back out's quick answer: true when the record shows that no call
     // made at or after cycle entered the code now running.
-    bool                  HasNoCallSince   (uint64_t cycle);
+    bool                  HasNoCallSince   (uint64_t cycle) { return m_callRecords.HasNoCallSince (cycle); }
 
     // Step back out's seek: the calls the code now running is still inside
     // of, outermost first.
-    void                  GetCallerLinks   (std::vector<CallerLink> & outLinks);
+    void                  GetCallerLinks   (std::vector<CallerLink> & outLinks) { m_callRecords.GetCallerLinks (outLinks); }
 
     // The innermost source line at an address, as file name and line; false
     // where no loaded line produced it.
-    bool                  TryGetSourceLine (Word address, std::string & file, int & line) const;
+    bool                  TryGetSourceLine (Word address, std::string & file, int & line) const { return m_files.TryGetSourceLine (address, file, line); }
 
     // What the Monitor's line scan carries between lines: where the last
     // examine stopped, where a bare `:` stores, and whether `^E` armed the
     // next one to set registers.
-    MonitorState          & GetMonitorState ()      { return m_monitorState; }
+    MonitorState          & GetMonitorState ()      { return m_interpreter.GetMonitorState(); }
 
     // The shipped tables for the target's machine into Main, Basic, Dos33
     // and ProDos; the constructor and a machine switch do this.
@@ -337,11 +356,21 @@ public:
 
     // Host files, through the injected file system; a relative path is taken
     // from the current directory. Absent a file system, file commands fail.
-    void                  SetFileSystem        (IFileSystem * fileSystem)         { m_fileSystem = fileSystem; }
-    IFileSystem         * GetFileSystem        () const                           { return m_fileSystem; }
-    const std::wstring  & GetCurrentDirectory  () const                           { return m_currentDirectory; }
-    void                  SetCurrentDirectory  (const std::wstring & directory)   { m_currentDirectory = directory; }
-    std::wstring          ResolvePath          (const std::string & path) const;
+    void                  SetFileSystem        (IFileSystem * fileSystem)         { m_hostFiles.SetFileSystem (fileSystem); }
+    IFileSystem         * GetFileSystem        () const                           { return m_hostFiles.GetFileSystem(); }
+    const std::wstring  & GetCurrentDirectory  () const                           { return m_hostFiles.GetCurrentDirectory(); }
+    void                  SetCurrentDirectory  (const std::wstring & directory)   { m_hostFiles.SetCurrentDirectory (directory); }
+    std::wstring          ResolvePath          (const std::string & path) const   { return m_hostFiles.ResolvePath (path); }
+
+    //  The host file access rules of the debug channel client whose line is
+    //  running; null while a console line or a batch line runs, where the
+    //  rules don't apply. A command that reads or writes a host file other
+    //  than through the file system checks the path here; false sets the
+    //  reply's error to the reason.
+    void                  SetHostAccessGuard   (HostAccessGuard * guard)          { m_hostFiles.SetHostAccessGuard (guard); }
+    HostAccessGuard     * GetHostAccessGuard   () const                           { return m_hostFiles.GetHostAccessGuard(); }
+    bool                  CheckHostAccess      (const std::wstring & path, HostAccess access, Reply & reply) { return m_hostFiles.CheckHostAccess (path, access, reply); }
+    void                  NoteScriptRun        (const std::wstring & path)        { m_hostFiles.NoteScriptRun (path); }
 
     // The video and sound logs VIDEOLOG and SOUNDLOG list; only the debugger
     // window's shell and a batch run have them, and without them both
@@ -364,24 +393,28 @@ public:
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
     // given and the absolute path the relative one resolved to. With the
     // reply, an echoed path is added to its files, which are linked in the console.
-    std::string           GetPathEcho          (const std::string & path, const char * preposition) const;
-    std::string           GetPathEcho          (const std::string & path, const char * preposition, Reply & reply) const;
+    std::string           GetPathEcho          (const std::string & path, const char * preposition) const { return m_hostFiles.GetPathEcho (path, preposition); }
+    std::string           GetPathEcho          (const std::string & path, const char * preposition, Reply & reply) const { return m_hostFiles.GetPathEcho (path, preposition, reply); }
+
+    //  The full path a file name typed to a command resolves to, for a
+    //  message about the file.
+    std::string           GetFullPath          (const std::string & path) const   { return m_hostFiles.GetFullPath (path); }
 
     // The last S or SH results, reachable as @1, @2 and so on.
-    const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
-    void                  SetSearchResults     (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
-    uint64_t              GetSearchSerial      () const                           { return m_searchSerial; }
+    const std::vector<Word>  & GetSearchResults () const                          { return m_searchResults; }
+    void                       SetSearchResults (std::vector<Word> results)        { m_searchResults = std::move (results); m_searchSerial++; }
+    uint64_t                   GetSearchSerial  () const                           { return m_searchSerial; }
 
     //  The last MC's differences, numbered as the searches are, for a Memory
     //  pane's comparison.
-    const std::vector<CompareDifference> & GetCompareResults () const              { return m_compareResults; }
-    void                  SetCompareResults    (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
-    uint64_t              GetCompareSerial     () const                           { return m_compareSerial; }
+    const std::vector<CompareDifference>  & GetCompareResults () const              { return m_compareResults; }
+    void                                    SetCompareResults (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
+    uint64_t                                GetCompareSerial  () const                           { return m_compareSerial; }
 
     // Line-assembly mode: each following line is assembled at the address,
     // and a blank line ends it.
-    void   BeginAssembly         (Word address);
-    bool   IsAssembling          () const { return m_assemblyAddress.has_value(); }
+    void   BeginAssembly         (Word address) { m_interpreter.BeginAssembly (address); }
+    bool   IsAssembling          () const       { return m_interpreter.IsAssembling(); }
 
     //  Why the machine last stopped, and at which breakpoint, if one.
     StopReason          GetLastStopReason     () const { return m_lastStopReason; }
@@ -404,13 +437,36 @@ public:
     void                       SetScriptLineRunner (ScriptLineRunner runner)       { m_scriptLineRunner = std::move (runner); }
     const ScriptLineRunner   & GetScriptLineRunner () const                        { return m_scriptLineRunner; }
 
+    // The rest of a script whose line started a run that goes on after the
+    // line returns, as G does in the window: the host runs it once the
+    // machine stops. TakePendingScript returns false with no script waiting.
+    struct PendingScript
+    {
+        std::string                 content;
+        std::optional<CommandMode>  mode;
+    };
+
+    void                       SetPendingScript    (PendingScript script)          { m_pendingScript = std::move (script); }
+    bool                       TakePendingScript   (PendingScript & outScript);
+    bool                       HasPendingScript    () const                        { return m_pendingScript.has_value(); }
+
     // Reverse execution, where the host records the machine's history: the
     // requester carries a reverse command to the machine and returns whether
     // it was taken. Empty where nothing is recorded.
-    using ReverseRequester = std::function<bool (ReverseCommand)>;
+    using ReverseRequester = std::function<bool (ReverseCommand, uint64_t)>;
 
     void                       SetReverseRequester (ReverseRequester requester)    { m_reverseRequester = std::move (requester); }
     const ReverseRequester   & GetReverseRequester () const                        { return m_reverseRequester; }
+
+    // A reverse command the requester took has not run yet. The machine is
+    // paused all the while, so a script waits on this as it waits on a run.
+    void                       SetReversePending   (bool isPending)                { m_isReversePending = isPending; }
+    bool                       IsReversePending    () const                        { return m_isReversePending; }
+
+    //  The addresses executed branches, jumps and calls go to, sorted, as
+    //  the debugger window last found them. A listing starts a row at each.
+    void                       SetBranchTargets    (std::vector<Word> targets)     { m_branchTargets = std::move (targets); }
+    bool                       IsBranchTarget      (Word address) const            { return std::ranges::binary_search (m_branchTargets, address); }
 
     // SAVESTATE and LOADSTATE: the host saves the whole machine to a state
     // file, or replaces it with one, as File > Save state and Load state do,
@@ -434,47 +490,46 @@ public:
 
     void                       SetHistoryGuard     (HistoryGuard guard)            { m_historyGuard = std::move (guard); }
     // BPV: stop when the video scanline enters the range, once.
-    void   SetVideoBreak         (uint32_t first, uint32_t last);
-    void   ClearVideoBreak       ();
-    bool   HasVideoBreak         () const { return m_videoBreak.has_value(); }
+    void   SetVideoBreak         (uint32_t first, uint32_t last) { m_stops.GetBeamBreaks().SetVideoBreak (first, last); UpdateHookInstalled(); }
+    void   ClearVideoBreak       ()       { m_stops.GetBeamBreaks().ClearVideoBreak(); UpdateHookInstalled(); }
+    bool   HasVideoBreak         () const { return m_stops.GetBeamBreaks().HasVideoBreak(); }
 
     //  The BPV range, first and last scanline, while one is set.
-    std::optional<std::pair<uint32_t, uint32_t>>  GetVideoBreak () const;
+    std::optional<std::pair<uint32_t, uint32_t>>  GetVideoBreak () const { return m_stops.GetBeamBreaks().GetVideoBreak(); }
 
     // BPBEAM and FRAME: stop when the beam reaches a place in the frame,
     // given as the cycle within it, after passing it `passes - 1` times.
     // A break for one run goes at the run's stop, whatever stopped it.
-    void   SetBeamBreak          (uint32_t cycleInFrame, uint32_t passes = 1, bool isForOneRun = false);
-    void   ClearBeamBreak        (bool isForOneRun = false);
-    bool   HasBeamBreak          () const { return m_beamBreak.has_value() || m_frameBreak.has_value(); }
+    void   SetBeamBreak          (uint32_t cycleInFrame, uint32_t passes = 1, bool isForOneRun = false) { m_stops.GetBeamBreaks().SetBeamBreak (cycleInFrame, passes, isForOneRun); UpdateHookInstalled(); }
+    void   ClearBeamBreak        (bool isForOneRun = false) { m_stops.GetBeamBreaks().ClearBeamBreak (isForOneRun); UpdateHookInstalled(); }
+    bool   HasBeamBreak          () const { return m_stops.GetBeamBreaks().HasBeamBreak(); }
 
     //  BPBEAM's place in the frame, as the cycle within it; none for no
     //  break, or for FRAME's, which goes with its run.
-    std::optional<uint32_t>  GetBeamBreak () const;
+    std::optional<uint32_t>  GetBeamBreak () const { return m_stops.GetBeamBreaks().GetBeamBreak(); }
 
     // BRKUNINIT: stop after a read of RAM nothing has written since power-on,
     // reported as a watchpoint hit is, with the address and the instruction.
-    void   SetUnwrittenBreak     (bool isOn);
-    bool   HasUnwrittenBreak     () const { return m_isUnwrittenBreak; }
+    void   SetUnwrittenBreak     (bool isOn) { m_stops.SetUnwrittenBreak (isOn); UpdateHookInstalled(); }
+    bool   HasUnwrittenBreak     () const    { return m_stops.HasUnwrittenBreak(); }
 
     // DebugHook: the stop conditions consulted before each instruction.
-    bool   ShouldStopBefore         (Word pc) override;
-    bool   HasPendingStop           () const override;
+    // None is pending while the debugger is detached, which a run's stop
+    // conditions must not pause the machine for.
+    bool   ShouldStopBefore         (Word pc) override { return m_stops.ShouldStopBefore (pc); }
+    bool   HasPendingStop           () const override  { return m_isAttached && m_stops.HasPendingStop(); }
     void   OnInstruction            (Word pc) override;
     void   OnInterrupt              (Word pc) override;
-    bool   ShouldStopAtRunStart     (Word pc) override;
-    bool   ShouldStopAfterInterrupt (Word pc) override;
+    bool   ShouldStopAtRunStart     (Word pc) override { return m_stops.ShouldStopAtRunStart (pc); }
+    bool   ShouldStopAfterInterrupt (Word pc) override { return m_stops.ShouldStopAfterInterrupt (pc); }
 
     // The reads the instruction at pc makes on its own account, which no
     // watchpoint sees: its length in bytes, and an indexed store's target.
-    void   GetCpuOwnReads        (Word pc, Word & length, std::optional<Word> & storeTarget) const;
+    void   GetCpuOwnReads        (Word pc, Word & length, std::optional<Word> & storeTarget) const { m_stops.GetCpuOwnReads (pc, length, storeTarget); }
 
     // IRunObserver
-    void   OnStopped            (const StopEvent & stop) override;
-    void   OnFreeRunSlice        () override;
-
-    // IOpcodeWatcher: the call record's instructions, from the CPU.
-    void   OnWatchedFetch        (Word pc, Byte sp, Byte opcode) override;
+    void  OnStopped      (const StopEvent & stop) override;
+    void  OnFreeRunSlice () override;
 
     // IDebugExpressionContext
     bool      TryGetRegister     (const std::string & name, Word & value) const override;
@@ -484,157 +539,77 @@ public:
     uint64_t  GetSymbolRevision  (const std::string & name) const override;
 
 private:
-    struct VideoBreak
-    {
-        uint32_t  first        = 0;
-        uint32_t  last         = 0;
-        uint32_t  lastScanline = 0;
-    };
-
-    struct BeamBreak
-    {
-        uint32_t  target    = 0;
-        uint32_t  passes    = 1;
-        uint32_t  lastCycle = 0;
-        bool      isOneRun  = false;
-    };
-
     //  Where a Monitor `G` returns to. The ROM's own G pushes the address of
     //  the code that re-enters the Monitor, so an RTS from the program lands
     //  back at the prompt; Casso pushes the same address and stops there.
     static constexpr Word  kMonitorReentry = 0xFF69;
 
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
-    void   ExecuteRun            (const DebugCommand & command, Reply & reply);
-    bool   TryStartNextStep      ();
-    void   SetStepOutFrame       (RunRequest & request, Reply & reply);
-    void   ExecuteSource         (const DebugCommand & command, Reply & reply);
-    void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
-    void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
-    Reply  ExecuteMonitorLine    (const std::string & text, CommandMode mode);
-    void   KeepRegisterEditArmed (const DebugCommand & command, const Reply & reply);
-    Reply  ExecuteAppleWinLine   (const std::string & text);
-    Reply  ExecuteGSSquaredLine  (const std::string & text, CommandMode mode);
-    Reply  ExecuteWinDbgLine     (const std::string & text);
-    bool   TryResolveIdOrAddress (DebugCommand & command, Reply & reply);
-    void   PushMonitorReturn     ();
-    void   UpdateHookInstalled   ();
-    void   RefreshHookFilter     ();
-    void   SettleCallRecord      ();
-    Byte   PeekByte              (Word address) const;
-    Word   FindStoreInProgress   () const;
-    bool   HasStopConditions     () const;
-    bool   IsProfiling           () const;
+    void   ExecuteRun              (const DebugCommand & command, Reply & reply);
+    bool   TryStartNextStep        ();
+    void   ExecuteStepFilter       (const DebugCommand & command, Reply & reply);
+    void   ExecuteBasicStep        (const DebugCommand & command, Reply & reply);
+    void   PushMonitorReturn       ();
+    void   UpdateHookInstalled     ();
+    void   RefreshHookFilter       ();
+    bool   IsProfiling             () const;
 
-    //  A read before written's stop is reported under this id, which no
-    //  breakpoint or watchpoint has.
-    static constexpr int  kUnwrittenHitId = -1;
-
-    std::optional<WatchHit>  GetUnwrittenHit () const;
-    bool   TryMatchBeforeWatchpoint (Word pc);
-    void   NoteCpuOwnReads       (Word pc);
-    bool   HasEnteredVideoBreak  ();
-    bool   HasReachedBeamBreak   (std::optional<BeamBreak> & beamBreak);
-    uint32_t  GetBeamCycle       () const;
-    void   AttachDiskReport      (StopEvent & event);
-    void   AttachDiskCallReport  (StopEvent & event);
-    void   AttachBasicReport     (StopEvent & event);
-    void   ExecuteBasicStep      (const DebugCommand & command, Reply & reply);
-    void   ClearTemporary        (const StopEvent & stop);
-    void   AttachCondition       (StopEvent & event) const;
-
-    static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
-    static bool         TryGetFlagMask (const std::string & name, Byte & mask);
-    static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
-    static std::string  Trim           (const std::string & text);
+    static bool         TryGetRunKind          (DebugVerb verb, RunKind & kind);
+    static bool         TryGetFlagMask         (const std::string & name, Byte & mask);
+    static void         SetError               (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
 
     IDebugTarget                        & m_target;
     IDebugNotificationSink              & m_sink;
     std::vector<IDebugCommandHandler *>   m_handlers;
     IInstructionObserver                * m_instructionObserver = nullptr;
-    IFileSystem                         * m_fileSystem          = nullptr;
     IIoEventSource                      * m_ioEventSource       = nullptr;
     ITapeControl                        * m_tapeControl         = nullptr;
     IMachineControl                     * m_machineControl      = nullptr;
-    std::wstring                          m_currentDirectory;
+    DebugHostFiles                        m_hostFiles;
 
     int                                   m_nextId        = 0;
     BreakpointTable                       m_breakpoints   { m_nextId };
     WatchpointTable                       m_watchpoints   { m_nextId };
     DiskBreakpointMonitor                 m_diskMonitor   { m_breakpoints, m_target };
     BasicStopMonitor                      m_basicMonitor  { m_breakpoints };
+    DebugStopMonitor                      m_stops         { m_target, *this, m_breakpoints, m_watchpoints, m_diskMonitor, m_basicMonitor };
     WatchTable                            m_watches;
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
     DataBlockTable                        m_dataBlocks;
-    DataBlockTable                        m_debugFileData;
     SymbolTable                           m_symbols;
-    DebugFile                             m_debugFile;
-    std::wstring                          m_debugFilePath;
-    std::string                           m_debugFileKey;
-    std::optional<SymbolTableId>          m_debugFileTable;
-    uint64_t                              m_filesRevision = 0;
-    LineTable                             m_lineTable;
-    std::shared_ptr<const ProgramChecks>  m_programChecks;
-    bool                                  m_stepBySource  = false;
+    DebugProgramFiles                     m_files         { m_target, m_symbols };
+    std::deque<std::string>               m_recentHitLogs;
     uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;
-    std::vector<SymbolLoad>               m_symbolLoads;
-    std::vector<AddedSymbol>              m_addedSymbols;
-    std::string                           m_binaryKey;
-    std::string                           m_binaryName;
-    std::wstring                          m_binaryPath;
-    CallStackRecorder                     m_callRecorder;
-    std::array<bool, 0x100>               m_callOpcodes   = {};
-    CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;
+    CallRecordKeeper                      m_callRecords   { m_target, m_watchpoints };
     std::vector<Word>                     m_searchResults;
     uint64_t                              m_searchSerial  = 0;
     std::vector<CompareDifference>        m_compareResults;
     uint64_t                              m_compareSerial = 0;
 
-    //  Counts the call record's starts, ends and resets; and how far along a
-    //  rebuild of it from history is, while one runs.
-    uint64_t                              m_callRecordGeneration = 0;
-    std::optional<float>                  m_callRebuildProgress;
-
     RunState                              m_state         = RunState::Paused;
     CommandMode                           m_mode          = CommandMode::AppleWin;
-    std::optional<CommandMode>            m_lineMode;
     OutputFormat                          m_outputFormat  = OutputFormat::AppleWin;
     LogLevel                              m_logLevel      = LogLevel::Info;
     std::optional<uint64_t>               m_budget;
     bool                                  m_hookInstalled = false;
     bool                                  m_isAttached    = true;
     DebugHookFilter                       m_hookFilter;
-    std::optional<int>                    m_lastBreakpointId;
-    std::optional<WatchHit>               m_beforeHit;
-    std::optional<VideoBreak>             m_videoBreak;
-    bool                                  m_videoBreakHit = false;
-    std::optional<BeamBreak>              m_beamBreak;
-    bool                                  m_beamBreakHit  = false;
-    std::optional<BeamBreak>              m_frameBreak;                 // FRAME's, for one run beside BPBEAM's
-    bool                                  m_frameBreakHit = false;
 
     //  Why the machine last stopped.
     StopReason                            m_lastStopReason = StopReason::Pause;
     std::optional<int>                    m_lastStopBreakpoint;
 
-    //  BRKUNINIT is on.
-    bool                                  m_isUnwrittenBreak = false;
-
-    std::optional<Word>           m_assemblyAddress;
-    std::unique_ptr<OpcodeTable>  m_assemblyOpcodes;
+    DebugLineInterpreter          m_interpreter        { *this };
     ScriptLineRunner              m_scriptLineRunner;
+    std::optional<PendingScript>  m_pendingScript;
     ReverseRequester              m_reverseRequester;
+    bool                          m_isReversePending   = false;
+    std::vector<Word>             m_branchTargets;
     StateFileRequester            m_stateFileRequester;
     ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;
-
-    MonitorState                          m_monitorState;
-    std::optional<Word>                   m_monitorReturn;
-    bool                                  m_monitorReturned = false;
-    bool                                  m_isDiskStop      = false;     // ShouldStopBefore stopped for a disk breakpoint
-    bool                                  m_isBasicStop     = false;     // and for an Applesoft breakpoint, step or error
 
     //  A counted step over, step out or source step runs as that many single
     //  steps: the one to start after each step completes, how many are left,
@@ -645,15 +620,5 @@ private:
     StopEvent                             m_heldStop;
     bool                                  m_isStartingRun = false;
     bool                                  m_isStepPending = false;
-
-    // A step out that ends on the call record keeps the record until it
-    // stops, even when recording is turned off while it runs.
-    bool                                  m_isStepOutOnRecord      = false;
-    bool                                  m_isRecordingEndDeferred = false;
-
-    //  The PC at the last stop, or where the record was last put back from
-    //  history. A PC that differs at a step out was moved, so the calls on
-    //  record are the stopped code's, not the code the step out begins in.
-    std::optional<Word>                   m_stopPc;
     std::string                           m_runNotice;
 };

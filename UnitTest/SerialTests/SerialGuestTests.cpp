@@ -102,7 +102,7 @@ namespace SerialGuestTestNs
 
             for (ran = 0; ran < kTimeout && client.sent.size() < count; ran += kSlice)
             {
-                machine.RunCycles (kSlice);
+                machine.GetRunner().RunCycles (kSlice);
             }
         }
 
@@ -185,14 +185,14 @@ namespace SerialGuestTestNs
             }
 
             LoadProgram (machine, kDialProgram, size (kDialProgram));
-            machine.RunCycles (kRun);
+            machine.GetRunner().RunCycles (kRun);
 
             server = network.FindConnected ({ kBbs, HayesModem::kDefaultDialPort });
             Assert::IsNotNull (server.get(), L"the guest's ATDT dialed the fake network");
 
             server->connect = FakeSocketState::ConnectOutcome::Accepted;
             server->inbound = { 'W', 'e', 'l', 'c', 'o', 'm', 'e' };
-            machine.RunCycles (kRun);
+            machine.GetRunner().RunCycles (kRun);
 
             //  The program reads only once the whole command is sent, so the
             //  echo overruns the 6551 as it would on the card.
@@ -216,7 +216,7 @@ namespace SerialGuestTestNs
             machine.PowerCycle();
             machine.GetRefs().superSerialCard->SetFirmware ({});
             LoadProgram (machine, kEchoProgram, size (kEchoProgram));
-            machine.RunCycles (Acia6551::kIdlePollCycles * 2);
+            machine.GetRunner().RunCycles (Acia6551::kIdlePollCycles * 2);
 
             client          = network.OfferConnection (network.FindBound (HostSocketKind::Tcp, kListenPort), { 0x7F000001, 50000 });
             client->inbound = { 'H', 'I', 0xFF };

@@ -36,9 +36,15 @@ public:
     IDxuiControl                   * GetContent      () const override;
     std::vector<IDxuiControl *>      GetControls     () const override { return { m_button, m_list }; }
     std::vector<DxuiListView *>      GetLists        () const override { return { m_list }; }
-    std::vector<IDxuiControl *>      GetPressTargets () const override { return { m_button }; }
-    void                             Apply           (const DebuggerViewSnapshot & snapshot) override;
-    bool                             AddMenuItems    (DxuiListView * list, int row, PaneMenuItems & items) override;
+
+    //  The columns always fit the frames: a width the user drags is neither
+    //  saved nor used past the next change of frames.
+    bool                           HasOwnColumnWidths () const override { return true; }
+    IDxuiFindTarget              * GetFindView        () const override { return m_list; }
+    DebuggerPaneFrame            * GetFindFrame       () const override { return m_frame.get(); }
+    std::vector<IDxuiControl *>    GetPressTargets    () const override { return { m_button }; }
+    void                           Apply              (const DebuggerViewSnapshot & snapshot) override;
+    bool                           AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
     DxuiListView                        * m_list   = nullptr;

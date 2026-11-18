@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/StateFileHandlers.h"
 
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/DebugSession.h"
 
 
@@ -55,11 +56,16 @@ void StateFileHandlers::Request (DebugSession & session, const DebugCommand & co
 
     if (name.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} needs a file name.", command.sourceName));
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} takes a file name.", command.sourceName));
         return;
     }
 
     path = session.ResolvePath (name);
+
+    if (!session.CheckHostAccess (path, isLoad ? HostAccess::Read : HostAccess::Write, reply))
+    {
+        return;
+    }
 
     if (requester != nullptr)
     {

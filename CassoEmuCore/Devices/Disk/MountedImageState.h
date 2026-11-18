@@ -27,6 +27,10 @@ struct PendingChange
     bool                  seen   = false;
     ExternalChangeIntent  intent = ExternalChangeIntent::Unstated;
 
+    //  The stated intent came from Casso Explorer, which passes a window for
+    //  the reply, rather than from the command line, which does not.
+    bool                  fromCassoExplorer = false;
+
     //  When the most recent change arrived. The quiet period is measured from
     //  HERE and not from the first, which is what lets a burst settle once.
     int64_t       lastSeenMs = 0;
@@ -85,7 +89,7 @@ public:
     //
     //  A LATER STATED INTENT REPLACES AN EARLIER ONE, because the last writer
     //  is the one whose bytes are on disk.
-    void  NoteChange (int64_t nowMs, ExternalChangeIntent intent);
+    void  NoteChange (int64_t nowMs, ExternalChangeIntent intent, bool fromCassoExplorer = false);
 
     //  Whether a noticed change has settled and may be acted on.
     bool  IsSettled  (int64_t nowMs) const;

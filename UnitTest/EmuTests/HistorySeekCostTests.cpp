@@ -60,14 +60,14 @@ public:
 
         for (i = 0; i < s_kSeekKeyframes; i++)
         {
-            machine.RunCycles (interval);
+            machine.GetRunner().RunCycles (interval);
         }
 
-        Assert::IsTrue (controller.GetKeyframes().GetCount() >= (size_t) s_kSeekKeyframes / 2, L"history was recorded");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().GetCount() >= (size_t) s_kSeekKeyframes / 2, L"history was recorded");
 
         //  Two stretches far apart, so every seek between them restores.
-        early = controller.GetKeyframes().GetInfo (2).cycle;
-        late  = controller.GetKeyframes().GetInfo (controller.GetKeyframes().GetCount() - 3).cycle;
+        early = controller.GetKeyframes().GetArena().GetInfo (2).cycle;
+        late  = controller.GetKeyframes().GetArena().GetInfo (controller.GetKeyframes().GetArena().GetCount() - 3).cycle;
 
         log += std::format ("history seek by cycle, {} build, keyframe every {} cycles\n", IsDebugBuild() ? "Debug" : "Release", interval);
 
@@ -81,7 +81,7 @@ public:
                                 TimeAlternating (controller, early + offset, late + offset));
         }
 
-        hr = controller.SeekToCycle (early + 1, result);
+        hr = controller.GetSeeker().SeekToCycle (early + 1, result);
         AssertSucceeded (hr, L"SeekToCycle");
 
         forward = early + 1;
@@ -90,7 +90,7 @@ public:
                             TimeMs ([&]
                             {
                                 forward += s_kSeekPixel;
-                                hr = controller.SeekToCycle (forward, result);
+                                hr = controller.GetSeeker().SeekToCycle (forward, result);
                             }));
         AssertSucceeded (hr, L"SeekToCycle forward");
 
@@ -113,7 +113,7 @@ private:
         ms = TimeMs ([&]
         {
             isLate = !isLate;
-            hr     = controller.SeekToCycle (isLate ? second : first, result);
+            hr     = controller.GetSeeker().SeekToCycle (isLate ? second : first, result);
         });
 
         AssertSucceeded (hr, L"SeekToCycle");

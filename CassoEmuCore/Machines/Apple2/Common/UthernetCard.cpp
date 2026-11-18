@@ -313,7 +313,8 @@ void UthernetCard::ApplySettings (const NetworkCardSettings & settings)
 
 void UthernetCard::OnPumpInterval (uint32_t cycles)
 {
-    uint64_t  cycle = (m_inputJournal != nullptr) ? m_inputJournal->GetCycle() - cycles : 0;
+    uint64_t                   cycle = (m_inputJournal != nullptr) ? m_inputJournal->GetCycle() - cycles : 0;
+    std::vector<FirewallPort>  ports;
 
 
 
@@ -322,6 +323,19 @@ void UthernetCard::OnPumpInterval (uint32_t cycles)
 
     CallBackend (BackendCall::Pump, 0, 0, cycle);
     UpdateIrq();
+
+    //  The shared list is replaced only when the ports changed.
+    m_bridge.GetInboundPorts (ports);
+    m_network.GetInboundPorts (ports);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_inboundLock);
+
+        if (ports != m_inboundPorts)
+        {
+            m_inboundPorts = std::move (ports);
+        }
+    }
 }
 
 
@@ -517,6 +531,46 @@ void UthernetCard::DropHostConnections()
 
     m_replayed.clear();
     UpdateIrq();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::GetInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FirewallPort> UthernetCard::GetInboundPorts() const
+{
+    std::lock_guard<std::mutex>  lock (m_inboundLock);
+
+
+
+    return m_inboundPorts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::GetDeferredPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FirewallPort> UthernetCard::GetDeferredPorts() const
+{
+    std::vector<FirewallPort>  ports = m_bridge.GetDeferredPorts();
+
+
+
+    m_network.GetDeferredPorts (ports);
+
+    return ports;
 }
 
 

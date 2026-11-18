@@ -2,7 +2,7 @@
 
 #include "EmuTests/ReverseSessionRig.h"
 #include "Devices/Printer/PrinterByteRing.h"
-#include "Machines/Apple2/Common/PrinterCard.h"
+#include "Devices/Printer/PrinterByteRing.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -52,51 +52,51 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kGateLiveCycles);
+        machine.GetRunner().RunCycles (s_kGateLiveCycles);
 
         Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"live, the speaker clicks");
-        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"and the printer gets bytes");
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"and the printer gets bytes");
 
-        oldest = controller.GetOldestPosition();
-        live   = machine.GetPosition();
+        oldest = controller.GetSeeker().GetOldestPosition();
+        live   = machine.GetRunner().GetPosition();
 
         Drain (machine);
 
-        hr = controller.SeekToPosition (oldest + (live - oldest) / 2, result);
+        hr = controller.GetSeeker().SeekToPosition (oldest + (live - oldest) / 2, result);
         AssertSucceeded (hr, L"SeekToPosition halfway");
         AssertSilent (machine, L"seek");
 
-        hr = controller.StepBack (result);
+        hr = controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack");
         AssertSilent (machine, L"step back");
 
         probe.breakPc = s_kGatePrintSite;
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue");
         Assert::AreEqual<int> (s_kGatePrintSite, machine.GetCpu()->GetPC(), L"reverse continue stopped at the print");
         AssertSilent (machine, L"reverse continue");
 
-        Assert::IsFalse (machine.IsOutputMuted(), L"no replay leaves the output muted");
+        Assert::IsFalse (machine.GetOutputMute().IsMuted(), L"no replay leaves the output muted");
 
         //  Running on from the past replays the recorded future, heard but
         //  not printed, until the machine is live again.
-        machine.RunCycles (s_kGateAfterCycles);
-        Assert::IsTrue   (controller.IsInHistory(), L"still behind live");
+        machine.GetRunner().RunCycles (s_kGateAfterCycles);
+        Assert::IsTrue   (controller.GetSpan().IsInHistory(), L"still behind live");
         Assert::IsFalse  (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"running on behind live, the speaker clicks");
-        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"but the printer gets nothing");
+        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"but the printer gets nothing");
         Drain (machine);
 
-        while (controller.IsInHistory())
+        while (controller.GetSpan().IsInHistory())
         {
-            machine.RunCycles (s_kGateAfterCycles);
+            machine.GetRunner().RunCycles (s_kGateAfterCycles);
         }
 
         Drain (machine);
-        machine.RunCycles (s_kGateAfterCycles);
+        machine.GetRunner().RunCycles (s_kGateAfterCycles);
 
         Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"live again, the speaker clicks again");
-        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"and the printer gets bytes again");
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"and the printer gets bytes again");
     }
 
 
@@ -117,27 +117,27 @@ public:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (s_kGateLiveCycles);
+        machine.GetRunner().RunCycles (s_kGateLiveCycles);
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
-        machine.StepOne();
+        machine.GetRunner().StepOne();
 
-        Assert::IsTrue  (controller.IsInHistory(), L"the step left the machine behind live");
-        Assert::IsTrue  (machine.IsPrinterMuted(), L"with the printer quiet");
+        Assert::IsTrue  (controller.GetSpan().IsInHistory(), L"the step left the machine behind live");
+        Assert::IsTrue  (machine.GetOutputMute().IsPrinterMuted(), L"with the printer quiet");
 
         controller.Stop();
 
-        Assert::IsFalse (machine.IsOutputMuted(), L"stopping recording leaves nothing muted");
+        Assert::IsFalse (machine.GetOutputMute().IsMuted(), L"stopping recording leaves nothing muted");
 
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start again, as a state load does");
 
         Drain (machine);
-        machine.RunCycles (s_kGateAfterCycles);
+        machine.GetRunner().RunCycles (s_kGateAfterCycles);
 
-        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(), L"the printer gets bytes again");
+        Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"the printer gets bytes again");
     }
 
 
@@ -160,7 +160,7 @@ private:
         machine.PowerCycle();
 
         Assert::IsNotNull (machine.GetRefs().speaker,     L"the //e has a speaker");
-        Assert::IsNotNull (machine.GetRefs().printerCard, L"and a printer card in slot 1");
+        Assert::IsNotNull (machine.GetRefs().printerRing, L"and a printer on the card in slot 1");
 
         for (i = 0; i < sizeof (kProgram); i++)
         {
@@ -181,7 +181,7 @@ private:
         machine.GetRefs().speaker->ClearTimestamps();
         machine.GetRefs().speaker->BeginFrame();
 
-        while (machine.GetRefs().printerCard->GetByteRing().TryPop (value))
+        while (machine.GetRefs().printerRing->TryPop (value))
         {
         }
     }
@@ -190,7 +190,7 @@ private:
     static void AssertSilent (TestMachine & machine, const wchar_t * what)
     {
         Assert::AreEqual<size_t>   (0, machine.GetRefs().speaker->GetToggleTimestamps().size(),            (std::wstring (what) + L" left speaker clicks").c_str());
-        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerCard->GetByteRing().GetApproxSize(),      (std::wstring (what) + L" left printer bytes").c_str());
+        Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(),      (std::wstring (what) + L" left printer bytes").c_str());
 
         Drain (machine);
     }

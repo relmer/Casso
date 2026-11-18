@@ -28,6 +28,8 @@ AppleWin commands:
     P-                        Step back over, taking a whole subroutine call as one step
     RCC                       Reset the cycle counter that CYCLES PART reads
     RTS [count]               Step out of the current subroutine
+    SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     T, TL, TRACE [count]      Step into
     T-                        Step back one instruction
     TF [ON|OFF] [file] [V]    Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
@@ -47,7 +49,12 @@ AppleWin commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
+    BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     BPL                       List the breakpoints
+    BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
+    BPLOGS [n]                List the last n messages logging breakpoints wrote, 20 by default, up to 1000
     BPM, BPIO addr[,len|:last] [BEFORE|AFTER] [IF expr]
                               Stop on a read or write of memory
     BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]
@@ -173,28 +180,28 @@ AppleWin commands:
     U [addr[,len|:last]]      Disassemble, or continue the last listing
     X addr[,len|:last]        Make a data block code again
   Symbols and source
-    SYM [name|addr|name=addr|cmd]
-                              Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMASM [name|addr|name=addr|cmd]
-                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMBASIC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMDOS33, SYMDOS [name|addr|name=addr|cmd]
-                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    SYM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMASM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMBASIC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMDOS33, SYMDOS [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
     SYMINFO                   Show each symbol table's count and whether it is on
     SYMLIST [table]           List a symbol table, the user table by default
-    SYMMAIN [name|addr|name=addr|cmd]
-                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMPRODOS, SYMPRO [name|addr|name=addr|cmd]
-                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMSRC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMSRC2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMUSER [name|addr|name=addr|cmd]
-                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMUSER2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    SYMMAIN [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMPRODOS, SYMPRO [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMSRC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMSRC2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMUSER [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMUSER2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
   Disks
     DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
                               Show the drives and their disks or the disk slot, or insert or eject a disk
@@ -275,11 +282,12 @@ Casso commands:
     PATCH addr value ...      Store values at addr, ROM included
     SWITCHES                  Show the soft switches
   Symbols and source
+    BASICCLEAR                Clear the Applesoft program in memory, as NEW does
     BASICLOAD file            Replace the Applesoft program in memory with the listing in a text file
     BASICSAVE file            Save the Applesoft program in memory to a text file as a listing
     BASICSTACK                List the Applesoft program's active GOSUB returns and FOR loops
     BASICVARS                 List the Applesoft program's variables and arrays with their values
-    SRC [ON|OFF]              Show the source line at PC, or step by source lines
+    SRC [ON|OFF|CLEAR]        Show the source line at PC, step by source lines, or unload the debug file
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]
                               List the device panels, or open or close one
@@ -362,6 +370,8 @@ Casso commands:
     /RCC                      Reset the cycle counter that CYCLES PART reads
     /RESET [SOFT|POWER]       Reset the machine as its reset key does, or power cycle it
     /RTS [count]              Step out of the current subroutine
+    /SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     /SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     /SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -386,7 +396,12 @@ Casso commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     /BPE #|*                  Enable a breakpoint, or all of them
     /BPEDIT # definition      Replace a breakpoint with a new definition
+    /BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     /BPL                      List the breakpoints
+    /BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
+    /BPLOGS [n]               List the last n messages logging breakpoints wrote, 20 by default, up to 1000
     /BPM, /BPIO addr[,len|:last] [BEFORE|AFTER] [IF expr]
                               Stop on a read or write of memory
     /BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]
@@ -502,33 +517,34 @@ Casso commands:
                               Mark memory as words, 4 a line
     /X addr[,len|:last]       Make a data block code again
   Symbols and source
+    /BASICCLEAR               Clear the Applesoft program in memory, as NEW does
     /BASICLOAD file           Replace the Applesoft program in memory with the listing in a text file
     /BASICSAVE file           Save the Applesoft program in memory to a text file as a listing
     /BASICSTACK               List the Applesoft program's active GOSUB returns and FOR loops
     /BASICVARS                List the Applesoft program's variables and arrays with their values
-    /SRC [ON|OFF]             Show the source line at PC, or step by source lines
-    /SYM [name|addr|name=addr|cmd]
-                              Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMASM [name|addr|name=addr|cmd]
-                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMBASIC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMDOS33, /SYMDOS [name|addr|name=addr|cmd]
-                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    /SRC [ON|OFF|CLEAR]       Show the source line at PC, step by source lines, or unload the debug file
+    /SYM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMASM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMBASIC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMDOS33, /SYMDOS [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
     /SYMINFO                  Show each symbol table's count and whether it is on
     /SYMLIST [table]          List a symbol table, the user table by default
-    /SYMMAIN [name|addr|name=addr|cmd]
-                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMPRODOS, /SYMPRO [name|addr|name=addr|cmd]
-                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMSRC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMSRC2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMUSER [name|addr|name=addr|cmd]
-                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    /SYMUSER2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    /SYMMAIN [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMPRODOS, /SYMPRO [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMSRC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMSRC2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMUSER [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    /SYMUSER2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
   Disks
     /DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
                               Show the drives and their disks or the disk slot, or insert or eject a disk
@@ -658,6 +674,8 @@ Casso commands:
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     RCC                       Reset the cycle counter that CYCLES PART reads
     RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
+    SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -677,7 +695,12 @@ Casso commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
+    BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     BPL                       List the breakpoints
+    BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
+    BPLOGS [n]                List the last n messages logging breakpoints wrote, 20 by default, up to 1000
     BPMV addr[,len|:last] byte [IF expr]
                               Stop when a write sets a byte of the range to byte
     BPNAME # ["text"]         Set a breakpoint's name, or with none return it to the default
@@ -771,31 +794,32 @@ Casso commands:
     Z [name [=]] [addr[,len|:last]]
                               Mark memory as bytes, or list the data blocks
   Symbols and source
+    BASICCLEAR                Clear the Applesoft program in memory, as NEW does
     BASICLOAD file            Replace the Applesoft program in memory with the listing in a text file
     BASICSAVE file            Save the Applesoft program in memory to a text file as a listing
     BASICSTACK                List the Applesoft program's active GOSUB returns and FOR loops
     BASICVARS                 List the Applesoft program's variables and arrays with their values
-    SRC [ON|OFF]              Show the source line at PC, or step by source lines
-    SYMASM [name|addr|name=addr|cmd]
-                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMBASIC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMDOS33, SYMDOS [name|addr|name=addr|cmd]
-                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    SRC [ON|OFF|CLEAR]        Show the source line at PC, step by source lines, or unload the debug file
+    SYMASM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMBASIC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMDOS33, SYMDOS [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
     SYMINFO                   Show each symbol table's count and whether it is on
     SYMLIST [table]           List a symbol table, the user table by default
-    SYMMAIN [name|addr|name=addr|cmd]
-                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMPRODOS, SYMPRO [name|addr|name=addr|cmd]
-                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMSRC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMSRC2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMUSER [name|addr|name=addr|cmd]
-                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMUSER2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    SYMMAIN [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMPRODOS, SYMPRO [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMSRC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMSRC2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMUSER [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMUSER2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
   Disks
     DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
                               Show the drives and their disks or the disk slot, or insert or eject a disk
@@ -903,6 +927,8 @@ Casso commands:
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     !RCC                      Reset the cycle counter that CYCLES PART reads
     !RESET [SOFT|POWER]       Reset the machine as its reset key does, or power cycle it
+    !SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     !SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     !SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -921,6 +947,11 @@ Casso commands:
     !BPDISK [D1|D2] event [arguments] [IF expr]
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     !BPEDIT # definition      Replace a breakpoint with a new definition
+    !BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
+    !BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
+    !BPLOGS [n]               List the last n messages logging breakpoints wrote, 20 by default, up to 1000
     !BPMV addr[,len|:last] byte [IF expr]
                               Stop when a write sets a byte of the range to byte
     !BPNAME # ["text"]        Set a breakpoint's name, or with none return it to the default
@@ -1028,30 +1059,31 @@ Casso commands:
                               Mark memory as words, 4 a line
     !X addr[,len|:last]       Make a data block code again
   Symbols and source
+    !BASICCLEAR               Clear the Applesoft program in memory, as NEW does
     !BASICLOAD file           Replace the Applesoft program in memory with the listing in a text file
     !BASICSAVE file           Save the Applesoft program in memory to a text file as a listing
     !BASICSTACK               List the Applesoft program's active GOSUB returns and FOR loops
     !BASICVARS                List the Applesoft program's variables and arrays with their values
-    !SYMASM [name|addr|name=addr|cmd]
-                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMBASIC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMDOS33, !SYMDOS [name|addr|name=addr|cmd]
-                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    !SYMASM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMBASIC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMDOS33, !SYMDOS [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
     !SYMINFO                  Show each symbol table's count and whether it is on
     !SYMLIST [table]          List a symbol table, the user table by default
-    !SYMMAIN [name|addr|name=addr|cmd]
-                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMPRODOS, !SYMPRO [name|addr|name=addr|cmd]
-                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMSRC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMSRC2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMUSER [name|addr|name=addr|cmd]
-                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    !SYMUSER2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    !SYMMAIN [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMPRODOS, !SYMPRO [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMSRC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMSRC2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMUSER [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    !SYMUSER2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
   Disks
     !DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
                               Show the drives and their disks or the disk slot, or insert or eject a disk
@@ -1123,6 +1155,8 @@ Casso commands:
     RCC                       Reset the cycle counter that CYCLES PART reads
     RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
     RTS [count]               Step out of the current subroutine
+    SEEK -time | CYCLE n | POS n
+                              Move to a time back from live, as -5s or -250ms, or to a cycle or a position in history
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -1148,7 +1182,12 @@ Casso commands:
                               Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                   Enable a breakpoint, or all of them
     BPEDIT # definition       Replace a breakpoint with a new definition
+    BPGROUP [name #[,#...]|! #[,#...]|cmd name]
+                              List breakpoint groups, put breakpoints in one or take them out, or act on one
     BPL                       List the breakpoints
+    BPLOG # [GO] "text {expr}" | CLEAR
+                              Write a message at each hit, {expr} evaluated; GO runs on instead of stopping
+    BPLOGS [n]                List the last n messages logging breakpoints wrote, 20 by default, up to 1000
     BPM, BPIO addr[,len|:last] [BEFORE|AFTER] [IF expr]
                               Stop on a read or write of memory
     BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]
@@ -1280,33 +1319,34 @@ Casso commands:
     U [addr[,len|:last]]      Disassemble, or continue the last listing
     X addr[,len|:last]        Make a data block code again
   Symbols and source
+    BASICCLEAR                Clear the Applesoft program in memory, as NEW does
     BASICLOAD file            Replace the Applesoft program in memory with the listing in a text file
     BASICSAVE file            Save the Applesoft program in memory to a text file as a listing
     BASICSTACK                List the Applesoft program's active GOSUB returns and FOR loops
     BASICVARS                 List the Applesoft program's variables and arrays with their values
-    SRC [ON|OFF]              Show the source line at PC, or step by source lines
-    SYM [name|addr|name=addr|cmd]
-                              Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMASM [name|addr|name=addr|cmd]
-                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMBASIC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMDOS33, SYMDOS [name|addr|name=addr|cmd]
-                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    SRC [ON|OFF|CLEAR]        Show the source line at PC, step by source lines, or unload the debug file
+    SYM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in any table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMASM [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the assembler table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMBASIC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the Applesoft table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMDOS33, SYMDOS [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the DOS 3.3 table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
     SYMINFO                   Show each symbol table's count and whether it is on
     SYMLIST [table]           List a symbol table, the user table by default
-    SYMMAIN [name|addr|name=addr|cmd]
-                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMPRODOS, SYMPRO [name|addr|name=addr|cmd]
-                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMSRC [name|addr|name=addr|cmd]
-                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMSRC2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMUSER [name|addr|name=addr|cmd]
-                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
-    SYMUSER2 [name|addr|name=addr|cmd]
-                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
+    SYMMAIN [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the main table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMPRODOS, SYMPRO [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the ProDOS table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMSRC [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMSRC2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second source table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMUSER [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
+    SYMUSER2 [name|addr|name=addr|! name|cmd]
+                              Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON or OFF; ! name removes a symbol
   Disks
     DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
                               Show the drives and their disks or the disk slot, or insert or eject a disk

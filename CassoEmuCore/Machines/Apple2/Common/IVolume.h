@@ -3,12 +3,10 @@
 #include "Pch.h"
 
 #include "Devices/Disk/FilePath.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
+#include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 
-struct VolumeListing;
-struct FilePayload;
-struct DeleteOutcome;
-struct DirectoryRemovalPlan;
-class VolumeIntegrityReport;
+class BlockBuffer;
 
 
 
@@ -131,4 +129,52 @@ public:
     virtual HRESULT  Rename (const FilePath     & from,
                              const std::string  & to,
                              std::vector<Byte>  & outBuffer) const = 0;
+
+    //  Changes a file's type, aux type, access and dates in place, each only
+    //  when its has flag is set. A locked file can be changed, since unlocking
+    //  is one of the changes. A field the filesystem doesn't store fails with
+    //  ERROR_NOT_SUPPORTED.
+    virtual HRESULT  SetAttributes (const FilePath        & path,
+                                    const FileAttributes  & attributes,
+                                    std::vector<Byte>     & outBuffer) const = 0;
+
+    //  The same changes into a buffer of the blocks the change touches, which
+    //  is all a change to a large volume over a store reads. ProDOS and HFS
+    //  have them; any other volume fails with ERROR_NOT_SUPPORTED.
+    virtual HRESULT  CreateDirectory (const FilePath &, BlockBuffer &) const                         { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+    virtual HRESULT  RemoveDirectory (const FilePath &, bool, BlockBuffer &, DeleteOutcome &) const  { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+    virtual HRESULT  Write           (const FilePath &, const FilePayload &, BlockBuffer &) const    { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+    virtual HRESULT  Delete          (const FilePath &, BlockBuffer &, DeleteOutcome &) const        { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+    virtual HRESULT  Rename          (const FilePath &, const std::string &, BlockBuffer &) const    { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+    virtual HRESULT  SetAttributes   (const FilePath &, const FileAttributes &, BlockBuffer &) const { return HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED); }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NullVolume
+//
+//  The volume of a buffer with no recognized file system: every operation
+//  returns ERROR_UNRECOGNIZED_VOLUME.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullVolume : public IVolume
+{
+public:
+    HRESULT  Enumerate            (VolumeListing &) const override                                                  { return kResult; }
+    HRESULT  Read                 (const FilePath &, FilePayload &) const override                                  { return kResult; }
+    HRESULT  Write                (const FilePath &, const FilePayload &, std::vector<Byte> &) const override       { return kResult; }
+    HRESULT  Delete               (const FilePath &, std::vector<Byte> &) const override                            { return kResult; }
+    HRESULT  Delete               (const FilePath &, std::vector<Byte> &, DeleteOutcome &) const override           { return kResult; }
+    HRESULT  BuildIntegrityReport (VolumeIntegrityReport &) const override                                          { return kResult; }
+    HRESULT  SetStartupProgram    (const FilePath &, std::vector<Byte> &) const override                            { return kResult; }
+    HRESULT  Rename               (const FilePath &, const std::string &, std::vector<Byte> &) const override       { return kResult; }
+    HRESULT  SetAttributes        (const FilePath &, const FileAttributes &, std::vector<Byte> &) const override    { return kResult; }
+
+private:
+    static constexpr HRESULT  kResult = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME);
 };

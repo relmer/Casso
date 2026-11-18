@@ -1,0 +1,20 @@
+Application icon and About box pictures
+======================================
+
+  CassoExplorer.png                   (the icon, in Casso Explorer's About box)
+  Cassowary.png                       (the photograph heading the About box)
+  Resources/Icons/CassoExplorer.ico   (referenced from CassoExplorer.rc)
+  Resources/Icons/CassoExplorer.png   (the 1024-pixel master)
+
+All are built by Assets/Icon/build_casso_explorer_icon.py. The folder follows
+Windows' own File Explorer icon in shape and color so the two read as a pair;
+the Apple bands down its left edge and the cassowary on its front are Casso's.
+Like Casso's own icons, the silhouette is derived from "Mrs Cassowary closeup"
+(c) by Mr. Smiley / BunyipCo, the photograph Casso's README shows, and
+Cassowary.png is that photograph.
+
+Licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0
+Unported License (CC BY-NC-SA 3.0). To view a copy of this license, visit
+https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+Source: https://bunyipco.blogspot.com/2015/04/cassowary-update.html

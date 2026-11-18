@@ -3,6 +3,7 @@
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "../Dxui/MockDxuiPainter.h"
@@ -314,13 +315,13 @@ namespace HistoryBandGoLiveTests
 
 
 
-            Assert::IsTrue  (DebuggerActions::IsRunAction (Action::Run));
-            Assert::IsTrue  (DebuggerActions::IsRunAction (Action::ReverseRun));
-            Assert::IsTrue  (DebuggerActions::IsRunAction (Action::RunToCursor));
-            Assert::IsFalse (DebuggerActions::IsRunAction (Action::StepInto));
-            Assert::IsFalse (DebuggerActions::IsRunAction (Action::StepOver));
-            Assert::IsFalse (DebuggerActions::IsRunAction (Action::RunFrame));
-            Assert::IsFalse (DebuggerActions::IsRunAction (Action::ToggleBreakpoint));
+            Assert::IsTrue  (DebuggerKeyActions::IsRunAction (Action::Run));
+            Assert::IsTrue  (DebuggerKeyActions::IsRunAction (Action::ReverseRun));
+            Assert::IsTrue  (DebuggerKeyActions::IsRunAction (Action::RunToCursor));
+            Assert::IsFalse (DebuggerKeyActions::IsRunAction (Action::StepInto));
+            Assert::IsFalse (DebuggerKeyActions::IsRunAction (Action::StepOver));
+            Assert::IsFalse (DebuggerKeyActions::IsRunAction (Action::RunFrame));
+            Assert::IsFalse (DebuggerKeyActions::IsRunAction (Action::ToggleBreakpoint));
         }
     };
 }

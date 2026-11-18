@@ -1,0 +1,6 @@
+# Casso serial log: cycle, port, > from the Apple or < to it, bytes in hex
+0 2 > C1
+0 2 > 06 00 C4 03 AA AE D0 CF
+0 2 > 00 00
+0 2 > 1B
+0 2 < C1 00 04 D3 16 00 00 44 05 09 F3 FE 11 FB 03 07 C7 2F F7 F4 E6 23 F7 22 ED 24 F4 06 FE 0E E9 B1 00 1A 20 00 42 15 EC 22 FF BE 36 EB 22 FF BE F3 00 00 00 00 00 00 00 00 66 F3

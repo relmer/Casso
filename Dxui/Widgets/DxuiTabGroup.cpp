@@ -1317,6 +1317,12 @@ bool DxuiTabGroup::OnMouse (const DxuiMouseEvent & ev)
             m_titlePressed = true;
             m_titleDragged = false;
             m_pressedAt    = p;
+
+            if (m_onTitlePress && m_active >= 0)
+            {
+                m_onTitlePress (m_active);
+            }
+
             return true;
         }
 

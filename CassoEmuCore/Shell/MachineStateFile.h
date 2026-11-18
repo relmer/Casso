@@ -39,7 +39,7 @@ struct SavedDisk
 //  MachineStateContents
 //
 //  A machine state file, read: which machine and ROM set saved it, the disks
-//  in it, the machine's own state blob (MachineHost::SaveState), and from
+//  in it, the machine's own state blob (MachineStateStream::SaveState), and from
 //  version 2 the time it was saved (a UTC FILETIME as one 64-bit value) and
 //  a PNG thumbnail of the screen. A version-1 state has a zero time and no
 //  thumbnail.

@@ -74,11 +74,16 @@ public:
 
     void  SetItems          (std::vector<DxuiMenuBarItem> items);
     void  SetPopupHost      (DxuiHwndSource * host);
-    void  SetStripColors    (uint32_t stripArgb, uint32_t hoverArgb, uint32_t textArgb);
+    void  SetStripColors    (uint32_t stripArgb,
+                             uint32_t hoverArgb,
+                             uint32_t textArgb,
+                             uint32_t hoverTextArgb);
     void  SetDropdownColors (uint32_t bgArgb,
                              uint32_t hoverArgb,
                              uint32_t textArgb,
+                             uint32_t hoverTextArgb,
                              uint32_t accelArgb,
+                             uint32_t hoverAccelArgb,
                              uint32_t borderArgb,
                              uint32_t dividerArgb);
 
@@ -102,17 +107,18 @@ public:
     void  Close             ();
     void  CloseAll          ();
 
-    int   OpenIndex         () const { return m_isOpen ? m_openIndex    : -1;       }
-    int   OpenMenuIndex     () const { return m_openIndex;                          }
-    bool  IsOpen            () const { return m_isOpen;                             }
-    bool  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
-    int   GetHighlightIndex () const;
-    int   GetHoverIndex     () const { return m_hoverIndex;                         }
-    int   GetMenuCount      () const { return (int) m_items.size();                 }
-    void  SetFocusedMenu    (int menuIndex);
-    void  ClearFocus        ();
-    bool  HasFocus          () const { return m_hasFocus;                           }
-    int   GetFocusedMenu    () const { return m_focusedIndex;                       }
+    int                                   OpenIndex         () const { return m_isOpen ? m_openIndex    : -1;       }
+    int                                   OpenMenuIndex     () const { return m_openIndex;                          }
+    bool                                  IsOpen            () const { return m_isOpen;                             }
+    bool                                  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
+    int                                   GetHighlightIndex () const;
+    int                                   GetHoverIndex     () const { return m_hoverIndex;                         }
+    int                                   GetMenuCount      () const { return (int) m_items.size();                 }
+    const std::vector<DxuiMenuBarItem>  & GetItems          () const { return m_items; }
+    void                                  SetFocusedMenu    (int menuIndex);
+    void                                  ClearFocus        ();
+    bool                                  HasFocus          () const { return m_hasFocus;                           }
+    int                                   GetFocusedMenu    () const { return m_focusedIndex;                       }
 
     bool  HandleAltKey      (wchar_t ch);
     bool  TrackAltTap       (DxuiKeyEventKind kind, WPARAM vk);
@@ -193,10 +199,10 @@ private:
     bool  ActivateMnemonicRow (wchar_t ch);
     void  ShowOpenMenu        ();
 
-    int   HitTitleIndex       (int x, int y) const;
-    int   GetVisibleRowCount  (int menuIndex) const;
-    int   ToRowIndex          (int itemIndex) const;
-    const DxuiPopupMenuItem *  GetEntryAt (int menuIndex, int rowIndex) const;
+    int                        HitTitleIndex      (int x, int y) const;
+    int                        GetVisibleRowCount (int menuIndex) const;
+    int                        ToRowIndex         (int itemIndex) const;
+    const DxuiPopupMenuItem  * GetEntryAt         (int menuIndex, int rowIndex) const;
 
     bool  ShouldShowMnemonicCues (bool openedByKeyboard) const;
 
@@ -237,10 +243,11 @@ private:
     bool                          m_cuesToggled      = false;
     UINT                          m_dpi              = 96;
 
-    bool                          m_stripColorsSet      = false;
-    uint32_t                      m_stripBgOverride     = 0;
-    uint32_t                      m_stripHoverOverride  = 0;
-    uint32_t                      m_stripTextOverride   = 0;
+    bool                          m_stripColorsSet         = false;
+    uint32_t                      m_stripBgOverride        = 0;
+    uint32_t                      m_stripHoverOverride     = 0;
+    uint32_t                      m_stripTextOverride      = 0;
+    uint32_t                      m_stripHoverTextOverride = 0;
 
     IDxuiTextRenderer           * m_textRendererForMeasure = nullptr;
 };

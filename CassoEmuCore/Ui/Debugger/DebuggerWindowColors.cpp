@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "AssetBootstrap.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -16,7 +17,7 @@
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
-#include "Cassque/CassquePromptDialog.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
@@ -58,6 +59,48 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ApplyTypography
+//
+//  Attached to the window, so its floating windows, menus and tips draw in
+//  it too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyTypography()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_theme == m_emulatorTheme)
+    {
+        m_typographyInForce = &DxuiTextRenderer::GetDefaultTypography();
+        DxuiTextRenderer::AttachTypography (GetHwnd(), nullptr);
+        return;
+    }
+
+    if (m_theme == &m_ownTheme)
+    {
+        hr = AssetBootstrap::ApplyThemeTypography (m_hInstance, m_ownTheme, m_typography);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else
+    {
+        DxuiTextRenderer::ClearBodyFace             (m_typography);
+        DxuiTextRenderer::SetTextGlow               (m_typography, 0, 0.0f);
+        DxuiTextRenderer::SetMonochromeGlyphsForced (m_typography, false);
+    }
+
+    m_typographyInForce = &m_typography;
+    DxuiTextRenderer::AttachTypography (GetHwnd(), &m_typography);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyTheme
 //
 //  The window's own theme, or the emulator's for the empty name. The system
@@ -65,6 +108,10 @@
 //  Explorer's do, and then the debugger's own tooltip and pane colors. A
 //  test gives the system colors in place of Windows', so nothing is read
 //  from the machine. The Theme drop-down is rebuilt for the check it holds.
+//
+//  The window's text is drawn in its theme's typography: the emulator's,
+//  which is the process default, when it follows the emulator, and the
+//  window's otherwise. The system themes draw in the system face.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,6 +132,18 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
     if (m_emulatorTheme != nullptr)
     {
         m_theme = &DebuggerThemes::Choose (name, *m_emulatorTheme, m_lightTheme, m_darkTheme, m_ownTheme);
+    }
+
+    ApplyTypography();
+
+    //  A theme's face can be wider than the last one's, so the columns are
+    //  fitted again in it, or the widest text would be cut.
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        for (DxuiListView * list : pane->GetLists())
+        {
+            list->ResetAutoFit();
+        }
     }
 
     SetTheme            (m_theme);
@@ -112,12 +171,18 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         SetWindowMenus();
     }
 
-    //  The code views, the source documents and the heat map take their
-    //  colors at a snapshot, and no snapshot comes when a theme is chosen
-    //  while the machine is stopped: their rows had the last theme's colors.
+    //  The code views, the source documents, the heat map and the memory
+    //  windows take their colors at a snapshot, and no snapshot comes when a
+    //  theme is chosen while the machine is stopped: their rows had the last
+    //  theme's colors.
     if (m_heatMapPane != nullptr)
     {
         m_heatMapPane->ApplyPalette();
+    }
+
+    if (m_memoryGroup != nullptr)
+    {
+        m_memoryGroup->ApplyColors();
     }
 
     if (m_snapshot != nullptr && m_code != nullptr && m_sources != nullptr)
@@ -274,7 +339,7 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetHoverBreakpointIcon()
 
 std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot)
 {
-    constexpr size_t                      kMaxPcIcons = 4;
+    constexpr size_t                      kMaxPcIcons = 8;
     uint32_t                              argb        = GetPcMarkerArgb();
     std::shared_ptr<const DxuiIconImage>  icon;
 
@@ -301,6 +366,55 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetPcIcon (const std::share
         icon = GutterGlyph::MakeMarked (dot, GutterGlyph::MakeArrow (argb));
 
         m_pcIcons.push_back ({ dot, icon });
+    }
+
+    return icon;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBookmarkMark
+//
+//  A bookmark's outline in the theme's accent, drawn over the line's dot
+//  when it has one. A few are cached, as the PC's are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetBookmarkMark (const std::shared_ptr<const DxuiIconImage> & dot)
+{
+    constexpr size_t                      kMaxIcons = 8;
+    uint32_t                              argb      = (m_theme != nullptr) ? m_theme->Accent() : 0xFF3C8CE6;
+    std::shared_ptr<const DxuiIconImage>  icon;
+    std::shared_ptr<const DxuiIconImage>  outline;
+
+
+
+    if (argb != m_bookmarkIconArgb)
+    {
+        m_bookmarkIconArgb = argb;
+        m_bookmarkIcons.clear();
+    }
+
+    for (const PcIcon & each : m_bookmarkIcons)
+    {
+        icon = (each.dot == dot) ? each.icon : icon;
+    }
+
+    if (icon == nullptr)
+    {
+        if (m_bookmarkIcons.size() >= kMaxIcons)
+        {
+            m_bookmarkIcons.clear();
+        }
+
+        outline = GutterGlyph::MakeBookmark (argb);
+        icon    = (dot != nullptr) ? std::shared_ptr<const DxuiIconImage> (GutterGlyph::MakeOver (*dot, *outline)) : outline;
+
+        m_bookmarkIcons.push_back ({ dot, icon });
     }
 
     return icon;
@@ -529,6 +643,7 @@ HeatMapView::Palette DebuggerWindow::GetHeatPalette() const
     palette.selfModifying = colors.heatSelfModifying;
     palette.unwritten     = colors.heatUnwritten;
     palette.changed       = colors.heatChanged;
+    palette.found         = (m_theme != nullptr) ? m_theme->Accent() : 0xFFFFFFFF;
 
     return palette;
 }

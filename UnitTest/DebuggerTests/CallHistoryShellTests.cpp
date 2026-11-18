@@ -93,9 +93,9 @@ namespace CallHistoryShellTests
             LoadProgram (shell->GetMachine());
 
             shell->GetDebugger().PrepareFramebuffers();
-            shell->GetDebugger().GetCallReplayer().SetWorkQueue (&queue);
+            shell->GetDebugger().GetHistory().GetCallReplayer().SetWorkQueue (&queue);
 
-            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
+            Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (true, kBudgetMb); });
 
             RunTo (kOpenAt);
 
@@ -154,6 +154,20 @@ namespace CallHistoryShellTests
 
 
         //  A command as the CPU thread hands one to the shell.
+        void Dispatch (WORD id, DebugCall call)
+        {
+            EmulatorCommand  command;
+
+
+
+            command.id   = id;
+            command.call = std::move (call);
+
+            shell->DispatchCpuCommand (command);
+        }
+
+
+
         void Dispatch (WORD id, const std::string & payload)
         {
             EmulatorCommand  command;
@@ -170,9 +184,9 @@ namespace CallHistoryShellTests
 
         void RunTo (uint64_t position)
         {
-            while (shell->GetMachine().GetPosition() < position)
+            while (shell->GetMachine().GetRunner().GetPosition() < position)
             {
-                shell->GetMachine().StepOne();
+                shell->GetMachine().GetRunner().StepOne();
             }
         }
 
@@ -318,9 +332,9 @@ namespace CallHistoryShellTests
 
             generation = rig.GetGeneration();
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
 
-            Assert::AreEqual    (landing, rig.shell->GetMachine().GetPosition(), L"the seek lands at the position given");
+            Assert::AreEqual    (landing, rig.shell->GetMachine().GetRunner().GetPosition(), L"the seek lands at the position given");
             Assert::AreNotEqual (generation, rig.GetGeneration(),                L"and the record starts again there");
             Assert::IsFalse     (ShellRig::HasCalls (rig.GetRecord()),           L"holding no call before it");
 
@@ -347,15 +361,15 @@ namespace CallHistoryShellTests
 
 
             rig.Rebuild();
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
 
-            position   = rig.shell->GetMachine().GetPosition();
+            position   = rig.shell->GetMachine().GetRunner().GetPosition();
             generation = rig.GetGeneration();
             before     = rig.GetRecord();
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, ShellRig::kOpenAt / 2));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, ShellRig::kOpenAt / 2); });
 
-            Assert::AreEqual (position,   rig.shell->GetMachine().GetPosition(), L"the machine did not move");
+            Assert::AreEqual (position,   rig.shell->GetMachine().GetRunner().GetPosition(), L"the machine did not move");
             Assert::AreEqual (generation, rig.GetGeneration(),                  L"and the record did not start again");
             Assert::IsTrue   (ShellRig::HasCalls (rig.GetRecord()),              L"it still holds the calls");
             Assert::AreEqual (before.frames.size(), rig.GetRecord().frames.size(), L"every one of them");
@@ -380,18 +394,18 @@ namespace CallHistoryShellTests
             rig.Rebuild();
             rig.RunTo (end);
 
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
             rig.Rebuild();
 
-            Assert::AreEqual (landing, rig.shell->GetMachine().GetPosition(), L"behind live, where the seek landed");
+            Assert::AreEqual (landing, rig.shell->GetMachine().GetRunner().GetPosition(), L"behind live, where the seek landed");
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
             rig.shell->GetDebugger().ServiceDebugger();
 
             bottom = rig.debugger->GetSession().GetCallRecordBottom();
             rows   = CallStackPane::GetRows (rig.debugger->GetSession().GetCallStack());
 
-            Assert::AreEqual (end, rig.shell->GetMachine().GetPosition(),        L"live again, where history ended");
+            Assert::AreEqual (end, rig.shell->GetMachine().GetRunner().GetPosition(),        L"live again, where history ended");
             Assert::IsFalse  (rig.debugger->GetCallHistory().IsRebuilding(),     L"with no rebuild");
             Assert::IsTrue   (bottom.has_value() && bottom->kind == CallBreakKind::TrackingRestarted,
                               L"the bottom marks only that the calls before it are not available");
@@ -414,14 +428,14 @@ namespace CallHistoryShellTests
 
 
             rig.RunTo (ShellRig::kOpenAt * 2);
-            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
-            rig.shell->GetDebugger().UpdateReplayCaption();
+            rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
+            rig.shell->GetDebugger().GetHistory().UpdateCaption();
 
-            Assert::IsFalse (rig.shell->GetDebugger().GetReplayCaption().empty(), L"behind live, the caption notes the replay");
+            Assert::IsFalse (rig.shell->GetDebugger().GetHistory().GetCaption().empty(), L"behind live, the caption notes the replay");
 
-            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
 
-            Assert::IsTrue (rig.shell->GetDebugger().GetReplayCaption().empty(), L"with history off, the note is gone");
+            Assert::IsTrue (rig.shell->GetDebugger().GetHistory().GetCaption().empty(), L"with history off, the note is gone");
         }
 
 
@@ -446,7 +460,7 @@ namespace CallHistoryShellTests
 
             rig.queue.WaitAll();
 
-            isLeft = rig.shell->GetDebugger().GetCallReplayer().TryTakeResult (result);
+            isLeft = rig.shell->GetDebugger().GetHistory().GetCallReplayer().TryTakeResult (result);
 
             Assert::IsFalse (isLeft, L"the rebuild was dropped, not run");
         }
@@ -466,8 +480,8 @@ namespace CallHistoryShellTests
 
             //  The shell's clock is moved on a few build intervals between
             //  passes rather than slept through.
-            rig.shell->GetDebugger().SetClock ([&nowMs] () { return nowMs; });
-            rig.shell->GetDebugger().SetDebugWindowShown (true);
+            rig.shell->GetDebugger().GetView().SetClock ([&nowMs] () { return nowMs; });
+            rig.shell->GetDebugger().GetView().SetWindowShown (true);
 
             rig.shell->GetDebugger().ServiceDebugger();
 
@@ -488,13 +502,13 @@ namespace CallHistoryShellTests
 
             //  The shell's count of views sent to be built, read at once
             //  rather than after waiting out a timeout.
-            before = rig.shell->GetDebugger().GetBuildsSubmitted();
+            before = rig.shell->GetDebugger().GetView().GetBuildsSubmitted();
             nowMs += kBuildPassingMs;
             rig.shell->GetDebugger().ServiceDebugger();
 
-            Assert::AreEqual (before, rig.shell->GetDebugger().GetBuildsSubmitted(), L"then a stopped machine doesn't build again");
+            Assert::AreEqual (before, rig.shell->GetDebugger().GetView().GetBuildsSubmitted(), L"then a stopped machine doesn't build again");
 
-            rig.shell->GetDebugger().SetDebugWindowShown (false);
+            rig.shell->GetDebugger().GetView().SetWindowShown (false);
         }
     };
 }

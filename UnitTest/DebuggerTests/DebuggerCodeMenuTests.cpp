@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -101,8 +102,8 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeEdits;
+        using DebuggerWindow::GetPaneHostForTest;
         using DebuggerWindow::GetCodeGroup;
-        using DebuggerWindow::ScrollCodeAtEdge;
         using DebuggerWindow::OnMouse;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
@@ -198,6 +199,20 @@ namespace DebuggerCodeMenuTests
             found->second();
         }
 
+        static std::wstring JoinLabels (const Items & items)
+        {
+            std::wstring  joined;
+
+
+
+            for (const auto & [label, action] : items)
+            {
+                joined += label + L"|";
+            }
+
+            return joined;
+        }
+
         static bool Has (const Items & items, const std::wstring & label)
         {
             return std::ranges::any_of (items, [&label] (const auto & item) { return item.first == label; });
@@ -228,13 +243,13 @@ namespace DebuggerCodeMenuTests
             Assert::IsTrue (code->GetRowCount() > 1, L"the view has its lines");
             code->SetSelectedRow (0);
 
-            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_UP, code),    L"Up on the first line");
-            Assert::IsFalse (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the first line moves the selection");
-            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_PRIOR, code), L"Page Up on the first line");
-            Assert::IsFalse (window.ScrollCodeAtEdge (VK_UP, nullptr), L"only for the focused view");
+            Assert::IsTrue  (window.GetCodeGroup().ScrollCodeAtEdge (VK_UP, code),    L"Up on the first line");
+            Assert::IsFalse (window.GetCodeGroup().ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the first line moves the selection");
+            Assert::IsTrue  (window.GetCodeGroup().ScrollCodeAtEdge (VK_PRIOR, code), L"Page Up on the first line");
+            Assert::IsFalse (window.GetCodeGroup().ScrollCodeAtEdge (VK_UP, nullptr), L"only for the focused view");
 
             code->SetSelectedRow (code->GetRowCount() - 1);
-            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the last line");
+            Assert::IsTrue  (window.GetCodeGroup().ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the last line");
 
             Assert::AreEqual ((size_t) 3, host.scrolls.size());
             Assert::AreEqual (-1, host.scrolls[0]);
@@ -330,6 +345,34 @@ namespace DebuggerCodeMenuTests
             Assert::AreEqual ((size_t) 1, window.notices.size(), L"no notice once it is off");
         }
 
+
+
+        //  The other panes that list code addresses add the same row: Add
+        //  bookmark at an address without one, Remove bookmark at one with.
+        TEST_METHOD (APanesRowAddsOrRemovesTheBookmarkAtItsAddress)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               snapshot = MakeSnapshot();
+            Items              items;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            window.GetPaneHostForTest().AddBookmarkItem (0x0302, items);
+            Run (items, L"Add bookmark");
+            Assert::AreEqual (std::string ("BMA 0302"), host.commands.back());
+
+            items.clear();
+            window.GetPaneHostForTest().AddBookmarkItem (0x0305, items);
+            Assert::IsTrue (Has (items, L"Remove bookmark"), L"$0305 has a bookmark");
+        }
 
 
         TEST_METHOD (TheMenuRunsEachEntryAsATypedAction)
@@ -456,6 +499,60 @@ namespace DebuggerCodeMenuTests
 
 
 
+        //  The breakpoint rows a source document has too: Set breakpoint on a
+        //  line with none, and on a line with one, Enable breakpoint or
+        //  Disable breakpoint for its state, then Remove breakpoint.
+        TEST_METHOD (TheBreakpointRowsAreSetOrEnableThenRemove)
+        {
+            CassoTheme                 theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost          host;
+            MenuWindow                 window   (theme, host);
+            DxuiDpiScaler              scaler;
+            auto                       snapshot = MakeSnapshot();
+            Items                      items;
+            DisassemblyViewPane      * view     = nullptr;
+            std::vector<std::wstring>  rows;
+
+
+
+            snapshot->codeViews[0][2].hasBreakpoint = true;
+            snapshot->codeViews[0][2].isEnabled     = false;
+            snapshot->breakpoints.push_back ({ 1, snapshot->codeViews[0][2].address, "BP", false });
+            snapshot->code                          = snapshot->codeViews[0];
+            snapshot->codeOpen[0]                   = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            view = &window.GetCodeGroup().GetView (0);
+
+            for (int row : { 1, 2 })
+            {
+                items.clear();
+                rows.clear();
+                Assert::IsTrue (view->AddMenuItems (view->GetList(), row, items));
+
+                for (const auto & [label, action] : items)
+                {
+                    if (label.ends_with (L" breakpoint"))
+                    {
+                        rows.push_back (label);
+                    }
+                }
+
+                Assert::IsTrue (rows == ((row == 1) ? std::vector<std::wstring> { L"Set breakpoint" }
+                                                    : std::vector<std::wstring> { L"Enable breakpoint", L"Remove breakpoint" }),
+                                JoinLabels (items).c_str());
+            }
+
+            Run (items, L"Enable breakpoint");
+            Assert::AreEqual (BreakpointActions::GetEnableBreakpoint (1, true, snapshot->mode).echo, host.commands.back());
+        }
+
+
+
         TEST_METHOD (ROMIsNotEditedAndNopsReplaceASelection)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
@@ -507,6 +604,45 @@ namespace DebuggerCodeMenuTests
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
 
             Assert::IsTrue (window.GetCodeEdits().GetSelection (0, 0) == std::pair<Word, Word> (0x0300, 0x0301), L"the clicked row alone");
+        }
+
+
+        //  Show last writer's snapshot asks the view to select the writer's
+        //  instruction, and its row is selected and the view focused; a
+        //  later snapshot with the same request selects nothing.
+        TEST_METHOD (ASnapshotsAskedInstructionIsSelected)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               asked    = MakeSnapshot();
+            auto               again    = MakeSnapshot();
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            asked->codeSelect[0]       = 0x0302;
+            asked->codeSelectSerial[0] = 1;
+            window.TakeSnapshot (asked);
+            window.ApplyCodeSnapshot (asked, 0);
+            Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"the JSR's row");
+            Assert::IsTrue   (window.GetCodeList (0)->IsListFocused(), L"the view has the focus");
+
+            again                      = MakeSnapshot();
+            again->codeSelect[0]       = 0x0300;
+            again->codeSelectSerial[0] = 1;
+            window.TakeSnapshot (again);
+            window.ApplyCodeSnapshot (again, 0);
+            Assert::AreEqual (1, window.GetCodeList (0)->GetSelectedRow(), L"a request already applied selects nothing");
+
+            again->codeSelectSerial[0] = 2;
+            window.TakeSnapshot (again);
+            window.ApplyCodeSnapshot (again, 0);
+            Assert::AreEqual (0, window.GetCodeList (0)->GetSelectedRow(), L"a new request selects its row");
         }
 
 

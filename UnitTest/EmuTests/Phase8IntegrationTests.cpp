@@ -73,7 +73,7 @@ public:
         Assert::IsTrue ((machine.GetCpu() != nullptr && machine.GetMmu() != nullptr), L"//e wiring must be complete");
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
 
         MemoryProbeHelpers::RebindMainBaseline (machine);
     }

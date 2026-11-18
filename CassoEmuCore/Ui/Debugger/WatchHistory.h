@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/WatchEdits.h"
 
 
 
@@ -25,7 +26,7 @@ class WatchHistory
 public:
     //  An edit the pane made: what undoes it, and the actions it ran. Clears
     //  what could be redone.
-    void  Record (DebuggerViewState::WatchUndo undo, std::vector<DebuggerAction> edit, std::wstring text = {});
+    void  Record (WatchEdits::WatchUndo undo, std::vector<DebuggerAction> edit, std::wstring text = {});
 
     //  Notes the watch each pending move made, from a new snapshot.
     void  OnSnapshot (const DebuggerViewSnapshot & now);
@@ -60,9 +61,9 @@ public:
 private:
     struct Step
     {
-        DebuggerViewState::WatchUndo  undo;
-        std::vector<DebuggerAction>   edit;
-        std::wstring                  text;
+        WatchEdits::WatchUndo        undo;
+        std::vector<DebuggerAction>  edit;
+        std::wstring                 text;
     };
 
     static std::string  FormatStep      (const Step & step);

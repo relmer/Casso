@@ -192,6 +192,31 @@ namespace DebuggerTests
 
 
 
+        //  A file that isn't a symbol file is no symbol file, though a few of
+        //  its lines fit a line form: a BASIC listing's "2  REM" passes for an
+        //  AppleWin line and "D$ = CHR$ (4)" nearly for a Casso one. A line
+        //  form has to fit nearly every line, and a name has to be a symbol's.
+        TEST_METHOD (AFileOfSomethingElseIsNoSymbolFile)
+        {
+            static constexpr const char * kListing =
+                "1  REM ======\n"
+                "2  REM\n"
+                "10 TEXT : HOME : D$ = CHR$ (4)\n"
+                "20 SW = PEEK (49248)\n"
+                "30 PRINT\n"
+                "40 IF SW > 127 THEN PRINT D$;\"PR#3\": GOTO 70\n";
+            static constexpr const char * kProse =
+                "The quick brown fox\n"
+                "C000 is the keyboard\n"
+                "jumps over the lazy dog\n";
+
+            Assert::IsTrue (SymbolFileReader::Detect (kListing) == SymbolFileFormat::Unknown, L"a BASIC listing");
+            Assert::IsTrue (SymbolFileReader::Detect (kProse)   == SymbolFileFormat::Unknown, L"prose with one address in it");
+            Assert::IsTrue (SymbolFileReader::Detect ("C000 KBD\nC010 KBDSTRB\nC050 80STOREOFF\n") == SymbolFileFormat::AppleWinSym,
+                            L"Apple's symbols, which can start with a digit");
+        }
+
+
         //  A large file reads in far less than quadratic time:
         //  duplicates in any case are found with one sort, not a scan per
         //  symbol, and the first of a name is the one taken.

@@ -146,7 +146,7 @@ namespace SerialAttachmentBuildTestNs
                                   L"while the old machine has the port open, a new one cannot open it");
             }
 
-            old.CloseSerialAttachments();
+            old.DetachSerialPorts();
             Assert::IsFalse (com3->isOpen);
             Assert::IsNull  (old.GetRefs().serialChips[0]->GetEndpoint(), L"the chip is detached first");
 

@@ -3,6 +3,9 @@
 #include "Update/UpdateDialogModel.h"
 #include "Ui/Dialogs/UpdateDialogContent.h"
 #include "Core/UnicodeSymbols.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -442,6 +445,52 @@ public:
 
         content.SetNotesMessage (UpdateDialogModel::kpszNotesMissing);
         Assert::IsFalse (content.IsTabStripShown(), L"a notice stands alone");
+    }
+
+
+
+    //  Each tab is a fixed width, so its label has to fit in what the strip
+    //  leaves of it once the label is inset.
+    TEST_METHOD (DialogContent_TabLabelsFitTheirTabs)
+    {
+        UpdateDialogContent   content;
+        ReleaseNotes          notes;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        NotesTab              tabs[2] = { NotesTab::WhatsNew, NotesTab::Changelog };
+
+
+
+        notes.highlights.push_back ({ { 1, 31, 0 }, "Updates", "Casso can update itself." });
+        notes.changes.push_back    ({ { 1, 31, 0 }, "[1.31.0] - 2026-10-20", "- New" });
+
+        content.Layout   (RECT { 0, 0, 600, 500 }, scaler);
+        content.SetNotes (notes);
+        content.Paint    (painter, text, theme);
+
+        for (NotesTab tab : tabs)
+        {
+            std::wstring              label  = UpdateDialogModel::GetTabLabel (tab);
+            float                     width  = 0.0f;
+            float                     height = 0.0f;
+            const RecordedTextCall  * drawn  = nullptr;
+            HRESULT                   hr     = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTabStrip::GetLabelFace(), width, height);
+
+            Assert::AreEqual (S_OK, hr);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString && call.text == label)
+                {
+                    drawn = &call;
+                }
+            }
+
+            Assert::IsNotNull (drawn, label.c_str());
+            Assert::IsTrue    (drawn->width >= width, label.c_str());
+        }
     }
 
 

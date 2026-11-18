@@ -2,6 +2,7 @@
 
 #include "Debugger/GSSquaredParser.h"
 
+#include "Debugger/AppleWinArgumentForms.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/IDebugExpressionContext.h"
@@ -417,7 +418,7 @@ bool GSSquaredParser::TryParseColonTarget (Line & line, const std::string & toke
 
 
     if (colon != 0 && colon + 1 < token.size() && TryParseId (token.substr (colon + 1), number) &&
-        !AppleWinParser::TryEvaluate (token.substr (0, colon), line.context, unused, error))
+        !AppleWinArgumentForms::TryEvaluate (token.substr (0, colon), line.context, unused, error))
     {
         command.verb  = DebugVerb::SetSourceBreakpoint;
         command.text  = token.substr (0, colon);
@@ -427,8 +428,8 @@ bool GSSquaredParser::TryParseColonTarget (Line & line, const std::string & toke
 
     error.clear();
 
-    if (!AppleWinParser::TryEvaluate (token.substr (0, split), line.context, command.a1, error) ||
-        !AppleWinParser::TryEvaluate (token.substr (split + 1), line.context, command.a2, error))
+    if (!AppleWinArgumentForms::TryEvaluate (token.substr (0, split), line.context, command.a1, error) ||
+        !AppleWinArgumentForms::TryEvaluate (token.substr (split + 1), line.context, command.a2, error))
     {
         SetInvalid (line, error);
         return false;
@@ -818,7 +819,7 @@ void GSSquaredParser::ParseRegister (Line & line)
         return;
     }
 
-    if (!AppleWinParser::TryEvaluate (value, line.context, command.a1, error))
+    if (!AppleWinArgumentForms::TryEvaluate (value, line.context, command.a1, error))
     {
         SetInvalid (line, error);
         return;

@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/TextZoomLevels.h"
 
 #include "CppUnitTest.h"
 
@@ -90,8 +91,9 @@ namespace DebuggerStatusBarTests
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::ApplyTextZoom;
         using DebuggerWindow::GetTextZoom;
+        using DebuggerWindow::GetZoomResetRect;
         using DebuggerWindow::GetStatusBar;
-        using DebuggerWindow::GetZoomSlider;
+        using DebuggerWindow::GetWindowZoom;
         using DebuggerWindow::IsZoomPopupOpen;
         using DebuggerWindow::GetZoomPopupRect;
         using DebuggerWindow::UpdateStatusBar;
@@ -116,6 +118,21 @@ namespace DebuggerStatusBarTests
 
             ev.kind        = kind;
             ev.button      = (kind == DxuiMouseEventKind::Move) ? DxuiMouseButton::None : DxuiMouseButton::Left;
+            ev.positionDip = point;
+            return OnMouse (ev);
+        }
+
+        static bool  GetTip (const StatusBarWindow & window, POINT point, DxuiTip & tip)
+        {
+            return static_cast<const IDxuiControl &> (window).TryGetTip (point, tip);
+        }
+
+        bool  Wheel (POINT point, float notches)
+        {
+            DxuiMouseEvent  ev;
+
+            ev.kind        = DxuiMouseEventKind::Wheel;
+            ev.wheelDelta  = notches;
             ev.positionDip = point;
             return OnMouse (ev);
         }
@@ -163,40 +180,41 @@ namespace DebuggerStatusBarTests
         }
 
 
-        TEST_METHOD (PressingTheZoomOpensASliderThatSetsTheTextSize)
+        //  The zoom panel is the heat map's: the pointer over the zoom field
+        //  opens it above the bar, and a press or drag on its track sets the
+        //  panes' text size, from 50% at the left to 300% at the right.
+        TEST_METHOD (HoveringTheZoomOpensThePanelThatSetsTheTextSize)
         {
             CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
             StatusBarDebuggerHost  host;
             StatusBarWindow        window (theme, host);
-            RECT                   popup  = {};
             RECT                   track  = {};
+            long                   middle = 0;
 
 
 
             window.Build();
-            window.Mouse (DxuiMouseEventKind::Down, window.GetZoomFieldCenter());
+            window.Mouse (DxuiMouseEventKind::Move, window.GetZoomFieldCenter());
 
-            Assert::IsTrue (window.IsZoomPopupOpen());
+            Assert::IsTrue (window.IsZoomPopupOpen(), L"the pointer over the zoom opens the panel");
             Assert::IsTrue (window.HasTopLayer());
-            Assert::AreEqual (50.0f,  window.GetZoomSlider().GetMin());
-            Assert::AreEqual (300.0f, window.GetZoomSlider().GetMax());
-            Assert::AreEqual (10.0f,  window.GetZoomSlider().Step());
+            Assert::AreEqual (window.GetWindowZoom().GetButtonRect().bottom, window.GetZoomPopupRect().bottom, L"the panel grows up out of the zoom field");
 
-            popup = window.GetZoomPopupRect();
-            Assert::IsTrue (popup.bottom <= window.GetStatusBar()->GetBounds().top, L"the popup opens above the bar");
+            track  = window.GetWindowZoom().GetTrackRect();
+            middle = (track.top + track.bottom) / 2;
 
-            //  A press at the track's right end runs it to the largest size.
-            track = window.GetZoomSlider().GetRect();
-            window.Mouse (DxuiMouseEventKind::Down, POINT { track.right - 1, (track.top + track.bottom) / 2 });
-            window.Mouse (DxuiMouseEventKind::Up,   POINT { track.right - 1, (track.top + track.bottom) / 2 });
+            window.Mouse (DxuiMouseEventKind::Down, POINT { track.right - 1, middle });
+            Assert::AreEqual (3.0f, window.GetTextZoom(), 0.001f, L"the track's right end is the largest size");
 
-            Assert::IsTrue (window.GetTextZoom() > 1.0f, L"the slider sets the panes' text size");
-            Assert::AreEqual (DebuggerStatusText::GetZoomText (window.GetTextZoom()),
-                              window.GetStatusBar()->GetField (window.kStatusZoom).text);
+            window.Mouse (DxuiMouseEventKind::Move, POINT { track.left - 50, middle });
+            window.Mouse (DxuiMouseEventKind::Up,   POINT { track.left - 50, middle });
+            Assert::AreEqual (0.5f, window.GetTextZoom(), 0.001f, L"dragged past the left end, the smallest");
+            Assert::AreEqual (std::wstring (L"50%"), window.GetStatusBar()->GetField (window.kStatusZoom).text);
+            Assert::IsTrue   (window.IsZoomPopupOpen(), L"open through the drag");
         }
 
 
-        TEST_METHOD (APressElsewhereOrEscapeClosesThePopup)
+        TEST_METHOD (MovingAwayAPressElsewhereOrEscapeClosesThePanel)
         {
             CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
             StatusBarDebuggerHost  host;
@@ -207,21 +225,23 @@ namespace DebuggerStatusBarTests
 
             window.Build();
 
+            window.Mouse (DxuiMouseEventKind::Move, window.GetZoomFieldCenter());
+            window.Mouse (DxuiMouseEventKind::Move, POINT { 400, 400 });
+            Assert::IsFalse (window.IsZoomPopupOpen(), L"the pointer moved away");
+
+            window.Mouse (DxuiMouseEventKind::Move, window.GetZoomFieldCenter());
             window.Mouse (DxuiMouseEventKind::Down, window.GetZoomFieldCenter());
-            window.Mouse (DxuiMouseEventKind::Down, window.GetZoomFieldCenter());
-            Assert::IsFalse (window.IsZoomPopupOpen(), L"a second press on the zoom closes it");
+            Assert::IsFalse (window.IsZoomPopupOpen(), L"a press on the zoom closes it");
 
             window.Mouse (DxuiMouseEventKind::Down, window.GetZoomFieldCenter());
-            window.Mouse (DxuiMouseEventKind::Down, POINT { 400, 400 });
-            Assert::IsFalse (window.IsZoomPopupOpen(), L"a press elsewhere closes it");
+            Assert::IsTrue  (window.IsZoomPopupOpen(), L"and opens it again");
 
-            window.Mouse (DxuiMouseEventKind::Down, window.GetZoomFieldCenter());
             window.OnKey (escape);
             Assert::IsFalse (window.IsZoomPopupOpen(), L"Escape closes it");
         }
 
 
-        TEST_METHOD (ATextSizeFromTheKeysMovesTheZoomAndItsSlider)
+        TEST_METHOD (ATextSizeFromTheKeysMovesTheZoomAndItsThumb)
         {
             CassoTheme             theme = CassoTheme::MakeSkeuomorphic();
             StatusBarDebuggerHost  host;
@@ -233,9 +253,59 @@ namespace DebuggerStatusBarTests
             window.ApplyTextZoom (1.5f);
 
             Assert::AreEqual (std::wstring (L"150%"), window.GetStatusBar()->GetField (window.kStatusZoom).text);
-            Assert::AreEqual (150.0f, window.GetZoomSlider().GetValue(), 0.01f);
+            Assert::AreEqual (0.0f, TextZoomLevels::GetSliderPosition (0.5f), 0.001f, L"the smallest at the left");
+            Assert::AreEqual (1.0f, TextZoomLevels::GetSliderPosition (3.0f), 0.001f, L"the largest at the right");
+            Assert::AreEqual (1.5f, TextZoomLevels::GetZoomAtSlider (TextZoomLevels::GetSliderPosition (1.5f)), 0.001f, L"the thumb at 150%");
         }
 
+
+        TEST_METHOD (TheWheelOverTheZoomFieldStepsTheTextSize)
+        {
+            CassoTheme             theme = CassoTheme::MakeSkeuomorphic();
+            StatusBarDebuggerHost  host;
+            StatusBarWindow        window (theme, host);
+
+
+
+            window.Build();
+
+            Assert::IsTrue (window.Wheel (window.GetZoomFieldCenter(), 1.0f));
+            Assert::AreEqual (1.1f, window.GetTextZoom(), 0.001f);
+
+            window.Wheel (window.GetZoomFieldCenter(), -1.0f);
+            window.Wheel (window.GetZoomFieldCenter(), -1.0f);
+            Assert::AreEqual (0.9f, window.GetTextZoom(), 0.001f);
+        }
+
+
+        TEST_METHOD (ResetSetsOneHundredPercentAndHasATip)
+        {
+            CassoTheme             theme = CassoTheme::MakeSkeuomorphic();
+            StatusBarDebuggerHost  host;
+            StatusBarWindow        window (theme, host);
+            RECT                   reset = {};
+            POINT                  at    = {};
+            DxuiTip                tip;
+
+
+
+            window.Build();
+            window.ApplyTextZoom (2.0f);
+            window.Mouse (DxuiMouseEventKind::Move, window.GetZoomFieldCenter());
+
+            reset = window.GetZoomResetRect();
+            at    = POINT { (reset.left + reset.right) / 2, (reset.top + reset.bottom) / 2 };
+
+            window.Mouse (DxuiMouseEventKind::Move, at);
+            Assert::IsTrue   (StatusBarWindow::GetTip (window, at, tip));
+            Assert::AreEqual (std::wstring (L"Reset to 100%"), tip.text);
+
+            window.Mouse (DxuiMouseEventKind::Down, at);
+            window.Mouse (DxuiMouseEventKind::Up,   at);
+
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f);
+            Assert::IsTrue   (window.IsZoomPopupOpen(), L"the panel stays open");
+        }
 
         TEST_METHOD (TheHistoryPartsFollowTheSnapshotAndTheReplayFollowsTheHost)
         {

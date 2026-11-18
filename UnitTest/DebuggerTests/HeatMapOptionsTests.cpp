@@ -72,19 +72,5 @@ namespace DebuggerTests
             Assert::AreEqual (HeatMapOptions::kDefaultFadeSeconds, HeatMapOptions::FromText ("fade=-3 fade=x fade= fade=99999999999").fadeSeconds);
             Assert::IsTrue   (HeatMapOptions::FromText ("view=sideways cumulative").cumulative);
         }
-
-
-
-        TEST_METHOD (TheViewMessageCarriesTheOptionsText)
-        {
-            std::string  text;
-
-
-
-            Assert::IsTrue   (CpuCommandDispatcher::TryGetHeatMapOptions ("options fade=5 view=code cumulative", text));
-            Assert::AreEqual (std::string ("fade=5 view=code cumulative"), text);
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapOptions ("on", text));
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapOptions ("options", text));
-        }
     };
 }

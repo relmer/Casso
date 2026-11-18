@@ -120,7 +120,7 @@ public:
     // Timing bases. The CPU clock defaults to the NTSC Apple II's and is set
     // from the machine config by the builder.
     static constexpr uint32_t  kCrystalHz         = 1843200;
-    static constexpr uint32_t  kDefaultCpuClockHz = 1022727;
+    static constexpr uint32_t  kDefaultCpuClockHz = 1020484;
 
     // How often a host link is polled: after a poll that moved something,
     // and after one that did not.
@@ -215,15 +215,15 @@ public:
     Byte    GetCommPort      () const    { return m_commPort; }
 
     // Inspectors for tests and board wiring.
-    Byte    GetStatus  () const { return m_status; }
-    Byte    GetCommand () const { return m_command; }
-    Byte    GetControl () const { return m_control; }
-    int     GetWordLengthBits () const;
-    Byte    GetWordMask       () const;
-    bool    IsCtsTrue  () const { return m_cts; }
-    bool    IsDcdTrue  () const { return m_dcd; }
-    bool    IsDtrOn    () const { return (m_command & kCommandDtr) != 0; }
-    bool    IsRtsOn    () const;
+    Byte  GetStatus         () const { return m_status; }
+    Byte  GetCommand        () const { return m_command; }
+    Byte  GetControl        () const { return m_control; }
+    int   GetWordLengthBits () const;
+    Byte  GetWordMask       () const;
+    bool  IsCtsTrue         () const { return m_cts; }
+    bool  IsDcdTrue         () const { return m_dcd; }
+    bool  IsDtrOn           () const { return (m_command & kCommandDtr) != 0; }
+    bool  IsRtsOn           () const;
 
     // The format the control and command registers select.
     SerialLineFormat  GetLineFormat () const;
@@ -260,39 +260,39 @@ public:
 
     // The four registers, each description after owner: a card's name and
     // slot, or a port's title.
-    void         AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
-    void         AddDiagnostics      (DiagnosticsSnapshot & snapshot) const;
+    void  AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
+    void  AddDiagnostics          (DiagnosticsSnapshot & snapshot) const;
 
 private:
     // Fixed point: cycle counts are stored scaled by 2^16 so pacing never
     // accumulates rounding.
     static constexpr int     kFixedShift = 16;
 
-    void    ResetState             (bool hardware);
-    Byte    ReadData               ();
-    Byte    ReadStatus             ();
-    void    WriteData              (Byte value);
-    void    WriteCommand           (Byte value);
-    void    RaiseIrq               ();
-    void    LowerIrq               ();
-    bool    IsRxIrqEnabled         () const;
-    bool    IsTxIrqEnabled         () const;
-    bool    CanLoadTransmitter     () const;
-    void    TryLoadTransmitter     ();
-    void    AdvanceTransmitter     (int64_t fixedCycles);
-    void    TakeHostBytes          (uint32_t cycles);
-    void    AdvanceReceiver        (int64_t fixedCycles);
-    void    LandReceivedByte       (Byte value, Byte errors);
-    void    LoadWaitingBytes       (StateReader & reader, uint16_t version, uint32_t count);
-    void    ApplyPendingModemInputs();
-    void    NotifyModemControl     ();
-    int64_t GetCharacterFixedCycles (double baud) const;
-    double  GetReceiveBaud         () const;
-    Byte    GetLineBits            () const;
-    void    NoteLines              ();
-    void    NoteFormat             ();
-    void    PollHostLink           (uint32_t cycles);
-    void    EmitComm               (IoEventKind kind, Byte value, Byte errors = 0, std::span<const Byte> bytes = {});
+    void     ResetState              (bool hardware);
+    Byte     ReadData                ();
+    Byte     ReadStatus              ();
+    void     WriteData               (Byte value);
+    void     WriteCommand            (Byte value);
+    void     RaiseIrq                ();
+    void     LowerIrq                ();
+    bool     IsRxIrqEnabled          () const;
+    bool     IsTxIrqEnabled          () const;
+    bool     CanLoadTransmitter      () const;
+    void     TryLoadTransmitter      ();
+    void     AdvanceTransmitter      (int64_t fixedCycles);
+    void     TakeHostBytes           (uint32_t cycles);
+    void     AdvanceReceiver         (int64_t fixedCycles);
+    void     LandReceivedByte        (Byte value, Byte errors);
+    void     LoadWaitingBytes        (StateReader & reader, uint16_t version, uint32_t count);
+    void     ApplyPendingModemInputs ();
+    void     NotifyModemControl      ();
+    int64_t  GetCharacterFixedCycles (double baud) const;
+    double   GetReceiveBaud          () const;
+    Byte     GetLineBits             () const;
+    void     NoteLines               ();
+    void     NoteFormat              ();
+    void     PollHostLink            (uint32_t cycles);
+    void     EmitComm                (IoEventKind kind, Byte value, Byte errors = 0, std::span<const Byte> bytes = {});
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;

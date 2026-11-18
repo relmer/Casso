@@ -65,6 +65,26 @@
 //  for a conversion and can see what they got; someone whose saved program comes
 //  back subtly reformatted did not ask for anything.
 //
+//  CONTROL CHARACTERS IN A STRING, A REM OR A DATA PAYLOAD. Applesoft stores
+//  them, and real programs have them: a Ctrl-D ahead of a DOS command, and line
+//  feeds around a REM's text so that LIST prints blank lines around it.
+//
+//      A line feed ($0A) is listed as a real line break, as LIST on the Apple
+//      prints it. The host lines after it have no line number, and Tokenize
+//      joins each one to the line before with a line feed. A blank host line
+//      in that position is a line feed too, so a REM followed by a blank line
+//      ends in a line feed. Elsewhere a blank line is skipped.
+//
+//      A line feed whose next host line would start with a digit, and so read
+//      back as a new program line, is listed as ^J instead.
+//
+//      Every other control character is a caret and a letter: $04 is ^D. ^@
+//      through ^_ read back as $00 through $1F, except ^@, which fails the
+//      line because a zero byte ends a stored line. A literal caret is listed as
+//      ^^, so Ctrl-^ ($1E) is listed as the raw byte. A caret followed by any
+//      other character, a lowercase letter included, is a literal caret, as is
+//      a raw control character in a listing.
+//
 //  ONE CONSEQUENCE WORTH KNOWING BEFORE AN EDITOR EATS IT: a DATA payload's
 //  trailing space is significant, and it is the last character on its line. An
 //  editor that strips trailing whitespace on save changes the program.
@@ -159,12 +179,15 @@ private:
     };
 
     //  One source line, parsed and converted, before the links are known.
+    //  `continues` indicates the line ends in a REM, a DATA payload or an open
+    //  string, so a host line after it with no line number is part of it.
     struct ParsedLine
     {
         std::vector<Byte>  body;
         std::string        text;
-        uint32_t           number = 0;
-        size_t             index  = 0;
+        uint32_t           number    = 0;
+        size_t             index     = 0;
+        bool               continues = false;
     };
 
     static void     SplitLines      (const std::string        & hostListing,
@@ -178,6 +201,7 @@ private:
     static HRESULT  TokenizeBody    (const std::string        & text,
                                      size_t                     from,
                                      std::vector<Byte>        & outBody,
+                                     bool                     & outContinues,
                                      std::string              & outReason);
 
     static HRESULT  EmitProgram     (std::vector<ParsedLine>  & lines,
@@ -194,7 +218,25 @@ private:
     static bool  TryCopyQuoted      (const std::string  & text,
                                      size_t             & inOutAt,
                                      std::vector<Byte>  & outBody,
+                                     bool               & outClosed,
                                      std::string        & outReason);
+
+    //  Copies one character of a string, a REM or a DATA payload, or one ^
+    //  escape, advancing the cursor past it.
+    static bool  TryCopyVerbatim    (const std::string  & text,
+                                     size_t             & inOutAt,
+                                     std::vector<Byte>  & outBody,
+                                     std::string        & outReason);
+
+    //  Appends the listing form of one byte of a string, a REM or a DATA
+    //  payload.
+    static bool  TryRenderVerbatim  (const std::vector<Byte>  & body,
+                                     size_t                     at,
+                                     std::string              & ioText);
+
+    //  Whether the bytes from `at` would read back as a line number.
+    static bool  IsLineNumberAt     (const std::vector<Byte>  & body,
+                                     size_t                     at);
 
     //  Matches one form from the cursor, skipping spaces the way Applesoft
     //  does -- which is what makes `PR INT` one token.
@@ -214,15 +256,22 @@ private:
                                      size_t             & inOutAt,
                                      uint32_t           & outNumber);
 
-    static bool  IsPrintable        (char c);
-    static bool  IsStorableVerbatim (char c);
-    static bool  IsLowerNumbered    (const ParsedLine & left, const ParsedLine & right);
-    static char  ToUpper            (char c);
-    static size_t  SkipSpaces       (const std::string & text, size_t at);
+    static bool    IsPrintable        (char c);
+    static bool    IsStorableVerbatim (char c);
+    static bool    IsLowerNumbered    (const ParsedLine & left, const ParsedLine & right);
+    static char    ToUpper            (char c);
+    static size_t  SkipSpaces         (const std::string & text, size_t at);
 
     //  What a stored line costs beyond its own body: the link to the next line,
     //  the line number, and the byte that ends it.
     static constexpr size_t  kLinkBytes       = 2;
     static constexpr size_t  kNumberBytes     = 2;
     static constexpr size_t  kTerminatorBytes = 1;
+
+    //  A control character's listing form: ^D is $04, ^@ is $00 and ^_ is
+    //  $1F. ^^ is a literal caret.
+    static constexpr char  kCaret        = '^';
+    static constexpr Byte  kControlBase  = 0x40;
+    static constexpr Byte  kLastControl  = 0x1F;
+    static constexpr Byte  kHighestAscii = 0x7E;
 };

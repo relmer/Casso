@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/BreakpointDefinition.h"
 #include "Debugger/Reply.h"
 
 
@@ -34,6 +35,10 @@ public:
     static constexpr int  kTipDip    = 22;
     static constexpr int  kTipGapDip = 4;
 
+    //  The room reserved under the fields for a field's error, visible or not,
+    //  so the dialog's size is fixed as an error comes and goes.
+    static constexpr int  kErrorDip  = 2 * kRowDip;
+
 private:
     struct Row
     {
@@ -45,6 +50,7 @@ private:
     };
 
     int  GetErrorHeightPx (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const;
+    int  GetErrorRoomPx   (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const;
     int  GetTextWidthPx   (const DxuiLabel & label, const DxuiDpiScaler & scaler) const;
 
     std::vector<Row>      m_rows;
@@ -61,7 +67,8 @@ private:
 //  BreakpointDialog
 //
 //  Edits a breakpoint's type and the fields that type takes, and returns
-//  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV or BRKOP with its
+//  them as a BreakpointDefinition, which the session evaluates with no
+//  command text in between. In the console's words the types are: BP, BPMR, BPMW, BPM, BPMV or BRKOP with its
 //  arguments, a data breakpoint's BEFORE and any IF condition, BPR IF and a
 //  condition, BRK ON or BRKINT ON, BPDISK with its drive, event, arguments
 //  and condition, or BPBASIC, BPBASICVAR or BRKBASIC ON. The dialog makes
@@ -75,8 +82,7 @@ class BreakpointDialog : public DxuiDialogWindow
 {
 public:
     //  The types offered, in the order the list shows them.
-    enum class Type { Execute, Read, Write, ReadWrite, Value, Condition, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
-                      UnwrittenRead, VideoLine, Beam };
+    using Type = BreakpointDefinition::Type;
 
     //  A row of the New drop-down: a heading when type is empty.
     struct TypeRow
@@ -105,6 +111,18 @@ public:
         int          event     = 0;
         int          drive     = 0;
         std::string  arguments;
+        std::string  file;
+        std::string  log;
+        bool         isLogGo   = false;
+    };
+
+    //  What OK returns: the breakpoint's definition, and the message each
+    //  hit writes, empty for none, with whether a hit goes on running.
+    struct Result
+    {
+        BreakpointDefinition  definition;
+        std::string           log;
+        bool                  isLogGo = false;
     };
 
     //  The fields a type uses, which are the dialog's only visible fields
@@ -118,6 +136,8 @@ public:
         bool  value     = false;
         bool  condition = false;
         bool  access    = false;
+        bool  file      = false;
+        bool  log       = false;
     };
 
     static VisibleFields  GetVisibleFields (Type type);
@@ -164,12 +184,14 @@ public:
 
     //  By the event's index into DiskBreakSpecText::GetEventWords. The
     //  arguments are what BPDISK takes after the event word.
-    static DiskFieldSet    GetDiskFieldSet       (int event);
-    static std::string  MakeDiskArguments  (int event, const DiskFields & fields);
-    static DiskFields   ParseDiskArguments (int event, const std::string & arguments);
+    static DiskFieldSet  GetDiskFieldSet    (int event);
+    static std::string   MakeDiskArguments  (int event, const DiskFields & fields);
+    static DiskFields    ParseDiskArguments (int event, const std::string & arguments);
 
-    //  The definition for a type and its fields, as BPEDIT takes it.
-    static std::string  MakeDefinition (const Fields & fields);
+    //  The fields as the definition the session sets, and that definition
+    //  as the line the console echoes.
+    static BreakpointDefinition  ToDefinition   (const Fields & fields);
+    static std::string           MakeDefinition (const Fields & fields);
 
     //  The fields an existing breakpoint fills in.
     static Fields  GetFields (const BreakpointInfo & info);
@@ -178,18 +200,31 @@ public:
     static Type  GetType (const BreakpointInfo & info);
 
     //  Why a definition cannot be set, or nothing when it can.
-    using Validator = std::function<std::string (const std::string & definition)>;
+    using Validator = std::function<std::string (const BreakpointDefinition & definition)>;
 
     //  Runs the dialog modally over `owner`, on `type` when given and on
     //  the breakpoint's own type otherwise; the definition when OK. OK
     //  closes the dialog only once the validator, when given, accepts the
     //  definition; otherwise its reason is drawn under the fields.
-    static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
-                                                 Validator validator = {});
+    //  A source file's name and a line in it, from 1.
+    using SourcePlace = std::pair<std::wstring, int>;
+
+    static std::optional<Result>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
+                                            Validator validator = {}, std::vector<std::wstring> sourceFiles = {},
+                                            std::optional<SourcePlace> sourcePlace = std::nullopt);
 
     //  A new breakpoint's dialog for the type chosen: an execution address
     //  starts at the PC, and every other type's fields start empty.
-    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {});
+    static std::optional<Result>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {},
+                                            std::vector<std::wstring> sourceFiles = {});
+
+    //  The log row's info tip text.
+    static std::wstring     GetLogTip         (Type type);
+    static const wchar_t *  GetDiskValuesLine ();
+
+    //  The tip of the New drop-down's Source line row while no debug file is
+    //  loaded, when the row is disabled.
+    static constexpr const wchar_t *  s_kNoSourceTip = L"Load a debug file to set a breakpoint on a source line";
 
     //  The condition's info tip text for a type, and the type's heading with
     //  its article: "A memory", "An execution".
@@ -209,15 +244,15 @@ protected:
     bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
 
 private:
-    void        ShowFieldsForType ();
-    void        ShowDiskFields    (bool isDisk);
-    void        Resize            ();
-    void        Confirm           ();
-    std::string MakeEditedDefinition () const;
-    Fields      GetEditedFields      () const;
-    void        CheckFields       ();
-    Type        GetSelectedType   () const;
-    DiskFields  ReadDiskFields    () const;
+    void                  ShowFieldsForType    ();
+    void                  ShowDiskFields       (bool isDisk);
+    void                  Resize               ();
+    void                  Confirm              ();
+    BreakpointDefinition  MakeEditedDefinition () const;
+    Fields                GetEditedFields      () const;
+    void                  CheckFields          ();
+    Type                  GetSelectedType      () const;
+    DiskFields            ReadDiskFields       () const;
 
     static std::string  ToDecimal (const std::string & hex);
     static std::string  ToHex     (const std::string & decimal);
@@ -228,27 +263,36 @@ private:
     BreakpointInfo                 m_info;
     std::optional<Type>            m_presetType;
     std::optional<std::wstring>    m_newAddress;
-    std::optional<std::string>     m_definition;
+    std::optional<Result>          m_result;
     Validator                      m_validator;
     bool                           m_isCheckDue         = false;   // the focus moved off a field
     DxuiFieldError                 m_error;
     DxuiLabel                      m_accessLabel;
     DxuiLabel                      m_modeLabel;
     DxuiLabel                      m_addressLabel;
+    DxuiLabel                      m_fileLabel;
     DxuiLabel                      m_valueLabel;
     DxuiLabel                      m_conditionLabel;
     DxuiLabel                      m_eventLabel;
     DxuiLabel                      m_driveLabel;
+    DxuiLabel                      m_logLabel;
+    DxuiLabel                      m_logGoLabel;
     DxuiCheckbox                   m_accessRead;
     DxuiCheckbox                   m_accessWrite;
     Type                           m_type               = Type::Execute;
     DxuiComboBox                   m_mode;
     DxuiComboBox                   m_event;
     DxuiComboBox                   m_drive;
+    DxuiComboBox                   m_file;
+    std::vector<std::wstring>      m_sourceFiles;
+    std::optional<SourcePlace>     m_sourcePlace;
     DxuiTextInput                  m_address;
     DxuiTextInput                  m_value;
     DxuiTextInput                  m_condition;
     DxuiInfoTip                    m_conditionTip;
+    DxuiTextInput                  m_log;
+    DxuiCheckbox                   m_logGo;
+    DxuiInfoTip                    m_logTip;
     DxuiLabel                      m_diskTrackLabel;
     DxuiLabel                      m_diskSectorLabel;
     DxuiLabel                      m_diskNumberLabel;

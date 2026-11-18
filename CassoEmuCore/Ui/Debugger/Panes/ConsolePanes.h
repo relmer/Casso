@@ -150,6 +150,9 @@ public:
     //  unrun.
     void                 Submit         ();
 
+    //  Whether a line is CLS or CLEAR, which clears the output.
+    static bool          IsClearCommand (const std::string & line);
+
     //  The completion keys: Tab takes the gray suggestion, or completes the
     //  command word and cycles through the matches, Shift+Tab backward;
     //  Right arrow at the end of the line takes the gray earlier line; F8
@@ -172,12 +175,13 @@ public:
 private:
     void                 ShowHistoryList ();
 
-    IDebuggerPaneHost    & m_host;
-    ConsoleOutput        & m_output;
-    DxuiTextInput        * m_box                = nullptr;
-    ConsoleHistory         m_history;
-    CommandCompletion      m_completion;
-    uint32_t               m_offeredSuggestion  = 0;
+    IDebuggerPaneHost                                          & m_host;
+    ConsoleOutput                                              & m_output;
+    DxuiTextInput                                              * m_box                = nullptr;
+    ConsoleHistory                                               m_history;
+    CommandCompletion                                            m_completion;
+    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_completionSymbols;
+    uint32_t                                                     m_offeredSuggestion  = 0;
 };
 
 
@@ -222,10 +226,10 @@ public:
     //  The modes in the drop-down's order, alphabetical by label; a mode's
     //  label; the command box's prompt in a mode; and a mode's help
     //  command.
-    static const std::vector<ModeChoice> &  GetModeChoices ();
-    static std::wstring  GetModeLabel   (const wchar_t * mode);
-    static std::wstring  GetPromptText  (CommandMode mode);
-    static std::wstring  GetHelpCommand (CommandMode mode);
+    static const std::vector<ModeChoice>  & GetModeChoices ();
+    static std::wstring                     GetModeLabel   (const wchar_t * mode);
+    static std::wstring                     GetPromptText  (CommandMode mode);
+    static std::wstring                     GetHelpCommand (CommandMode mode);
 
 private:
     IDebuggerPaneHost                     & m_host;

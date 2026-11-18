@@ -277,7 +277,11 @@ bool BreakpointImport::TryApplyFlags (const std::string & line, const std::vecto
         return false;
     }
 
-    index = std::stoi (number);
+    //  A number too large for an int is no breakpoint's.
+    if (std::from_chars (number.data(), number.data() + number.size(), index).ec != std::errc())
+    {
+        return false;
+    }
 
     if (index < 0 || index >= (int) created.size() || created[(size_t) index] < 0)
     {

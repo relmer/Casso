@@ -12,7 +12,7 @@
 //  BreakpointDefinitionCheck
 //
 //  Why a definition the breakpoint dialog made cannot be set, found from a
-//  snapshot before the dialog closes: a line that does not parse, a number
+//  snapshot before the dialog closes: a field that can't be read, a number
 //  out of its range, a condition with an unknown name or an I/O read, a disk
 //  breakpoint on a machine with no Disk II, or an execution breakpoint that
 //  is already set. The registers and memory read as zero.
@@ -24,7 +24,7 @@ class BreakpointDefinitionCheck
 public:
     //  Nothing when the definition can be set; editedId is the breakpoint
     //  being edited, which is no duplicate of itself.
-    static std::string  GetError (const std::string & definition, const DebuggerViewSnapshot & snapshot, std::optional<int> editedId);
+    static std::string  GetError (const BreakpointDefinition & definition, const DebuggerViewSnapshot & snapshot, std::optional<int> editedId);
 
 private:
     //  The snapshot as an expression context: the registers and memory as

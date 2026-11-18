@@ -77,9 +77,9 @@ public:
     // range when it lies on one of that range's tracks.
     bool                            MatchesQuarterTrack (int qt) const noexcept;
 
-    const std::vector<RejectedSpan> & GetRejectedSpans() const noexcept   { return m_rejected; }
-    const std::vector<Range> &        GetRanges() const noexcept   { return m_ranges; }
-    bool                              IsMatchAll() const noexcept   { return m_matchAll; }
+    const std::vector<RejectedSpan>  & GetRejectedSpans () const noexcept   { return m_rejected; }
+    const std::vector<Range>         & GetRanges        () const noexcept   { return m_ranges; }
+    bool                               IsMatchAll       () const noexcept   { return m_matchAll; }
 
 private:
     // A whitespace test that does not depend on the C locale.

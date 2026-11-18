@@ -351,6 +351,38 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Should the console link files rather than list their paths? -> A: Yes. The owner: "Could we hyperlink 'project' in 'Debug project for <dbg filename>...' to have it open Explorer to that directory with that cassoproj selected? ... Links should show tooltips with the file's full path name." Opening links in Casso Explorer, with a choice between it and File Explorer, is put off until 033 is on master (FR-373).
 - Q: Which window stays in front after a step? -> A: The owner: "I should stay in whichever window I hit step from, unless I'm stepping from source in the source window to an instruction that doesn't have a source line mapped--then it should move me to disasm" (FR-368).
 
+### Session 2026-11-06 (owner decision: running a script from the channel)
+
+- Q: Is a flag required for a channel client to run a script? -> A: No. Each line of a script is checked as a channel line is, so the --allow-scripts gate was removed.
+
+### Session 2026-11-06 (owner decisions: the in-place operand tip)
+
+- Q: When does the in-place tip for a cut-off operand and result appear? -> A: On the first pointer move over the cell. The owner: "the in-place tip should not have a delay, it should be instant" (FR-026a).
+- Q: What does the tip do when the Operand and result cell is wholly out of view, as when the columns left of it are widened past the pane's edge? -> A: It comes up with the pointer anywhere on the row, with every line below the row from the pane's left edge, in the same font, colors and fill (FR-026a).
+- Q: How wide is the tip, and where does it wrap? -> A: It extends to the right to the end of its text and wraps only at the screen's edge. The owner: "There will almost always be space to the right to extend the line as far as we need." An instruction's result goes on the line below its operand, from the same left, and the tip is as wide as the wider of the two. A source or data line is drawn on one line from its start, its label rather than its directive, and only a line wider than the screen wraps: under the comment's first character in a comment, four characters right of the code otherwise. A source document's operand and result take the disassembly's colors, and its tip follows the same rules (FR-026a).
+- Q: How is the in-place tip filled and laid out, and which rows have one? -> A: One model for every disassembly row and source line. Every line of the tip has the row's highlight across the whole row, from the row's start to the tip's right edge; the owner: "The highlight should start at the BEGINNING OF THE LINE. The WHOLE LINE should have the highlight color." The first line is the row's text where the view draws it, run on to include everything cut off; the operand and then the result go below it, under the code ("The operand and result should begin under 'bne'"), except that an operand in view but cut off stays on the first line with its result under it. A source row's comment takes the first line in place of its operand and result, which go below. Any cut-off text has a tip, a comment or source line among them. An operand's symbol joins the tip as another operand value, and the symbol tip does not appear on that row while the in-place tip is up. The tip starts on the monitor the row starts on and extends right as far as its text runs, into the monitor beside it, with no other repositioning: "If it doesn't fit due to monitor arrangement ... too bad, the user can move their windows around." An italic data line draws an italic tip (FR-026a).
+### Session 2026-11-08 (owner review: heat map sections, range labels, tips)
+
+- Q: How are the heat map's ranges labeled? -> A: Zoomed or not, the CPU's bank is cut into boxed sections, each starting a row under its label: the built-in RAM ranges (zero page, the stack, the text and hi-res pages, and the RAM between them), the I/O, each slot's I/O and ROM page by its card ("Slot 2: Super Serial Card", "Slot 3: empty"), the expansion ROM, and each part of the system ROM ("ROM: Applesoft BASIC", "ROM: Monitor"). The owner: "label the regions correctly regardless" of the ranges turned on. The //c's slot ranges are its built-in ports. Each part is labeled by what it is, not by its ROM file, at the owner's request (FR-400).
+- Q: What is in a heat map cell and its tip? -> A: A cell with a symbol has its name above its value, and I/O is read without side effects. The tip's first line is the cell's contents ("LOOP: BIT RD80COL  (2C 1F C0)", "KBD: C1", "Value: 42"), the tip is framed and labeled with the cell's range, PC and SP are a tag at the end of the first line, and the contrast of text and lines is at least WCAG's (FR-401).
+- Q: Does the memory window label its outlines the same way? -> A: Yes: by card, and the system ROM is outlined in its parts (FR-402).
+- Q: When does the heat map's tip appear? -> A: As soon as the pointer is on a cell. The last writer and reader lines end in an ellipsis until the machine's lookup arrives, then are filled in, without waiting for the pointer to rest (FR-403).
+- Q: How are a range set's ranges drawn? -> A: In the same boxes as the sections, the range's title and span in the top border, not under separate headings (FR-404).
+- Q: What does All to new window do on a group of several tabs? -> A: Floats the whole group in one window, and the tab selected in the group is selected in the window. A floating window has tab groups, at the owner's request (FR-405).
+- Q: Which font does the debugger draw in? -> A: The debugger's theme's. With Same as Casso it follows the emulator's theme; a Casso theme chosen for the debugger draws in that theme's face and glow; the system themes draw in the system face. A tab's mark is drawn in the system face, which no theme replaces (FR-406).
+- Q: Which project does a launch open with a disk in drive 1? -> A: The boot disk's, as a restart does. The machine is power cycled before its disks are mounted, so the disk mounted after that power cycle is the boot disk (FR-407).
+
+### Session 2026-11-11 (owner decision during the validation walkthrough: breakpoint groups)
+
+- Q: Do breakpoint groups, as Visual Studio's Breakpoints window has them, ship in 035? -> A: Yes ("1 yes", answering whether to build Add to breakpoint group). A breakpoint is in at most one group, which has a name; the pane lists each group under a heading; a row's menu adds the selected breakpoints to a group; a heading's menu enables, disables, renames, ungroups or deletes the group; BPGROUP does the same from the console; each pane action is one undo step; groups are saved with the debug project (FR-409 to FR-416).
+
+### Session 2026-11-13 (owner decisions during the retest of the walkthrough's fixes)
+
+- Q: Should a debug project save and restore the window layout? -> A: No ("let's not save the window layout with the debug project"). Unloading a debug file and loading a saved state each switched projects, and the switch resized and moved panes, closed tabs and moved the focus. The layout, the closed panes, the focused pane, the docks and the open views are the window's alone; a switch doesn't change them, and a project saved with them loads (FR-166 amended, FR-417).
+- Q: May a control in the debugger window build a command line and run it through a mode's parser, as the breakpoint dialog built a `BPEDIT` definition? -> A: No ("GUI commands should NOT construct console text commands for parsing and execution. Call the actual functions that those depend on"). The breakpoint dialog, the Breakpoints pane's switches, a BASIC line's breakpoint and a pane's memory search each pass typed fields to the session (`BreakpointDefinition`, or a command with its operand), which `AppleWinParser::TryMakeBreakpoint` evaluates field by field. An error is worded for the field, with no command's name. The echo line is display only. FR-135 as amended.
+- Q: Should the disassembly start a row at a branch or jump target inside a decoded instruction before the PC gets there? -> A: Yes, for the targets of branches, jumps and calls the machine has executed, so data that decodes as a branch doesn't add a row. Neither does an indirect jump or a target in the I/O page. FR-418.
+- Q: Should the "Showing the copy in ..." infobar have Browse? -> A: Yes, unless the copy's hash is the one in the debug file; then the infobar has that its contents are the ones the program was built from, without Browse. FR-419.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -1962,6 +1994,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   command does, and every reply it gives, MUST stay the same, except that a
   reply MUST quote the command as the user typed it, never another mode's
   form. 035 does not ship without this.
+  A control in the debugger window MUST NOT produce command text to be
+  parsed either: it passes typed fields to the session, and an error from them
+  MUST be worded for the field, with no command's name (amended 2026-11-13).
 - **FR-136**: The trace pane MUST show a line listing its keys, and while it
   has focus MUST take Space (step into), O (step over), R (step out), Enter
   (run), T (tracing on and off) and B (bytes column on and off).
@@ -2115,7 +2150,74 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-026a**: Every pane MUST use a monospace font; rows MUST be no taller
   than the font's line height plus minor padding; columns MUST be sized to
   their contents with minor padding, and MUST NOT stretch to fill unused
-  width; a pane MUST be tall enough by default to show at least eight entries.
+  width, except a code view's Operand and result column, which MUST run to the
+  pane's edge with its text cut off there, so the view has no horizontal scroll
+  bar. A width the user drags for that column MUST last only until Casso exits
+  and MUST NOT be saved in the layout or the debug project. A pane MUST be tall
+  enough by default for at least eight entries. Where a code row's text is
+  cut off, in a disassembly view, the BASIC program or a source document, it
+  MUST be drawn whole in an in-place tip from the first pointer move over the
+  row, with no delay and no outline, exactly when the view's drawing of some
+  text in the row is clipped. The pointer MUST pass through the tip to the row
+  beneath. One model applies to every such row:
+  1. **Fill.** Every line of the tip MUST be filled with the selection color,
+     the one the row the keyboard is on has, across the whole row, from the
+     row's start (its address or line number, past the gutter and the heat
+     column, which are drawn as usual) to the tip's right edge, which is the
+     pane's right edge or past it, whichever is further. The view MUST draw
+     the tip's row itself in that color from that start while the tip is
+     up, so the row and each line below it look like
+     one highlighted block, not a box behind the text. No cell's color,
+     such as the heat strip's or the PC's row, MUST be used for the fill.
+  2. **The row's line.** The tip's first line MUST be the row's text,
+     each part where the view draws it, run on past the pane's edge far enough
+     to include everything the view cuts off: an operand, source text, a
+     data line, a label or a comment. A part drawn whole that the part ahead
+     of it, run on, would run into MUST follow that part, a padding's width
+     apart.
+  3. **Operand and result.** The operand MUST stay on the first line: where
+     the view draws it when it is in view but cut off, and two spaces after
+     the row's code when it lies past the view's right edge. The result MUST
+     go on the next line under the operand's start. The operand MUST go
+     below only where the line's comment takes its place on the first line,
+     or where it is scrolled out of sight to the left; it and the result then
+     start under where the row's code starts: the mnemonic in the
+     disassembly, past the label in a source document.
+  4. **A source line's comment.** Where a source row's operand and result run
+     on to the row's end with the line's comment after them, and the view
+     cuts them off, the first line MUST be the source line itself with its
+     comment in their place; the operand MUST follow on the next line and the
+     result below it, both under the code's start.
+  5. **Any cut-off text.** Every clipped part of a row MUST have the tip, not
+     only the Operand and result column: a comment, a label, source text and
+     a data line, in the disassembly and in a source document.
+  6. **Symbol.** Where the row's operand is written with a symbol, the tip
+     MUST include the symbol's "name = $value" among the operand's values,
+     after them and separated as they are, and that symbol's tip MUST NOT come
+     up on that row while the in-place tip is up; the label's and any other
+     symbol's tip on the row MUST come up as usual. On a row that is not cut
+     off, the symbol tip MUST come up as it does today.
+  7. **Monitor.** The tip MUST be laid out on the monitor where the row
+     starts (the row's left edge) and MUST extend right as far as its text
+     runs, limited to that monitor's work area joined with an adjacent
+     monitor directly to its right, if any, and MUST NOT be moved otherwise.
+     It MUST wrap only where its text is wider than that room. Where the row
+     starts on no monitor, or the tip is taller than the room below the row,
+     it MUST NOT appear.
+  8. **Italics.** A row drawn in italics, as a data line is, MUST draw its tip
+     in italics, in the same face and size.
+  Where a part wraps, it MUST break at spaces where it can. A source or data
+  line's lines after the first MUST start under the first character of the
+  comment's text, past the `;` and its spaces, where the break is in the
+  comment, and four characters right of where the line's code starts
+  otherwise; any other part MUST continue at its left. A source
+  document's operand and result MUST be in the disassembly's colors: the
+  operand in the operand color and the result in the result color. The tip
+  MUST stay up while the pointer moves from the row down into it. After the
+  wheel or a step, the tip MUST stay up, laid out for the row under the
+  resting pointer: the same tip for the same row and text, the tip of the row
+  now under the pointer where its text is cut off, and no tip where nothing
+  under the pointer is cut off (amended 2026-11-06).
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
 - **FR-026c**: The window's step, step over, step out, run, pause and toggle-
@@ -2179,7 +2281,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-083**: Ctrl+Plus, Ctrl+Minus and Ctrl+0 MUST enlarge, reduce and reset
   the text size of every debugger content pane, floating panes included, and
   MUST NOT change any other Casso window, the debugger's caption, or its
-  command bar.
+  command bar. The status bar's zoom field MUST open the same zoom panel the
+  heat map has (FR-383), above the field, when the pointer moves over it or
+  it is clicked: the size as a label, a Reset button with the tip "Reset to
+  100%", and a track that sets the overall text size from 50% to 300% in steps
+  of 10%, which each pane's zoom multiplies. It MUST close as the heat map's
+  does, and a click on the field MUST close it, the pointer resting on the
+  field then not opening it again until it moves off. The mouse wheel over the
+  zoom field MUST change the size by one step per notch, up being larger,
+  without Ctrl. Ctrl+0 MUST reset only the pane it is used over.
 - **FR-084**: Every pane MUST have a context menu of actions on its content,
   drawn by the debugger's own menu widget like every other menu in Casso.
   Actions on the tab or window (dock, float, auto-hide, close) MUST be in the
@@ -2447,7 +2557,10 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   `+` after its last tab (FR-089).
 - **FR-116**: The group with focus MUST show a 1-pixel accent border and an
   accent outline on its selected tab; an unfocused group's selected tab MUST
-  be outlined in a neutral color. Tabs that do not fit their group's width
+  be outlined in a neutral color. A floating window MUST be drawn with the
+  accent border while it is active. The window of a tab torn off to float MUST
+  be drawn with the accent from the start of the drag, and MUST become active
+  where it is dropped floating. Tabs that do not fit their group's width
   MUST scroll into reach with arrows at the strip's ends rather than having
   their titles cut short. The debugger's tabs MUST be drawn by the same tab
   strip Casso Explorer uses, with the options these requirements need, and
@@ -2937,8 +3050,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   watchpoints with their names, conditions, enabled states and When hit
   settings; watches, including zero-page pointer watches; bookmarks; the
   symbol and debug files loaded and their source folders; data directives;
-  step filters; heat map range sets; disassembly options; the pane layout; and
-  a list of startup commands (FR-171). Added 2026-10-09 (owner).
+  step filters; heat map range sets; disassembly options; and a list of
+  startup commands (FR-171). Added 2026-10-09 (owner). Amended 2026-11-13
+  (owner): the pane layout is no longer part of a project (FR-417).
 - **FR-167**: The project MUST be chosen with no user action, from the most
   specific signal known: a loaded debug or symbol file; else a binary the
   debugger loaded (BLOAD or FR-180); else the machine and its boot
@@ -3132,11 +3246,11 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   ahead in the background, so that a view reaches as far back as history does.
 - **FR-213**: The debugger MUST have a Disk II event log pane showing every
   kind of event the emulator's Disk II debug window shows today (among them
-  address marks, sector reads and writes, and head steps), with its filters,
-  the track and sector filter among them, and its columns; live while the
-  machine runs and rebuilt from history per FR-210 to FR-212. A quarter-track
-  in the track filter MUST be typed as a decimal track (17.25) and read as
-  text, never as floating point; there is no Quarter-tracks option. A head
+  address marks, sector reads and writes, and head steps), with its columns,
+  filtered from their headings per FR-266; live while the machine runs and
+  rebuilt from history per FR-210 to FR-212. A quarter-track is shown and
+  filtered as text, never as floating point; there is no Quarter-tracks
+  option (amended 2026-11-09: the track and sector boxes are retired). A head
   position MUST be written as a track with its quarter-track fraction
   (17.25), never in quarter-track units (amended 2026-10-14).
 - **FR-214**: The debugger MUST have an input log pane showing the host's
@@ -3428,10 +3542,18 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   neighbor's, and a tip MUST have any area's name and bounds. Amended by
   FR-284.
 - **FR-266**: The input log's paddle drop-downs MUST have only their chosen
-  value; its emulator input and host input drop-downs MUST be removed in
-  favor of a Filter cascade on each column's context menu, and a column
-  with a filter in force MUST have a filter glyph right of its heading,
-  before any sort glyph.
+  value. Every event log MUST filter its rows from its columns' headings, as
+  File Explorer does: a chevron at the right of a filterable heading opens a
+  popup that stays open while choices are checked. A column of a few values
+  (Source, Severity, Event, Drive, Volume, Track, Sector, Input, Value, Port,
+  Direction) MUST have a check box for each value its events show; a column
+  of numbers (Time, Cycle, Address, Since, Frame, Line, the line cycle and
+  Length) MUST filter by less than, greater than, equal to or between,
+  typed as the column shows them. A column with a filter in force MUST have a
+  filter glyph right of its heading, before any sort glyph, and the filters
+  MUST be saved with the pane's options. The bars' filters (the Disk II log's
+  kinds, drive and severities, its track and sector boxes, and the Source
+  cascades) MUST be removed (amended 2026-11-09, T1240 to T1244).
 - **FR-267**: The cost of profiling at 1x and at full speed MUST be measured
   and recorded (R-048). Superseded 2026-10-18 by FR-268: the profiler is
   built from history, not left on.
@@ -3668,7 +3790,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-340**: The AY write count, the last AY write and the recent phonemes
   MUST be saved in machine state, so a rewind restores them, and states saved without them MUST load.
 
-- **FR-341**: A tip on each of the view's parts MUST contain the raw register values behind it.
+- **FR-341**: A tip on each of the view's parts MUST contain the part's meaning,
+  and the register and raw value behind it wherever the view doesn't draw
+  that value beside the part.
 
 - **FR-342**: At each stop, and never while the machine runs, each loaded
   debug or symbol file MUST be checked against memory: a debug file by the
@@ -3708,7 +3832,7 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   optional machine, disks and title, and returns the process id once the
   channel is open; `attach`, which chooses the instance the other tools act
   on; `close`, for an instance this server launched only; `command`, any
-  debugger line in a command mode; `run`, `pause` and `step` (into, over or
+  debugger line in a command mode; `run`, `pause`, `resume` and `step` (into, over or
   out, with a count); `registers`; `read_memory` and `write_memory`;
   `disassemble`; `set_breakpoint`, `clear_breakpoint` and `list_breakpoints`;
   `reset` (soft or power); `type_text`; `press_keys`, by key name, Ctrl+Reset
@@ -3780,8 +3904,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   `ASC "HI",$00`.
 - **FR-363**: A menu whose rows can't be checked MUST NOT have a check gutter.
 - **FR-364**: The console line after a debug project loads MUST read "Loaded the
-  debug project for symbols-demo.dbg from <path>", by the debug file's or
-  binary's file name.
+  debug project for symbols-demo.dbg", by the debug file's or binary's file
+  name, with "project" a link to the project file and the file name a link to
+  the debug file or binary (FR-373).
 - **FR-365**: A debug file's project MUST NOT save or load another debug file as
   one of its symbol files.
 - **FR-366**: A disassembly view's Label column MUST be fitted to its labels each
@@ -3798,13 +3923,16 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   the heat map and the tabs' PC marks at once, with the marks at least 3:1
   against the tab band.
 - **FR-371**: The tips over a disassembly view's heat cells MUST open on the first
-  move over them.
+  move over them; FR-361 covers this with the other code-view tips.
 - **FR-372**: A source document's notice MUST lie inside the pane with a margin on
   every side, and MUST be no taller than its text when it has no button.
 - **FR-373**: A file in a console line MUST be a link in the console pane,
-  with its full path as its tip, that opens File Explorer with the file
-  selected; the line MUST NOT write out the full path, while the reply's text
-  for the debug channel and batch mode MUST have it.
+  with its full path as its tip, that opens the file's folder with the file
+  selected in Casso Explorer, or in File Explorer when the console menu's
+  Open links in File Explorer is checked or Casso Explorer does not start; the line MUST NOT write out the full path, while the reply's text
+  for the debug channel and batch mode MUST have it. This MUST apply to every
+  full path in every console line, from any command or notice, quoted or not:
+  each is replaced by its file's name, linked.
 - **FR-374**: A tab dragged past the first or the last tab of its row, by more
   than the drag threshold, MUST be dragged off its group, as one dragged up or
   down is.
@@ -3833,17 +3961,176 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-380**: The Dock to menu MUST open from a pane's tab, its title bar or
   the menu button beside its pin and close buttons, and MUST NOT open from a
   right-click over the pane's content, which opens the content's menu or none.
-- **FR-381**: The Load file into memory button MUST draw a 1 and a 0 beside a
-  chip with pins, in the toolbar's colors in every theme.
+- **FR-381**: The Load file into memory button MUST draw a two-by-two grid of
+  1s and 0s, in the toolbar's colors in every theme.
 - **FR-382**: The Symbols pane MUST list AppleWin's spare tables, USER2, SRC
   and SRC2, only once a command has loaded something into one; the User table
   MUST always be listed.
 - **FR-383**: At every zoom, every heat map row MUST fit the pane's width, with
   no horizontal scroll bar: the rows reflow as the pane's width changes, and
   only the vertical bar scrolls. A row scrolled partly off the top MUST have no
-  label, and the zoom slider MUST close when the focus moves to another pane.
+  label. The zoom slider MUST open when the pointer moves over the zoom
+  button, or the floating window's Zoom %, as well as on a click. It MUST close when the focus moves to another pane, and
+  when the pointer moves more than 16 DIPs from the zoom button and its
+  slider or moves off the map, except while the slider's thumb is being dragged.
 - **FR-384**: A floating pane dragged from a monitor at one scale MUST bring up the
   drop targets over a window on a monitor at another scale, in one drag.
+- **FR-385**: The View menu MUST list the panes in sections divided by
+  separators: the code (disassembly views, source files and the BASIC
+  program, call stack, breakpoints, bookmarks, symbol tables), then the machine's state and memory
+  (registers, stack, watches, memory windows, data ranges, heat map, heat map
+  ranges), then the output (console, trace, profiler, logs), then the device
+  panels. Of those, only the panes in several instances, the logs and the
+  device panels MUST be submenus, with the BASIC program in the source files'
+  submenu.
+- **FR-386**: A click on a file's link in the console MUST open a new File
+  Explorer window at the file's folder with the file selected, until Casso
+  Explorer can bring forward a tab already open on the folder (T1388).
+- **FR-387**: A debugger command from the debug channel, MCP included, that
+  reads or writes a host file at a UNC or other network path MUST fail, with
+  the reason in its reply.
+- **FR-388**: A host file path in a command from the debug channel MUST lie,
+  once relative parts, `..` and links are resolved, under an allowed folder:
+  the folder of a mounted disk image, of a loaded debug or symbol file, the
+  Casso work folder (`Documents\Casso`), or a folder given with
+  `CassoCli mcp --allow-path <folder>`, which may be given more than once. A
+  command at a path outside every allowed folder MUST fail, for reads (such as
+  `BLOAD`, a symbol or debug file load, `DISK INSERT`) and writes (such as
+  `W`, `BSAVE`, `SCREENSHOT`, a symbol table save) alike.
+- **FR-389**: Commands from the debug channel MUST fall into these classes:
+  inspecting state and controlling the machine, which are allowed; host file
+  access, which FR-387 and FR-388 limit; and running a file of commands, which
+  is allowed, with each line of the file limited as a channel line is. Commands
+  typed in the console, and those in a script the user ran there, MUST NOT be
+  limited by FR-387 to FR-389.
+- **FR-390**: A write from the debug channel MUST NOT replace an existing file
+  unless the request has the overwrite option set, and MUST NOT write a file with the
+  extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.js`, `.lnk` or
+  `.scr`, or into a Startup folder, at all.
+- **FR-391**: Every host file read or write a debug channel client makes MUST
+  add a console line with the client's name and the file name as a link, with the
+  full path in the link's tip, and one that fails a line with the reason, in which
+  the file name is the same link.
+- **FR-392**: The heat map's fills for run, read, written, self-modifying, read
+  before written and value changed MUST each be clearly distinct from the
+  others in every theme, by a measured color distance, so that the self-modifying,
+  value changed and written fills are never taken for one another.
+- **FR-393**: The heat map's color key MUST list only the colors the view and
+  options can draw. The All view MUST list run, operand, read, written and
+  read before written, and self-modifying only with Blend on; Code MUST list
+  run and operand; Data MUST list read, written and read before written;
+  Changed MUST list value changed alone. Every view MUST also list the
+  symbol tint and the outlines for the PC, the stack pointer, breakpoints
+  and read and write data breakpoints. Each heat color's swatch MUST be
+  shaded across from its faintest shade, which the least touched cell is
+  drawn in, to its full color, which the busiest is drawn in, as long as the
+  scales in the heat column heading's tip. Every color key with such a scale
+  MUST draw it that long.
+- **FR-394**: The tip over a heat map cell MUST start with a small square in
+  the cell's color beside the meaning of that color, as the color key words it
+  ("Value changed", "Written", "Untouched"), ahead of the cell's address and
+  counts. Below them, as a code view's heat tip does (FR-246), it MUST draw
+  the cell's scale from its faintest shade to its full color with a mark at
+  the cell's level; an untouched cell and a Blend mix have no scale.
+- **FR-395**: A pane docked back from a floating window, from its Dock menu or
+  its window's pin, MUST return to the tab index it had in its group, clamped to
+  the group's size when the group has shrunk, and MUST be the group's active
+  tab. The index MUST be saved with the layout, and a layout saved without it
+  MUST load and dock the pane last. The history timeline's large preview
+  MUST be framed by a one-pixel line in the tooltip border color.
+- **FR-396**: A file MUST be read as a symbol file only when one line form
+  fits at least nine in ten of its lines that aren't blank or comments, with
+  each name a symbol's name (letters, digits and `_ . @ ?`, or a Merlin
+  local's `:` or variable's `]` first, with a letter in it). A file of
+  anything else, such as a BASIC listing or prose, MUST NOT load symbols.
+- **FR-397**: A file dropped on the debugger or opened from its File menu
+  whose lines each start with a rising line number, with Applesoft statements
+  among them, MUST load as a BASIC program whatever its extension, such as a
+  listing saved as .bas.txt.
+- **FR-398**: Two debug projects that each load what opens the other MUST NOT
+  switch back and forth. A project switched away from MUST be saved with the symbol
+  files it had before the switch. After four switches within two seconds,
+  switching MUST pause on the current project, with one console line added
+  for the reason, until the debug file, binary or machine changes to a project
+  outside them.
+- **FR-399**: BASICCLEAR MUST clear the Applesoft program in memory as NEW
+  does: an empty program at TXTTAB, and the variables, arrays and strings
+  empty after it, with string space from the top of memory down. The BASIC
+  pane's toolbar and menu and the File menu MUST offer it as Clear BASIC
+  program, confirmed first unless the program is empty. BASIC breakpoints
+  MUST NOT be removed, so the same program loaded again has them.
+- **FR-400**: In the CPU's bank the heat map MUST be cut into sections, each
+  starting a row in a rounded box with its label on the top edge: the built-in
+  RAM ranges and the RAM between them, the I/O, each slot's I/O and ROM page
+  labeled by its card or as empty, the expansion ROM, and each part of the
+  system ROM by its name. Banking MUST change a section's label and color, not
+  the layout. On a //c the slot ranges MUST be labeled as its built-in ports.
+- **FR-401**: A heat map cell with a symbol MUST have its name above its value,
+  and I/O MUST be read without side effects. The tip's first line MUST be the
+  cell's contents; the tip MUST be framed and labeled with the cell's range,
+  with equal margins, and PC and SP MUST be a tag on its first line. Its text
+  and lines MUST have at least WCAG's contrast (4.5:1 and 3:1).
+- **FR-402**: A memory window MUST label a slot's outlines by its card, and
+  outline and label each part of the system ROM apart.
+- **FR-403**: The heat map's tip MUST appear as soon as the pointer is on a
+  cell, with placeholders for the last writer and reader that are filled in
+  when the machine's lookup arrives.
+- **FR-404**: In a range set, each range MUST be drawn as a boxed section
+  labeled with its title and span.
+- **FR-405**: All to new window on a group of several tabs MUST float the whole
+  group in one window, keeping its selected tab.
+- **FR-406**: Each window MUST draw its text in its theme's typography; the
+  debugger following the emulator's theme draws in the emulator's.
+- **FR-407**: The disk in drive 1 once a machine is built and its disks are
+  mounted MUST be its boot disk for the debug project's scope.
+- **FR-408**: A breakpoint MUST be able to log, as Visual Studio's actions do:
+  at each hit it writes a message to the console, with each `{expression}` in
+  the message evaluated at the hit, and it either stops or runs on. `BPLOG #
+  [GO] "text"` sets the message, GO making the hit run on, and `BPLOG # CLEAR`
+  removes it. The message and whether a hit stops MUST be saved in the debug
+  project, and the Breakpoints pane's When hit column MUST list the message.
+- **FR-409**: A breakpoint MUST be in at most one group, which has a name. A
+  group's name MUST match without regard to case and MUST be displayed as
+  first typed.
+- **FR-410**: While any group exists, the Breakpoints pane MUST list the
+  ungrouped breakpoints first with no heading, then each group's breakpoints
+  under a heading with the group's name and its number of breakpoints. A
+  heading MUST collapse and expand its rows. With no group, the pane MUST list
+  the breakpoints with no headings.
+- **FR-411**: A breakpoint row's context menu MUST have Add to breakpoint
+  group, a submenu of the existing groups, New group..., and Remove from group
+  when any selected breakpoint is in a group; each MUST act on every selected
+  breakpoint.
+- **FR-412**: A group heading's context menu MUST have Enable all, Disable all,
+  Rename group..., Ungroup, after which the breakpoints are in place with no
+  group, and Delete group and its breakpoints, which MUST be confirmed first.
+- **FR-413**: The console MUST have BPGROUP: `BPGROUP` lists each group and its
+  breakpoint ids; `BPGROUP name id[,id...]` puts breakpoints in a group,
+  creating it; `BPGROUP ! id[,id...]` takes them out of their groups; `BPGROUP
+  ENABLE name`, `BPGROUP DISABLE name`, `BPGROUP RENAME old new`, `BPGROUP
+  UNGROUP name` and `BPGROUP DELETE name` act on a group. An unknown group or id
+  MUST be an error whose text has the name or id.
+- **FR-414**: Each group action taken in the Breakpoints pane MUST be one step
+  on the pane's undo list, as its other actions are.
+- **FR-415**: A breakpoint's group MUST be saved and restored by the debug
+  project, and a breakpoint MUST be in the same group after BPEDIT. A project
+  with no groups MUST load. BPSAVE's file is AppleWin's script and has no
+  groups.
+- **FR-416**: A group MUST cease to exist once it has no breakpoints.
+- **FR-417**: A debug project MUST NOT save or restore the window's layout:
+  the panes' places and sizes, the closed panes, the focused pane, where the
+  command bar and the timeline are docked, and the open views. Switching
+  projects, by loading or unloading a debug file or loading a saved state,
+  MUST NOT change them. A project saved with them MUST load, without them.
+- **FR-418**: A disassembly MUST start a row at the target of each relative
+  branch, JMP and JSR the machine has executed, where a decode from the row
+  before would run over that address, except in the instruction at the PC.
+  An instruction the machine has not executed, an indirect jump and a target
+  in the I/O page MUST NOT add a row.
+- **FR-419**: The infobar over a source found in a folder other than the
+  debug file's MUST have Browse..., to pick another copy, unless the copy's
+  hash is the one in the debug file; then it MUST have, in place of
+  Browse..., that the copy's contents are the ones the program was built from.
 
 ### Key Entities
 

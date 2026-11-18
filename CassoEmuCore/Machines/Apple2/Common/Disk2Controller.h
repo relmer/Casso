@@ -6,16 +6,17 @@
 #include "Core/ObserverSlots.h"
 #include "Core/IMachineState.h"
 #include "Debugger/IDiagnosticsProvider.h"
-#include "Devices/Disk/DiskImage.h"
-#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
-#include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
-#include "Machines/Apple2/Common/Disk2NibbleRecord.h"
+#include "Machines/Apple2/Common/Disk2CardSequencer.h"
+#include "Machines/Apple2/Common/Disk2Clock.h"
+#include "Machines/Apple2/Common/Disk2Drive.h"
+#include "Machines/Apple2/Common/Disk2IwmPort.h"
+#include "Machines/Apple2/Common/Disk2Lines.h"
+#include "Machines/Apple2/Common/Disk2Recorder.h"
+#include "Machines/Apple2/Common/Disk2Signals.h"
 
-
-class IDriveAudioSink;
 class IDisk2EventSink;
+class IDiskPortHook;
 struct DeviceConfig;
-struct MachineConfig;
 class MemoryBus;
 
 
@@ -26,297 +27,122 @@ class MemoryBus;
 //
 //  Disk2Controller
 //
-//  Phase 9 rewrite per audit §7. True bit-stream LSS controller:
-//  $C0Ex/$C0Fx soft switches own phase magnets, motor on/off, drive
-//  select, and Q6/Q7 latches. Reads/writes go through a per-drive
-//  Disk2NibbleEngine that streams the active DiskImage bit-stream at
-//  the standard 4-cycles-per-bit data rate.
-//
-//  Slot 6 ROM ($C600-$C6FF) is owned by the Apple2eMmu's CxxxRomRouter
-//  (audit C1: unshadowed when INTCXROM=0). The controller itself only
-//  responds to its 16-byte $C0Ex page.
+//  A Disk II controller in a slot, or the //c's disk port: its 16-byte page
+//  of switches at $C0n0 to $C0nF, two drives, and the lines between them.
+//  The switches go to the Disk II card's sequencer, or in IWM mode to the
+//  //c's IWM; either front end sets the same lines and reports through the
+//  same signals and recorder. The slot ROM is the MMU's, not the
+//  controller's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
 {
 public:
-    static constexpr int    kDriveCount      = 2;
-    static constexpr int    kPhaseCount      = 4;
-    static constexpr int    kMaxQuarterTrack = 139;
-
-    // A phase's magnets are a half track (two quarter tracks) from the next
-    // phase's.
-    static constexpr int    kQuarterTracksPerHalfTrack = 2;
-
-    // How far, in quarter tracks, the energized phases move a head at
-    // quarterTrack (HandlePhase).
-    static int  GetPull (uint8_t phases, int quarterTrack);
-
-    // Read's byte for a switch, with no switch thrown and the drive not
-    // moved on. False while the drive is writing, which a copy of it cannot
-    // run without writing to the disk.
-    bool  TryPeekIo (Word address, Byte & value) override;
-
-    // Real Disk II: writing $C0E8 (motor off) starts a ~1-second
-    // spindown so DOS RWTS can toggle the motor off between
-    // commands without losing rotational sync. UTAIIe ch. 9 /
-    // AppleWin SPINNING_CYCLES.
-    static constexpr uint32_t  kMotorSpindownCycles = 1'000'000U;
-
-    // Issue #67 deliverable 1: LSS stability window. For roughly
-    // 0x2EC CPU cycles after the motor's off->on edge the Disk II
-    // Logic State Sequencer hasn't latched a stable nibble yet, so
-    // any read returns 0x80 (MSB set, meaningless data). Copy-
-    // protection schemes deliberately read during this window and
-    // verify the absence of valid sync nibbles. Matches AppleWin's
-    // MOTOR_ON_UNTIL_LSS_STABLE_CYCLES (GH#864); the per-card range
-    // is 0x2EC-0x990 cycles. The bit cursor still advances during
-    // the window -- only the CPU-visible latch is overridden -- so
-    // rotational position stays accurate. Note: physical disk spin-
-    // up takes ~500 ms, but the firmware doesn't care; it only
-    // cares about the LSS-stable bit, which is much shorter.
-    static constexpr uint32_t  kMotorSpinupCycles = 0x2EC;
+    static constexpr int  kDriveCount = Disk2Drive::kPerController;
 
     explicit Disk2Controller (int slot);
 
-    Byte Read (Word address) override;
-    void Write (Word address, Byte value) override;
-    Word GetStart() const override { return m_ioStart; }
-    Word GetEnd() const override { return m_ioEnd; }
-    void Reset() override;
-    void SoftReset() override;
-    void PowerCycle (Prng & prng) override;
+    Disk2Controller (const Disk2Controller &)             = delete;
+    Disk2Controller & operator= (const Disk2Controller &) = delete;
 
-    HRESULT       MountDisk (int drive, const string & path);
-    void          EjectDisk (int drive);
-    DiskImage *   GetDisk (int drive);
-    void          SetExternalDisk (int drive, DiskImage * external);
-    bool          HasExternalDisk (int drive) const;
+    Byte  Read       (Word address) override;
+    void  Write      (Word address, Byte value) override;
+    bool  TryPeekIo  (Word address, Byte & value) override;
+    Word  GetStart   () const override { return m_ioStart; }
+    Word  GetEnd     () const override { return m_ioEnd; }
+    void  Reset      () override;
+    void  SoftReset  () override;
+    void  PowerCycle (Prng & prng) override;
 
-    // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
-    // DiskImageStore + SetExternalDisk (bypassing this class's own
-    // MountDisk / EjectDisk), the controller's own load path never
-    // runs and the IDisk2EventSink never sees the user-facing
-    // insert/eject. These notify-only entrypoints let the shell fire
-    // those events without re-routing the actual image bytes.
-    void          NotifyDiskInserted (int drive);
-    void          NotifyDiskEjected (int drive);
+    // Cycle-driven advance: the CPU pumps the instruction's cycles.
+    void  Tick (uint32_t cpuCycles);
 
-    // Audio sink wiring (spec 005-disk-ii-audio FR-001..FR-004).
-    // Caller-owned; controller never deletes it. Single sink covers
-    // both drives (per-drive routing happens at the source-mixer
-    // level via separate IDriveAudioSource instances).
-    void          SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
-    IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
+    //  A disk change in a drive, noted in the recent nibbles and sent to the
+    //  sinks. SetExternalDisk attaches a disk another object has, typically
+    //  the disk store's, or the drive's empty one with nullptr; it sends
+    //  nothing to the sinks, since the shell reports the change
+    //  (Disk2Signals::OnDiskInserted).
+    HRESULT  MountDisk       (int drive, const string & path);
+    void     EjectDisk       (int drive);
+    void     SetExternalDisk (int drive, DiskImage * external);
 
-    // Spec-006 debug-window event sink wiring. Caller-owned;
-    // controller never deletes it. Pass nullptr to detach (the
-    // controller fast-paths around the per-fire-site guard when
-    // unattached so behavior is byte-identical to the pre-feature
-    // path, FR-007 / FR-020 / SC-007). Propagated to the embedded
-    // Disk2AddressMarkWatcher so the watcher fires its own
-    // address-mark / data-mark events through the same sink.
-    void          SetEventSink (IDisk2EventSink * sink) noexcept { SetEventSink (ObserverSlot::Panel, sink); }
-    void          SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept;
-    IDisk2EventSink * GetEventSink (ObserverSlot slot) const noexcept { return m_eventSinks.Get (slot); }
+    //  Sets the slot in the signals and in the address-mark watcher, which
+    //  reports its marks through the same sinks. The one-argument form sets
+    //  the panel's slot. Caller-owned; nullptr detaches.
+    void  SetEventSink (IDisk2EventSink * sink) noexcept { SetEventSink (ObserverSlot::Panel, sink); }
+    void  SetEventSink (ObserverSlot slot, IDisk2EventSink * sink) noexcept;
 
-    // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
-    // Machine, not a Disk II card, so it adds a write-only MODE register and a
-    // read-only STATUS register selected by Q6=1/Q7 with the motor off:
-    //   Q6H + Q7H + motor off + write -> load MODE register
-    //   Q6H + Q7L + read            -> STATUS register (low 5 bits = MODE)
-    // The //c reset firmware writes the mode register then reads it back via
-    // status to confirm the IWM is present. Off by default so a real Disk II
-    // card (the //e) is byte-for-byte unchanged.
-    void   SetIwmMode (bool v) { m_iwmMode = v; }
+    // Apple //c IWM mode: the switches go to the IWM, whose two drives are
+    // this controller's, read and written a cell at a time. Off by default,
+    // for a Disk II card.
+    void  SetIwmMode (bool isIwm) { m_iwmMode = isIwm; }
+    bool  IsIwmMode  () const     { return m_iwmMode; }
 
-    // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
-    // moment the motor spins down (the true->false transition in Tick) --
-    // i.e. right after a disk operation completes and ~1 second after the
-    // last access, a naturally debounced, race-free point to persist dirty
-    // images (this thread owns the writes). The shell wires it to
-    // DiskImageStore::FlushAll so guest writes survive a crash / kill before
-    // the next eject / exit. Caller-owned; null = no-op (tests, headless).
-    void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
-    // Idle hook. Invoked on the CPU thread when no disk operation is in
-    // flight, which is nearly always -- the motor is off, or on and between
-    // accesses.
-    //
-    // THE SPINDOWN HOOK ABOVE IS NOT ENOUGH, and the gap is the ordinary case
-    // rather than an edge. It fires only on a motor-on to motor-off transition
-    // with the spindown timer expiring, so a guest sitting at a BASIC prompt --
-    // which is exactly how a build loop leaves the machine -- never reaches it
-    // and never learns that its disk changed.
-    //
-    // RATE-LIMITED TO ONCE PER EMULATED FRAME. Tick is pumped per instruction
-    // and "no operation in flight" is true nearly always, so an ungated
-    // callback would be an indirect dispatch on essentially every instruction.
-    // Caller-owned; null = no-op (tests, headless).
-    void          SetIdleCallback (std::function<void ()> cb) { m_idleCallback = std::move (cb); }
+    //  A SmartPort chain on the //c's disk port. Each access to the switches
+    //  goes to it after the controller, and its byte replaces the
+    //  controller's for drive 2 while it has the bus. On the //c Plus it also
+    //  enables the drives. Caller-owned.
+    void  SetPortHook (IDiskPortHook * hook) { m_portHook = hook; }
 
-    // How often the idle callback may fire, in CPU cycles. One emulated frame
-    // at 1.0205 MHz -- 60 chances a second to notice a change, which is far
-    // more promptness than a build loop needs and far less work than a
-    // per-instruction dispatch.
-    static constexpr uint32_t  kIdleCallbackCycles = 17030;
+    int  GetSlot() const { return m_slot; }
 
-    // Cycle-driven advance. EmuCpu pumps cycles per Step.
-    void   Tick (uint32_t cpuCycles);
-
-    // Issue #67: catch-up cycle source. When set, every Read/Write of
-    // the $C0Ex page first walks the active drive's bit-stream engine
-    // forward to the CPU's current cycle count BEFORE the soft-switch
-    // dispatch fires, mirroring AppleWin's CpuCalcCycles-at-top-of-
-    // handler pattern. The counter is the per-instruction cycle
-    // accumulator (m_totalCycles), so the engine is current to the end
-    // of the previous instruction at the moment of the access -- the
-    // same effective granularity AppleWin provides.
-    //
-    // When a source is attached, the per-instruction Tick path no
-    // longer advances the engine bit cursor (the catch-up does it on
-    // demand). Pass nullptr for tests that drive the controller
-    // without a real CPU.
-    void   SetCpuCycleSource (const uint64_t * cycleSource) noexcept { m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
-
-    // The address of the instruction the CPU is executing, for the recent
-    // nibbles; with none, as in tests that drive the controller without a
-    // CPU, each entry has address 0. Wiring, not saved.
-    void   SetInstructionAddressSource (const Word * source) noexcept { m_instructionAddressSource = source; }
-
-    // The nibbles the CPU most recently took from the drives or wrote to them.
-    const Disk2NibbleRecord &  GetNibbleRecord() const { return m_nibbleRecord; }
-
-    // Inspectors used by Phase 9 tests.
-    int    GetSlot() const { return m_slot; }
-    int    GetActiveDrive() const { return m_activeDrive; }
-    bool   IsMotorOn() const { return m_motorOn; }
-    bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
-    uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
-    // The selected drive's head, or a given drive's: each drive has a
-    // stepper of its own.
-    int    GetQuarterTrack() const          { return m_quarterTrack[m_activeDrive]; }
-    int    GetQuarterTrack (int drive) const { return m_quarterTrack[drive]; }
-    int    GetCurrentTrack() const          { return GetQuarterTrack() / 4; }
-    bool   IsQ6() const { return m_q6; }
-    bool   IsQ7() const { return m_q7; }
-    uint8_t  GetPhases() const { return m_phases; }
+    Disk2Drive                & GetDrive    (int drive)       { return m_drives[(size_t) std::clamp (drive, 0, kDriveCount - 1)]; }
+    const Disk2Drive          & GetDrive    (int drive) const { return m_drives[(size_t) std::clamp (drive, 0, kDriveCount - 1)]; }
+    Disk2Lines                & GetLines    ()                { return m_lines; }
+    const Disk2Lines          & GetLines    () const          { return m_lines; }
+    Disk2Signals              & GetSignals  ()                { return m_signals; }
+    const Disk2Signals        & GetSignals  () const          { return m_signals; }
+    Disk2Recorder             & GetRecorder ()                { return m_recorder; }
+    const Disk2Recorder       & GetRecorder () const          { return m_recorder; }
+    Disk2Clock                & GetClock    ()                { return m_clock; }
+    const Disk2Clock          & GetClock    () const          { return m_clock; }
+    Disk2CardSequencer        & GetCard     ()                { return m_card; }
+    const Disk2CardSequencer  & GetCard     () const          { return m_card; }
+    Disk2IwmPort              & GetIwmPort  ()                { return m_iwmPort; }
+    const Disk2IwmPort        & GetIwmPort  () const          { return m_iwmPort; }
 
     // The Disk II panel: drive, motor, head, phase magnets and the read state.
     std::string  GetDiagnosticsId    () const override { return "disk"; }
     std::string  GetDiagnosticsTitle () const override { return "Disk II"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
-    Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-    // IMachineState: phase magnets, head position, motor and its spin-up and
-    // spin-down counters, drive select, Q6/Q7, the IWM mode register, the idle
-    // callback's rate-limit window, the last catch-up cycle, and both drive
-    // engines nested in this section. The disks are not in this section: their
-    // media is saved through DiskImage or DiskTrackSnapshot and must be loaded
-    // first. Sinks, callbacks, the cycle source and the IWM-mode flag are
-    // wiring; the flag is saved only to check it matches. A load fires no sink
-    // and no callback.
+    // IMachineState: the lines, both heads, the spin-up and spin-down
+    // counters, the IWM mode register, the idle callback's window, the last
+    // catch-up cycle, both engines, the watcher, the recent nibbles and the
+    // IWM. The disks are not in this section: their media is saved through
+    // DiskImage or DiskTrackSnapshot and must be loaded first. Sinks,
+    // callbacks, the cycle source and the IWM-mode flag are wiring; the flag
+    // is saved only to check it matches. A load doesn't fire a sink or a
+    // callback.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag                 = IMachineState::MakeTag ('D', 'S', 'K', '2');
-    static constexpr uint16_t  kStateVersion             = 3;
+    static constexpr uint16_t  kStateVersion             = 4;
     static constexpr uint16_t  kWatcherStateVersion      = 2;   // the first with the watcher's section
     static constexpr uint16_t  kPerDriveHeadStateVersion = 3;   // the first with a head position per drive
     static constexpr uint16_t  kNibbleRecordStateVersion = 3;   // the first with the recent nibbles
+    static constexpr uint16_t  kIwmStateVersion          = 4;   // the first with the //c's IWM
 
 private:
-    void   HandleSwitch (int offset);
-    void   HandlePhase (int phase, bool on);
-    void   MoveHeadToPull ();
-    void   MoveHeadIfEnabled ();
-    void   UpdateEngineSelection();
-    void   UpdateEngineWriteMode();
-    Byte   HandleReadDispatch();
-    void   CatchUpToCpu();
+    HRESULT  LoadParts (StateReader & reader, uint16_t version, Byte quarterTrack);
 
-    // Offers the idle callback a turn, at most once per emulated frame.
-    void   PumpIdleCallback (uint32_t cpuCycles);
+    int                  m_slot     = 0;
+    Word                 m_ioStart  = 0;
+    Word                 m_ioEnd    = 0;
+    bool                 m_iwmMode  = false;
+    IDiskPortHook      * m_portHook = nullptr;
 
-    // The one place a guest write to a disk is reported: a load of the data
-    // latch with Q6 and Q7 set while the motor runs, its spin-down included,
-    // with the drive, the nibble, that drive's head and whether write
-    // protection drops the bits. A load with the motor stopped writes
-    // nothing, and the //c's mode-register load is not a latch load; neither
-    // is reported.
-    virtual void  OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped);
-
-protected:
-    int                  m_slot;
-    Word                 m_ioStart;
-    Word                 m_ioEnd;
-
-    uint8_t              m_phases                    = 0;
-    int                  m_phase                     = 0;
-    int                  m_quarterTrack[kDriveCount] = { 0, 0 };
-
-    bool                 m_motorOn      = false;
-
-    // Real Disk II hardware: writing $C0E8 (motor off) starts a ~1
-    // second spindown timer; the disk physically keeps spinning during
-    // this window so DOS RWTS (which toggles motor off between
-    // commands and back on a few hundred cycles later for the next
-    // read) doesn't lose rotational sync. Tracked in CPU cycles
-    // remaining; ticks down in Tick(); reaches 0 and we actually
-    // stop the engine. UTAIIe ch. 9 / AppleWin SPINNING_CYCLES.
-    // Constant kMotorSpindownCycles lives in the public section
-    // for test access.
-    uint32_t             m_motorSpindownCycles = 0;
-
-    // Issue #67 deliverable 1: motor spin-up window remainder.
-    // Constant kMotorSpinupCycles lives in the public section
-    // for test access. See the public-section comment for the
-    // protection-fidelity rationale.
-    uint32_t             m_motorSpinupRemaining = 0;
-
-    int                  m_activeDrive  = 0;
-    bool                 m_q6           = false;
-    bool                 m_q7           = false;
-
-    // Apple //c IWM (see SetIwmMode). m_iwmMode gates the extra register
-    // behavior; m_iwmModeReg holds the last-written MODE register value.
-    bool                 m_iwmMode      = false;
-    Byte                 m_iwmModeReg   = 0;
-
-    DiskImage            m_disks[kDriveCount];
-    DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
-    Disk2NibbleEngine    m_engine[kDriveCount];
-
-    IDriveAudioSink *    m_audioSink   = nullptr;
-
-    ObserverSlots<IDisk2EventSink>  m_eventSinks;
-    Disk2AddressMarkWatcher         m_addrMarkWatcher;
-    Disk2NibbleRecord               m_nibbleRecord;
-
-    // Fired on the CPU thread when the motor finishes spinning down; the
-    // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).
-    std::function<void ()>    m_motorOffFlushCallback;
-
-    // Fired on the CPU thread at most once per emulated frame while no disk
-    // operation is in flight (see SetIdleCallback).
-    std::function<void ()>    m_idleCallback;
-
-    // Cycles since the idle callback last fired, which is what rate-limits it.
-    uint32_t                  m_cyclesSinceIdleCallback = 0;
-
-    // Whether anything was in flight at any point since the last turn.
-    //
-    // ACCUMULATED ACROSS THE WINDOW RATHER THAN SAMPLED AT ITS END. Spin-up
-    // lasts a few hundred cycles and the window is a frame, so a sample taken
-    // at the boundary would almost always find the drive quiet again and offer
-    // a turn in the middle of the operation it was meant to avoid.
-    bool                      m_busySinceIdleCallback   = false;
-
-    const uint64_t *          m_cpuCycleSource           = nullptr;
-    uint64_t                  m_lastCpuSync              = 0;
-    const Word *              m_instructionAddressSource = nullptr;
-
-    Word  GetInstructionAddress() const { return (m_instructionAddressSource != nullptr) ? *m_instructionAddressSource : 0; }
+    //  The lines, the card and the IWM port have references to the parts
+    //  declared above them.
+    Disk2Drives          m_drives;
+    Disk2Signals         m_signals;
+    Disk2Recorder        m_recorder;
+    Disk2Clock           m_clock;
+    Disk2Lines           m_lines    { m_drives, m_recorder, m_signals };
+    Disk2CardSequencer   m_card     { m_lines, m_drives, m_signals, m_recorder, m_clock };
+    Disk2IwmPort         m_iwmPort  { m_lines, m_drives, m_signals, m_recorder, m_clock };
 };

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "IDxuiTheme.h"
+#include "DiskInspectorColors.h"
 
 
 
@@ -40,10 +41,16 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  navStrip                 = 0;
     uint32_t  navHover                 = 0;
     uint32_t  navItemText              = 0;
+    uint32_t  navStripHover            = 0;
+    uint32_t  navHoverText             = 0;
     uint32_t  dropdownBg               = 0;
     uint32_t  dropdownItemText         = 0;
     uint32_t  dropdownAccel            = 0;
     uint32_t  dropdownHover            = 0;
+    uint32_t  dropdownHoverText        = 0;
+    uint32_t  dropdownHoverAccel       = 0;
+    uint32_t  dropdownBorder           = 0;
+    uint32_t  dropdownDivider          = 0;
     uint32_t  link                     = 0;
     uint32_t  linkHover                = 0;
     uint32_t  panelBg                  = 0;
@@ -76,16 +83,26 @@ struct DxuiTheme : public IDxuiTheme
     //  The outline around a selected row while its list has focus. A zero value
     //  draws none.
     uint32_t  contentSelectionEdge     = 0;
-    uint32_t  buttonIdle               = 0;
-    uint32_t  buttonHover              = 0;
-    uint32_t  buttonPressed            = 0;
-    uint32_t  buttonBorder             = 0;
+    uint32_t  contentSelectionInactive = 0;
+    uint32_t  contentSelectionMulti    = 0;
+
+    //  The outline on a selected row in a pane without focus, the lines
+    //  between a list header's columns, and the line under a tab strip. Zero
+    //  draws no outline and no strip line; a zero divider takes contentEdge.
+    uint32_t  contentSelectionInactiveEdge = 0;
+    uint32_t  contentHeaderDivider         = 0;
+    uint32_t  menuSeparator                = 0;
+    uint32_t  tabStripEdge                 = 0;
+    uint32_t  buttonIdle                   = 0;
+    uint32_t  buttonHover                  = 0;
+    uint32_t  buttonPressed                = 0;
+    uint32_t  buttonBorder                 = 0;
 
     //  The tooltip's fill, border and text, each returned as it is set.
-    uint32_t  tooltipBg                = 0;
-    uint32_t  tooltipBorder            = 0;
-    uint32_t  tooltipText              = 0;
-    uint32_t  errorText                = 0;
+    uint32_t  tooltipBg                    = 0;
+    uint32_t  tooltipBorder                = 0;
+    uint32_t  tooltipText                  = 0;
+    uint32_t  errorText                    = 0;
 
     //  What an operand leaves, shown after it in a code listing. A zero value
     //  falls back to a cyan for the surface's darkness.
@@ -128,22 +145,34 @@ struct DxuiTheme : public IDxuiTheme
     //  accent, or its complement where the panel shares its hue.
     uint32_t  focusAccent              = 0;
 
+    //  The disk inspector's colors; zero ones fall back by surface.
+    DiskInspectorColors  diskInspector;
+
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
-    uint32_t  Background          () const override { return panelBg;            }
-    uint32_t  BackgroundElevated  () const override { return dropdownBg;         }
-    uint32_t  ContentBackground   () const override { return (contentBg != 0) ? contentBg : panelBg; }
-    uint32_t  ContentEdge         () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
-    uint32_t  SplitterHighlight   () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
-    uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
-    uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
-    uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
-    uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
-    uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
-    uint32_t  TextViewBackground  () const override { return (textViewBg != 0) ? textViewBg : ContentBackground(); }
-    uint32_t  HoverBackground     () const override { return navHover;           }
-    uint32_t  PressedBackground   () const override { return buttonPressed;      }
-    uint32_t  SelectionBackground () const override { return navHover;           }
+    uint32_t  Background                   () const override { return panelBg;            }
+    uint32_t  BackgroundElevated           () const override { return dropdownBg;         }
+    uint32_t  ContentBackground            () const override { return (contentBg != 0) ? contentBg : panelBg; }
+    uint32_t  ContentEdge                  () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
+    uint32_t  SplitterHighlight            () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
+    uint32_t  ContentHover                 () const override { return (contentHover != 0) ? contentHover : navHover; }
+    uint32_t  ContentSelection             () const override { return (contentSelection != 0) ? contentSelection : navHover; }
+    uint32_t  ContentSelectionEdge         () const override { return contentSelectionEdge; }
+    uint32_t  ContentSelectionInactive     () const override { return (contentSelectionInactive != 0) ? contentSelectionInactive : ContentSelection(); }
+    uint32_t  ContentSelectionMulti        () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
+    uint32_t  ContentSelectionInactiveEdge () const override { return contentSelectionInactiveEdge; }
+    uint32_t  ContentHeaderDivider         () const override { return (contentHeaderDivider != 0) ? contentHeaderDivider : ContentEdge(); }
+    uint32_t  MenuSeparator                () const override { return (menuSeparator != 0) ? menuSeparator : Divider(); }
+    uint32_t  TabStripEdge                 () const override { return tabStripEdge; }
+    uint32_t  StatusBackground             () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
+    uint32_t  ControlBackground            () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
+    uint32_t  TextViewBackground           () const override { return (textViewBg != 0) ? textViewBg : ContentBackground(); }
+    uint32_t  HoverBackground              () const override { return navHover;           }
+    uint32_t  MenuHover                    () const override { return (dropdownHover != 0) ? dropdownHover : navHover; }
+    uint32_t  MenuHoverForeground          () const override { return (dropdownHover != 0 && dropdownHoverText  != 0) ? dropdownHoverText  : Foreground();      }
+    uint32_t  MenuHoverForegroundMuted     () const override { return (dropdownHover != 0 && dropdownHoverAccel != 0) ? dropdownHoverAccel : ForegroundMuted(); }
+    uint32_t  PressedBackground            () const override { return buttonPressed;      }
+    uint32_t  SelectionBackground          () const override { return navHover;           }
 
     uint32_t  Foreground          () const override { return bodyText;           }
     uint32_t  ForegroundMuted     () const override { return dropdownAccel;      }
@@ -195,8 +224,28 @@ struct DxuiTheme : public IDxuiTheme
     // Typography. Faces and sizes are centralized here so widgets read
     // theme fonts instead of repeating literals. Icon-glyph faces (Segoe
     // MDL2 Assets / Symbol) stay at the use site -- they are not text.
+    //  kBodyFace is Segoe UI, which File Explorer's list and tree still use;
+    //  the rest of a modern window's text is in GetUiFace's face.
     static constexpr wchar_t       kBodyFace    [] = L"Segoe UI";
+    static constexpr wchar_t       kVariableFace[] = L"Segoe UI Variable Text";
+
+    //  Segoe UI Variable where Windows has it, as its own apps are set;
+    //  Segoe UI where it does not.
+    static const wchar_t *         GetUiFace ();
+
+    //  White or black, whichever reads on `fill`: the check in a checked box
+    //  and the dot in a selected radio button, on the accent color.
+    static uint32_t                GetContrastingText (uint32_t fill);
+
     static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
+
+    //  The system body face, drawn whatever face a theme puts in place of
+    //  kBodyFace, and without a theme's text glow. For chrome that depicts
+    //  hardware, such as a case's silk-screen. The renderer compares it by
+    //  address, not by its text, so pass this constant itself rather than a
+    //  copy of the string.
+    static constexpr wchar_t       kSystemFace  [] = L"Segoe UI";
+
     static constexpr float         kBodySizeDip    = 13.0f;
     static constexpr float         kCaptionSizeDip = 12.0f;
     static constexpr float         kHeadingSizeDip = 14.0f;
@@ -213,10 +262,10 @@ struct DxuiTheme : public IDxuiTheme
     //  difference sit exactly concentric inside one.
     static constexpr float         kOverlayCornerRadiusDip = 8.0f;
 
-    DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
-    DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
-    DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DxuiFontWeight::Normal   }; }
-    DxuiFontHandle  HeadingFont   () const override { return { kBodyFace, kHeadingSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyFont      () const override { return { GetUiFace(), kBodySizeDip,    DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyBoldFont  () const override { return { GetUiFace(), kBodySizeDip,    DxuiFontWeight::SemiBold }; }
+    DxuiFontHandle  CaptionFont   () const override { return { GetUiFace(), kCaptionSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  HeadingFont   () const override { return { GetUiFace(), kHeadingSizeDip, DxuiFontWeight::Normal   }; }
     DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
 
     float  BodyLineHeightDip () const override { return 18.0f; }
@@ -242,10 +291,16 @@ struct DxuiTheme : public IDxuiTheme
         theme.navStrip                  = 0xFF2A2D32;
         theme.navHover                  = 0xFF3D6FB5;
         theme.navItemText               = 0xFFF0F0F0;
+        theme.navStripHover             = 0xFF3D6FB5;
+        theme.navHoverText              = 0xFFF0F0F0;
         theme.dropdownBg                = 0xFF26282C;
         theme.dropdownItemText          = 0xFFF0F0F0;
         theme.dropdownAccel             = 0xFFB8C0CA;
         theme.dropdownHover             = 0xFF3D6FB5;
+        theme.dropdownHoverText         = 0xFFF0F0F0;
+        theme.dropdownHoverAccel        = 0xFFB8C0CA;
+        theme.dropdownBorder            = 0xFF3A3D42;
+        theme.dropdownDivider           = 0xFF3A3D42;
         theme.link                      = 0xFF6FB8FF;
         theme.linkHover                 = 0xFFA8D2FF;
         theme.panelBg                   = 0xFF1E2024;
@@ -259,6 +314,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                     = 0xFFFF6666;
         theme.resultText                = 0xFF4EC9E0;
+        theme.diskInspector                 = DiskInspectorColors::MakeDark();
         return theme;
     }
 
@@ -282,10 +338,16 @@ struct DxuiTheme : public IDxuiTheme
         theme.navStrip                  = 0xFFEAEAEA;
         theme.navHover                  = 0xFFCFE2FF;
         theme.navItemText               = 0xFF1A1A1A;
+        theme.navStripHover             = 0xFFCFE2FF;
+        theme.navHoverText              = 0xFF1A1A1A;
         theme.dropdownBg                = 0xFFFBFBFB;
         theme.dropdownItemText          = 0xFF1A1A1A;
         theme.dropdownAccel             = 0xFF606060;
         theme.dropdownHover             = 0xFFCFE2FF;
+        theme.dropdownHoverText         = 0xFF1A1A1A;
+        theme.dropdownHoverAccel        = 0xFF606060;
+        theme.dropdownBorder            = 0xFFC8C8C8;
+        theme.dropdownDivider           = 0xFFE0E0E0;
         theme.link                      = 0xFF1A6FD0;
         theme.linkHover                 = 0xFF0A4FA0;
         theme.panelBg                   = 0xFFF6F6F6;
@@ -299,6 +361,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipText               = 0xFF1A1A1A;
         theme.errorText                     = 0xFFC02020;
         theme.resultText                = 0xFF00727D;
+        theme.diskInspector                 = DiskInspectorColors::MakeLight();
         return theme;
     }
 };

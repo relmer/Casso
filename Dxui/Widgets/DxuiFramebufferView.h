@@ -52,18 +52,32 @@ public:
     int   GetFramebufferHeight () const { return m_height; }
     bool  HasFramebuffer       () const { return !m_pixels.empty(); }
 
+    //  The picture as drawn at its scaled size by the host, as through a CRT
+    //  pass, drawn one to one in place of the framebuffer while its size is
+    //  the scaled size. `margin` is how far the image extends past the
+    //  picture on every side, as a glow spills past a screen's picture. A new
+    //  framebuffer clears it.
+    void  SetDisplayImage (std::vector<uint32_t> bgra, int width, int height, int margin = 0);
+
+    //  The picture's drawn size: the fitted size, times the zoom.
+    void  GetScaledSize  (int & outWidth, int & outHeight) const;
+
     //  Where the picture lands inside the bounds after the last layout.
     RECT  GetDestinationRect () const;
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
-    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
+
+    //  Windows' scrollbar menu when the point is on one of the bars, in the
+    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
+    bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
+    LPCWSTR                         GetCursorForPoint (POINT clientPx) const override;
+    DxuiAccessibleRole              GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Picture"; }
 
 private:
-    void  GetScaledSize  (int & outWidth, int & outHeight) const;
     void  ClampPan       ();
     void  SyncScrollbars ();
 
@@ -80,6 +94,10 @@ private:
     DxuiScrollbar          m_vertScroll;
     DxuiScrollbar          m_horzScroll;
     std::vector<uint32_t>  m_pixels;
+    std::vector<uint32_t>  m_display;
+    int                    m_displayW   = 0;
+    int                    m_displayH   = 0;
+    int                    m_displayPad = 0;
     int                    m_width      = 0;
     int                    m_height     = 0;
     bool                   m_integer    = true;

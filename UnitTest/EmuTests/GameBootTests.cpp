@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 //  GameBootTests
 //
 //  Phase D deliverable for #67 (Disk II copy-protection fidelity).
-//  Mounts real WOZ images from Apple2/Demos/ and verifies the slot 6
+//  Mounts real WOZ images from the Casso Disks folder and verifies the slot 6
 //  boot ROM is able to drive the controller far enough that the head
 //  actually visits multiple tracks. A copy-protection failure (wrong
 //  spin-up, broken bit timing, missing non-standard sync handling)
@@ -54,11 +54,8 @@ TEST_CLASS (GameBootTests)
 {
 public:
 
-    static constexpr int        kMaxAncestorWalk = 10;
     static constexpr int        kSlot6           = 6;
     static constexpr int        kDrive1          = 0;
-    static constexpr Word       kBootRomEntry    = 0xC600;
-    static constexpr Word       kIntCxRomOff     = 0xC006;
     static constexpr uint64_t   kChunkCycles     =    250'000ULL;
     static constexpr uint64_t   kBootCycleBudget = 60'000'000ULL;
 
@@ -71,40 +68,26 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  Walk up from cwd looking for a repo-relative file. Returns empty
-    //  path if not found.
+    //  The game image in the Casso Disks folder under Documents. Returns an
+    //  empty path if it isn't there.
     //
     ////////////////////////////////////////////////////////////////////////
 
-    fs::path FindRepoFile (const std::string & relPath)
+    fs::path FindGameFile (const std::string & name)
     {
-        std::error_code   ec;
-        fs::path          cursor = fs::current_path (ec);
-        int               i      = 0;
+        PWSTR            documents = nullptr;
+        fs::path         found;
+        std::error_code  ec;
+        HRESULT          hr        = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
 
-        if (ec)
+        if (SUCCEEDED (hr) && fs::exists (fs::path (documents) / L"Casso Disks" / name, ec))
         {
-            return fs::path();
+            found = fs::path (documents) / L"Casso Disks" / name;
         }
 
-        for (i = 0; i < kMaxAncestorWalk; i++)
-        {
-            fs::path   candidate = cursor / relPath;
+        CoTaskMemFree (documents);
 
-            if (fs::exists (candidate, ec))
-            {
-                return candidate;
-            }
-
-            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-            {
-                break;
-            }
-
-            cursor = cursor.parent_path();
-        }
-
-        return fs::path();
+        return found;
     }
 
 
@@ -138,16 +121,16 @@ public:
     {
         uint64_t   spent = 0;
 
-        outTracksVisited.insert (machine.GetRefs().diskController->GetCurrentTrack());
+        outTracksVisited.insert (machine.GetRefs().diskController->GetLines().GetCurrentTrack());
 
         while (spent < totalBudget)
         {
             uint64_t   chunk = std::min<uint64_t> (kChunkCycles, totalBudget - spent);
 
-            machine.RunCycles (chunk);
+            machine.GetRunner().RunCycles (chunk);
             spent += chunk;
 
-            outTracksVisited.insert (machine.GetRefs().diskController->GetCurrentTrack());
+            outTracksVisited.insert (machine.GetRefs().diskController->GetLines().GetCurrentTrack());
 
             if (outTracksVisited.size() >= static_cast<size_t> (earlyExitThreshold))
             {
@@ -171,7 +154,7 @@ public:
         int                   minTracks,
         const char         *  machineId = "Apple2c")
     {
-        fs::path             wozPath       = FindRepoFile (relPath);
+        fs::path             wozPath       = FindGameFile (relPath);
         std::vector<Byte>    bytes;
         TestMachine         machine (machineId);
         HRESULT              hr            = S_OK;
@@ -205,15 +188,13 @@ public:
 
         GuestSession::AssertTheDriveHoldsWrittenTracks (*external, minTracks, label);
 
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-
-        machine.GetCpu()->SetPC (kBootRomEntry);
+        GuestSession::StartFromPowerOn (machine);
 
         RunAndSampleTracks (machine, kBootCycleBudget, tracksVisited, minTracks);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must turn the motor on");
 
         // Either the bit cursor advanced OR the head walked off track 0.
@@ -237,9 +218,8 @@ public:
     //
     //  Same real disk game, but booted end-to-end on the Apple //c through
     //  its built-in slot-6 IWM -- the //c has no card slots, so the internal
-    //  drive is the only disk path. Unlike the //e helper (which forces the
-    //  $C600 boot ROM entry), this cold-boots and lets the //c firmware
-    //  autoboot its internal drive, the real user boot path proven by
+    //  drive is the only disk path. The //c firmware autoboots its internal
+    //  drive, the real user boot path proven by
     //  Apple2cBootTests.BootsFromInternalDriveViaIwm. Skips when the
     //  copyrighted //c ROM 4 fixture is absent (CI never needs a machine ROM).
     //
@@ -252,7 +232,7 @@ public:
     {
         // The //c ROM is a committed fixture now, so only the game image can
         // be absent: those are large and deliberately not in the repo.
-        fs::path   wozPath  = FindRepoFile (relPath);
+        fs::path   wozPath  = FindGameFile (relPath);
         bool       runnable = !wozPath.empty();
 
         if (!runnable)
@@ -292,7 +272,7 @@ public:
             // IWM. No forced $C600 entry -- this is the real //c boot path.
             RunAndSampleTracks (machine, kApple2cBootBudget, tracksVisited, minTracks);
 
-            Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+            Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
                 L"Boot ROM must turn the motor on");
 
             swprintf_s (failMsg,
@@ -322,7 +302,7 @@ public:
         //  question about the //c rather than about this disk. Karateka and
         //  Lode Runner keep the //c covered, and both are the more
         //  aggressively protected titles.
-        AssertGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter", 20, "Apple2e");
+        AssertGameBoots ("Choplifter.woz", L"Choplifter", 20, "Apple2e");
     }
 
 
@@ -339,7 +319,7 @@ public:
 
     TEST_METHOD (Karateka_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/Karateka.woz", L"Karateka", 10);
+        AssertGameBoots ("Karateka.woz", L"Karateka", 10);
     }
 
 
@@ -354,7 +334,7 @@ public:
 
     TEST_METHOD (LodeRunner_WozBoot_HeadVisitsContentTracks)
     {
-        AssertGameBoots ("Apple2/Demos/LodeRunner.woz", L"Lode Runner", 15);
+        AssertGameBoots ("LodeRunner.woz", L"Lode Runner", 15);
     }
 
 
@@ -371,7 +351,7 @@ public:
 
     TEST_METHOD (Choplifter_WozBoot_OnApple2c_HeadVisitsContentTracks)
     {
-        AssertApple2cGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter (//c)", 10);
+        AssertApple2cGameBoots ("Choplifter.woz", L"Choplifter (//c)", 10);
     }
 };
 

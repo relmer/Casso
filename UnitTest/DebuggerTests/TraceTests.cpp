@@ -105,7 +105,7 @@ namespace DebuggerTests
 
             rig.Load (kStart, { 0x4C, 0x00, 0x03 }, kStart);
             rig.RunOk ("HISTORY ON");
-            rig.machine.RunCycles ((TraceController::kCapacity + kExtra) * kJmpCycles);
+            rig.machine.GetRunner().RunCycles ((TraceController::kCapacity + kExtra) * kJmpCycles);
 
             size = rig.target.GetTraceSize();
             Assert::AreEqual (TraceController::kCapacity, size);

@@ -155,13 +155,13 @@ public:
         Assert::AreEqual (static_cast<Byte> (0), machine.GetMemoryBus().ReadByte (kBeepSetting));
 
         KeystrokeInjector::InjectKey (machine, 'B');
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
 
         Assert::IsTrue   (Contains (ReadScreen (machine), "B  BEEPS: ON"),  L"B turns them on");
         Assert::AreEqual (static_cast<Byte> (1), machine.GetMemoryBus().ReadByte (kBeepSetting));
 
         KeystrokeInjector::InjectKey (machine, 'B');
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
 
         Assert::IsTrue   (Contains (ReadScreen (machine), "B  BEEPS: OFF"), L"and off again");
     }
@@ -179,19 +179,19 @@ public:
 
         BootTheTestProgram (machine, true);
         KeystrokeInjector::InjectKey (machine, '1');
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
         KeystrokeInjector::InjectKey (machine, ' ');
 
         for (step = 0; step < kMaxSteps && !Contains (ReadScreen (machine), "NOTHING HAPPENED"); step++)
         {
-            machine.RunCycles (kStepCycles);
+            machine.GetRunner().RunCycles (kStepCycles);
         }
 
         Assert::IsTrue (Contains (ReadScreen (machine), "RIGHT JOYSTICK: PUSH IT RIGHT"), L"the step that timed out");
         Assert::IsTrue (Contains (ReadScreen (machine), "NOTHING HAPPENED"),              L"timed out with nothing pressed");
 
         KeystrokeInjector::InjectKey (machine, ' ');
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
         run.screen = ReadScreen (machine);
 
         Assert::IsTrue  (Contains (run.screen, "RIGHT JOYSTICK: PUSH IT RIGHT"), L"Space tries the same step again");
@@ -199,7 +199,7 @@ public:
 
         jacks.jack[JoyportJacks::kLeftJack].set (static_cast<size_t> (JoystickSwitch::Right));
         SetJacks (machine, jacks);
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
 
         Assert::IsTrue (Contains (ReadScreen (machine), "RIGHT JOYSTICK: PUSH IT LEFT"), L"and passing it moves on to the next step");
     }
@@ -252,7 +252,7 @@ private:
 
         for (step = 0; step < kMaxSteps && !Contains (ReadScreen (machine), "CHOOSE A TEST"); step++)
         {
-            machine.RunCycles (kStepCycles);
+            machine.GetRunner().RunCycles (kStepCycles);
         }
 
         Assert::IsTrue (Contains (ReadScreen (machine), "CHOOSE A TEST"), L"the program's menu");
@@ -325,7 +325,7 @@ private:
                             (L"every joystick setup screen gives the front switch: " + Widen (screen)).c_str());
             SetJacks (machine, jacks);
             KeystrokeInjector::InjectKey (machine, ' ');
-            machine.RunCycles (kStepCycles);
+            machine.GetRunner().RunCycles (kStepCycles);
             return;
         }
 
@@ -343,7 +343,7 @@ private:
         }
 
         SetJacks (machine, jacks);
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
     }
 
 
@@ -394,7 +394,7 @@ private:
         keyboard->SetOpenApple   (isButton);
         keyboard->SetClosedApple (isButton);
 
-        machine.RunCycles (kStepCycles);
+        machine.GetRunner().RunCycles (kStepCycles);
     }
 
 
@@ -427,11 +427,11 @@ private:
         machine.GetJoyport()->SetAttached (true);
         SetJacks (machine, first);
         GuestSession::MountAndBoot (machine, bytes);
-        machine.RunCycles (kRedrawCycles);
+        machine.GetRunner().RunCycles (kRedrawCycles);
         ExpectScreen (machine, first, machineId);
 
         SetJacks (machine, second);
-        machine.RunCycles (kRedrawCycles);
+        machine.GetRunner().RunCycles (kRedrawCycles);
         ExpectScreen (machine, second, machineId);
     }
 

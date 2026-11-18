@@ -47,8 +47,15 @@ namespace HeatMapAccessWindowTests
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
         std::string  GetDebuggerHeatMapOptions()                            override { return heatMapOptions; }
-        void         SetDebuggerHeatMapOptions  (const std::string & text)  override { heatMapOptions = text; }
-        void         SendDebuggerHeatMapRequest (const std::string & words) override { requests.push_back (words); }
+        void         SetDebuggerHeatMapOptions  (const HeatMapOptions & options) override { heatMapOptions = options.ToText(); }
+
+        //  Each request is written down as a line, for the tests to compare.
+        void         SetDebuggerHeatMapHover    (std::optional<Word> address) override
+        {
+            requests.push_back (address.has_value() ? std::format ("hover {:04X}", *address) : std::string ("hover none"));
+        }
+
+        void         RunDebuggerHeatMapAccess   (const HeatAccessRequest & request) override { requests.push_back (HeatAccessJump::FormatWords (request)); }
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
 
@@ -281,7 +288,7 @@ namespace HeatMapAccessWindowTests
                 labels.push_back (label);
             }
 
-            Assert::IsTrue ((std::vector<std::wstring> { L"Show last writer", L"Show last reader", L"Go to last write", L"Go to last read" }) == labels);
+            Assert::IsTrue ((std::vector<std::wstring> { L"Show last writer", L"Show last reader", L"Rewind to last write time", L"Rewind to last read time" }) == labels);
 
             items[2].second();
             items[1].second();
@@ -289,6 +296,36 @@ namespace HeatMapAccessWindowTests
             Assert::AreEqual ((size_t) 2, host.requests.size());
             Assert::AreEqual (std::string ("rewind write main C123"), host.requests[0]);
             Assert::AreEqual (std::string ("code read main C123"),    host.requests[1]);
+        }
+
+
+
+        //  Once the cell's accesses are known, a row for an access that never
+        //  happened is off, as is a rewind to one older than the history;
+        //  a jump to an access later than the machine's cycle is forward.
+        TEST_METHOD (TheAccessRowsFollowTheCellsAccesses)
+        {
+            HeatAccessHover  hover;
+
+
+
+            hover.writer = { true, false, 0x0300, 500 };
+            hover.reader = { false };
+
+            Assert::IsTrue  (HeatMapPane::IsAccessRowEnabled (nullptr, true,  true),  L"accesses not known yet");
+            Assert::IsTrue  (HeatMapPane::IsAccessRowEnabled (&hover,  true,  false), L"show the writer");
+            Assert::IsTrue  (HeatMapPane::IsAccessRowEnabled (&hover,  true,  true),  L"rewind to the write");
+            Assert::IsFalse (HeatMapPane::IsAccessRowEnabled (&hover,  false, false), L"never read: no reader to show");
+            Assert::IsFalse (HeatMapPane::IsAccessRowEnabled (&hover,  false, true),  L"never read: no time to go to");
+
+            hover.writer.isTooOld = true;
+            Assert::IsTrue  (HeatMapPane::IsAccessRowEnabled (&hover,  true,  false), L"a writer older than the history can be shown");
+            Assert::IsFalse (HeatMapPane::IsAccessRowEnabled (&hover,  true,  true),  L"but not gone back to");
+
+            Assert::AreEqual (std::wstring (L"Rewind to last write time"),       HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 1000, true));
+            Assert::AreEqual (std::wstring (L"Fast-forward to last write time"), HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 100,  true));
+            Assert::AreEqual (std::wstring (L"Rewind to last write time"),       HeatMapPane::GetAccessLabel (HeatMapView::PickAction::RewindToWrite, &hover, 100,  false),
+                              L"live, the label is Rewind whatever the snapshot's cycle");
         }
 
 

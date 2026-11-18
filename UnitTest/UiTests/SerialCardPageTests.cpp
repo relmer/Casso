@@ -43,6 +43,51 @@ public:
     }
 
 
+    //  A port clash the card's connector causes is a warning on this page,
+    //  read again each tick, and gone once the port opens.
+    TEST_METHOD (APortTheConnectorHas_IsAWarningUntilItOpens)
+    {
+        std::unique_ptr<SerialCardPage>    pageOwner = std::make_unique<SerialCardPage>();   // heap: more than a function's stack allows (C6262)
+        SerialCardPage                   & page      = *pageOwner;
+        std::wstring    problem = L"The Uthernet II cannot listen on TCP port 6502.";
+
+
+
+        page.SetListenProblem ([&problem] () { return problem; });
+
+        Assert::IsTrue (page.IsListenShown());
+        Assert::IsTrue (page.GetListenText() == problem);
+
+        problem.clear();
+        page.SyncListenProblem();
+
+        Assert::IsFalse (page.IsListenShown(), L"the port opened");
+    }
+
+
+    //  A connector set outside the list, such as another TCP port, is listed
+    //  in words, not by its device name, and selected.
+    TEST_METHOD (AConnectorOutsideTheList_IsListedInWords)
+    {
+        SettingsPanelState                state;
+        std::unique_ptr<SerialCardPage>   owned   = std::make_unique<SerialCardPage>();     // on the heap: the page is too big for a test's stack
+        SerialCardPage                  & page    = *owned;
+        JsonValue                         shipped = ParseOrFail (kShipped);
+
+
+
+        AssertSucceeded (state.LoadFromMachine ("X", shipped, shipped));
+        AssertSucceeded (state.SetSerialCardAttachment ("tcp:6600", ""));
+
+        page.SetState (&state);
+        page.Rebuild();
+
+        Assert::AreEqual (std::string ("tcp:6600"), page.GetAttachment().GetDevices().back());
+        Assert::AreEqual (std::wstring (L"TCP port 6600 on this PC"), page.GetAttachDropdown().GetItems().back());
+        Assert::AreEqual ((int) page.GetAttachDropdown().GetItems().size() - 1, page.GetAttachDropdown().GetSelectedIndex());
+    }
+
+
     //  Restore defaults stages the switches as the card ships and nothing on
     //  the connector, and the drop-downs follow.
     TEST_METHOD (RestoreDefaultsStagesTheShippedSwitchesAndNoConnector)

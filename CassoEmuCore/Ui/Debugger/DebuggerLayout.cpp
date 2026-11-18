@@ -416,31 +416,39 @@ std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 //
 //  DebuggerLayout::GetViewMenuRank
 //
+//  Each hundred is a section of the menu, with a separator between
+//  sections: the code, then the machine's state and memory, then the
+//  window's output, then the logs and the device panels.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
 {
     static const std::pair<const wchar_t *, int>  kFixed[] =
     {
-        { kRegisters,    100 },
-        { kStack,        101 },
-        { kCallStack,    102 },
-        { kBreakpoints,  120 },
-        { kWatches,      121 },
-        { kTrace,        122 },
-        { kHeatMap,      123 },
-        { kHeatRanges,   124 },
-        { kDiskLog,      125 },
-        { kInputLog,     126 },
-        { kVideoLog,     127 },
-        { kSoundLog,     128 },
-        { kSerialLog,    129 },
-        { kNetworkLog,   130 },
-        { kBasicProgram, 131 },
-        { kConsole,      150 },
+        { kBasicProgram,   89 },
+        { kCallStack,      90 },
+        { kBreakpoints,    91 },
+        { kBookmarks,      92 },
+        { kSymbols,        93 },
+        { kMachineSymbols, 94 },
+        { kRegisters,     100 },
+        { kStack,         101 },
+        { kWatches,       102 },
+        { kDataBlocks,    120 },
+        { kHeatMap,       121 },
+        { kHeatRanges,    122 },
+        { kConsole,       200 },
+        { kTrace,         201 },
+        { kProfiler,      202 },
+        { kDiskLog,       300 },
+        { kInputLog,      301 },
+        { kVideoLog,      302 },
+        { kSoundLog,      303 },
+        { kSerialLog,     304 },
+        { kNetworkLog,    305 },
     };
-    std::vector<std::wstring>  tools = GetToolPaneIds();
-    std::string                diagnosticsId;
+    std::string  diagnosticsId;
 
 
 
@@ -476,20 +484,53 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         }
     }
 
-    for (size_t i = 0; i < tools.size(); i++)
-    {
-        if (pane == tools[i])
-        {
-            return 140 + (int) i;
-        }
-    }
-
     if (TryGetDiagnosticsId (pane, diagnosticsId))
     {
         return kDevicePanelRank;
     }
 
     return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetDevicePanelOrder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerLayout::GetDevicePanelOrder (const std::string & id)
+{
+    static const std::pair<const char *, int>  kOrder[] =
+    {
+        { "disk",         0 },
+        { "cassette",     0 },
+        { "keyboard",     1 },
+        { "mouse",        1 },
+        { "game",         1 },
+        { "video",        2 },
+        { "mockingboard", 3 },
+        { "serial",       4 },
+        { "printer",      4 },
+        { "uthernet",     5 },
+    };
+    int  order = 6;
+
+
+
+    for (const auto & [prefix, each] : kOrder)
+    {
+        if (id.starts_with (prefix))
+        {
+            order = each;
+            break;
+        }
+    }
+
+    return order;
 }
 
 

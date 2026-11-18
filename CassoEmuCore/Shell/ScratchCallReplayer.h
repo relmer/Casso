@@ -114,7 +114,7 @@ private:
     HRESULT     Run             (const CallStackRebuildJob & job, CallStackRebuildResult & outResult);
     HRESULT     Start           (const CallStackRebuildJob & job);
     HRESULT     FindStartPart   (const CallStackRebuildJob & job, size_t & outStart);
-    HRESULT     ReadPartMedia   (const CallStackRebuildPart & part, MachineHost::MediaIds & outSaved);
+    HRESULT     ReadPartMedia   (const CallStackRebuildPart & part, MachineStateStream::MediaIds & outSaved);
     HRESULT     RunPart         (const CallStackRebuildJob & job, const CallStackRebuildPart & part);
     HRESULT     LoadPart        (const CallStackRebuildJob & job, const CallStackRebuildPart & part, bool & outIsLoaded);
     HRESULT     BeginRecord     (const CallStackRebuildPart & part);

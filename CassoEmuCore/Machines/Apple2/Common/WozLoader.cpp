@@ -48,7 +48,6 @@ static constexpr size_t  kInfoWriteProtectOff = 2;
 static constexpr size_t  kInfoCleanedOff      = 4;
 static constexpr size_t  kInfoCreatorOff      = 5;
 static constexpr size_t  kInfoCreatorSize     = 32;
-static constexpr size_t  kInfoDiskSidesOff    = 37;
 static constexpr size_t  kInfoLargestTrackOff = 44;
 
 static constexpr Byte    kInfoVersion2        = 2;
@@ -61,6 +60,13 @@ static constexpr Byte    kCleaned             = 1;
 // edited keeps whoever imaged it in that field -- overwriting it is how a
 // preservation dump loses the one record of where it came from.
 static constexpr char    kCassoCreator[]      = "Casso " VERSION_STRING;
+
+// The META keys the WOZ reference defines.
+static constexpr const char *  s_kStandardMetaKeys[] =
+{
+    "title", "subtitle", "publisher", "developer", "copyright", "version", "language", "requires_ram",
+    "requires_machine", "notes", "side", "side_name", "contributor", "image_date",
+};
 
 
 
@@ -259,6 +265,52 @@ static void ParseV1Track (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsRecordLocationDamaged
+//
+//  Whether a record that claims data says where to find it in a way the file
+//  can honor. A count above zero with a start block or block count of zero
+//  claims data at a location it misstates; a start block below 3 points into
+//  the header; and the data must lie in the file and fit its blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool IsRecordLocationDamaged (uint16_t startBlock, uint16_t blockCount, size_t byteCount, size_t rawSize, DamageReason & outReason)
+{
+    size_t  byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
+    bool    isDamaged  = true;
+
+
+
+    if (startBlock == 0 || blockCount == 0)
+    {
+        outReason = DamageReason::RecordLocationMissing;
+    }
+    else if (startBlock < WozLoader::kV2FirstDataBlock)
+    {
+        outReason = DamageReason::RecordInHeader;
+    }
+    else if (byteOffset + byteCount > rawSize)
+    {
+        outReason = DamageReason::OutsideFile;
+    }
+    else if (byteCount > static_cast<size_t> (blockCount) * WozLoader::kV2BlockSize)
+    {
+        outReason = DamageReason::CountExceedsBlocks;
+    }
+    else
+    {
+        isDamaged = false;
+    }
+
+    return isDamaged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParseV2Track
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,14 +321,15 @@ static HRESULT ParseV2Track (
     int                    destTrack,
     DiskImage           &  out)
 {
-    HRESULT    hr            = S_OK;
-    uint16_t   startBlock    = 0;
-    uint16_t   blockCount    = 0;
-    uint32_t   bitCount      = 0;
-    size_t     byteOffset    = 0;
-    size_t     byteCount     = 0;
-    size_t     rawSize       = 0;
-    bool       insideFile    = false;
+    HRESULT       hr         = S_OK;
+    uint16_t      startBlock = 0;
+    uint16_t      blockCount = 0;
+    uint32_t      bitCount   = 0;
+    size_t        byteOffset = 0;
+    size_t        byteCount  = 0;
+    size_t        rawSize    = 0;
+    bool          insideFile = false;
+    DamageReason  damage     = DamageReason::OutsideFile;
 
 
 
@@ -284,19 +337,22 @@ static HRESULT ParseV2Track (
     blockCount = Read16LE (trkRecord + 2);
     bitCount   = Read32LE (trkRecord + 4);
 
-    BAIL_OUT_IF (startBlock == 0 || blockCount == 0 || bitCount == 0, S_OK);
+    // A record with no bits is empty: the all-zero record the format
+    // gives an unused one, or an empty track. Its quarter tracks read as
+    // nothing recorded and the image stays writable.
+    BAIL_OUT_IF (bitCount == 0, S_OK);
 
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
     rawSize    = raw.size();
-    insideFile = (byteOffset + byteCount <= rawSize);
+    insideFile = !IsRecordLocationDamaged (startBlock, blockCount, byteCount, rawSize, damage);
 
-    // A track whose data is not in the file is damage to that track alone.
+    // A record whose data is not where it says is damage to that track alone.
     // The slot stays blank, the image is held read-only, and the rest of the
     // disk still mounts.
     if (!insideFile)
     {
-        out.AddDamagedTrack ({ destTrack, false, DamageReason::OutsideFile });
+        out.AddDamagedTrack ({ destTrack, false, damage });
     }
 
     BAIL_OUT_IF (!insideFile, S_OK);
@@ -361,22 +417,16 @@ static HRESULT ParseV2FluxTrack (
     // nothing; the real bytes replace this once they check out.
     out.SetFluxTrack (destTrack, flux);
 
-    BAIL_OUT_IF (startBlock == 0 || blockCount == 0 || byteCount == 0, S_OK);
+    BAIL_OUT_IF (byteCount == 0, S_OK);
 
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
 
     // Any of these is damage to this track alone: the slot stays a flux
     // track with nothing on it, the image is held read-only, and the rest of
     // the disk still mounts.
-    if (byteOffset + byteCount > rawSize)
+    if (IsRecordLocationDamaged (startBlock, blockCount, byteCount, rawSize, damage))
     {
         damaged = true;
-        damage  = DamageReason::OutsideFile;
-    }
-    else if (byteCount > static_cast<size_t> (blockCount) * WozLoader::kV2BlockSize)
-    {
-        damaged = true;
-        damage  = DamageReason::CountExceedsBlocks;
     }
     else
     {
@@ -528,6 +578,232 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozLoader::IsWriteProtectFlagSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozLoader::IsWriteProtectFlagSet (const vector<Byte> & fileBytes)
+{
+    HRESULT   hr         = S_OK;
+    size_t    infoOffset = 0;
+    uint32_t  infoSize   = 0;
+    bool      isWoz      = fileBytes.size() >= kHeaderSize && (MatchSig (fileBytes.data(), kSigV2) || MatchSig (fileBytes.data(), kSigV1));
+
+
+
+    if (!isWoz)
+    {
+        return false;
+    }
+
+    hr = FindChunkPayload (fileBytes, kInfoMagic, infoOffset, infoSize);
+
+    return SUCCEEDED (hr) && infoSize >= kInfoChunkSize && fileBytes[infoOffset + kInfoWriteProtectOff] != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ApplyEdits
+//
+//  Disk properties' edits, made in the file's bytes: INFO's fields are
+//  changed where they are, the old META is removed, the new one is appended
+//  after the last chunk, and the header CRC is computed again.
+//
+//  A file whose CRC doesn't match is left alone, since a new CRC would hide
+//  the damage. So is a file with a FLUX chunk after META: removing META
+//  would move FLUX off the block INFO points to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
+{
+    HRESULT                 hr     = S_OK;
+    vector<Byte>            bytes  = fileBytes;
+    bool                    isWoz  = bytes.size() >= kHeaderSize && (MatchSig (bytes.data(), kSigV2) || MatchSig (bytes.data(), kSigV1));
+    uint32_t                stored = 0;
+    uint32_t                crc    = 0;
+    bool                    intact = false;
+    bool                    atEnd  = false;
+    std::vector<ChunkSpan>  chunks;
+    size_t                  end    = 0;
+    const ChunkSpan       * info   = nullptr;
+    const ChunkSpan       * meta   = nullptr;
+    const ChunkSpan       * flux   = nullptr;
+    Byte                  * fields = nullptr;
+    std::string             text;
+    size_t                  at     = 0;
+
+
+
+    CBREx (isWoz, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  Zero means the writer didn't compute a CRC.
+    stored = Read32LE (bytes.data() + kSigLen);
+    crc    = Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize);
+    intact = stored == 0 || stored == crc;
+    CBREx (intact, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    hr = FormatMeta (edits.meta, text);
+    CHR (hr);
+
+    WalkChunks (bytes, chunks, end);
+
+    for (const ChunkSpan & chunk : chunks)
+    {
+        info = MatchMagic (chunk.id, kInfoMagic) ? &chunk : info;
+        meta = MatchMagic (chunk.id, kMetaMagic) ? &chunk : meta;
+        flux = MatchMagic (chunk.id, kFluxMagic) ? &chunk : flux;
+    }
+
+    CBREx (info != nullptr && info->size >= kInfoChunkSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    fields                            = bytes.data() + info->payload;
+    fields[kInfoOffsetWriteProtected] = static_cast<Byte> (edits.writeProtected ? 1 : 0);
+
+    //  A version 1 INFO ends at the disk sides, and the rest is padding.
+    if (fields[kInfoOffsetVersion] >= kInfoVersion2)
+    {
+        fields[kInfoOffsetBootSectorFormat] = edits.bootSectorFormat;
+        Write16LE (fields + kInfoOffsetCompatibleHw, edits.compatibleHardware);
+        Write16LE (fields + kInfoOffsetRequiredRam,  edits.requiredRamK);
+    }
+    else
+    {
+        CBREx (edits.bootSectorFormat == kBootSectorUnknown && edits.compatibleHardware == 0 && edits.requiredRamK == 0, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    }
+
+    if (meta != nullptr)
+    {
+        CBREx (flux == nullptr || flux->start < meta->start, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        bytes.erase (bytes.begin() + (ptrdiff_t) meta->start, bytes.begin() + (ptrdiff_t) (meta->payload + meta->size));
+        end -= kChunkHeaderSize + meta->size;
+    }
+
+    //  A META appended after bytes that aren't a chunk, such as track blocks a
+    //  TRKS chunk doesn't cover, can't be reached by a walk of the chunks.
+    if (!text.empty())
+    {
+        atEnd = end == bytes.size();
+        CBREx (atEnd, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        at = bytes.size();
+        bytes.resize (at + kChunkHeaderSize + text.size());
+
+        memcpy    (bytes.data() + at, kMetaMagic, sizeof (kMetaMagic));
+        Write32LE (bytes.data() + at + sizeof (kMetaMagic), static_cast<uint32_t> (text.size()));
+        memcpy    (bytes.data() + at + kChunkHeaderSize, text.data(), text.size());
+    }
+
+    Write32LE (bytes.data() + kSigLen, Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize));
+
+    fileBytes.swap (bytes);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::IsStandardMetaKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozLoader::IsStandardMetaKey (const std::string & key)
+{
+    return std::any_of (std::begin (s_kStandardMetaKeys), std::end (s_kStandardMetaKeys), [&key] (const char * standard) { return key == standard; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::WalkChunks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd)
+{
+    size_t  pos  = kHeaderSize;
+    bool    more = true;
+
+
+
+    outChunks.clear();
+
+    while (more && pos + kChunkHeaderSize <= raw.size())
+    {
+        ChunkSpan  chunk;
+        bool       isId = std::all_of (raw.begin() + (ptrdiff_t) pos, raw.begin() + (ptrdiff_t) (pos + sizeof (chunk.id)), [] (Byte b) { return b >= 'A' && b <= 'Z'; });
+
+        chunk.start   = pos;
+        chunk.payload = pos + kChunkHeaderSize;
+        chunk.size    = Read32LE (raw.data() + pos + sizeof (chunk.id));
+        more          = isId && chunk.payload + chunk.size <= raw.size();
+
+        if (more)
+        {
+            memcpy (chunk.id, raw.data() + pos, sizeof (chunk.id));
+            outChunks.push_back (chunk);
+            pos = chunk.payload + chunk.size;
+        }
+    }
+
+    outEnd = pos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::FormatMeta
+//
+//  A field with no value is written with an empty one, as the reference has
+//  a standard key with no value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::FormatMeta (const std::vector<MetaField> & fields, std::string & outText)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outText.clear();
+
+    for (const MetaField & field : fields)
+    {
+        bool  plain = !field.key.empty()
+                   && field.key.find_first_of   ("\t\r\n") == std::string::npos
+                   && field.value.find_first_of ("\t\r\n") == std::string::npos;
+
+        CBREx (plain, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outText += field.key + '\t' + field.value + '\n';
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader::Load
 //
 //  Parse a WOZ v1 or v2 image. Validates the signature, walks chunks,
@@ -540,30 +816,32 @@ Error:
 
 HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT        hr                   = S_OK;
-    bool           isV2                 = false;
-    bool           sawInfo              = false;
-    bool           sawTmap              = false;
-    bool           sawTrks              = false;
-    bool           sawFlux              = false;
-    bool           writeProtected       = false;
-    size_t         pos                  = 0;
-    size_t         chunkPos             = 0;
-    Byte           tmap[kTmapChunkSize] = {};
-    Byte           flux[kTmapChunkSize] = {};
-    const Byte *   trksData             = nullptr;
-    size_t         trksSize             = 0;
-    int            qt                   = 0;
-    Byte           trackIndex           = 0;
-    int            trackI               = 0;
-    bool           sigV2                = false;
-    bool           sigV1                = false;
-    size_t         rawSize              = 0;
-    uint32_t       storedCrc            = 0;
-    bool           crcOk                = true;
-    bool           isChunkId            = false;
-    int            idByte               = 0;
-    WozMetadata    metadata;
+    HRESULT                  hr                   = S_OK;
+    bool                     isV2                 = false;
+    bool                     sawInfo              = false;
+    bool                     sawTmap              = false;
+    bool                     sawTrks              = false;
+    bool                     sawFlux              = false;
+    bool                     writeProtected       = false;
+    size_t                   pos                  = 0;
+    size_t                   chunkPos             = 0;
+    Byte                     tmap[kTmapChunkSize] = {};
+    Byte                     flux[kTmapChunkSize] = {};
+    const Byte             * trksData             = nullptr;
+    size_t                   trksSize             = 0;
+    int                      qt                   = 0;
+    Byte                     trackIndex           = 0;
+    int                      trackI               = 0;
+    bool                     sigV2                = false;
+    bool                     sigV1                = false;
+    size_t                   rawSize              = 0;
+    uint32_t                 storedCrc            = 0;
+    bool                     crcOk                = true;
+    bool                     isChunkId            = false;
+    int                      idByte               = 0;
+    WozMetadata              metadata;
+    vector<WozChunkEntry>    chunks;
+    vector<MetaField>        meta;
 
 
 
@@ -635,6 +913,13 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
         CBR (chunkPos + chunkSize <= rawSize);
 
+        chunks.push_back ({ { id[0], id[1], id[2], id[3] }, pos, chunkSize });
+
+        if (MatchMagic (id, kMetaMagic))
+        {
+            ParseMetaChunk (raw.data() + chunkPos, chunkSize, meta);
+        }
+
         if (MatchMagic (id, kInfoMagic))
         {
             CBR (chunkSize >= kInfoChunkSize);
@@ -690,6 +975,17 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     CBR (sawInfo && sawTmap && sawTrks);
 
     ReadFileLayout (raw, tmap, sawFlux ? flux : nullptr, isV2, trksData, trksSize, metadata.layout);
+    ReadInfo       (metadata.infoPayload, metadata.info);
+
+    metadata.layout.chunks               = chunks;
+    metadata.layout.storedCrc            = storedCrc;
+    metadata.layout.computedCrc          = Crc32 (raw.data() + kHeaderSize, rawSize - kHeaderSize);
+    metadata.layout.hasDataPastLastChunk = pos < rawSize;
+
+    for (const MetaField & field : meta)
+    {
+        metadata.layout.metaEntries.push_back ({ field.key, field.value });
+    }
 
     out.SetImageWriteProtected (writeProtected);
     out.SetSourceFormat        (DiskFormat::Woz);
@@ -725,6 +1021,11 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
             trackIndex = tmap[qt];
+            if (trackIndex != kTmapEmptyTrack && trackIndex >= kV2TrkRecordCount)
+            {
+                out.AddDamagedQuarterTrack ({ qt, false, trackIndex });
+            }
+
             if (trackIndex == kTmapEmptyTrack || trackIndex >= kV2TrkRecordCount)
             {
                 continue;
@@ -752,6 +1053,11 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         for (qt = 0; sawFlux && qt < static_cast<int> (kTmapChunkSize); qt++)
         {
             trackIndex = flux[qt];
+            if (trackIndex != kTmapEmptyTrack && trackIndex >= kV2TrkRecordCount)
+            {
+                out.AddDamagedQuarterTrack ({ qt, true, trackIndex });
+            }
+
             if (trackIndex == kTmapEmptyTrack || trackIndex >= kV2TrkRecordCount)
             {
                 continue;
@@ -823,9 +1129,11 @@ Error:
 //
 //  WozLoader::ReadFileLayout
 //
-//  Keeps the maps exactly as stored, and for a v2 file every record's fields.
-//  A record that neither map refers to keeps its blocks' bytes too, so a save
-//  can put them back where the track model would otherwise write zeros.
+//  Keeps the maps exactly as stored, and every record's fields: start block,
+//  block count and bit or byte count for a v2 file, the trailer of bytes
+//  used, bit count and splice for a v1 file. A record that neither map refers
+//  to keeps its bytes too, so a save can put them back where the track model
+//  would otherwise write zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -838,8 +1146,9 @@ void WozLoader::ReadFileLayout (
     size_t                 trksSize,
     WozFileLayout       &  out)
 {
-    static constexpr size_t  kBlockCountOffset = 2;
-    static constexpr size_t  kBitCountOffset   = 4;
+    static constexpr size_t  kBlockCountOffset  = 2;
+    static constexpr size_t  kBitCountOffset    = 4;
+    static constexpr size_t  kV1BytesUsedOffset = 6646;
 
 
 
@@ -854,6 +1163,7 @@ void WozLoader::ReadFileLayout (
 
 
     out             = WozFileLayout();
+    out.isV2        = isV2;
     out.hasMaps     = true;
     out.hasFluxMap  = fluxMap != nullptr;
 
@@ -891,6 +1201,26 @@ void WozLoader::ReadFileLayout (
         if (!referenced[r] && fields.startBlock >= kV2FirstDataBlock && length > 0 && from + length <= raw.size())
         {
             out.unreferenced.push_back ({ static_cast<int> (r), fields.bitOrByteCount, vector<Byte> (raw.begin() + from, raw.begin() + from + length) });
+        }
+    }
+
+    //  A WOZ 1 record is its 6,646 bytes of bits followed by its trailer.
+    for (r = 0; !isV2 && trksData != nullptr && (r + 1) * kV1TrackRecordSize <= trksSize; r++)
+    {
+        rec = trksData + r * kV1TrackRecordSize;
+
+        WozV1RecordFields  v1;
+
+        v1.bytesUsed      = Read16LE (rec + kV1BytesUsedOffset);
+        v1.bitCount       = Read16LE (rec + kV1BytesUsedOffset + 2);
+        v1.splicePoint    = Read16LE (rec + kV1BytesUsedOffset + 4);
+        v1.spliceNibble   = rec[kV1BytesUsedOffset + 6];
+        v1.spliceBitCount = rec[kV1BytesUsedOffset + 7];
+        out.v1Records.push_back (v1);
+
+        if (r < referenced.size() && !referenced[r] && v1.bytesUsed > 0 && v1.bytesUsed <= kV1BytesUsedOffset)
+        {
+            out.unreferenced.push_back ({ static_cast<int> (r), v1.bitCount, vector<Byte> (rec, rec + v1.bytesUsed) });
         }
     }
 }
@@ -1045,8 +1375,11 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
     size_t  rawSize = raw.size();
     bool    sigV1   = false;
     bool    sigV2   = false;
+    Byte    positions[kTmapChunkSize];
 
 
+
+    memset (positions, kTmapEmptyTrack, sizeof (positions));
 
     out = Description();
 
@@ -1084,24 +1417,23 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
 
         if (MatchMagic (id, kInfoMagic) && chunkSize >= kInfoChunkSize)
         {
-            const Byte *  info = raw.data() + chunkPos;
+            ReadInfo (std::span<const Byte> (raw.data() + chunkPos, chunkSize), out.info);
 
-            out.infoVersion    = info[kInfoOffsetVersion];
-            out.diskType       = info[kInfoOffsetDiskType];
-            out.writeProtected = info[kInfoOffsetWriteProtected] != 0;
-            out.synchronized   = info[kInfoOffsetSynchronized]   != 0;
-            out.cleaned        = info[kInfoOffsetCleaned]        != 0;
-            out.creator        = ReadPaddedField (info + kInfoOffsetCreator, kInfoCreatorLength);
+            out.infoVersion    = out.info.version;
+            out.diskType       = out.info.diskType;
+            out.writeProtected = out.info.isWriteProtected;
+            out.synchronized   = out.info.isSynchronized;
+            out.cleaned        = out.info.isCleaned;
+            out.creator        = out.info.creator;
 
             // Version 1 stops short of the boot-sector field. Absent is not
             // the same answer as "the image said unknown".
-            if (out.infoVersion >= 2)
-            {
-                out.hasBootSectorFormat = true;
-                out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
-                out.hasBitTiming        = true;
-                out.bitTiming           = info[kInfoOffsetBitTiming];
-            }
+            out.hasBootSectorFormat = out.info.hasVersion2Fields;
+            out.bootSectorFormat    = out.info.bootSectorFormat;
+            out.hasBitTiming        = out.info.hasVersion2Fields;
+            out.bitTiming           = out.info.optimalBitTiming;
+            out.compatibleHardware  = out.info.compatibleHardware;
+            out.requiredRamK        = out.info.requiredRamK;
         }
         else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
         {
@@ -1113,6 +1445,7 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
             {
                 if (tmap[qt] != kTmapEmptyTrack)
                 {
+                    positions[qt] = tmap[qt];
                     out.quarterTracksWithData++;
 
                     if (!seen[tmap[qt]])
@@ -1123,12 +1456,123 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
                 }
             }
         }
+        else if (MatchMagic (id, kFluxMagic) && chunkSize >= kTmapChunkSize)
+        {
+            const Byte *  flux      = raw.data() + chunkPos;
+            bool          seen[256] = {};
+            size_t        qt        = 0;
+
+            for (qt = 0; qt < kTmapChunkSize; qt++)
+            {
+                if (flux[qt] != kTmapEmptyTrack)
+                {
+                    positions[qt] = flux[qt];
+                }
+
+                if (flux[qt] != kTmapEmptyTrack && !seen[flux[qt]])
+                {
+                    seen[flux[qt]] = true;
+                    out.fluxSlotsWithData++;
+                }
+            }
+        }
         else if (MatchMagic (id, kMetaMagic))
         {
             ParseMetaChunk (raw.data() + chunkPos, chunkSize, out.meta);
         }
 
         pos = chunkPos + chunkSize;
+    }
+
+    {
+        bool  onWhole[256]  = {};
+        bool  offWhole[256] = {};
+
+        out.wholeTrackHasData.assign (kTmapChunkSize / 4, false);
+
+        for (size_t qt = 0; qt < kTmapChunkSize; qt++)
+        {
+            if (positions[qt] == kTmapEmptyTrack)
+            {
+                continue;
+            }
+
+            if (qt % 4 == 0)
+            {
+                onWhole[positions[qt]]     = true;
+                out.wholeTrackHasData[qt / 4] = true;
+            }
+            else
+            {
+                offWhole[positions[qt]] = true;
+            }
+        }
+
+        for (size_t slot = 0; slot < std::size (onWhole); slot++)
+        {
+            out.slotsOffWholeTracks += (offWhole[slot] && !onWhole[slot]) ? 1 : 0;
+        }
+
+        for (size_t qt = 0; qt < kTmapChunkSize; qt++)
+        {
+            out.positionsOffWholeTracks += (positions[qt] != kTmapEmptyTrack && !onWhole[positions[qt]]) ? 1 : 0;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ReadInfo
+//
+//  A payload shorter than INFO's 60 bytes is not an INFO chunk Casso can use,
+//  and gives an absent result rather than a partial one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::ReadInfo (std::span<const Byte> payload, WozInfo & out)
+{
+    static constexpr Byte  kVersion2 = 2;
+    static constexpr Byte  kVersion3 = 3;
+
+
+
+    out = WozInfo();
+
+    if (payload.size() < kInfoChunkSize)
+    {
+        return;
+    }
+
+    out.isPresent        = true;
+    out.version          = payload[kInfoOffsetVersion];
+    out.diskType         = payload[kInfoOffsetDiskType];
+    out.isWriteProtected = payload[kInfoOffsetWriteProtected] != 0;
+    out.isSynchronized   = payload[kInfoOffsetSynchronized]   != 0;
+    out.isCleaned        = payload[kInfoOffsetCleaned]        != 0;
+    out.creator          = ReadPaddedField (payload.data() + kInfoOffsetCreator, kInfoCreatorLength);
+
+    out.hasVersion2Fields = out.version >= kVersion2;
+
+    if (out.hasVersion2Fields)
+    {
+        out.sides              = payload[kInfoOffsetDiskSides];
+        out.bootSectorFormat   = payload[kInfoOffsetBootSectorFormat];
+        out.optimalBitTiming   = payload[kInfoOffsetBitTiming];
+        out.compatibleHardware = Read16LE (payload.data() + kInfoOffsetCompatibleHw);
+        out.requiredRamK       = Read16LE (payload.data() + kInfoOffsetRequiredRam);
+        out.largestTrack       = Read16LE (payload.data() + kInfoOffsetLargestTrack);
+    }
+
+    out.hasVersion3Fields = out.version >= kVersion3;
+
+    if (out.hasVersion3Fields)
+    {
+        out.fluxBlock        = Read16LE (payload.data() + kInfoOffsetFluxBlock);
+        out.largestFluxTrack = Read16LE (payload.data() + kInfoOffsetLargestFlux);
     }
 }
 
@@ -1315,7 +1759,7 @@ HRESULT WozLoader::BuildSyntheticV21 (
     info[kInfoVersionOff]       = kInfoVersion3;
     info[kInfoDiskTypeOff]      = kDiskType525;
     info[kInfoCleanedOff]       = kCleaned;
-    info[kInfoDiskSidesOff]     = kSingleSided;
+    info[kInfoOffsetDiskSides]     = kSingleSided;
     info[kInfoOffsetBitTiming]  = kBitTimingStandard;
     Write16LE (info + kInfoOffsetLargestTrack, static_cast<uint16_t> (largestBits));
     Write16LE (info + kInfoOffsetFluxBlock,    static_cast<uint16_t> (fluxBlock));
@@ -1567,7 +2011,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         if (info[kInfoVersionOff] < kInfoVersion2)
         {
             info[kInfoVersionOff]      = kInfoVersion2;
-            info[kInfoDiskSidesOff]    = kSingleSided;
+            info[kInfoOffsetDiskSides]    = kSingleSided;
             info[kInfoOffsetBitTiming] = kBitTimingStandard;
         }
 

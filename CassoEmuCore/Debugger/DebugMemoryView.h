@@ -24,18 +24,20 @@ class DebugMemoryView
 public:
     explicit DebugMemoryView (MachineHost & host);
 
-    bool          TryPeek   (Word address, Byte & value) const;
-    bool          TryPeekIo (Word address, Byte & value) const;
-    bool          TryPoke   (Word address, Byte value);
-    bool          TryPatch  (Word address, Byte value);
-    MemoryRegion  GetRegion (Word address) const;
-    void          CopyAll   (DebugMemoryImage & image) const;
+    bool          TryPeek    (Word address, Byte & value) const;
+    bool          TryPeekIo  (Word address, Byte & value) const;
+    bool          TryPeekRom (Word address, Byte & value) const;
+    bool          TryPoke    (Word address, Byte value);
+    bool          TryPatch   (Word address, Byte value);
+    MemoryRegion  GetRegion  (Word address) const;
+    void          CopyAll    (DebugMemoryImage & image) const;
 
 private:
     static constexpr Word    kIoFirst      = 0xC000;
     static constexpr Word    kIoLast       = 0xC0FF;
     static constexpr Word    kSlotRomFirst = 0xC100;
     static constexpr Word    kSlotRomLast  = 0xCFFF;
+    static constexpr Word    kLcFirst      = 0xD000;
     static constexpr Word    kPageMask     = 0x00FF;
     static constexpr size_t  kAuxRamSize   = 0x10000;
 

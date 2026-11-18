@@ -220,23 +220,6 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (TheHoverWordsGiveTheCellOrNone)
-        {
-            std::optional<Word>  address = Word (1);
-
-
-
-            Assert::IsTrue   (CpuCommandDispatcher::TryGetHeatMapHover ("hover 2a0f", address));
-            Assert::AreEqual ((Word) 0x2A0F, address.value_or (0));
-            Assert::IsTrue   (CpuCommandDispatcher::TryGetHeatMapHover ("hover none", address));
-            Assert::IsFalse  (address.has_value());
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapHover ("hover", address));
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapHover ("hover 12345", address));
-            Assert::IsFalse  (CpuCommandDispatcher::TryGetHeatMapHover ("reset", address));
-        }
-
-
-
         TEST_METHOD (APlanShowsTheCodeOrSeeksJustAfterTheAccessOrSaysWhyNot)
         {
             HeatAccessPlan                  plan;

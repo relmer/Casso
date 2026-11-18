@@ -367,6 +367,19 @@ public:
 
 
 
+    TEST_METHOD (EdgeScrollbar_TheOuterHalfOfTheBandStillResizes)
+    {
+        //  Without this, the edge can't be grabbed beside a bar that runs the
+        //  window's height.
+        std::unique_ptr<DxuiHwndSource>  host = BuildEdgeScrollbarHost (120);
+        DxuiHitTestKind                  kind = host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 2,
+                                                                                    s_kClientHeightDip * 3 / 4));
+
+        Assert::AreEqual ((int) HTRIGHT, (int) DxuiHwndSource::KindToHt (kind));
+    }
+
+
+
     TEST_METHOD (EdgeScrollbar_TheEdgeStillResizesWhereThereIsNoBar)
     {
         std::unique_ptr<DxuiHwndSource>  host = BuildEdgeScrollbarHost (120);
@@ -374,6 +387,22 @@ public:
                                                                                     s_kClientHeightDip / 4));
 
         Assert::AreEqual ((int) HTRIGHT, (int) DxuiHwndSource::KindToHt (kind));
+    }
+
+
+
+    TEST_METHOD (ResizeBorderPx_IsTheBandsWidthAtTheWindowsScale)
+    {
+        for (std::pair<UINT, int> scale : { std::pair { 96u, 6 }, { 144u, 9 } })
+        {
+            std::unique_ptr<DxuiHwndSource>  host = std::make_unique<DxuiHwndSource> (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+                                                                                      s_kResizeBorderDip,
+                                                                                      std::make_unique<DxuiPanel>());
+
+            host->SetDpiForTest (scale.first);
+
+            Assert::AreEqual (scale.second, host->GetResizeBorderPx());
+        }
     }
 
 

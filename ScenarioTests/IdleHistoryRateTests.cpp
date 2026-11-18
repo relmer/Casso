@@ -85,23 +85,23 @@ public:
         hr = controller.GetKeyframes().WaitForPending();
         AssertSucceeded (hr, L"WaitForPending after the first keyframe");
 
-        startBytes = controller.GetKeyframes().GetByteCount();
+        startBytes = controller.GetKeyframes().GetArena().GetByteCount();
 
         for (frame = 0; frame < kSeconds * kFramesPerSecond; frame++)
         {
-            machine.SampleHostInputs();
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetHostInput().Sample();
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         hr = controller.GetKeyframes().WaitForPending();
         AssertSucceeded (hr, L"WaitForPending");
 
-        count = controller.GetKeyframes().GetCount();
-        grown = controller.GetKeyframes().GetByteCount() - startBytes;
+        count = controller.GetKeyframes().GetArena().GetCount();
+        grown = controller.GetKeyframes().GetArena().GetByteCount() - startBytes;
 
         for (i = 0; i < count; i++)
         {
-            wholes += controller.GetKeyframes().GetInfo (i).isWhole ? 1 : 0;
+            wholes += controller.GetKeyframes().GetArena().GetInfo (i).isWhole ? 1 : 0;
         }
 
         Assert::IsTrue (count > kSeconds * 5, L"a keyframe was taken every ten frames");
@@ -139,7 +139,7 @@ public:
 
         for (i = 0; i < kCount; i++)
         {
-            wholes += store.GetInfo (i).isWhole ? 1 : 0;
+            wholes += store.GetArena().GetInfo (i).isWhole ? 1 : 0;
         }
 
         Assert::AreEqual<size_t> (1, wholes, L"one whole snapshot serves every keyframe");
@@ -180,7 +180,7 @@ public:
 
         for (i = 0; i < kCount; i++)
         {
-            Assert::AreEqual (i % 10 == 0, store.GetInfo (i).isWhole, std::format (L"keyframe {} whole flag", i).c_str());
+            Assert::AreEqual (i % 10 == 0, store.GetArena().GetInfo (i).isWhole, std::format (L"keyframe {} whole flag", i).c_str());
         }
     }
 
@@ -217,7 +217,7 @@ public:
         hr = store.ChangeBudget (kSmall);
         AssertSucceeded (hr, L"ChangeBudget");
 
-        Assert::IsTrue (store.GetCapacity() >= 2 * kLongGroup, L"the table holds the long group twice over");
+        Assert::IsTrue (store.GetArena().GetCapacity() >= 2 * kLongGroup, L"the table holds the long group twice over");
 
         for (; i < kLongGroup + kAfter; i++)
         {
@@ -227,7 +227,7 @@ public:
             AssertSucceeded (hr, L"Add after the budget shrank");
         }
 
-        hr = store.Restore (store.GetCount() - 1, restored);
+        hr = store.Restore (store.GetArena().GetCount() - 1, restored);
         AssertSucceeded (hr, L"Restore");
         Assert::IsTrue (restored == state, L"the newest restores exactly");
     }
@@ -258,9 +258,9 @@ public:
         settings.budgetBytes    = kBudget;
         store.Configure (settings);
 
-        for (i = 0; i < kMostAdds && !store.IsFull(); i++)
+        for (i = 0; i < kMostAdds && !store.GetArena().IsFull(); i++)
         {
-            lastUsed = store.GetUsedBytes();
+            lastUsed = store.GetArena().GetUsedBytes (store.GetSettings().budgetBytes);
 
             state[i % kStateBytes] ^= 1;
 
@@ -268,7 +268,7 @@ public:
             AssertSucceeded (hr, L"Add");
         }
 
-        Assert::IsTrue (store.IsFull(), L"the store filled");
+        Assert::IsTrue (store.GetArena().IsFull(), L"the store filled");
         Assert::IsTrue (kBudget - lastUsed < kGroupSlack, std::format (L"the meter read {} of {} bytes just before the oldest were dropped", lastUsed, kBudget).c_str());
     }
 };

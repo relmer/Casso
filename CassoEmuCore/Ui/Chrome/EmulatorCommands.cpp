@@ -4,6 +4,7 @@
 
 #include "resource.h"
 #include "Core/UnicodeSymbols.h"
+#include "InputGlyphIcons.h"
 
 #include "PrinterStatusLed.h"
 #include "VolumeFlyout.h"
@@ -37,27 +38,44 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { 0,                            MainMenuId::Machine, nullptr,                   nullptr          },
     { IDM_VIEW_CONTROLLER_SETTINGS, MainMenuId::Machine, L"&Controller settings...", nullptr         },
     { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
-    { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
+    { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"Eject dri&ve 1",         L"Ctrl+Shift+1"  },
     { IDM_DISK_WP1,                 MainMenuId::Disk,    L"&Write-protect disk 1",  nullptr          },
     { IDM_DISK_SALVAGE1,            MainMenuId::Disk,    L"Sa&lvage readable sectors...", nullptr    },
+    { IDM_DISK_INSPECT1,            MainMenuId::Disk,    L"Inspect &disk 1...",     nullptr          },
+    { IDM_DISK_THUMBNAIL1,          MainMenuId::Disk,    L"Save screenshot as disk 1's thu&mbnail", nullptr },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
-    { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attach &drive 2",        nullptr          },
-    { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
+    { IDM_STORAGE_ATTACH_APPLE35,   MainMenuId::Disk,    L"Pl&ug in a 3.5-inch drive", nullptr       },
+    { IDM_STORAGE_ATTACH_FLOPPY,    MainMenuId::Disk,    L"Plu&g in a 5.25-inch drive", nullptr      },
+    { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attac&h drive 2",        nullptr          },
+    { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"I&nsert drive 2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
     { IDM_DISK_WP2,                 MainMenuId::Disk,    L"Write-&protect disk 2",  nullptr          },
     { IDM_DISK_SALVAGE2,            MainMenuId::Disk,    L"Salvage readable sec&tors...", nullptr    },
+    { IDM_DISK_INSPECT2,            MainMenuId::Disk,    L"Inspect dis&k 2...",     nullptr          },
+    { IDM_DISK_THUMBNAIL2,          MainMenuId::Disk,    L"Save screenshot as disk 2's thum&bnail", nullptr },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
-    { IDM_DISK_OPEN_CASSQUE,        MainMenuId::Disk,    L"Browse disks in Cassq&ue...", nullptr     },
+    { IDM_DISK_INSERT3,             MainMenuId::Disk,    L"In&sert drive 3...",     L"Ctrl+3"        },
+    { IDM_DISK_EJECT3,              MainMenuId::Disk,    L"Eject d&rive 3",         L"Ctrl+Shift+3"  },
+    { IDM_DISK_WP3,                 MainMenuId::Disk,    L"&Write-protect disk 3",  nullptr          },
+    { IDM_DISK_SALVAGE3,            MainMenuId::Disk,    L"Sa&lvage readable sectors...", nullptr    },
+    { IDM_DISK_INSPECT3,            MainMenuId::Disk,    L"Inspect &disk 3...",     nullptr          },
+    { IDM_DISK_THUMBNAIL3,          MainMenuId::Disk,    L"Save screenshot as disk 3's thu&mbnail", nullptr },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
     { IDM_STORAGE_RECORDER,         MainMenuId::Disk,    L"Attach ca&ssette recorder", nullptr       },
     { IDM_TAPE_INSERT,              MainMenuId::Disk,    L"Insert t&ape...",        nullptr          },
     { IDM_TAPE_PLAY,                MainMenuId::Disk,    L"Pla&y tape",             nullptr          },
     { IDM_TAPE_STOP,                MainMenuId::Disk,    L"St&op tape",             nullptr          },
     { IDM_TAPE_REWIND,              MainMenuId::Disk,    L"&Rewind tape",           nullptr          },
-    { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"Fast-for&ward tape",     nullptr          },
+    { IDM_TAPE_FASTFORWARD,         MainMenuId::Disk,    L"&Fast-forward tape",     nullptr          },
     { IDM_TAPE_EJECT,               MainMenuId::Disk,    L"E&ject tape",            nullptr          },
+    { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_DISK_OPEN_CASSO_EXPLORER, MainMenuId::Disk,    L"Browse disks in Casso &Explorer...", nullptr },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
-    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip (full screen)", L"F8"          },
+    { IDM_VIEW_AUTOHIDE_DRIVES,     MainMenuId::View,    L"&Auto-hide drives",      nullptr,          true   },
+    { IDM_VIEW_FLOPPIES_ON_DESK,    MainMenuId::View,    L"F&loppy drives on the desk", nullptr,      true   },
+    { IDM_VIEW_HARD_DISKS_ON_DESK,  MainMenuId::View,    L"&Hard disks on the desk", nullptr,         true   },
+    { IDM_VIEW_FLOPPY_PAIR_BESIDE,  MainMenuId::View,    L"&Two floppies beside the monitor", nullptr, true  },
+    { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip",           L"F8"            },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
     { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },
     { IDM_VIEW_SCENE_VIEW,          MainMenuId::View,    L"Scene &pose",            nullptr,          true   },
@@ -194,6 +212,11 @@ EmulatorCommands::EmulatorCommands()
             return m_isEnabled ? m_isEnabled (commandId) : true;
         };
 
+        cmd->isVisible = [this, commandId] () -> bool
+        {
+            return m_isVisible ? m_isVisible (commandId) : true;
+        };
+
         cmd->labelText = [this, commandId, staticLabel] () -> std::wstring
         {
             std::wstring  dynamic = m_labelQuery ? m_labelQuery (commandId)
@@ -306,6 +329,39 @@ const wchar_t * EmulatorCommands::GetMenuName (MainMenuId menu)
 bool EmulatorCommands::IsSeparator (const EmulatorMenuEntry & entry)
 {
     return entry.commandId == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetDrive2Label
+//
+//  The second-drive row gives the action a click takes: attach the drive
+//  when it is detached, detach it when it is attached. On the //c
+//  (`isExternal`) the second drive is an external unit on the disk port, and
+//  the row shows that, with X as its access key, since E is Casso Explorer's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetDrive2Label (bool isExternal, bool isAttached)
+{
+    const wchar_t *  label = nullptr;
+
+
+
+    if (isExternal)
+    {
+        label = isAttached ? L"Detach e&xternal drive" : L"Attach e&xternal drive";
+    }
+    else
+    {
+        label = isAttached ? L"Detac&h drive 2" : L"Attac&h drive 2";
+    }
+
+    return label;
 }
 
 
@@ -1067,22 +1123,20 @@ void EmulatorCommands::BuildToolbar (DxuiToolbar       & toolbar,
 
         if (row.id == IDM_PRINTER_PREVIEW) { e.decoration = led.MakeDecoration(); }
 
-        // The picker draws its own icon, because the icon tracks the DEVICE:
-        // a gamepad, a stick, the paddle or the arrow keys (FR-008b). A font
-        // glyph cannot follow that, and MDL2 has no Apple paddle anyway. It
-        // goes through the strip's icon path rather than a decoration, so
-        // layout reserves the icon's room and the label starts after it, and
-        // it takes the entry's disabled and hover ink.
+        // The picker's icon is chosen at paint time, because it tracks the
+        // DEVICE: a gamepad, a stick, the paddle or the arrow keys. MDL2 has
+        // no Apple paddle, so all four are vector icons.
         if (row.id == kIdPaddle)
         {
-            e.icon = [this] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
+            e.getVectorIcon = [this] () -> const DxuiVectorIcon *
             {
-                RECT  box = { (LONG) icon.x,
-                              (LONG) (icon.top + (icon.rowH - icon.size) * 0.5f),
-                              (LONG) (icon.x + icon.size),
-                              (LONG) (icon.top + (icon.rowH + icon.size) * 0.5f) };
-
-                InputMonoGlyphs::Paint (painter, GetPickerGlyph(), box, icon.ink);
+                switch (GetPickerGlyph())
+                {
+                    case InputMonoGlyphKind::Gamepad:  return &InputGlyphIcons::s_kGamepad;
+                    case InputMonoGlyphKind::Joystick: return &InputGlyphIcons::s_kJoystick;
+                    case InputMonoGlyphKind::Paddle:   return &InputGlyphIcons::s_kPaddle;
+                    default:                           return &InputGlyphIcons::s_kKeys;
+                }
             };
         }
 

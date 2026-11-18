@@ -47,6 +47,31 @@ public:
     }
 
 
+    //  While a find has matches, the scrollbar has a mark for each row with
+    //  one, the selected match's as the current one; closing the find
+    //  clears them.
+    TEST_METHOD (EachRowWithAMatchIsMarkedOnTheScrollbar)
+    {
+        DxuiListView  list;
+        int           index = 0;
+        int           count = 0;
+
+        ConfigureList (list);
+
+        (void) list.SelectMatch (L"step", false, false, false, true, index, count);
+
+        Assert::AreEqual ((size_t) 2, list.GetScrollMarks().size(), L"rows 0 and 2");
+        Assert::AreEqual (0.5f / 3.0f, list.GetScrollMarks()[0].at, 0.001f);
+        Assert::AreEqual (2.5f / 3.0f, list.GetScrollMarks()[1].at, 0.001f);
+        Assert::IsTrue   (list.GetScrollMarks()[0].isCurrent, L"the selected match");
+        Assert::IsFalse  (list.GetScrollMarks()[1].isCurrent);
+
+        list.ClearFindHighlights();
+
+        Assert::IsTrue (list.GetScrollMarks().empty(), L"no marks once the find closes");
+    }
+
+
     TEST_METHOD (FindGoesFromMatchToMatchRoundTheEnd)
     {
         DxuiListView  list;
@@ -112,5 +137,32 @@ public:
 
         list.ClearFindHighlights();
         Assert::IsTrue (list.GetMatchBands (0, 1, list.GetCellsOfRow (0)[1], 0, kDarkBack).empty());
+    }
+
+    //  A column marked not searched has no matches; and with matches marked
+    //  for a host's find, the selected row's match is drawn as current.
+    TEST_METHOD (AnUnsearchedColumnAndAHostsSelectedMatch)
+    {
+        constexpr uint32_t  kDarkBack = 0xFF1A2333u;
+        DxuiListView        list;
+        int                 index     = 0;
+        int                 count     = 0;
+        uint32_t            selected  = 0;
+        uint32_t            other     = 0;
+
+        ConfigureList (list);
+        list.SetFindColors (0xFF4A3A10, 0xFFF0C000);
+
+        list.SetColumnSearched (2, false);
+        Assert::IsTrue (DxuiFindResult::NotFound == list.SelectMatch (L"track", false, false, false, true, index, count), L"the Detail column");
+
+        list.SetSelectedRow (2);
+        list.HighlightFindMatches (L"step", false, false, false);
+
+        selected = std::get<2> (list.GetMatchBands (2, 1, list.GetCellsOfRow (2)[1], 0, kDarkBack).at (0));
+        other    = std::get<2> (list.GetMatchBands (0, 1, list.GetCellsOfRow (0)[1], 0, kDarkBack).at (0));
+
+        Assert::AreNotEqual (selected, other, L"the selected row's match is the current one");
+        Assert::AreEqual    (2, list.GetSelectedRow(), L"the row the host selected");
     }
 };

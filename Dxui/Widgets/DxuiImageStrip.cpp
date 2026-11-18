@@ -18,7 +18,7 @@
 
 DxuiImageStrip::~DxuiImageStrip()
 {
-    HidePreview();
+    m_preview.Hide();
 }
 
 
@@ -29,15 +29,16 @@ DxuiImageStrip::~DxuiImageStrip()
 //
 //  DxuiImageStrip::SetPopupHost
 //
-//  A preview open in the old host's window goes with it.
+//  A preview or a label open in the old host's window goes with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiImageStrip::SetPopupHost (DxuiHwndSource * host)
 {
+    m_preview.SetPopupHost (host);
+
     if (host != m_popupHost)
     {
-        HidePreview();
         m_topLabel.HideImmediate();
         m_bottomLabel.HideImmediate();
     }
@@ -209,11 +210,9 @@ int DxuiImageStrip::GetWidthPx (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiImageStrip::GetMinWidthPx (const DxuiDpiScaler & scaler) const
+int DxuiImageStrip::GetMinWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const
 {
-    UNREFERENCED_PARAMETER (scaler);
-
-    return (m_idealPx > 0) ? m_idealPx : -1;
+    return (m_idealPx > 0) ? m_idealPx : GetWidthPx (labeled, scaler, text);
 }
 
 
@@ -359,6 +358,8 @@ void DxuiImageStrip::Paint (
     m_isLabelPairPending = false;
     UNREFERENCED_PARAMETER (labeled);
 
+    m_preview.SetThemeColors (theme);
+
     //  The playhead line takes the place of the marked cell's bar; while it
     //  is dragged it follows the pointer rather than the source.
     isOn  = m_source != nullptr && m_source->TryGetPlayhead (line, top, bottom);
@@ -427,12 +428,14 @@ void DxuiImageStrip::Paint (
         }
     }
 
+    //  Near the playhead its labels are cleared and the pointer's are drawn,
+    //  so the time under the pointer is visible right up to and over the line.
     if (isOn)
     {
         if (isLabeled)
         {
-            HideOverlap (text, cellTop,    hoverX, top,    GetLineAlong (line));
-            HideOverlap (text, cellBottom, hoverX, bottom, GetLineAlong (line));
+            HideOverlap (text, top,    GetLineAlong (line), cellTop,    hoverX);
+            HideOverlap (text, bottom, GetLineAlong (line), cellBottom, hoverX);
         }
 
         PaintPlayhead (painter, text, theme, line, top, bottom);
@@ -670,7 +673,7 @@ bool DxuiImageStrip::OnMouseMove (
     }
     else
     {
-        FollowPointer();
+        m_preview.FollowPointer();
     }
 
     return index >= 0 || m_hoverPart != Part::None;
@@ -784,74 +787,13 @@ void DxuiImageStrip::OnMouseLeave()
 //
 //  DxuiImageStrip::Sync
 //
-//  The preview follows the pointer in one popup, opened once and moved along
-//  the strip, never closed and opened again on the way: a window hidden and
-//  shown for each cell crossed flickers. The preview always shows the
-//  snapshot the hovered cell shows, whichever cell the pointer came from:
-//  its full-size picture, or until that is drawn, the cell's own thumbnail
-//  scaled up. A sharp picture already up stays only while the cell shows the
-//  same picture it was chosen for, as neighbors showing one snapshot do; a
-//  cell with no picture at all has no preview.
+//  The preview follows the hovered cell's picture as the source draws it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiImageStrip::Sync()
 {
-    IDxuiImageStripSource::Image  image;
-    IDxuiImageStripSource::Image  thumb;
-    bool                          isFull = false;
-    bool                          isSame = false;
-
-
-
-    if (m_hovered < 0 || m_source == nullptr)
-    {
-        HidePreview();
-        return;
-    }
-
-    thumb  = m_source->GetCellImage (m_hovered);
-    image  = m_source->GetPreviewImage (m_hovered);
-    isFull = image != nullptr;
-    isSame = m_preview != nullptr && thumb != nullptr && thumb == m_previewThumb;
-
-    if (!isFull && !isSame && m_previewDip.cx > 0)
-    {
-        image = thumb;
-    }
-
-    //  Nothing of the cell's own to show: another cell's picture is no
-    //  preview of this one.
-    if (image == nullptr && !isSame)
-    {
-        HidePreview();
-        return;
-    }
-
-    //  Nothing new to show: what is up stays, and keeps up with the pointer.
-    if (image == nullptr || (m_preview != nullptr && image == m_previewImage))
-    {
-        m_previewThumb = thumb;
-        FollowPointer();
-        return;
-    }
-
-    m_previewImage = std::move (image);
-    m_previewThumb = thumb;
-
-    if (isFull)
-    {
-        m_previewDip = SIZE { m_previewImage->width, m_previewImage->height };
-    }
-
-    if (m_preview != nullptr)
-    {
-        MovePreview();
-    }
-    else
-    {
-        ShowPreview();
-    }
+    m_preview.Sync (m_source, m_hovered);
 }
 
 
@@ -866,19 +808,7 @@ void DxuiImageStrip::Sync()
 
 void DxuiImageStrip::HidePreview()
 {
-    DxuiPopupHost  * popup = m_preview;
-
-
-
-    // Cleared first, so the popup's close callback finds nothing to clear.
-    m_preview      = nullptr;
-    m_previewImage = nullptr;
-    m_previewThumb = nullptr;
-
-    if (popup != nullptr && m_popupHost != nullptr)
-    {
-        m_popupHost->ReleasePopup (popup);
-    }
+    m_preview.Hide();
 }
 
 
@@ -887,54 +817,22 @@ void DxuiImageStrip::HidePreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiImageStrip::ShowPreview
+//  DxuiImageStrip::GetBalloonPx
 //
-//  Beside the strip: below one lying down, to the right of one standing up,
-//  flipped when there is no room, centered on the pointer. The picture's
-//  pixels are its size in DIPs, so the popup scales them for the window's
-//  DPI. The popup lets the pointer through and never activates, so the strip
-//  keeps the hover and the window keeps the focus.
+//  How tall the balloon below the strip comes up: a line of its text, its
+//  padding and its border either side, and a gap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiImageStrip::ShowPreview()
+int DxuiImageStrip::GetBalloonPx (const DxuiDpiScaler & scaler) const
 {
-    DxuiPopupHost::ShowParams  params;
-    HRESULT                    hr = S_OK;
+    constexpr float  kLineScale = 1.4f;
+    constexpr float  kPadDip    = 6.0f;
+    constexpr float  kGapDip    = 2.0f;
 
 
 
-    if (m_popupHost == nullptr || m_previewImage == nullptr)
-    {
-        return;
-    }
-
-    m_preview = m_popupHost->AcquirePopup();
-
-    if (m_preview == nullptr)
-    {
-        return;
-    }
-
-    params.ownerHwnd        = m_popupHost->GetHwnd();
-    params.anchorRectScreen = GetPreviewAnchor();
-    params.placement        = m_vertical ? DxuiPopupPlacement::Right : DxuiPopupPlacement::Below;
-    params.flipIfOffscreen  = true;
-    params.dismiss          = DxuiPopupDismiss::Manual;
-    params.input            = DxuiPopupInput::PassThrough;
-    params.shadow           = true;
-    params.grabsCapture     = false;
-    params.sizeDip          = m_previewDip;
-    params.backgroundArgb   = DxuiPopupHost::kDefaultMenuBackgroundArgb;
-    params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text) { RenderPreview (painter, text); };
-    params.onClosed         = [this] () { m_preview = nullptr; };
-
-    hr = m_preview->Show (std::move (params));
-
-    if (FAILED (hr))
-    {
-        HidePreview();
-    }
+    return scaler.ToPx ((int) std::ceil (m_bottomLabel.GetFontSizeDip() * kLineScale + 2.0f * kPadDip + kGapDip));
 }
 
 
@@ -943,78 +841,21 @@ void DxuiImageStrip::ShowPreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiImageStrip::MovePreview
-//
-//  The open popup redraws with its new picture where the pointer now is,
-//  staying on screen throughout.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::MovePreview()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    hr = m_preview->MoveTo (GetPreviewAnchor(), m_previewDip);
-
-    if (FAILED (hr))
-    {
-        HidePreview();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::FollowPointer
-//
-//  The open popup moves to stay centered on the pointer, its picture as it
-//  was, so it glides along the strip rather than jumping from cell to cell.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::FollowPointer()
-{
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_preview == nullptr)
-    {
-        return;
-    }
-
-    hr = m_preview->Reposition (GetPreviewAnchor());
-
-    if (FAILED (hr))
-    {
-        HidePreview();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::GetPreviewAnchor
+//  DxuiImageStrip::GetPreviewAnchorFor
 //
 //  In screen pixels: as wide as the preview and centered on the pointer
 //  along the strip, and across it the whole entry, labels included, so the
-//  preview opens past the hovered cell's labels rather than over them.
+//  preview opens past the hovered cell's labels rather than over them. With
+//  the labels in balloons outside the strip, the balloons above and below
+//  it are included too, so a preview flipped above clears the top balloon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiImageStrip::GetPreviewAnchor() const
+RECT DxuiImageStrip::GetPreviewAnchorFor (SIZE sizeDip) const
 {
     const DxuiDpiScaler  * scaler   = (m_popupHost != nullptr) ? &m_popupHost->GetScaler() : &m_scaler;
-    int                    widthPx  = scaler->ToPx (m_previewDip.cx);
-    int                    heightPx = scaler->ToPx (m_previewDip.cy);
+    int                    widthPx  = scaler->ToPx (sizeDip.cx);
+    int                    heightPx = scaler->ToPx (sizeDip.cy);
     RECT                   anchor   = m_outer;
     POINT                  topLeft  = {};
     POINT                  botRight = {};
@@ -1031,6 +872,12 @@ RECT DxuiImageStrip::GetPreviewAnchor() const
     {
         anchor.left  = m_pointer.x - widthPx / 2;
         anchor.right = anchor.left + widthPx;
+
+        if (m_isLabelsOutside)
+        {
+            anchor.top    -= GetBalloonPx (*scaler);
+            anchor.bottom += GetBalloonPx (*scaler);
+        }
     }
 
     topLeft  = POINT { anchor.left,  anchor.top };
@@ -1081,58 +928,6 @@ void DxuiImageStrip::PaintHoverLine (
     }
 
     hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_pointer.x, (float) m_rc.top - reach, thick, (float) (m_rc.bottom - m_rc.top) + reach * 2.0f);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::GetPreviewRectPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiImageStrip::GetPreviewRectPx() const
-{
-    return (m_preview != nullptr) ? m_preview->GetPlacedRectScreenPx() : RECT {};
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::RenderPreview
-//
-//  Popup-local pixels: the picture fills the popup.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::RenderPreview (
-    IDxuiPainter      & painter,
-    IDxuiTextRenderer & text)
-{
-    const DxuiDpiScaler  * scaler = nullptr;
-    HRESULT                hr     = S_OK;
-
-
-
-    UNREFERENCED_PARAMETER (painter);
-
-    if (m_previewImage == nullptr || m_popupHost == nullptr)
-    {
-        return;
-    }
-
-    scaler = &m_popupHost->GetScaler();
-
-    hr = text.DrawFramebuffer (m_previewImage->bgraPremul.data(), m_previewImage->width, m_previewImage->height,
-                               0.0f, 0.0f,
-                               scaler->ToPxf ((float) m_previewDip.cx),
-                               scaler->ToPxf ((float) m_previewDip.cy));
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

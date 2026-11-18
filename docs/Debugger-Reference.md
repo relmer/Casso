@@ -182,16 +182,29 @@ view. The screen views (`TEXT`, `HGR` and their forms) and the appearance
 commands (`BW`, `COLOR`, `FONT`) are not available; the emulator window
 displays the screen.
 
-Ctrl+F opens a find bar over the pane with the keyboard focus (the console, a
-source document or an event log), as Visual Studio Code's does, and over the
-console from any other pane. In a log it searches the text of the visible
-columns of the rows that pass the filters, and selects the match's row. One
-pane has the bar at a time. The bar has the text to find, then toggles for
+Ctrl+F opens a find bar over the pane with the keyboard focus, as Visual Studio
+Code's does: the console, a source document, the disassembly, an event log, or
+a list pane (Breakpoints, Watches, Stack, Call stack, Trace, BASIC program,
+Symbols, Bookmarks, Data ranges). From any other pane it opens over the
+console. The search button on the disassembly's bar opens the same find bar.
+In a list it searches the text of the visible columns of the rows that pass the
+filters, and selects the match's row. One pane has the bar at a time. The bar has the text to find, then toggles for
 match case (Aa), match whole word (ab) and regular expression (.*), the match's
 place among all of them ("2 of 5"), up and down arrows for the previous and
 next match, and a close button. With no toggle on, the text is found as a plain
 substring, ignoring case. Enter and F3 find the next match, Shift+Enter and
 Shift+F3 the one before, and Escape closes the bar.
+
+In a disassembly view, while the machine is stopped, the find searches every
+line of the address space, not only the rows on screen: the address, the
+bytes, the label and the instruction with its symbols, each while its column
+is visible, and with source rows on, the source line above an instruction.
+The operand and result column isn't searched, since its values are worked
+out for the rows on screen alone. A match is brought into view and selected,
+and Enter walks the matches round the end of memory. The lines' text is made
+once the machine has been stopped for a moment with no step, so it costs
+nothing while you step; until then, and while the machine runs, the find
+searches the rows on screen.
 
 ### Menus
 
@@ -203,10 +216,13 @@ Shift+F3 the one before, and Escape closes the bar.
   Project settings... and Close.
 - **Edit**: Copy, Select all, Find, Find next and Find previous.
 - **Machine**: Reset and Power cycle.
-- **View**: every pane, with the disassembly views, the memory windows, the
-  source files and the BASIC program, the logs and the device panels each in a
-  submenu, then **Reset window layout**. Each pane's key is beside it; see
-  [key schemes](#key-schemes).
+- **View**: every pane, in sections divided by separators. The code first:
+  the disassembly views and the source files, each a submenu, then Call stack,
+  Breakpoints, Bookmarks and the symbol tables. Then the machine's state and
+  memory: Registers, Stack, Watches, the memory windows' submenu, Data ranges
+  and the heat map's panes. Then Console, Trace, Profiler and the **Logs**
+  submenu, then the **Device panels** submenu, and last **Reset window
+  layout**. Each pane's key is beside it; see [key schemes](#key-schemes).
 - **Debug**: Run, Break and Detach; Step into, Step over, Step out, Run to
   cursor, Run one frame, Show beam on screen and Show next statement; Step back
   into, Step back over, Step back out, Reverse continue and Go live; Step by
@@ -244,6 +260,11 @@ lists the earlier lines to pick from, above the command line with the newest
 at the bottom. A line too long for the list ends in an ellipsis and is drawn
 whole while it is highlighted.
 
+`CLS`, or `CLEAR`, clears the console's output, in every command mode and
+with or without the mode's prefix, as does Ctrl+L in the command box or
+**Clear** on the output's context menu. The command box and its earlier lines
+are left as they are.
+
 Every command that changes breakpoints, watches, memory, registers, flags,
 symbols, disks or settings prints one line about what changed, such as
 "Removed breakpoint 3 (exec C000)" or "Removed watch 0 (0400)".
@@ -255,8 +276,8 @@ as the command that does the same, with its reply.
 
 A file that a console line mentions, such as the file `SYM LOAD`, `BLOAD`,
 `BSAVE` or `BPSAVE` read or wrote, is a link with the file's name in place of
-its full path. Its tip has the full path, and a click on it opens File
-Explorer at the file's folder with the file selected. When a debug project
+its full path. Its tip has the full path, and a click on it opens a new File
+Explorer window at the file's folder with the file selected. When a debug project
 loads, the console has "Loaded the debug project for symbols-demo.dbg", where
 "project" is a link to the `.cassoproj` file and the debug file's name is a
 link to the debug file, or to the binary for a binary's project. The debug
@@ -328,9 +349,10 @@ the count since the trip count was last reset, by **Reset trip count** on
 either row's menu or by `RCC`; the total is never reset. **Last branch** is
 the last instruction that sent the PC elsewhere, a taken branch, a jump, a
 call, a return or BRK, and where it went, as `$8759 → $8751`; its menu has
-**Go to branch** and **Go to target**. While the machine is stopped, the stack
-pane's menu has **Push byte...**, **Pop byte** and **Pop word**, which run
-`PUSH`, `POP` and `PPOP`.
+**Go to branch** and **Go to target**. While the machine is stopped, a click
+or a double-click on a register's value opens a box over it for a new value,
+PC's among them, and the stack pane's menu has **Push byte...**, **Pop byte**
+and **Pop word**, which run `PUSH`, `POP` and `PPOP`.
 
 ## Code views
 
@@ -365,6 +387,10 @@ lines or Neither), and a Preview. **View > Disassembly** opens another view.
   it, or while its row menu is open, so the code around can be read. It then
   follows the PC again, with the PC in its middle. **Follow PC** brings it
   back at once.
+- A disassembly row starts at the PC, at each symbol's address and at the
+  target of each branch, jump and call the machine has executed, where a
+  decode from the row before would run over that address. The bytes before
+  it are listed as data.
 - The tips over a symbol, a branch arrow or a heat cell in a code view or a
   source document open at once, without the hover delay.
 - A code view's scroll bar covers the whole address space. The top of the
@@ -460,12 +486,15 @@ other control characters that end a string follow its quotes as bytes:
 `ASC "SYMBOLS DEMO",$00`.
 
 **View > Data ranges** lists each range marked as data, with **Go to** and
-**Delete**.
+**Delete**. A click on a heading sorts the list by that column, and a second
+click reverses the order. The Kind heading's chevron opens a menu of the kinds
+in the list, each checked while its ranges are listed.
 
 ### Bookmarks
 
 **View > Bookmarks** lists each bookmark's number, address and symbol, with
-**Go to** and **Delete**. Ctrl+K, K adds or removes a bookmark on the selected
+**Go to** and **Delete**. A click on a heading sorts the list by that column,
+and a second click reverses the order. Ctrl+K, K adds or removes a bookmark on the selected
 disassembly line, and Ctrl+K, N and Ctrl+K, P go to the next and the previous
 bookmark.
 
@@ -638,16 +667,19 @@ the fields passed over as well.
 
 **Disk values.** Any expression (an `IF`, `CALC`, an address) can read
 `DISK.DRIVE`, `DISK.QTRACK`, `DISK.QTRACK1`, `DISK.QTRACK2`, `DISK.MOTOR`,
-`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ATRACK`,
-`DISK.ASECTOR` and `DISK.AVOLUME`, the selected drive's last address field
-with a good checksum ($FFFF until one is read). They come from the
+`DISK.WRITING`, `DISK.PROTECTED`, `DISK.INSERTED`, and `DISK.ADDR.TRACK`,
+`DISK.ADDR.SECTOR` and `DISK.ADDR.VOLUME`, the selected drive's last address
+field with a good checksum ($FFFF until one is read). `DISK.QTRACK` is where
+the head is; `DISK.ADDR.TRACK` is the track written on the disk, which a
+copy-protected disk can make differ. `DISK.ATRACK`, `DISK.ASECTOR` and
+`DISK.AVOLUME` are older names for the address field's values. They come from the
 controller, never through the bus, so reading them changes nothing, and they
 take precedence over a program symbol of the same name. On a machine with no
 Disk II they are unknown.
 
 ```text
 BPDISK MOTOR ON IF DISK.QTRACK == 0
-CALC DISK.ATRACK
+CALC DISK.ADDR.TRACK
 ```
 
 **RWTS and driver breakpoints follow their vectors.** DOS 3.3 can be loaded at
@@ -706,6 +738,9 @@ An expression has `+ - * / %`, `& | ^ ~`, `! && ||`, the comparisons `== != <
 > <= >=`, and parentheses. Numbers are hex; `0n10` is decimal. A register is
 `A`, `X`, `Y`, `P`, `S` or `PC`, and a symbol is its address; `*addr` is the
 byte at an address, and `<` and `>` before a value are its low and high byte.
+After a value, `.b` is the byte at that address and `.w` the word there, as in
+a watch, so `count.b == 5` compares the byte at `count`. A watch also takes
+`.s` for the text there; an expression doesn't, since text isn't a number.
 `P.C`, `P.Z`, `P.I`, `P.D`, `P.B`, `P.V` and `P.N` are the flags, each 0 or 1:
 
 ```text
@@ -718,15 +753,34 @@ BP COUT IF *FB == 0
 After `BPNAME 3 "Loop top"`, breakpoint or data breakpoint #3 has that name, and
 `BPL`, the Breakpoints pane's Name column and the channel use it in place of
 the default; `BPNAME 3` with no name returns it to the default. In the pane,
-F2, a double-click on the Name cell or Rename on the row's menu edits the name
-in place, and Ctrl+Z undoes it as it undoes the pane's other changes. The name
+F2 or Rename on the row's menu edits the name in place, and Ctrl+Z undoes it
+as it undoes the pane's other changes. A double-click on a row goes to the
+breakpoint's source line, or to its address in the disassembly. The name
 survives `BPEDIT`. `BPSAVE` doesn't write the name, so its script is one
 AppleWin reads.
+
+### Breakpoint logging
+
+After `BPLOG 3 "A={A} count={count.b}"`, each hit of breakpoint #3 writes a
+line to the console, with each expression in braces evaluated at the hit, as
+`Breakpoint #3: A=$42 count=$07`, and then stops. `BPLOG 3 GO "..."` writes the
+line and runs on, as Visual Studio's Continue execution does, and `BPLOG 3
+CLEAR` removes the message. The Breakpoints pane's When hit column lists the
+message, and the debug project saves it. The breakpoint dialog sets the message and Continue
+after logging, which is `GO`.
+
+In `CassoCli debug`, each message is printed after the line whose run wrote it,
+before the stop; with `--json`, as `{"type":"log","text":"Breakpoint #3: A=$42"}`.
+
+`BPLOGS [n]` lists the last n messages, 20 by default, of the last 1000
+written. A debug channel client whose hello sets `"logs":true` receives each
+one as a `log` notification ([DebugChannel.md](DebugChannel.md)); the MCP
+server's `breakpoint_messages` tool lists them with `BPLOGS`.
 
 ### The Breakpoints pane
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,
-Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
+Source line, Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
 submenus. **Delete all** opens a confirmation with Delete and Cancel first. A
 type with fields opens the breakpoint dialog on it, sized to those fields;
 BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors have none,
@@ -734,7 +788,12 @@ so they are set or cleared at once and checked while on, and **Edit...** on
 the row adds a condition. Every type that is a row of the table takes a
 condition, and the info tip after the Condition label lists what it can use,
 with examples; the tip stays open while the pointer is over it or its tip, or
-while it has the focus.
+while it has the focus. **Source line** takes a file of the loaded debug file
+and a line number in it, and is offered only while a debug file is loaded.
+Every type has **Log message**, which sets `BPLOG` (see [breakpoint logging](#breakpoint-logging)),
+and **Don't break**: a hit is counted, and logged when there is a message,
+and the machine runs on. The Breakpoints pane marks such a breakpoint's hit
+count "(don't break)".
 
 A field is checked when the focus moves off it, and OK checks the whole
 breakpoint first, against the debugger's symbols and breakpoints: a definition
@@ -751,6 +810,43 @@ Reading uninitialized memory, a video line and a beam position are rows of the
 pane after the table's breakpoints; unchecking or removing one runs
 `BRKUNINIT OFF`, `BPV OFF` or `BPBEAM OFF`, and a read before written is listed
 as counting from the next power cycle until the heat map tracks writes.
+
+The Kind, Trigger and File headings each have a chevron that opens a menu of
+the column's values, each checked while its breakpoints are listed. Clearing a
+check hides those rows at once and the menu stays open, as File Explorer's
+does. A filtered heading has a funnel, and **Clear filter** on its menu lists
+every row again. Hiding a column clears its filter. The filters last until the
+debugger window closes.
+
+### Breakpoint groups
+
+As in Visual Studio, breakpoints can be put in groups, each with a name.
+A breakpoint or a data breakpoint is in at most one group, and a group
+exists while something is in it. A group's name matches without regard to
+case and is displayed as first typed.
+
+While any group exists, the Breakpoints pane lists the breakpoints in no group
+first, then each group under a heading with its name and how many breakpoints
+it has; a click on a heading collapses or expands it. A row's **Add to
+breakpoint group** submenu has each group and **New group...**, and acts on
+every selected breakpoint; **Remove from group** takes them out. A heading's
+menu has **Enable all**, **Disable all**, **Rename group...**, **Ungroup**,
+after which the breakpoints are in no group, and **Delete group and its
+breakpoints**, after a confirmation. Each is one step on the pane's undo list.
+
+| Command | Effect |
+|---|---|
+| `BPGROUP` | List each group and its breakpoint ids |
+| `BPGROUP name #[,#...]` | Put breakpoints in a group, making it; a name with spaces is quoted |
+| `BPGROUP ! #[,#...]` | Take breakpoints out of their groups |
+| `BPGROUP ENABLE name`, `BPGROUP DISABLE name` | Enable or disable every breakpoint in a group |
+| `BPGROUP RENAME old new` | Rename a group |
+| `BPGROUP UNGROUP name` | Take every breakpoint out of a group |
+| `BPGROUP DELETE name` | Delete a group and its breakpoints |
+
+The debug project saves each breakpoint's group, and a breakpoint is in the
+same group after `BPEDIT`. `BPSAVE` writes AppleWin's script, which has no
+groups.
 
 ## Stepping and history
 
@@ -838,6 +934,7 @@ machine can run backward through the history:
 | Step back out | `GU-` | steps back out to the `JSR` that called the current subroutine |
 | Reverse continue | `G-` | runs backward through the history to the latest breakpoint |
 | Go live | `LIVE` | returns to where the machine was running |
+| Seek | `SEEK -5s`, `SEEK CYCLE n`, `SEEK POS n` | moves to a time back from live (`s` or `ms`), a cycle or a position, as a click on the history band does |
 
 Each mode's forms are in [Debugger-Commands.md](Debugger-Commands.md), and the
 keys in [key schemes](#key-schemes): in every scheme, a reverse command's key
@@ -986,7 +1083,8 @@ command: `SYMMAIN`, `SYMBASIC`, `SYMUSER2`, `SYMSRC` and so on. Loading
 replaces the table's contents, so a second debug file loaded with `SYM LOAD`
 replaces the first; `SYMUSER2 LOAD` loads another file's symbols beside it. **File > Open symbol or debug file...**, or a
 file dropped on the window, loads a file as `SYM LOAD` does, and **File >
-Unload symbol file** clears one.
+Unload symbol or debug file** clears one. `SRC CLEAR` unloads the debug file
+and the symbols it loaded.
 
 A symbol file may be in any of these formats, recognized from its contents:
 
@@ -1085,6 +1183,11 @@ Merlin 8/16 listing, which becomes a source view.
   drag the file onto the debugger and it is matched by its hash, and its
   folder is saved for next time. A file whose hash differs from the one in the
   debug file opens with a warning.
+- A source that is gone from beside the debug file and found in another
+  folder opens with an infobar that has the folder. When the copy's hash is
+  the one in the debug file, the infobar has that its contents are the ones
+  the program was built from. Otherwise it has **Browse...**, to pick another
+  copy.
 
 ### Source documents
 
@@ -1129,20 +1232,32 @@ tables, USER2, SRC and SRC2, are listed only once `SYMUSER2`, `SYMSRC` or
 
 ### Memory windows
 
-Each memory window has Visual Studio's bar. The **Address** box takes an
-address, a register, a symbol or an expression, and its drop-down lists the
-addresses entered before. **Refresh** reads the window's bytes again.
-**Columns** sets the values in a row: Auto, 1, 2, 4, 8 or 16. Auto, the
-default, fits as many as the window's width allows. **Group by** displays
-each value as a byte, a word or a long. **View > Memory** opens another
-window, up to four; a window closes from its tab. What does not fit a narrow
-pane moves into the bar's **...** menu. Type over the hex or the text to edit
-memory, in RAM or in ROM; Ctrl+Z undoes the last edit in that window and
-Ctrl+Y redoes it. Neither writes over a byte that has changed since the edit;
-that byte's address appears in the console instead.
+Each memory window's bar has Undo and Redo, the **Address** box, **Heat** and
+**Refresh**. The Address box takes an address, a register, a symbol or an
+expression, and its drop-down lists the addresses entered before. **Heat**
+tints each byte with its heat map color. **Refresh** reads the window's bytes
+again. The window's menu sets **Columns**, the values in a row (Auto, 1, 2, 4,
+8 or 16; Auto, the default, fits as many as the window's width allows), and
+**Group by**, each value as a byte, a word or a long. **View > Memory** opens
+another window, up to four; a window closes from its tab. What does not fit a
+narrow pane moves into the bar's **...** menu.
 
-**Edit > Find**, Ctrl+F or **Find...** on the window's menu searches all of
-memory as `S` does: hex bytes, a word, text in quotes (`'text'` with the high
+Type over the hex or the text to edit memory, in RAM or in ROM. A hex digit,
+Enter or a double-click on a value opens a box over it for the new value;
+Enter writes it, and Escape closes the box with the value unwritten. Ctrl+Z
+undoes the last edit in that window and Ctrl+Y redoes it. Neither writes over
+a byte that has changed since the edit; a note over the window has that
+byte's address instead.
+The tip over a byte has its symbol, its value, its character and the region
+of memory it is in.
+On a byte's menu, **Go to $2000, the word here** goes to the address that
+byte and the next one make, low byte first, as a pointer there reads.
+
+Ctrl+F or **Edit > Find** opens the find bar over the window, which searches
+all of memory: hex bytes, as `A9 00` or `$A9 $00`, or else text, matched by
+each byte's low seven bits so normal and high-bit characters both match, or a
+regular expression. **Find...** on the window's menu searches all of memory
+as `S` does: hex bytes, a word, text in quotes (`'text'` with the high
 bit set), `??` for any byte and `?n` or `n?` for half of one. The window goes
 to the first match and selects it, and F3 and Shift+F3 walk the matches, round
 to the other end. On a selection, while the machine is stopped, **Fill
@@ -1173,8 +1288,8 @@ in their bytes' colors, and the Language Card's and aux RAM's in the memory
 map's. While the boxes are drawn, the gaps before and after the values are a
 character wider, so a box's edge doesn't crowd the addresses or the text.
 
-Right-click a byte for **Show last writer**, **Show last reader**, **Go to last
-write** and **Go to last read**; see
+Right-click a byte for **Show last writer**, **Show last reader**, **Rewind to last
+write time** and **Rewind to last read time**; see
 [last writer and last reader](#last-writer-and-last-reader).
 **Add as pointer watch** over a byte in zero page runs `ZP`.
 
@@ -1243,7 +1358,7 @@ variables as well; see [Applesoft in the window](#applesoft-in-the-window).
 Under **Zero-page pointers** the pane lists the zero-page pointers: each
 zero-page address, then the address its two bytes form and the first four
 bytes there, as `$0800: 00 00 00 00`, with Remove on its menu running `ZPC`.
-**Add zero-page pointer...** on the pane's menu, and **Add as pointer watch**
+**Add pointer watch...** on the pane's menu, and **Add as pointer watch**
 on a Memory pane's menu over a byte in zero page, run `ZP`.
 
 ### The heat map
@@ -1473,8 +1588,10 @@ pushes onto the stack count as the interrupted instruction's.
   PC, and a step back runs to it. A write older than the history, or made
   while history recording was off, is reported in the console instead.
 - Right-click a cell, or a byte in a memory window, for the same four actions
-  as menu rows: **Show last writer**, **Show last reader**, **Go to last
-  write** and **Go to last read**. A memory window's rows use the CPU's view
+  as menu rows: **Show last writer**, **Show last reader**, **Rewind to last
+  write time** and **Rewind to last read time**, labeled **Fast-forward** instead while
+  history is replayed from before the access. A row is grayed out for an access
+  that never happened, or a rewind to one older than the history. A memory window's rows use the CPU's view
   of the byte.
 
 The last writers and readers follow the machine through history as the
@@ -1575,6 +1692,16 @@ it.
 The logs are in the **View > Logs** submenu: Disk II log, Input log, Video
 log, Sound log, Serial log and Network log.
 
+Each log filters its rows from its columns' headings, as File Explorer does.
+A chevron at the right of a heading opens the column's filter. A column of a
+few values, such as Source, Severity, Event or Track, lists each value its
+events show with a check box, and checking values lists only their rows. A
+column of numbers, such as Time, Cycle, Address or Since, filters by Less
+than, Greater than, Equal to or Between, typed as the column shows the value:
+a count with its commas, an address after a $, a time of day. A filtered
+column's heading has a funnel, Clear filter on its chevron ends the filter,
+and the filters are saved with the log's settings.
+
 ### Disk II
 
 The Disk II panel's bar chooses the drives it draws: **D1**, **D2** or
@@ -1646,7 +1773,7 @@ panels' menus. A row is an entry, with the same text the command lists, in
 columns that can be sorted, displayed or hidden: the video log has the frame,
 the scanline and the line cycle (the CPU cycle within the scanline); the sound
 log has the cycles since the last entry of its kind and its source, which the
-Source column's Filter narrows to the speaker, the 6522s, the AY-3-8910s or the
+Source heading's chevron narrows to the speaker, the 6522s, the AY-3-8910s or the
 SSI-263. Scrolling to the top rebuilds older entries from history. Clear and
 Save on the pane's bar do what `CLEAR` and `SAVE` do, so the pane and the
 command always list the same log.
@@ -1745,7 +1872,7 @@ BASIC error: ?DIVISION BY ZERO ERROR IN 20 (code $85, ONERR on)
   the start of the statement before. A value typed at the prompt, and the
   variables `RUN` clears, stop nothing.
 - A line breakpoint may be set before the line is in the program.
-- After a line, variable or step stop the PC is $D81D, where the interpreter
+- After a line, variable or step stop the PC is $D820, where the interpreter
   starts each statement; after an error stop it is $D412, before the message
   is printed or `ONERR`'s handler runs.
 - The steps and the two lists work only with Applesoft in the $D000 bank. On
@@ -1940,8 +2067,6 @@ A debug project, one for each program, has the debugger's configuration:
   are on;
 - the command mode, the `CD` directory, the instruction trace and trace file,
   the profiler, the stopwatch and where the trip count starts;
-- the pane layout, the closed panes, the pane with the focus, where the
-  command bar and the timeline are docked, and the open views;
 - the console history, each pane's find history and options, the column
   widths you set, and the undo history of the breakpoints, the watches, the
   registers, the stack and the memory windows;
@@ -1950,8 +2075,10 @@ A debug project, one for each program, has the debugger's configuration:
 
 Each breakpoint, data breakpoint, watch and bookmark comes back under the
 number it had, and the next one you add takes the number it would have taken
-before. The key scheme, the theme, the text size and the history settings are
-yours rather than a program's, and are the same for every project. The program
+before. The key scheme, the theme, the text size, the history settings and the
+window's layout (the panes, the closed panes, the pane with the focus, the
+docks and the open views) are yours rather than a program's, and are the same
+for every project, so opening another project doesn't change them. The program
 is the most specific of these:
 
 1. the debug or symbol file `SYM LOAD` last loaded, by its content rather

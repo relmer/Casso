@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
+#include "Ui/Debugger/DebuggerIcons.h"
 
 #include "CppUnitTest.h"
 #include "Core/TextEncoding.h"
@@ -196,6 +197,28 @@ namespace DebuggerTests
             return ev;
         }
 
+        //  The Heat toggle is the flame icon alone, in the ink the bar's other
+        //  icons are drawn in.
+        TEST_METHOD (TheHeatToggleIsTheFlameIcon)
+        {
+            MemoryBarCommands                commands ({});
+            std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries (nullptr);
+            auto                             heat     = std::ranges::find_if (entries, [] (const DxuiToolbar::Entry & each) { return each.command->id == MemoryBarCommands::kHeat; });
+
+
+
+            Assert::IsTrue (heat != entries.end());
+            Assert::IsTrue (heat->vectorIcon != nullptr && std::wstring (heat->vectorIcon->pathData) == DebuggerIcons::s_kHeat.pathData, L"the flame");
+            Assert::IsTrue (heat->iconOnly, L"without its label");
+            Assert::IsTrue (heat->kind == DxuiToolbar::Kind::Toggle);
+
+            for (size_t i = 0; i < DebuggerIcons::s_kHeat.layerCount; i++)
+            {
+                Assert::IsFalse (DebuggerIcons::s_kHeat.layers[i].accent, L"no accent ink");
+            }
+        }
+
+
         TEST_METHOD (TheBarHoldsVisualStudiosEntriesAndNoPokeOrCloseButton)
         {
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
@@ -212,16 +235,45 @@ namespace DebuggerTests
                 ids.push_back (window.GetMemoryGroup().GetBar()->GetEntryCommandId (i));
             }
 
-            for (int id : { MemoryBarCommands::kAddress, MemoryBarCommands::kRefresh, MemoryBarCommands::kColumns,
-                            MemoryBarCommands::kGrouping })
-            {
-                Assert::IsTrue (std::find (ids.begin(), ids.end(), id) != ids.end(), std::format (L"entry {} is on the bar", id).c_str());
-            }
+            std::erase_if (ids, [] (int id) { return id < MemoryBarCommands::kAddress || id > MemoryBarCommands::kHeat; });
+
+            Assert::IsTrue (ids == std::vector<int> { MemoryBarCommands::kUndo, MemoryBarCommands::kRedo, MemoryBarCommands::kAddress,
+                                                      MemoryBarCommands::kHeat, MemoryBarCommands::kRefresh },
+                            L"Undo, Redo, the address box, Heat and Refresh, in that order; Columns is on the right-click menu");
 
             Assert::IsNull (window.FindButton (L"- Memory"), L"a window closes from its tab");
             Assert::IsNull (window.FindButton (L"Poke"),     L"memory is written in the view or from the console");
         }
 
+
+        //  The memory window's menu starts with the hex view's, as Casso
+        //  Explorer shows it: the value sizes and formats checked as they are
+        //  set, the Columns choices in their submenu, and Copy, disabled with
+        //  nothing selected.
+        TEST_METHOD (TheViewsOwnMenuBecomesThePaneMenusRows)
+        {
+            DxuiHexView                     view;
+            std::vector<DxuiPopupMenuItem>  from;
+            PaneMenuItems                   rows;
+            auto                            find = [&rows] (const std::wstring & label)
+            {
+                return std::ranges::find_if (rows, [&label] (const auto & row) { return row.first == label; });
+            };
+
+
+
+            (void) view.SetGrouping (2);
+            view.BuildContextMenu (from);
+            MemoryWindowGroup::AppendViewItems (from, std::wstring(), rows);
+
+            Assert::IsTrue (find (std::wstring (1, PaneMenu::kChecked) + L"2-byte integer") != rows.end(), L"the grouping in force is checked");
+            Assert::IsTrue (find (L"1-byte integer") != rows.end(), L"another is not");
+            Assert::AreEqual ((ptrdiff_t) 6, std::ranges::count_if (rows, [] (const auto & row) { return row.first.starts_with (PaneMenu::MakeInSubmenu (L"Columns", L"")); }), L"the six Columns choices are in their submenu");
+            Assert::IsTrue (find (L"Copy") != rows.end() && !find (L"Copy")->second, L"Copy, with nothing selected, is disabled");
+
+            find (L"1-byte integer")->second();
+            Assert::AreEqual (1, view.GetGrouping(), L"a row does what the view's own menu does");
+        }
 
         //  The undo history the window opens with is the machine's the first
         //  snapshot is from, so that snapshot clears none of it; a later
@@ -309,19 +361,22 @@ namespace DebuggerTests
         }
 
 
-        //  Over a byte the memory window shows its address at once, in either
-        //  column, and a press that starts a selection takes the tip away.
-        TEST_METHOD (TheAddressUnderThePointerShowsAtOnce)
+        //  Over a byte the memory window's tip has its address after the open
+        //  delay, as other tips do, in either column, and a press that starts
+        //  a selection takes the tip away.
+        TEST_METHOD (TheAddressUnderThePointerShowsAfterTheDelay)
         {
-            constexpr int    kCellWidthDip  = 8;
-            constexpr int    kCellHeightDip = 16;
-            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
-            MemoryBarHost    host;
-            MemoryBarWindow  window (theme, host);
-            DxuiHexView    * view           = nullptr;
-            RECT             hex            = {};
-            RECT             text           = {};
-            DxuiMouseEvent   press;
+            constexpr int      kCellWidthDip  = 8;
+            constexpr int      kCellHeightDip = 16;
+            constexpr int64_t  kPastDwellMs   = 60000;
+            CassoTheme         theme          = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost      host;
+            MemoryBarWindow    window (theme, host);
+            DxuiTooltip      & tooltip        = const_cast<DxuiTooltip &> (window.GetTooltip());   // the window has only a const accessor
+            DxuiHexView      * view           = nullptr;
+            RECT               hex            = {};
+            RECT               text           = {};
+            DxuiMouseEvent     press;
 
 
 
@@ -338,7 +393,10 @@ namespace DebuggerTests
 
             (void) window.OnMouse (MakeMove (hex.left + 1, hex.top + 1));
             Assert::IsTrue   (hex.right > hex.left, L"the byte is on screen");
-            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell");
+            Assert::IsFalse  (window.GetTooltip().IsVisible(), L"the open delay first");
+
+            tooltip.Tick ((int64_t) GetTickCount64() + kPastDwellMs);
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"up once the delay passes");
             Assert::IsTrue   (window.GetTooltip().GetText().starts_with (L"$"), window.GetTooltip().GetText().c_str());
             Assert::IsTrue   (window.GetTooltip().GetText().size() == 5 || window.GetTooltip().GetText()[5] == L' ', L"a four-digit address");
 
@@ -358,17 +416,19 @@ namespace DebuggerTests
         //  placed against the pointer rather than snapped to each byte.
         TEST_METHOD (TheAddressTipFollowsThePointerWithoutBeingRaisedAgain)
         {
-            constexpr int    kCellWidthDip  = 8;
-            constexpr int    kCellHeightDip = 16;
-            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
-            MemoryBarHost    host;
-            MemoryBarWindow  window (theme, host);
-            DxuiHexView    * view           = nullptr;
-            uint64_t         first          = 0;
-            RECT             hex            = {};
-            RECT             next           = {};
-            int              shown          = 0;
-            std::wstring     firstText;
+            constexpr int      kCellWidthDip  = 8;
+            constexpr int      kCellHeightDip = 16;
+            constexpr int64_t  kPastDwellMs   = 60000;
+            CassoTheme         theme          = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost      host;
+            MemoryBarWindow    window (theme, host);
+            DxuiTooltip      & tooltip        = const_cast<DxuiTooltip &> (window.GetTooltip());   // the window has only a const accessor
+            DxuiHexView      * view           = nullptr;
+            uint64_t           first          = 0;
+            RECT               hex            = {};
+            RECT               next           = {};
+            int                shown          = 0;
+            std::wstring       firstText;
 
 
 
@@ -384,6 +444,7 @@ namespace DebuggerTests
             next  = view->GetByteRect (first + 4, DxuiHexView::Column::Hex);
 
             (void) window.OnMouse (MakeMove (hex.left + 1, hex.top + 1));
+            tooltip.Tick ((int64_t) GetTickCount64() + kPastDwellMs);
             Assert::IsTrue (window.GetTooltip().IsVisible());
 
             shown     = window.GetTooltip().GetShowCount();
@@ -434,7 +495,8 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)        {
+        TEST_METHOD (ColumnsAndTheViewsGroupingSizeTheActiveWindow)
+        {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             MemoryBarHost    host;
             MemoryBarWindow  window (theme, host);
@@ -446,7 +508,7 @@ namespace DebuggerTests
             window.GetMemoryGroup().ChooseColumns (4);
             Assert::AreEqual (4, window.GetFirstHexView()->GetBytesPerRow(), L"four bytes a row");
 
-            window.GetMemoryGroup().ChooseGrouping (2);
+            (void) window.GetFirstHexView()->SetGrouping (2);
             Assert::AreEqual (8, window.GetFirstHexView()->GetBytesPerRow(), L"four words a row");
 
             window.GetMemoryGroup().ChooseColumns (0);

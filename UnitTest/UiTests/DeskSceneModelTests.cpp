@@ -228,6 +228,34 @@ public:
         return obj;
     }
 
+    //  THE HD20SC'S MODEL NUMBER IS SET GLYPH BY GLYPH, left to right from
+    //  the badge, and a character without a glyph is skipped.
+    TEST_METHOD (HardDisk_Label_Follows_Its_Text)
+    {
+        std::vector<Dxui3DRenderer::Vertex>  twenty;
+        std::vector<Dxui3DRenderer::Vertex>  thirtyTwo;
+        std::vector<Dxui3DRenderer::Vertex>  skipped;
+        std::vector<Dxui3DRenderer::Vertex>  five;
+        float                                rightTwenty = -FLT_MAX;
+        float                                rightFive   = -FLT_MAX;
+
+
+
+        DeskSceneModel::StampHardDiskLabel (twenty,    L"20SC");
+        DeskSceneModel::StampHardDiskLabel (thirtyTwo, L"32SC");
+        DeskSceneModel::StampHardDiskLabel (skipped,   L"20?SC");
+        DeskSceneModel::StampHardDiskLabel (five,      L"5SC");
+
+        Assert::IsFalse  (twenty.empty());
+        Assert::IsFalse  (thirtyTwo.empty());
+        Assert::AreEqual (twenty.size(), skipped.size(), L"the unknown character adds nothing");
+
+        for (const Dxui3DRenderer::Vertex & v : twenty) { rightTwenty = std::max (rightTwenty, v.x); }
+        for (const Dxui3DRenderer::Vertex & v : five)   { rightFive   = std::max (rightFive,   v.x); }
+
+        Assert::IsTrue (rightFive < rightTwenty, L"one digit ends nearer the badge than two");
+    }
+
     TEST_METHOD (Monitor_Splits_Glass_And_Derives_The_Surface)
     {
         DeskSceneModel   model;
@@ -358,6 +386,90 @@ public:
                 Assert::IsTrue (model.RegionBoxes()[eject].boxMax[axis] <= model.RegionBoxes()[2].boxMax[axis]);
             }
         }
+    }
+
+    // The 3.5-inch drive's case as cad_floppy35.py builds it, at test size:
+    // the case, its lamp, and the back of its slot 6.5 mm behind the face.
+    static std::string Floppy35Obj()
+    {
+        std::string   obj;
+        int           base = 0;
+
+        AppendBox (obj, base, 0.0f, 0.0f, 0.0f, 140.0f, 200.0f, 50.0f, "case");
+        AppendBox (obj, base, 7.0f, -0.3f, 30.0f, 10.0f, 0.2f, 32.0f, "led");
+        AppendBox (obj, base, 15.4f, 6.5f, 32.0f, 116.2f, 7.0f, 37.0f, "slot_back");
+
+        return obj;
+    }
+
+    //  A 3.5-INCH DRIVE LOADS WITH ITS LAMP AND ITS SLOT, which is where the
+    //  scene draws a disk that is in the drive. The back of the slot is drawn
+    //  as part of the case.
+    TEST_METHOD (Floppy35_Finds_Its_Lamp_And_Slot)
+    {
+        DeskSceneModel  model;
+        const float   * slot = nullptr;
+
+
+
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::HardDisk20SC, Floppy35Obj(), Mtl()));
+        Assert::AreEqual ((size_t) 1, model.Lamps().size());
+        Assert::IsTrue (model.HasSlot());
+
+        slot = model.SlotBox();
+        Assert::AreEqual (15.4f,  slot[0], 0.01f);
+        Assert::AreEqual (6.5f,   slot[1], 0.01f);
+        Assert::AreEqual (32.0f,  slot[2], 0.01f);
+        Assert::AreEqual (116.2f, slot[3], 0.01f);
+        Assert::AreEqual (37.0f,  slot[5], 0.01f);
+        Assert::AreEqual ((size_t) 2 * 12 * 3, model.OpaqueVerts().size(), L"the case and the back of the slot are drawn");
+    }
+
+    //  A HARD DISK HAS NO SLOT, and the disk in a drive is drawn only where a
+    //  slot is.
+    TEST_METHOD (HardDisk_Has_No_Slot)
+    {
+        DeskSceneModel                       model;
+        std::vector<Dxui3DRenderer::Vertex>  disk;
+
+
+
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::HardDisk20SC, DriveObj (false), Mtl()));
+        Assert::IsFalse (model.HasSlot());
+
+        model.BuildDiskInSlot (disk);
+        Assert::IsTrue (disk.empty());
+    }
+
+    //  A DISK IN A 3.5-INCH DRIVE is drawn as its back edge in the slot:
+    //  inside the slot's width and height, behind the case's front, and in
+    //  front of the back of the slot.
+    TEST_METHOD (Disk_In_The_Slot_Sits_Inside_It)
+    {
+        DeskSceneModel                       model;
+        std::vector<Dxui3DRenderer::Vertex>  disk;
+        const float                        * slot  = nullptr;
+        float                                front = FLT_MAX;
+
+
+
+        AssertSucceeded (LoadFromText (model, DeskDeviceKind::HardDisk20SC, Floppy35Obj(), Mtl()));
+        slot = model.SlotBox();
+
+        model.BuildDiskInSlot (disk);
+        Assert::IsFalse (disk.empty());
+
+        for (const Dxui3DRenderer::Vertex & v : disk)
+        {
+            Assert::IsTrue (v.x > slot[0] && v.x < slot[3], L"inside the slot's width");
+            Assert::IsTrue (v.z > slot[2] && v.z < slot[5], L"inside the slot's height");
+            Assert::IsTrue (v.y <= slot[1], L"in front of the back of the slot");
+            Assert::IsTrue (v.nx != 0.0f || v.ny != 0.0f || v.nz != 0.0f, L"lit");
+            front = std::min (front, v.y);
+        }
+
+        Assert::IsTrue (front > model.FrontPlaneY(), L"behind the case's front");
+        Assert::IsTrue (front < slot[1] - 3.0f, L"far enough in front of the back of the slot to be seen");
     }
 
     //

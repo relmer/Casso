@@ -3,6 +3,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceMacroPlaces.h"
 
 #include "CppUnitTest.h"
 
@@ -84,7 +85,7 @@ namespace DebuggerTests
         {
             DebuggerViewSnapshot  snapshot = MakeNested();
             DxuiTextView          view;
-            DxuiActionBanner      banner;
+            DxuiInfoBanner        banner;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &)
                                         {
@@ -124,10 +125,10 @@ namespace DebuggerTests
 
         TEST_METHOD (ShowInvocationGoesOutOneLevelPerStep)
         {
-            Assert::AreEqual (2, SourcePane::GetNextMacroLevel (0, 2), L"Show body goes to the body line");
-            Assert::AreEqual (1, SourcePane::GetNextMacroLevel (2, 2));
-            Assert::AreEqual (0, SourcePane::GetNextMacroLevel (1, 2));
-            Assert::AreEqual (0, SourcePane::GetNextMacroLevel (0, 0), L"not in a macro");
+            Assert::AreEqual (2, SourceMacroPlaces::GetNextMacroLevel (0, 2), L"Show body goes to the body line");
+            Assert::AreEqual (1, SourceMacroPlaces::GetNextMacroLevel (2, 2));
+            Assert::AreEqual (0, SourceMacroPlaces::GetNextMacroLevel (1, 2));
+            Assert::AreEqual (0, SourceMacroPlaces::GetNextMacroLevel (0, 0), L"not in a macro");
         }
 
 
@@ -138,12 +139,12 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (2, SourcePane::GetMacroLevel (*snapshot.source, -1));
-            Assert::AreEqual (2, SourcePane::GetMacroLevel (*snapshot.source, 7), L"a level deeper than the PC is the body");
-            Assert::AreEqual (9, SourcePane::GetPlace (*snapshot.source, 1).second);
+            Assert::AreEqual (2, SourceMacroPlaces::GetMacroLevel (*snapshot.source, -1));
+            Assert::AreEqual (2, SourceMacroPlaces::GetMacroLevel (*snapshot.source, 7), L"a level deeper than the PC is the body");
+            Assert::AreEqual (9, SourceMacroPlaces::GetPlace (*snapshot.source, 1).second);
 
             snapshot.source->depth = 0;
-            Assert::AreEqual (0, SourcePane::GetMacroLevel (*snapshot.source, 2), L"out of the macro");
+            Assert::AreEqual (0, SourceMacroPlaces::GetMacroLevel (*snapshot.source, 2), L"out of the macro");
         }
     };
 }

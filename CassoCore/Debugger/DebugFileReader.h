@@ -42,15 +42,15 @@ private:
 
     using Fields = std::vector<std::pair<std::string_view, std::string>>;
 
-    static std::string_view  GetNextLine    (std::string_view text, size_t & at);
-    static void              SplitFields    (std::string_view pairs, Fields & out);
-    static const std::string * FindField    (const Fields & fields, std::string_view key);
-    static int               GetInt         (const Fields & fields, std::string_view key, int fallback);
-    static uint64_t          GetNumber      (const Fields & fields, std::string_view key, uint64_t fallback);
-    static std::string       GetString      (const Fields & fields, std::string_view key);
-    static std::vector<int>  GetIdList      (const Fields & fields, std::string_view key);
-    static bool              TryParseNumber (std::string_view text, uint64_t & value);
-    static bool              TryParseListingLine (std::string_view line, uint32_t & address, std::vector<Byte> & bytes, bool & hasLineNumber);
+    static std::string_view     GetNextLine         (std::string_view text, size_t & at);
+    static void                 SplitFields         (std::string_view pairs, Fields & out);
+    static const std::string  * FindField           (const Fields & fields, std::string_view key);
+    static int                  GetInt              (const Fields & fields, std::string_view key, int fallback);
+    static uint64_t             GetNumber           (const Fields & fields, std::string_view key, uint64_t fallback);
+    static std::string          GetString           (const Fields & fields, std::string_view key);
+    static std::vector<int>     GetIdList           (const Fields & fields, std::string_view key);
+    static bool                 TryParseNumber      (std::string_view text, uint64_t & value);
+    static bool                 TryParseListingLine (std::string_view line, uint32_t & address, std::vector<Byte> & bytes, bool & hasLineNumber);
 
     static void     ReadRecord (std::string_view keyword, const Fields & fields, DebugFile & file);
     static HRESULT  Validate   (const DebugFile & file, std::string & error);

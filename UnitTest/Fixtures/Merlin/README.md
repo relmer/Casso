@@ -63,7 +63,7 @@ and for an object the two are one figure.
 
 `Bytes` is the committed file and `Form` is how it is stored: `verbatim` for the
 disk's own bytes, `text` for a source transcoded to Windows text. `Load` and
-`Length` are the DOS 3.3 header the file carried on the disk. A transcoded
+`Length` are the DOS 3.3 header the file had on the disk. A transcoded
 source no longer carries that header, and the figures stay here because they are
 evidence about the artifact rather than about the copy of it.
 

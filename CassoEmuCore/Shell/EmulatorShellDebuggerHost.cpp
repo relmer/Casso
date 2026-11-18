@@ -12,6 +12,9 @@
 #include "Shell/Components/ShellWindow.h"
 #include "Core/TextEncoding.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
+#include "Core/PathResolver.h"
+#include "Seams/Win32ProcessLauncher.h"
 #include "resource.h"
 
 
@@ -306,6 +309,26 @@ void EmulatorShell::DebuggerHost::ShowFileInFolder (const std::wstring & path)
 
     hr = verbs.ShowInFolder (path);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::ShowFileInCassoExplorer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DebuggerHost::ShowFileInCassoExplorer (const std::wstring & path)
+{
+    Win32ProcessLauncher  launcher;
+
+
+
+    return LaunchCommand::LaunchCassoExplorerAt (launcher, PathResolver::GetExecutableDirectory().wstring(), path,
+                                                 m_shell.m_window->GetWindowTitlePrefix()) == LaunchCommand::Outcome::Launched;
 }
 
 

@@ -1,7 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryWindows.h"
-#include "Ui/Debugger/ToolbarLabelEntry.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -101,7 +102,7 @@ void MemoryWindowPane::CreateControls()
             }
         },
         [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
-        [this] (const std::string & line)            { m_host.AppendConsole ({ line }); });
+        [this] (const std::string & line)            { m_host.ShowPaneReply (GetId(), { line }, false); });
 
     m_view->SetVisible (m_isOpen);
 }
@@ -259,6 +260,24 @@ bool MemoryWindowPane::RequestClose()
 void MemoryWindowPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 {
     m_group.AddWindowMenuItems (*this, clientPx, items);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowPane::OnGoToKey
+//
+//  The Address box takes the focus, as with Go to... on the menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryWindowPane::OnGoToKey()
+{
+    m_group.FocusAddressBox();
+    return true;
 }
 
 
@@ -443,6 +462,25 @@ void MemoryWindowGroup::ClearHistories()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryWindowGroup::ApplyColors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::ApplyColors()
+{
+    for (MemoryWindowPane * window : m_windows)
+    {
+        window->GetModel().SetTextColors  (m_host.GetTextColors());
+        window->GetModel().SetHeatPalette (m_host.GetHeatPalette());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryWindowGroup::CreateControls
 //
 //  The bar before its Address box, so the box paints over the strip.
@@ -453,6 +491,21 @@ void MemoryWindowGroup::CreateControls()
 {
     m_bar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
     m_box = m_host.GetControlParent().CreateChild<DxuiTextInput>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowPane::GetFindView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiFindTarget * MemoryWindowPane::GetFindView() const
+{
+    return m_model.get();
 }
 
 
@@ -489,14 +542,13 @@ void MemoryWindowGroup::Configure()
                                  L"Addresses entered before");
 
     m_bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
+    m_box->SetTextRenderer  (m_host.GetPaneTextRenderer());
     m_bar->SetPopupHost     (m_host.GetPanePopupHost());
     m_bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
     m_bar->SetCompact       (true);
     m_bar->SetPaneTextInset (true);
     m_bar->SetBottomEdge    (false);
     m_bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
-    m_findCount    = std::make_unique<ToolbarLabelEntry> (std::wstring());
-    m_findCount->SetTip (L"The match selected and the number of matches, after Find and each F3 or Shift+F3");
     SetBarEntries();
     m_bar->SetVisible       (false);
 
@@ -524,18 +576,14 @@ void MemoryWindowGroup::Configure()
 //
 //  MemoryWindowGroup::SetBarMenus
 //
-//  The Address box's history, newest first, and the Columns and grouping
-//  choices with the active window's checked. Built again whenever what they
-//  list changes, since the rows have the state they were built with.
+//  The Address box's history, newest first. Built again whenever it
+//  changes, since the rows have the state they were built with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryWindowGroup::SetBarMenus()
 {
     std::vector<DxuiPopupMenuItem>  history;
-    std::vector<DxuiPopupMenuItem>  columns;
-    std::vector<DxuiPopupMenuItem>  grouping;
-    MemoryWindowPane              * window   = GetActive();
 
 
 
@@ -548,23 +596,7 @@ void MemoryWindowGroup::SetBarMenus()
         })));
     }
 
-    for (int choice : MemoryBarCommands::GetColumnChoices())
-    {
-        columns.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetColumnsLabel (choice),
-                                                                                     window != nullptr && window->GetModel().GetColumns() == choice,
-                                                                                     [this, choice] { ChooseColumns (choice); })));
-    }
-
-    for (int choice : MemoryBarCommands::GetGroupingChoices())
-    {
-        grouping.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetGroupingName (choice),
-                                                                                      window != nullptr && window->GetModel().GetGrouping() == choice,
-                                                                                      [this, choice] { ChooseGrouping (choice); })));
-    }
-
-    m_bar->SetDropDownItems (MemoryBarCommands::kAddress,  std::move (history));
-    m_bar->SetDropDownItems (MemoryBarCommands::kColumns,  std::move (columns));
-    m_bar->SetDropDownItems (MemoryBarCommands::kGrouping, std::move (grouping));
+    m_bar->SetDropDownItems (MemoryBarCommands::kAddress, std::move (history));
 }
 
 
@@ -575,30 +607,13 @@ void MemoryWindowGroup::SetBarMenus()
 //
 //  MemoryWindowGroup::GetBarLabel
 //
-//  What the drop-downs show: the choice in force in the active window.
+//  Every entry has its label from the bar's rows, so none is replaced.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring MemoryWindowGroup::GetBarLabel (int id) const
 {
-    MemoryWindowPane  * window = GetActive();
-
-
-
-    if (window == nullptr)
-    {
-        return std::wstring();
-    }
-
-    if (id == MemoryBarCommands::kColumns)
-    {
-        return L"Columns: " + MemoryBarCommands::GetColumnsLabel (window->GetModel().GetColumns());
-    }
-
-    if (id == MemoryBarCommands::kGrouping)
-    {
-        return MemoryBarCommands::GetGroupingLabel (window->GetModel().GetGrouping());
-    }
+    (void) id;
 
     return std::wstring();
 }
@@ -675,7 +690,7 @@ std::wstring MemoryWindowGroup::GetBarTip (int id) const
 //  MemoryWindowGroup::RunBarEntry
 //
 //  The drop-downs open from the strip; a choice from one comes back through
-//  ChooseColumns or ChooseGrouping.
+//  ChooseColumns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -721,24 +736,6 @@ void MemoryWindowGroup::RunBarEntry (int id)
 void MemoryWindowGroup::ChooseColumns (int columns)
 {
     GetActive()->GetModel().SetColumns (columns);
-    SetBarMenus();
-    m_host.RelayoutWindow();
-    m_host.Repaint();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::ChooseGrouping
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::ChooseGrouping (int grouping)
-{
-    GetActive()->GetModel().SetGrouping (grouping);
     SetBarMenus();
     m_host.RelayoutWindow();
     m_host.Repaint();
@@ -901,7 +898,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
 
 
-    if (snapshot.goTo.has_value() && snapshot.goTo->serial != m_goToSerial)
+    if (snapshot.goTo.has_value() && snapshot.goTo->serial != m_goToSerial && snapshot.goTo->window != DebuggerViewState::kHeatMapGoTo)
     {
         const DebuggerViewSnapshot::GoTo & goTo = *snapshot.goTo;
 
@@ -913,13 +910,13 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
         }
         else
         {
-            m_host.AppendConsole ({ std::format ("Go to: \"{}\" is not an address. {}", goTo.text, goTo.error) });
+            m_host.ShowPaneReply (GetWindow (goTo.window) != nullptr ? GetWindow (goTo.window)->GetId() : std::wstring(),
+                                  { std::format ("\"{}\" is not an address.", goTo.text), goTo.error }, true);
         }
     }
 
     m_isPaused    = snapshot.isPaused;
     m_hasSnapshot = true;
-    m_searchHits  = snapshot.searchHits;
 
     ApplyResults (snapshot);
 
@@ -938,6 +935,10 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
         each->GetModel().SetTextColors (m_host.GetTextColors());
         each->GetModel().SetPaused     (snapshot.isPaused);
+        each->GetModel().SetSlotCards  (snapshot.slotCards);
+        each->GetModel().SetMachineId  (snapshot.machineId);
+        each->GetModel().SetMemoryImage (snapshot.memoryImage);
+        each->GetModel().SetSymbols    (snapshot.symbols == nullptr ? nullptr : std::shared_ptr<const std::vector<SymbolInfo>> (snapshot.symbols, &snapshot.symbols->symbols));
         each->GetModel().SetHeat       (snapshot.heatColumns, m_host.GetHeatPalette());
 
         //  Bytes are edited while the machine is stopped, as Visual Studio's
@@ -991,14 +992,7 @@ void MemoryWindowGroup::Apply (const DebuggerViewSnapshot & snapshot)
 
 void MemoryWindowGroup::ApplyResults (const DebuggerViewSnapshot & snapshot)
 {
-    m_searchSerial  = snapshot.searchSerial;
     m_compareSerial = snapshot.compareSerial;
-
-    if (m_find.isAwaiting && snapshot.searchSerial != m_find.awaited)
-    {
-        m_find.isAwaiting = false;
-        StepFind (true);
-    }
 
     if (m_compare.isAwaiting && snapshot.compareSerial != m_compare.awaited && GetWindow (m_compare.window) != nullptr)
     {
@@ -1042,15 +1036,18 @@ bool MemoryWindowGroup::Tick (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::SetTextZoom
+//  MemoryWindowPane::SetTextZoom
+//
+//  Each memory window's bytes are sized apart from the other windows', so
+//  zooming one does not resize the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryWindowGroup::SetTextZoom (float zoom)
+void MemoryWindowPane::SetTextZoom (float zoom)
 {
-    for (MemoryWindowPane * window : m_windows)
+    if (m_view != nullptr)
     {
-        window->GetView()->SetZoom (zoom);
+        m_view->SetZoom (zoom);
     }
 }
 
@@ -1123,6 +1120,7 @@ void MemoryWindowGroup::PlaceBar()
     bounds = slot->GetBounds();
 
     m_bar->SetTextRenderer   (host->GetTextRenderer());
+    m_box->SetTextRenderer   (host->GetTextRenderer());
     m_bar->SetPopupHost      (host->GetPopupHost());
     m_bar->SetHostClientRect (host->GetBounds());
     m_bar->Layout            (m_host.GetBarStrip (m_barPane, bounds), m_host.GetPaneScaler());
@@ -1358,32 +1356,16 @@ bool MemoryWindowGroup::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * fo
 //
 //  MemoryWindowGroup::OnMappedAction
 //
-//  In a window, Find searches memory and F3 and Shift+F3 walk the matches.
+//  Find, F3 and Shift+F3 are the window's find box's, as in every pane
+//  with one: the window's model is its find target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryWindowGroup::OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl *)
 {
-    MemoryWindowPane  * window = GetFocused();
+    (void) action;
 
-
-
-    if (window == nullptr || (action != DebuggerKeySchemes::Action::Find && action != DebuggerKeySchemes::Action::FindNext &&
-                              action != DebuggerKeySchemes::Action::FindPrevious))
-    {
-        return false;
-    }
-
-    if (action != DebuggerKeySchemes::Action::Find && m_find.window == window->GetWindowId())
-    {
-        StepFind (action == DebuggerKeySchemes::Action::FindNext);
-    }
-    else
-    {
-        FindIn (window);
-    }
-
-    return true;
+    return false;
 }
 
 
@@ -1415,9 +1397,10 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 //
 //  MemoryWindowGroup::TryGetTipAt
 //
-//  Over a byte of an open window, in either column, its address, at once and
-//  following the pointer itself rather than snapping from byte to byte; and
-//  while heat is on, its counts and what its tint means.
+//  Over a byte of an open window, in either column, its address, after the
+//  open delay and then following the pointer itself rather than snapping
+//  from byte to byte; and while heat is on, its counts and what its tint
+//  means.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1440,6 +1423,7 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
             }
 
             tip.placement   = DxuiTip::Placement::FollowPointer;
+            tip.isDelayed   = true;
             tip.isMonospace = true;
             return true;
         }
@@ -1456,17 +1440,24 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 //
 //  MemoryWindowGroup::AddWindowMenuItems
 //
-//  On a selection: Fill and Copy write the machine, so only while it is
-//  stopped; Compare reads it, so at any time. A byte in zero page can be
-//  the low byte of a pointer.
+//  Grouped: the two copies, then going and finding, with the byte's last
+//  reader and writer under Last access, then what acts on a selection (Fill
+//  and Copy write the machine, so only while it is stopped; Compare reads
+//  it, so at any time), then the byte's watch and bookmark. The view's
+//  format choices are under Display. Undo and Redo are the bar's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items)
 {
-    MemoryWindowPane     * each  = &window;
-    MemoryPane           & model = window.GetModel();
-    std::optional<Word>    byte;
+    MemoryWindowPane                * each     = &window;
+    MemoryPane                      & model    = window.GetModel();
+    std::optional<Word>               byte;
+    std::vector<DxuiPopupMenuItem>    viewItems;
+    std::vector<DxuiPopupMenuItem>    copyItems;
+    std::vector<DxuiPopupMenuItem>    displayItems;
+    PaneMenuItems                     access;
+    bool                              isPaused = m_isPaused;
 
 
 
@@ -1477,17 +1468,74 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
     }
 
     m_active = each;
-    items.push_back ({ L"Copy",                   [each] { each->GetView()->CopySelection(); } });
-    items.push_back ({ L"Go to...",               [this] { m_host.FocusControl (m_box); } });
-    items.push_back ({ L"Change bytes per value", [each] { (void) each->GetModel().CycleGrouping(); } });
-    items.push_back ({ L"Find...",                [this, each] { FindIn (each); } });
+
+    window.GetView()->SetOnSettingsChanged ([this, each]
+    {
+        each->GetModel().SyncFromView();
+        SetBarMenus();
+        m_host.RelayoutWindow();
+        m_host.Repaint();
+    });
+
+    //  The hex view's menu, Copy apart from its format choices.
+    window.GetView()->BuildContextMenu (viewItems);
+
+    for (const DxuiPopupMenuItem & item : viewItems)
+    {
+        std::wstring  label = (item.command != nullptr) ? item.command->label : std::wstring();
+
+
+
+        std::erase (label, L'&');
+        (label == L"Copy" ? copyItems : displayItems).push_back (item);
+    }
+
+    byte = model.GetAddressAt (clientPx);
+
+    AppendViewItems (copyItems, std::wstring(), items);
+
+    if (model.GetSelectedRange().has_value() && isPaused)
+    {
+        items.push_back ({ L"Copy selection to...", [this, each] { CopySelection (each); } });
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+    items.push_back ({ L"Go to...", [this] { FocusAddressBox(); } });
+
+    //  The word the byte and the one after it make, as a pointer: the window
+    //  goes to where it points.
+    if (byte.has_value() && m_host.GetLatestSnapshot() != nullptr && m_host.GetLatestSnapshot()->memoryImage != nullptr)
+    {
+        std::optional<Word>  target = MemoryPane::GetWordAt (*m_host.GetLatestSnapshot()->memoryImage, *byte);
+
+        if (target.has_value())
+        {
+            items.push_back ({ std::format (L"Go to ${:04X}, the word here", *target), [each, at = *target] { each->GetModel().GoTo (at); } });
+        }
+    }
+
+    if (byte.has_value())
+    {
+        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, access);
+
+        for (auto & [label, action] : access)
+        {
+            if (!label.empty())
+            {
+                items.push_back ({ PaneMenu::MakeInSubmenu (L"Last access", label), action });
+            }
+        }
+    }
+
+    items.push_back ({ L"Find...", [this, each] { m_host.FocusControl (each->GetView()); (void) m_host.RunKeyAction (DebuggerKeySchemes::Action::Find); } });
 
     if (model.GetSelectedRange().has_value())
     {
-        if (m_isPaused)
+        items.push_back (PaneMenu::MakeSeparator());
+
+        if (isPaused)
         {
-            items.push_back ({ L"Fill selection...",    [this, each] { FillSelection (each); } });
-            items.push_back ({ L"Copy selection to...", [this, each] { CopySelection (each); } });
+            items.push_back ({ L"Fill selection...", [this, each] { FillSelection (each); } });
         }
 
         items.push_back ({ L"Compare with...", [this, each] { CompareSelection (each); } });
@@ -1499,26 +1547,17 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
         items.push_back ({ L"Clear comparison", [each] { each->GetModel().ClearComparison(); } });
     }
 
-    if (model.CanUndo())
-    {
-        items.push_back ({ UndoText::GetLabel (false, model.GetUndoText()), [this, each] { Undo (each, false); } });
-    }
-
-    if (model.CanRedo())
-    {
-        items.push_back ({ UndoText::GetLabel (true, model.GetRedoText()), [this, each] { Undo (each, true); } });
-    }
-
-    byte = model.GetAddressAt (clientPx);
+    items.push_back (PaneMenu::MakeSeparator());
+    AppendViewItems (displayItems, L"Display", items);
 
     if (byte.has_value() && *byte < 0x100)
     {
-        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (DebuggerActions::GetAddZeroPagePointer (at, m_host.GetMode())); } });
+        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (WatchActions::GetAddZeroPagePointer (at, m_host.GetMode())); } });
     }
 
     if (byte.has_value())
     {
-        m_host.AddHeatAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
+        m_host.AddBookmarkItem (*byte, items);
     }
 }
 
@@ -1528,130 +1567,43 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::GetSearchLength
+//  MemoryWindowGroup::AppendViewItems
 //
-//  How many bytes a match of S's items covers: each character of a quoted
-//  text, a byte or a wildcard for each other item, and two for a value of
-//  more than two hex digits, which S matches as a word.
+//  The view's menu as the pane menu's rows: a check as kChecked, a submenu's
+//  rows under its label, a disabled row with no action, and no mnemonic.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t MemoryWindowGroup::GetSearchLength (const std::wstring & items)
+void MemoryWindowGroup::AppendViewItems (const std::vector<DxuiPopupMenuItem> & from, const std::wstring & submenu, PaneMenuItems & items)
 {
-    size_t  length = 0;
-    size_t  at     = 0;
-
-
-
-    while (at < items.size())
+    for (const DxuiPopupMenuItem & each : from)
     {
-        size_t  end = 0;
+        std::wstring  label     = (each.command != nullptr) ? each.command->label : std::wstring();
+        bool          isChecked = false;
+        bool          isEnabled = true;
 
-        if (iswspace (items[at]) || items[at] == L',')
+
+
+        std::erase (label, L'&');
+
+        if (each.kind == DxuiPopupMenuItem::Kind::Separator && submenu.empty())
         {
-            at++;
-            continue;
+            items.push_back (PaneMenu::MakeSeparator());
         }
-
-        if (items[at] == L'"' || items[at] == L'\'')
+        else if (each.kind == DxuiPopupMenuItem::Kind::Submenu)
         {
-            end     = items.find (items[at], at + 1);
-            end     = (end == std::wstring::npos) ? items.size() : end;
-            length += end - at - 1;
-            at      = end + 1;
-            continue;
+            AppendViewItems (each.children, submenu.empty() ? label : submenu, items);
         }
+        else if (each.kind == DxuiPopupMenuItem::Kind::Command && each.command != nullptr)
+        {
+            isChecked = each.command->isChecked && each.command->isChecked();
+            isEnabled = !each.command->isEnabled || each.command->isEnabled();
+            label     = isChecked ? std::wstring (1, PaneMenu::kChecked) + label : label;
+            label     = submenu.empty() ? label : PaneMenu::MakeInSubmenu (submenu, label);
 
-        end     = items.find_first_of (L" \t,", at);
-        end     = (end == std::wstring::npos) ? items.size() : end;
-        length += (end - at > 2 && items[at] != L'$') || (end - at > 3) ? 2 : 1;
-        at      = end;
+            items.push_back ({ label, isEnabled ? std::function<void()> ([command = each.command] { command->dispatch(); }) : std::function<void()>() });
+        }
     }
-
-    return std::max<size_t> (length, 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::FindIn
-//
-//  S over all memory with the items typed: hex bytes, a word, text in
-//  quotes, ?? for any byte and ?n or n? for half of one. The window goes to
-//  the first match when the hits arrive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::FindIn (MemoryWindowPane * window)
-{
-    std::optional<std::wstring>  items;
-
-
-
-    if (window == nullptr || !m_hasSnapshot)
-    {
-        return;
-    }
-
-    items = m_host.RunTextDialog (L"Find in memory", L"Find", L"A9 00 ?? \"HELLO\"", [] (const std::wstring & text, std::wstring & error)
-    {
-        error = L"Type hex bytes, text in quotes, or ?? for any byte.";
-        return text.find_first_not_of (L" \t") != std::wstring::npos;
-    });
-
-    //  F3 and Shift+F3 walk the matches from the window, which the dialog
-    //  took the focus from.
-    m_host.FocusControl (window->GetView());
-
-    if (!items.has_value())
-    {
-        return;
-    }
-
-    m_find = Find { window->GetWindowId(), GetSearchLength (*items), -1, m_searchSerial, true };
-    m_host.RunAction (DebuggerActions::GetSearchMemory (TextEncoding::WideToNarrow (*items), m_host.GetMode()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::StepFind
-//
-//  The next match, or the one before, round to the other end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::StepFind (bool forward)
-{
-    int  count = (int) m_searchHits.size();
-
-
-
-    if (count == 0 || GetWindow (m_find.window) == nullptr)
-    {
-        m_host.AppendConsole ({ "No matches in memory." });
-        ShowFindCount (L"No matches");
-        return;
-    }
-
-    if (m_find.at < 0)
-    {
-        m_find.at = forward ? 0 : count - 1;
-    }
-    else
-    {
-        m_find.at = (m_find.at + (forward ? 1 : count - 1)) % count;
-    }
-
-    GetWindow (m_find.window)->GetModel().SelectRange (m_searchHits[(size_t) m_find.at], m_find.length);
-    ShowFindCount (std::format (L"{} of {}", m_find.at + 1, count));
-    m_host.Repaint();
 }
 
 
@@ -1662,40 +1614,13 @@ void MemoryWindowGroup::StepFind (bool forward)
 //
 //  MemoryWindowGroup::SetBarEntries
 //
-//  The bar's commands, then the Find count at its end.
+//  The bar's commands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryWindowGroup::SetBarEntries()
 {
-    std::vector<DxuiToolbar::Entry>  entries = m_commands->BuildEntries (m_addressEntry.get());
-    DxuiToolbar::Entry               count;
-
-
-
-    count.command       = m_findCount->GetCommand();
-    count.custom        = m_findCount.get();
-    count.trailing      = true;
-    count.neverOverflow = true;
-    entries.push_back (std::move (count));
-
-    m_bar->SetEntries (std::move (entries));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryWindowGroup::ShowFindCount
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MemoryWindowGroup::ShowFindCount (const std::wstring & text)
-{
-    m_findCount->SetLabel (text);
-    SetBarEntries();
+    m_bar->SetEntries (m_commands->BuildEntries (m_addressEntry.get()));
 }
 
 
@@ -1733,7 +1658,7 @@ void MemoryWindowGroup::FillSelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseBytes (*typed, bytes))
     {
-        m_host.RunAction (DebuggerActions::GetFillMemory (range->first, range->second, bytes, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetFillMemory (range->first, range->second, bytes, m_host.GetMode()));
     }
 }
 
@@ -1770,7 +1695,7 @@ void MemoryWindowGroup::CopySelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, to))
     {
-        m_host.RunAction (DebuggerActions::GetMoveMemory (to, range->first, range->second, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetMoveMemory (to, range->first, range->second, m_host.GetMode()));
     }
 }
 
@@ -1811,6 +1736,6 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, other))
     {
         m_compare = Compare { window->GetWindowId(), m_compareSerial, true };
-        m_host.RunAction (DebuggerActions::GetCompareMemory (other, range->first, range->second, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_host.GetMode()));
     }
 }

@@ -68,7 +68,7 @@ public:
     void  PasteClipboardText ();
 
     // PASTE's text, typed as a paste of the clipboard is. QueuePasteText may
-    // be called from any thread and posts WM_APP_PASTE_TEXT; the window calls
+    // be called from any thread and posts (UINT) AppMessage::ShellPasteText; the window calls
     // DeliverQueuedPaste for it on the UI thread.
     void  QueuePasteText     (const std::wstring & text);
     void  DeliverQueuedPaste ();

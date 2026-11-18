@@ -6,6 +6,11 @@
 #include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Core/TextEncoding.h"
 
@@ -59,11 +64,11 @@ public:
 
 
 
-        AssertParsesTo (rig, "PATCH 0400 41 42",       DebuggerActions::GetPatch            (0x0400, bytes, aw));
-        AssertParsesTo (rig, "BP main.a65:4",          DebuggerActions::GetSourceBreakpoint ("main.a65", 4, aw));
-        AssertParsesTo (rig, "CALLS MODE WALK",        DebuggerActions::GetCallStackMode    ("WALK", aw));
-        AssertParsesTo (rig, "HISTORY SAVE \"trace.txt\"", DebuggerActions::GetSaveHistory      ("trace.txt", aw));
-        AssertParsesTo (rig, "W 0300",                 DebuggerActions::GetAddWatch         (0x0300, aw));
+        AssertParsesTo (rig, "PATCH 0400 41 42",       MemoryActions::GetPatch            (0x0400, bytes, aw));
+        AssertParsesTo (rig, "BP main.a65:4",          BreakpointActions::GetSourceBreakpoint ("main.a65", 4, aw));
+        AssertParsesTo (rig, "CALLS MODE WALK",        SessionActions::GetCallStackMode    ("WALK", aw));
+        AssertParsesTo (rig, "HISTORY SAVE \"trace.txt\"", SessionActions::GetSaveHistory      ("trace.txt", aw));
+        AssertParsesTo (rig, "W 0300",                 WatchActions::GetAddWatch         (0x0300, aw));
     }
 
 
@@ -77,11 +82,11 @@ public:
 
 
 
-        AssertParsesTo (rig, "BLOAD \"game.bin\"",              DebuggerActions::GetLoadBinary ("game.bin", "", std::nullopt, std::nullopt, aw));
-        AssertParsesTo (rig, "BLOAD \"my game\",DOS",           DebuggerActions::GetLoadBinary ("my game", "DOS", std::nullopt, std::nullopt, aw));
-        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000",     DebuggerActions::GetLoadBinary ("game.bin", "RAW", 0x6000, std::nullopt, aw));
-        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000,100", DebuggerActions::GetLoadBinary ("game.bin", "RAW", 0x6000, 0x100, aw));
-        AssertParsesTo (rig, "BSAVE \"page.bin\" 0400,400",     DebuggerActions::GetSaveBinary ("page.bin", 0x0400, 0x400, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\"",              MemoryActions::GetLoadBinary ("game.bin", "", std::nullopt, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"my game\",DOS",           MemoryActions::GetLoadBinary ("my game", "DOS", std::nullopt, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000",     MemoryActions::GetLoadBinary ("game.bin", "RAW", 0x6000, std::nullopt, aw));
+        AssertParsesTo (rig, "BLOAD \"game.bin\",RAW 6000,100", MemoryActions::GetLoadBinary ("game.bin", "RAW", 0x6000, 0x100, aw));
+        AssertParsesTo (rig, "BSAVE \"page.bin\" 0400,400",     MemoryActions::GetSaveBinary ("page.bin", 0x0400, 0x400, aw));
     }
 
 
@@ -94,10 +99,10 @@ public:
 
 
 
-        AssertParsesTo (rig, "RCC",     DebuggerActions::GetResetCycles (aw));
-        AssertParsesTo (rig, "PUSH A9", DebuggerActions::GetPushByte    (0xA9, aw));
-        AssertParsesTo (rig, "POP",     DebuggerActions::GetPopByte     (aw));
-        AssertParsesTo (rig, "PPOP",    DebuggerActions::GetPopWord     (aw));
+        AssertParsesTo (rig, "RCC",     RunActions::GetResetCycles (aw));
+        AssertParsesTo (rig, "PUSH A9", MemoryActions::GetPushByte    (0xA9, aw));
+        AssertParsesTo (rig, "POP",     MemoryActions::GetPopByte     (aw));
+        AssertParsesTo (rig, "PPOP",    MemoryActions::GetPopWord     (aw));
     }
 
 
@@ -109,12 +114,12 @@ public:
 
 
 
-        AssertParsesTo (rig, "WE 2",  DebuggerActions::GetEnableWatch           (2, true,  aw));
-        AssertParsesTo (rig, "WD 2",  DebuggerActions::GetEnableWatch           (2, false, aw));
-        AssertParsesTo (rig, "ZP 06", DebuggerActions::GetAddZeroPagePointer    (0x06, aw));
-        AssertParsesTo (rig, "ZPC 1", DebuggerActions::GetClearZeroPagePointer  (1, aw));
-        AssertParsesTo (rig, "ZPE 1", DebuggerActions::GetEnableZeroPagePointer (1, true,  aw));
-        AssertParsesTo (rig, "ZPD 1", DebuggerActions::GetEnableZeroPagePointer (1, false, aw));
+        AssertParsesTo (rig, "WE 2",  WatchActions::GetEnableWatch           (2, true,  aw));
+        AssertParsesTo (rig, "WD 2",  WatchActions::GetEnableWatch           (2, false, aw));
+        AssertParsesTo (rig, "ZP 06", WatchActions::GetAddZeroPagePointer    (0x06, aw));
+        AssertParsesTo (rig, "ZPC 1", WatchActions::GetClearZeroPagePointer  (1, aw));
+        AssertParsesTo (rig, "ZPE 1", WatchActions::GetEnableZeroPagePointer (1, true,  aw));
+        AssertParsesTo (rig, "ZPD 1", WatchActions::GetEnableZeroPagePointer (1, false, aw));
     }
 
 
@@ -225,8 +230,8 @@ public:
         Assert::IsFalse (execution.find (L"ACCESS") != std::wstring::npos, L"not for an execution breakpoint");
         Assert::IsFalse (disk.find      (L"ACCESS") != std::wstring::npos, L"or a disk breakpoint");
 
-        Assert::IsTrue  (disk.find      (L"DISK.AVOLUME") != std::wstring::npos, L"every disk value for a disk breakpoint");
-        Assert::IsTrue  (rule.find      (L"DISK.AVOLUME") != std::wstring::npos, L"and a condition breakpoint");
+        Assert::IsTrue  (disk.find      (L"DISK.ADDR.VOLUME") != std::wstring::npos, L"every disk value for a disk breakpoint");
+        Assert::IsTrue  (rule.find      (L"DISK.ADDR.VOLUME") != std::wstring::npos, L"and a condition breakpoint");
         Assert::IsFalse (memory.find    (L"DISK.") != std::wstring::npos,        L"not for a memory breakpoint");
     }
 
@@ -331,10 +336,10 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BP 300",       aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BRKUNINIT ON", aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPV 64:6B",    aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPBEAM 10 1A", aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("300"),       aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (BreakpointDefinition::Type::UnwrittenRead, true), aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::VideoLine, false, false, "64:6B" }, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::Beam, false, false, "10", "1A" }, aw));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 4, snapshot.breakpoints.size());
@@ -352,9 +357,9 @@ public:
         Assert::IsTrue   (BreakpointDialog::GetType (snapshot.breakpoints[3].info) == BreakpointDialog::Type::Beam);
         Assert::AreEqual (std::string ("BPBEAM 10 1A"), BreakpointDialog::MakeDefinition (BreakpointDialog::GetFields (snapshot.breakpoints[3].info)));
 
-        for (const char * off : { "BRKUNINIT OFF", "BPV OFF", "BPBEAM OFF" })
+        for (BreakpointDefinition::Type off : { BreakpointDefinition::Type::UnwrittenRead, BreakpointDefinition::Type::VideoLine, BreakpointDefinition::Type::Beam })
         {
-            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint (off, aw));
+            rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (off, false), aw));
         }
 
         Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).breakpoints.size(), L"an OFF form left its row");
@@ -372,7 +377,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPBASIC 0", CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), BreakpointActions::GetDefineBreakpoint ({ BreakpointDefinition::Type::BasicLine, false, false, "0" }, CommandMode::AppleWin));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 1, snapshot.breakpoints.size());
@@ -411,7 +416,7 @@ public:
         }
 
         Assert::IsTrue   (headings == std::vector<std::wstring> { L"Execution", L"Memory", L"BASIC", L"Hardware" });
-        Assert::AreEqual ((size_t) Type::Beam + 1 - 2, types, L"a type is missing or repeated");
+        Assert::AreEqual ((size_t) Type::SourceLine + 1 - 2, types, L"a type is missing or repeated");
         Assert::AreEqual (BreakpointDialog::GetRowOf (Type::ReadWrite), BreakpointDialog::GetRowOf (Type::Read), L"a read is not a memory address");
         Assert::AreEqual (std::wstring (L"New memory breakpoint: Address"),   BreakpointDialog::GetTitle (Type::Write, std::nullopt));
         Assert::AreEqual (std::wstring (L"Execution breakpoint #3: Address"), BreakpointDialog::GetTitle (Type::Execute, 3));
@@ -433,16 +438,16 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetFillMemory (0x6000, 0x6003, bytes, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetFillMemory (0x6000, 0x6003, bytes, aw));
         Assert::AreEqual ((Byte) 0x5A, rig.machine.GetMemoryBus().ReadByte (0x6002), L"the pattern repeats");
         Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x6003));
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetMoveMemory (0x7000, 0x6000, 0x6003, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetMoveMemory (0x7000, 0x6000, 0x6003, aw));
         Assert::AreEqual ((Byte) 0xA5, rig.machine.GetMemoryBus().ReadByte (0x7001), L"copied");
 
         rig.machine.GetMemoryBus().WriteByte (0x7002, 0x00);
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetCompareMemory (0x7000, 0x6000, 0x6003, aw));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSearchMemory ("5A A5 5A", aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetCompareMemory (0x7000, 0x6000, 0x6003, aw));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetSearchMemory ("5A A5 5A", aw));
 
         snapshot = rig.view.Build (rig.controller.GetSession());
 
@@ -465,7 +470,7 @@ public:
 
 
         rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetLoadBinary ("C:\\Work\\prog.bin", "RAW", 0x0300, std::nullopt, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetLoadBinary ("C:\\Work\\prog.bin", "RAW", 0x0300, std::nullopt, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300));
         Assert::AreEqual ((Byte) 0x60, rig.machine.GetMemoryBus().ReadByte (0x0302));
@@ -481,7 +486,7 @@ public:
 
 
 
-        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPatch (0x0400, bytes, CommandMode::AppleWin));
+        rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), MemoryActions::GetPatch (0x0400, bytes, CommandMode::AppleWin));
 
         Assert::AreEqual ((Byte) 0x12, rig.machine.GetMemoryBus().ReadByte (0x0400));
         Assert::AreEqual ((Byte) 0x34, rig.machine.GetMemoryBus().ReadByte (0x0401));

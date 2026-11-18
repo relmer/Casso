@@ -87,42 +87,6 @@ FindWidget & FindWidgetSet::Activate (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindWidgetSet::GetPlaceholder
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring FindWidgetSet::GetPlaceholder (const std::wstring & pane)
-{
-    static const std::set<std::wstring>  s_logs = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
-                                                    DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
-                                                    DebuggerLayout::kTrace };
-
-
-
-    if (pane == DebuggerLayout::kConsole)
-    {
-        return L"Find in the console";
-    }
-
-    if (s_logs.contains (pane))
-    {
-        return L"Find in the log";
-    }
-
-    if (pane == DebuggerLayout::kBasicProgram)
-    {
-        return L"Find in the program";
-    }
-
-    return (pane.starts_with (L"source")) ? L"Find in the source" : L"Find in the pane";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FindWidgetSet::Create
 //
 //  Each control acts on its own pane's widget.
@@ -174,7 +138,7 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
 
     widget.box->SetHwnd        (m_host.GetOwnerHwnd());
     widget.box->SetMaxLength   (256);
-    widget.box->SetPlaceholder (GetPlaceholder (pane));
+    widget.box->SetPlaceholder (s_kPlaceholder);
 
     //  Each option is a toggle, emphasized while on, as Visual Studio Code's
     //  find bar draws them.
@@ -184,8 +148,8 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
 
     //  A button press takes the keys, so each puts them back in the box
     //  and the next Enter searches again.
-    widget.prevButton->SetOnClick  ([this, pane] { (void) Activate (pane); Find (false); RefocusBox(); });
-    widget.nextButton->SetOnClick  ([this, pane] { (void) Activate (pane); Find (true);  RefocusBox(); });
+    widget.prevButton->SetOnClick  ([this, pane] { Find (false, pane); RefocusBox(); });
+    widget.nextButton->SetOnClick  ([this, pane] { Find (true,  pane); RefocusBox(); });
     widget.closeButton->SetOnClick ([this, pane] { (void) Activate (pane); Close(); });
 
     widget.selButton->SetOnClick ([this, pane] { FindWidget & w = Activate (pane); SetInSelection (!w.inSelection); RefocusBox(); });
@@ -375,16 +339,20 @@ std::vector<std::wstring> FindWidgetSet::GetHistory (const std::wstring & pane) 
 
 std::wstring FindWidgetSet::GetTarget() const
 {
-    std::wstring  pane = m_window.GetFocusPane();
+    std::wstring       pane = m_window.GetFocusPane();
+    IDxuiFindTarget  * last = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
 
 
 
+    //  The focused pane's find, or else the find last used while its text is
+    //  in sight; never one that is neither, which would take the keys away
+    //  from the focused pane.
     if (m_window.GetFindView (pane) != nullptr)
     {
         return pane;
     }
 
-    return DebuggerLayout::kConsole;
+    return (last != nullptr && last->IsFindVisible()) ? m_activePane : std::wstring();
 }
 
 
@@ -524,6 +492,11 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
 
     if (!shown)
     {
+        if (view != nullptr)
+        {
+            view->SetFindCoveredPx (0);
+        }
+
         return;
     }
 
@@ -538,6 +511,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     plate.bottom = area.top + px (kHeightDip);
 
     widget.plate->Layout (plate, scaler);
+    view->SetFindCoveredPx (plate.bottom - area.top);
 
     top    = plate.top    + px (4);
     bottom = plate.bottom - px (4);
@@ -560,6 +534,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     //  The box measures its text to place the caret under a click and to drag
     //  a selection, which requires the window's renderer, made after the box.
     widget.box->SetTextRenderer (m_host.GetPaneTextRenderer());
+    widget.box->SetRightInsetPx ((float) (button * 3));
 
     widget.box->Layout         (RECT { x, top, boxRight, bottom }, scaler);
     widget.regexButton->Layout (RECT { boxRight - px (2) - button,     top + px (2), boxRight - px (2),              bottom - px (2) }, scaler);
@@ -615,7 +590,7 @@ void FindWidgetSet::Open (const std::wstring & pane)
 
 
 
-    widget.box->SetPlaceholder (GetPlaceholder (pane));
+    widget.box->SetPlaceholder (s_kPlaceholder);
 
     if (!selected.empty() && selected.find (L'\n') == std::wstring::npos)
     {
@@ -849,13 +824,14 @@ bool FindWidgetSet::StepHistory (int step)
 //  With nothing to find yet, this opens the widget for it. Otherwise the
 //  next or previous match is selected in the active pane, whether or not
 //  the widget is open, as F3 finds again in Visual Studio after its find is
-//  closed.
+//  closed. A widget's arrows search its pane, whichever pane has the
+//  keys.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindWidgetSet::Find (bool forward)
+void FindWidgetSet::Find (bool forward, const std::wstring & pane)
 {
-    std::wstring       target  = GetTarget();
+    std::wstring       target  = pane.empty() ? GetTarget() : pane;
     std::wstring       needle;
     IDxuiFindTarget  * view    = nullptr;
     IDxuiFindTarget  * shown   = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
@@ -866,10 +842,15 @@ void FindWidgetSet::Find (bool forward)
 
 
 
+    if (target.empty())
+    {
+        return;
+    }
+
     //  F3 searches the text with the keys, if it can; from elsewhere, the
     //  pane whose widget is open and in sight. A closed document's widget
     //  is open but hidden.
-    if (m_active == nullptr || (target != m_activePane && (!isShown || m_window.GetFocusPane() == target)))
+    if (!pane.empty() || m_active == nullptr || (target != m_activePane && (!isShown || m_window.GetFocusPane() == target)))
     {
         (void) Activate (target);
     }
@@ -878,14 +859,14 @@ void FindWidgetSet::Find (bool forward)
 
     if (needle.empty())
     {
-        Open (GetTarget());
+        Open (target);
         return;
     }
 
     RecordHistory();
 
     view = m_window.GetFindView (m_activePane);
-    view->SetFindColors (m_host.GetPcRowArgb(), m_host.GetPcMarkerArgb());
+    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
 
     result               = view->SelectMatch (needle, m_active->matchCase, m_active->wholeWord, m_active->isRegex, forward, index, count);
     m_active->statusText = GetStatusText (result, index, count);
@@ -899,6 +880,25 @@ void FindWidgetSet::Find (bool forward)
     }
 
     m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindWidgetSet::GetMatchArgb
+//
+//  The fill of a match the search is not at: the current match's yellow at
+//  half its brightness, dark enough for light text and far enough from the
+//  row colors to read on any row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FindWidgetSet::GetMatchArgb (uint32_t currentArgb)
+{
+    return DxuiColor::Darken (currentArgb | 0xFF000000u, 0.5f);
 }
 
 
@@ -931,9 +931,9 @@ void FindWidgetSet::SearchAsTyped()
         return;
     }
 
-    //  The marks are the PC row's colors, the one the search is at the PC
-    //  arrow's yellow.
-    view->SetFindColors (m_host.GetPcRowArgb(), m_host.GetPcMarkerArgb());
+    //  The marks are the PC arrow's yellow, darkened for every match but the
+    //  one the search is at.
+    view->SetFindColors (GetMatchArgb (m_host.GetPcMarkerArgb()), m_host.GetPcMarkerArgb());
 
     if (needle.empty())
     {
@@ -1023,6 +1023,23 @@ bool FindWidgetSet::RouteKey (const DxuiKeyEvent & ev, bool & handled)
     FindWidget    * widget  = nullptr;
 
 
+
+    //  Escape closes the find of the pane with the focus wherever in the pane
+    //  the focus is, as in its list after a click on a match.
+    if (owner.empty() && isDown && ev.vk == VK_ESCAPE && !ev.shift && !ev.ctrl && !ev.alt)
+    {
+        auto  found = m_widgets.find (m_window.GetFocusPane());
+
+
+
+        if (found != m_widgets.end() && found->second.isOpen)
+        {
+            (void) Activate (found->first);
+            Close();
+            handled = true;
+            return true;
+        }
+    }
 
     if (owner.empty())
     {

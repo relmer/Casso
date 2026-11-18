@@ -183,7 +183,7 @@ $checks = @(
         Globs   = @('*.cpp', '*.h')
         Pattern = '^\s*#include\s*<'
         Message = 'angle-bracket include outside Pch.h -- system headers belong in Pch.h'
-        Exclude = @('Pch.h', 'Dxui/Dxui.h')
+        Exclude = @('Pch.h', 'Dxui/Dxui.h', 'Dxui/Window/DxuiWinRt.h')
     },
     @{
         Id      = 'CS0006'
@@ -826,8 +826,14 @@ function ConvertTo-DeclParts
 
     $init  = $null
     $lhs   = $body
+    $bm    = [regex]::Match($body, '^([^{=]*?[\w\]])\s*(\{.*\})$')
     $eqPos = $body.IndexOf(' = ')
-    if ($eqPos -ge 0)
+    if ($bm.Success)
+    {
+        $lhs  = $bm.Groups[1].Value
+        $init = $bm.Groups[2].Value
+    }
+    elseif ($eqPos -ge 0)
     {
         $lhs  = $body.Substring(0, $eqPos).TrimEnd()
         $init = $body.Substring($eqPos + 3).Trim()
@@ -860,14 +866,118 @@ function ConvertTo-DeclParts
     }
 }
 
+####################################################################
+#
+#  ConvertTo-FnDeclParts
+#
+#  Parses one function-declaration line of a header into its indent,
+#  type, `*` or `&`, name and columns, or $null when the line is not one.
+#  MUST stay identical to Parse-FnDecl in scripts/FixDeclAlign.ps1.
+#
+####################################################################
+
+$script:FnExcl = '^\s*(return|if|while|for|switch|else|case|delete|new|throw|using|typedef|friend|template|goto|do|static_assert)\b|\boperator\b|"|^\s*#|^\s*//'
+
+function ConvertTo-FnDeclParts
+{
+    param([string] $Line)
+
+    $code = ($Line -replace '\s*//.*$', '').TrimEnd()
+    if ($code -match $script:FnExcl -or $code -notmatch '^\s+\S') { return $null }
+    if (-not ($code.EndsWith(';') -or $code.EndsWith('}')))        { return $null }
+
+    $paren = $code.IndexOf('(')
+    if ($paren -lt 0) { return $null }
+
+    $pre = $code.Substring(0, $paren)
+    if ($pre -match '=|\{|\}|\.|->|\(|\)') { return $null }
+
+    $trim   = $pre.TrimEnd()
+    $tokens = @($trim.Trim() -split '\s+')
+    if ($tokens.Count -lt 2) { return $null }
+
+    $name = $tokens[-1]
+    if ($name -notmatch '^~?[A-Za-z_]\w*$') { return $null }
+
+    $ptr = ''
+    if ($tokens.Count -ge 3 -and ($tokens[-2] -eq '*' -or $tokens[-2] -eq '&')) { $ptr = $tokens[-2] }
+    $typeEnd = if ($ptr -ne '') { $tokens.Count - 3 } else { $tokens.Count - 2 }
+    $type    = $tokens[0..$typeEnd] -join ' '
+    if ($type -match '[\*&]$' -and $ptr -eq '') { return $null }
+
+    $nameCol = $trim.Length - $name.Length
+
+    return [pscustomobject]@{
+        Indent   = ($code -replace '^(\s*).*$', '$1')
+        NameCol  = $nameCol
+        PtrCol   = $(if ($ptr -ne '') { $trim.LastIndexOf($ptr, $nameCol) } else { -1 })
+        ParenCol = $paren
+    }
+}
+# CS0026: the most lines a .cpp may have, and the files over it when the
+# rule arrived: on 040-disk-inspector, and in the 033 tree the 040 merge
+# brought it to. Split a listed file and take it off the list; never add one.
+$script:MaxCppLines    = 2000
+$script:LongCppAllowed = @(
+    'CassoCore/AssemblySession.cpp',
+    'CassoCore/CommandLineParser.cpp',
+    'CassoEmuCore/AssetBootstrap.cpp',
+    'CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp',
+    'CassoEmuCore/CassoExplorer/CassoExplorerBrowser.cpp',
+    'CassoEmuCore/CassoExplorer/Window/Managers/ExplorerListMenus.cpp',
+    'CassoEmuCore/CassoExplorer/Window/Panes/ExplorerListPane.cpp',
+    'CassoEmuCore/Config/UserConfigStore.cpp',
+    'CassoEmuCore/Controllers/ControllerInputService.cpp',
+    'CassoEmuCore/Controllers/ControllerProfileStore.cpp',
+    'CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp',
+    'CassoEmuCore/Devices/Disk/DiskImageStore.cpp',
+    'CassoEmuCore/Machines/Apple2/Common/Dos33Volume.cpp',
+    'CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp',
+    'CassoEmuCore/Seams/Win32ShellIcons.cpp',
+    'CassoEmuCore/Shell/Components/ShellChrome.cpp',
+    'CassoEmuCore/Shell/Components/ShellDeskScene.cpp',
+    'CassoEmuCore/Shell/MachineBuilder.cpp',
+    'CassoEmuCore/Shell/Window/EmulatorWindow.cpp',
+    'CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp',
+    'CassoEmuCore/Shell/WindowCommandManager.cpp',
+    'CassoEmuCore/Ui/Printer3DScene.cpp',
+    'CassoEmuCore/Ui/Scene/DeskScene.cpp',
+    'CassoEmuCore/Ui/Scene/DeskSceneLayout.cpp',
+    'CassoEmuCore/Ui/Scene/DeskSceneModel.cpp',
+    'CassoEmuCore/Ui/Settings/ControllersPage.cpp',
+    'CassoEmuCore/Ui/Settings/ControllersPageState.cpp',
+    'CassoEmuCore/Ui/Settings/SettingsPanelState.cpp',
+    'CassoEmuCore/Ui/Settings/SettingsSheet.cpp',
+    'Dxui/Render/DxuiTextRenderer.cpp',
+    'Dxui/Widgets/DxuiListView.cpp',
+    'Dxui/Widgets/DxuiPopupMenu.cpp',
+    'Dxui/Widgets/DxuiToolbar.cpp',
+    'Dxui/Widgets/DxuiTreeView.cpp',
+    'Dxui/Widgets/ListView/DxuiListItemLayout.cpp',
+    'Dxui/Window/DxuiHwndSource.cpp',
+    'Dxui/Window/DxuiPopupHost.cpp',
+    'UnitTest/AssemblerTests.cpp',
+    'UnitTest/CommandLineTests.cpp',
+    'UnitTest/ControllerTests/ControllerInputServiceTests.cpp',
+    'UnitTest/ControllerTests/ControllersPageStateTests.cpp',
+    'UnitTest/CpuOperationTests.cpp',
+    'UnitTest/EmuTests/DiskCommandRunnerTests.cpp',
+    'UnitTest/EmuTests/ProDosVolumeTests.cpp',
+    'UnitTest/EmuTests/SharedImageTests.cpp',
+    'UnitTest/EmuTests/WozLoaderTests.cpp',
+    'UnitTest/MerlinCorpusTests.cpp',
+    'UnitTest/MerlinDirectiveTests.cpp',
+    'UnitTest/UiTests/UserConfigStoreTests.cpp'
+)
+
 # Same line classifiers FixDeclAlign.ps1 uses to spot a declaration run.
-$script:DeclRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*)?;\s*(//.*)?$'
+$script:DeclRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*|\{[^;]*\})?;\s*(//.*)?$'
 $script:DeclExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|do)\b|\boperator\b|^\s*[A-Za-z_]\w*\s*(<<|>>)'
 
 
 ####################################################################
 #
-#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017 / CS0019)
+#  Test-Structure  (CS0014 / CS0015 / CS0016 / CS0017 / CS0019 / CS0025 / CS0026)
 #
 #  The formatting rules that a per-line regex cannot see:
 #
@@ -875,7 +985,10 @@ $script:DeclExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|
 #    CS0015  a top-level banner is preceded by EXACTLY 5 blank lines
 #    CS0016  a declaration block is followed by EXACTLY 3 blank lines
 #    CS0017  a bare closing brace is followed by a blank line
-#    CS0019  a declaration run aligns its name and `=` columns
+#    CS0019  a declaration run aligns its name and `=` or `{` columns
+#    CS0025  a header's function declaration run aligns its name, `*` or `&`,
+#            and `(` columns
+#    CS0026  a .cpp has at most 2,000 lines
 #
 #  These need whole-file context, which is why they sat un-gated: a
 #  file-scoped check fails a push for violations the diff never touched,
@@ -1137,6 +1250,13 @@ function Test-Structure
                     $parsed += $p
                 }
 
+                #  A brace-initialized run is checked only on lines a change adds, until
+                #  the tree is swept; see the scan's note at CS0025.
+                if ($ok -and $null -eq $AddedIndex -and @($declRun | Where-Object { $lines[$_] -match '\w\s*\{[^;]*\}\s*;' }).Count -gt 0)
+                {
+                    $ok = $false
+                }
+
                 if ($ok)
                 {
                     $indents = $parsed | ForEach-Object { $_.Indent } | Sort-Object -Unique
@@ -1150,10 +1270,9 @@ function Test-Structure
                     foreach ($r in $declRun)
                     {
                         $ln = $lines[$r]
-                        $mm = [regex]::Match($ln, '^\s*(?:const\s+|constexpr\s+|static\s+)*.*?([A-Za-z_]\w*(\[[^\]]*\])?)\s*(=|;)')
+                        $mm = [regex]::Match($ln, '^\s*(?:const\s+|constexpr\s+|static\s+)*.*?([A-Za-z_]\w*(\[[^\]]*\])?)\s*(=|;|\{)')
                         $nameCols += $mm.Groups[1].Index
-                        $pe = $ln.IndexOf(' = ')
-                        if ($pe -ge 0) { $eqCols += $pe + 1 }
+                        if ($mm.Groups[3].Value -ne ';') { $eqCols += $mm.Groups[3].Index }
                     }
 
                     if ((@($nameCols | Sort-Object -Unique)).Count -gt 1 -or
@@ -1163,13 +1282,69 @@ function Test-Structure
                             Id    = 'CS0019'
                             First = $declRun[0] + 1
                             Last  = $declRun[$declRun.Count - 1] + 1
-                            Text  = 'misaligned declaration run -- align name and = columns (scripts/FixDeclAlign.ps1 -Apply repairs it)'
+                            Text  = 'misaligned declaration run -- align name and = or { columns (scripts/FixDeclAlign.ps1 -Apply repairs it)'
                         }
                     }
                 }
             }
 
             $declRun.Clear()
+        }
+
+        # ---- CS0025: function-declaration-run column alignment ----------
+        # In a header, a run of 2+ consecutive same-indent function
+        # declarations aligns its names, the `*` or `&` before a name, and
+        # the `(` of each argument list. Mirrors Parse-FnDecl in
+        # scripts/FixDeclAlign.ps1, which repairs every run this reports.
+        #
+        # Checked only on lines a change adds: the whole-tree scan skips it,
+        # as it skips CS0019's brace-initialized runs, until the tree is swept
+        # once the branches in flight have merged.
+        if ($rel -like '*.h' -and $null -ne $AddedIndex)
+        {
+            $fnRun = [System.Collections.Generic.List[object]]::new()
+            for ($i = 0; $i -le $lines.Length; $i++)
+            {
+                $fp = if ($i -lt $lines.Length) { ConvertTo-FnDeclParts $lines[$i] } else { $null }
+                if ($null -ne $fp) { $fp | Add-Member Index $i }
+
+                if ($null -ne $fp -and ($fnRun.Count -eq 0 -or $fnRun[0].Indent -eq $fp.Indent)) { $fnRun.Add($fp); continue }
+
+                if ($fnRun.Count -ge 2)
+                {
+                    $ptrCols = @($fnRun | Where-Object { $_.PtrCol -ge 0 } | ForEach-Object { $_.PtrCol } | Sort-Object -Unique)
+                    if ((@($fnRun | ForEach-Object { $_.NameCol }  | Sort-Object -Unique).Count -gt 1) -or
+                        (@($fnRun | ForEach-Object { $_.ParenCol } | Sort-Object -Unique).Count -gt 1) -or
+                        ($ptrCols.Count -gt 1))
+                    {
+                        $findings += [pscustomobject]@{
+                            Id    = 'CS0025'
+                            First = $fnRun[0].Index + 1
+                            Last  = $fnRun[$fnRun.Count - 1].Index + 1
+                            Text  = 'misaligned function declaration run -- align name, * or &, and ( columns (scripts/FixDeclAlign.ps1 -Apply repairs it)'
+                        }
+                    }
+                }
+
+                $fnRun.Clear()
+                if ($null -ne $fp) { $fnRun.Add($fp) }
+            }
+        }
+
+        # ---- CS0026: a .cpp over the length limit --------------------------
+        # A file past about 2,000 lines is a class doing too much; split it
+        # into components. The range is the lines past the limit, so in Diff
+        # mode a push is stopped only by lines it adds there. Files over the
+        # limit when the rule arrived are listed in $script:LongCppAllowed;
+        # the list only shrinks.
+        if ($rel -like '*.cpp' -and $lines.Length -gt $script:MaxCppLines -and $script:LongCppAllowed -notcontains $rel)
+        {
+            $findings += [pscustomobject]@{
+                Id    = 'CS0026'
+                First = $script:MaxCppLines + 1
+                Last  = $lines.Length
+                Text  = "$($lines.Length) lines -- a .cpp is limited to $($script:MaxCppLines); split the class into components"
+            }
         }
 
         # ---- report, scoped ---------------------------------------------

@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineText.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
@@ -123,13 +126,13 @@ namespace DebuggerTests
 
         TEST_METHOD (TheSourcePaneColorsEachRun)
         {
-            SourcePane::Style               style;
+            SourceRowStyle                  style;
             std::vector<DxuiTextView::Row>  rows;
 
 
 
             style.syntax = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004, 0xFF000005, 0xFF000006 };
-            rows = SourcePane::BuildRows ({ L"        lda #1 ; c" }, 0, {}, {}, style);
+            rows = SourceRows::BuildRows ({ L"        lda #1 ; c" }, 0, {}, {}, style);
 
             Assert::AreEqual ((size_t) 3, rows[0].spans.size());
             Assert::AreEqual (2,           rows[0].spans[0].cell, L"in the text, not the number");
@@ -197,6 +200,20 @@ namespace DebuggerTests
             }
 
             Assert::IsTrue (found);
+        }
+
+
+        //  A label line is a symbol in the first column with at most a comment
+        //  after it: not an instruction, a directive or a comment alone.
+        TEST_METHOD (ALabelLineIsALabelAndAComment)
+        {
+            Assert::IsTrue  (SourceLineText::IsLabelLine (L"draw_bar"));
+            Assert::IsTrue  (SourceLineText::IsLabelLine (L"draw_bar        ; add one * to the bar"));
+            Assert::IsFalse (SourceLineText::IsLabelLine (L"draw_bar  ldx count"), L"a label on an instruction");
+            Assert::IsFalse (SourceLineText::IsLabelLine (L"        ldx count"));
+            Assert::IsFalse (SourceLineText::IsLabelLine (L"count   .byte 0"), L"a label on a directive");
+            Assert::IsFalse (SourceLineText::IsLabelLine (L"; a comment"));
+            Assert::IsFalse (SourceLineText::IsLabelLine (L""));
         }
     };
 }

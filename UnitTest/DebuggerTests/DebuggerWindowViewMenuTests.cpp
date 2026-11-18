@@ -97,8 +97,6 @@ namespace DebuggerViewMenuTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::GetDockSite;
     };
@@ -136,7 +134,7 @@ namespace DebuggerViewMenuTests
             window.ClosePane (DebuggerLayout::kRegisters);
 
             Assert::IsFalse (window.IsPaneShown (DebuggerLayout::kRegisters), L"the registers closed");
-            Assert::IsTrue  (window.GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"the layout keeps its place");
+            Assert::IsTrue  (window.GetDockSite()->GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"the layout keeps its place");
 
             window.ShowPane (DebuggerLayout::kRegisters);
 
@@ -201,17 +199,17 @@ namespace DebuggerViewMenuTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
 
             window.CloseFloatingPane (DebuggerLayout::kWatches);
 
             Assert::IsFalse (window.IsPaneShown (DebuggerLayout::kWatches), L"the watches closed");
-            Assert::IsTrue  (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches), L"it opens floating again");
+            Assert::IsTrue  (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches), L"it opens floating again");
 
             window.ShowPane (DebuggerLayout::kWatches);
 
             Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kWatches));
-            Assert::IsTrue (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
+            Assert::IsTrue (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
         }
 
 
@@ -241,15 +239,17 @@ namespace DebuggerViewMenuTests
         }
 
 
-        TEST_METHOD (TheLogsAreTogetherAheadOfTheTools)
+        //  The output section: Console, Trace and the Profiler, then the logs
+        //  together.
+        TEST_METHOD (TheLogsAreTogetherAfterTheProfiler)
         {
             CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
             ViewMenuHost               host;
             ViewMenuWindow             window (theme, host);
             std::vector<std::wstring>  panes;
-            std::vector<std::wstring>  order  = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
-                                                  DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
-                                                  DebuggerLayout::kBasicProgram, DebuggerLayout::kSymbols };
+            std::vector<std::wstring>  order  = { DebuggerLayout::kConsole, DebuggerLayout::kTrace, DebuggerLayout::kProfiler,
+                                                  DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
+                                                  DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog };
             auto                       begin  = panes.end();
 
 

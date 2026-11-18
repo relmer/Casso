@@ -4,6 +4,7 @@
 #include "Core/MemoryDevice.h"
 
 class Apple2eMmu;
+class IRomWindowHandler;
 class ExpansionRomBus;
 
 
@@ -81,7 +82,8 @@ public:
 
     // Side-effect-free read for the debugger: the byte a CPU read would
     // return, without latching or clearing INTC8ROM. A slot page owned by an
-    // I/O device is not readable this way, since reading a device has effects.
+    // I/O device is the device's side-effect-free peek, false where it has
+    // none.
     bool TryPeek (Word address, Byte & value) const;
 
     // The debugger's I/O peek: a slot page owned by an I/O device is that
@@ -105,6 +107,11 @@ public:
 
     const ExpansionRomBus * GetExpansionRomBus () const { return m_expansionRomBus; }
 
+    // The //c Plus's MIG, which takes some of the internal ROM window's
+    // addresses ahead of the ROM. Its pages stay off the fast path.
+    // Caller-owned; null for none.
+    void SetWindowHandler (IRomWindowHandler * handler) { m_windowHandler = handler; }
+
 private:
     Byte           ResolveByte            (Word address) const;
     MemoryDevice * GetSlotIoDevice        (Word address) const;
@@ -124,4 +131,7 @@ private:
 
     // The cards' shared expansion space; see SetExpansionRomBus.
     ExpansionRomBus *  m_expansionRomBus = nullptr;
+
+    // See SetWindowHandler.
+    IRomWindowHandler *  m_windowHandler = nullptr;
 };

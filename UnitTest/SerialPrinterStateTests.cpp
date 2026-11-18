@@ -4,6 +4,7 @@
 #include "Core/StateWriter.h"
 #include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Devices/Printer/PrinterByteRing.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -176,13 +177,16 @@ namespace SerialPrinterState
 
         TEST_METHOD (PrinterRoundTripsTouched)
         {
-            auto     touched = std::make_unique<PrinterCard> (kSlot);   // heap: each card embeds a 64KB ring (C6262)
+            auto     touched = std::make_unique<PrinterCard> (kSlot);
             auto     fresh   = std::make_unique<PrinterCard> (kSlot);
             auto     other   = std::make_unique<PrinterCard> (kSlot);
+            auto     ring    = std::make_unique<PrinterByteRing>();   // heap: the ring is 64KB (C6262)
             HRESULT  hr      = S_OK;
 
 
 
+            //  Bytes written to a card with no printer on it are dropped.
+            touched->SetByteRing (ring.get());
             touched->Write (touched->GetStart(), 'A');
 
             hr = LoadFrom (*fresh, Save (*touched));

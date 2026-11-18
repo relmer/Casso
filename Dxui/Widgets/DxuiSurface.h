@@ -30,7 +30,7 @@ public:
     //  How much of the theme color actually lands, 0 through 1. A surface is
     //  normally opaque -- it exists so a band reads as the panel rather than
     //  as whatever the composite left underneath -- but a surface used as a
-    //  SCRIM under an overlay wants the picture to carry on showing through
+    //  SCRIM under an overlay wants the picture to keep showing through
     //  it, dimmed enough that the words on top stay legible.
     //
     //  1 by default, so every existing surface fills exactly as it did.

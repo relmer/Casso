@@ -25,7 +25,8 @@
 //  with dozens of items per list; Casso's longest menu is nine rows, so it
 //  can afford the airier spacing a modern menu uses, and beside a slide-open
 //  animation the tight classic rows read as dated. At 96 DPI this puts a row
-//  at 32 px against Windows' 22, which is WinUI's item height.
+//  at 31 px against Windows' 22: Explorer's own menus, measured at 150%, are
+//  46 px a row, which this gives.
 //
 //  What does NOT change is where the sizes COME FROM. A row is still the
 //  taller of the system item height and a line of the system menu font plus
@@ -43,7 +44,7 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
     constexpr int      kDefaultCheckGutterDip = 15;   // SM_CXMENUCHECK default
     constexpr int      kLinePercentOfEm       = 133;   // Segoe UI cell over em
     constexpr int      kMinFontDip            = 14;   // WinUI ControlContentThemeFontSize
-    constexpr int      kRowPadDip             = 7;   // above and below the text
+    constexpr int      kRowPadDip             = 13;   // above and below the text together
     constexpr int      kSeparatorPercentOfRow = 30;
     constexpr int      kLeftPadDip            = 6;
     constexpr int      kGutterGapDip          = 16;
@@ -97,7 +98,7 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
     m.fontPx       = (float) ((emPx > fontFloorPx) ? emPx : fontFloorPx);
     m.lineHeightPx = MulDiv ((int) m.fontPx, kLinePercentOfEm, 100);
 
-    textRowH = m.lineHeightPx + 2 * MulDiv (kRowPadDip, (int) effective, (int) kBaseDpi);
+    textRowH = m.lineHeightPx + MulDiv (kRowPadDip, (int) effective, (int) kBaseDpi);
 
     m.rowHeightPx       = (textRowH > menuH) ? textRowH : menuH;
     m.separatorHeightPx = MulDiv (m.rowHeightPx, kSeparatorPercentOfRow, 100);

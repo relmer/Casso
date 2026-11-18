@@ -56,8 +56,8 @@ public:
     void     FindNames    (Word address, std::vector<std::string> & names) const;
 
     // In one table only, whether or not it is enabled.
-    bool     TryResolveIn (SymbolTableId table, const std::string & name, Word & address) const;
-    bool     TryFindNameIn (SymbolTableId table, Word address, std::string & name) const;
+    bool  TryResolveIn  (SymbolTableId table, const std::string & name, Word & address) const;
+    bool  TryFindNameIn (SymbolTableId table, Word address, std::string & name) const;
 
     // The symbol as stored, with its own spelling of the name.
     bool     TryFindSymbol   (const std::string & name, SymbolInfo & symbol) const;
@@ -76,14 +76,14 @@ public:
 
     // The files a table was loaded from, by file name, in load order; a
     // table filled any other way, such as a built-in one, has none.
-    void     AddOrigin    (SymbolTableId table, const std::string & fileName);
-    const std::vector<std::string> &  GetOrigins (SymbolTableId table) const { return m_origins[(int) table]; }
+    void                              AddOrigin  (SymbolTableId table, const std::string & fileName);
+    const std::vector<std::string>  & GetOrigins (SymbolTableId table) const { return m_origins[(int) table]; }
 
     // The table in the Casso debug file format.
     std::string  Format   (SymbolTableId table) const;
 
-    static bool  TryGetTableId (const std::string & commandName, SymbolTableId & table);
-    static std::string  ToUpper (const std::string & text);
+    static bool         TryGetTableId (const std::string & commandName, SymbolTableId & table);
+    static std::string  ToUpper       (const std::string & text);
 
 private:
     struct Entry

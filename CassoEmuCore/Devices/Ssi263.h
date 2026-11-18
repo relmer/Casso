@@ -219,15 +219,15 @@ public:
     // relative to it, changing "voice type" as the datasheet describes.
     static constexpr double  kNominalFilterHz = 20000.0;
 
-    // IMachineState: the registers, the latched mode, A/R, the phoneme countdown,
-    // the synthesis state, floats at their exact bits so replay renders the same
-    // samples, and the recent phonemes. XCK, the tick clock, the host sample rate
-    // and the formant table are configuration and are not saved.
+    // IMachineState: the registers, the latched mode, A/R, the phoneme countdown
+    // and the recent phonemes; not the synthesis, which the host's audio thread
+    // advances (see SaveState). XCK, the tick clock, the host sample rate and
+    // the formant table are configuration and are not saved.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'I', ' ');
-    static constexpr uint16_t  kStateVersion = 3;
+    static constexpr uint16_t  kStateVersion = 4;
 
 private:
     void    CaptureScope        (float sample);
@@ -244,6 +244,7 @@ private:
     float   ResonateFricative   (float input, double centerHz);
 
     static bool  HasAnySource   (const Ssi263PhonemeSpec & spec);
+    static void  SkipSynthesis  (StateReader & reader);
 
     const Ssi263PhonemeSpec &  GetActiveSpec () const;
 

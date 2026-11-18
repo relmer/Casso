@@ -130,6 +130,26 @@ public:
     }
 
 
+    //  A title the pointer opened the menu from isn't highlighted once a
+    //  command on the menu is chosen, though the pointer left the title for
+    //  the menu's window and the bar had no mouse-leave.
+    TEST_METHOD (NoTitleIsLitAfterAMenuCommand)
+    {
+        Fixture  f;
+
+
+        f.bar.HandleMouseMove (20, 16);
+        Assert::AreEqual (0, f.bar.GetHoverIndex(), L"the pointer is over the title");
+
+        f.bar.Open (0, false);
+        f.bar.HandleKey (VK_RETURN);
+
+        Assert::AreEqual (1, f.dispatched);
+        Assert::AreEqual (-1, f.bar.GetHoverIndex(), L"the title isn't lit");
+        Assert::IsFalse  (f.bar.HasFocus(),          L"and the bar doesn't have the focus");
+    }
+
+
     TEST_METHOD (Enabled_DispatchesFromEachSurface)
     {
         Fixture  f;

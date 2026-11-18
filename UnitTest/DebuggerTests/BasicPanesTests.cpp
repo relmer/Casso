@@ -9,6 +9,7 @@
 #include "EmuTests/GuestSession.h"
 #include "EmuTests/KeystrokeInjector.h"
 #include "EmuTests/MachineIdle.h"
+#include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -141,6 +142,27 @@ namespace DebuggerTests
         }
 
 
+        //  A line breakpoint whose line the program doesn't have is marked,
+        //  with "(not in the program)" after its name; one on a line the
+        //  program has is not.
+        TEST_METHOD (ALineBreakpointOnALineNotInTheProgramIsMarked)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            snapshot.basic = MakeState ({ MakeLine (0x0801, 10, { " PRINT ", "A" }) }, std::nullopt, 0x0801);
+            snapshot.breakpoints.push_back (MakeLineBreakpoint (0, 10,   true));
+            snapshot.breakpoints.push_back (MakeLineBreakpoint (1, 2630, true));
+
+            DebuggerViewState::MarkAbsentBasicLines (snapshot);
+
+            Assert::IsFalse (snapshot.breakpoints[0].isAbsent);
+            Assert::IsTrue  (snapshot.breakpoints[1].isAbsent);
+            Assert::AreEqual (std::string ("Line 2630 (not in the program)"), BreakpointColumns::GetCells (snapshot, snapshot.breakpoints[1])[(size_t) BreakpointColumns::Column::Name]);
+        }
+
+
         //  A statement runs to its colon, which is part of it; a colon in
         //  quotes or after REM ends nothing.
         TEST_METHOD (StatementsEndAtColonsOutsideQuotesAndRemarks)
@@ -246,6 +268,42 @@ namespace DebuggerTests
             Assert::IsTrue   (cells[0][BasicProgramPane::kHeatColumn].tip.find (L"7 times") != std::wstring::npos, cells[0][BasicProgramPane::kHeatColumn].tip.c_str());
             Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].backgroundRanges.empty(), L"no tint in the listing");
             Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].colorRanges == plain[0][BasicProgramPane::kListingColumn].colorRanges, L"the syntax colors");
+        }
+
+        //  A statement after a colon is counted at its first token, not
+        //  at the line's: with only the second statement begun, the second
+        //  is tinted and the first is in its syntax colors. A read of the
+        //  first statement's token is not a run of it.
+        TEST_METHOD (AStatementAfterAColonIsCountedAtItsOwnFirstToken)
+        {
+            BasicLine                                     line    = MakeLine (0x0801, 10, { "A", "=", "1", ":", " PRINT ", "A" });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
+            HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+            uint32_t                                      tint    = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, 255, palette);
+            int                                           first   = GetOffset (rows[0], 0);
+            int                                           second  = GetOffset (rows[0], 4);
+
+
+
+            heat.read[0x0805]           = 255;
+            heat.statement[0x0809]      = 255;
+            heat.statementCount[0x0809] = 6;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette);
+
+            const DxuiListView::Cell  & listing = cells[0][BasicProgramPane::kListingColumn];
+
+            Assert::AreEqual ((size_t) 1, listing.backgroundRanges.size(), L"only the statement that ran is tinted");
+            Assert::AreEqual (second, std::get<0> (listing.backgroundRanges[0]), L"the tint starts at the second statement");
+            Assert::AreEqual (tint, std::get<2> (listing.backgroundRanges[0]));
+            Assert::AreNotEqual (DxuiColor::ChooseInkFor (tint, 0xFF101010u, 0xFFF8F8F8u), GetInk (listing, first), L"the first statement isn't in the tint's ink");
+            Assert::IsTrue   (std::get<2> (listing.rangeTips[0]).find (L"hasn't run") != std::wstring::npos, std::get<2> (listing.rangeTips[0]).c_str());
+            Assert::IsTrue   (std::get<2> (listing.rangeTips[1]).find (L"6 times") != std::wstring::npos, std::get<2> (listing.rangeTips[1]).c_str());
+            Assert::AreEqual (tint, cells[0][BasicProgramPane::kHeatColumn].background, L"the Heat cell has the second statement's heat");
         }
 
         //  A line the pointer is over fades from its tint to its syntax
@@ -409,6 +467,54 @@ namespace DebuggerTests
         //  The rows are LIST's, row for row, from a program typed into the
         //  machine; stopped at line 30's breakpoint, the snapshot has line
         //  30 and the pointer on its first statement.
+        //  While ProDOS banks language card RAM over Applesoft, the program
+        //  is listed from memory, with no values read.
+        TEST_METHOD (TheProgramListsWhileRamIsBankedOverApplesoft)
+        {
+            MachineHandlerRig<BasicHandlers>  rig { "Apple2eEnhanced", TestMachine::Slots::Empty };
+            DebuggerViewSnapshot::BasicState  state;
+
+
+
+            MachineIdle::RunUntilIdle (rig.machine, 20'000'000);
+            GuestSession::TypeAndCollect (rig.machine, "10 PRINT 1");
+
+            rig.machine.GetMemoryBus().ReadByte  (0xC083);
+            rig.machine.GetMemoryBus().ReadByte  (0xC083);
+            rig.machine.GetMemoryBus().WriteByte (0xD81D, 0x00);
+
+            state = DebuggerViewState::ReadBasic (rig.session, true);
+
+            Assert::IsFalse  (BasicStopMonitor::IsApplesoftVisible (rig.session), L"RAM is banked over the ROM");
+            Assert::IsTrue   (state.isApplesoft && state.hasProgram);
+            Assert::AreEqual ((size_t) 1, state.lines.size());
+            Assert::IsFalse  (state.hasValues);
+        }
+
+
+
+        //  After a run ends its values are in memory; at the prompt they are
+        //  read, running or not.
+        TEST_METHOD (TheValuesAreReadAtThePromptAfterARun)
+        {
+            MachineHandlerRig<BasicHandlers>  rig { "Apple2eEnhanced", TestMachine::Slots::Empty };
+            DebuggerViewSnapshot::BasicState  state;
+
+
+
+            MachineIdle::RunUntilIdle (rig.machine, 20'000'000);
+            GuestSession::TypeAndCollect (rig.machine, "10 A = 5");
+            GuestSession::TypeAndCollect (rig.machine, "RUN");
+
+            state = DebuggerViewState::ReadBasic (rig.session, false);
+
+            Assert::IsFalse  (state.line.has_value(), L"at the prompt");
+            Assert::IsTrue   (state.hasValues);
+            Assert::AreEqual ((size_t) 1, state.variables.size());
+        }
+
+
+
         TEST_METHOD (TheRowsAreWhatListPrints)
         {
             MachineHandlerRig<BasicHandlers>    rig { "Apple2eEnhanced", TestMachine::Slots::Empty };

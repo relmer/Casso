@@ -96,6 +96,7 @@ void TapeRecordScanner::Scan (const std::vector<double> & transitions, uint32_t 
 
             if (bits % 8 == 0)
             {
+                record.bytes.push_back (current);
                 checksum ^= last;
                 last      = current;
                 record.byteCount++;
@@ -108,6 +109,11 @@ void TapeRecordScanner::Scan (const std::vector<double> & transitions, uint32_t 
         // above XORed the zero that `last` started as -- a no-op.
         record.dataEnd = transitions[j < count ? j : count - 1];
         record.isValid = record.byteCount >= 2 && checksum == last;
+
+        if (!record.bytes.empty())
+        {
+            record.bytes.pop_back();
+        }
 
         records.push_back (record);
         i = j;

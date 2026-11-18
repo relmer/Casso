@@ -7,6 +7,7 @@
 #include "TestHelpers.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceBannerText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -169,6 +170,32 @@ namespace DebuggerTests
         }
 
 
+        //  A source line is unmatched while memory at its address isn't its
+        //  instruction, as when other code is loaded there.
+        TEST_METHOD (ALineWhoseBytesAreOtherCodesIsUnmatched)
+        {
+            std::vector<Byte>                 memory (0x10000, 0);
+            std::vector<ProgramCheck::Entry>  entries;
+            TestCpu                           cpu;
+
+
+
+            cpu.InitForTest();
+
+            memory[0x6000] = 0xA9;
+            memory[0x6001] = 0x01;
+            memory[0x6002] = 0xA2;
+            memory[0x6003] = 0x02;
+
+            entries.push_back ({ 0x6000, "LDA", 2, {}, 0, 4 });
+            entries.push_back ({ 0x6002, "LDA", 2, {}, 0, 5 });
+            entries.push_back ({ 0x6004, "",    0, { 0x11 } });
+
+            Assert::IsTrue (ProgramCheck::GetUnmatchedLines (entries, MakePeek (memory), cpu.GetInstructionSet()) == std::set<std::pair<int, int>> { { 0, 5 } },
+                            L"line 5 is LDX in memory; an entry with no line is no line's");
+        }
+
+
         TEST_METHOD (TheBannersHaveTheFilesNames)
         {
             Assert::AreEqual (std::wstring(), DisassemblyViewPane::GetStaleText ({}, false));
@@ -180,7 +207,7 @@ namespace DebuggerTests
                                             L"The program in memory doesn't match a.sym, so its labels are hidden."),
                               DisassemblyViewPane::GetStaleText ({ "main.dbg", "a.sym" }, true));
             Assert::AreEqual (std::wstring (L"The program in memory doesn't match main.dbg, so this file's lines aren't mapped to it."),
-                              SourcePane::GetStaleText (L"C:\\Work\\main.dbg"));
+                              SourceBannerText::GetStaleText (L"C:\\Work\\main.dbg"));
         }
     };
 

@@ -223,6 +223,23 @@ namespace DebuggerTests
         }
 
 
+        //  SRC CLEAR unloads the debug file; a second one with no file loaded succeeds.
+        TEST_METHOD (SrcClearUnloadsTheDebugFile)
+        {
+            Rig      rig;
+            Program  program = Load (rig);
+
+
+
+            (void) program;
+
+            Assert::IsTrue  (rig.session.HasDebugFile(), L"loaded");
+            rig.RunOk ("SRC CLEAR");
+            Assert::IsFalse (rig.session.HasDebugFile(), L"unloaded");
+            rig.RunOk ("SRC CLEAR");
+        }
+
+
         TEST_METHOD (SourceStepIntoEntersAMacroBodyLineByLine)
         {
             Rig      rig;
@@ -433,7 +450,7 @@ namespace DebuggerTests
 
             lines = rig.RunOk ("BP src/prog.a65:5").text;
             Assert::AreEqual ((size_t) 2, lines.size(), L"the macro's closing line moves to the next line with code");
-            Assert::AreEqual (std::string ("Line 5 produced no code. The breakpoint is on line 6."), lines.at (1));
+            Assert::AreEqual (std::string ("Line 5 has no code, so the breakpoint is on line 6."), lines.at (1));
 
             lines = rig.RunOk ("BP prog.a65:3").text;
             Assert::IsTrue   (lines.at (0).ends_with (" at $0307, prog.a65 line 3."), L"a macro body line, where its expansion put it");
@@ -442,6 +459,30 @@ namespace DebuggerTests
             Assert::IsTrue   (rig.RunFails ("BP prog.a65:3000000000", "no code").error.detail.find ("3000000000") != std::string::npos,
                               L"a line past the last one has no code, whatever its size");
             Assert::IsTrue   (rig.RunOk ("BP 300:302").text.at (0).find ("$0300") != std::string::npos, L"an address range still parses as one");
+        }
+
+
+        //  The breakpoint dialog changes a source line breakpoint's line with
+        //  BPEDIT and the line's definition, which moves it to that line's
+        //  address under the same id.
+        TEST_METHOD (BpeditMovesABreakpointToAnotherSourceLine)
+        {
+            MachineHandlerRig<BreakpointHandlers>  rig;
+            AssemblyResult                         result;
+            TestCpu                                cpu;
+            AssemblerOptions                       opts;
+
+
+
+            result = Assembler (cpu.GetInstructionSet(), opts).Assemble (s_kProgram);
+            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+
+            (void) rig.RunOk ("BP prog.a65:3");
+            (void) rig.RunOk ("BPEDIT 0 BP prog.a65:10");
+
+            Assert::AreEqual ((size_t) 1,     rig.session.GetBreakpoints().GetAll().size());
+            Assert::AreEqual (0,              rig.session.GetBreakpoints().GetAll()[0].id,    L"the same id");
+            Assert::AreEqual ((Word) 0x0309,  rig.session.GetBreakpoints().GetAll()[0].first, L"line 10's address");
         }
     };
 }

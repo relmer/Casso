@@ -56,7 +56,7 @@ public:
     };
 
     void                         SetHead   (const DiagnosticsDiskHead & head);
-    const DiagnosticsDiskHead &  GetHead   () const                         { return m_head; }
+    const DiagnosticsDiskHead  & GetHead   () const                         { return m_head; }
     void                         SetChoice (DriveChoice choice);
     DriveChoice                  GetChoice () const                         { return m_choice; }
     const DiskHeadView         * GetOther  () const                         { return m_other.get(); }

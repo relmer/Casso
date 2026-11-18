@@ -32,6 +32,26 @@ struct OperandTipCell
     RECT  area = {};
 };
 
+//  The parts of a row the tip lays out apart from the rest of its text: the
+//  column of its operand and result and how many characters into that
+//  column's text they start, which is past the line where they follow it in
+//  one cell; where the line's comment starts in that text, -1 for none; the
+//  column its code starts in and how many characters into that column's
+//  text; and the symbol its operand is written with, as "name = $value",
+//  empty for none.
+struct OperandTipParts
+{
+    static constexpr size_t  kNone = SIZE_MAX;
+
+    size_t        operandColumn = kNone;
+    int           operandChar   = 0;
+    int           commentChar   = -1;
+    size_t        codeColumn    = kNone;
+    int           codeChar      = 0;
+    size_t        rowColumn     = 0;       // where the row's line starts: its line number or address, past the heat column
+    std::wstring  symbol;
+};
+
 
 
 
@@ -60,10 +80,13 @@ public:
     virtual bool                   IsTipBlocked     () const = 0;
     virtual bool                   TryFindTipRow    (POINT clientPx, int & view, int & row) const = 0;
 
-    //  The list and column a view's tip covers: a disassembly view's operand
-    //  and result, or the BASIC program's values.
+    //  The list or text view a view's tip covers, and a row's parts: a
+    //  disassembly row's operand and result, its code and its operand's
+    //  symbol, or a source line's. A view has a list or a text view, not
+    //  both.
     virtual DxuiListView *         GetTipList       (int view) const = 0;
-    virtual size_t                 GetTipColumn     (int view) const = 0;
+    virtual DxuiTextView *         GetTipTextView   (int view) const = 0;
+    virtual OperandTipParts        GetTipParts      (int view, int row) const = 0;
     virtual bool                   IsTipCovered     (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const = 0;
 };
 
@@ -75,13 +98,13 @@ public:
 //
 //  OperandTipController
 //
-//  A disassembly row's operand and result that the pane cuts off, or a BASIC
-//  line's values, drawn whole over their cell in a popup: the window the popup is in, whether
-//  the tip is up, its layout, the cell it covers, and the renderer, scale
-//  and screen it was laid out with, which new rows and layouts are checked
-//  against. A window with no HWND, as a test builds it, measures with the
-//  renderer and screen the test sets. The color tip is the tooltip last put
-//  up below the operand tip; it goes when that tip does.
+//  The text of a disassembly row, a BASIC line or a source line that its
+//  view cuts off, drawn whole over the row in a popup: the window the popup
+//  is in, whether the tip is up, its layout, the row it covers, and the
+//  renderer, scale and screen it was laid out with, which new rows and
+//  layouts are checked against. A window with no HWND, as a test builds it,
+//  measures with the renderer and screen the test sets. The color tip is the
+//  tooltip last put up below the operand tip; it goes when that tip does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,10 +132,13 @@ public:
     bool                 TryGet         (POINT clientPx, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
 
-    //  Takes the tip down; takes it down when new rows or a new layout of a
-    //  view change its cell, or when the pointer moves off the cell; and, once
-    //  a frame, follows the pointer outside the window's mouse events.
+    //  Takes the tip down; lays it out again for the cell under a pointer
+    //  that has not moved, after the wheel or when new rows or a new layout
+    //  of a view change the cells; takes it down when the pointer moves off
+    //  the cell; and, once a frame, follows the pointer outside the window's
+    //  mouse events.
     void                 Hide           ();
+    void                 PlaceAtPointer ();
     void                 Check          (int view);
     void                 CheckPointer   (POINT clientPx);
     bool                 IsOverTipArea  (POINT clientPx) const;
@@ -128,12 +154,12 @@ public:
 
     //  A color tip over a cell is placed below the operand and result where
     //  they lie whole over their cell, rather than over their lines.
-    //  Below the whole tip, from the cell's left: an L-shaped tip's rect
-    //  starts at the pane's edge, and the color tip is about the cell.
-    RECT                 GetColorTipAnchor (const RECT & cell) const
-    {
-        return m_hasTip ? RECT { m_layout.firstLeft, m_layout.rect.top, m_layout.rect.right, m_layout.rect.bottom } : cell;
-    }
+    RECT                 GetColorTipAnchor (const RECT & cell) const { return m_hasTip ? m_layout.rect : cell; }
+
+    //  Whether the tip is up for the row under a point with its operand's
+    //  symbol among the operand's values, which takes the place of that
+    //  symbol's tip there.
+    bool                 IsSymbolShownAt (POINT clientPx) const;
 
     //  The renderer and screen the tip is measured with in a window that
     //  has no HWND, as a test builds it.
@@ -148,17 +174,39 @@ private:
     };
 
     void                 Show           ();
+    void                 SetTip         (OperandResultTip::Layout && layout, const OperandTipCell & cell, IDxuiTextRenderer & text, const DxuiDpiScaler & scaler,
+                                         const OperandTipScreen & screen);
+    void                 FitColumns     (int view, IDxuiTextRenderer & text) const;
     bool                 TryMake        (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
-    uint32_t             GetRowFill     (const DxuiListView * list, int row) const;
+    bool                 TryMakeOnList  (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                         OperandResultTip::Layout & out, OperandTipCell & outCell) const;
+    bool                 TryMakeOnText  (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                         OperandResultTip::Layout & out, OperandTipCell & outCell) const;
     OperandTipScreen     GetScreen      (const DxuiHwndSource * host) const;
+    void                 SetHighlight   (int view, int row);
+    static bool          HasLineComment (const DxuiTextView & view, int row);
 
-    static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout);
-    static BOOL CALLBACK CollectWindowOver      (HWND hwnd, LPARAM param);
+    //  The room either side of a text view's text under the tip, as a dense
+    //  list pads a cell.
+    static constexpr int kTextPadDip = 4;
+
+    static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, const OperandResultTip::Layout & layout);
+    static bool          TryAddListSegment      (const DxuiListView & list, int row, size_t column, const OperandTipParts & parts, uint32_t ink,
+                                                 IDxuiTextRenderer & text, OperandResultTip::Placement & placement);
+    static float         MeasureLeadPx          (const std::wstring & cellText, int chars, const OperandResultTip::Placement & placement,
+                                                 IDxuiTextRenderer & text);
+    static void          AddTextSegments        (const DxuiTextView & view, int row, const OperandTipParts & parts, uint32_t ink,
+                                                 IDxuiTextRenderer & text, OperandResultTip::Placement & placement);
+    static std::vector<uint32_t>  GetCellColors     (const DxuiListView::Cell & cell, uint32_t ink);
+    static RECT                   GetRowWorkArea    (const RECT & row, const std::vector<RECT> & workAreas);
+    static BOOL CALLBACK          CollectWindowOver (HWND hwnd, LPARAM param);
 
     IOperandTipHost           & m_host;
     DxuiInPlaceTip              m_tip;
     DxuiHwndSource            * m_popupHost  = nullptr;
+    DxuiTextView              * m_lit        = nullptr;
+    DxuiListView              * m_litList    = nullptr;
     bool                        m_hasTip     = false;
     OperandResultTip::Layout    m_layout;
     OperandTipCell              m_cell;
@@ -168,4 +216,10 @@ private:
     IDxuiTextRenderer         * m_testText   = nullptr;
     OperandTipScreen            m_testScreen;
     DxuiTooltip               * m_colorTip   = nullptr;
+
+    //  Where the pointer last moved, or turned the wheel, with no button
+    //  down, in the popup host's client pixels; false once a button is
+    //  pressed or the pointer is outside the window.
+    POINT                       m_pointer    = {};
+    bool                        m_isResting  = false;
 };

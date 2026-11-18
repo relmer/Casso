@@ -56,6 +56,9 @@ SerialCardPage::SerialCardPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     Adopt (m_firmwareBanner);
+    Adopt (m_listenBanner);
+    m_listenBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_listenBanner.SetVisible  (false);
     Adopt (m_download);
     Adopt (m_switchesHeading);
 
@@ -185,6 +188,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   noteWidth    = std::max (dropWidth, scaler.ToPx (s_kDropdownWidthDp) + rowGap + buttonWidth);
     int   bannerWidth  = (rect.right - rect.left) - pad * 2;
     int   bannerHeight = static_cast<int> (std::ceil (m_firmwareBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
+    int   listenHeight = 0;
 
 
 
@@ -195,6 +199,13 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_firmwareBanner.SetRect (MakeRect (x, y, bannerWidth, bannerHeight));
     m_firmwareBanner.SetDpi  (dpi);
     y += bannerHeight + rowGap;
+
+    if (m_listenBanner.IsVisible())
+    {
+        listenHeight = static_cast<int> (std::ceil (m_listenBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
+        m_listenBanner.Layout (MakeRect (x, y, bannerWidth, listenHeight), scaler);
+        y += listenHeight + rowGap;
+    }
 
     m_download.SetLabel   (L"Download firmware");
     m_download.SetVisible (m_offerDownload);
@@ -549,7 +560,8 @@ SscSwitches SerialCardPage::ReadStagedSwitches() const
 
 void SerialCardPage::StageSwitches (const SscSwitches & switches)
 {
-    HRESULT  hr = S_OK;
+    HRESULT       hr = S_OK;
+    std::wstring  notice;
 
 
 
@@ -558,9 +570,16 @@ void SerialCardPage::StageSwitches (const SscSwitches & switches)
         hr = m_state->SetSerialCardSwitches (switches.GetBankText (SscBank::Sw1),
                                              switches.GetBankText (SscBank::Sw2));
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        notice = m_state->TakeNotice();
     }
 
     SyncSwitches (switches);
+
+    if (!notice.empty() && m_onNotice)
+    {
+        m_onNotice (notice);
+    }
 }
 
 
@@ -575,7 +594,8 @@ void SerialCardPage::StageSwitches (const SscSwitches & switches)
 
 void SerialCardPage::OnAttachmentChanged (const SerialAttachmentChoice & choice)
 {
-    HRESULT  hr = S_OK;
+    HRESULT       hr = S_OK;
+    std::wstring  notice;
 
 
 
@@ -583,10 +603,17 @@ void SerialCardPage::OnAttachmentChanged (const SerialAttachmentChoice & choice)
     {
         hr = m_state->SetSerialAttachment (SerialPortId::Card, choice);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        notice = m_state->TakeNotice();
     }
 
     Relayout();
     MarkDirty();
+
+    if (!notice.empty() && m_onNotice)
+    {
+        m_onNotice (notice);
+    }
 }
 
 
@@ -602,6 +629,32 @@ void SerialCardPage::OnAttachmentChanged (const SerialAttachmentChoice & choice)
 void SerialCardPage::SyncSwitches (const SscSwitches & switches)
 {
     m_switchesView.SetSwitches (switches);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::Relayout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SerialCardPage::SyncListenProblem()
+{
+    std::wstring  text    = m_listenProblem ? m_listenProblem() : std::wstring();
+    bool          changed = text != m_listenBanner.GetText() || text.empty() == m_listenBanner.IsVisible();
+
+
+
+    if (changed)
+    {
+        m_listenBanner.SetText    (text);
+        m_listenBanner.SetVisible (!text.empty());
+
+        Relayout();
+    }
 }
 
 

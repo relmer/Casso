@@ -82,6 +82,50 @@ std::shared_ptr<DxuiIconImage> GutterGlyph::MakeArrow (uint32_t argb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GutterGlyph::MakeBookmark
+//
+//  The outline of a rounded square around where the dot is drawn, wide
+//  enough for the whole dot to lie inside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiIconImage> GutterGlyph::MakeBookmark (uint32_t argb)
+{
+    constexpr float  kHalfPx   = 22.0f;     // from the middle to the outline's outer edge
+    constexpr float  kCornerPx = 7.0f;
+    constexpr float  kLinePx   = 3.0f;
+    auto             image     = std::make_shared<DxuiIconImage>();
+
+
+
+    image->width  = kSizePx;
+    image->height = kSizePx;
+    image->bgraPremul.assign ((size_t) (kSizePx * kSizePx), 0u);
+
+    for (int y = 0; y < kSizePx; y++)
+    {
+        for (int x = 0; x < kSizePx; x++)
+        {
+            //  The distance out from a rounded square's edge, negative inside.
+            float  dx    = std::abs (x + 0.5f - kSizePx * 0.5f) - (kHalfPx - kCornerPx);
+            float  dy    = std::abs (y + 0.5f - kSizePx * 0.5f) - (kHalfPx - kCornerPx);
+            float  d     = std::hypot ((std::max) (dx, 0.0f), (std::max) (dy, 0.0f)) + (std::min) ((std::max) (dx, dy), 0.0f) - kCornerPx;
+            float  outer = std::clamp (0.5f - d, 0.0f, 1.0f);
+            float  inner = std::clamp (0.5f - d - kLinePx, 0.0f, 1.0f);
+
+            image->bgraPremul[(size_t) (y * kSizePx + x)] = MakePixel (argb, outer - inner);
+        }
+    }
+
+    return image;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GutterGlyph::MakeOver
 //
 //  One image drawn over another, as a line with both a breakpoint and the PC

@@ -694,7 +694,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"nothing is counted while profiling is off");
 
             Assert::AreEqual (std::string ("Profiling on."), rig.RunOk ("PROFILE ON").text.at (0));
-            rig.machine.RunCycles (20);
+            rig.machine.GetRunner().RunCycles (20);
             Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is profiled too");
             rig.RunOk ("PROFILE RESET");
 
@@ -919,7 +919,7 @@ namespace DebuggerTests
 
             rig.RunOk ("TF trace.txt");
             rig.RunOk ("PROFILE ON");
-            rig.machine.RunCycles (200);
+            rig.machine.GetRunner().RunCycles (200);
             Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"the free run is profiled");
 
             rig.RunOk ("= 300");
@@ -1016,7 +1016,7 @@ namespace DebuggerTests
             rig.target.videoPosition = { 42, 17 };
             Assert::AreEqual (std::string ("Scanline $2A, cycle $11"), rig.RunOk ("VIDEOINFO").text.at (0));
 
-            Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$A0. It clears after it fires."), rig.RunOk ("BPV A0").text.at (0));
+            Assert::AreEqual (std::string ("Breakpoint set on video scanlines $A0-$A0. It is removed after its first stop."), rig.RunOk ("BPV A0").text.at (0));
             Assert::IsTrue   (rig.target.hookInstalled);
             Assert::IsFalse  (rig.session.ShouldStopBefore (0x0300));
             rig.target.videoPosition.scanline = 160;

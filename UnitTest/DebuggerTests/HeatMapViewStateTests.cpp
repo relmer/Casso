@@ -46,7 +46,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue    (rig.machine.GetMemoryBus().AreAllPagesWatched());
@@ -68,13 +68,13 @@ namespace DebuggerTests
 
 
             rig->view.SetClock ([] { return (uint64_t) 1000; });
-            rig->view.SetHeatMapShown (true);
+            rig->view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig->view.Build (rig->controller.GetSession(), false);
             first    = snapshot.heatMap.serial;
 
             //  LDA #$41 at $0300: counted, but a running machine's snapshot
             //  within the interval holds the reading before it.
-            rig->machine.StepOne();
+            rig->machine.GetRunner().StepOne();
             snapshot = rig->view.Build (rig->controller.GetSession(), false);
             running  = snapshot.heatMap.serial;
 
@@ -82,7 +82,7 @@ namespace DebuggerTests
             Assert::AreEqual    (first, running, L"the same reading");
             Assert::AreEqual    ((Byte) 0, snapshot.heatMap.execute[0x0300]);
 
-            rig->view.MarkHeatMapReadDue();
+            rig->view.GetHeatMap().MarkHeatMapReadDue();
             snapshot = rig->view.Build (rig->controller.GetSession(), false);
             asked    = snapshot.heatMap.serial;
 
@@ -101,9 +101,9 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
-            rig.view.SetHeatMapShown (false);
+            rig.view.GetHeatMap().SetHeatMapShown (false);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (snapshot.heatMap.execute.empty());
@@ -123,11 +123,11 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41 at $0300, run once: two bytes executed, once each.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             Assert::AreEqual ((Word) 0x0302, rig.controller.GetSession().GetTarget().GetRegisters().pc);
 
             snapshot = rig.view.Build (rig.controller.GetSession());
@@ -135,7 +135,7 @@ namespace DebuggerTests
 
             options.cumulative  = true;
             options.fadeSeconds = 30;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
             map      = rig.controller.GetSession().GetTarget().FoldHeatMap();
             thirty.SetFadeSeconds (30.0);
@@ -157,7 +157,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((size_t) HeatMapOptions::kBankCount, snapshot.heatMap.banks.size(), L"a //e has every bank");
@@ -165,11 +165,11 @@ namespace DebuggerTests
             Assert::AreEqual ((int) HeatMapOptions::Bank::Cpu, (int) snapshot.heatMap.bank);
 
             //  LDA #$41 at $0300: executed from main RAM.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
 
             options.cumulative = true;
             options.bank       = HeatMapOptions::Bank::Main;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
             map      = rig.controller.GetSession().GetTarget().FoldHeatMap();
 
@@ -179,7 +179,7 @@ namespace DebuggerTests
             Assert::AreEqual ((Byte) 255, snapshot.heatMap.execute[0x0300], L"the main RAM's levels");
 
             options.bank = HeatMapOptions::Bank::LanguageCard;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual ((Byte) 0, snapshot.heatMap.execute[0x0300], L"the language card's view shows its 16 KB alone");
@@ -194,17 +194,17 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41, then STA $0400.
-            rig.machine.StepOne();
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
+            rig.machine.GetRunner().StepOne();
 
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::IsNull (snapshot.heatMap.hover.get(), L"no cell, nothing looked up");
 
-            rig.view.SetHeatMapHover (Word (0x0400));
+            rig.view.GetHeatMap().SetHeatMapHover (Word (0x0400));
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsNotNull (snapshot.heatMap.hover.get());
@@ -213,22 +213,6 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0302, snapshot.heatMap.hover->writer.pc);
             Assert::AreEqual (std::string ("STA $0400"), snapshot.heatMap.hover->writer.instruction);
             Assert::IsFalse  (snapshot.heatMap.hover->reader.has, L"nothing read it");
-        }
-
-
-
-        TEST_METHOD (TheViewMessageReadsOnAndOff)
-        {
-            bool  shown = false;
-
-
-
-            Assert::IsTrue  (CpuCommandDispatcher::TryGetHeatMapShown ("on",  shown));
-            Assert::IsTrue  (shown);
-            Assert::IsTrue  (CpuCommandDispatcher::TryGetHeatMapShown ("off", shown));
-            Assert::IsFalse (shown);
-            Assert::IsFalse (CpuCommandDispatcher::TryGetHeatMapShown ("",    shown));
-            Assert::IsFalse (CpuCommandDispatcher::TryGetHeatMapShown ("ON1", shown));
         }
     };
 }

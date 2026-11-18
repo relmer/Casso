@@ -1,0 +1,305 @@
+#include "Pch.h"
+
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
+#include "Core/MachineConfig.h"
+#include "Core/MemoryBus.h"
+#include "Devices/Floppy35/LironCard.h"
+
+
+
+
+static constexpr Word  s_kSwitchMask = 0x0F;
+static constexpr Word  s_kPageMask   = 0xFF;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LironCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LironCard::LironCard (int slot, MemoryBus & bus) :
+    m_slot     (slot),
+    m_hostBus  (bus),
+    m_slotPage (slot, *this)
+{
+    m_ioStart = (Word) (kSlotIoBase + slot * kSlotIoStride);
+    m_ioEnd   = (Word) (m_ioStart + kSlotIoStride - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~LironCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LironCard::~LironCard() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Create
+//
+//  ComponentRegistry factory. The card defaults to slot 5.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<MemoryDevice> LironCard::Create (const DeviceConfig & config, MemoryBus & bus)
+{
+    constexpr int  kDefaultSlot = 5;
+    int            slot         = config.hasSlot ? config.slot : kDefaultSlot;
+
+
+
+    return std::make_unique<LironCard> (slot, bus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Read
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte LironCard::Read (Word address)
+{
+    return m_port.Access (address & s_kSwitchMask, false, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIo
+//
+//  The IWM's byte for the switch, with the drives left where they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool LironCard::TryPeekIo (Word address, Byte & value)
+{
+    return m_port.GetIwm().TryPeekAccess (address & s_kSwitchMask, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Write
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LironCard::Write (Word address, Byte value)
+{
+    m_port.Access (address & s_kSwitchMask, true, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LironCard::Reset()
+{
+    m_port.Reset();
+    m_selected = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSlotPageAccess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte LironCard::OnSlotPageAccess (Word address, bool isWrite, Byte value)
+{
+    (void) isWrite;
+    (void) value;
+
+    m_selected = true;
+
+    return PeekSlotPage (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekSlotPage
+//
+//  The slot's ROM page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte LironCard::PeekSlotPage (Word address) const
+{
+    return m_rom.empty() ? (Byte) 0xFF : m_rom[(size_t) m_slot * 0x100 + (address & s_kPageMask)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadExpansionRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte LironCard::ReadExpansionRom (Word address)
+{
+    return PeekExpansionRom (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PeekExpansionRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte LironCard::PeekExpansionRom (Word address) const
+{
+    return m_rom.empty() ? (Byte) 0xFF : m_rom[address - kExpansion];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFirmware
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LironCard::SetFirmware (std::vector<Byte> firmware)
+{
+    HRESULT  hr     = S_OK;
+    size_t   length = firmware.size();
+
+
+
+    m_rom.clear();
+    CBREx (length == kRomSize, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
+
+    m_rom = std::move (firmware);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LironCard::GetReplayMedia
+//
+//  Each UniDisk 3.5 on the card's chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LironCard::GetReplayMedia (std::vector<IReplayMedia *> & outDrives)
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < m_port.GetDriveCount(); i++)
+    {
+        outDrives.push_back (&m_port.GetDrive (i).GetMechanism());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LironCard::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LironCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+    writer.WriteBool    (m_selected);
+
+    hr = m_port.SaveState (writer);
+    CHR (hr);
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LironCard::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LironCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (m_selected);
+
+    hr = m_port.LoadState (reader);
+    CHR (hr);
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
+}

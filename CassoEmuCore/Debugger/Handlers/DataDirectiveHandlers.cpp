@@ -44,16 +44,21 @@ bool DataDirectiveHandlers::TryExecute (DebugSession & session, const DebugComma
 //
 //  Each address is an instruction, or, inside a data block, one line of
 //  that block's items: a block marked by a data directive, or one the debug
-//  file maps to a data directive.
+//  file maps to a data directive. An instruction running over pc is its
+//  bytes before pc instead, the way the line list cuts it; so is one
+//  running over a label or the target of an executed branch, unless it
+//  starts at pc, so a symbol's address and a branch's target each have a
+//  row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data)
+Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc)
 {
     IDebugTarget  & target      = session.GetTarget();
     Disassembler    disassembler (target.GetInstructionSet());
     SymbolTableId   symbolTable = SymbolTableId::Main;
     uint32_t        address     = first;
+    uint32_t        cutAt       = 0;
     HRESULT         hr          = S_OK;
 
 
@@ -80,6 +85,29 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
             hr = disassembler.DisassembleOne ((Word) address, bytes, line.instruction);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
+            cutAt = 0;
+
+            for (uint32_t inside = 1; inside < line.instruction.bytes.size() && cutAt == 0 && address + inside <= 0xFFFF; inside++)
+            {
+                bool  isPc    = pc.has_value() && *pc == address + inside;
+                bool  isLabel = !(pc.has_value() && *pc == address) &&
+                                (IsCodeLabel (session, (Word) (address + inside)) || session.IsBranchTarget ((Word) (address + inside)));
+
+                cutAt = (isPc || isLabel) ? address + inside : 0;
+            }
+
+            if (cutAt != 0)
+            {
+                DataBlockEntry  cut;
+
+
+
+                cut.first = (Word) address;
+                cut.last  = (Word) (cutAt - 1);
+                line      = DisassemblyLine();
+                MakeDataLine (session, cut, (Word) address, line);
+            }
+
             session.GetSymbols().TryFindName ((Word) address, line.label, symbolTable);
 
             if (line.instruction.hasOperandAddress)
@@ -93,6 +121,35 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
     }
 
     return (Word) address;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataDirectiveHandlers::IsCodeLabel
+//
+//  Whether an address has a symbol that could label code: one in a table
+//  that is on, not a constant, and outside the I/O page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DataDirectiveHandlers::IsCodeLabel (const DebugSession & session, Word address)
+{
+    SymbolTableId  table = SymbolTableId::Main;
+    std::string    name;
+    SymbolInfo     symbol;
+
+
+
+    if ((address >= kIoFirst && address <= kIoLast) || !session.GetSymbols().TryFindName (address, name, table))
+    {
+        return false;
+    }
+
+    return !session.GetSymbols().TryFindSymbolIn (table, name, symbol) || !symbol.isConstant;
 }
 
 

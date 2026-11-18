@@ -57,7 +57,7 @@ namespace DebugEventRebuildTests
         {
             if (access == BusAccess::Write)
             {
-                m_cache.Append (m_machine.GetPosition(), m_machine.GetCpu()->GetTotalCycles(), PageWrite { address, value });
+                m_cache.Append (m_machine.GetRunner().GetPosition(), m_machine.GetCpu()->GetTotalCycles(), PageWrite { address, value });
             }
         }
 
@@ -109,7 +109,7 @@ namespace DebugEventRebuildTests
         {
             if (access == BusAccess::Write && m_entries != nullptr)
             {
-                m_entries->push_back (Entry { DebugEventEntryKind::Event, m_machine->GetPosition(), m_machine->GetCpu()->GetTotalCycles(), PageWrite { address, value } });
+                m_entries->push_back (Entry { DebugEventEntryKind::Event, m_machine->GetRunner().GetPosition(), m_machine->GetCpu()->GetTotalCycles(), PageWrite { address, value } });
             }
         }
 
@@ -152,14 +152,14 @@ namespace DebugEventRebuildTests
             m_machine = &machine;
             m_entries = &entries;
 
-            machine.AttachObservers ({ this, this }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ this, this }, ObserverSlot::History);
 
             return S_OK;
         }
 
         void  Detach (MachineHost & machine) override
         {
-            machine.AttachObservers ({}, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::History);
 
             m_machine = nullptr;
             m_entries = nullptr;
@@ -194,7 +194,7 @@ namespace DebugEventRebuildTests
         {
             if (m_entries != nullptr)
             {
-                m_entries->push_back (FeedEntry { DebugEventEntryKind::Event, m_machine->GetPosition(), m_machine->GetCpu()->GetTotalCycles(), FeedEvent { kind, a, b, c } });
+                m_entries->push_back (FeedEntry { DebugEventEntryKind::Event, m_machine->GetRunner().GetPosition(), m_machine->GetCpu()->GetTotalCycles(), FeedEvent { kind, a, b, c } });
             }
         }
 
@@ -241,7 +241,7 @@ namespace DebugEventRebuildTests
                 hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
                 AssertSucceeded (hr, L"Start");
 
-                cache.Reset (machine.GetPosition());
+                cache.Reset (machine.GetRunner().GetPosition());
                 machine.GetMemoryBus().SetWatchedPage (kWatchedPage, true);
                 machine.GetMemoryBus().SetWatchSink   (&sink);
 
@@ -251,7 +251,7 @@ namespace DebugEventRebuildTests
 
                     for (spent = 0; spent < kSliceCycles; )
                     {
-                        spent += machine.StepOne();
+                        spent += machine.GetRunner().StepOne();
                     }
                 }
 
@@ -405,7 +405,7 @@ namespace DebugEventRebuildTests
 
                 for (spent = 0; spent < kSliceCycles; )
                 {
-                    spent += machine.StepOne();
+                    spent += machine.GetRunner().StepOne();
                 }
             }
 

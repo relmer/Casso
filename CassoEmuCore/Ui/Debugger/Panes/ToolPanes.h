@@ -3,6 +3,7 @@
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
+#include "Ui/Debugger/Panes/ListValueFilters.h"
 
 class DebuggerPaneFrame;
 
@@ -35,6 +36,8 @@ public:
     IDxuiControl               * GetContent     () const override;
     std::vector<IDxuiControl *>  GetControls    () const override { return { m_list }; }
     std::vector<DxuiListView *>  GetLists       () const override { return { m_list }; }
+    IDxuiFindTarget            * GetFindView    () const override { return m_list; }
+    DebuggerPaneFrame          * GetFindFrame   () const override { return m_frame.get(); }
 
 protected:
     //  Copy, for the rows selected in the list.
@@ -49,6 +52,11 @@ protected:
 
     //  Scrolls to a row added since the last call.
     void                         ShowNewListRow ();
+
+    //  The rows a menu's Delete acts on: every selected row when the one
+    //  clicked is among them, otherwise the one clicked. With no row given,
+    //  the selection.
+    std::vector<int>             GetActedRows   (int row) const;
 
     std::wstring                         m_id;
     std::wstring                         m_title;
@@ -90,8 +98,16 @@ public:
     {
         std::string  table;
         std::string  name;
-        Word         address   = 0;
-        bool         isHeading = false;
+        Word         address    = 0;
+        bool         isHeading  = false;
+        bool         isConstant = false;
+    };
+
+    //  The column a table's symbols are sorted by.
+    enum class Sort
+    {
+        Name,
+        Address,
     };
 
     SymbolsPane (IDebuggerPaneHost & host, Kind kind);
@@ -100,8 +116,6 @@ public:
     void                 Apply             (const DebuggerViewSnapshot & snapshot) override;
     bool                 AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                 RouteContentMouse (const DxuiMouseEvent & ev) override;
-    IDxuiFindTarget    * GetFindView       () const override { return m_list; }
-    DebuggerPaneFrame  * GetFindFrame      () const override { return m_frame.get(); }
     const Row          * GetRow            (int row) const;
 
     //  A table's heading opened or closed, by the table's name.
@@ -109,12 +123,16 @@ public:
 
     static bool          IsUserTable       (SymbolTableId table);
 
-    static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open);
+    //  Each table's symbols are sorted by sort, by name ignoring case or by
+    //  address, then by the other, in reverse when isReverse.
+    static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open,
+                                                                   Sort sort = Sort::Name, bool isReverse = false);
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows, const std::set<std::string> & open);
 
 private:
     void  SaveTable    (const std::string & table);
     void  RebuildRows  ();
+    void  SortBy       (int column);
 
     //  The file a table was loaded from, or empty for a table filled any
     //  other way.
@@ -124,6 +142,8 @@ private:
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
     std::vector<Row>                                             m_rows;
     std::set<std::string>                                        m_open;   // the tables whose headings are open
+    Sort                                                         m_sort      = Sort::Name;
+    bool                                                         m_isReverse = false;
 };
 
 
@@ -134,8 +154,9 @@ private:
 //
 //  BookmarksPane
 //
-//  The bookmarks, each its number, its address and the symbol there.
-//  Activating one moves the disassembly to its address.
+//  The bookmarks, each its number, its address and the symbol there, sorted
+//  by the heading last clicked. Activating one moves the disassembly to its
+//  address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,6 +168,7 @@ public:
     void  Configure    () override;
     void  Apply        (const DebuggerViewSnapshot & snapshot) override;
     bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool  RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
 
     //  The bookmark a row has, none for no such row.
     std::optional<DebuggerViewSnapshot::WatchLine>  GetBookmark (int row) const;
@@ -158,8 +180,22 @@ public:
     //  from the last to the first; none when there are none.
     static std::optional<Word>  GetNext (const std::vector<DebuggerViewSnapshot::WatchLine> & bookmarks, Word from, bool isBackward);
 
+    //  The bookmarks in a column's order: by number, by address, or by the
+    //  symbol's text ignoring case; backward with `isReverse`, and as given
+    //  for no column. Bookmarks that compare equal stay in the order given.
+    static std::vector<DebuggerViewSnapshot::WatchLine>  GetSorted (std::vector<DebuggerViewSnapshot::WatchLine>   bookmarks,
+                                                                     const DebuggerViewSnapshot::SymbolsState     * symbols, int column, bool isReverse);
+
 private:
+    void  SortBy     (int column);
+
+    //  The bookmarks of the rows, from the highest number down, so no clear
+    //  moves another one's number first.
+    void  DeleteRows (const std::vector<int> & rows);
+
     std::vector<DebuggerViewSnapshot::WatchLine>      m_bookmarks;
+    int                                               m_sort      = -1;
+    bool                                              m_isReverse = false;
 };
 
 
@@ -170,7 +206,8 @@ private:
 //
 //  DataBlocksPane
 //
-//  The ranges marked as data, each its name, its range and its kind.
+//  The ranges marked as data, each its name, its range and its kind, sorted
+//  by the heading last clicked and filtered by kind from the Kind heading.
 //  Activating one moves the disassembly to its first address.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,12 +220,34 @@ public:
     void  Configure    () override;
     void  Apply        (const DebuggerViewSnapshot & snapshot) override;
     bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool  RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
 
     //  The block a row has, none for no such row.
     std::optional<DataBlockEntry>  GetBlock (int row) const;
 
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::vector<DataBlockEntry> & blocks);
 
+    //  The blocks in a column's order: by name ignoring case, by first
+    //  address, or by the kind's text; backward with `isReverse`, and as
+    //  given for no column. Blocks that compare equal stay in the order given.
+    static std::vector<DataBlockEntry>  GetSorted   (std::vector<DataBlockEntry> blocks, int column, bool isReverse);
+    static const wchar_t              * GetKindText (DataBlockKind kind);
+
+    //  The directive that marks a range of a block's kind, as DB4 or ASC.
+    static std::string                  GetDirective (const DataBlockEntry & block);
+
+    //  The Kind heading's filter.
+    ListValueFilters                  & GetFilters  () { return m_filters; }
+
 private:
+    static constexpr size_t  kKindColumn = 2;
+
+    void  SortBy     (int column);
+    void  DeleteRows (const std::vector<int> & rows);
+    void  Rename     (const DataBlockEntry & block);
+
     std::vector<DataBlockEntry>    m_blocks;
+    ListValueFilters               m_filters;
+    int                            m_sort      = -1;
+    bool                           m_isReverse = false;
 };

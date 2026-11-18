@@ -44,6 +44,30 @@ public:
         return rc;
     }
 
+    //  A tooltip in a popup has its host's DPI after a layout at a zoomed
+    //  scale, so a balloon that is up draws its text at the size it was
+    //  measured at. One drawn in its window follows the layout.
+    TEST_METHOD (ATooltipInAPopup_KeepsItsDpiThroughAZoomedLayout)
+    {
+        DxuiHwndSource  host;
+        DxuiTooltip     popupTip;
+        DxuiTooltip     windowTip;
+        DxuiDpiScaler   zoomed;
+
+
+
+        zoomed.SetDpi (204);
+
+        popupTip.SetDpi       (144);
+        popupTip.SetPopupHost (&host);
+        popupTip.Layout       (RECT { 0, 0, 100, 20 }, zoomed);
+
+        windowTip.Layout (RECT { 0, 0, 100, 20 }, zoomed);
+
+        Assert::AreEqual (144u, popupTip.GetDpi());
+        Assert::AreEqual (204u, windowTip.GetDpi());
+    }
+
     TEST_METHOD (Request_HiddenUntilDwellElapses)
     {
         DxuiTooltip  t;
@@ -78,6 +102,43 @@ public:
         Assert::IsFalse (t.IsVisible());
     }
 
+    TEST_METHOD (HoverTip_StaysUntilThePointerLeaves)
+    {
+        static constexpr int64_t  kLongAfter = 1000000;
+
+        DxuiTooltip  t;
+
+        t.SetDwellOpenMs  (0);
+        t.SetDwellCloseMs (0);
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (0);
+
+        t.Tick (kLongAfter);
+        Assert::IsTrue (t.IsVisible(), L"no time limit");
+
+        t.RequestHide (kLongAfter);
+        t.Tick (kLongAfter);
+        Assert::IsFalse (t.IsVisible());
+    }
+
+    static bool  IsActiveForTest()   { return s_isActive; }
+
+    static inline bool  s_isActive = true;
+
+    TEST_METHOD (TimedNotice_IgnoresTheForeground)
+    {
+        DxuiTooltip  t;
+
+        s_isActive = false;
+        t.SetActiveTest (IsActiveForTest);
+        t.ShowTimed (MakeRect (0, 0, 50, 20), L"a notice", 0, 1000);
+        t.Tick (1);
+        Assert::IsTrue (t.IsVisible());
+
+        t.Tick (1000);
+        Assert::IsFalse (t.IsVisible());
+    }
+
     TEST_METHOD (Request_HideBeforeShow_CancelsPending)
     {
         DxuiTooltip  t;
@@ -89,6 +150,59 @@ public:
 
         Assert::IsFalse (t.IsVisible(),
             L"Hide before the show dwell fires must abort the pending show.");
+    }
+
+    TEST_METHOD (Request_MovesOverTheSameControlKeepTheDwell)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.RequestShow (MakeRect (2, 0, 52, 20), L"x", 300);
+        t.RequestShow (MakeRect (4, 0, 54, 20), L"x", 450);
+        t.Tick (500);
+
+        Assert::IsTrue (t.IsVisible(),
+            L"The dwell runs from the first request, not the last move, as Windows' tips do.");
+        Assert::AreEqual ((LONG) 4, t.GetAnchor().left, L"and the tip shows at the latest anchor");
+    }
+
+    TEST_METHOD (FollowPointer_MoveToAnotherControlWaitsTheFullDelay)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs   (500);
+        t.SetFollowPointer (true);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"Cut", 0);
+        t.Tick (500);
+        Assert::IsTrue (t.IsVisible());
+
+        t.RequestShow (MakeRect (60, 0, 110, 20), L"Copy", 1000);
+        t.Tick (1400);
+        Assert::IsFalse (t.IsVisible(), L"The next control's tip waits the whole delay again, as File Explorer's do");
+
+        t.Tick (1500);
+        Assert::IsTrue   (t.IsVisible());
+        Assert::AreEqual (std::wstring (L"Copy"), t.GetText());
+    }
+
+    TEST_METHOD (ShowFollowing_WaitsTheDelayAndThenFollows)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShowFollowing (MakeRect (0, 0, 1, 1), L"$0300", 0);
+        t.RequestShowFollowing (MakeRect (5, 0, 6, 1), L"$0301", 300);
+        Assert::IsFalse (t.IsVisible(), L"The open delay first, as other tips have");
+
+        t.Tick (500);
+        Assert::IsTrue   (t.IsVisible(), L"The delay runs from the first request");
+        Assert::AreEqual (std::wstring (L"$0301"), t.GetText(), L"at the latest byte");
+
+        t.RequestShowFollowing (MakeRect (9, 0, 10, 1), L"$0302", 600);
+        Assert::IsTrue   (t.IsVisible(), L"Once up, the tip follows at once");
+        Assert::AreEqual ((LONG) 9, t.GetAnchor().left);
+        Assert::AreEqual (std::wstring (L"$0302"), t.GetText());
     }
 
     TEST_METHOD (Request_SwapAnchorWhileVisible)
@@ -155,6 +269,7 @@ public:
     TEST_METHOD (Visible_DismissesAfterMaxLifetime)
     {
         DxuiTooltip  t;
+        t.SetHasLifetime (true);
         t.SetDwellOpenMs (100);
         t.SetHasLifetime (true);
 
@@ -179,6 +294,7 @@ public:
     TEST_METHOD (Visible_RepeatedRequestDoesNotRenewLifetime)
     {
         DxuiTooltip  t;
+        t.SetHasLifetime (true);
         t.SetDwellOpenMs (100);
         t.SetHasLifetime (true);
 
@@ -386,10 +502,40 @@ public:
         {
             bool  isZeroLine = call.text == L"Z" || call.text == L"Zero" || call.text == L"1";
 
-            Assert::AreEqual (isZeroLine ? kRed : t.GetTextArgb(), call.argb, call.text.c_str());
+            Assert::AreEqual (DxuiColor::ComputeInkForContrast (isZeroLine ? kRed : t.GetTextArgb(), t.GetBackgroundArgb(), 4.5f), call.argb, call.text.c_str());
+            Assert::IsTrue   (DxuiColor::ComputeContrastRatio (call.argb | 0xFF000000u, t.GetBackgroundArgb()) >= 4.5f, L"each line reads on the tip");
         }
 
         Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");
+    }
+
+    //  Line colors take effect in a tip with no table too, as a sector's
+    //  checksum error line is drawn in the failed sector's color.
+    TEST_METHOD (APlainLineTakesItsOwnColor)
+    {
+        constexpr uint32_t    kRed    = 0xFFE05050;
+        DxuiTooltip           t;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        bool                  isDrawn = false;
+
+
+
+        t.SetPointerLocator (FindNoPointer);
+        t.SetLineColors     ({ 0, kRed });
+        t.RequestShowNow    (MakeRect (0, 0, 10, 10), L"Sector 3\nChecksum error", 0);
+        t.Paint             (painter, text);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.text == L"Checksum error")
+            {
+                isDrawn = true;
+                Assert::AreEqual (DxuiColor::ComputeInkForContrast (kRed, t.GetBackgroundArgb(), 4.5f), call.argb);
+            }
+        }
+
+        Assert::IsTrue (isDrawn, L"the colored line is drawn as its own line");
     }
 
     //  A line with a swatch has a square of its color before it, inside

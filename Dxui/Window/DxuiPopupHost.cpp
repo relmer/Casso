@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "DxuiWinRt.h"
 #include "DxuiPopupHost.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiTheme.h"
@@ -12,10 +13,44 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "dcomp.lib")
 #pragma comment(lib, "user32.lib")
+#pragma comment(lib, "windowsapp.lib")
+#pragma comment(lib, "CoreMessaging.lib")
+
+
+
+
+
+//  Absent from older SDKs' dwmapi.h: lets a window's own composition show
+//  what is behind it through a host backdrop brush.
+static constexpr DWORD    s_kDwmUseHostBackdropBrush = 17;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::Composition
+//
+//  The window's composition tree. The slide moves slide and clips it;
+//  under the content, `backdrop` shows the blurred desktop through the card
+//  when the popup asks for acrylic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiPopupHost::Composition
+{
+    winrt::Windows::UI::Composition::Compositor                     compositor { nullptr };
+    winrt::Windows::UI::Composition::Desktop::DesktopWindowTarget   target     { nullptr };
+    winrt::Windows::UI::Composition::ContainerVisual                slide      { nullptr };
+    winrt::Windows::UI::Composition::SpriteVisual                   backdrop   { nullptr };
+    winrt::Windows::UI::Composition::SpriteVisual                   content    { nullptr };
+};
 
 
 
 static constexpr UINT     s_kDefaultDpi          = 96;
+static constexpr UINT     s_kShowMessage         = WM_APP + 0x51;   // shows a popup drawn and committed
 
 std::atomic<uint32_t>  s_classSerial { 0 };
 
@@ -462,6 +497,9 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
 
     m_params = std::move (params);
 
+    // A popup's text is drawn in its owner's typography.
+    m_textRenderer.SetTypographyWindow (m_params.ownerHwnd);
+
     // Convert DIPs -> Px at the owner's DPI (fall back to 96 if no
     // owner HWND was supplied — typical in tests).
     if (m_params.ownerHwnd != nullptr)
@@ -537,6 +575,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // card itself. With a shadow margin the window's corners are transparent
     // surround, and DWM's corner clip would cut the shadow off there.
     DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0 && !m_params.squareCorners);
+    ApplyAcrylic();
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
     // back most-recently-used first, so the window about to be shown is
@@ -548,30 +587,14 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // visibility was never what they needed.
     RenderNow();
 
-    // Arm the open animation and put the window into its FIRST frame before
-    // it is ever shown. Starting the reveal after ShowWindow let the popup
-    // appear full size for one frame and then jump back to the start of the
-    // animation, which is exactly the blink the animation exists to avoid.
-    if (m_params.revealMs > 0)
-    {
-        BeginReveal (m_params.revealMs, m_params.revealFade);
-        ApplyReveal (0.0f);
-    }
-
-    // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
-    // keyboard focus / caption activation state.
-    ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
-
-    // Click-outside dismiss: capture so off-popup clicks route to
-    // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
-    // Skipped when grabsCapture is false (owner-driven dismiss): the
-    // popup then only receives events while the cursor is over it.
-    if (m_params.grabsCapture &&
-        (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
-         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
-    {
-        SetCapture (m_hwnd);
-    }
+    // SHOWN FROM THE MESSAGE LOOP, after the composition has committed the
+    // frame drawn above. The composition commits when this thread returns to
+    // its loop, so a window shown here appeared with the acrylic backdrop
+    // and none of the frame for a moment, worst for the first menu ever
+    // opened. The serial tells a message for this show from one posted for
+    // an earlier show of the same pooled window.
+    m_showSerial++;
+    PostMessageW (m_hwnd, s_kShowMessage, (WPARAM) m_showSerial, 0);
 
 Error:
 
@@ -647,15 +670,12 @@ void DxuiPopupHost::Close (int resultCode)
     m_revealOut   = false;
     m_revealAlpha = 1.0f;
 
-    if (m_compVisual)
+    if (m_hwnd != nullptr)
     {
-        m_compVisual->SetOffsetY (0.0f);
-
-        if (m_compDevice)
-        {
-            m_compDevice->Commit();
-        }
+        (void) KillTimer (m_hwnd, kRevealTimerId);
     }
+
+    SetSlide (0.0f, nullptr);
 
     // Detach from chain bookkeeping.
     if (m_parent != nullptr && m_parent->m_activeChild == this)
@@ -673,6 +693,7 @@ void DxuiPopupHost::Close (int resultCode)
             ReleaseCapture();
         }
 
+        SetSlideCloaked (false);
         ShowWindow (m_hwnd, SW_HIDE);
 
         //  A submenu took the mouse from the menu it opened from; closing hands
@@ -792,6 +813,69 @@ void DxuiPopupHost::SetParentPopup (DxuiPopupHost * parent)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Update
+//
+//  The placement Show computes, against the new anchor and size, applied to
+//  the window already on screen: the swap chain resized when the size
+//  changed, the window moved in place, and the content drawn again at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::Update (const RECT & anchorRectScreen, SIZE sizeDip)
+{
+    HRESULT  hr         = S_OK;
+    SIZE     sizePx     = {};
+    RECT     workArea   = {};
+    RECT     placedRect = {};
+    RECT     windowRect = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_open);
+
+    m_params.anchorRectScreen = anchorRectScreen;
+    m_params.sizeDip          = sizeDip;
+
+    sizePx.cx  = MulDiv (sizeDip.cx, (int) m_dpi, (int) s_kDefaultDpi);
+    sizePx.cy  = MulDiv (sizeDip.cy, (int) m_dpi, (int) s_kDefaultDpi);
+    workArea   = GetWorkAreaForRect (anchorRectScreen);
+    placedRect = ComputePlacementForTest (anchorRectScreen, workArea, m_params.placement, sizePx, m_params.flipIfOffscreen);
+
+    windowRect.left   = placedRect.left   - m_shadowMarginPx;
+    windowRect.top    = placedRect.top    - m_shadowMarginPx;
+    windowRect.right  = placedRect.right  + m_shadowMarginPx;
+    windowRect.bottom = placedRect.bottom + m_shadowMarginPx;
+
+    m_placedRectScreenPx = placedRect;
+    m_windowRectScreenPx = windowRect;
+
+    BAIL_OUT_IF (m_testMode, S_OK);
+
+    hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+    CHRA (hr);
+
+    //  The composition's visuals are sized with the swap chain. Left at the
+    //  old size, a tip updated in place to a longer string had its new text
+    //  clipped at the old width.
+    SetCompositionSize (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+
+    SetWindowPos (m_hwnd, HWND_TOPMOST, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
+                  SWP_NOACTIVATE);
+
+    RenderNow();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleDpiChanged
 //
 //  Called by DxuiHwndSource's WM_DPICHANGED_BEFOREPARENT handler so
@@ -817,6 +901,41 @@ void DxuiPopupHost::HandleDpiChanged (UINT newDpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ClampVertically
+//
+//  A rect shifted up or down into the work area; one taller than the work
+//  area has its top at the work area's top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiPopupHost::ClampVertically (RECT placed, RECT monitorWorkAreaPx)
+{
+    LONG  shift = 0;
+
+
+
+    if (placed.bottom > monitorWorkAreaPx.bottom)
+    {
+        shift = placed.bottom - monitorWorkAreaPx.bottom;
+    }
+
+    if (placed.top - shift < monitorWorkAreaPx.top)
+    {
+        shift = placed.top - monitorWorkAreaPx.top;
+    }
+
+    placed.top    -= shift;
+    placed.bottom -= shift;
+
+    return placed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComputePlacementForTest
 //
 //  Pure-function placement helper. Tries the preferred edge first;
@@ -824,7 +943,9 @@ void DxuiPopupHost::HandleDpiChanged (UINT newDpi)
 //  the work area on that edge, flips to the opposite edge and
 //  re-checks. After edge selection the rect is finally clamped to
 //  the work area on the orthogonal axis so it never paints off
-//  the monitor.
+//  the monitor. A popup above or below its anchor that fits on
+//  neither side opens on the side with more room, shifted into the
+//  work area, as a tall menu does in Windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -856,6 +977,13 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                 {
                     chosen = DxuiPopupPlacement::Above;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
+                    outAbove = placed.top < monitorWorkAreaPx.top;
+                }
+
+                if (outBelow && outAbove)
+                {
+                    chosen = (monitorWorkAreaPx.bottom - anchorScreenPx.bottom >= anchorScreenPx.top - monitorWorkAreaPx.top) ? DxuiPopupPlacement::Below : DxuiPopupPlacement::Above;
+                    placed = ClampVertically (PlaceOnEdge (anchorScreenPx, chosen, popupSizePx), monitorWorkAreaPx);
                 }
 
                 break;
@@ -866,6 +994,13 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                 {
                     chosen = DxuiPopupPlacement::Below;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
+                    outBelow = placed.bottom > monitorWorkAreaPx.bottom;
+                }
+
+                if (outAbove && outBelow)
+                {
+                    chosen = (anchorScreenPx.top - monitorWorkAreaPx.top >= monitorWorkAreaPx.bottom - anchorScreenPx.bottom) ? DxuiPopupPlacement::Above : DxuiPopupPlacement::Below;
+                    placed = ClampVertically (PlaceOnEdge (anchorScreenPx, chosen, popupSizePx), monitorWorkAreaPx);
                 }
 
                 break;
@@ -991,6 +1126,29 @@ bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
     }
 
     return dismisses;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsHitTransparent
+//
+//  WS_EX_TRANSPARENT takes a window out of hit testing only together with
+//  WS_EX_LAYERED, which these popups do not have, so WndProc returns
+//  HTTRANSPARENT from WM_NCHITTEST for a pass-through popup. Before this, an
+//  in-place tip under the pointer was hit instead of the window beneath.
+//  That window received WM_MOUSELEAVE and hid the tip, the next move over it
+//  brought the tip back up, and the cycle repeated without end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::IsHitTransparent (DxuiPopupInput  input,
+                                      bool            isInCard)
+{
+    return input == DxuiPopupInput::PassThrough || !isInCard;
 }
 
 
@@ -1156,6 +1314,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
     bool             haveCapture = false;
     bool             inside      = false;
     bool             claimed     = false;
+    bool             isRevealing = false;
     LRESULT          result      = 0;
     DxuiPopupHost *  ancestor    = nullptr;
     POINT            ancestorPx  = {};
@@ -1164,6 +1323,14 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
     switch (msg)
     {
+        case s_kShowMessage:
+            if (m_open && (uint32_t) wp == m_showSerial)
+            {
+                ShowDrawn();
+            }
+
+            return 0;
+
         case WM_CAPTURECHANGED:
             //  A submenu opening from this menu takes the mouse to show itself.
             //  That is not the menu losing the mouse to the rest of the screen,
@@ -1268,11 +1435,33 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                         onOutside (screen);
                     }
 
+                    //  A right press outside is also a press on what is under
+                    //  it, as with Windows' own menus: right-clicking another
+                    //  item opens that item's menu rather than only closing
+                    //  this one.
                     if (msg == WM_RBUTTONDOWN)
                     {
-                        (void) RepostPress (DxuiDisplay::Get().WindowFromPoint (screen), screen, msg, wp);
+                        RepostPressBelow (screen, msg, wp);
                     }
                 }
+            }
+
+            break;
+
+        case WM_XBUTTONDOWN:
+            //  The mouse's Back and Forward buttons close the popup and act on
+            //  the window under the pointer, as in File Explorer, wherever the
+            //  press lands.
+            if (m_open && GetCapture() == m_hwnd)
+            {
+                POINT  screen = pt;
+
+                ClientToScreen (m_hwnd, &screen);
+
+                Close (0);
+                RepostPressBelow (screen, msg, wp);
+                claimed = true;
+                result  = TRUE;
             }
 
             break;
@@ -1286,21 +1475,29 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_NCHITTEST:
+            //  A pass-through popup is never hit: the pointer belongs to the
+            //  window beneath, which sees it move on as if the popup were not
+            //  there. WS_EX_TRANSPARENT alone does not take it out of hit
+            //  testing.
+            if (m_params.input == DxuiPopupInput::PassThrough)
+            {
+                result  = HTTRANSPARENT;
+                claimed = true;
+                break;
+            }
+
             // The shadow margin is drawn, not hit: a press there belongs to
             // whatever is underneath, the same as a press anywhere else
-            // outside the card. `pt` is in SCREEN coordinates for this message.
-            if (m_shadowMarginPx > 0)
+            // outside the card. A pass-through popup is not hit anywhere.
+            // `pt` is in SCREEN coordinates for this message.
+            ScreenToClient (m_hwnd, &pt);
+            rc     = GetContentClientRect();
+            inside = m_shadowMarginPx <= 0 || PtInRect (&rc, pt) != FALSE;
+
+            if (IsHitTransparent (m_params.input, inside))
             {
-                POINT  client = pt;
-
-                ScreenToClient (m_hwnd, &client);
-                rc = GetContentClientRect();
-
-                if (!PtInRect (&rc, client))
-                {
-                    result  = HTTRANSPARENT;
-                    claimed = true;
-                }
+                result  = HTTRANSPARENT;
+                claimed = true;
             }
 
             break;
@@ -1309,6 +1506,21 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             if (m_open && m_params.dismiss == DxuiPopupDismiss::OnPointerLeave)
             {
                 Close (0);
+                claimed = true;
+            }
+
+            break;
+
+        case WM_TIMER:
+            if (wp == kRevealTimerId)
+            {
+                isRevealing = m_open && !m_revealOut && AdvanceReveal ((int64_t) GetTickCount64());
+
+                if (!isRevealing)
+                {
+                    (void) KillTimer (m_hwnd, kRevealTimerId);
+                }
+
                 claimed = true;
             }
 
@@ -1397,6 +1609,46 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShowDrawn
+//
+//  Shows a popup whose first frame is drawn and committed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::ShowDrawn()
+{
+    // Arm the open animation and put the window into its FIRST frame before
+    // it is ever shown. Starting the reveal after ShowWindow let the popup
+    // appear full size for one frame and then jump back to the start of the
+    // animation, which is exactly the blink the animation exists to avoid.
+    if (m_params.revealMs > 0)
+    {
+        BeginReveal (m_params.revealMs, m_params.revealFade);
+        ApplyReveal (0.0f);
+    }
+
+    // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
+    // keyboard focus / caption activation state.
+    ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
+
+    // Click-outside dismiss: capture so off-popup clicks route to
+    // our WndProc as WM_CAPTURECHANGED / WM_LBUTTONDOWN-with-NCHITTEST.
+    // Skipped when grabsCapture is false (owner-driven dismiss): the
+    // popup then only receives events while the cursor is over it.
+    if (m_params.grabsCapture &&
+        (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
+         m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
+    {
+        SetCapture (m_hwnd);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CreateHwndAndComposition
 //
 //  Creates the WS_POPUP HWND (adds WS_EX_TRANSPARENT for pass-through
@@ -1422,14 +1674,12 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
 
 
 
-    // WS_EX_TRANSPARENT alone is what makes the pointer pass through: it
-    // takes the window out of hit testing, which is the whole requirement
-    // for a tooltip. WS_EX_LAYERED used to ride along with it and bought
-    // nothing -- the content is composited by DirectComposition over an
-    // opaque clear, so there is no per-pixel alpha for layering to carry --
-    // while costing the drop shadow, because a layered window does not get
-    // CS_DROPSHADOW. Tooltips were the only popups that took it, and the
-    // only ones without a shadow.
+    // A window with WS_EX_TRANSPARENT and without WS_EX_LAYERED is hit
+    // tested, so the pointer passes through because WndProc returns
+    // HTTRANSPARENT from WM_NCHITTEST (IsHitTransparent). WS_EX_LAYERED used
+    // to be set with it and cost the drop shadow, because a layered window
+    // does not get CS_DROPSHADOW. Tooltips were the only popups that took
+    // it, and the only ones without a shadow.
     if (m_params.input == DxuiPopupInput::PassThrough)
     {
         exStyle |= WS_EX_TRANSPARENT;
@@ -1491,26 +1741,12 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
                                                          m_swapChain.GetAddressOf());
         CHRA (hr);
 
-        hr = DCompositionCreateDevice (dxgiDevice.Get(),
-                                       IID_PPV_ARGS (m_compDevice.GetAddressOf()));
+        hr = CreateComposition (widthPx, heightPx);
         CHRA (hr);
-
-        hr = m_compDevice->CreateTargetForHwnd (m_hwnd,
-                                                TRUE,
-                                                m_compTarget.GetAddressOf());
-        CHRA (hr);
-
-        hr = m_compDevice->CreateVisual (m_compVisual.GetAddressOf());
-        CHRA (hr);
-
-        hr = m_compVisual->SetContent (m_swapChain.Get());
-        CHRA (hr);
-
-        hr = m_compTarget->SetRoot (m_compVisual.Get());
-        CHRA (hr);
-
-        hr = m_compDevice->Commit();
-        CHRA (hr);
+    }
+    else
+    {
+        SetCompositionSize (widthPx, heightPx);
     }
 
     // Bind (first create) or resize (pool reuse at a new size) the
@@ -1544,9 +1780,7 @@ Error:
 void DxuiPopupHost::DestroyHwndAndComposition()
 {
     ReleaseBackBufferRtv();
-    m_compVisual.Reset();
-    m_compTarget.Reset();
-    m_compDevice.Reset();
+    m_comp.reset();
     m_swapChain.Reset();
     m_backBufferSizePx = {};
 
@@ -1698,6 +1932,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RepostPressBelow
+//
+//  Posts a press that closed the popup to the window now under it, in that
+//  window's client coordinates, when the window is on this thread. The release
+//  follows by itself, since the popup no longer has the capture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::RepostPressBelow (POINT screen, UINT msg, WPARAM keys)
+{
+    HWND   below  = WindowFromPoint (screen);
+    POINT  client = screen;
+    BOOL   posted = FALSE;
+
+
+
+    if (below == nullptr || below == m_hwnd || GetWindowThreadProcessId (below, nullptr) != GetCurrentThreadId())
+    {
+        return;
+    }
+
+    ScreenToClient (below, &client);
+
+    posted = PostMessageW (below, msg, keys, MAKELPARAM (client.x, client.y));
+    IGNORE_RETURN_VALUE (posted, TRUE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintShadowAndCard
 //
 //  The shadow, then the rounded card over it, drawn into the popup's own
@@ -1751,6 +2018,69 @@ SIZE DxuiPopupHost::GetCardSizePx (UINT dpi) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PaintAcrylicShadow
+//
+//  The shadow alone, then the card's rounded area cleared out of it, so
+//  the backdrop under an acrylic card is seen undimmed. The card itself is
+//  the content's to tint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::PaintAcrylicShadow()
+{
+    HRESULT  hr           = S_OK;
+    float    scale        = (float) m_dpi / (float) s_kDefaultDpi;
+    float    margin       = (float) m_shadowMarginPx;
+    float    cardW        = (float) m_backBufferSizePx.cx - margin * 2.0f;
+    float    cardH        = (float) m_backBufferSizePx.cy - margin * 2.0f;
+    float    radius       = (m_params.cornerRadiusPx >= 0.0f) ? m_params.cornerRadiusPx : DxuiTheme::kOverlayCornerRadiusDip * scale;
+    bool     painterBegun = false;
+    bool     textBegun    = false;
+
+
+
+    hr = m_painter.Begin ((int) m_backBufferSizePx.cx, (int) m_backBufferSizePx.cy);
+    CHRA (hr);
+    painterBegun = true;
+    m_painter.SetGlobalAlpha (m_revealAlpha);
+
+    DxuiShadow::Paint (m_painter, margin, margin, cardW, cardH, radius, scale, 0, m_params.shadowStyle);
+
+    hr = m_painter.End (m_rtv.Get());
+    painterBegun = false;
+    CHRA (hr);
+
+    hr = m_textRenderer.BeginDraw();
+    CHRA (hr);
+    textBegun = true;
+
+    hr = m_textRenderer.EraseRoundedRect (margin, margin, cardW, cardH, radius);
+    CHRA (hr);
+
+    hr = m_textRenderer.EndDraw();
+    textBegun = false;
+    CHRA (hr);
+
+Error:
+    if (textBegun)
+    {
+        (void) m_textRenderer.EndDraw();
+    }
+
+    if (painterBegun)
+    {
+        (void) m_painter.End (m_rtv.Get());
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RenderNow
 //
 //  Clears the back buffer to the opaque background, invokes the
@@ -1787,6 +2117,15 @@ void DxuiPopupHost::RenderNow()
     m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
     m_context->ClearRenderTargetView (m_rtv.Get(), clear);
 
+    //  Over acrylic the card is translucent, and a shadow under it would
+    //  darken the backdrop seen through it. The shadow goes down on its own,
+    //  and the card's area is cleared out of it before anything else draws.
+    if (m_params.acrylic && m_shadowMarginPx > 0 && m_params.renderContent)
+    {
+        hr = PaintAcrylicShadow();
+        CHRA (hr);
+    }
+
     if (m_params.renderContent)
     {
         hr = m_painter.Begin ((int) m_backBufferSizePx.cx, (int) m_backBufferSizePx.cy);
@@ -1794,7 +2133,13 @@ void DxuiPopupHost::RenderNow()
         painterBegun = true;
         m_painter.SetGlobalAlpha (m_revealAlpha);
 
-        hr = m_textRenderer.BeginDraw();
+        // Text goes into a Direct2D command list that is replayed after the
+        // painter's fills, as in DxuiHwndSource::PaintContent. The painter
+        // buffers the card and row fills while text is drawn, and past a few
+        // hundred draws Direct2D flushes early. Text drawn straight at the
+        // back buffer before that flush ended up under the fills submitted
+        // afterward, which blanked the top rows of a long menu.
+        hr = m_textRenderer.BeginDrawDeferred();
         CHRA (hr);
         textBegun = true;
         m_textRenderer.SetGlobalAlpha (m_revealAlpha);
@@ -1805,7 +2150,11 @@ void DxuiPopupHost::RenderNow()
         // opaque rectangle behind the fading text.
         if (m_shadowMarginPx > 0)
         {
-            PaintShadowAndCard();
+            if (!m_params.acrylic)
+            {
+                PaintShadowAndCard();
+            }
+
             m_painter.SetOrigin      ((float) m_shadowMarginPx, (float) m_shadowMarginPx);
             m_textRenderer.SetOrigin ((float) m_shadowMarginPx, (float) m_shadowMarginPx);
 
@@ -1829,7 +2178,7 @@ void DxuiPopupHost::RenderNow()
         painterBegun = false;
         CHRA (hr);
 
-        hr = m_textRenderer.EndDraw();
+        hr = m_textRenderer.EndDrawDeferred();
         textBegun = false;
         CHRA (hr);
     }
@@ -1841,7 +2190,7 @@ Error:
 
     if (textBegun)
     {
-        (void) m_textRenderer.EndDraw();
+        (void) m_textRenderer.EndDrawDeferred();
     }
 
     if (painterBegun)
@@ -1873,6 +2222,10 @@ Error:
 
 void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
 {
+    UINT_PTR  timerId = 0;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
     if (m_testMode || m_hwnd == nullptr || durationMs <= 0)
@@ -1887,6 +2240,11 @@ void DxuiPopupHost::BeginReveal (int durationMs, bool fade)
     m_revealUpward     = m_placedRectScreenPx.top < m_params.anchorRectScreen.top;
     m_revealOut        = false;
     m_revealAlpha      = fade ? 0.0f : 1.0f;
+
+    //  A fade left at its first frame is an empty card over the blurred
+    //  backdrop, so the reveal doesn't wait on the owner to drive it.
+    timerId = SetTimer (m_hwnd, kRevealTimerId, kRevealTickMs, nullptr);
+    IGNORE_RETURN_VALUE (timerId, 0);
 }
 
 
@@ -1997,6 +2355,8 @@ void DxuiPopupHost::ApplyReveal (float t)
     // row above the one under the cursor.
     if (t >= 1.0f && !m_revealOut)
     {
+        SetSlideCloaked (false);
+
         SetWindowPos (m_hwnd, nullptr,
                       m_windowRectScreenPx.left,
                       m_windowRectScreenPx.top,
@@ -2004,15 +2364,31 @@ void DxuiPopupHost::ApplyReveal (float t)
                       m_windowRectScreenPx.bottom - m_windowRectScreenPx.top,
                       SWP_NOZORDER | SWP_NOACTIVATE);
 
-        if (m_compVisual)
-        {
-            m_compVisual->SetOffsetY (0.0f);
-            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
+        SetSlide (0.0f, nullptr);
 
-            if (m_compDevice)
-            {
-                m_compDevice->Commit();
-            }
+        return;
+    }
+
+    // DOWNWARD, THE COMPOSITOR RUNS THE SLIDE, as WinUI's menus do: the window
+    // stands at its full size from the first frame, and the content's offset
+    // and the clip that hides it above the card are animations the compositor
+    // plays at the display's own rate. Stepping the window from a timer, as
+    // the upward case still does, moves in visible jumps.
+    //
+    //  THE FIRST FRAME IS CLOAKED. The compositor applies the slide's starting
+    //  offset and clip on its own commit, after the window is shown, so for a
+    //  frame DWM drew the visual as it last stood: the menu fully open. The
+    //  window stays cloaked until the next tick, by when they have landed.
+    if (!m_revealUpward && m_comp)
+    {
+        if (t <= 0.0f)
+        {
+            StartCompositorSlide (fullW, fullH);
+            SetSlideCloaked (true);
+        }
+        else
+        {
+            SetSlideCloaked (false);
         }
 
         return;
@@ -2030,37 +2406,6 @@ void DxuiPopupHost::ApplyReveal (float t)
     // animation appeared to start partway up the title rather than under it.
     // The margin stays on the trailing edge, where the shadow is, and the
     // content is lifted by it as well as by the height not yet shown.
-    //  THE LAST FRAME RESTS AT THE REAL GEOMETRY. Every frame before it
-    //  holds the window short and slides the content through it, which only
-    //  works because the two cancel out on screen. Leaving that pair standing
-    //  at the end left the window a margin lower and a margin shorter than
-    //  m_windowRectScreenPx says, and the pointer arrives in the window that
-    //  is actually there while it is corrected by the margin the bookkeeping
-    //  describes -- so every hit landed one margin high, which on a menu is
-    //  the row above the one under the cursor.
-    if (t >= 1.0f && !m_revealOut)
-    {
-        SetWindowPos (m_hwnd, nullptr,
-                      m_windowRectScreenPx.left,
-                      m_windowRectScreenPx.top,
-                      m_windowRectScreenPx.right  - m_windowRectScreenPx.left,
-                      m_windowRectScreenPx.bottom - m_windowRectScreenPx.top,
-                      SWP_NOZORDER | SWP_NOACTIVATE);
-
-        if (m_compVisual)
-        {
-            m_compVisual->SetOffsetY (0.0f);
-            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
-
-            if (m_compDevice)
-            {
-                m_compDevice->Commit();
-            }
-        }
-
-        return;
-    }
-
     if (m_revealUpward)
     {
         top    = m_placedRectScreenPx.bottom - shownH - m_shadowMarginPx;
@@ -2076,10 +2421,8 @@ void DxuiPopupHost::ApplyReveal (float t)
                   m_windowRectScreenPx.left, top, fullW, shownH + m_shadowMarginPx,
                   SWP_NOZORDER | SWP_NOACTIVATE);
 
-    if (m_compVisual)
+    if (m_comp)
     {
-        m_compVisual->SetOffsetY (offset);
-
         //  While the slide runs, nothing is drawn above the card's top edge;
         //  the finished frame clears the clip.
         //
@@ -2101,18 +2444,374 @@ void DxuiPopupHost::ApplyReveal (float t)
             //  menu appeared to grow from its second-to-last row.
             clip.bottom = (float) (m_shadowMarginPx + fullH);
 
-            m_compVisual->SetClip (clip);
+            SetSlide (offset, &clip);
         }
         else
         {
-            m_compVisual->SetClip ((IDCompositionClip *) nullptr);
-        }
-
-        if (m_compDevice)
-        {
-            m_compDevice->Commit();
+            SetSlide (offset, nullptr);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartCompositorSlide
+//
+//  WinUI's menu opening, measured off Explorer's View menu captured frame by
+//  frame and fitted to within a pixel: the card slides down from half its
+//  height above its rest, on the decelerate spline (0, 0, 0, 1), with no
+//  fade. The clip's top travels with the card so nothing shows above the
+//  anchor. The compositor plays the spline itself, as WinUI's does, and
+//  moves the acrylic backdrop with the card.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
+{
+    HRESULT  hr       = S_OK;
+    float    distance = (float) fullH * kSlideFraction;
+    float    margin   = (float) m_shadowMarginPx;
+
+
+
+    (void) fullW;
+
+    SetWindowPos (m_hwnd, nullptr,
+                  m_windowRectScreenPx.left,
+                  m_windowRectScreenPx.top,
+                  m_windowRectScreenPx.right  - m_windowRectScreenPx.left,
+                  m_windowRectScreenPx.bottom - m_windowRectScreenPx.top,
+                  SWP_NOZORDER | SWP_NOACTIVATE);
+
+    try
+    {
+        winrt::Windows::UI::Composition::Compositor                    compositor = m_comp->compositor;
+        winrt::Windows::UI::Composition::CubicBezierEasingFunction     decelerate = compositor.CreateCubicBezierEasingFunction ({ 0.0f, 0.0f }, { 0.0f, 1.0f });
+        winrt::Windows::UI::Composition::ScalarKeyFrameAnimation       offset     = compositor.CreateScalarKeyFrameAnimation();
+        winrt::Windows::UI::Composition::ScalarKeyFrameAnimation       clipTop    = compositor.CreateScalarKeyFrameAnimation();
+        winrt::Windows::UI::Composition::InsetClip                     clip       = compositor.CreateInsetClip();
+        winrt::Windows::Foundation::TimeSpan                           duration   = std::chrono::milliseconds (m_revealDurationMs);
+
+        //  The offset runs from -distance to 0; the clip's top, the card's top
+        //  in the content's own space, from margin + distance to margin.
+        offset.InsertKeyFrame  (0.0f, -distance);
+        offset.InsertKeyFrame  (1.0f, 0.0f, decelerate);
+        offset.Duration        (duration);
+        clipTop.InsertKeyFrame (0.0f, margin + distance);
+        clipTop.InsertKeyFrame (1.0f, margin, decelerate);
+        clipTop.Duration       (duration);
+
+        m_comp->slide.Clip (clip);
+        m_comp->slide.Offset ({ 0.0f, -distance, 0.0f });
+        clip.TopInset (margin + distance);
+        clip.StartAnimation (L"TopInset", clipTop);
+        m_comp->slide.StartAnimation (L"Offset.Y", offset);
+    }
+    catch (...)
+    {
+        hr = winrt::to_hresult();
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSlideCloaked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::SetSlideCloaked (bool cloaked)
+{
+    BOOL     value = cloaked ? TRUE : FALSE;
+    HRESULT  hr    = S_OK;
+
+
+
+    if (m_slideCloaked == cloaked || m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    hr = DwmSetWindowAttribute (m_hwnd, DWMWA_CLOAK, &value, sizeof (value));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_slideCloaked = cloaked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSlide
+//
+//  Places the slid content directly, stopping any slide the compositor is
+//  playing: lifted by `offsetY` and, given a clip, cut to it in the
+//  content's own space.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::SetSlide (float offsetY, const D2D1_RECT_F * clip)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (!m_comp)
+    {
+        return;
+    }
+
+    try
+    {
+        winrt::Windows::Foundation::Numerics::float2  size  = m_comp->slide.Size();
+        winrt::Windows::UI::Composition::InsetClip    inset { nullptr };
+
+        m_comp->slide.StopAnimation (L"Offset.Y");
+        m_comp->slide.Offset ({ 0.0f, offsetY, 0.0f });
+
+        if (clip != nullptr)
+        {
+            inset = m_comp->compositor.CreateInsetClip();
+            inset.LeftInset   (clip->left);
+            inset.TopInset    (clip->top);
+            inset.RightInset  ((std::max) (0.0f, size.x - clip->right));
+            inset.BottomInset ((std::max) (0.0f, size.y - clip->bottom));
+        }
+
+        m_comp->slide.Clip (inset);
+    }
+    catch (...)
+    {
+        hr = winrt::to_hresult();
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureDispatcherQueue
+//
+//  Windows.UI.Composition needs a dispatcher queue on the thread that makes
+//  its compositor. The popups' thread runs a Win32 message loop, which the
+//  queue rides on; one made here lives as long as the thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::EnsureDispatcherQueue()
+{
+    thread_local winrt::Windows::System::DispatcherQueueController  controller { nullptr };
+    DispatcherQueueOptions                                          options    = {};
+    HRESULT                                                         hr         = S_OK;
+    bool                                                            hasQueue   = winrt::Windows::System::DispatcherQueue::GetForCurrentThread() != nullptr;
+
+
+
+    BAIL_OUT_IF (hasQueue || controller != nullptr, S_OK);
+
+    options.dwSize        = sizeof (options);
+    options.threadType    = DQTYPE_THREAD_CURRENT;
+    options.apartmentType = DQTAT_COM_NONE;
+
+    hr = CreateDispatcherQueueController (options, reinterpret_cast<ABI::Windows::System::IDispatcherQueueController **> (winrt::put_abi (controller)));
+    CHRA (hr);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateComposition
+//
+//  The window's composition target and its tree: the swap chain shown by a
+//  sprite inside the visual the slide moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPopupHost::CreateComposition (int widthPx, int heightPx)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    EnsureDispatcherQueue();
+
+    try
+    {
+        winrt::com_ptr<ABI::Windows::UI::Composition::ICompositionSurface>  surfaceAbi;
+        winrt::Windows::UI::Composition::CompositionSurfaceBrush            brush { nullptr };
+
+        m_comp             = std::make_unique<Composition>();
+        m_comp->compositor = winrt::Windows::UI::Composition::Compositor();
+
+        winrt::check_hresult (m_comp->compositor.as<ABI::Windows::UI::Composition::Desktop::ICompositorDesktopInterop>()->CreateDesktopWindowTarget (
+            m_hwnd, TRUE, reinterpret_cast<ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget **> (winrt::put_abi (m_comp->target))));
+
+        winrt::check_hresult (m_comp->compositor.as<ABI::Windows::UI::Composition::ICompositorInterop>()->CreateCompositionSurfaceForSwapChain (
+            m_swapChain.Get(), surfaceAbi.put()));
+
+        brush = m_comp->compositor.CreateSurfaceBrush (surfaceAbi.as<winrt::Windows::UI::Composition::ICompositionSurface>());
+        brush.Stretch (winrt::Windows::UI::Composition::CompositionStretch::None);
+        brush.HorizontalAlignmentRatio (0.0f);
+        brush.VerticalAlignmentRatio   (0.0f);
+
+        m_comp->slide   = m_comp->compositor.CreateContainerVisual();
+        m_comp->content = m_comp->compositor.CreateSpriteVisual();
+        m_comp->content.Brush (brush);
+        m_comp->slide.Children().InsertAtTop (m_comp->content);
+        m_comp->target.Root (m_comp->slide);
+    }
+    catch (...)
+    {
+        hr = winrt::to_hresult();
+    }
+
+    CHRA (hr);
+
+    SetCompositionSize (widthPx, heightPx);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCompositionSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::SetCompositionSize (int widthPx, int heightPx)
+{
+    if (m_comp)
+    {
+        m_comp->slide.Size   ({ (float) widthPx, (float) heightPx });
+        m_comp->content.Size ({ (float) widthPx, (float) heightPx });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsAcrylicAvailable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::IsAcrylicAvailable()
+{
+    bool  available = false;
+
+
+
+    try
+    {
+        available = winrt::Windows::UI::ViewManagement::UISettings().AdvancedEffectsEnabled();
+    }
+    catch (...)
+    {
+        available = false;
+    }
+
+    return available;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyAcrylic
+//
+//  Under the card, a sprite showing the blurred desktop behind the window,
+//  rounded as the card is; the card, drawn translucent over it, tints it.
+//  A popup that does not ask for it, or cannot have it, hides the sprite.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupHost::ApplyAcrylic()
+{
+    HRESULT  hr      = S_OK;
+    BOOL     enable  = TRUE;
+    float    margin  = (float) m_shadowMarginPx;
+    float    cardW   = (float) (m_placedRectScreenPx.right  - m_placedRectScreenPx.left);
+    float    cardH   = (float) (m_placedRectScreenPx.bottom - m_placedRectScreenPx.top);
+    float    radius  = DxuiTheme::kOverlayCornerRadiusDip * (float) m_dpi / (float) s_kDefaultDpi;
+    bool     wanted  = m_params.acrylic && m_shadowMarginPx > 0 && IsAcrylicAvailable();
+
+
+
+    BAIL_OUT_IF (!m_comp, S_OK);
+
+    if (wanted)
+    {
+        hr = DwmSetWindowAttribute (m_hwnd, s_kDwmUseHostBackdropBrush, &enable, sizeof (enable));
+        wanted = SUCCEEDED (hr);
+    }
+
+    try
+    {
+        winrt::Windows::UI::Composition::Compositor                           compositor = m_comp->compositor;
+        winrt::Windows::UI::Composition::CompositionRoundedRectangleGeometry  shape      { nullptr };
+
+        if (wanted && m_comp->backdrop == nullptr)
+        {
+            shape            = compositor.CreateRoundedRectangleGeometry();
+            m_comp->backdrop = compositor.CreateSpriteVisual();
+            m_comp->backdrop.Brush (compositor.CreateHostBackdropBrush());
+            m_comp->backdrop.Clip  (compositor.CreateGeometricClip (shape));
+            m_comp->slide.Children().InsertAtBottom (m_comp->backdrop);
+        }
+
+        if (m_comp->backdrop != nullptr)
+        {
+            m_comp->backdrop.IsVisible (wanted);
+            m_comp->backdrop.Offset    ({ margin, margin, 0.0f });
+            m_comp->backdrop.Size      ({ cardW, cardH });
+
+            shape = m_comp->backdrop.Clip().as<winrt::Windows::UI::Composition::CompositionGeometricClip>().Geometry().as<winrt::Windows::UI::Composition::CompositionRoundedRectangleGeometry>();
+
+            shape.Size         ({ cardW, cardH });
+            shape.CornerRadius ({ radius, radius });
+        }
+
+        hr = S_OK;
+    }
+    catch (...)
+    {
+        hr = winrt::to_hresult();
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -2280,6 +2979,13 @@ HRESULT DxuiPopupHost::PlaceAndRender (RECT anchorRectScreen)
 
     hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
     CHRA (hr);
+
+    //  The visual that composites the swap chain, and the acrylic behind the
+    //  card, take the new size too. Left at the size the popup opened at, they
+    //  cut off whatever a larger card drew past it: a tip whose text grew, or
+    //  one that reused a smaller tip's window, lost its right edge.
+    SetCompositionSize (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+    ApplyAcrylic();
 
     RenderNow();
 

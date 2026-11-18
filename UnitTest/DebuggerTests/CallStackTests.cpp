@@ -103,7 +103,7 @@ namespace DebuggerTests
 
             do
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
                 ++steps;
             }
             while (rig.machine.GetCpu()->GetPC() != address && steps < kStepLimit);
@@ -845,7 +845,7 @@ namespace DebuggerTests
             rig.session.SetCallRecording (true);
 
             FreeRunTo (rig, kLoop);
-            rig.machine.RunCycles (kSpinCycles);
+            rig.machine.GetRunner().RunCycles (kSpinCycles);
             interrupted = rig.machine.GetCpu()->GetPC();
             Assert::AreNotEqual (kLoop, interrupted, L"the interrupt lands on an instruction the recorder was not shown");
 
@@ -872,11 +872,11 @@ namespace DebuggerTests
 
 
             rig.session.SetCallRecording (true);
-            Assert::IsNull (rig.machine.GetDebugHook(), L"the CPU reports what the record needs");
+            Assert::IsNull (rig.machine.GetRunner().GetDebugHook(), L"the CPU reports what the record needs");
 
             rig.session.GetBreakpoints().AddAddress (0x1234, 0x1234);
             rig.session.OnStopConditionsChanged();
-            Assert::IsNotNull (rig.machine.GetDebugHook());
+            Assert::IsNotNull (rig.machine.GetRunner().GetDebugHook());
             Assert::IsFalse   (filter.everyInstruction);
             Assert::IsTrue    (filter.pages[0x12]);
             Assert::IsFalse   (filter.pages[0x13], L"only the breakpoint's page is asked about");
@@ -887,7 +887,7 @@ namespace DebuggerTests
             Assert::IsTrue (filter.pages[0x13]);
 
             rig.session.ClearAllBreakpoints();
-            Assert::IsNull (rig.machine.GetDebugHook());
+            Assert::IsNull (rig.machine.GetRunner().GetDebugHook());
         }
 
 
@@ -943,7 +943,7 @@ namespace DebuggerTests
                 rig.session.SetCallRecording (isRecording);
                 rig.session.GetBreakpoints().AddAddress (stop, stop);
                 rig.session.OnStopConditionsChanged();
-                rig.machine.RunCycles (kBudget);
+                rig.machine.GetRunner().RunCycles (kBudget);
 
                 Assert::AreEqual (stop, rig.machine.GetCpu()->GetPC(), L"the free run stopped at the breakpoint");
 

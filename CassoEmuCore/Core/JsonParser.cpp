@@ -83,13 +83,18 @@ Error:
 //  keyword parser only verifies the spelling, so the typed value is built here
 //  rather than being inferred from a string.
 //
+//  Objects and arrays nest at most kMaxDepth deep. A deeper value is a parse
+//  error, so a line of a million `[` fails at the limit instead of recursing
+//  until the stack overflows.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT JsonParser::ParseValue (JsonValue & outValue)
 {
-    HRESULT hr       = S_OK;
-    char    ch       = 0;
-    bool    hasInput = false;
+    HRESULT hr            = S_OK;
+    char    ch            = 0;
+    bool    hasInput      = false;
+    bool    isWithinDepth = false;
     string  str;
 
 
@@ -110,12 +115,13 @@ HRESULT JsonParser::ParseValue (JsonValue & outValue)
             break;
         
         case '{':
-            hr = ParseObject (outValue);
-            CHR (hr);
-            break;
-
         case '[':
-            hr = ParseArray (outValue);
+            isWithinDepth = m_depth < kMaxDepth;
+            CBRF (isWithinDepth, SetError (format ("JSON nested more than {} levels deep", kMaxDepth)));
+
+            m_depth++;
+            hr = (ch == '{') ? ParseObject (outValue) : ParseArray (outValue);
+            m_depth--;
             CHR (hr);
             break;
 
@@ -501,8 +507,8 @@ Error:
 //  The empty array is likewise tested before the loop, since the loop starts
 //  by demanding a value.
 //
-//  Elements are parsed through ParseValue, so arrays nest arbitrarily and can
-//  hold mixed types. Nothing here validates homogeneity: that is the consuming
+//  Elements are parsed through ParseValue, so arrays nest up to kMaxDepth and
+//  can contain mixed types. Nothing here validates homogeneity: that is the consuming
 //  loader's business, and it can say something far more useful than "type
 //  mismatch at element 3".
 //

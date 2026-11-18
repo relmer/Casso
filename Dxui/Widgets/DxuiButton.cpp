@@ -228,7 +228,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     //
     if (isLink)
     {
-        uint32_t  linkColor = theme.Accent();
+        uint32_t  linkColor = (m_linkColor != 0) ? m_linkColor : theme.Accent();
 
         if (m_hover || m_pressed)
         {
@@ -240,7 +240,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
             linkColor = (linkColor & s_kDisabledMask);
         }
 
-        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::kBodyFace,
+        std::wstring   drawn = DxuiTextElide::ToWidth (text, m_label, fontDip, DxuiTheme::GetUiFace(),
                                                        (float) (m_boundsDip.right - m_boundsDip.left),
                                                        m_elide);
 
@@ -251,10 +251,21 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                               linkColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  The underline runs under the text, a pixel below its baseline's
+        //  box, while the pointer is on the link.
+        if (m_isUnderlinedOnHover && (m_hover || m_pressed) && m_enabled)
+        {
+            float  runW = 0.0f;
+            float  runH = 0.0f;
+
+            text.MeasureString (drawn.c_str(), fontDip, DxuiTheme::GetUiFace(), runW, runH);
+            painter.FillRect ((float) m_boundsDip.left, ((float) (m_boundsDip.top + m_boundsDip.bottom) + runH) / 2.0f, runW, m_scaler.ToPxf (1.0f), linkColor);
+        }
 
         //
         //  The ring hugs the TEXT, not the box. A link's box is whatever the
@@ -265,7 +276,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         //
         if (m_focused && m_focusCueVisible)
         {
-            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, drawn, fontDip, DxuiTheme::GetUiFace(),
                                       (float) m_boundsDip.left,
                                       (float) m_boundsDip.left,
                                       (float) m_boundsDip.top,
@@ -278,11 +289,11 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
     BAIL_OUT_IF (isLink, S_OK);
 
-    if (m_variant == Variant::Primary)
+    if (m_variant == Variant::Primary || m_variant == Variant::Danger)
     {
         // White label on this fill, so the fill must clear the WCAG
         // 1.4.3 text-contrast threshold (4.5:1) against white.
-        idle      = DxuiColor::ComputeAccentForWhiteContrast (theme.Accent(), s_kPrimaryTextRatio);
+        idle      = DxuiColor::ComputeAccentForWhiteContrast (m_variant == Variant::Danger ? theme.ErrorForeground() : theme.Accent(), s_kPrimaryTextRatio);
         hover     = DxuiColor::Lighten (idle, s_kPrimaryHover);
         pressed   = DxuiColor::Darken  (idle, s_kPrimaryPressed);
         textColor = s_kPrimaryTextArgb;
@@ -338,7 +349,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     }
 
     {
-        const wchar_t * face  = (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+        const wchar_t * face  = (m_face != nullptr) ? m_face : DxuiTheme::GetUiFace();
         float           size  = (m_fontSizeDip > 0.0f) ? m_scaler.ToPxf (m_fontSizeDip) : fontDip;
         std::wstring    drawn = DxuiTextElide::ToWidth (text, m_label, size, face,
                                                         (float) (m_boundsDip.right - m_boundsDip.left),

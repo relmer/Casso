@@ -5,6 +5,7 @@
 #include "Debugger/MachineDebugTarget.h"
 #include "EmuTests/TestMachine.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/HeatMapReader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -81,7 +82,8 @@ namespace CapturedDebugTargetTests
             Assert::AreEqual ((Word) 0x0300, captured.GetRegisters().pc, L"the registers as taken");
             Assert::IsTrue   (captured.TryPeek (0x0300, value));
             Assert::AreEqual ((Byte) 0xA9, value, L"memory as taken");
-            Assert::IsFalse  (captured.TryPeek (0xC000, value), L"I/O is not read");
+            Assert::IsFalse  (captured.TryPeek (0xC000, value), L"I/O is not read by TryPeek");
+            Assert::IsTrue   (captured.TryPeekIo (0xC000, value), L"but by TryPeekIo, as the machine's peek read it");
             Assert::AreEqual ((int) MemoryRegion::Io, (int) captured.GetRegion (0xC030));
             Assert::AreEqual (target.GetCycleCount(), captured.GetCycleCount());
             Assert::IsTrue   (captured.GetInstructionSet() != target.GetInstructionSet(), L"the instruction set is a copy");
@@ -102,13 +104,13 @@ namespace CapturedDebugTargetTests
 
 
             DebugViewCapture::Take (*target, CallRecord(), 0, 0, *capture);
-            form = DebuggerViewState::GetOpcodeForm (target->GetInstructionSet(), 0xA9);
+            form = HeatMapReader::GetOpcodeForm (target->GetInstructionSet(), 0xA9);
 
             target.reset();
             machine.reset();
 
             Assert::IsNotNull (capture->instructionTable.get(), L"the capture owns a copy");
-            Assert::AreEqual  (form, DebuggerViewState::GetOpcodeForm (captured.GetInstructionSet(), 0xA9));
+            Assert::AreEqual  (form, HeatMapReader::GetOpcodeForm (captured.GetInstructionSet(), 0xA9));
         }
 
 

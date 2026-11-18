@@ -85,7 +85,7 @@ public:
         machine.GetMemoryBus().WriteByte (0x0802, 0x03);
         machine.GetCpu()->SetPC (0x0800);
 
-        ExpectCapturedOn (machine, L"an instruction's store", [] (TestMachine & m) { m.StepOne(); });
+        ExpectCapturedOn (machine, L"an instruction's store", [] (TestMachine & m) { m.GetRunner().StepOne(); });
     }
 
 
@@ -199,16 +199,16 @@ public:
 
 
         ReverseSessionRig::Prepare (machine);
-        machine.RunCycles (KeyframeSettings::kFrameCycles);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
         earlier = ReverseSessionRig::Save (machine);
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
         ExpectCapturedOn (machine, L"LoadState", [&earlier] (TestMachine & m)
         {
             StateReader  reader (earlier.data(), earlier.size());
-            HRESULT      hr     = m.LoadState (reader);
+            HRESULT      hr     = m.GetStateStream().LoadState (reader);
 
 
 
@@ -263,13 +263,13 @@ public:
 
         writer.SetSharing (true);
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         {
             ExpectedEhmAssert  expect;
 
-            machine.CheckSharedSave (writer);
+            machine.GetStateStream().CheckSharedSave (writer);
 
             expect.RequireCount (1);
         }
@@ -353,7 +353,7 @@ public:
 
         writer.SetSharing (true);
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         before = ReverseSessionRig::Save (machine);
@@ -366,7 +366,7 @@ public:
 
         Assert::IsTrue (ReverseSessionRig::Save (machine) != before, L"the host input is in the save");
 
-        machine.CheckSharedSave (writer);
+        machine.GetStateStream().CheckSharedSave (writer);
     }
 
 
@@ -391,13 +391,13 @@ public:
 
         writer.SetSharing (true);
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         {
             ExpectedEhmAssert  expect;
 
-            machine.CheckSharedSave (writer);
+            machine.GetStateStream().CheckSharedSave (writer);
 
             expect.RequireCount (1);
         }
@@ -435,7 +435,7 @@ private:
 
         first.SetSharing (true);
 
-        hr = machine.SaveState (first);
+        hr = machine.GetStateStream().SaveState (first);
         AssertSucceeded (hr, L"SaveState before");
 
         first.FlattenInto (firstFlat);
@@ -444,7 +444,7 @@ private:
 
         second.SetSharing (true);
 
-        hr = machine.SaveState (second);
+        hr = machine.GetStateStream().SaveState (second);
         AssertSucceeded (hr, L"SaveState after");
 
         second.FlattenInto (secondFlat);
@@ -467,14 +467,14 @@ private:
 
         writer.SetSharing (true);
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         writer.FlattenInto (flat);
 
         Assert::IsTrue (flat == ReverseSessionRig::Save (machine), what);
 
-        machine.CheckSharedSave (writer);
+        machine.GetStateStream().CheckSharedSave (writer);
     }
 
 
@@ -525,7 +525,7 @@ private:
 
         writer.SetSharing (true);
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         return writer.TakeSegments();

@@ -1419,14 +1419,19 @@ bool Ssi263::HasAnySource (const Ssi263PhonemeSpec & spec)
 //
 //  SaveState
 //
+//  THE SYNTHESIS IS NOT SAVED: the formants, the resonators, the excitation,
+//  the noise and the output filters. They are advanced by the host's audio
+//  thread, one output sample at a time, so where they are at a given cycle
+//  depends on when the audio device pulled samples, and a replay of
+//  history never matches it; saved, they cut history at every keyframe a
+//  replay of a speech program checked. The registers, the mode, the request
+//  and sounding lines and the phoneme's remaining time advance by cycles, in
+//  Tick, and are the chip's machine state.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Ssi263::SaveState (StateWriter & writer) const
 {
-    int   i = 0;
-
-
-
     writer.BeginSection (kStateTag, kStateVersion);
 
     writer.WriteBytes (m_reg, kRegCount);
@@ -1435,30 +1440,6 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
     writer.WriteBool  (m_sounding);
 
     StateFloat::Write (writer, m_phonemeCycles);
-
-    for (i = 0; i < 3; i++)
-    {
-        StateFloat::Write (writer, m_fCur[i]);
-        StateFloat::Write (writer, m_resY1[i]);
-        StateFloat::Write (writer, m_resY2[i]);
-    }
-
-    StateFloat::Write  (writer, m_envLevel);
-    StateFloat::Write  (writer, m_glottalPhase);
-    StateFloat::Write  (writer, m_excLp1);
-    StateFloat::Write  (writer, m_excLp2);
-    writer.WriteUInt32 (m_lfsr);
-    StateFloat::Write  (writer, m_noiseLp);
-    StateFloat::Write  (writer, m_vaCur);
-    StateFloat::Write  (writer, m_faCur);
-    StateFloat::Write  (writer, m_fricLp);
-    StateFloat::Write  (writer, m_fricLp2);
-    StateFloat::Write  (writer, m_fricLp3);
-    StateFloat::Write  (writer, m_fricY1);
-    StateFloat::Write  (writer, m_fricY2);
-    StateFloat::Write  (writer, m_radPrev);
-    StateFloat::Write  (writer, m_outLp);
-    StateFloat::Write  (writer, m_outLp2);
 
     //  The recent phonemes in use, oldest first.
     writer.WriteUInt32 (static_cast<uint32_t> (m_recentCount));
@@ -1480,6 +1461,58 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SkipSynthesis
+//
+//  A state before version 4 has the synthesis after the phoneme's time:
+//  each formant's center and its resonator's two outputs, then the envelope,
+//  the glottal phase, the excitation's two filters, the noise LFSR and its
+//  filter, the voicing and frication levels, the frication's filters, the
+//  radiation filter and the two output filters. It is read and dropped; see
+//  SaveState for why.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::SkipSynthesis (StateReader & reader)
+{
+    constexpr int  kFormants     = 3;
+    constexpr int  kFloatsAfter  = 3;    // the envelope, then the excitation's two filters
+    constexpr int  kFloatsAtEnd  = 11;   // the noise filter to the second output filter
+    double         wide          = 0.0;
+    float          narrow        = 0.0f;
+    uint32_t       lfsr          = 0;
+    int            i             = 0;
+
+
+
+    for (i = 0; i < kFormants; i++)
+    {
+        StateFloat::Read (reader, wide);
+        StateFloat::Read (reader, narrow);
+        StateFloat::Read (reader, narrow);
+    }
+
+    StateFloat::Read (reader, narrow);
+    StateFloat::Read (reader, wide);
+
+    for (i = 1; i < kFloatsAfter; i++)
+    {
+        StateFloat::Read (reader, narrow);
+    }
+
+    reader.ReadUInt32 (lfsr);
+
+    for (i = 0; i < kFloatsAtEnd; i++)
+    {
+        StateFloat::Read (reader, narrow);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadState
 //
 //  The latched mode is one of the four duration-bit encodings; any other
@@ -1489,14 +1522,14 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
 
 HRESULT Ssi263::LoadState (StateReader & reader)
 {
-    constexpr uint16_t  kFirstWithRecent = 2;
-    constexpr uint16_t  kFirstInOrder    = 3;
-    constexpr uint32_t  kVersion2Count   = 32;
-    HRESULT             hr               = S_OK;
-    uint16_t            version          = 0;
-    int                 i                = 0;
-    uint32_t            recentAt         = 0;
-    uint32_t            recentCount      = 0;
+    constexpr uint16_t  kFirstWithRecent       = 2;
+    constexpr uint16_t  kFirstInOrder          = 3;
+    constexpr uint16_t  kFirstWithoutSynthesis = 4;
+    constexpr uint32_t  kVersion2Count         = 32;
+    HRESULT             hr                     = S_OK;
+    uint16_t            version                = 0;
+    uint32_t            recentAt               = 0;
+    uint32_t            recentCount            = 0;
 
 
 
@@ -1510,29 +1543,10 @@ HRESULT Ssi263::LoadState (StateReader & reader)
 
     StateFloat::Read (reader, m_phonemeCycles);
 
-    for (i = 0; i < 3; i++)
+    if (version < kFirstWithoutSynthesis)
     {
-        StateFloat::Read (reader, m_fCur[i]);
-        StateFloat::Read (reader, m_resY1[i]);
-        StateFloat::Read (reader, m_resY2[i]);
+        SkipSynthesis (reader);
     }
-
-    StateFloat::Read  (reader, m_envLevel);
-    StateFloat::Read  (reader, m_glottalPhase);
-    StateFloat::Read  (reader, m_excLp1);
-    StateFloat::Read  (reader, m_excLp2);
-    reader.ReadUInt32 (m_lfsr);
-    StateFloat::Read  (reader, m_noiseLp);
-    StateFloat::Read  (reader, m_vaCur);
-    StateFloat::Read  (reader, m_faCur);
-    StateFloat::Read  (reader, m_fricLp);
-    StateFloat::Read  (reader, m_fricLp2);
-    StateFloat::Read  (reader, m_fricLp3);
-    StateFloat::Read  (reader, m_fricY1);
-    StateFloat::Read  (reader, m_fricY2);
-    StateFloat::Read  (reader, m_radPrev);
-    StateFloat::Read  (reader, m_outLp);
-    StateFloat::Read  (reader, m_outLp2);
 
     m_recent = {};
 

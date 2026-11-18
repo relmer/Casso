@@ -4,6 +4,7 @@
 
 #include "Controllers/AxisRoleRules.h"
 #include "Controllers/XInputSampleDecoder.h"
+#include "Core/AppTimerIds.h"
 
 // hidclass.h only DECLARES the HID device-interface GUID; something has to
 // define it. Doing that here keeps it to this translation unit rather than
@@ -202,13 +203,13 @@ LRESULT CALLBACK Win32ControllerBackend::NotifyWindowProc (HWND hwnd, UINT msg, 
 
     if (msg == WM_DEVICECHANGE && (wp == DBT_DEVICEARRIVAL || wp == DBT_DEVICEREMOVECOMPLETE))
     {
-        SetTimer (hwnd, kRescanSoonTimerId, kRescanSoonMs, nullptr);
-        SetTimer (hwnd, kRescanLateTimerId, kRescanLateMs, nullptr);
+        SetTimer (hwnd, (UINT_PTR) AppTimerId::ControllerRescanSoon, kRescanSoonMs, nullptr);
+        SetTimer (hwnd, (UINT_PTR) AppTimerId::ControllerRescanLate, kRescanLateMs, nullptr);
 
         return TRUE;
     }
 
-    if (msg == WM_TIMER && (wp == kRescanSoonTimerId || wp == kRescanLateTimerId))
+    if (msg == WM_TIMER && (wp == (UINT_PTR) AppTimerId::ControllerRescanSoon || wp == (UINT_PTR) AppTimerId::ControllerRescanLate))
     {
         KillTimer (hwnd, (UINT_PTR) wp);
 

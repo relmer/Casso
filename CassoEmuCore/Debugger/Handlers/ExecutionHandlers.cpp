@@ -43,6 +43,7 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
     case DebugVerb::StepBackOut:
     case DebugVerb::ReverseGo:
     case DebugVerb::GoLive:            RunReverse        (session, command, reply); return true;
+    case DebugVerb::Seek:              RunReverse        (session, command, reply); return true;
     default:                                                                        return false;
     }
 }
@@ -395,7 +396,7 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
     }
 
     session.SetVideoBreak (command.a1, last);
-    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines ${:X}-${:X}. It clears after it fires.", command.a1, last) } };
+    reply.data = MessageData { { std::format ("Breakpoint set on video scanlines ${:X}-${:X}. It is removed after its first stop.", command.a1, last) } };
 }
 
 
@@ -443,8 +444,8 @@ void ExecutionHandlers::BreakOnBeam (DebugSession & session, const DebugCommand 
 
     session.SetBeamBreak (scanline * VideoTiming::kCyclesPerScanline + cycle);
 
-    reply.data = MessageData { { isVbl ? std::format ("Breakpoint set at the start of vertical blank, scanline ${:X}. It clears after it fires.", scanline)
-                                       : std::format ("Breakpoint set at video scanline ${:X}, cycle ${:X}. It clears after it fires.", scanline, cycle) } };
+    reply.data = MessageData { { isVbl ? std::format ("Breakpoint set at the start of vertical blank, scanline ${:X}. It is removed after its first stop.", scanline)
+                                       : std::format ("Breakpoint set at video scanline ${:X}, cycle ${:X}. It is removed after its first stop.", scanline, cycle) } };
 }
 
 
@@ -928,7 +929,7 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
@@ -1218,7 +1219,7 @@ void ExecutionHandlers::ShowStopwatch (Reply & reply) const
 
     if (m_stopwatch.IsArmed())
     {
-        lines.push_back (std::format ("Stopwatch from ${:04X} to ${:04X}, in runs the debugger starts.", m_stopwatch.GetStart(), m_stopwatch.GetStop()));
+        lines.push_back (std::format ("Stopwatch set from ${:04X} to ${:04X}. It measures runs started from the debugger.", m_stopwatch.GetStart(), m_stopwatch.GetStop()));
     }
     else
     {
@@ -1343,7 +1344,7 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
         return;
     }
 
@@ -1582,9 +1583,24 @@ void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand &
 {
     const DebugSession::ReverseRequester  & requester = session.GetReverseRequester();
     ReverseCommand                          reverse   = GetReverseCommand (command.verb);
+    uint64_t                                argument  = 0;
     bool                                    isTaken   = false;
+    std::string                             error;
 
 
+
+    if (command.verb == DebugVerb::Seek && !TryParseSeek (command.text, reverse, argument, error))
+    {
+        reply.SetError (CommandStatus::Error, "bad seek", error);
+        return;
+    }
+
+    //  The Registers pane counts cycles from the last power-on; history
+    //  counts on across power cycles.
+    if (reverse == ReverseCommand::SeekCycle)
+    {
+        argument += session.GetTarget().GetHistoryCycleCount() - session.GetTarget().GetCycleCount();
+    }
 
     if (session.GetRunState() != RunState::Paused)
     {
@@ -1595,8 +1611,10 @@ void ExecutionHandlers::RunReverse (DebugSession & session, const DebugCommand &
 
     if (requester != nullptr)
     {
-        isTaken = requester (reverse);
+        isTaken = requester (reverse, argument);
     }
+
+    session.SetReversePending (isTaken);
 
     if (!isTaken)
     {
@@ -1625,6 +1643,129 @@ ReverseCommand ExecutionHandlers::GetReverseCommand (DebugVerb verb)
     case DebugVerb::GoLive:       return ReverseCommand::GoLive;
     default:                      return ReverseCommand::StepBack;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::TryParseCount
+//
+//  A decimal count as it appears in the debugger: digits grouped with
+//  commas, a 0n prefix, and a Cycles label copied from the Registers pane
+//  ahead of it are all taken. A count too large for 64 bits fails rather than throws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExecutionHandlers::TryParseCount (const std::string & text, uint64_t & outValue)
+{
+    std::string             digits;
+    std::string             rest   = text;
+    std::from_chars_result  parsed;
+
+
+
+    rest.erase (0, rest.find_first_not_of (" \t"));
+
+    if (rest.size() >= 6 && _strnicmp (rest.c_str(), "cycles", 6) == 0)
+    {
+        rest.erase (0, 6);
+    }
+
+    for (char ch : rest)
+    {
+        if (ch != ',' && ch != ' ' && ch != '\t')
+        {
+            digits.push_back (ch);
+        }
+    }
+
+    if (digits.size() > 2 && digits[0] == '0' && (digits[1] == 'n' || digits[1] == 'N'))
+    {
+        digits.erase (0, 2);
+    }
+
+    parsed = std::from_chars (digits.data(), digits.data() + digits.size(), outValue);
+
+    return !digits.empty() && parsed.ec == std::errc() && parsed.ptr == digits.data() + digits.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::TryParseSeek
+//
+//  INSTR counts instructions from the start of history; POS is its older
+//  name. CYCLE takes the cycle count in the Registers pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExecutionHandlers::TryParseSeek (const std::string & text, ReverseCommand & command, uint64_t & argument, std::string & error)
+{
+    static constexpr const char * kUsage = "SEEK takes a time back from live, as -5s or -250ms, CYCLE n or INSTR n.";
+    static constexpr uint64_t     kMsPerS = 1000;
+    static constexpr uint64_t     kMaxMs  = UINT64_MAX / kMsPerS;
+    std::istringstream            words (text);
+    std::string                   first;
+    std::string                   rest;
+    std::string                   unit;
+    uint64_t                      value   = 0;
+    size_t                        digits  = 0;
+    std::from_chars_result        parsed;
+
+
+
+    words >> first;
+    std::getline (words, rest);
+
+    for (char & ch : first)
+    {
+        ch = (char) toupper ((unsigned char) ch);
+    }
+
+    if (first == "CYCLE" || first == "POS" || first == "INSTR")
+    {
+        if (!TryParseCount (rest, value))
+        {
+            error = kUsage;
+            return false;
+        }
+
+        command  = (first == "CYCLE") ? ReverseCommand::SeekCycle : ReverseCommand::Seek;
+        argument = value;
+        return true;
+    }
+
+    if (first.size() < 3 || first[0] != '-' || !isdigit ((unsigned char) first[1]))
+    {
+        error = kUsage;
+        return false;
+    }
+
+    digits = 1;
+
+    while (digits < first.size() && isdigit ((unsigned char) first[digits]))
+    {
+        digits++;
+    }
+
+    parsed = std::from_chars (first.data() + 1, first.data() + digits, value);
+    unit   = first.substr (digits);
+
+    if (parsed.ec != std::errc() || (unit != "S" && unit != "MS") || (unit == "S" && value > kMaxMs))
+    {
+        error = kUsage;
+        return false;
+    }
+
+    command  = ReverseCommand::SeekBack;
+    argument = (unit == "S") ? value * kMsPerS : value;
+    return true;
 }
 
 

@@ -7,6 +7,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -85,9 +86,11 @@ namespace DebuggerFindWidgetPerPaneTests
             m_host  = &host;
         }
 
+        using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::GetFocused;
+        using DebuggerWindow::GetRegistersPane;
         using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::FocusControl;
 
@@ -234,9 +237,35 @@ namespace DebuggerFindWidgetPerPaneTests
         }
 
 
+        //  Ctrl+F opens the focused pane's find: the disassembly's own, and in
+        //  a pane with none, such as the registers, no find at all, not the
+        //  console's.
+        TEST_METHOD (CtrlFOpensOnlyTheFocusedPanesFind)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            PaneFindHost    host;
+            PaneFindWindow  window (theme, host);
+            std::wstring    code   = DebuggerLayout::GetCodePaneId (0);
+
+
+
+            window.Build();
+            window.FocusControl (window.GetCodeList (0));
+            window.Press ('F', true);
+
+            Assert::IsTrue  (window.GetFindWidgets().IsOpenIn (code), L"the disassembly's find opens");
+            Assert::IsFalse (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"and not the console's");
+
+            window.FocusControl (window.GetRegistersPane().GetList());
+            window.Press ('F', true);
+
+            Assert::IsFalse (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"a pane with no find opens none");
+        }
+
+
         //  A document closed with its find open is out of sight, and F3 from
-        //  a pane with no find widget finds in the console instead of in the
-        //  hidden document's text.
+        //  a pane with no find widget finds nothing: not in the hidden
+        //  document's text, and not in another pane's find.
         TEST_METHOD (F3SkipsTheFindOfADocumentOutOfSight)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
@@ -257,7 +286,7 @@ namespace DebuggerFindWidgetPerPaneTests
 
             (void) window.Press (VK_F3);
 
-            Assert::IsTrue (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"F3 opens the console's find, which has no text yet");
+            Assert::IsFalse (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"F3 opens no other pane's find");
         }
     };
 }

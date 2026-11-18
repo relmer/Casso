@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -15,8 +16,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Phase11IntegrationTests
 //
 //  Phase 11 / User Story 2 (P1). Each scenario mounts a deterministic
-//  in-memory disk image through DiskImageStore (FR-023, FR-025), points
-//  the //e CPU at the slot 6 boot ROM, and asserts the controller's
+//  in-memory disk image through DiskImageStore (FR-023, FR-025), boots
+//  the //e through RESET to slot 6, and asserts the controller's
 //  nibble engine actually consumes bits from the mounted track. End-to-
 //  end "boots to Applesoft prompt" with copyrighted DOS 3.3 / ProDOS
 //  ROMs is intentionally out of scope for this suite — the tests prove
@@ -28,8 +29,6 @@ TEST_CLASS (Phase11IntegrationTests)
 {
 public:
 
-    static constexpr Word       kBootRomEntry        = 0xC600;
-    static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
     static constexpr int        kDrive2              = 1;
@@ -91,12 +90,13 @@ public:
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Build the //e + Disk II harness, mount the supplied bytes via the
-    //  store, and direct the CPU at the slot 6 boot ROM. Returns the
-    //  pointer to the store-owned DiskImage so tests can inspect it.
+    //  store, and put the CPU on the reset vector so RESET boots slot 6.
+    //  Returns the pointer to the store-owned DiskImage so tests can
+    //  inspect it.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    DiskImage * MountAndJumpToSlot6Boot (
+    DiskImage * MountAndPowerOn (
         MachineHost   &  machine,
         const string   &  virtualPath,
         DiskFormat        fmt,
@@ -115,11 +115,8 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        // Ensure INTCXROM=0 so $C600 surfaces the Disk2.rom boot ROM
-        // (CxxxRomRouter unshadowed per audit C1).
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        GuestSession::StartFromPowerOn (machine);
 
-        machine.GetCpu()->SetPC (kBootRomEntry);
         return external;
     }
 
@@ -131,19 +128,19 @@ public:
         size_t         bitsBefore = 0;
         size_t         bitsAfter  = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.dsk", DiskFormat::Dsk, raw);
 
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
             L"DOS 3.3 .dsk mount must produce a nibblized track 0");
 
-        bitsBefore = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsBefore = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        machine.RunCycles (kBootCycleBudget);
+        machine.GetRunner().RunCycles (kBootCycleBudget);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021, audit §7)");
         Assert::IsTrue (bitsAfter != bitsBefore,
             L"Boot ROM must read at least one bit from track 0 of the .dsk");
@@ -157,17 +154,17 @@ public:
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.po", DiskFormat::Po, raw);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
-        machine.RunCycles (kBootCycleBudget);
+        machine.GetRunner().RunCycles (kBootCycleBudget);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"Boot ROM must read at least one bit from a ProDOS-interleave disk");
@@ -185,7 +182,7 @@ public:
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
         AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.woz", DiskFormat::Woz, woz);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
@@ -193,9 +190,9 @@ public:
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
-        machine.RunCycles (kShortRunCycles);
+        machine.GetRunner().RunCycles (kShortRunCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Nibble engine must advance through the WOZ bit stream (FR-022)");
@@ -222,15 +219,15 @@ public:
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
         AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "copyprotected.woz", DiskFormat::Woz, woz);
 
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),
             L"CP-style WOZ must preserve the non-standard 50000-bit track length");
 
-        machine.RunCycles (kShortRunCycles);
+        machine.GetRunner().RunCycles (kShortRunCycles);
 
-        Assert::IsTrue (machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition() > 0,
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition() > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");
     }
 
@@ -325,13 +322,13 @@ public:
         hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2, "b.dsk", DiskFormat::Dsk, raw);
         AssertSucceeded (hr);
 
-        Assert::IsTrue (disk->GetDisk (kDrive2) == machine.GetDiskStore().GetImage (kSlot6, kDrive2),
+        Assert::IsTrue (disk->GetDrive (kDrive2).GetDisk() == machine.GetDiskStore().GetImage (kSlot6, kDrive2),
                         L"a mount attaches the store's image");
 
         hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2, "junk.dsk", DiskFormat::Dsk, junk);
 
         Assert::IsTrue  (FAILED (hr),                     L"too few bytes for a .dsk");
-        Assert::IsFalse (disk->HasExternalDisk (kDrive2), L"the freed image is no longer attached");
+        Assert::IsFalse (disk->GetDrive (kDrive2).HasExternalDisk(), L"the freed image is no longer attached");
     }
 };
 

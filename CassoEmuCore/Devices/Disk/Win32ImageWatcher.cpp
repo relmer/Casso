@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/ThreadName.h"
+
 #include "Win32ImageWatcher.h"
 
 
@@ -83,7 +84,7 @@ bool Win32ImageWatcher::Watch (const std::string & directory, Callback callback)
             {
                 DirectoryWatch *  raw = watch.get();
 
-                raw->worker = std::thread (&Win32ImageWatcher::RunWatch, raw, directory);
+                raw->worker = std::thread ([raw, directory] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso disk image watcher"); IGNORE_RETURN_VALUE (hrName, S_OK); Win32ImageWatcher::RunWatch (raw, directory); });
 
                 //  WAIT UNTIL IT IS ACTUALLY LISTENING. The platform reports
                 //  what happens after ReadDirectoryChangesW is called, so
@@ -257,6 +258,7 @@ void Win32ImageWatcher::RunWatch (DirectoryWatch * watch, std::string directory)
         DWORD  transferred = 0;
         DWORD  waited      = 0;
         BOOL   queued      = FALSE;
+        BOOL   ended       = FALSE;
 
         ResetEvent (overlapped.hEvent);
 
@@ -285,6 +287,16 @@ void Win32ImageWatcher::RunWatch (DirectoryWatch * watch, std::string directory)
 
         if (waited != (WAIT_OBJECT_0 + 1))
         {
+            //  THE READ IS PENDING HERE. When it ends, the kernel writes its
+            //  status into `overlapped` and its change list into `buffer`.
+            //  Cancel it and wait for that write before this frame returns, or
+            //  the write lands on a dead stack.
+            ended = CancelIoEx (watch->directory, &overlapped);
+            IGNORE_RETURN_VALUE (ended, TRUE);
+
+            ended = GetOverlappedResult (watch->directory, &overlapped, &transferred, TRUE);
+            IGNORE_RETURN_VALUE (ended, FALSE);
+
             running = false;
             break;
         }

@@ -18,6 +18,8 @@ struct ChromeBandInputs
 {
     bool   hasDiskController   = false;   // a machine with no Disk ][ has no drive band
     bool   crtMonitorActive    = false;   // the desk scene models the drives itself
+    bool   drivesOnStrip       = false;   // auto-hide: the drives slide up over the picture
+    bool   drivesOnBar         = false;   // the desk plan puts drives on the drive bar
     bool   hasCaseSwitches     = false;   // only the //c has the switch strip
     int    driveBarThicknessDp = 0;
     float  chromeSceneScale    = 1.0f;    // the drive band zooms with the scene

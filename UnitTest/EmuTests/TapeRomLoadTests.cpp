@@ -79,7 +79,7 @@ public:
     static void Boot (TestMachine & machine)
     {
         machine.PowerCycle();
-        machine.RunCycles (kColdBootCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
     }
 
 
@@ -115,7 +115,7 @@ public:
 
 
         Assert::AreEqual (S_OK, hr, ToWide (error).c_str());
-        machine.GetTapeDeck().Insert (std::move (image));
+        machine.GetTape().GetDeck().Insert (std::move (image));
     }
 
 
@@ -127,7 +127,7 @@ public:
 
     static void PlayToEnd (TestMachine & machine)
     {
-        TapeDeck         & deck    = machine.GetTapeDeck();
+        TapeDeck         & deck    = machine.GetTape().GetDeck();
         const TapeImage  * image   = deck.GetImage();
         double             seconds = 0.0;
 
@@ -137,7 +137,7 @@ public:
         seconds = (double) image->signal.lengthSamples / image->signal.sampleRate;
 
         deck.Play (GetNow (machine));
-        machine.RunCycles ((uint64_t) (seconds * machine.GetConfig().clockSpeed) + kTailCycles);
+        machine.GetRunner().RunCycles ((uint64_t) (seconds * machine.GetConfig().clockSpeed) + kTailCycles);
         deck.Update (GetNow (machine));
     }
 
@@ -409,7 +409,7 @@ public:
         KeystrokeInjector::InjectLine (machine, "800.8FFR", kAfterCommand);
         PlayToEnd (machine);
 
-        Assert::IsTrue (machine.GetTapeDeck().GetTransport() == TapeTransport::Stopped);
+        Assert::IsTrue (machine.GetTape().GetDeck().GetTransport() == TapeTransport::Stopped);
     }
 
 
@@ -457,15 +457,15 @@ public:
         Boot (machine);
         InsertTape (machine, wav);
 
-        machine.GetTapeDeck().Play (GetNow (machine));
+        machine.GetTape().GetDeck().Play (GetNow (machine));
         machine.SoftReset();
-        Assert::IsTrue    (machine.GetTapeDeck().GetTransport() == TapeTransport::Stopped);
-        Assert::IsNotNull (machine.GetTapeDeck().GetImage());
+        Assert::IsTrue    (machine.GetTape().GetDeck().GetTransport() == TapeTransport::Stopped);
+        Assert::IsNotNull (machine.GetTape().GetDeck().GetImage());
 
-        machine.GetTapeDeck().Play (GetNow (machine));
+        machine.GetTape().GetDeck().Play (GetNow (machine));
         machine.PowerCycle();
-        Assert::IsTrue    (machine.GetTapeDeck().GetTransport() == TapeTransport::Stopped);
-        Assert::IsNotNull (machine.GetTapeDeck().GetImage());
+        Assert::IsTrue    (machine.GetTape().GetDeck().GetTransport() == TapeTransport::Stopped);
+        Assert::IsNotNull (machine.GetTape().GetDeck().GetImage());
     }
 
     //  Records onto a blank tape while the guest runs `command`, then commits
@@ -490,17 +490,17 @@ public:
         hr = TapeImageLoader::Load (bytes, kpszPath, false, mp3, image, error);
         Assert::AreEqual (S_OK, hr);
 
-        machine.GetTapeDeck().Insert (std::move (image));
-        machine.GetTapeDeck().SetRecordArmed (true);
-        machine.GetTapeDeck().Play (GetNow (machine));
-        Assert::IsTrue (machine.GetTapeDeck().GetTransport() == TapeTransport::Recording);
+        machine.GetTape().GetDeck().Insert (std::move (image));
+        machine.GetTape().GetDeck().SetRecordArmed (true);
+        machine.GetTape().GetDeck().Play (GetNow (machine));
+        Assert::IsTrue (machine.GetTape().GetDeck().GetTransport() == TapeTransport::Recording);
 
         KeystrokeInjector::InjectLine (machine, pszCommand, kAfterCommand);
-        machine.RunCycles (runCycles);
+        machine.GetRunner().RunCycles (runCycles);
 
-        machine.GetTapeDeck().Stop (GetNow (machine));
-        Assert::IsTrue (machine.GetTapeDeck().HasPendingRecording());
-        machine.GetTapeDeck().TakeRecording (capture);
+        machine.GetTape().GetDeck().Stop (GetNow (machine));
+        Assert::IsTrue (machine.GetTape().GetDeck().HasPendingRecording());
+        machine.GetTape().GetDeck().TakeRecording (capture);
         Assert::IsTrue (capture.toggleCycles.size() > 1000, L"the guest's WRITE toggled the output");
 
         hr = TapeRecorder::Commit (io, kpszPath, capture, machine.GetConfig().clockSpeed, recorded, error);
@@ -532,7 +532,7 @@ public:
 
         Boot (target);
         EnterMonitor (target);
-        target.GetTapeDeck().Insert (std::move (recorded));
+        target.GetTape().GetDeck().Insert (std::move (recorded));
         KeystrokeInjector::InjectLine (target, "800.8FFR", kAfterCommand);
         PlayToEnd (target);
 
@@ -561,7 +561,7 @@ public:
         RecordOnto (source, io, "SAVE", kSaveCycles, recorded);
 
         Boot (target);
-        target.GetTapeDeck().Insert (std::move (recorded));
+        target.GetTape().GetDeck().Insert (std::move (recorded));
         KeystrokeInjector::InjectLine (target, "LOAD", kAfterCommand);
         PlayToEnd (target);
         KeystrokeInjector::InjectLine (target, "LIST", kAfterCommand);

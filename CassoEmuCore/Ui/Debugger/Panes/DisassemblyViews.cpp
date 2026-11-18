@@ -10,31 +10,15 @@
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/SourceLineText.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/CodeViewFind.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/ToolbarCheckEntry.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::DisassemblyViewPane
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DisassemblyViewPane::DisassemblyViewPane (IDebuggerPaneHost & host, DisassemblyGroup & group, int view) :
-    IDebuggerPane (host),
-    m_group       (group),
-    m_view        (view),
-    m_id          (DebuggerLayout::GetCodePaneId (view)),
-    m_bar         (host, m_id, L"Disassembly options")
-{
-}
 
 
 
@@ -47,472 +31,6 @@ DisassemblyViewPane::DisassemblyViewPane (IDebuggerPaneHost & host, DisassemblyG
 ////////////////////////////////////////////////////////////////////////////////
 
 DisassemblyViewPane::~DisassemblyViewPane() = default;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetId
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const std::wstring & DisassemblyViewPane::GetId() const
-{
-    return m_id;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetTitle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DisassemblyViewPane::GetTitle() const
-{
-    return std::format (L"Disassembly {}", m_view + 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetTabTitle
-//
-//  The first view's tab has no number, as it is the only view by default.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DisassemblyViewPane::GetTabTitle() const
-{
-    return (m_view == 0) ? std::wstring (L"Disassembly") : GetTitle();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetStopFocusRank
-//
-//  At a stop the focus moves to the active view, unless another pane has a
-//  higher rank, such as a BASIC program stopped in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DisassemblyViewPane::GetStopFocusRank() const
-{
-    return (m_group.GetActive() == m_view) ? 1 : 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::CreateControls
-//
-//  The first view's history band has its place in history and a Go live
-//  link.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisassemblyViewPane::CreateControls()
-{
-    DxuiPanel  & parent = m_host.GetControlParent();
-
-
-
-    m_list   = parent.CreateChild<DxuiListView>();
-    m_banner = parent.CreateChild<DxuiActionBanner>();
-    m_bar.Create();
-
-    m_banner->SetSeverity (DxuiInfoBanner::Severity::Info);
-    m_banner->SetVisible  (false);
-
-    if (m_view == 0)
-    {
-        m_historyBand = parent.CreateChild<HistoryBand>();
-        m_historyBand->SetOnGoLive ([this] { m_host.GoLive(); });
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::Configure
-//
-//  The bar is the viewing options as check boxes, as Visual Studio's are. A
-//  breakpoint is set from the gutter (DisassemblyGutter), as in an editor;
-//  the rest of the view is TEXT (FR-076): a drag selects characters, a
-//  double-click selects the word under the pointer, and Ctrl+C copies what
-//  is selected -- a double-click never touches a breakpoint.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisassemblyViewPane::Configure()
-{
-    DxuiToolbar  * bar = m_bar.GetBar();
-
-
-
-    bar->SetTextRenderer  (m_host.GetPaneTextRenderer());
-    bar->SetPopupHost     (m_host.GetPanePopupHost());
-    bar->SetCompact       (true);
-    bar->SetPaneTextInset (true);
-    bar->SetEntries       (m_group.BuildBarEntries());
-    bar->SetVisible       (false);
-
-    //  A code row selected selects its line in the source pane (FR-054).
-    m_list->SetOnSelectionChanged ([this] (int row) { m_group.OnRowSelected (m_view, row); });
-
-    DisassemblyCells::Configure (*m_list);
-
-    m_list->SetActivateOnDoubleClick (true);
-    m_list->SetTextSelection         (true);
-    m_list->SetOwnerWindow           (m_host.GetOwnerHwnd());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::TryGetOpened
-//
-//  The first view is always open.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyViewPane::TryGetOpened (bool & isOpened) const
-{
-    if (m_view == 0)
-    {
-        return false;
-    }
-
-    isOpened = m_group.IsOpen (m_view);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::RequestOpen
-//
-//  A view opened from the View menu starts at the PC.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyViewPane::RequestOpen()
-{
-    IDebuggerWindowHost         * host     = m_host.GetWindowHost();
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-
-
-
-    if (m_view > 0 && host != nullptr)
-    {
-        host->SetDebuggerCodeAddress ((snapshot != nullptr) ? snapshot->pc : (Word) 0, m_view);
-    }
-
-    return m_view > 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::RequestClose
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyViewPane::RequestClose()
-{
-    IDebuggerWindowHost  * host = m_host.GetWindowHost();
-
-
-
-    if (m_view > 0 && host != nullptr)
-    {
-        host->CloseDebuggerCodeView (m_view);
-    }
-
-    return m_view > 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::AddToDock
-//
-//  The toolbar, a place PlaceBar fills, over the lines; the first view has
-//  its history band between them while the machine is back in history.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisassemblyViewPane::AddToDock (DxuiDockSite & dock)
-{
-    m_frame = std::make_unique<DebuggerPaneFrame> (GetTitle());
-    m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
-
-    if (m_historyBand != nullptr)
-    {
-        m_frame->AddPart (m_historyBand, [this] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (m_host.GetPaneRowDip())); },
-                          [this] { return HistoryBand::IsShown (m_historyBand->GetStatus()); });
-    }
-
-    m_frame->AddPart (m_banner,
-                      [this] (int width, const DxuiDpiScaler & scaler) { return (int) m_banner->GetPreferredHeightPx ((float) width, scaler); },
-                      [this] { return m_isBannerShown; });
-    m_frame->AddPart (m_list);
-
-    dock.AddPane (GetId(), GetTitle(), m_frame.get());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetContent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-IDxuiControl * DisassemblyViewPane::GetContent() const
-{
-    return m_frame.get();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::SetStaleText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisassemblyViewPane::SetStaleText (const std::wstring & text)
-{
-    bool  isShown = !text.empty();
-
-
-
-    if (text == m_banner->GetText() && isShown == m_isBannerShown)
-    {
-        return;
-    }
-
-    m_banner->SetText (text);
-    m_isBannerShown = isShown;
-
-    if (m_frame != nullptr)
-    {
-        m_frame->Relayout();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetStaleText
-//
-//  A debug file has source lines and labels; a symbol file has labels
-//  alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DisassemblyViewPane::GetStaleText (const std::vector<std::string> & names, bool isDebugFileStale)
-{
-    std::vector<std::string>  symbols  = names;
-    std::string               text;
-    std::string               joined;
-
-
-
-    if (isDebugFileStale && !symbols.empty())
-    {
-        text = std::format ("The program in memory doesn't match {}, so its source lines and labels are hidden.", symbols.front());
-        symbols.erase (symbols.begin());
-    }
-
-    for (size_t i = 0; i < symbols.size(); i++)
-    {
-        joined += (i == 0) ? "" : (i + 1 == symbols.size()) ? " or " : ", ";
-        joined += symbols[i];
-    }
-
-    if (!symbols.empty())
-    {
-        text += text.empty() ? "" : "\n";
-        text += std::format ("The program in memory doesn't match {}, so {} labels are hidden.", joined, (symbols.size() == 1) ? "its" : "their");
-    }
-
-    return TextEncoding::NarrowToWide (text);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetControls
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<IDxuiControl *> DisassemblyViewPane::GetControls() const
-{
-    return { m_bar.GetSlot(), m_bar.GetBar(), m_banner, m_list };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::GetColorKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<PaneColorKeySpec> DisassemblyViewPane::GetColorKey() const
-{
-    return PaneColorKeySpec { m_bar.GetSlot(), ColorLegend::Pane::Disassembly, nullptr };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::RouteBarMouse
-//
-//  The bar, then the history band, whose Go live link takes a press.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyViewPane::RouteBarMouse (const DxuiMouseEvent & ev)
-{
-    if (m_bar.RouteMouse (ev))
-    {
-        return true;
-    }
-
-    return m_historyBand != nullptr && m_historyBand->IsVisible() && DxuiDockSite::Contains (m_historyBand->GetBounds(), ev.positionDip) &&
-           m_host.IsBarRouted (GetId()) && m_historyBand->OnMouse (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyViewPane::AddMenuItems
-//
-//  In groups: running to the line, its breakpoint, copying and showing it in
-//  memory (FR-084: the instruction's operand, resolved through its
-//  addressing mode, or the line's address, one row for each memory pane
-//  open), then the line's edits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
-{
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    int                           index    = m_group.GetCodeLineOfRow (m_view, row);
-    RECT                          bounds   = m_list->GetBounds();
-    int                           column   = m_host.GetListColumnAt (m_list, m_host.GetLastPressPx().x - bounds.left);
-
-
-
-    if (list != m_list)
-    {
-        return false;
-    }
-
-    if (index < 0)
-    {
-        return true;
-    }
-
-    const DebuggerViewSnapshot::CodeLine  & line       = m_group.GetCodeLines (m_view)[(size_t) index];
-    Word                                    at         = line.address;
-    auto                                    breakpoint = std::ranges::find_if (snapshot->breakpoints, [at] (const DebuggerViewSnapshot::BreakpointLine & each) { return each.address == at; });
-
-
-
-    items.push_back ({ L"Run to cursor", [this, at] { m_host.RunAction (DebuggerActions::GetRunToCursor (at)); } });
-
-    if (snapshot->isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
-    {
-        items.push_back ({ L"Set next statement", [this, at] { m_group.GetGutter().SetNextStatement (at); } });
-    }
-
-    items.push_back ({ L"Show next statement", [this] { m_host.ShowPcCode(); } });
-    items.push_back (PaneMenu::MakeSeparator());
-
-    items.push_back ({ line.hasBreakpoint ? L"Remove breakpoint" : L"Set breakpoint",
-                       [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); } });
-
-    if (line.hasBreakpoint && breakpoint != snapshot->breakpoints.end())
-    {
-        items.push_back ({ breakpoint->enabled ? L"Disable breakpoint" : L"Enable breakpoint",
-                           [this, id = breakpoint->id, enable = !breakpoint->enabled] { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); } });
-    }
-
-    items.push_back (PaneMenu::MakeSeparator());
-    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
-
-    if (column >= (int) DisassemblyCells::kInstructionColumn && !line.memoryOperand.empty())
-    {
-        m_host.AddShowInMemoryItems (TextEncoding::NarrowToWide (line.shownOperand), line.memoryOperand, items);
-    }
-    else
-    {
-        m_host.AddShowInMemoryItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
-    }
-
-    items.push_back (PaneMenu::MakeSeparator());
-    m_group.GetEdits().AddItems (m_view, line, row, items);
-
-    if (m_view > 0)
-    {
-        items.push_back (PaneMenu::MakeSeparator());
-        items.push_back ({ std::format (L"Close Disassembly {}", m_view + 1), [this] { (void) RequestClose(); } });
-    }
-
-    return true;
-}
 
 
 
@@ -640,6 +158,32 @@ int DisassemblyGroup::GetCodeLineOfRow (int view, int row) const
     }
 
     line = DisassemblyOptions::GetLineOfRow (m_views[(size_t) view]->GetRows(), row);
+
+    return (line < (int) GetCodeLines (view).size()) ? line : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::GetMenuLineOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyGroup::GetMenuLineOfRow (int view, int row) const
+{
+    int  line = -1;
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
+    {
+        return -1;
+    }
+
+    line = DisassemblyOptions::GetLineAtOrBelow (m_views[(size_t) view]->GetRows(), row);
 
     return (line < (int) GetCodeLines (view).size()) ? line : -1;
 }
@@ -1026,6 +570,7 @@ void DisassemblyGroup::ApplyView (int view)
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines         = GetCodeLines (view);
     std::vector<std::vector<DxuiListView::Cell>>         rows;
     std::vector<DisassemblyOptions::Row>                 built;
+    std::vector<DisassemblyCells::SourceParts>           parts;
     int                                                  current       = -1;
     int                                                  selected      = -1;
     std::optional<Word>                                  target;
@@ -1057,7 +602,9 @@ void DisassemblyGroup::ApplyView (int view)
         }
     }
 
-    built = DisassemblyOptions::BuildRows (lines, source, [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
+    built = DisassemblyOptions::BuildRows (lines, source,
+                                           [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); },
+                                           [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text) && SourceLineText::IsLabelLine (text); });
     m_views[(size_t) view]->SetRows (built);
     SendShownLines (view, built);
     SetAddressScroll (view, lines, built);
@@ -1092,6 +639,8 @@ void DisassemblyGroup::ApplyView (int view)
         size_t                                   count   = 0;
         std::vector<DxuiListView::Cell>          scratch (DisassemblyCells::kColumnCount);
 
+        parts.emplace_back();
+
         if (gutter >= 0)
         {
             MarkRow (view, at, lines[(size_t) gutter], target, at == marked, cells, fill, rowTip);
@@ -1105,15 +654,17 @@ void DisassemblyGroup::ApplyView (int view)
         {
             hasText       = TryGetSourceText (each.fileId, each.sourceLine, text);
             text          = hasText ? text : std::wstring();
-            operandMoved  = gutter >= 0 && DisassemblyOptions::IsSingleInstruction (built, at) && SourcePane::IsInstructionLine (text);
+            operandMoved  = gutter >= 0 && DisassemblyOptions::IsSingleInstruction (built, at) && SourceLineText::IsInstructionLine (text);
 
             if (operandMoved)
             {
                 (void) DisassemblyCells::FillCodeRow (scratch, lines[(size_t) gutter], m_options, textColors);
+                AddOperandSymbol (scratch[DisassemblyCells::kOperandColumn], lines[(size_t) gutter], textColors.syntax.symbol);
             }
 
-            DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (theme != nullptr) ? theme->ForegroundMuted() : 0u,
-                                             operandMoved ? &scratch[DisassemblyCells::kOperandColumn] : nullptr);
+            parts.back() = DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors,
+                                                            (theme != nullptr) ? theme->ForegroundMuted() : 0u,
+                                                            operandMoved ? &scratch[DisassemblyCells::kOperandColumn] : nullptr);
 
             //  The line's heat is its instructions' heat.
             if (heatPalette.has_value() && snapshot->heatColumns != nullptr && DisassemblyCells::TryGetSourceRowSpan (built, rows.size(), lines, first, count))
@@ -1131,6 +682,7 @@ void DisassemblyGroup::ApplyView (int view)
             line = &lines[(size_t) each.codeLine];
 
             (void) DisassemblyCells::FillCodeRow (cells, *line, m_options, textColors);
+            AddOperandSymbol (cells[DisassemblyCells::kOperandColumn], *line, textColors.syntax.symbol);
 
             if (operandMoved && DisassemblyOptions::IsFronted (built, at))
             {
@@ -1146,7 +698,9 @@ void DisassemblyGroup::ApplyView (int view)
 
             //  An instruction with a source line is dimmed under it, whatever else
             //  is in view, so the dimming doesn't change as the view scrolls.
-            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0, false, at == current))
+            //  There is no source row for a line whose file isn't found, so its
+            //  instruction isn't dimmed.
+            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0 && TryGetSourceText (line->sourceFileId, line->sourceLine, text), false, at == current))
             {
                 DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
             }
@@ -1181,6 +735,8 @@ void DisassemblyGroup::ApplyView (int view)
     }
 
     list->SetRows (std::move (rows));
+    m_views[(size_t) view]->SetSourceParts (std::move (parts));
+    SelectAsked (view, *snapshot, lines, built);
 
     if (SelectScrolledEdge (view, built))
     {
@@ -1253,6 +809,15 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
     {
         gutter.icon = m_host.GetHoverBreakpointIcon();
         gutter.tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
+    }
+
+    //  A bookmark's outline goes around the dot's place, so a breakpoint on
+    //  the line is seen inside it.
+    if (m_host.GetLatestSnapshot() != nullptr &&
+        std::ranges::any_of (m_host.GetLatestSnapshot()->bookmarks, [&line] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == line.address; }))
+    {
+        gutter.icon = m_host.GetBookmarkMark (gutter.icon);
+        gutter.tip  = ColorLegend::JoinLines ({ gutter.tip, L"Bookmark" });
     }
 
     if (isMarked)
@@ -1527,6 +1092,62 @@ void DisassemblyGroup::SelectEdgeAfterScroll (int view, bool isTop)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyGroup::SelectAsked
+//
+//  Selects the instruction a snapshot specifies (codeSelect), once per
+//  request (codeSelectSerial). Its source line is selected in its document,
+//  and the view's tab is brought to the front and the view is focused, so the
+//  row is drawn in the focused selection color. A
+//  request whose line is not in the view yet is applied from a later
+//  snapshot that contains it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::SelectAsked (
+    int                                                   view,
+    const DebuggerViewSnapshot                          & snapshot,
+    const std::vector<DebuggerViewSnapshot::CodeLine>   & lines,
+    const std::vector<DisassemblyOptions::Row>          & built)
+{
+    std::optional<Word>  asked  = snapshot.codeSelect[(size_t) view];
+    uint32_t             serial = snapshot.codeSelectSerial[(size_t) view];
+
+
+
+    if (!asked.has_value() || serial == m_askedSerial[(size_t) view])
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        if (lines[i].address == *asked)
+        {
+            m_askedSerial[(size_t) view] = serial;
+            m_selected[(size_t) view]    = *asked;
+            GetCodeList (view)->SetSelectedRow (DisassemblyOptions::GetRowOfLine (built, (int) i));
+            m_sources.ShowLine (lines[i].sourceFileId, lines[i].sourceLine);
+            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
+
+            //  A find's match is selected with the focus left in the find box,
+            //  so typing goes on there.
+            if (m_findSelect[(size_t) view] != asked)
+            {
+                m_host.FocusControl (GetCodeList (view));
+            }
+
+            m_findSelect[(size_t) view].reset();
+            return;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyGroup::SelectScrolledEdge
 //
 //  Once a view's rows start at another line than when a key scrolled it,
@@ -1659,7 +1280,7 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
 
         if (lookup.match != SourceMatch::NotFound && !lookup.text.empty())
         {
-            m_sourceText[fileId] = SourcePane::SplitLines (lookup.text);
+            m_sourceText[fileId] = SourceRows::SplitLines (lookup.text);
         }
         else
         {
@@ -1674,301 +1295,6 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
 
     text = m_sourceText[fileId][(size_t) (line - 1)];
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyGroup::GetBranchArrow
-//
-//  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
-//  where it goes, or with isBranchedFrom, the arrow of the one a step just
-//  took to the PC. Where both are drawn, they are set apart at the PC's row.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyGroup::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
-{
-    BranchArrow::Input  other;
-    Word                otherGoesTo = 0;
-    bool                otherTaken  = true;
-
-
-
-    if (!GetOneBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
-    {
-        return false;
-    }
-
-    if (!GetOneBranchArrow (view, other, otherGoesTo, otherTaken, !isBranchedFrom))
-    {
-        return true;
-    }
-
-    if (isBranchedFrom)
-    {
-        DisassemblyCells::SeparateArrows (input, other);
-    }
-    else
-    {
-        DisassemblyCells::SeparateArrows (other, input);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyGroup::GetOneBranchArrow
-//
-//  One of the arrows, from the snapshot's addresses, so either end scrolled
-//  out of view runs the line to that edge of the rows, and the arrow is
-//  drawn while any part of it crosses them. Without the PC's target in the
-//  snapshot, as while running, the PC's arrow is drawn from its line. A
-//  view past the code views is a source document's, whose pane places the
-//  PC's arrow alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyGroup::GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
-{
-    const DebuggerViewSnapshot   * snapshot = m_host.GetLatestSnapshot();
-    DxuiListView                 * list     = (view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
-    DisassemblyCells::ArrowEnds    ends;
-
-
-
-    if (!m_options.IsOn (DisassemblyOptions::Option::BranchArrow))
-    {
-        return false;
-    }
-
-    if (view >= DebuggerViewState::kMaxCodeViews)
-    {
-        const SourceDocumentPane & document = m_sources.GetDocument (view - DebuggerViewState::kMaxCodeViews);
-
-        return !isBranchedFrom && document.IsShown() && m_host.IsRoutable (document.GetView()) && document.GetModel().GetBranchArrow (input, goesTo, isTaken);
-    }
-
-    if (list == nullptr || !m_isOpen[(size_t) view] || !list->IsVisible() || !m_host.IsRoutable (list))
-    {
-        return false;
-    }
-
-    if (isBranchedFrom)
-    {
-        if (snapshot == nullptr || !snapshot->branchedFrom.has_value())
-        {
-            return false;
-        }
-
-        ends = { *snapshot->branchedFrom, snapshot->pc, true };
-    }
-    else if (snapshot != nullptr && snapshot->pcTarget.has_value())
-    {
-        ends = { snapshot->pc, *snapshot->pcTarget, snapshot->isPcTargetTaken };
-    }
-    else if (!DisassemblyCells::TryGetPcArrowEnds (GetCodeLines (view), ends))
-    {
-        return false;
-    }
-
-    goesTo  = ends.goesTo;
-    isTaken = ends.isTaken;
-
-    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_views[(size_t) view]->GetRows(), ends, input);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyGroup::PaintBranchArrow
-//
-//  The arrow a step just took, dotted, and the PC's, in the PC marker's
-//  color, or in the disabled color for a branch that the current flags do
-//  not take.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisassemblyGroup::PaintBranchArrow (IDxuiPainter & painter, int view)
-{
-    const DxuiTheme     * theme   = m_host.GetTheme();
-    BranchArrow::Input    input;
-    Word                  goesTo  = 0;
-    bool                  isTaken = true;
-
-
-
-    for (bool isBranchedFrom : { true, false })
-    {
-        input = BranchArrow::Input();
-
-        if (GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
-        {
-            DisassemblyCells::PaintBranchArrow (painter, input, isTaken, m_host.GetPcMarkerArgb(), (theme != nullptr) ? theme->ForegroundDisabled() : 0xFF808080,
-                                                isBranchedFrom);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyGroup::ClickBranchArrow
-//
-//  A click on the PC's branch arrow goes to where it points, as Go to
-//  would, and a click on the dotted arrow goes to the branch taken by the
-//  last step; the next click on either goes back to the PC. In a source
-//  document the document scrolls, rather than the disassembly coming to the
-//  front.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyGroup::ClickBranchArrow (POINT pointPx)
-{
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    BranchArrow::Input            input;
-    Word                          goesTo   = 0;
-    bool                          isTaken  = true;
-
-
-
-    for (bool isBranchedFrom : { false, true })
-    {
-        for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
-        {
-            input = BranchArrow::Input();
-
-            if (!GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom) ||
-                !BranchArrow::HitTest (input, (float) pointPx.x, (float) pointPx.y))
-            {
-                continue;
-            }
-
-            if (view >= DebuggerViewState::kMaxCodeViews)
-            {
-                ClickSourceArrow (m_sources.GetDocument (view - DebuggerViewState::kMaxCodeViews).GetModel());
-                return true;
-            }
-
-            m_active = view;
-
-            if (m_isArrowAtTarget)
-            {
-                m_host.ShowPcCode();
-            }
-            else
-            {
-                m_host.GoToCode ((isBranchedFrom && snapshot != nullptr && snapshot->branchedFrom.has_value()) ? *snapshot->branchedFrom : goesTo);
-            }
-
-            m_isArrowAtTarget = !m_isArrowAtTarget;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyGroup::ClickSourceArrow
-//
-//  The document scrolls to the line the PC's branch goes to, and the next
-//  click scrolls back to the PC's line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisassemblyGroup::ClickSourceArrow (SourcePane & document)
-{
-    if (m_isArrowAtTarget)
-    {
-        document.ShowMarkedLine();
-    }
-    else
-    {
-        (void) document.ShowArrowTarget();
-    }
-
-    m_isArrowAtTarget = !m_isArrowAtTarget;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisassemblyGroup::TryGetBranchTip
-//
-//  Over the PC's arrow, whether its branch will be taken, and why, from the
-//  instruction at the PC and the flags now; over the dotted arrow, the
-//  branch the last step took to the PC.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisassemblyGroup::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
-{
-    const DebuggerViewSnapshot  * snapshot    = m_host.GetLatestSnapshot();
-    BranchArrow::Input            input;
-    Word                          goesTo      = 0;
-    bool                          isTaken     = true;
-    std::string                   instruction;
-    std::string                   stepped;
-
-
-
-    if (snapshot == nullptr)
-    {
-        return false;
-    }
-
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
-        {
-            instruction = line.isCurrent ? line.instruction : instruction;
-            stepped     = (snapshot->branchedFrom == line.address) ? line.instruction : stepped;
-        }
-    }
-
-    //  The PC's arrow is drawn over the dotted one, so it is found first.
-    for (bool isBranchedFrom : { false, true })
-    {
-        for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
-        {
-            input = BranchArrow::Input();
-
-            if (!GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom) ||
-                !BranchArrow::HitTest (input, (float) clientPx.x, (float) clientPx.y))
-            {
-                continue;
-            }
-
-            anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
-            text   = isBranchedFrom ? ColorLegend::GetTakenBranchTip (stepped) : ColorLegend::GetBranchTip (instruction, isTaken);
-            return true;
-        }
-    }
-
-    return false;
 }
 
 
@@ -2001,6 +1327,49 @@ DxuiListView * DisassemblyGroup::FindCodeListAt (POINT clientPx, int & view) con
     }
 
     return list;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::AddOperandSymbol
+//
+//  The symbol the instruction's operand is written with, "COUT=$FDED",
+//  ahead of the operand column's values, its name in the symbol color, so
+//  it is read without the operand tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::AddOperandSymbol (DxuiListView::Cell & cell, const DebuggerViewSnapshot::CodeLine & line, uint32_t symbolArgb)
+{
+    std::string   name;
+    Word          address = 0;
+    std::wstring  symbol;
+    int           shift   = 0;
+
+
+
+    GetLineSymbol (line, (int) DisassemblyCells::kInstructionColumn, name, address);
+
+    if (name.empty())
+    {
+        return;
+    }
+
+    symbol = std::format (L"{}=${:04X}", TextEncoding::NarrowToWide (name), address);
+    shift  = (int) symbol.size() + (cell.text.empty() ? 0 : 2);
+
+    for (auto & [start, end, argb] : cell.colorRanges)
+    {
+        start += shift;
+        end   += shift;
+    }
+
+    cell.colorRanges.insert (cell.colorRanges.begin(), { 0, (int) name.size(), symbolArgb });
+    cell.text = symbol + (cell.text.empty() ? std::wstring() : L"  " + cell.text);
 }
 
 
@@ -2106,7 +1475,7 @@ bool DisassemblyGroup::TryGetSymbolAt (POINT clientPx, std::string & name, Word 
 
     if (snapshot->symbols != nullptr && list->TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch))
     {
-        found = SourcePane::FindSymbolAt (list->GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, start);
+        found = SourceLineText::FindSymbolAt (list->GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, start);
     }
 
     if (found == nullptr)
@@ -2139,8 +1508,6 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     int            index   = -1;
     std::string    name;
     Word           address = 0;
-    const char   * about   = nullptr;
-    std::string    comment;
 
 
 
@@ -2176,23 +1543,155 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
         return column == (int) DisassemblyCells::kInstructionColumn && TryGetIoRegisterTip (m_host.GetLatestSnapshot()->ioRegisters, address, text);
     }
 
-    about = SymbolDescriptions::Find (name);
-    text  = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
-
-    if (about != nullptr)
-    {
-        text += L"\n" + TextEncoding::NarrowToWide (about);
-    }
-
-    comment = m_host.GetSymbolComment (address, name);
-
-    if (!comment.empty())
-    {
-        text += L"\n" + TextEncoding::NarrowToWide (comment);
-    }
+    text = std::format (L"{} = ${:04X}", TextEncoding::NarrowToWide (name), address);
+    SourceLineText::AppendSymbolDetails (text, name, address, false, *m_host.GetLatestSnapshot(), m_host.GetSymbolComment (address, name));
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::TryGetOperandSymbol
+//
+//  A source row's code is in the cell, and from the character, that its
+//  parts indicate: the instruction column's start while the label column
+//  is visible, and past the label while the whole line is in one cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::TryGetOperandSymbol (int view, int row, std::wstring & text) const
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    DxuiListView                   * list     = (view >= 0 && view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
+    int                              index    = (list != nullptr) ? GetCodeLineOfRow (view, row) : -1;
+    std::string                      name;
+    Word                             address  = 0;
+    DisassemblyCells::SourceParts    parts;
+
+
+
+    if (snapshot == nullptr || list == nullptr || row < 0 || row >= list->GetRowCount())
+    {
+        return false;
+    }
+
+    if (index >= 0)
+    {
+        GetLineSymbol (GetCodeLines (view)[(size_t) index], (int) DisassemblyCells::kInstructionColumn, name, address);
+
+        if (name.empty())
+        {
+            return false;
+        }
+
+        text = std::format (L"{}=${:04X}", TextEncoding::NarrowToWide (name), address);
+        return true;
+    }
+
+    return snapshot->symbols != nullptr && TryGetSourceParts (view, row, parts) && list->GetCellsOfRow (row).size() > parts.codeColumn &&
+           SourceLineText::TryGetOperandSymbolText (list->GetCellsOfRow (row)[parts.codeColumn].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar,
+                                                    snapshot->symbols->symbols, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::TryGetSourceParts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::TryGetSourceParts (int view, int row, DisassemblyCells::SourceParts & parts) const
+{
+    const std::vector<DisassemblyCells::SourceParts>  * all = nullptr;
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews || m_views[(size_t) view] == nullptr || GetCodeLineOfRow (view, row) >= 0)
+    {
+        return false;
+    }
+
+    all = &m_views[(size_t) view]->GetSourceParts();
+
+    if (row < 0 || row >= (int) all->size() || (*all)[(size_t) row].codeColumn == DisassemblyCells::SourceParts::kNone)
+    {
+        return false;
+    }
+
+    parts = (*all)[(size_t) row];
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::GetCodeEnd
+//
+//  Where a source row's line ends in the cell its code is in: before the
+//  operand and result where they follow the line in that cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyGroup::GetCodeEnd (const DisassemblyCells::SourceParts & parts)
+{
+    return (parts.operandColumn == parts.codeColumn) ? parts.operandChar : INT_MAX;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::IsOperandSymbolAt
+//
+//  An instruction's operand's symbol is the one in its instruction column; a
+//  source row's is the first symbol past its mnemonic, in the cell its code
+//  is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::IsOperandSymbolAt (POINT clientPx) const
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    int                              view     = -1;
+    DxuiListView                   * list     = FindCodeListAt (clientPx, view);
+    RECT                             bounds   = {};
+    int                              row      = -1;
+    size_t                           column   = 0;
+    int                              ch       = 0;
+    DisassemblyCells::SourceParts    parts;
+
+
+
+    if (snapshot == nullptr || list == nullptr)
+    {
+        return false;
+    }
+
+    bounds = list->GetBounds();
+    row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
+
+    if (GetCodeLineOfRow (view, row) >= 0)
+    {
+        return m_host.GetListColumnAt (list, clientPx.x - bounds.left) == (int) DisassemblyCells::kInstructionColumn;
+    }
+
+    return snapshot->symbols != nullptr && TryGetSourceParts (view, row, parts) &&
+           list->TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) && column == parts.codeColumn &&
+           SourceLineText::IsOperandSymbolAt (list->GetCellsOfRow (row)[column].text.substr (0, (size_t) GetCodeEnd (parts)), parts.codeChar, ch,
+                                              snapshot->symbols->symbols);
 }
 
 
@@ -2214,16 +1713,18 @@ bool DisassemblyGroup::TryGetSourceSymbolTip (const DxuiListView & list, POINT c
     int                           row      = -1;
     size_t                        column   = 0;
     int                           ch       = 0;
+    const SymbolInfo            * found    = nullptr;
 
 
 
     if (snapshot == nullptr || snapshot->symbols == nullptr ||
         !list.TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) ||
-        !SourcePane::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text))
+        !SourceLineText::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text, &found))
     {
         return false;
     }
 
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *snapshot, m_host.GetSymbolComment (found->address, found->name));
     anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }
@@ -2250,6 +1751,110 @@ bool DisassemblyGroup::TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegis
             text = std::format (L"${:04X}\n{}", address, TextEncoding::NarrowToWide (each.description));
             return true;
         }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::ScrollCodeAtEdge
+//
+//  A disassembly view's rows are only the lines in view, so an arrow at its first
+//  or last visible line, or Page Up or Page Down there, scrolls the view
+//  through memory rather than stopping; the selected row stays at the edge,
+//  on the line scrolled into view. True when the key scrolled a view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::ScrollCodeAtEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code  = GetCodeList (view);
+        int             row   = 0;
+        int             last  = 0;
+        int             page  = 0;
+        int             lines = 0;
+
+
+
+        if (code == nullptr || code != focused || m_host.GetWindowHost() == nullptr)
+        {
+            continue;
+        }
+
+        row   = code->GetSelectedRow();
+        page  = std::max (1, code->GetVisibleRowCapacity());
+        last  = std::min (code->GetRowCount(), page) - 1;
+        lines = (vk == VK_UP    && row <= 0)    ? -1
+              : (vk == VK_DOWN  && row >= last) ?  1
+              : (vk == VK_PRIOR && row <= 0)    ? -page
+              : (vk == VK_NEXT  && row >= last) ?  page
+              :                                    0;
+
+        if (lines == 0 || row < 0)
+        {
+            return false;
+        }
+
+        SelectEdgeAfterScroll (view, lines < 0);
+        m_host.GetWindowHost()->ScrollDebuggerCode (lines, view);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::SelectCodeViewEdge
+//
+//  Ctrl+Page Up and Ctrl+Page Down select a disassembly view's top and
+//  bottom row in view, as they move to the top and bottom line in view in a
+//  source document and in Visual Studio's editor. True when a key moved a
+//  view's selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::SelectCodeViewEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code = GetCodeList (view);
+        int             top  = 0;
+        int             row  = 0;
+
+
+
+        if (code == nullptr || code != focused || (vk != VK_PRIOR && vk != VK_NEXT))
+        {
+            continue;
+        }
+
+        top = code->GetTopRow();
+        row = (vk == VK_PRIOR) ? top : (std::min) (code->GetRowCount(), top + (std::max) (1, code->GetVisibleRowCapacity())) - 1;
+
+        if (row < 0)
+        {
+            return false;
+        }
+
+        code->SetSelectedRow (row);
+        OnRowSelected (view, row);
+        return true;
     }
 
     return false;

@@ -194,13 +194,22 @@ namespace DebuggerViewCascadeTests
 
 
 
-            snapshot->panels = { { "mmu", "Memory map", true }, { "disk", "Disk II", false } };
+            snapshot->panels = { { "mmu", "Memory map", true }, { "mockingboard", "Mockingboard", false }, { "video", "Video", false },
+                                 { "keyboard", "Keyboard", false }, { "disk", "Disk II", false } };
 
             window.OnCreate();
             window.SetSnapshotForTest (snapshot);
             window.SetWindowMenus();
 
-            AssertCascade (GetView (window), L"Device panels", { L"MMU", L"Disk II" });
+            AssertCascade (GetView (window), L"Device panels", { L"Disk II", L"Keyboard", L"Video", L"Mockingboard", L"MMU" });
+
+            {
+                std::vector<DxuiPopupMenuItem>  view  = GetView (window);
+                auto                            logs  = std::ranges::find (view, GetRow (view, L"Logs"), [] (const DxuiPopupMenuItem & row) { return &row; });
+
+                Assert::IsTrue (logs != view.end() && logs + 1 != view.end(), L"Logs is on View");
+                Assert::IsTrue ((logs + 1)->command->label == L"Device panels", L"Device panels is next to Logs");
+            }
         }
 
 
@@ -222,6 +231,49 @@ namespace DebuggerViewCascadeTests
 
             Assert::IsNull (GetRow (GetView (window), L"Sound log"),     L"Sound log is a row of the cascade");
             Assert::IsNull (GetRow (GetView (window), L"BASIC program"), L"BASIC program is a row of the cascade");
+        }
+
+
+        //  The code, then the machine's state and memory, then the window's
+        //  output, then the logs, each section divided from the next. Console, Trace and the
+        //  Profiler are rows of View; only the logs are a cascade.
+        TEST_METHOD (TheViewMenuIsInSections)
+        {
+            CassoTheme                 theme    = CassoTheme::MakeSkeuomorphic();
+            CascadeHost                host;
+            CascadeWindow              window   (theme, host);
+            std::vector<std::wstring>  expected =
+            {
+                L"Disassembly", L"Source files", L"Call stack", L"Breakpoints", L"Bookmarks", L"User symbols", L"Machine symbols",
+                L"-",
+                L"Registers", L"Stack", L"Watches", L"Memory", L"Data ranges", L"Heat map", L"Heat map ranges",
+                L"-",
+                L"Console", L"Trace", L"Profiler",
+                L"-",
+                L"Logs",
+                L"-",
+                L"Reset window layout",
+            };
+            std::wstring               actual;
+            std::wstring               wanted;
+
+
+
+            window.OnCreate();
+            window.SetWindowMenus();
+
+            for (const DxuiPopupMenuItem & row : GetView (window))
+            {
+                actual += (row.kind == DxuiPopupMenuItem::Kind::Separator) ? std::wstring (L"-") : row.command->label;
+                actual += L"|";
+            }
+
+            for (const std::wstring & label : expected)
+            {
+                wanted += label + L"|";
+            }
+
+            Assert::AreEqual (wanted, actual);
         }
     };
 }

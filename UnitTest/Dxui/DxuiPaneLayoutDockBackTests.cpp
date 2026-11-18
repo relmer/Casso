@@ -218,5 +218,102 @@ namespace DxuiPaneLayoutDockBackTests
 
             Assert::IsFalse (DxuiPaneLayout::TryParse (text, parsed));
         }
+
+
+        //  A pane floated from the middle of a group docks back between the
+        //  same two tabs and is the active tab.
+        TEST_METHOD (AFloatingPaneDocksBackAtItsTabIndex)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+
+
+
+            layout.TabWith   (L"code", L"console");
+            layout.TabWith   (L"regs", L"console");
+            layout.TabWithAt (L"code", L"console", 1);
+            Assert::IsTrue   (layout.GetGroup (L"console") == std::vector<std::wstring> { L"console", L"code", L"regs" });
+
+            Assert::IsTrue   (layout.Float (L"code", L"mon1", RECT { 10, 20, 310, 220 }));
+            Assert::AreEqual (1, layout.GetFloating().front().homeIndex);
+            Assert::IsTrue   (layout.DockBack (L"code"));
+
+            Assert::IsTrue   (layout.GetGroup (L"console") == std::vector<std::wstring> { L"console", L"code", L"regs" }, L"not last");
+            Assert::AreEqual (1, layout.GetRoot()->active, L"and active");
+        }
+
+
+        //  The index is clamped when the group shrank while the pane floated.
+        TEST_METHOD (AFloatingPanesIndexIsClampedToAShrunkGroup)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+
+
+
+            layout.TabWith (L"code", L"console");
+            layout.TabWith (L"regs", L"console");
+            Assert::IsTrue (layout.GetGroup (L"console") == std::vector<std::wstring> { L"console", L"code", L"regs" });
+
+            Assert::IsTrue (layout.Float (L"regs", L"mon1", RECT { 10, 20, 310, 220 }));
+            Assert::IsTrue (layout.Close (L"code"));
+            Assert::IsTrue (layout.DockBack (L"regs"));
+
+            Assert::IsTrue (layout.GetGroup (L"console") == std::vector<std::wstring> { L"console", L"regs" });
+        }
+
+
+        //  A pane that floated after being auto-hidden docks back at the index
+        //  it had before it was hidden.
+        TEST_METHOD (AHiddenPanesIndexSurvivesFloating)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+
+
+
+            layout.TabWith   (L"code", L"console");
+            layout.TabWith   (L"regs", L"console");
+            layout.TabWithAt (L"code", L"console", 0);
+            Assert::IsTrue   (layout.AutoHide (L"code", DxuiDockSide::Left));
+            Assert::IsTrue   (layout.Float    (L"code", L"mon1", RECT { 10, 20, 310, 220 }));
+            Assert::IsTrue   (layout.DockBack (L"code"));
+
+            Assert::IsTrue   (layout.GetGroup (L"console") == std::vector<std::wstring> { L"code", L"console", L"regs" });
+        }
+
+
+        //  The index is saved with the layout and read back; a layout saved
+        //  without it loads and docks the pane at the end.
+        TEST_METHOD (AFloatingPanesIndexSurvivesTheText)
+        {
+            DxuiPaneLayout  layout   = MakeSample();
+            DxuiPaneLayout  restored;
+            DxuiPaneLayout  older;
+            std::wstring    text;
+            std::wstring    oldText;
+            size_t          at       = 0;
+
+
+
+            layout.TabWith   (L"code", L"console");
+            layout.TabWith   (L"regs", L"console");
+            layout.TabWithAt (L"code", L"console", 0);
+            Assert::IsTrue   (layout.Float (L"code", L"mon1", RECT { 10, 20, 310, 220 }));
+
+            text = layout.ToText();
+            at   = text.find (L" index 0");
+            Assert::IsTrue   (at != std::wstring::npos, L"the float line has the tab's index");
+
+            Assert::IsTrue   (DxuiPaneLayout::TryParse (text, restored));
+            Assert::AreEqual (0, restored.GetFloating().front().homeIndex);
+            Assert::IsTrue   (restored.DockBack (L"code"));
+            Assert::IsTrue   (restored.GetGroup (L"console") == std::vector<std::wstring> { L"code", L"console", L"regs" });
+
+            oldText = text;
+            oldText.erase (at, wcslen (L" index 0"));
+
+            Assert::IsTrue   (DxuiPaneLayout::TryParse (oldText, older), L"a layout saved without the index");
+            Assert::AreEqual (-1, older.GetFloating().front().homeIndex);
+            Assert::IsTrue   (older.DockBack (L"code"));
+            Assert::IsTrue   (older.GetGroup (L"console") == std::vector<std::wstring> { L"console", L"regs", L"code" });
+        }
     };
 }

@@ -17,6 +17,29 @@ class MemoryDevice;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IIoAccessObserver
+//
+//  Something that watches the $C000-$C0FF soft switches ahead of the devices
+//  that answer them, as the //c Plus accelerator watches the speaker, the
+//  slots and the accelerator's registers. Returns true to take the access:
+//  a read returns `outValue` and a write doesn't go to a device.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IIoAccessObserver
+{
+public:
+    virtual ~IIoAccessObserver() = default;
+
+    virtual bool  OnIoAccess (Word address, bool isWrite, Byte value, Byte & outValue) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BusEntry
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +90,11 @@ public:
     MemoryBus ();
     ~MemoryBus ();
 
+    //  A machine switch moves a new bus in. The fetch tables and the flag
+    //  sink are on the heap, so the pointers to them stay good.
+    MemoryBus (MemoryBus &&)              = default;
+    MemoryBus & operator= (MemoryBus &&)  = default;
+
     // IMachineState: the floating-bus latch only. The page tables are derived
     // from the banking flags the MMU and language card restore, the watch and
     // trace masks are debugger configuration, and the attached devices save
@@ -79,8 +107,12 @@ public:
     // value any device drove. Devices whose reads drive no data return
     // ReadFloatingBus for the same reason.
     void SetFloatingBusSource (IFloatingBusSource * source) { m_floatingBusSource = source; }
-    bool HasFloatingBusSource () const                      { return m_floatingBusSource != nullptr; }
-    Byte ReadFloatingBus      ()                            { return (m_floatingBusSource != nullptr) ? m_floatingBusSource->GetFloatingBusByte() : m_floatingBusValue; }
+
+    //  The observer of the $C000-$C0FF soft switches; caller-owned, null for
+    //  none.
+    void  SetIoObserver        (IIoAccessObserver * observer) { m_ioObserver = observer; }
+    bool  HasFloatingBusSource () const                      { return m_floatingBusSource != nullptr; }
+    Byte  ReadFloatingBus      ()                            { return (m_floatingBusSource != nullptr) ? m_floatingBusSource->GetFloatingBusByte() : m_floatingBusValue; }
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('B', 'U', 'S', ' ');
     static constexpr uint16_t  kStateVersion = 1;
@@ -132,12 +164,12 @@ public:
     // sink; the page the MMU last set is kept in the shadow tables and served
     // from there. The shadow tables are also what a side-effect-free debugger
     // peek reads.
-    void   SetWatchedPage     (int pageIndex, bool watched);
-    void   SetWatchSink       (IWatchSink * sink)       { m_watchSink = sink; }
-    IWatchSink * GetWatchSink () const                  { return m_watchSink; }
-    bool   IsPageWatched      (int pageIndex) const     { return pageIndex >= 0 && pageIndex < 0x100 && m_debugWatched[pageIndex]; }
-    Byte * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
-    Byte * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }
+    void          SetWatchedPage     (int pageIndex, bool watched);
+    void          SetWatchSink       (IWatchSink * sink)       { m_watchSink = sink; }
+    IWatchSink  * GetWatchSink       () const                  { return m_watchSink; }
+    bool          IsPageWatched      (int pageIndex) const     { return pageIndex >= 0 && pageIndex < 0x100 && m_debugWatched[pageIndex]; }
+    Byte        * GetShadowReadPage  (Word address) const      { return m_shadowReadPage[address >> 8]; }
+    Byte        * GetShadowWritePage (Word address) const      { return m_shadowWritePage[address >> 8]; }
 
     Byte * const * GetShadowReadPageTable () const      { return m_shadowReadPage; }
 
@@ -148,23 +180,36 @@ public:
     // MarkWritten. The flags are the owner's to clear.
     void   RegisterRamPages   (RamPages * owner, const Byte * base, size_t size, Byte * pageFlags);
     void   UnregisterRamPages (const Byte * base);
-    void   MarkWritten        (Word address)            { *m_writeFlag[address >> 8] = 1; }
-    void   MarkPointerWritten (const Byte * cell)       { *FindPageFlag (cell) = 1; }
+    void   MarkWritten        (Word address)            { *m_writeFlag[address >> 8] = 1; ClearFetchOnWrite (address); }
+    void   MarkPointerWritten (const Byte * cell);
+
+    //  Fetch bits, one for each byte of each buffer a page maps: RAM, aux
+    //  RAM, the language card's banks and ROM. An opcode fetch sets the bit
+    //  of the byte the read page table reads from; a write clears the bit
+    //  of the byte written and of each of the two bytes before it whose
+    //  instruction covers it. A bank switch changes which bits an address
+    //  reads, not the bits. The CPU sets the bits through the fetch table.
+    void              NoteFetch          (Word address);
+    bool              IsFetched          (Word address) const;
+    uint8_t * const * GetFetchTable      () const      { return m_fetchTables->read.data(); }
+    void              SetOpcodeLengths   (std::array<uint8_t, 256> lengths) { m_opcodeLengths = lengths; }
+    void              ClearRamFetchBits  ();
+    void              ClearAllFetchBits  ();
 
     // The instruction trace: while on, every page takes the watched path, so
     // every access reaches the trace sink as well as the watch sink's pages;
     // off, the watch mask alone is published again. The watched page count
     // is the pages that take the watched path now.
-    void   SetTraceAllPages   (bool on);
-    void   SetTraceSink       (IWatchSink * sink)       { m_traceSink = sink; }
-    IWatchSink * GetTraceSink () const                  { return m_traceSink; }
-    bool   IsTracingAllPages  () const                  { return m_traceAllPages; }
+    void          SetTraceAllPages  (bool on);
+    void          SetTraceSink      (IWatchSink * sink)       { m_traceSink = sink; }
+    IWatchSink  * GetTraceSink      () const                  { return m_traceSink; }
+    bool          IsTracingAllPages () const                  { return m_traceAllPages; }
 
     // A listener on the I/O space for each observer slot: each access a
     // device at $C000-$CFFF decodes at an address its filter includes,
     // after the device acts on it.
-    void   SetIoAccessSink    (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter);
-    int    GetWatchedPageCount () const;
+    void  SetIoAccessSink     (ObserverSlot slot, IIoAccessSink * sink, const IoAccessFilter & filter);
+    int   GetWatchedPageCount () const;
 
     // The access heat map: while on, every page takes the watched path, so the
     // CPU reaches the bus, and can report, for every read; off publishes the
@@ -213,6 +258,7 @@ private:
     Byte ReadWatchedPage  (Word address);
     void WriteWatchedPage (Word address, Byte value);
     void StoreToPage      (Byte * page, Word address, Byte value);
+    bool IsIoObserved     (Word address, Byte value);
     void PublishPage      (int pageIndex);
     void ReportAccess     (Word address, Byte value, BusAccess access, std::optional<Byte> previous);
     void ReportIoAccess   (Word address, Byte value, bool isWrite);
@@ -236,6 +282,7 @@ private:
     vector<BusEntry>      m_entries;
     Byte                  m_floatingBusValue  = 0xFF;
     IFloatingBusSource  * m_floatingBusSource = nullptr;
+    IIoAccessObserver   * m_ioObserver        = nullptr;
 
     // I/O dispatch map. FindDevice used to linear-scan the device list on every
     // $C000+ read and write -- I/O plus ROM/language-card fetches, since only
@@ -309,5 +356,34 @@ private:
     std::vector<RamRegion>  m_ramRegions;
     size_t                  m_lastRegion       = 0;     // where FindPageFlag last found a page
     std::vector<Byte *>     m_writeFlag;                // 256 entries, on the heap: the bus is often a test's local
-    Byte                    m_flagSink         = 0;
+
+    //  The fetch bits of each page a buffer has mapped, by the page's host
+    //  pointer, and the bits the read and write tables' pages have now.
+    using FetchPage = std::array<uint8_t, 32>;
+
+    uint8_t * FindFetchPage        (const Byte * page);
+    void      ClearFetchOnWrite    (Word address);
+    void      ClearFetchInPage     (uint8_t * bits, const Byte * page, int offset);
+    void      ClearFetchBeforePage (Word address);
+
+    std::unordered_map<const Byte *, FetchPage>  m_fetchPages;
+
+    //  Each page's fetch bits for reads and for writes, through the current
+    //  mapping. They are on the heap so that tests can build machines on the
+    //  stack.
+    struct FetchTables
+    {
+        std::array<uint8_t *, 0x100>  read  = {};
+        std::array<uint8_t *, 0x100>  write = {};
+    };
+
+    std::unique_ptr<FetchTables>                 m_fetchTables   = std::make_unique<FetchTables>();
+    std::array<uint8_t, 256>                     m_opcodeLengths = MakeDefaultLengths();
+
+    static std::array<uint8_t, 256>  MakeDefaultLengths () { std::array<uint8_t, 256> lengths; lengths.fill (3); return lengths; }
+
+    //  The written flag of a page in no registered buffer. On the heap, so
+    //  a bus moved into a machine's has m_writeFlag entries that point at
+    //  its sink rather than at the moved-from bus.
+    std::unique_ptr<Byte>   m_flagSink         = std::make_unique<Byte> ((Byte) 0);
 };

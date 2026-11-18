@@ -4,6 +4,7 @@
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -110,31 +111,48 @@ namespace DebuggerTests
 
 
 
-        //  A source line's number has a fill of its bytes' hottest color ahead
-        //  of it, and a line with no code spaces, so the numbers stay in a
-        //  column.
-        TEST_METHOD (ASourceLinesNumberHasItsBytesStripAheadOfIt)
+        //  A source line has a fill of its bytes' hottest color in the
+        //  gutter's heat band, where the disassembly has its heat column. A
+        //  line with no code has no fill.
+        TEST_METHOD (ASourceLineHasItsBytesStripInTheGutter)
         {
-            DebuggerViewSnapshot::HeatColumnLevels                levels = MakeLevels();
-            std::vector<DxuiTextView::Row>                        rows   = SourcePane::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
-            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+            DebuggerViewSnapshot::HeatColumnLevels                levels  = MakeLevels();
+            std::vector<DxuiTextView::Row>                        rows    = SourceRows::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
+            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges  = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+            uint32_t                                              hottest = 0;
 
 
 
             levels.execute[0x0300] = 255;
             levels.read[0x0301]    = 255;
+            hottest                = HeatStrip::Get (levels, 0x0300, 2, MakePalette(), false).hottest;
 
-            SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
+            SourceRows::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
 
-            Assert::AreEqual (std::wstring (L"     1"), rows[0].cells[1]);
-            Assert::AreEqual (std::wstring (L"     2"), rows[1].cells[1]);
-            uint32_t  hottest = HeatStrip::Get (levels, 0x0300, 2, MakePalette(), false).hottest;
+            Assert::AreEqual (std::wstring (L"1"), rows[0].cells[1]);
+            Assert::AreEqual (std::wstring (L"2"), rows[1].cells[1]);
+            Assert::AreNotEqual (0u, hottest);
+            Assert::AreEqual (hottest, rows[0].gutterFill, L"one fill of the hottest byte's color in the gutter");
+            Assert::AreEqual (0u,      rows[1].gutterFill, L"a line with no code has no fill");
+            Assert::IsFalse  (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.background != 0; }), L"and none in the text");
+        }
 
-            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [hottest] (const DxuiTextView::Span & span)
-            {
-                return span.cell == 1 && span.start == 0 && span.length == (int) HeatStrip::kMaxBlocks && span.background == hottest;
-            }), L"one fill of the hottest byte's color, the same width on every line");
-            Assert::IsFalse  (std::ranges::any_of (rows[1].spans, [] (const DxuiTextView::Span & span) { return span.background != 0; }), L"a line with no code has no fill");
+
+        //  A line whose bytes in memory are other code's now takes no heat.
+        TEST_METHOD (AnUnmatchedLineTakesNoHeat)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels                levels    = MakeLevels();
+            std::vector<DxuiTextView::Row>                        rows      = SourceRows::BuildRows ({ L"  lda #1" }, -1, {});
+            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges    = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+            std::set<std::pair<int, int>>                         unmatched = { { 0, 1 } };
+
+
+
+            levels.execute[0x0300] = 255;
+
+            SourceRows::AddHeatStrips (rows, 0, ranges, levels, MakePalette(), &unmatched);
+
+            Assert::AreEqual (0u, rows[0].gutterFill);
         }
 
 
@@ -156,6 +174,10 @@ namespace DebuggerTests
 
             pane.Configure (nullptr);
             pane.SetHeat   (levels, MakePalette());
+
+            Assert::IsTrue (pane.IsHeatOn(), L"a memory window starts with heat on");
+
+            pane.SetHeatOn (false);
 
             Assert::IsTrue (pane.GetHeatTip (0).text.empty(), L"heat is off");
 
@@ -179,8 +201,31 @@ namespace DebuggerTests
             palette.background   = 0xFF000000;
             levels.write[0x0400] = 255;
 
-            Assert::AreEqual (DxuiColor::Mix (0xFF000000, kWrite, 0.5f) | 0xFF000000u, MemoryPane::GetHeatFill (levels, 0x0400, palette));
+            Assert::AreEqual (DxuiColor::Mix (0xFF000000, HeatStrip::GetScaleColor (HeatStrip::Kind::Write, 255, palette), 0.5f) | 0xFF000000u, MemoryPane::GetHeatFill (levels, 0x0400, palette));
             Assert::AreEqual (0u, MemoryPane::GetHeatFill (levels, 0x0401, palette));
+        }
+
+
+
+        //  On a white page, a byte run hot in a dark blue is tinted lightly
+        //  enough that black text has at least 10:1 over it, and has some tint.
+        TEST_METHOD (OnALightPageTheTintIsLightEnoughForDarkText)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels  = MakeLevels();
+            HeatMapView::Palette                    palette = MakePalette();
+            uint32_t                                fill    = 0;
+
+
+
+            palette.background     = 0xFFFFFFFF;
+            palette.cold           = 0xFF808080;
+            palette.execute        = 0xFF1A237E;
+            levels.execute[0x0400] = 255;
+
+            fill = MemoryPane::GetHeatFill (levels, 0x0400, palette);
+
+            Assert::IsTrue (DxuiColor::ComputeContrastRatio (fill, 0xFF000000) >= 10.0f, L"black reads over it");
+            Assert::AreNotEqual (0xFFFFFFFFu, fill, L"a tint is left");
         }
 
 

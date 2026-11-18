@@ -14,8 +14,8 @@ static constexpr DiskBreakSpecText::EventWord  s_kEventWords[] =
     { "ADDRESS", DiskEvent::AddressField, "BPDISK [D1|D2] ADDRESS [track [sector [volume]]] [BADSUM] [WRONGTRACK] [ADDR p p p] [SECTORS 13|16] [IF expr]" },
     { "HEAD",    DiskEvent::Head,         "BPDISK [D1|D2] HEAD [QT first[:last]|T first[:last]|HALF] [BUMP] [IF expr]" },
     { "WRITE",   DiskEvent::WriteMode,    "BPDISK [D1|D2] WRITE [QT first[:last]|T first[:last]|track sector [DATA p p p] [ADDR p p p]|BLOCKED] [IF expr]" },
-    { "DOS",     DiskEvent::DosSector,    "BPDISK [D1|D2] DOS track sector [PASSED] [IF expr]" },
-    { "BLOCK",   DiskEvent::ProDosBlock,  "BPDISK [D1|D2] BLOCK n [PASSED] [IF expr]" },
+    { "DOS",     DiskEvent::DosSector,    "BPDISK [D1|D2] DOS track sector [WRITTEN|EITHER] [PASSED] [IF expr]" },
+    { "BLOCK",   DiskEvent::ProDosBlock,  "BPDISK [D1|D2] BLOCK n [WRITTEN|EITHER] [PASSED] [IF expr]" },
     { "RWTS",    DiskEvent::RwtsCall,     "BPDISK [D1|D2] RWTS [track [sector]] [READ|WRITE|SEEK|FORMAT] [IF expr]" },
     { "DRIVER",  DiskEvent::DriverCall,   "BPDISK [D1|D2] DRIVER [BLOCK n] [READ|WRITE|STATUS|FORMAT] [IF expr]" },
     { "MOTOR",   DiskEvent::Motor,        "BPDISK [D1|D2] MOTOR [ON|OFF|STOPPED] [IF expr]" },
@@ -89,6 +89,7 @@ std::string DiskBreakSpecText::FormatArguments (const DiskBreakSpec & spec)
     case DiskMotorFilter::Any:                          break;
     }
 
+    text += (spec.access == DiskSectorAccess::Written) ? " WRITTEN" : (spec.access == DiskSectorAccess::Either) ? " EITHER" : "";
     text += spec.isPassed      ? " PASSED"     : "";
     text += spec.isBadChecksum ? " BADSUM"     : "";
     text += spec.isWrongTrack  ? " WRONGTRACK" : "";
@@ -266,6 +267,7 @@ std::string DiskBreakSpecText::GetDescription (const DiskBreakSpec & spec)
     case DiskMotorFilter::Any:                           break;
     }
 
+    text += (spec.access == DiskSectorAccess::Written) ? ", written" : (spec.access == DiskSectorAccess::Either) ? ", read or written" : "";
     text += spec.isBadChecksum ? ", bad checksum"        : "";
     text += spec.isWrongTrack  ? ", wrong track"         : "";
     text += spec.isBump        ? ", bump"                : "";
@@ -327,20 +329,20 @@ const char * DiskBreakSpecText::GetTriggerText (DiskEvent event)
 {
     switch (event)
     {
-    case DiskEvent::SectorRead:     return "Sector read";
-    case DiskEvent::AddressField:   return "Address field";
-    case DiskEvent::Head:           return "Head";
+    case DiskEvent::SectorRead:     return "Read sector";
+    case DiskEvent::AddressField:   return "Read address";
+    case DiskEvent::Head:           return "Move head";
     case DiskEvent::WriteMode:
     case DiskEvent::WritePrologue:
-    case DiskEvent::WriteBlocked:   return "Write";
-    case DiskEvent::DosSector:      return "DOS sector";
-    case DiskEvent::ProDosBlock:    return "ProDOS block";
-    case DiskEvent::RwtsCall:       return "RWTS call";
-    case DiskEvent::DriverCall:     return "Driver call";
-    case DiskEvent::Motor:          return "Motor";
-    case DiskEvent::DriveSelect:    return "Drive select";
-    case DiskEvent::Inserted:       return "Insert";
-    case DiskEvent::Ejected:        return "Eject";
+    case DiskEvent::WriteBlocked:   return "Write disk";
+    case DiskEvent::DosSector:      return "Access sector";
+    case DiskEvent::ProDosBlock:    return "Access block";
+    case DiskEvent::RwtsCall:       return "Call RWTS";
+    case DiskEvent::DriverCall:     return "Call driver";
+    case DiskEvent::Motor:          return "Switch motor";
+    case DiskEvent::DriveSelect:    return "Select drive";
+    case DiskEvent::Inserted:       return "Insert disk";
+    case DiskEvent::Ejected:        return "Eject disk";
     default:                        return "";
     }
 }

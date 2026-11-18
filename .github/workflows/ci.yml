@@ -32,7 +32,7 @@ jobs:
 
   build-and-test:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       matrix:
         configuration: [Debug, Release]
@@ -65,15 +65,19 @@ jobs:
       # 2"). Code analysis runs on the same 64-bit compiler, as Build.ps1's
       # -RunCodeAnalysis does locally, so the two agree.
       #
-      # -m builds the projects that do not depend on each other at the same
-      # time, as Build.ps1 does; without it they built one after another.
-      #
-      # Code analysis runs in the Release build alone: it compiles every file
-      # a second time, and doing that in all four builds made each one take
-      # most of the job's time limit. Release is the code that ships, and its
-      # asserts are compiled out, so the analyzer cannot lean on them.
+      # Code analysis in x64 Debug only. It makes a rebuild about 2.3 times
+      # as long, and on a 4-core runner it was most of every job. The other
+      # configurations are analyzed by Build.ps1 -Target RebuildAll
+      # -RunCodeAnalysis before a master merge.
       - name: Build
-        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false ${{ matrix.configuration == 'Release' && '-p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true' || '' }}
+        shell: pwsh
+        run: |
+          $props = @()
+          if ('${{ matrix.configuration }}' -eq 'Debug') {
+              $props += '-p:EnableCppCoreCheck=true', '-p:RunCodeAnalysis=true', '-p:CodeAnalysisTreatWarningsAsErrors=true'
+          }
+          msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=${{ matrix.platform }} -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64 @props
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # The ROMs are Apple's and are not in the repository. The suite reads
       # them from UnitTest/Fixtures, so they are fetched from their pinned
@@ -83,8 +87,11 @@ jobs:
       - name: Fetch fixture ROMs
         run: scripts/FetchRoms.ps1 -Fixtures
 
+      # One vstest.console per core. A single one runs the DLL's tests on one
+      # thread, which left three of the runner's four cores idle.
       - name: Run Tests
-        run: vstest.console.exe ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
+        shell: pwsh
+        run: scripts/RunTestShards.ps1 -TestDll ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
 
       # The committed demo disk has to be what its sources build.
       #
@@ -141,11 +148,14 @@ jobs:
           path: |
             x64/Release/Casso.exe
             x64/Release/CassoCli.exe
+            x64/Release/CassoExplorer.exe
+            x64/Release/CassoStorageCardBroker.exe
+            x64/Release/CassoShellExtension.dll
           retention-days: 1
 
   build-arm64:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       matrix:
         configuration: [Debug, Release]
@@ -158,9 +168,18 @@ jobs:
         uses: microsoft/setup-msbuild@v3
 
       # 64-bit tools, as the x64 build above uses and for the same reason.
-      # No code analysis: the x64 Release build runs it.
+      #
+      # Only the three programs, the shell extension and the libraries they
+      # link, not UnitTest or ScenarioTests. An ARM64 test DLL cannot run on
+      # this x64 runner, and
+      # building the two took over half of the Release job: about twelve
+      # minutes to compile and analyze UnitTest, then six and a half for its
+      # link-time code generation. The x64 jobs compile and run the same test
+      # code.
+      #
+      # No code analysis, for the reason given at the x64 build step.
       - name: Build ARM64
-        run: msbuild Casso.sln -m -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreferredToolArchitecture=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+        run: msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer;CassoShellExtension" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).
@@ -172,6 +191,9 @@ jobs:
           path: |
             ARM64/Release/Casso.exe
             ARM64/Release/CassoCli.exe
+            ARM64/Release/CassoExplorer.exe
+            ARM64/Release/CassoStorageCardBroker.exe
+            ARM64/Release/CassoShellExtension.dll
           retention-days: 1
 
   release:
@@ -298,6 +320,22 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # The broker is signed in a separate call, with a description: the UAC
+      # prompt displays a signed program's description as its name. The
+      # description applies to every file of a call, and a second signature
+      # would replace the first, so the broker is moved out of the staging
+      # tree for the main call and back after the second.
+      - name: Move the broker out of the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem staging -Recurse -Filter CassoStorageCardBroker.exe | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path staging), $_.DirectoryName)
+            $target   = Join-Path broker-staging $relative
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Move-Item $_.FullName $target
+          }
+
       # One call covers both platforms: the staging tree holds x64 and ARM64
       # side by side, and an ARM64 PE signs on an x64 runner like any other.
       - name: Sign the staged binaries
@@ -316,9 +354,75 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      - name: Sign the storage card broker
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/broker-staging
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Casso Explorer storage card access
+
+      - name: Move the broker back into the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem broker-staging -Recurse -Filter CassoStorageCardBroker.exe | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path broker-staging), $_.DirectoryName)
+            Move-Item $_.FullName (Join-Path staging $relative)
+          }
+
+      # The shell extension is the one DLL Casso builds. The staging tree
+      # also contains the C runtime's DLLs, which are signed by Microsoft, so
+      # a dll filter on the tree is not an option: the extension is signed
+      # separately, as the broker is.
+      - name: Move the shell extension out of the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem staging -Recurse -Filter CassoShellExtension.dll | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path staging), $_.DirectoryName)
+            $target   = Join-Path shellext-staging $relative
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Move-Item $_.FullName $target
+          }
+
+      - name: Sign the shell extension
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/shellext-staging
+          files-folder-filter: dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Move the shell extension back into the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem shellext-staging -Recurse -Filter CassoShellExtension.dll | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path shellext-staging), $_.DirectoryName)
+            Move-Item $_.FullName (Join-Path staging $relative)
+          }
+
       # A signing action that fails is loud; one that runs and leaves a file
-      # untouched is not. Four binaries ship, so four have to carry a
-      # signature.
+      # untouched is not. Every executable that ships has to have a
+      # signature, and the check walks the tree rather than a list.
       #
       # The bar is a signature that is PRESENT and matches the bytes, not a
       # Status of Valid. Valid additionally asserts that this runner could
@@ -330,7 +434,7 @@ jobs:
         shell: pwsh
         run: |
           $bad = @()
-          Get-ChildItem staging -Recurse -Filter *.exe | ForEach-Object {
+          Get-ChildItem staging -Recurse -Include *.exe, CassoShellExtension.dll | ForEach-Object {
             $sig = Get-AuthenticodeSignature $_.FullName
             Write-Host "  $($_.Name): $($sig.Status) -- $($sig.SignerCertificate.Subject)"
             if ($sig.Status -in @('NotSigned', 'HashMismatch')) { $bad += $_.Name }
@@ -605,14 +709,40 @@ jobs:
           Invoke-WebRequest -Uri 'https://aka.ms/wingetcreate/latest' -OutFile $dest -UseBasicParsing
 
           $baseUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag"
+          $outDir  = Join-Path $env:RUNNER_TEMP 'winget'
 
           # One bundle, one URL. wingetcreate reads the family name, the
           # signature hash and both architectures out of it.
           & $dest update $pkgId `
             --version $version `
             --urls "$baseUrl/Casso-$version.msixbundle" `
-            --submit
+            --out $outDir
 
           if ($LASTEXITCODE -ne 0) {
               throw "wingetcreate failed ($LASTEXITCODE). The release itself is published and unaffected."
+          }
+
+          # winget-pkgs accepts only schema 1.28.0 or newer, and the latest
+          # wingetcreate release (1.12.13) writes 1.12.0. Raise any older
+          # schema version to 1.28.0.
+          $minSchema = [version] '1.28.0'
+          $manifests = Get-ChildItem $outDir -Recurse -Filter *.yaml
+
+          foreach ($file in $manifests) {
+              $text = Get-Content $file.FullName -Raw
+
+              if ($text -match 'ManifestVersion:\s*(\d+\.\d+\.\d+)' -and [version] $Matches[1] -lt $minSchema) {
+                  $old  = [regex]::Escape($Matches[1])
+                  $text = $text -replace "ManifestVersion:\s*$old", "ManifestVersion: $minSchema"
+                  $text = $text -replace "\.$old\.schema\.json", ".$minSchema.schema.json"
+                  Set-Content $file.FullName $text -NoNewline
+              }
+          }
+
+          & $dest submit `
+            --prtitle "New version: $pkgId version $version" `
+            $manifests[0].DirectoryName
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "wingetcreate submit failed ($LASTEXITCODE). The release itself is published and unaffected."
           }

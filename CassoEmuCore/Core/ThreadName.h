@@ -18,8 +18,11 @@
 class ThreadName
 {
 public:
-    //  Names the calling thread for the rest of its life.
-    static void  Set (const wchar_t * name);
+    //  Names the calling thread for the rest of its life. SetForCurrentThread
+    //  reports a failure; Set ignores one, since the name is only for people
+    //  reading a profile.
+    static void     Set                 (const wchar_t * name);
+    static HRESULT  SetForCurrentThread (const wchar_t * name);
 
     //  Names the calling thread until the object goes out of scope, then puts
     //  back the name it had.

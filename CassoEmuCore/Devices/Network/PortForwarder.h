@@ -3,8 +3,10 @@
 #include "Pch.h"
 
 #include "Config/NetworkCardSettings.h"
+#include "Seams/IHostFirewall.h"
 #include "Seams/IHostNetwork.h"
 
+class ListenGate;
 class TcpNat;
 class UdpNat;
 
@@ -35,12 +37,20 @@ public:
                      bool                              lanAccess);
     void  Stop      ();
 
+    //  While LAN access is on, a forward whose host port the gate does not
+    //  admit is deferred rather than opened, and Pump opens it once the gate
+    //  admits the port.
+    void  SetListenGate (const ListenGate * gate) { m_gate = gate; }
+
+    //  The host ports of the deferred forwards.
+    void  GetDeferredPorts  (std::vector<FirewallPort> & outPorts) const;
+
     // Accepts pending connections. With `guestReady` false (socket 0 is not
     // in MACRAW) they are closed, since nothing would answer the SYN.
     void  Pump      (uint64_t now, bool guestReady);
 
-    bool  IsActive  () const { return !m_listeners.empty(); }
-    const std::vector<std::string> & GetErrors () const { return m_errors; }
+    bool                              IsActive  () const { return !m_listeners.empty() || !m_deferred.empty(); }
+    const std::vector<std::string>  & GetErrors () const { return m_errors; }
 
 private:
 
@@ -50,10 +60,19 @@ private:
         uint16_t                      guestPort = 0;
     };
 
-    HRESULT  OpenForward (IHostNetwork * network, const PortForward & forward, bool lanAccess);
+    HRESULT  OpenForward  (IHostNetwork * network, const PortForward & forward, bool lanAccess);
+    bool     IsDeferred   (const PortForward & forward) const;
+    void     OpenDeferred ();
+
+    static std::string  DescribeOpenFailure (const PortForward & forward);
 
     TcpNat                     & m_tcp;
     UdpNat                     & m_udp;
     std::vector<Listener>        m_listeners;
     std::vector<std::string>     m_errors;
+    IHostNetwork               * m_network     = nullptr;
+    bool                         m_lanAccess   = false;
+    const ListenGate           * m_gate        = nullptr;
+    uint32_t                     m_gateVersion = 0;
+    std::vector<PortForward>     m_deferred;
 };

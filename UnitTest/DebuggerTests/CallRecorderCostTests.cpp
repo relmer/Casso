@@ -161,7 +161,7 @@ namespace CallRecorderCostTests
 
             if (workload != Workload::Boot)
             {
-                machine.RunCycles (kSettleCycles);
+                machine.GetRunner().RunCycles (kSettleCycles);
             }
 
             if (workload == Workload::Calls)
@@ -253,7 +253,7 @@ namespace CallRecorderCostTests
                 index = (int) ((turn + k) % kConfigCount);
                 start = GetThreadCycles();
 
-                rigs[index]->machine.RunCycles (kSliceCycles);
+                rigs[index]->machine.GetRunner().RunCycles (kSliceCycles);
 
                 spent[index]   = GetThreadCycles() - start;
                 totals[index] += spent[index];

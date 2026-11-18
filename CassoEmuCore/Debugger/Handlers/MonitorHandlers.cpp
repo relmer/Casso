@@ -418,7 +418,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
 
     if (command.text.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "R reads a host file here, and takes its name. To load from a tape, type R in the guest's own Monitor and start the tape.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "Here R reads a host file: type its name after R. To load from a tape, type R in the guest's Monitor and start the tape.");
         return;
     }
 
@@ -431,7 +431,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", command.text));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (command.text)));
         return;
     }
 
@@ -481,7 +481,7 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
 
     if (command.text.empty())
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "W writes a host file here, and takes its name. To save to a tape, press Record on the deck and type W in the guest's own Monitor.");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "Here W writes a host file: type its name after W. To save to a tape, press Record on the deck and type W in the guest's Monitor.");
         return;
     }
 
@@ -499,7 +499,7 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", command.text));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
         return;
     }
 

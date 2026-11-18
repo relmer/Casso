@@ -1,13 +1,17 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DroppedFiles.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceMacroPlaces.h"
 #include "Debugger/Source/SourcePathList.h"
 
 namespace fs = std::filesystem;
@@ -66,22 +70,20 @@ const std::wstring & SourceDocumentPane::GetId() const
 //
 //  SourceDocumentPane::CreateControls
 //
-//  The text with its glyph margin for the breakpoints and the PC's arrow,
-//  as a disassembly view has, and the banner over it.
+//  The text and the banner over it. The model configures the text's glyph
+//  margin for the breakpoints and the PC's arrow, as a disassembly view has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentPane::CreateControls()
 {
-    constexpr int   kBreakpointIconDip = 16;
-    constexpr float kBannerMarginDip   = 4.0f;
-    constexpr float kBannerPadDip      = 5.0f;
-    DxuiPanel     & parent             = m_host.GetControlParent();
+    constexpr float kBannerPadDip = 5.0f;
+    DxuiPanel     & parent        = m_host.GetControlParent();
 
 
 
     m_view   = parent.CreateChild<DxuiTextView>();
-    m_banner = parent.CreateChild<DxuiActionBanner>();
+    m_banner = parent.CreateChild<DxuiInfoBanner>();
     m_bar.Create();
 
     m_model = std::make_unique<SourcePane> (
@@ -96,11 +98,9 @@ void SourceDocumentPane::CreateControls()
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
-    m_view->SetGutter          (DisassemblyCells::kGutterColumnDip, kBreakpointIconDip);
-    m_view->SetGlyphCenterDip  (DisassemblyCells::kGlyphCenterDip);
+    m_model->SetOnBrowse       ([this] { m_group.BrowseForSource(); });
     m_view->SetVisible         (false);
     m_banner->SetVisible       (false);
-    m_banner->SetMarginDip     (kBannerMarginDip);
     m_banner->SetVerticalPaddingDip (kBannerPadDip);
 }
 
@@ -161,7 +161,16 @@ void SourceDocumentPane::AddToDock (DxuiDockSite & dock)
     m_frame = std::make_unique<DebuggerPaneFrame> (L"Source");
     m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
     m_frame->AddPart (m_banner,
-                      [this] (int width, const DxuiDpiScaler & scaler) { return (int) m_banner->GetPreferredHeightPx ((float) width, scaler); },
+                      [this] (int width, const DxuiDpiScaler & scaler)
+                      {
+                          IDxuiTextRenderer  * text = m_host.GetPaneTextRenderer();
+
+                          //  Measured where a renderer exists: the estimate is from an
+                          //  average glyph width, and a long path in a wide face ran
+                          //  past it, so the banner's last line was cut off.
+                          return (text != nullptr) ? (int) std::ceil (m_banner->GetMeasuredHeightPx (*text, (float) width, scaler))
+                                                   : (int) m_banner->GetPreferredHeightPx ((float) width, scaler);
+                      },
                       [this] { return m_isBannerShown; });
     m_frame->AddPart (m_view);
 
@@ -283,13 +292,16 @@ bool SourceDocumentPane::TryGetHeatTip (POINT clientPx, DxuiTip & tip) const
 //  SourceDocumentPane::AddContentMenuItems
 //
 //  Copy, with text selected; and on a line with code, Go to disassembly,
-//  which brings the line's address to the middle of the disassembly.
+//  which brings the line's address to the middle of the disassembly, then
+//  the line's breakpoint rows, as the disassembly's row menu has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 {
-    std::optional<Word>  address;
+    std::optional<Word>                        address;
+    std::optional<SourcePane::LineBreakpoint>  breakpoint;
+    int                                        line       = 0;
 
 
 
@@ -309,6 +321,31 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
     {
         items.push_back ({ L"Go to disassembly", [this, at = *address] { m_host.GoToCode (at); } });
     }
+
+    if (!m_model->TryGetLineBreakpoint (clientPx, line, breakpoint))
+    {
+        return;
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+
+    if (!breakpoint.has_value())
+    {
+        PaneMenu::AddBreakpointRows (items, std::nullopt, [this, line]
+        {
+            std::optional<DebuggerAction>  action = m_model->GetSetBreakpointAction (line, m_host.GetMode());
+
+            if (action.has_value())
+            {
+                m_host.RunAction (*action);
+            }
+        }, nullptr, nullptr);
+        return;
+    }
+
+    PaneMenu::AddBreakpointRows (items, breakpoint->isEnabled, nullptr,
+                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                 [this, id = breakpoint->id] { m_host.RunAction (BreakpointActions::GetClearBreakpoint (id, m_host.GetMode())); });
 }
 
 
@@ -338,12 +375,24 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
 
 
+    //  The model puts the arrow beside the line's dot, so it takes the arrow
+    //  alone, made again only when its color changes.
+    if (m_pcArrow == nullptr || m_pcArrowArgb != m_host.GetPcMarkerArgb())
+    {
+        m_pcArrowArgb = m_host.GetPcMarkerArgb();
+        m_pcArrow     = GutterGlyph::MakeArrow (m_pcArrowArgb);
+    }
+
     m_model->SetStyle      ({ m_host.GetPcMarkerArgb(), m_host.GetPcRowArgb(), m_host.GetBreakpointIcon (true), m_host.GetBreakpointIcon (false),
-                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_host.GetPcMarker (nullptr) });
+                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_host.GetTextColors().annotation, m_pcArrow,
+                              m_host.GetHoverBreakpointIcon() });
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);
     m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
-    m_model->Apply         (snapshot);
+
+    m_model->SetBookmarkMark (m_host.GetBookmarkMark (nullptr));
+
+    m_model->Apply (snapshot);
 
     if (title != m_title)
     {
@@ -491,7 +540,7 @@ void SourceDocumentGroup::Apply()
 
     if (source.has_value())
     {
-        m_macroLevel = SourcePane::GetMacroLevel (*source, m_macroLevel);
+        m_macroLevel = SourceMacroPlaces::GetMacroLevel (*source, m_macroLevel);
 
         Restore  (snapshot);
         FollowPc (snapshot);
@@ -558,7 +607,7 @@ void SourceDocumentGroup::Apply()
 void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
 {
     const DebuggerViewSnapshot::SourceState & source  = *snapshot.source;
-    std::pair<int, int>                       place   = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
+    std::pair<int, int>                       place   = SourceMacroPlaces::GetPlace (source, SourceMacroPlaces::GetMacroLevel (source, m_macroLevel));
     bool                                      wasLine = m_pcPlace.first >= 0;
     bool                                      isOpen  = (size_t) snapshot.followView < snapshot.codeOpen.size() && snapshot.codeOpen[(size_t) snapshot.followView];
     int                                       slot    = -1;
@@ -627,9 +676,12 @@ void SourceDocumentGroup::Open (int fileId, int line, bool activate)
         m_documents[(size_t) slot]->GetModel().SetTopSourceLine (line);
     }
 
+    //  A document opened by the user's choice, such as Go to definition, has
+    //  the keyboard too, so its line is marked as the selection is.
     if (activate)
     {
         Activate (slot);
+        m_host.FocusControl (m_documents[(size_t) slot]->GetView());
     }
 }
 
@@ -766,7 +818,7 @@ void SourceDocumentGroup::ToggleMacroBody()
 
     if (snapshot != nullptr && snapshot->source.has_value())
     {
-        m_macroLevel = SourcePane::GetNextMacroLevel (m_macroLevel, SourcePane::GetMacroLevel (*snapshot->source, -1));
+        m_macroLevel = SourceMacroPlaces::GetNextMacroLevel (m_macroLevel, SourceMacroPlaces::GetMacroLevel (*snapshot->source, -1));
     }
 
     m_pcPlace = { -1, 0 };
@@ -798,8 +850,11 @@ void SourceDocumentGroup::ShowLine (int fileId, int line)
         return;
     }
 
+    //  The snapshot's debug file is taken first, since a change of debug file
+    //  closes the documents open for the last one, this one among them.
     if (slot < 0)
     {
+        Apply();
         Open (fileId, 0, false);
         Apply();
         slot = m_files.Find (fileId);
@@ -833,7 +888,7 @@ bool SourceDocumentGroup::ShowPc()
         return false;
     }
 
-    place = SourcePane::GetPlace (*snapshot->source, SourcePane::GetMacroLevel (*snapshot->source, m_macroLevel));
+    place = SourceMacroPlaces::GetPlace (*snapshot->source, SourceMacroPlaces::GetMacroLevel (*snapshot->source, m_macroLevel));
 
     if (place.first < 0)
     {
@@ -880,7 +935,9 @@ int SourceDocumentGroup::GetSlotAt (POINT atDip) const
 //
 //  A click moves the code pane to the line, a second click on the same
 //  place within the double-click time toggles the line's breakpoint, and a
-//  drag selects text as it does in any text view.
+//  drag selects text as it does in any text view. A press on the glyph
+//  margin sets or clears the line's breakpoint, and the pointer over it
+//  draws the gray breakpoint there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -894,7 +951,7 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
     bool                  onBanner = false;
     SourceDocumentPane  * document = nullptr;
     DxuiTextView        * view     = nullptr;
-    DxuiActionBanner    * banner   = nullptr;
+    DxuiInfoBanner      * banner   = nullptr;
 
 
 
@@ -906,6 +963,11 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         {
             slot = each;
         }
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        HoverGutters (at, slot);
     }
 
     if (slot < 0)
@@ -974,18 +1036,60 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         m_clickMs = isDouble ? 0 : now;
         m_clickAt = at;
 
+        m_activeSlot = slot;
+        m_host.FocusControl  (view);
+        m_host.NoteViewFocus (true);
+
+        //  A press on the glyph margin sets or clears a breakpoint, as the
+        //  disassembly's gutter does, and selects nothing.
+        if (document->GetModel().ClickGutter (at))
+        {
+            m_clickMs = 0;
+            return true;
+        }
+
         if (isDouble && !view->IsOverScrollbar (at))
         {
             document->GetModel().OnDoubleClick (at);
         }
-
-        m_activeSlot = slot;
-        m_host.FocusControl  (view);
-        m_host.NoteViewFocus (true);
     }
 
     (void) view->OnMouse (ev);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::HoverGutters
+//
+//  The gray breakpoint is on the line under the pointer in the glyph margin
+//  of the document the pointer is over, and on no other document's line;
+//  on none while a drag in a document is under way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::HoverGutters (POINT atDip, int dragSlot)
+{
+    constexpr POINT  kNowhere = { -1, -1 };
+    bool             changed  = false;
+
+
+
+    for (SourceDocumentPane * document : m_documents)
+    {
+        bool  isOver = dragSlot < 0 && document->IsShown() && document->GetView()->IsVisible() && m_host.IsRoutable (document->GetView());
+
+        changed = document->GetModel().SetGutterHover (isOver ? atDip : kNowhere) || changed;
+    }
+
+    if (changed)
+    {
+        m_host.Repaint();
+    }
 }
 
 
@@ -1075,7 +1179,7 @@ void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
     {
         if (host->DoesDebuggerFileExist (beside))
         {
-            m_host.RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
             m_pendingLoose = path;
             break;
         }
@@ -1178,6 +1282,21 @@ void SourceDocumentGroup::LoadSymbolsFor (int slot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceDocumentGroup::BrowseForSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::BrowseForSource()
+{
+    m_host.BrowseForSource();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceDocumentGroup::ShowDropped
 //
 //  The document for the record the file matches; a file that matches none
@@ -1201,8 +1320,60 @@ void SourceDocumentGroup::ShowDropped (const std::wstring & path)
         return;
     }
 
+    TakeOverLoose (path, source.files[(size_t) index].id);
     Open (source.files[(size_t) index].id, 0, true);
 
     m_documents[(size_t) m_activeSlot]->GetModel().ShowDropped (lookup, index);
     Apply();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::TakeOverLoose
+//
+//  A file open on its own, as it is while the debug file beside it loads, is
+//  the record's file now: its document shows the record in the same slot,
+//  and so in the same place, rather than a second document opening for it.
+//  With the record already open elsewhere, the file's own document closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::TakeOverLoose (const std::wstring & path, int fileId)
+{
+    int  looseId = -1;
+    int  slot    = -1;
+
+
+
+    for (const auto & [id, open] : m_looseFiles)
+    {
+        looseId = (_wcsicmp (open.c_str(), path.c_str()) == 0) ? id : looseId;
+    }
+
+    slot = (looseId >= 0) ? m_files.Find (looseId) : -1;
+
+    if (looseId < 0)
+    {
+        return;
+    }
+
+    m_looseFiles.erase (looseId);
+
+    if (slot < 0)
+    {
+        return;
+    }
+
+    if (m_files.Find (fileId) >= 0)
+    {
+        Close (slot);
+        return;
+    }
+
+    m_files.Replace (slot, fileId);
+    m_documents[(size_t) slot]->GetModel().SetFile (fileId);
 }

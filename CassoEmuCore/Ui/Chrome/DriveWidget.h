@@ -118,6 +118,26 @@ public:
                                         IDxuiTextRenderer   & text,
                                         const IDxuiTheme    & theme) override;
 
+    // Crops the widget's text to a rect; null clears it. On the slide-up
+    // strip the text is drawn after every fill, so without the crop it is
+    // drawn over the //c switch strip while the strip slides.
+    void               SetTextClip     (const RECT * clipPx)
+    {
+        m_textClip    = (clipPx != nullptr) ? *clipPx : RECT {};
+        m_hasTextClip = (clipPx != nullptr);
+    }
+
+    // The drive bar's two-line label in place of "DRIVE N": the drive's name
+    // beside the image's name and its form factor beside the rail, in a
+    // label column `widthDip` wide. An empty title restores "DRIVE N" and the
+    // compact column. Takes effect at the next Layout.
+    void               SetBarCaption   (const std::wstring & title, const std::wstring & detail, int widthDip)
+    {
+        m_barTitle        = title;
+        m_barDetail       = detail;
+        m_captionWidthDip = title.empty() ? 0 : widthDip;
+    }
+
     //
     //  IDxuiControl::Layout — treats boundsDip.left / boundsDip.top as
     //  the widget's anchor and computes its own body / face / slot /
@@ -348,6 +368,15 @@ private:
     // The info icon's hover and click target, set by Paint and empty whenever
     // the icon is not on screen, so a stale target never outlives it.
     RECT                 m_infoIconRect      = {};
+
+    // The crop SetTextClip applies to every string the widget draws.
+    RECT                 m_textClip          = {};
+    bool                 m_hasTextClip       = false;
+
+    // The drive bar's label, set by SetBarCaption; empty off the bar.
+    std::wstring         m_barTitle;
+    std::wstring         m_barDetail;
+    int                  m_captionWidthDip   = 0;
 
     // True while the pointer is inside the hit band, which
     // gives the name its button treatment. The shell already tells the widget

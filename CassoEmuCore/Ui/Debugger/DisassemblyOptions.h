@@ -87,10 +87,10 @@ public:
     std::string                 ToText   () const;
     static DisassemblyOptions   FromText (const std::string & text);
 
-    static const wchar_t      * GetLabel (Option option);
-    static const char         * GetKey   (Option option);
-    static const wchar_t      * GetDimLabel (Dim dim);
-    static const char         * GetDimKey   (Dim dim);
+    static const wchar_t  * GetLabel    (Option option);
+    static const char     * GetKey      (Option option);
+    static const wchar_t  * GetDimLabel (Dim dim);
+    static const char     * GetDimKey   (Dim dim);
 
     //  The tips of the source, line number and symbol names check boxes: how
     //  to get source or line numbers while there are none, and each source of
@@ -104,11 +104,16 @@ public:
 
     //  A view's rows. A source row goes above an instruction whose source line
     //  differs from the instruction before it, when the line's text is known.
+    //  The label lines directly above that source line go above it too.
     static std::vector<Row>  BuildRows (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, bool showSource,
-                                        const HasLineFn & hasLine);
+                                        const HasLineFn & hasLine, const HasLineFn & isLabelLine = nullptr);
 
     static int   GetLineOfRow (const std::vector<Row> & rows, int row);
     static int   GetRowOfLine (const std::vector<Row> & rows, int codeLine);
+
+    //  The instruction a row is part of: its own, or for a source or label
+    //  row, the first instruction below it; -1 for none.
+    static int   GetLineAtOrBelow (const std::vector<Row> & rows, int row);
 
     //  How many lines have their instruction's row among the first `capacity`
     //  rows.

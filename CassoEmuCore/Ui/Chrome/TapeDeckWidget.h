@@ -51,6 +51,14 @@ public:
     void            Layout         (const RECT          & boundsDip,
                                     const DxuiDpiScaler & scaler) override;
 
+    // Crops the widget's text to a rect; null clears it. See
+    // DriveWidget::SetTextClip.
+    void            SetTextClip    (const RECT * clipPx)
+    {
+        m_textClip    = (clipPx != nullptr) ? *clipPx : RECT {};
+        m_hasTextClip = (clipPx != nullptr);
+    }
+
     TapeDeckRegion  HitTest        (int x, int y) const;
     RECT            GetOuterRect   () const;
     RECT            GetNameRect    () const { return m_nameRect; }
@@ -125,10 +133,9 @@ private:
     // after a hold for as long as it stays.
     static constexpr int64_t  kMarqueeHoldMs         = 2000;
 
-    // The controls magnify like the macOS dock as the pointer nears them,
-    // reaching this many button pitches either side, and fade in and out this fast.
+    // The controls are magnified like the macOS dock's icons as the pointer
+    // nears them, out to this many button pitches either side.
     static constexpr float    kMagnifyReachPitches   = 2.0f;
-    static constexpr int64_t  kMagnifyFadeMs         = 140;
     static constexpr float    kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float    kMarqueeGapDip         = 25.0f;
     // The transport row and counter, under the rail and within its width.
@@ -153,28 +160,28 @@ private:
 
     void      PaintRail    (IDxuiPainter & painter, const CassoTheme & theme);
     void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const ControlBox (& rects)[kButtonCount + 1]);
-    float     GetPresence  (int64_t nowMs) const;
+
     void      ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const;
     bool      IsNearControls (int x, int y) const;
     void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const ControlBox & box, uint32_t argb);
     uint32_t  GetMarkColor (TapeDeckRegion region, const CassoTheme & theme) const;
     void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
 
-    TapeDeckView    m_view;
-    RECT            m_captionRect           = {};
-    RECT            m_nameRect              = {};
-    RECT            m_bandRect              = {};
-    RECT            m_railRect              = {};
-    RECT            m_counterRect           = {};
-    RECT            m_buttons[kButtonCount] = {};
-    TapeDeckRegion  m_hover                 = TapeDeckRegion::None;
-    UINT            m_dpi                   = kBaseDpi;
-    bool            m_hidden                = true;
-    std::wstring    m_marqueeName;                          // the name the schedule below is for
-    int64_t         m_marqueeStartMs        = 0;            // when its scroll begins
-    int             m_mouseX                = INT_MIN / 2;  // the pointer, for the magnification
-    int             m_mouseY                = INT_MIN / 2;
-    bool            m_isNear                = false;        // the pointer is over the controls
-    float           m_presenceFrom          = 0.0f;         // the magnification's strength when that last changed
-    int64_t         m_presenceMs            = 0;            // and when
+    TapeDeckView      m_view;
+    RECT              m_textClip              = {};
+    bool              m_hasTextClip           = false;
+    RECT              m_captionRect           = {};
+    RECT              m_nameRect              = {};
+    RECT              m_bandRect              = {};
+    RECT              m_railRect              = {};
+    RECT              m_counterRect           = {};
+    RECT              m_buttons[kButtonCount] = {};
+    TapeDeckRegion    m_hover                 = TapeDeckRegion::None;
+    UINT              m_dpi                   = kBaseDpi;
+    bool              m_hidden                = true;
+    std::wstring      m_marqueeName;                          // the name the schedule below is for
+    int64_t           m_marqueeStartMs        = 0;            // when its scroll begins
+    int               m_mouseX                = INT_MIN / 2;  // the pointer, for the magnification
+    int               m_mouseY                = INT_MIN / 2;
+    DxuiMagnifiedRow  m_magnifier;                            // whether the pointer is near the controls, and the magnification's strength
 };

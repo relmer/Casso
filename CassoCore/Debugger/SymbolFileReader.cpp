@@ -13,15 +13,21 @@
 //  SymbolFileReader::Detect
 //
 //  A cc65 debug file is known by its version record, and a Merlin listing by
-//  its symbol table heading on a line that is not a comment. Otherwise the
-//  first line that fits one of the line forms decides: NAME=$ADDR is a Casso
-//  debug file, `al` leads a VICE label, and an address first is AppleWin's.
+//  its symbol table heading on a line that is not a comment. Otherwise one of
+//  the line forms must fit nearly every line that isn't blank or a comment:
+//  NAME=$ADDR is a Casso debug file, `al` leads a VICE label, and an address
+//  then a name is AppleWin's. A file of anything else, such as a BASIC
+//  listing or prose, doesn't fit any of them closely enough and is no symbol file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 SymbolFileFormat SymbolFileReader::Detect (const std::string & content)
 {
     std::vector<std::string>  lines;
+    size_t                    counted  = 0;
+    size_t                    casso    = 0;
+    size_t                    vice     = 0;
+    size_t                    appleWin = 0;
 
 
 
@@ -42,12 +48,39 @@ SymbolFileFormat SymbolFileReader::Detect (const std::string & content)
 
     for (const std::string & line : lines)
     {
-        if (IsCassoLine (line))    { return SymbolFileFormat::CassoDebug; }
-        if (IsViceLine (line))     { return SymbolFileFormat::ViceLabels; }
-        if (IsAppleWinLine (line)) { return SymbolFileFormat::AppleWinSym; }
+        if (line.empty() || line[0] == ';' || line[0] == '#' || line[0] == '*')
+        {
+            continue;
+        }
+
+        counted++;
+        casso    += IsCassoLine    (line) ? 1 : 0;
+        vice     += IsViceLine     (line) ? 1 : 0;
+        appleWin += IsAppleWinLine (line) ? 1 : 0;
     }
 
+    if (IsMostOf (casso, counted))    { return SymbolFileFormat::CassoDebug; }
+    if (IsMostOf (vice, counted))     { return SymbolFileFormat::ViceLabels; }
+    if (IsMostOf (appleWin, counted)) { return SymbolFileFormat::AppleWinSym; }
+
     return SymbolFileFormat::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::IsMostOf
+//
+//  At least kFitPercent of the lines counted, and at least one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolFileReader::IsMostOf (size_t fitting, size_t counted)
+{
+    return fitting > 0 && fitting * 100 >= counted * kFitPercent;
 }
 
 
@@ -147,7 +180,8 @@ void SymbolFileReader::SplitLines (const std::string & content, std::vector<std:
 //
 //  SymbolFileReader::IsCassoLine
 //
-//  NAME=$ADDR, or NAME =$ADDR as a Merlin listing writes it.
+//  NAME=$ADDR, or NAME =$ADDR as a Merlin listing writes it, NAME a symbol's
+//  name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +197,7 @@ bool SymbolFileReader::IsCassoLine (const std::string & line)
         return false;
     }
 
-    return TryParseHex (Trim (line.substr (equals + 1)), value);
+    return IsSymbolName (Trim (line.substr (0, equals))) && TryParseHex (Trim (line.substr (equals + 1)), value);
 }
 
 
@@ -174,23 +208,63 @@ bool SymbolFileReader::IsCassoLine (const std::string & line)
 //
 //  SymbolFileReader::IsAppleWinLine
 //
-//  ADDR NAME, four hex digits then a name.
+//  ADDR NAME, up to four hex digits then a symbol's name and nothing more but
+//  a comment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SymbolFileReader::IsAppleWinLine (const std::string & line)
 {
-    size_t  space = line.find_first_of (" \t");
-    Word    value = 0;
+    std::istringstream  stream (line.substr (0, line.find (';')));
+    std::string         address;
+    std::string         name;
+    std::string         rest;
+    Word                value = 0;
 
 
 
-    if (space == std::string::npos || line[0] == ';')
+    if (line.empty() || line[0] == ';')
     {
         return false;
     }
 
-    return TryParseHex (line.substr (0, space), value) && !Trim (line.substr (space)).empty();
+    stream >> address >> name >> rest;
+    return rest.empty() && TryParseHex (address, value) && IsSymbolName (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::IsSymbolName
+//
+//  What assemblers write as a symbol: a letter, digit, `_`, `.`, `@`, `?`, or
+//  a Merlin local's `:` or variable's `]` first, then letters, digits and
+//  those marks, up to kMaxNameChars, with a letter among them, as Apple's
+//  80STOREOFF has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolFileReader::IsSymbolName (const std::string & name)
+{
+    auto  isMark = [] (char c) { return c == '_' || c == '.' || c == '@' || c == '?'; };
+
+
+
+    if (name.empty() || name.size() > kMaxNameChars)
+    {
+        return false;
+    }
+
+    if (!isalnum ((unsigned char) name[0]) && !isMark (name[0]) && name[0] != ':' && name[0] != ']')
+    {
+        return false;
+    }
+
+    return std::ranges::all_of (name.substr (1), [&isMark] (char c) { return isalnum ((unsigned char) c) || isMark (c); }) &&
+           std::ranges::any_of (name, [] (char c) { return isalpha ((unsigned char) c) != 0; });
 }
 
 

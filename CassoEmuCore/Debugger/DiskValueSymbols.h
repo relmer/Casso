@@ -14,8 +14,9 @@ class IDebugTarget;
 //
 //  The Disk II controller's state as expression symbols: DISK.DRIVE,
 //  DISK.QTRACK, DISK.QTRACK1, DISK.QTRACK2, DISK.MOTOR, DISK.WRITING,
-//  DISK.PROTECTED, DISK.INSERTED, and DISK.ATRACK, DISK.ASECTOR and
-//  DISK.AVOLUME from the selected drive's last address field with a good
+//  DISK.PROTECTED, DISK.INSERTED, and DISK.ADDR.TRACK, DISK.ADDR.SECTOR and
+//  DISK.ADDR.VOLUME (or the older DISK.ATRACK, DISK.ASECTOR and DISK.AVOLUME)
+//  from the selected drive's last address field with a good
 //  checksum in the nibble record, $FFFF when there is none. Everything is
 //  read from the controller's getters and its record, never through the
 //  bus.

@@ -10,9 +10,14 @@
     guest-visible case FAILS, which is the intended signal but a poor
     welcome for a fresh clone, so `RunTests.ps1 -Scenario` runs this first.
 
-    The Kermit-65 3.87 disk is fetched the same way, into
-    `Disks/ThirdParty/`, for the scenario case that runs Kermit. It is not
-    Apple's, but it contains ProDOS, so it is not committed either.
+    The Kermit-65 3.87 disk is fetched the same way, into `Disks/ThirdParty/`,
+    for the scenario case that runs Kermit. It is not Apple's, but it contains
+    ProDOS, so it is not committed either.
+
+    Commercial disks of third parties, Gutenberg, Jr., the Wizardry scenario
+    disks and Zork I, are fetched outside the tree, into
+    `%USERPROFILE%\Downloads\Casso\TestDisks` or the folder CASSO_TEST_DISKS is
+    set to, where the scenario cases read them.
 
     LOOKS BEFORE IT FETCHES, in the two places the tests themselves read, so
     a machine that already has an image never touches the network:
@@ -69,6 +74,10 @@ $repoRoot  = Split-Path -Parent $scriptDir
 $baseUrl = 'https://www.apple.asimov.net'
 $destDir = Join-Path $repoRoot 'Disks/Apple'
 
+#  Where a third party's commercial disk goes: outside the tree, so it can't
+#  be committed. CASSO_TEST_DISKS replaces the default folder.
+$outsideDir = if ($env:CASSO_TEST_DISKS) { $env:CASSO_TEST_DISKS } else { Join-Path $env:USERPROFILE 'Downloads/Casso/TestDisks' }
+
 #
 #  Hashes are pinned, and they are the whole of the check.
 #
@@ -80,7 +89,8 @@ $destDir = Join-Path $repoRoot 'Disks/Apple'
 #  RepoName is what the tests look for under Disks/Apple, or under RepoDir
 #  when an entry has one; CacheName is what the emulator saves the same image
 #  as. The two differ, and both differ from the name on the archive, so all
-#  three appear here. BaseUrl replaces the default host for one entry.
+#  three appear here. BaseUrl replaces the default host for one entry. An
+#  entry with Outside goes to $outsideDir instead of the repo.
 #
 $assets = @(
     @{ RepoName  = 'dos33-master.dsk'
@@ -106,7 +116,88 @@ $assets = @(
        UrlPath   = '/images/communications/kermit_protocol.dsk'
        Size      = 143360
        Sha1      = '9928F056472E0F46F4652BB4C7FED9B52545572A'
-       Desc      = 'Kermit-65 3.87 for ProDOS' }
+       Desc      = 'Kermit-65 3.87 for ProDOS' },
+
+    #  Gutenberg, Jr.'s side A, the word processor the Gutenberg scenario
+    #  cases run. It is a third party's, so it is fetched outside the tree.
+    @{ RepoName  = 'gutenberg-jr.dsk'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/productivity/word_processing/gutenberg/Gutenberg_Jr_f1.dsk'
+       Size      = 143360
+       Sha1      = '8B6BF2E62A935A07DE3E4FDFE809EFAA10594F1D'
+       Desc      = 'Gutenberg, Jr. side A' },
+
+    #  Troll Sports Math (1991), a copy-protected 800K WOZ disk from the
+    #  woz-a-day collection, for the 3.5-inch drives' protected boot. It is a
+    #  third party's, so it is fetched outside the tree.
+    @{ RepoName  = 'TrollSportsMath.woz'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://archive.org'
+       UrlPath   = '/download/wozaday_Troll_Sports_Math_800K/00playable.woz'
+       Size      = 1296307
+       Sha1      = '4313B2CECAB98701FAC6C6724013FD2CC3908A06'
+       Desc      = 'Troll Sports Math 800K (woz-a-day)' },
+
+    #  The Wizardry I to III scenario disks and Zork I, for the game data
+    #  viewers' scenario cases. They are third parties', so they are fetched
+    #  outside the tree.
+    @{ RepoName  = 'wizardry1-scenario.dsk'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/rpg/wizardry/wizardry_I/Wizardry-Proving-Grounds-Original-Scenario.dsk'
+       Size      = 143360
+       Sha1      = '053F49CF3048412CBCC666417456883EF427F4BB'
+       Desc      = 'Wizardry I scenario disk' },
+
+    @{ RepoName  = 'wizardry2-scenario.dsk'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/rpg/wizardry/wizardry_II/wizardry_ii_2.dsk'
+       Size      = 143360
+       Sha1      = 'BF57D3552C0C032517252B298F3F6D2492120291'
+       Desc      = 'Wizardry II scenario disk' },
+
+    @{ RepoName  = 'wizardry3-scenario.dsk'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/rpg/wizardry/wizardry_III/wizardry_iii_2.dsk'
+       Size      = 143360
+       Sha1      = 'A2E2A1F2B0887412BFAD7AF52675B38C0DB7A8A9'
+       Desc      = 'Wizardry III scenario disk' },
+
+    @{ RepoName  = 'zork1.dsk'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/games/adventure/infocom/zork_1/Zork%20I%20r88%20%28clean%20copy%20from%20retail%20disk%29.dsk'
+       Size      = 143360
+       Sha1      = 'FA6BFAAAF165891CB5773544432DADB2E3275A4D'
+       Desc      = 'Zork I, release 88' },
+
+    #  SOS 1.1 for the Apple ///, for the SOS scenario cases. System Utilities
+    #  is the disk the emulator downloads for SOS; System Demo has directory
+    #  blocks of 12 entries.
+    @{ RepoName  = 'sos-utilities.dsk'
+       CacheName = 'Apple III System Utilities.dsk'
+       BaseUrl   = 'https://mirrors.apple2.org.za'
+       UrlPath   = '/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/Disk%20Images/Apple%20III%20System%20Utilities.dsk'
+       Size      = 143360
+       Sha1      = 'B517DB1C50491B893D274B718C63F66DBA98FCD5'
+       Desc      = 'Apple /// System Utilities (SOS 1.1)' },
+
+    @{ RepoName  = 'sos-demo.dsk'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za'
+       UrlPath   = '/Apple%20II%20Documentation%20Project/Computers/Apple%20III/Apple%20III/Disk%20Images/Apple%20III%20System%20Demo.dsk'
+       Size      = 143360
+       Sha1      = '4198E768EA0BE357675107A8A9E0FB9657E25568'
+       Desc      = 'Apple /// System Demo (SOS 1.1)' }
 )
 
 #
@@ -166,7 +257,8 @@ $fetched = 0
 $missing = 0
 
 foreach ($asset in $assets) {
-    $assetDir = if ($asset['RepoDir']) { Join-Path $repoRoot $asset['RepoDir'] } else { $destDir }
+    $assetDir = if ($asset['Outside']) { $outsideDir } elseif ($asset['RepoDir']) { Join-Path $repoRoot $asset['RepoDir'] } else { $destDir }
+    $where    = if ($asset['Outside']) { 'outside the tree' } else { 'in the repo' }
     $assetUrl = if ($asset['BaseUrl']) { $asset['BaseUrl'] } else { $baseUrl }
     $destPath = Join-Path $assetDir $asset.RepoName
 
@@ -175,7 +267,7 @@ foreach ($asset in $assets) {
         $problem = Get-AssetProblem -Path $destPath -Asset $asset
 
         if (-not $problem) {
-            Write-Status "  HAVE  $($asset.RepoName) -- in the repo, verified" 'DarkGray'
+            Write-Status "  HAVE  $($asset.RepoName) -- $where, verified" 'DarkGray'
             $present++
             continue
         }

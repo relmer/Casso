@@ -90,7 +90,7 @@ public:
 
         Disk2Controller   ctrl (6);
 
-        ctrl.SetAudioSink (&sink);
+        ctrl.GetSignals().SetAudioSink (&sink);
 
         ctrl.Write (0xC0E9, 0x00);
         ctrl.Write (0xC0E9, 0x00);
@@ -106,7 +106,7 @@ public:
 
         Disk2Controller   ctrl (6);
 
-        ctrl.SetAudioSink (&sink);
+        ctrl.GetSignals().SetAudioSink (&sink);
 
         ctrl.Write (0xC0E9, 0x00);    // motor on
         ctrl.Write (0xC0E8, 0x00);    // request motor off; arms spindown
@@ -125,7 +125,7 @@ public:
 
         Disk2Controller   ctrl (6);
 
-        ctrl.SetAudioSink (&sink);
+        ctrl.GetSignals().SetAudioSink (&sink);
 
         ctrl.Write (0xC0E9, 0x00);    // motor on
         ctrl.Write (0xC0E8, 0x00);    // motor off (spindown armed)
@@ -147,7 +147,7 @@ public:
 
         Disk2Controller   ctrl (6);
 
-        ctrl.SetAudioSink (&sink);
+        ctrl.GetSignals().SetAudioSink (&sink);
 
         // Energize phase 0 with no other phases set: rot=0,
         // neighbors not energized, qtDelta == 0.
@@ -165,7 +165,7 @@ public:
 
         Disk2Controller   ctrl (6);
 
-        ctrl.SetAudioSink (&sink);
+        ctrl.GetSignals().SetAudioSink (&sink);
         ctrl.Write (0xC0E9, 0x00);    // motor on: the stepper works only then
 
         // Head starts at quarter-track 0. Energizing phase 3 with the
@@ -185,7 +185,7 @@ public:
 
         Disk2Controller   ctrl (6);
 
-        ctrl.SetAudioSink (&sink);
+        ctrl.GetSignals().SetAudioSink (&sink);
         ctrl.Write (0xC0E9, 0x00);    // motor on: the stepper works only then
 
         // Head at QT=0, rot=0. Adjacent phase 1 pulls forward
@@ -194,7 +194,7 @@ public:
 
         Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::HeadStep));
         Assert::AreEqual (0, sink.CountOf (RecordingSink::Event::HeadBump));
-        Assert::AreEqual (2, ctrl.GetQuarterTrack());
+        Assert::AreEqual (2, ctrl.GetLines().GetQuarterTrack());
 
         // Verify the qt argument matches the post-step position.
         for (auto & e : sink.log)

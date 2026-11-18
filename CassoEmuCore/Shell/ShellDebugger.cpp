@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Shell/IDebuggerHost.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Shell/ShellDebugger.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Shell/CpuManager.h"
 
@@ -67,21 +69,6 @@ ShellDebugger::~ShellDebugger() = default;
 IHostDialogs & ShellDebugger::GetHostDialogs() noexcept
 {
     return m_host.GetHostDialogs();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::IsBehindLiveForUi
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDebugger::IsBehindLiveForUi()
-{
-    return m_machine.GetHostInputGate().IsHeld();
 }
 
 
@@ -158,7 +145,7 @@ void ShellDebugger::OpenDebuggerWindow (bool activate)
 
     m_debuggerWindow->Show (activate);
 
-    SetDebugWindowShown (true);
+    m_view.SetWindowShown (true);
     m_cpuManager.PostCommand (IDM_DEBUG_OPEN);
 
 Error:
@@ -244,8 +231,8 @@ void ShellDebugger::OnDebuggerWindowClosed()
 
 
 
-    SetDebugWindowShown (false);
-    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, isDetach ? "detach" : "");
+    m_view.SetWindowShown (false);
+    m_cpuManager.PostCommand (IDM_DEBUG_CLOSE, [isDetach] (IDebugCommandTarget & target) { target.CloseDebugChannel (isDetach); });
 }
 
 
@@ -275,7 +262,7 @@ void ShellDebugger::DetachDebugger()
 
 void ShellDebugger::ResetDebuggerHeatMap()
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap reset");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [] (IDebugCommandTarget & target) { target.ResetDebugHeatMap(); });
 }
 
 
@@ -284,13 +271,49 @@ void ShellDebugger::ResetDebuggerHeatMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SendDebuggerHeatMapRequest
+//  SetDebuggerHeatMapHover
+//
+//  UI thread. The heat map cell the mouse is over, or none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::SendDebuggerHeatMapRequest (const std::string & words)
+void ShellDebugger::SetDebuggerHeatMapHover (std::optional<Word> address)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [address] (IDebugCommandTarget & target) { target.SetDebugHeatMapHover (address); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunDebuggerHeatMapAccess
+//
+//  UI thread. A cell's last write or read, to list or to go back to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::RunDebuggerHeatMapAccess (const HeatAccessRequest & request)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [request] (IDebugCommandTarget & target) { target.RunDebugHeatMapAccess (request); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerHeatMapIgnore
+//
+//  UI thread. The spans whose reads before written the map omits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerHeatMapIgnore (const std::vector<std::pair<Word, Word>> & spans)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [spans] (IDebugCommandTarget & target) { target.SetDebugHeatMapIgnore (spans); });
 }
 
 
@@ -331,20 +354,14 @@ void ShellDebugger::RunDebuggerCommandInMode (const std::string & line, CommandM
 //
 //  RunDebuggerAction
 //
-//  The action waits on the shell's queue, since a command crosses to the CPU
+//  The action waits in the mailbox, since a command crosses to the CPU
 //  thread as text and an action must not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::RunDebuggerAction (const DebuggerAction & action)
 {
-    {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        m_debugActionsPending.push_back (action);
-        m_debugActionsPending.back().isEchoed = m_settings.echoActions;
-    }
-
+    m_mailbox.QueueAction (action, m_settings.echoActions);
     m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
 }
 
@@ -404,37 +421,19 @@ SpeedMode ShellDebugger::GetEmulatorSpeed()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetCodeViewSuffix
-//
-//  Nothing for the first code view, 2 to 4 for the others, as the CPU
-//  thread's view names read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetCodeViewSuffix (int view)
-{
-    return (view <= 0) ? std::string() : std::to_string (view + 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SetDebuggerFollowView / CloseDebuggerCodeView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SetDebuggerFollowView (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("follow {}", view + 1));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [view] (IDebugCommandTarget & target) { target.SetDebugFollowView (view); });
 }
 
 
 void ShellDebugger::CloseDebuggerCodeView (int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codeclose {}", view + 1));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [view] (IDebugCommandTarget & target) { target.CloseDebugCodeView (view); });
 }
 
 
@@ -449,7 +448,7 @@ void ShellDebugger::CloseDebuggerCodeView (int view)
 
 void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("lines{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [lines, view] (IDebugCommandTarget & target) { target.SetDebugCodeLines (lines, view); });
 }
 
 
@@ -464,8 +463,7 @@ void ShellDebugger::SetDebuggerCodeLines (int lines, int view)
 
 void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("code{} {:04X}", GetCodeViewSuffix (view), *address)
-                                                                 : std::format ("code{} pc", GetCodeViewSuffix (view)));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [address, view] (IDebugCommandTarget & target) { target.ShowDebugCode (view, address); });
 }
 
 
@@ -480,7 +478,7 @@ void ShellDebugger::SetDebuggerCodeAddress (std::optional<Word> address, int vie
 
 void ShellDebugger::SetDebuggerCodeTop (Word top, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codetop{} {:04X}", GetCodeViewSuffix (view), top));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [top, view] (IDebugCommandTarget & target) { target.OpenDebugCodeViewAt (view, top); });
 }
 
 
@@ -498,12 +496,10 @@ void ShellDebugger::SetDebuggerCodeTop (Word top, int view)
 
 void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address)
 {
-    std::string  view = (id == 1) ? std::string ("memory") : std::format ("memory{}", id);
 
 
 
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, address.has_value() ? std::format ("{} {:04X}", view, *address)
-                                                                 : view + " close");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [id, address] (IDebugCommandTarget & target) { target.SetDebugMemoryWindow (id, address); });
 }
 
 
@@ -518,8 +514,7 @@ void ShellDebugger::SetDebuggerMemoryWindow (int id, std::optional<Word> address
 
 void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, first.has_value() ? std::format ("trace {}", *first)
-                                                               : std::string ("trace end"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [first] (IDebugCommandTarget & target) { target.SetDebugTraceView (first); });
 }
 
 
@@ -533,41 +528,10 @@ void ShellDebugger::SetDebuggerTraceTop (std::optional<uint64_t> first)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SendDebuggerEventLogRequest (
-    DebugLogKind          kind,
-    const std::string   & request)
+    DebugLogKind              kind,
+    const DebugLogRequest   & request)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", GetDebugLogName (kind), request));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TakeDebuggerEventLogs
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
-{
-    std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-
-
-    deltas.disk.clear();
-    deltas.input.clear();
-    deltas.video.clear();
-    deltas.sound.clear();
-    deltas.serial.clear();
-    deltas.network.clear();
-
-    deltas.disk.swap    (m_eventLogsPending.disk);
-    deltas.input.swap   (m_eventLogsPending.input);
-    deltas.video.swap   (m_eventLogsPending.video);
-    deltas.sound.swap   (m_eventLogsPending.sound);
-    deltas.serial.swap  (m_eventLogsPending.serial);
-    deltas.network.swap (m_eventLogsPending.network);
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [kind, request] (IDebugCommandTarget & target) { target.SetDebugEventLog (kind, request); });
 }
 
 
@@ -582,7 +546,7 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
 
 void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatmap on") : std::string ("heatmap off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [shown] (IDebugCommandTarget & target) { target.SetDebugHeatMapShown (shown); });
 }
 
 
@@ -597,7 +561,7 @@ void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 
 void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatcolumns on") : std::string ("heatcolumns off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [shown] (IDebugCommandTarget & target) { target.SetDebugHeatColumnsShown (shown); });
 }
 
 
@@ -612,7 +576,7 @@ void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 
 void ShellDebugger::SetDebuggerTraceShown (bool shown)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("trace on") : std::string ("trace off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [shown] (IDebugCommandTarget & target) { target.SetDebugTraceShown (shown); });
 }
 
 
@@ -627,7 +591,7 @@ void ShellDebugger::SetDebuggerTraceShown (bool shown)
 
 void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("soundmute {} {}", channel, isMuted ? "on" : "off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [channel, isMuted] (IDebugCommandTarget & target) { target.SetDebugSoundMuted (channel, isMuted); });
 }
 
 
@@ -642,7 +606,7 @@ void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
 
 void ShellDebugger::SetDebuggerBasicShown (bool isVisible)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, isVisible ? std::string ("basic on") : std::string ("basic off"));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [isVisible] (IDebugCommandTarget & target) { target.SetDebugBasicShown (isVisible); });
 }
 
 
@@ -661,7 +625,7 @@ void ShellDebugger::SetDebuggerBasicShown (bool isVisible)
 void ShellDebugger::SetBeamOverlayOn (bool on)
 {
     m_isBeamOverlayOn.store (on, memory_order_release);
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "beam");
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [] (IDebugCommandTarget & target) { target.RedrawDebugFrame(); });
 }
 
 
@@ -676,7 +640,7 @@ void ShellDebugger::SetBeamOverlayOn (bool on)
 
 void ShellDebugger::SetDebuggerCodeShown (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("shown{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [lines, view] (IDebugCommandTarget & target) { target.SetDebugCodeShown (lines, view); });
 }
 
 
@@ -691,7 +655,7 @@ void ShellDebugger::SetDebuggerCodeShown (int lines, int view)
 
 void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codescroll{} {}", GetCodeViewSuffix (view), lines));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [lines, view] (IDebugCommandTarget & target) { target.ScrollDebugCode (lines, view); });
 }
 
 
@@ -706,7 +670,7 @@ void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 
 void ShellDebugger::HoldDebuggerCode (int view, bool isHeld)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codehold{} {}", GetCodeViewSuffix (view), isHeld ? 1 : 0));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [isHeld, view] (IDebugCommandTarget & target) { target.HoldDebugCode (isHeld, view); });
 }
 
 
@@ -721,7 +685,7 @@ void ShellDebugger::HoldDebuggerCode (int view, bool isHeld)
 
 void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("goto {} {}", window, text));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [window, text] (IDebugCommandTarget & target) { target.GoToDebugMemory (window, text); });
 }
 
 
@@ -730,28 +694,13 @@ void ShellDebugger::GoToDebuggerMemory (int window, const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TakeDebuggerUpdate
+//  SelectDebuggerCode
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShellDebugger::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
-                                        std::vector<std::string>                     & consoleLines)
+void ShellDebugger::SelectDebuggerCode (int view, Word address)
 {
-    std::lock_guard<std::mutex>  held (m_debugViewMutex);
-    bool                         any  = m_isDebugViewFresh || !m_debugConsolePending.empty();
-
-
-
-    if (m_isDebugViewFresh)
-    {
-        snapshot           = m_debugViewSnapshot;
-        m_isDebugViewFresh = false;
-    }
-
-    consoleLines.swap (m_debugConsolePending);
-    m_debugConsolePending.clear();
-
-    return any;
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, [view, address] (IDebugCommandTarget & target) { target.SelectDebugCode (view, address); });
 }
 
 
@@ -762,15 +711,18 @@ bool ShellDebugger::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapsh
 //
 //  OpenDebuggerFile
 //
-//  UI thread. A console link opens its file in File Explorer, at the file's
-//  folder with the file selected. Another place to open it in, chosen by a
-//  setting, is added here.
+//  UI thread. A console link opens its file's folder with the file selected:
+//  in Casso Explorer, or in File Explorer when the setting picks it or Casso
+//  Explorer does not start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::OpenDebuggerFile (const std::wstring & path)
 {
-    m_host.ShowFileInFolder (path);
+    if (m_prefs.IsDebuggerLinkingToFileExplorer() || !m_host.ShowFileInCassoExplorer (path))
+    {
+        m_host.ShowFileInFolder (path);
+    }
 }
 
 
@@ -794,7 +746,7 @@ void ShellDebugger::OpenDebugChannel()
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
-    OpenProjectStore();
+    m_project.OpenStore();
 
     if (m_debugController == nullptr)
     {
@@ -815,25 +767,19 @@ void ShellDebugger::OpenDebugChannel()
         }
 
         {
-            std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+            std::lock_guard<std::mutex>  viewHeld (m_viewModel.GetLock());
 
 
 
-            lines = m_debugViewState.ExecuteConsoleLine (m_debugController->GetSession(), line, mode);
+            lines = m_viewModel.GetState().GetCommands().ExecuteConsoleLine (m_debugController->GetSession(), line, mode);
         }
 
-        DebuggerViewState::AddCommandGap (lines);
-
-        {
-            std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-            m_debugConsolePending.insert (m_debugConsolePending.end(), lines.begin(), lines.end());
-        }
-
-        m_isDebugViewDirty = true;
+        DebuggerViewCommands::AddCommandGap (lines);
+        m_mailbox.AddConsoleLines (lines);
+        m_viewModel.MarkDirty();
     });
 
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 }
 
 
@@ -873,7 +819,7 @@ void ShellDebugger::CloseDebugChannel (bool isDetach)
         m_debugController->GetSession().OnUserResumed();
     }
 
-    SaveProject();
+    m_project.Save();
     m_debugController->Close();
 }
 
@@ -892,7 +838,7 @@ void ShellDebugger::PauseDebugRun()
     if (m_debugController != nullptr)
     {
         m_debugController->RequestPause();
-        m_isDebugViewDirty = true;
+        m_viewModel.MarkDirty();
     }
 }
 
@@ -912,17 +858,11 @@ void ShellDebugger::PauseDebugRun()
 
 void ShellDebugger::RunDebugActions()
 {
-    std::vector<DebuggerAction>   actions;
+    std::vector<DebuggerAction>   actions  = m_mailbox.TakeActions();
     std::vector<std::string>      lines;
-    std::unique_lock<std::mutex>  viewHeld (m_debugViewStateLock, std::defer_lock);
+    std::unique_lock<std::mutex>  viewHeld (m_viewModel.GetLock(), std::defer_lock);
 
 
-
-    {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        actions.swap (m_debugActionsPending);
-    }
 
     if (m_debugController == nullptr)
     {
@@ -933,131 +873,16 @@ void ShellDebugger::RunDebugActions()
 
     for (const DebuggerAction & action : actions)
     {
-        std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugController->GetSession(), action);
+        std::vector<std::string>  shown = m_viewModel.GetState().GetCommands().ExecuteAction (m_debugController->GetSession(), action);
 
-        DebuggerViewState::AddCommandGap (shown);
+        DebuggerViewCommands::AddCommandGap (shown);
         lines.insert (lines.end(), shown.begin(), shown.end());
     }
 
     viewHeld.unlock();
 
-    {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        m_debugConsolePending.insert (m_debugConsolePending.end(), lines.begin(), lines.end());
-    }
-
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugView
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugView (const std::string & view, std::optional<Word> address)
-{
-    int                          index = 0;
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    if (view == "follow" && address.has_value())
-    {
-        m_debugViewState.SetFollowView ((int) *address);
-    }
-    else if (view == "codeclose" && address.has_value())
-    {
-        m_debugViewState.CloseCodeView ((int) *address);
-    }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "codetop", index) && address.has_value())
-    {
-        m_debugViewState.OpenCodeViewAt (index, *address);
-    }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "lines", index) && address.has_value())
-    {
-        m_debugViewState.SetCodeLines ((int) *address, index);
-    }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "shown", index) && address.has_value())
-    {
-        m_debugViewState.SetCodeShown ((int) *address, index);
-    }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value() && !m_debugViewState.IsCodeViewOpen (index))
-    {
-        m_debugViewState.OpenCodeView (index, *address);
-    }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value())
-    {
-        m_debugViewState.CenterCodeOn (*address, index);
-    }
-    else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index))
-    {
-        m_debugViewState.ShowPcIn (index);
-    }
-    else if (view == "memory" && address.has_value())
-    {
-        m_debugViewState.SetMemoryAddress (*address);
-    }
-    else if (view.starts_with ("memory") && view.size() == 7)
-    {
-        int  id = view.back() - '0';
-
-        if (address.has_value())
-        {
-            m_debugViewState.OpenMemoryWindow (id, *address);
-        }
-        else
-        {
-            m_debugViewState.CloseMemoryWindow (id);
-        }
-    }
-
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ScrollDebugCode
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::ScrollDebugCode (int lines, int view)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.ScrollCode (lines, view);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HoldDebugCode
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::HoldDebugCode (bool isHeld, int view)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.HoldCode (isHeld, view);
-    m_isDebugViewDirty = true;
+    m_mailbox.AddConsoleLines (lines);
+    m_viewModel.MarkDirty();
 }
 
 
@@ -1072,35 +897,15 @@ void ShellDebugger::HoldDebugCode (bool isHeld, int view)
 
 void ShellDebugger::GoToDebugMemory (int window, const std::string & text)
 {
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+    std::lock_guard<std::mutex>  viewHeld (m_viewModel.GetLock());
 
 
 
     if (m_debugController != nullptr)
     {
-        m_debugViewState.RequestGoTo (m_debugController->GetSession(), window, text);
-        m_isDebugViewDirty = true;
+        m_viewModel.GetState().GetCommands().RequestGoTo (m_debugController->GetSession(), window, text);
+        m_viewModel.MarkDirty();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugTraceView
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetTraceTop (first);
-    m_isDebugViewDirty = true;
 }
 
 
@@ -1116,7 +921,7 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 void ShellDebugger::SetDebugSoundMuted (int channel, bool isMuted)
 {
     MockingboardCard             * card = m_machine.GetRefs().mockingboard;
-    std::lock_guard<std::mutex>    viewHeld (m_debugViewStateLock);
+    std::lock_guard<std::mutex>    viewHeld (m_viewModel.GetLock());
 
 
 
@@ -1125,107 +930,7 @@ void ShellDebugger::SetDebugSoundMuted (int channel, bool isMuted)
         card->SetSoundMuted (channel, isMuted);
     }
 
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugHeatColumnsShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetHeatColumnsShown (shown);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugTraceShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugTraceShown (bool shown)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetTraceShown (shown);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugHeatMapShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugHeatMapShown (bool shown)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetHeatMapShown (shown);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugBasicShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugBasicShown (bool isVisible)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetBasicShown (isVisible);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugHeatMapOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugHeatMapOptions (const std::string & text)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetHeatMapOptions (HeatMapOptions::FromText (text));
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 }
 
 
@@ -1247,7 +952,7 @@ void ShellDebugger::ResetDebugHeatMap()
         m_debugController->GetSession().GetTarget().ResetHeatMap();
     }
 
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 }
 
 
@@ -1270,29 +975,7 @@ void ShellDebugger::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Wor
         m_debugController->GetSession().GetTarget().SetUnwrittenIgnore (spans);
     }
 
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebugHeatMapHover
-//
-//  CPU thread. The next snapshot carries the cell's last writer and reader.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugHeatMapHover (std::optional<Word> address)
-{
-    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
-
-
-
-    m_debugViewState.SetHeatMapHover (address);
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 }
 
 
@@ -1316,7 +999,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
     HeatLastAccess   access;
     HeatAccessState  state       = HeatAccessState::None;
     HeatAccessPlan   plan;
-    bool             isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
+    bool             isRecording = m_history.IsRecording();
     uint64_t         oldest      = 0;
 
 
@@ -1333,7 +1016,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 
     if (isRecording)
     {
-        oldest = m_reverseHost->GetController().GetOldestPosition();
+        oldest = m_history.GetReverseHost()->GetController().GetSeeker().GetOldestPosition();
     }
 
     plan = HeatAccessJump::Plan (request, state, access, isRecording, oldest);
@@ -1341,7 +1024,12 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
     switch (plan.kind)
     {
     case HeatAccessPlan::Kind::ShowCode:
-        SetDebugView ("code", plan.pc);
+        {
+            std::lock_guard<std::mutex>  viewHeld (m_viewModel.GetLock());
+
+            m_viewModel.GetState().GetCodeViews().SelectCodeAt (plan.pc);
+        }
+
         break;
 
     case HeatAccessPlan::Kind::Seek:
@@ -1351,20 +1039,15 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
             NotifyDebugPauseChanged (true);
         }
 
-        RunReverseCommand (ReverseCommand::Seek, plan.position);
+        m_history.RunCommand (ReverseCommand::Seek, plan.position);
         break;
 
     default:
-        {
-            std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-            m_debugConsolePending.push_back (plan.message);
-        }
-
+        m_mailbox.AddConsoleLine (plan.message);
         break;
     }
 
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 }
 
 
@@ -1383,209 +1066,6 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 void ShellDebugger::RedrawDebugFrame()
 {
     m_host.RedrawStoppedFrame();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PublishDebuggerView
-//
-//  Once a frame while the machine runs, and at once after anything the window
-//  did; DebuggerViewState::IsBuildDue says which. This thread only gathers:
-//  the panes are built on the publisher's queue.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::PublishDebuggerView()
-{
-    HRESULT               hr         = S_OK;
-    ULONGLONG             now        = m_clock();
-    bool                  isDue      = false;
-    bool                  isBreaking = false;
-    bool                  isTaken    = true;
-    bool                  isStepping = false;
-    DebugViewInput        input;
-    DebuggerViewSnapshot  live;
-
-
-
-    if (m_debugController == nullptr)
-    {
-        return;
-    }
-
-    //  The heat map records for its pane, which no one sees while the window
-    //  is closed, and for BRKUNINIT, which needs it whatever is shown; then it
-    //  is folded now and then, so its counts never pile up unfolded.
-    if (!m_isDebugWindowShown.load())
-    {
-        isBreaking = m_debugController->GetSession().HasUnwrittenBreak();
-
-        m_debugController->GetSession().GetTarget().SetHeatMapOn (isBreaking);
-
-        if (isBreaking && now - m_heatFoldedAt >= kHiddenHeatFoldMs)
-        {
-            (void) m_debugController->GetSession().GetTarget().FoldHeatMap();
-            m_heatFoldedAt = now;
-        }
-
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        isTaken = !m_isDebugViewFresh;
-    }
-
-    //  A step or a trace run un-pauses the machine until it lands. A view
-    //  built in between has a running machine's rows, without the trace's
-    //  next instructions, and the view after it puts them back: a flash in
-    //  the trace pane. Such a run gets no view for one build interval from
-    //  the first pass during it, so a long trace run refreshes as a run
-    //  does.
-    isStepping = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
-
-    if (isStepping && !m_wasStepping)
-    {
-        m_steppingSince = now;
-    }
-
-    m_wasStepping = isStepping;
-
-    if (isStepping && now - m_steppingSince < DebuggerViewState::kBuildIntervalMs)
-    {
-        return;
-    }
-
-    isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
-                                           isTaken, now, m_debugViewBuiltAt);
-
-    //  A stopped machine waiting on the heat map's rebuild, or the call
-    //  record's, builds again a frame apart, so what is rebuilt shows when
-    //  it comes in.
-    isDue = isDue || ((m_wasHeatRebuilding || m_wasCallRebuilding) && now - m_debugViewBuiltAt >= DebuggerViewState::kBuildIntervalMs);
-
-    if (!isDue)
-    {
-        return;
-    }
-
-    //  The clock panel reports the speed, which the CPU manager paces and the
-    //  machine does not know.
-    m_machine.SetSpeedMode (m_cpuManager.GetSpeedMode());
-
-    //  Anything the window did is shown at once, the heat map included.
-    if (m_isDebugViewDirty)
-    {
-        m_debugViewState.MarkHeatMapReadDue();
-    }
-
-    //  The heat map follows the machine through history.
-    SyncHeatHistory (true);
-
-    if (!m_debugBuildQueue.IsCreated())
-    {
-        hr = m_debugBuildQueue.Create (kDebugBuildQueueCapacity, L"Casso debugger build");
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        //  Without a queue the publisher builds on this thread, as before.
-        m_debugViewPublisher.SetQueue (m_debugBuildQueue.IsCreated() ? &m_debugBuildQueue : nullptr);
-
-        //  Without a pool the panes of a build are built one after another.
-        hr = m_debugBuildPool.Create (kDebugBuildThreads, L"Casso debugger pane builder");
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        m_debugViewPublisher.SetRunner (m_debugBuildPool.IsCreated() ? &m_debugBuildPool : nullptr);
-    }
-
-    GatherDebugView (input, live);
-    m_debugViewPublisher.Submit (std::move (input), std::move (live));
-    m_buildsSubmitted++;
-
-    m_debugViewBuiltAt      = now;
-    m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
-    m_wasHeatRebuilding     = m_debugController->GetSession().GetTarget().IsHeatMapRebuilding();
-    m_wasCallRebuilding     = m_debugController->GetCallHistory().IsRebuilding();
-    m_isDebugViewDirty = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GatherDebugView
-//
-//  Everything the next snapshot reads that only this thread may touch: the
-//  device panels and the heat map, built now since they drive the live
-//  machine; the history status and, behind live, the instructions replayed
-//  to get there; the machine's capture; and the session's tables. The run
-//  state is the CPU manager's, not the session's, so it is handed in: the
-//  command bar gates its stepping entries on it, and the code pane's
-//  annotations are built only when it is paused.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapshot & live)
-{
-    DebugSession              & session  = m_debugController->GetSession();
-    IDebugTarget              & target   = session.GetTarget();
-    bool                        isPaused = m_cpuManager.IsPaused();
-    auto                        capture  = std::make_shared<DebugViewCapture>();
-    uint64_t                    first    = 0;
-
-
-
-    m_debugViewState.BuildLive (session, live, isPaused);
-    live.history     = GetHistoryStatus();
-    live.dataBlocks  = session.GetDataBlocks().GetAll();
-    live.stepFilters = session.GetStepFilter().GetEntries();
-    live.isProfiling     = m_debugController->GetHandlers().GetExecution().IsProfiling();
-    live.profileProgress = m_eventLogs.GetProfileHistory().GetProgress();
-
-    //  The profile is the execution handlers', and a real in it is written by
-    //  the ROM's own routine, so it is read only while the machine is paused.
-    if (isPaused)
-    {
-        live.profile          = ProfileData();
-        live.profileByAddress = ProfileData();
-        m_debugController->GetHandlers().GetExecution().BuildProfile (session, ProfileList::Opcodes,   *live.profile);
-        m_debugController->GetHandlers().GetExecution().BuildProfile (session, ProfileList::Addresses, *live.profileByAddress);
-    }
-
-    first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
-
-    DebugViewCapture::Take (target, CallRecord(), (size_t) first, m_debugViewState.IsTraceShown() ? DebuggerViewState::kTraceRows : 0, *capture);
-    session.TakeView (m_debugSessionView);
-
-    input.capture  = std::move (capture);
-    input.session  = m_debugSessionView;
-    input.isPaused = isPaused;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PublishDebugSnapshot
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
-{
-    std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-
-
-    m_debugViewSnapshot = std::move (snapshot);
-    m_isDebugViewFresh  = true;
 }
 
 
@@ -1658,15 +1138,36 @@ void ShellDebugger::NotifyDebugPauseChanged (bool paused)
 
 void ShellDebugger::NotifyDebugReset (bool isPowerCycle)
 {
+    Apple2eKeyboard  * keyboard = m_machine.GetRefs().iieKeyboard;
+
+
+
     if (m_debugSession != nullptr)
     {
         m_debugSession->OnReset (isPowerCycle);
     }
 
-    if (isPowerCycle)
+    //  Ctrl-Open-Apple-Reset boots the disk in drive 1 as a power cycle
+    //  does: the firmware reads Open Apple after the reset and cold starts.
+    if (isPowerCycle || (keyboard != nullptr && keyboard->IsOpenAppleDown()))
     {
-        NoteBootDisk();
+        m_project.NoteBootDisk();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDebugDisksMounted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::NotifyDebugDisksMounted()
+{
+    m_project.NoteBootDisk();
 }
 
 
@@ -1679,7 +1180,7 @@ void ShellDebugger::NotifyDebugReset (bool isPowerCycle)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
+void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName, bool isStateLoaded)
 {
     //  A debugger run on the old machine ends with it, announced as a pause,
     //  and gives back the speed it borrowed.
@@ -1690,14 +1191,14 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
 
     if (m_debugSession != nullptr)
     {
-        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
+        m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused(), isStateLoaded);
     }
 
     //  The view is the old machine's, and a paused machine builds a new one
     //  only when the view is dirty.
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 
-    NoteBootDisk();
+    m_project.NoteBootDisk();
 }
 
 
@@ -1717,12 +1218,13 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
 
 HRESULT ShellDebugger::OpenDebugger()
 {
-    HRESULT                              hr         = S_OK;
+    HRESULT                              hr           = S_OK;
     std::vector<BYTE>                    userSid;
+    DWORD                                integrityRid = 0;
     std::unique_ptr<Win32NamedPipeApi>   api;
     std::unique_ptr<Win32PipeTransport>  transport;
     std::unique_ptr<DebuggerController>  controller;
-    uint32_t                             processId  = GetCurrentProcessId();
+    uint32_t                             processId    = GetCurrentProcessId();
 
 
 
@@ -1741,8 +1243,11 @@ HRESULT ShellDebugger::OpenDebugger()
     hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
     CHR (hr);
 
+    hr = PipeSecurityDescriptor::GetCurrentIntegrityLevel (integrityRid);
+    CHR (hr);
+
     api        = std::make_unique<Win32NamedPipeApi>();
-    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
+    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid), integrityRid);
     controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport, m_debugFiles,
         [this] (ChannelHello & hello)
         {
@@ -1750,6 +1255,8 @@ HRESULT ShellDebugger::OpenDebugger()
             hello.machine = m_machine.GetConfig().name;
         },
         processId);
+
+    controller->SetConsoleSink ([this] (const std::vector<std::string> & lines) { AddConsoleLines (lines); });
 
     hr = controller->Open();
     CHR (hr);
@@ -1785,14 +1292,13 @@ Error:
 void ShellDebugger::CloseDebugger()
 {
     //  The project is saved and closed; the next debugger opens it again.
-    SaveProject();
-    m_hasProject = false;
+    m_project.Close();
 
-    SyncHeatHistory (false);
+    m_history.SyncHeat (false);
 
     SetDebugRunDriver  (nullptr);
     SetDebugSession    (nullptr);
-    SetReverseStopTest (nullptr);
+    m_history.SetStopTest (nullptr);
 
     if (m_debugController != nullptr)
     {
@@ -1800,20 +1306,80 @@ void ShellDebugger::CloseDebugger()
     }
 
     //  The panes went with the window; the logs record on.
-    for (const auto & [kind, name] : s_kDebugLogNames)
-    {
-        m_eventLogs.SetOpen (kind, false);
-    }
-
-    {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        m_eventLogsPending = DebugLogDeltas();
-    }
+    m_eventLogs.CloseAll();
+    m_mailbox.ClearEventLogs();
 
     m_debugController.reset();
     m_pipeTransport.reset();
     m_pipeApi.reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServiceHitLogs
+//
+//  The messages logging breakpoints wrote at their hits go to the console and
+//  to the debug channel's clients.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ServiceHitLogs()
+{
+    std::vector<std::string>  logs = m_debugController->GetSession().TakeHitLogs();
+
+
+
+    m_debugController->SendHitLogs (logs);
+
+    if (!logs.empty())
+    {
+        m_mailbox.AddConsoleLines (logs);
+        m_viewModel.MarkDirty();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServicePendingScript
+//
+//  A script whose line started a run, or a move through history, goes on
+//  once the machine has stopped or the move has landed, its text going to
+//  the console as the lines before it did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::ServicePendingScript()
+{
+    std::vector<std::string>  lines;
+
+
+
+    if (m_debugController->GetSession().GetRunState() != RunState::Paused || m_debugController->GetSession().IsReversePending() ||
+        !m_debugController->GetSession().HasPendingScript())
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  viewHeld (m_viewModel.GetLock());
+
+        lines = m_viewModel.GetState().GetCommands().RunPendingScript (m_debugController->GetSession());
+    }
+
+    if (!lines.empty())
+    {
+        m_mailbox.AddConsoleLines (lines);
+    }
+
+    m_viewModel.MarkDirty();
 }
 
 
@@ -1842,20 +1408,34 @@ void ShellDebugger::ServiceDebugger()
     {
         linesRun = m_debugController->GetLinesRun();
 
+        //  The messages written since the last pass are queued ahead of the
+        //  pump, so they go out with the stop the same run made.
+        ServiceHitLogs();
         m_debugController->Pump();
 
-        m_isDebugViewDirty = m_isDebugViewDirty || m_debugController->GetLinesRun() != linesRun;
-        ServiceProject();
-        ServiceCallHistory();
+        if (!m_viewModel.IsDirty() && m_debugController->GetLinesRun() != linesRun)
+        {
+            m_viewModel.MarkDirty();
+        }
+
+        ServicePendingScript();
+        m_project.Service();
+        m_history.ServiceCalls();
         ServiceEventLogs();
-        PublishDebuggerView();
+
+        //  A code view's find text is made once a pause has gone without a
+        //  step for a moment; the views are built again then to make it.
+        if (!m_viewModel.IsDirty() && m_viewModel.GetState().GetCodeViews().IsFindTextDue (GetTickCount64()))
+        {
+            m_viewModel.MarkDirty();
+        }
+
+        m_view.Publish();
     }
 
     // A debugger edit can make a paused machine live again.
-    if (m_reverseHost != nullptr)
-    {
-        m_reverseHost->SyncInputGate();
-    }
+    m_history.SyncInputGate();
+    m_history.ReportCuts();
 }
 
 
@@ -1877,7 +1457,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
     SetDebugRunDriver  (&m_debugController->GetRunDriver());
     SetDebugSession    (&m_debugController->GetSession());
-    SetReverseStopTest (&m_debugController->GetReverseStopTest());
+    m_history.SetStopTest (&m_debugController->GetReverseStopTest());
 
     m_debugController->GetSession().SetIoEventSource (&m_eventLogs);
 
@@ -1893,25 +1473,16 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
     m_debugController->GetSession().SetMachineControl (&m_host.GetMachineControl());
 
-    m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
+    m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command, uint64_t argument)
     {
-        bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
-
-
-
-        if (isRecording)
-        {
-            PostReverseCommand (command);
-        }
-
-        return isRecording;
+        return m_history.TryRequest (command, argument);
     });
 
     //  Loading replaces the machine, so both go to the CPU thread as the
     //  File menu's commands do, and run there between instructions.
     m_debugController->GetSession().SetHistoryGuard ([this] (const DebugCommand & command)
     {
-        return GuardHistoryEdit (command);
+        return m_divergence.GuardEdit (command);
     });
 
     m_debugController->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
@@ -1922,7 +1493,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
     m_debugController->GetSession().SetProjectRequester ([this] (const std::string & text, Reply & reply)
     {
-        RunProjectRequest (text, reply);
+        m_project.RunRequest (text, reply);
     });
 }
 
@@ -1954,7 +1525,7 @@ bool ShellDebugger::StepSession()
     stepInto.sourceName = "T";
 
     (void) m_debugSession->Execute (stepInto);
-    m_isDebugViewDirty = true;
+    m_viewModel.MarkDirty();
 
     return true;
 }
@@ -2027,37 +1598,6 @@ void ShellDebugger::DestroyWindow()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDebugEventLog
-//
-//  CPU thread: an event log pane opened or closed, or sent a request for
-//  the rows before its oldest.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebugEventLog (
-    DebugLogKind          kind,
-    const std::string   & request)
-{
-    if (request == "open" || request == "close")
-    {
-        m_eventLogs.SetOpen (kind, request == "open");
-    }
-    else if (request == "earlier")
-    {
-        m_eventLogs.RequestEarlier (kind);
-    }
-    else if (request.starts_with ("from "))
-    {
-        m_eventLogs.DropBefore (kind, std::strtoull (request.c_str() + 5, nullptr, 10));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ServiceEventLogs
 //
 //  CPU thread, each pass: the stretches rebuilt come in, and each open
@@ -2067,25 +1607,14 @@ void ShellDebugger::SetDebugEventLog (
 
 void ShellDebugger::ServiceEventLogs()
 {
-    DiskLogDelta   disk;
-    InputLogDelta  input;
-    IoLogDelta     video;
-    IoLogDelta     sound;
-    IoLogDelta     serial;
-    IoLogDelta     network;
-    bool           isDisk    = false;
-    bool           isInput   = false;
-    bool           isVideo   = false;
-    bool           isSound   = false;
-    bool           isSerial  = false;
-    bool           isNetwork = false;
+    DebugLogDeltas  deltas;
 
 
 
     //  A stretch of the trace rebuilt in the background is in the next snapshot.
     if (m_eventLogs.Pump())
     {
-        m_isDebugViewDirty = true;
+        m_viewModel.MarkDirty();
     }
 
     //  A profile built from history takes the place of the profile; while one
@@ -2096,53 +1625,97 @@ void ShellDebugger::ServiceEventLogs()
         if (m_eventLogs.GetProfileHistory().Pump (counts) && m_debugController != nullptr)
         {
             m_debugController->GetHandlers().GetExecution().InstallProfile (*counts);
-            m_isDebugViewDirty = true;
+            m_viewModel.MarkDirty();
         }
 
-        m_isDebugViewDirty = m_isDebugViewDirty || m_eventLogs.GetProfileHistory().GetProgress().has_value();
+        if (!m_viewModel.IsDirty() && m_eventLogs.GetProfileHistory().GetProgress().has_value())
+        {
+            m_viewModel.MarkDirty();
+        }
     }
 
-    isDisk  = m_eventLogs.TakeDelta (disk);
-    isInput = m_eventLogs.TakeDelta (input);
-    isVideo = m_eventLogs.TakeDelta (DebugLogKind::Video, video);
-    isSound   = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
-    isSerial  = m_eventLogs.TakeDelta (DebugLogKind::Serial, serial);
-    isNetwork = m_eventLogs.TakeDelta (DebugLogKind::Network, network);
-
-    if (isDisk || isInput || isVideo || isSound || isSerial || isNetwork)
+    if (m_eventLogs.TakeDeltas (deltas))
     {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        if (isDisk)
-        {
-            m_eventLogsPending.disk.push_back (std::move (disk));
-        }
-
-        if (isInput)
-        {
-            m_eventLogsPending.input.push_back (std::move (input));
-        }
-
-        if (isVideo)
-        {
-            m_eventLogsPending.video.push_back (std::move (video));
-        }
-
-        if (isSound)
-        {
-            m_eventLogsPending.sound.push_back (std::move (sound));
-        }
-
-        if (isSerial)
-        {
-            m_eventLogsPending.serial.push_back (std::move (serial));
-        }
-
-        if (isNetwork)
-        {
-            m_eventLogsPending.network.push_back (std::move (network));
-        }
+        m_mailbox.AddEventLogs (deltas);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetSliceHooks
+//
+//  CPU thread, once a frame. Behind live does not change within a frame:
+//  a reverse command or a cut runs between frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerSliceHooks ShellDebugger::GetSliceHooks()
+{
+    DebuggerSliceHooks  hooks;
+
+
+
+    hooks.runDriver      = m_debugRunDriver;
+    hooks.heldInputWatch = &m_divergence.GetHeldInputWatch();
+    hooks.isBehindLive   = m_history.IsBehindLive();
+
+    return hooks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::AddConsoleLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::AddConsoleLines (const std::vector<std::string> & lines)
+{
+    if (lines.empty())
+    {
+        return;
+    }
+
+    m_mailbox.AddConsoleLines (lines);
+    m_viewModel.MarkDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetQuestionOwner
+//
+//  Over the debugger's window, when it is open, a question is in the
+//  debugger's theme.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::GetQuestionOwner (bool isActiveOnly, HWND & owner, const IDxuiTheme * & theme)
+{
+    HWND  debugger = (m_debuggerWindow != nullptr) ? m_debuggerWindow->GetHwnd() : nullptr;
+
+
+
+    owner = m_host.GetMainWindow();
+    theme = &m_host.GetChromeTheme();
+
+    if (debugger == nullptr || (isActiveOnly && GetActiveWindow() != debugger))
+    {
+        return;
+    }
+
+    owner = debugger;
+    theme = (m_debuggerWindow->GetThemeInForce() != nullptr) ? m_debuggerWindow->GetThemeInForce() : theme;
 }
 
 

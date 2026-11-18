@@ -3,6 +3,7 @@
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Debugger/SymbolTable.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -346,7 +347,7 @@ namespace DisassemblyPcDragTests
             }
 
             Assert::IsTrue   (list->GetCellTextRectPx (0, DisassemblyCells::kAddressColumn, address), L"the address has a cell, the column after the margin");
-            Assert::AreEqual ((LONG) (scaler120.ToPx (DisassemblyCells::kGutterColumnDip) + scaler120.ToPx (4)), address.left,
+            Assert::AreEqual ((LONG) (scaler120.ToPx (CodeMargins::kGlyphDip) + scaler120.ToPx (4)), address.left,
                               L"the address after the glyph column, which has room for the dot and the arrow, and its padding");
         }
 

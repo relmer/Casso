@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Devices/Disk/DiskImage.h"
+
 #include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -12,180 +12,178 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Disk2WriteHookTests
 //
-//  The controller's one write hook, OnLatchLoad: every load of the data latch
-//  with Q6 and Q7 set while the motor runs, spin-down included, with whether
-//  write protection drops it; nothing with the motor stopped, and nothing
-//  for the //c's mode-register load.
+//  The guest-write hook the disk inspector counts from: a nibble the CPU
+//  loads into the write latch counts on the record under the head while the
+//  motor runs, spin-down included, and not once it has stopped or for the
+//  //c's mode-register load; a write a protected disk drops counts nothing
+//  and marks the drive; each arrival of the head at a quarter track counts;
+//  and the counts start over when a disk goes in or is reloaded, never when
+//  it is saved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace Disk2WriteHookTests
+TEST_CLASS (Disk2WriteHookTests)
 {
-    static constexpr Word    kMotorOff      = 0xC0E8;
-    static constexpr Word    kMotorOn       = 0xC0E9;
-    static constexpr Word    kQ6On          = 0xC0ED;
-    static constexpr Word    kQ7Off         = 0xC0EE;
-    static constexpr Word    kQ7On          = 0xC0EF;
-    static constexpr int     kBitsPerNibble = 8;
-    static constexpr size_t  kTrackBits     = 4096;
+public:
 
-    //  A data field's prologue, a few body nibbles and its epilogue.
-    static const std::vector<Byte>  s_kField = { 0xD5, 0xAA, 0xAD, 0x96, 0x97, 0x9A, 0x9B, 0xDE, 0xAA, 0xEB };
+    static constexpr Word      kMotorOff     = 0xC0E8;
+    static constexpr Word      kMotorOn      = 0xC0E9;
+    static constexpr Word      kPhase1On     = 0xC0E3;
+    static constexpr Word      kQ6High       = 0xC0ED;
+    static constexpr Word      kQ7High       = 0xC0EF;
+    static constexpr size_t    kDskBytes     = 143360;
+    static constexpr uint32_t  kPastSpindown = 3'000'000;
 
-
-
-    struct LatchLoad
+    static std::unique_ptr<DiskImage> MakeDisk()
     {
-        int   drive        = 0;
-        Byte  nibble       = 0;
-        int   quarterTrack = 0;
-        bool  isDropped    = false;
-    };
+        auto  disk = std::make_unique<DiskImage>();
 
 
 
-    class HookedController : public Disk2Controller
+        disk->LoadFromBytes (DiskFormat::Dsk, vector<Byte> (kDskBytes, 0), "blank.dsk");
+        Assert::IsTrue (disk->IsLoaded());
+
+        return disk;
+    }
+
+
+
+    //  Q7 high, then one latch load per nibble through Q6 high.
+    static void WriteNibbles (Disk2Controller & ctrl, int count)
     {
-    public:
-        std::vector<LatchLoad>  loads;
+        (void) ctrl.Read (kQ7High);
 
-        HookedController() : Disk2Controller (6) {}
-
-        Byte  GetModeRegister() const { return m_iwmModeReg; }
-
-    private:
-        void  OnLatchLoad (int drive, Byte nibble, int quarterTrack, bool isDropped) override
+        for (int i = 0; i < count; i++)
         {
-            loads.push_back ({ drive, nibble, quarterTrack, isDropped });
+            ctrl.Write (kQ6High, 0xFF);
         }
-    };
+    }
 
 
 
-    TEST_CLASS (Disk2WriteHookTests)
+    TEST_METHOD (WritesWithTheMotorRunningCountOnTheRecordUnderTheHead)
     {
-    public:
-
-        //  Motor on and at speed, then Q6 and Q7 on: the write mode a DOS
-        //  write routine sets up.
-        static void StartWriting (Disk2Controller & ctrl)
-        {
-            ctrl.Read (kMotorOn);
-            ctrl.Tick (Disk2Controller::kMotorSpinupCycles);
-            ctrl.Read (kQ6On);
-            ctrl.Read (kQ7On);
-        }
-
-        //  Each nibble stored to Q6H, with a nibble's bit cells between.
-        static void WriteField (Disk2Controller & ctrl)
-        {
-            for (Byte nibble : s_kField)
-            {
-                ctrl.Write (kQ6On, nibble);
-                ctrl.Tick (Disk2NibbleEngine::kCyclesPerBit * kBitsPerNibble);
-            }
-        }
-
-        static std::vector<Byte> ReadTrackBits (DiskImage & image)
-        {
-            std::vector<Byte>  bits;
+        auto                              ctrl = std::make_unique<Disk2Controller> (6);
+        std::unique_ptr<DiskImage>        disk = MakeDisk();
 
 
 
-            for (size_t bit = 0; bit < kTrackBits; bit++)
-            {
-                bits.push_back (image.ReadBit (0, bit));
-            }
+        ctrl->SetExternalDisk (0, disk.get());
+        (void) ctrl->Read (kMotorOn);
+        WriteNibbles (*ctrl, 5);
 
-            return bits;
-        }
-
-        TEST_METHOD (EveryLoadOnAWritableDiskIsReported)
-        {
-            auto  ctrl = std::make_unique<HookedController>();
+        Assert::AreEqual (uint64_t (5), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (0)));
+        Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (8)), L"only the record under the head");
+        Assert::IsFalse (ctrl->GetDrive (0).IsWriteBlocked());
+    }
 
 
 
-            ctrl->GetDisk (0)->ResizeTrack (0, kTrackBits);
-            StartWriting (*ctrl);
-            WriteField (*ctrl);
-
-            Assert::AreEqual (s_kField.size(), ctrl->loads.size(), L"one report per latch load");
-
-            for (size_t i = 0; i < s_kField.size(); i++)
-            {
-                Assert::AreEqual (s_kField[i], ctrl->loads[i].nibble);
-                Assert::AreEqual (0,           ctrl->loads[i].drive);
-                Assert::AreEqual (0,           ctrl->loads[i].quarterTrack);
-                Assert::IsFalse  (ctrl->loads[i].isDropped, L"a writable disk takes the bits");
-            }
-        }
-
-        TEST_METHOD (AProtectedDiskIsUnchangedAndEveryLoadIsReportedDropped)
-        {
-            auto               ctrl   = std::make_unique<HookedController>();
-            std::vector<Byte>  before;
+    TEST_METHOD (SpindownStillCountsAStoppedMotorDoesNot)
+    {
+        auto                              ctrl = std::make_unique<Disk2Controller> (6);
+        std::unique_ptr<DiskImage>        disk = MakeDisk();
+        int                               slot = 0;
 
 
 
-            ctrl->GetDisk (0)->ResizeTrack (0, kTrackBits);
-            ctrl->GetDisk (0)->SetWriteProtected (true);
-            before = ReadTrackBits (*ctrl->GetDisk (0));
+        ctrl->SetExternalDisk (0, disk.get());
+        slot = disk->ResolveQuarterTrack (0);
+        (void) ctrl->Read (kMotorOn);
+        (void) ctrl->Read (kMotorOff);
+        ctrl->Tick (1000);
+        WriteNibbles (*ctrl, 2);
+        Assert::AreEqual (uint64_t (2), disk->GetGuestWriteCount (slot), L"spinning down");
 
-            StartWriting (*ctrl);
-            WriteField (*ctrl);
-
-            Assert::IsTrue   (before == ReadTrackBits (*ctrl->GetDisk (0)), L"the track's bits are the ones before the write");
-            Assert::AreEqual (s_kField.size(), ctrl->loads.size());
-
-            for (const LatchLoad & load : ctrl->loads)
-            {
-                Assert::IsTrue (load.isDropped, L"write protection drops every load");
-            }
-        }
-
-        TEST_METHOD (ALoadDuringTheSpinDownIsReported)
-        {
-            auto  ctrl = std::make_unique<HookedController>();
+        ctrl->Tick (kPastSpindown);
+        WriteNibbles (*ctrl, 3);
+        Assert::AreEqual (uint64_t (2), disk->GetGuestWriteCount (slot), L"stopped");
+    }
 
 
 
-            ctrl->GetDisk (0)->ResizeTrack (0, kTrackBits);
-            StartWriting (*ctrl);
-            ctrl->Read  (kMotorOff);
-            ctrl->Write (kQ6On, 0xFF);
-
-            Assert::AreEqual ((size_t) 1, ctrl->loads.size(), L"the disk turns during the spin-down");
-        }
-
-        TEST_METHOD (ALoadWithTheMotorStoppedIsNotReported)
-        {
-            auto  ctrl = std::make_unique<HookedController>();
+    TEST_METHOD (TheIwmModeRegisterLoadIsNotAWrite)
+    {
+        auto                              ctrl = std::make_unique<Disk2Controller> (6);
+        std::unique_ptr<DiskImage>        disk = MakeDisk();
 
 
 
-            ctrl->GetDisk (0)->ResizeTrack (0, kTrackBits);
-            ctrl->Read  (kQ6On);
-            ctrl->Read  (kQ7On);
-            ctrl->Write (kQ6On, 0xFF);
+        ctrl->SetIwmMode (true);
+        ctrl->SetExternalDisk (0, disk.get());
+        WriteNibbles (*ctrl, 4);
 
-            Assert::IsTrue (ctrl->loads.empty(), L"a stopped disk takes nothing");
-        }
-
-        TEST_METHOD (TheIicModeRegisterLoadIsNotReported)
-        {
-            auto  ctrl = std::make_unique<HookedController>();
+        Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (0)));
+    }
 
 
 
-            ctrl->SetIwmMode (true);
-            ctrl->Read  (kQ7Off);
-            ctrl->Read  (kQ6On);
-            ctrl->Read  (kQ7On);
-            ctrl->Write (kQ6On, 0x0F);
+    TEST_METHOD (ADroppedWriteBlocksTheDriveAndCountsNothing)
+    {
+        auto                              ctrl = std::make_unique<Disk2Controller> (6);
+        std::unique_ptr<DiskImage>        disk = MakeDisk();
 
-            Assert::AreEqual ((Byte) 0x0F, ctrl->GetModeRegister(), L"the store loaded the mode register");
-            Assert::IsTrue   (ctrl->loads.empty(), L"a mode-register load is not a latch load");
-        }
-    };
-}
+
+
+        disk->SetUserWriteProtected (true);
+        ctrl->SetExternalDisk (0, disk.get());
+        (void) ctrl->Read (kMotorOn);
+        WriteNibbles (*ctrl, 3);
+
+        Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (0)));
+        Assert::IsTrue (ctrl->GetDrive (0).IsWriteBlocked());
+        Assert::IsFalse (ctrl->GetDrive (1).IsWriteBlocked(), L"the other drive");
+    }
+
+
+
+    TEST_METHOD (EachArrivalAtAQuarterTrackCounts)
+    {
+        auto                              ctrl = std::make_unique<Disk2Controller> (6);
+        std::unique_ptr<DiskImage>        disk = MakeDisk();
+
+
+
+        ctrl->SetExternalDisk (0, disk.get());
+        (void) ctrl->Read (kMotorOn);
+        (void) ctrl->Read (kPhase1On);
+
+        Assert::AreEqual (1u, ctrl->GetDrive (0).GetVisitCount (2), L"phase 1 moves the head two quarter tracks");
+        Assert::AreEqual (0u, ctrl->GetDrive (1).GetVisitCount (2), L"per drive");
+        Assert::AreEqual (0u, ctrl->GetDrive (0).GetVisitCount (-1));
+    }
+
+
+
+    TEST_METHOD (InsertAndReloadStartOverASaveDoesNot)
+    {
+        auto                              ctrl  = std::make_unique<Disk2Controller> (6);
+        std::unique_ptr<DiskImage>        disk  = MakeDisk();
+        std::unique_ptr<DiskImage>        other = MakeDisk();
+        int                               slot  = 0;
+
+
+
+        ctrl->SetExternalDisk (0, disk.get());
+        slot = disk->ResolveQuarterTrack (0);
+        (void) ctrl->Read (kMotorOn);
+        (void) ctrl->Read (kPhase1On);
+        WriteNibbles (*ctrl, 2);
+
+        disk->ClearDirty();
+        Assert::AreEqual (uint64_t (2), disk->GetGuestWriteCount (slot), L"a save keeps the count");
+
+        disk->LoadFromBytes (DiskFormat::Dsk, vector<Byte> (kDskBytes, 0), "blank.dsk");
+        Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (slot), L"a reload starts it over");
+
+        //  The store reloads a file into the same image object and re-points
+        //  the drive at it.
+        Assert::AreEqual (1u, ctrl->GetDrive (0).GetVisitCount (2));
+        ctrl->SetExternalDisk (0, disk.get());
+        Assert::AreEqual (0u, ctrl->GetDrive (0).GetVisitCount (2), L"a reload starts the visits over");
+        Assert::IsTrue   (ctrl->GetDrive (0).GetAccessLog().GetWrites()[2].empty(), L"and the access marks");
+
+        ctrl->SetExternalDisk (0, other.get());
+        Assert::AreEqual (0u, ctrl->GetDrive (0).GetVisitCount (2), L"another disk starts the visits over");
+    }
+};

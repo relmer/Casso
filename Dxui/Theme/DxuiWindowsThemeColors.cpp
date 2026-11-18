@@ -250,6 +250,31 @@ void DxuiWindowsThemeColors::ReadAccentPalette (SystemColors & colors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiWindowsThemeColors::AreSurfacesForTheirModes
+//
+//  Whether the dark surface is darker than mid-gray and the light one
+//  lighter. While Windows is dark, the light class can hand back the dark
+//  surface, which painted a window set to Light dark behind dark text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindowsThemeColors::AreSurfacesForTheirModes (uint32_t dark, uint32_t light)
+{
+    constexpr uint32_t  kMidGray = 0x80 * 3;
+    uint32_t            darkSum  = ((dark  >> 16) & 0xFFu) + ((dark  >> 8) & 0xFFu) + (dark  & 0xFFu);
+    uint32_t            lightSum = ((light >> 16) & 0xFFu) + ((light >> 8) & 0xFFu) + (light & 0xFFu);
+
+
+
+    return darkSum < kMidGray && lightSum >= kMidGray;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiWindowsThemeColors::ReadItemsViewColors
 //
 //  Both modes are read regardless of the active mode, so a window set to Light
@@ -265,7 +290,7 @@ void DxuiWindowsThemeColors::ReadItemsViewColors (SystemColors & colors)
 
 
 
-    colors.hasSurfaces = dark && light;
+    colors.hasSurfaces = dark && light && AreSurfacesForTheirModes (colors.contentDark, colors.contentLight);
 }
 
 

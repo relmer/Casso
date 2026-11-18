@@ -24,6 +24,6 @@ public:
     static std::vector<std::pair<int, int>>  FindAll (const std::wstring & text, const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex);
 
 private:
-    static bool  IsWordChar (wchar_t ch) { return iswalnum (ch) || ch == L'_'; }
+    static bool  IsWordChar  (wchar_t ch) { return iswalnum (ch) || ch == L'_'; }
     static bool  IsWholeWord (const std::wstring & text, size_t at, size_t length);
 };

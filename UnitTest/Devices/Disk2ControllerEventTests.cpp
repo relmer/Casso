@@ -172,7 +172,7 @@ namespace Disk2ControllerEventTests
 
             Disk2Controller   ctrl (6);
 
-            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+            ctrl.GetSignals().SetMotorOffFlushCallback ([&] () { flushes++; });
 
             ctrl.Write (0xC0E9, 0x00);    // motor on
             ctrl.Write (0xC0E8, 0x00);    // motor off (arms spindown)
@@ -199,7 +199,7 @@ namespace Disk2ControllerEventTests
 
             Disk2Controller   ctrl (6);
 
-            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+            ctrl.GetSignals().SetMotorOffFlushCallback ([&] () { flushes++; });
 
             ctrl.Write (0xC0E9, 0x00);    // motor on, never commanded off
             ctrl.Tick  (5000000);
@@ -216,7 +216,7 @@ namespace Disk2ControllerEventTests
 
             Disk2Controller   ctrl (6);
 
-            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+            ctrl.GetSignals().SetMotorOffFlushCallback ([&] () { flushes++; });
 
             // First operation: on -> off -> spin down.
             ctrl.Write (0xC0E9, 0x00);
@@ -307,7 +307,7 @@ namespace Disk2ControllerEventTests
 
             Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::HeadStep));
             Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadBump));
-            Assert::AreEqual (2, ctrl.GetQuarterTrack());
+            Assert::AreEqual (2, ctrl.GetLines().GetQuarterTrack());
 
             for (const auto & logEntry : sink.log)
             {
@@ -351,7 +351,7 @@ namespace Disk2ControllerEventTests
             }
 
             Assert::IsTrue   ((positions == std::vector<int> { 1, 2, 3, 4 }), L"quarter tracks 1, 2, 3 and 4");
-            Assert::AreEqual (4, ctrl.GetQuarterTrack());
+            Assert::AreEqual (4, ctrl.GetLines().GetQuarterTrack());
         }
 
 
@@ -366,11 +366,11 @@ namespace Disk2ControllerEventTests
             ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
             ctrl.Write (0xC0E1, 0x00);      // phase 0 on
             ctrl.Write (0xC0E3, 0x00);      // phase 1 on
-            Assert::AreEqual (1, ctrl.GetQuarterTrack());
+            Assert::AreEqual (1, ctrl.GetLines().GetQuarterTrack());
 
             ctrl.Write (0xC0E3, 0x00);
             ctrl.Write (0xC0E1, 0x00);
-            Assert::AreEqual (1, ctrl.GetQuarterTrack(), L"the same phases hold it there");
+            Assert::AreEqual (1, ctrl.GetLines().GetQuarterTrack(), L"the same phases hold it there");
         }
 
 
@@ -385,24 +385,12 @@ namespace Disk2ControllerEventTests
 
             ctrl.Write (0xC0E1, 0x00);      // phase 0 on
             ctrl.Write (0xC0E5, 0x00);      // phase 2 on, opposite
-            Assert::AreEqual (0, ctrl.GetQuarterTrack());
+            Assert::AreEqual (0, ctrl.GetLines().GetQuarterTrack());
 
             ctrl.Write (0xC0E0, 0x00);      // phase 0 off: phase 2 alone, opposite
-            Assert::AreEqual (0, ctrl.GetQuarterTrack());
+            Assert::AreEqual (0, ctrl.GetLines().GetQuarterTrack());
         }
 
-
-        TEST_METHOD (ThePullIsTheAverageOfTheEnergizedPhases)
-        {
-            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b0000, 5),  L"no phase on");
-            Assert::AreEqual ( 2, Disk2Controller::GetPull (0b0010, 0),  L"phase 1 from track 0");
-            Assert::AreEqual ( 1, Disk2Controller::GetPull (0b0011, 0),  L"phases 0 and 1: the quarter track between");
-            Assert::AreEqual ( 1, Disk2Controller::GetPull (0b0010, 1),  L"phase 1 from the quarter track before it");
-            Assert::AreEqual (-2, Disk2Controller::GetPull (0b1000, 0),  L"phase 3 pulls back from track 0");
-            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b0100, 0),  L"phase 2 is opposite track 0");
-            Assert::AreEqual ( 0, Disk2Controller::GetPull (0b1011, 0),  L"phases 3, 0 and 1 balance");
-            Assert::AreEqual ( 2, Disk2Controller::GetPull (0b0010, 64), L"the cycle repeats every eight quarter tracks");
-        }
 
         TEST_METHOD (DriveSelect_firesOnceWithNewDriveIndex)
         {
@@ -456,7 +444,7 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
-            ctrl.NotifyDiskInserted (1);
+            ctrl.GetSignals().OnDiskInserted (1);
 
             Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::DiskInserted));
             Assert::AreEqual (1, sink.log[0].arg);
@@ -472,7 +460,7 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
-            ctrl.NotifyDiskEjected (0);
+            ctrl.GetSignals().OnDiskEjected (0);
 
             Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::DiskEjected));
             Assert::AreEqual (0, sink.log[0].arg);
@@ -488,10 +476,10 @@ namespace Disk2ControllerEventTests
             Disk2Controller      ctrl (6);
 
             ctrl.SetEventSink (&sink);
-            ctrl.NotifyDiskInserted (-1);
-            ctrl.NotifyDiskInserted (99);
-            ctrl.NotifyDiskEjected  (-1);
-            ctrl.NotifyDiskEjected  (99);
+            ctrl.GetSignals().OnDiskInserted (-1);
+            ctrl.GetSignals().OnDiskInserted (99);
+            ctrl.GetSignals().OnDiskEjected (-1);
+            ctrl.GetSignals().OnDiskEjected (99);
 
             Assert::AreEqual ((size_t) 0, sink.log.size());
         }
@@ -502,8 +490,8 @@ namespace Disk2ControllerEventTests
             Disk2Controller  ctrl (6);
 
             // No SetEventSink call -- m_eventSink == nullptr.
-            ctrl.NotifyDiskInserted (0);
-            ctrl.NotifyDiskEjected  (0);
+            ctrl.GetSignals().OnDiskInserted (0);
+            ctrl.GetSignals().OnDiskEjected (0);
         }
 
 
@@ -558,7 +546,7 @@ namespace Disk2ControllerEventTests
             {
                 baseline.Write (phases[i], 0x00);
                 observed.Write (phases[i], 0x00);
-                Assert::AreEqual (baseline.GetQuarterTrack(), observed.GetQuarterTrack());
+                Assert::AreEqual (baseline.GetLines().GetQuarterTrack(), observed.GetLines().GetQuarterTrack());
             }
 
             // And after a motor cycle.
@@ -569,9 +557,9 @@ namespace Disk2ControllerEventTests
             baseline.Tick  (1100000);
             observed.Tick  (1100000);
 
-            Assert::AreEqual (baseline.IsMotorOn(),       observed.IsMotorOn());
-            Assert::AreEqual (baseline.GetQuarterTrack(), observed.GetQuarterTrack());
-            Assert::AreEqual (baseline.GetActiveDrive(),  observed.GetActiveDrive());
+            Assert::AreEqual (baseline.GetLines().IsMotorOn(),       observed.GetLines().IsMotorOn());
+            Assert::AreEqual (baseline.GetLines().GetQuarterTrack(), observed.GetLines().GetQuarterTrack());
+            Assert::AreEqual (baseline.GetLines().GetActiveDrive(),  observed.GetLines().GetActiveDrive());
         }
 
 
@@ -619,7 +607,7 @@ namespace Disk2ControllerEventTests
             ctrl.Write (0xC0EF, 0x00);      // on again: no event
             ctrl.Write (0xC0EE, 0x00);      // write mode off
             ctrl.Write (0xC0E8, 0x00);      // motor off
-            ctrl.Tick  (Disk2Controller::kMotorSpindownCycles + 1);
+            ctrl.Tick  (Disk2CardSequencer::kMotorSpindownCycles + 1);
         }
 
 

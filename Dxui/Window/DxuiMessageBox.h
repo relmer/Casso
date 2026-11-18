@@ -32,6 +32,23 @@ class IDxuiTheme;
 //    Returns:
 //        IDOK / IDCANCEL / IDYES / IDNO / IDRETRY (IDCANCEL on Escape / close).
 //
+//  `buttonLabels`, when given, relabels the set's buttons in order -- an
+//  "Overwrite" and "Cancel" for MB_OKCANCEL, say -- and each still returns
+//  the id its place in the set does.
+//
+//  `dangerButton`, when 0 or more, is the index of a button drawn in the
+//  theme's error color, for an action that destroys data. Make another
+//  button the default: Enter presses the focused button, else the default.
+//
+//  `text` may mark runs as semibold between pairs of `**`, as for text the
+//  user types: "1. Type **IN#2** and press Return". Every line wraps at its
+//  spaces, whether or not it has a mark.
+//
+//  `checkLabel`, when given, adds a checkbox under the text, as a task
+//  dialog's verification checkbox, checked as `ioChecked` is on the way in;
+//  `ioChecked` returns its state when the box closes, whichever button
+//  closed it.
+//
 //  The one departure from MessageBox is the required `theme`: a Dxui window
 //  needs a theme to render. `owner` supplies the modal parent (disabled while
 //  the box is up) and the HINSTANCE (falling back to the process module when
@@ -39,11 +56,15 @@ class IDxuiTheme;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int  DxuiMessageBox (HWND               owner,
-                     const IDxuiTheme * theme,
-                     const wchar_t    * text,
-                     const wchar_t    * caption,
-                     UINT               uType);
+int  DxuiMessageBox (HWND                                 owner,
+                     const IDxuiTheme                   * theme,
+                     const wchar_t                      * text,
+                     const wchar_t                      * caption,
+                     UINT                                 uType,
+                     const std::vector<const wchar_t *> & buttonLabels = {},
+                     int                                  dangerButton = -1,
+                     const wchar_t                      * checkLabel   = nullptr,
+                     bool                               * ioChecked    = nullptr);
 
 
 
@@ -54,7 +75,8 @@ int  DxuiMessageBox (HWND               owner,
 struct DxuiMessageBoxButton
 {
     std::wstring  label;
-    int           id = 0;
+    int           id     = 0;
+    bool          danger = false;   // drawn in the theme's error color, for an action that destroys data
 };
 
 //  The box with its own buttons, defaultId the default one's; only uType's
@@ -67,10 +89,6 @@ int  DxuiMessageBox (HWND                                      owner,
                      const std::vector<DxuiMessageBoxButton>  & buttons,
                      int                                       defaultId);
 
-
-
-
-
 //  The box with uType's buttons, MB_OK or MB_OKCANCEL, and a check box under
 //  the text, such as a notice's box that turns it off; ioChecked is its state
 //  before and after.
@@ -82,10 +100,6 @@ int  DxuiMessageBox (HWND                 owner,
                      const std::wstring & checkLabel,
                      bool               & ioChecked);
 
-
-
-
-
 //  How the box's window is created for owner: centered on the owner, on the
 //  owner's monitor and at that monitor's DPI, as every other dialog is.
 DxuiWindow::CreateParams  DxuiMakeMessageBoxParams (HWND owner, const wchar_t * caption, int heightDip);
@@ -93,3 +107,80 @@ DxuiWindow::CreateParams  DxuiMakeMessageBoxParams (HWND owner, const wchar_t * 
 //  The system box type with exactly these buttons, MB_YESNO for Yes and No
 //  and so on, or UINT_MAX for buttons that are no system set.
 UINT  DxuiGetSystemMessageBoxType (const std::vector<DxuiMessageBoxButton> & buttons);
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextRun
+//
+//  A piece of a message box's line in one weight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiTextRun
+{
+    std::wstring  text;
+    bool          semiBold = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiParseTextRuns
+//
+//  The text's lines, split at each newline, each as its runs between `**`
+//  marks; the marks are dropped. An unpaired mark sets the rest of its line
+//  semibold. A line with no marks is one run, and an empty line has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void  DxuiParseTextRuns (const std::wstring & text, std::vector<std::vector<DxuiTextRun>> & outLines);
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPlacedTextRun
+//
+//  A piece of a run, a word and the spaces after it, at its place in the
+//  wrapped text: `x` from the left edge, on row `row`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiPlacedTextRun
+{
+    std::wstring  text;
+    bool          semiBold = false;
+    float         x        = 0.0f;
+    int           row      = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLayOutTextRuns
+//
+//  The lines' runs wrapped at `widthPx`: a word that would run past the right
+//  edge starts the next row, and each line starts a new row. `measure`
+//  returns a piece's width in its weight, trailing spaces included. Returns
+//  the number of rows; an empty line takes one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+using DxuiMeasureTextRunFn = std::function<float (const std::wstring & text, bool semiBold)>;
+
+int  DxuiLayOutTextRuns (const std::vector<std::vector<DxuiTextRun>> & lines,
+                         float                                         widthPx,
+                         const DxuiMeasureTextRunFn                  & measure,
+                         std::vector<DxuiPlacedTextRun>              & outRuns);

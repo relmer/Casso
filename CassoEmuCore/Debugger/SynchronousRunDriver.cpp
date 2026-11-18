@@ -40,7 +40,7 @@ SynchronousRunDriver::SynchronousRunDriver (MachineHost & host, RunStopHook & ho
 HRESULT SynchronousRunDriver::Start (const RunRequest & request)
 {
     HRESULT      hr          = S_OK;
-    DebugHook  * previous    = m_host.GetDebugHook();
+    DebugHook  * previous    = m_host.GetRunner().GetDebugHook();
     uint64_t     spent       = 0;
     uint64_t     chunk       = 0;
     bool         hasCpu      = m_host.GetCpu() != nullptr;
@@ -53,13 +53,13 @@ HRESULT SynchronousRunDriver::Start (const RunRequest & request)
 
     m_pauseRequested = false;
     m_hook.Begin (request);
-    m_host.SetDebugHook (&m_hook);
+    m_host.GetRunner().SetDebugHook (&m_hook);
 
     while (!m_hook.HasStopped() && !m_pauseRequested && !budgetSpent)
     {
         chunk = request.budget.has_value() ? std::min (kChunkCycles, *request.budget - spent) : kChunkCycles;
 
-        spent       += m_host.RunCycles (chunk);
+        spent       += m_host.GetRunner().RunCycles (chunk);
         budgetSpent  = request.budget.has_value() && spent >= *request.budget;
     }
 
@@ -69,7 +69,7 @@ HRESULT SynchronousRunDriver::Start (const RunRequest & request)
     stop.cycles    = spent;
 
     m_hook.End();
-    m_host.SetDebugHook (previous);
+    m_host.GetRunner().SetDebugHook (previous);
 
     if (m_observer != nullptr)
     {

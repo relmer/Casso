@@ -134,7 +134,7 @@ void ShellNotices::PostNotice (const std::wstring & text)
 
     carried = new (std::nothrow) wstring (text);
 
-    if (carried != nullptr && !PostMessageW (m_shell.m_hwnd, WM_APP_SHOW_NOTICE, 0,
+    if (carried != nullptr && !PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellShowNotice, 0,
                                              reinterpret_cast<LPARAM> (carried)))
     {
         delete carried;

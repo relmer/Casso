@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/SymbolActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
@@ -222,6 +224,8 @@ void SymbolsPane::Configure()
                           { L"Address", 0, true,  DxuiTextHAlign::Left } });
 
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetSortIndicator         ((int) m_sort, m_isReverse);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -242,6 +246,7 @@ void SymbolsPane::Configure()
         }
     });
 
+    m_list->SetSelectOnCheckPress (false);
     m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked)
     {
         const Row  * each = GetRow (row);
@@ -250,7 +255,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && each->isHeading)
         {
-            m_host.RunAction (DebuggerActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
         }
     });
 }
@@ -281,6 +286,30 @@ void ToolListPane::ShowNewListRow()
     }
 
     m_list->ShowNewRow (keys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane::GetActedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> ToolListPane::GetActedRows (int row) const
+{
+    std::vector<int>  selected = m_list->GetSelectedRows();
+
+
+
+    if (row < 0 || std::ranges::find (selected, row) != selected.end())
+    {
+        return selected;
+    }
+
+    return { row };
 }
 
 
@@ -322,8 +351,33 @@ void SymbolsPane::RebuildRows()
         return;
     }
 
-    m_rows = GetRows (*m_symbols, m_kind, m_open);
+    m_rows = GetRows (*m_symbols, m_kind, m_open, m_sort, m_isReverse);
     m_list->SetRows (GetCells (*m_symbols, m_rows, m_open));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::SortBy
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same heading reverses the order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolsPane::SortBy (int column)
+{
+    Sort  sort = (column == 1) ? Sort::Address : Sort::Name;
+
+
+
+    m_isReverse = (sort == m_sort) && !m_isReverse;
+    m_sort      = sort;
+    m_list->SetSortIndicator ((int) m_sort, m_isReverse);
+    RebuildRows();
 }
 
 
@@ -430,7 +484,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         items.push_back ({ L"Go to",  [this, at = each->address] { m_host.GoToCode (at); } });
         items.push_back ({ L"Remove", [this, table = each->table, name = each->name]
         {
-            m_host.RunAction (DebuggerActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
         } });
     }
 
@@ -440,7 +494,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         std::string  file  = (m_symbols != nullptr) ? GetFileOf (*m_symbols, each->table) : std::string();
         std::wstring label = file.empty() ? std::wstring (L"Clear table") : L"Unload " + TextEncoding::NarrowToWide (file);
 
-        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
+        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (SymbolActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
         items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
     }
 
@@ -466,7 +520,7 @@ void SymbolsPane::SaveTable (const std::string & table)
 
     if (!path.empty())
     {
-        m_host.RunAction (DebuggerActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
+        m_host.RunAction (SymbolActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
     }
 }
 
@@ -479,13 +533,15 @@ void SymbolsPane::SaveTable (const std::string & table)
 //  SymbolsPane::GetRows
 //
 //  The heading of each table the pane lists, then, under an open heading,
-//  its symbols in the order the table has them.
+//  its symbols in the order chosen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open)
+std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open,
+                                                    Sort sort, bool isReverse)
 {
     std::vector<Row>  rows;
+    size_t            first = 0;
 
 
 
@@ -504,14 +560,26 @@ std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::
         }
 
         rows.push_back ({ table.name, std::string(), 0, true });
+        first = rows.size();
 
         for (const SymbolInfo & symbol : symbols.symbols)
         {
             if (symbol.table == table.id && open.contains (table.name))
             {
-                rows.push_back ({ table.name, symbol.name, symbol.address, false });
+                rows.push_back ({ table.name, symbol.name, symbol.address, false, symbol.isConstant });
             }
         }
+
+        std::stable_sort (rows.begin() + (std::ptrdiff_t) first, rows.end(), [sort, isReverse] (const Row & left, const Row & right)
+        {
+            int  byName    = _stricmp (left.name.c_str(), right.name.c_str());
+            int  byAddress = (left.address == right.address) ? 0 : (left.address < right.address) ? -1 : 1;
+            int  order     = (sort == Sort::Name) ? (byName != 0 ? byName : byAddress) : (byAddress != 0 ? byAddress : byName);
+
+
+
+            return isReverse ? order > 0 : order < 0;
+        });
     }
 
     return rows;
@@ -576,7 +644,6 @@ std::string SymbolsPane::GetFileOf (const DebuggerViewSnapshot::SymbolsState & s
 std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows, const std::set<std::string> & open)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
-    size_t                                        index = 0;
 
 
 
@@ -586,12 +653,12 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
         {
             auto                table = std::ranges::find_if (symbols.tables, [&row] (const DebuggerViewSnapshot::SymbolTableRow & each) { return each.name == row.table; });
             std::string         file  = GetFileOf (symbols, row.table);
-            DxuiListView::Cell  name  = { std::format (L"{} {} ({})", open.contains (row.table) ? s_kpszTriangleDown : s_kpszTriangleRight,
+            DxuiListView::Cell  name  = { std::format (L"{} {} ({})", open.contains (row.table) ? s_kpszSmallTriangleDown : s_kpszSmallTriangleRight,
                                                        TextEncoding::NarrowToWide (file.empty() ? row.table : file), table->count) };
 
 
 
-            name.check = table->enabled;
+            name.check = DxuiListView::Cell::GetCheck (table->enabled);
             name.tip   = file.empty()          ? std::wstring()
                        : table->path.empty()   ? std::format (L"In the {} table", TextEncoding::NarrowToWide (row.table))
                        :                         std::format (L"{}\nIn the {} table", table->path, TextEncoding::NarrowToWide (row.table));
@@ -599,17 +666,8 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
             continue;
         }
 
-        while (index < symbols.symbols.size() && (symbols.symbols[index].name != row.name || symbols.symbols[index].address != row.address))
-        {
-            index++;
-        }
-
-        bool  isConstant = index < symbols.symbols.size() && symbols.symbols[index].isConstant;
-
-
-
         cells.push_back ({ { L"   " + TextEncoding::NarrowToWide (row.name) },
-                           { isConstant ? std::format (L"{:04X} (constant)", row.address) : std::format (L"${:04X}", row.address) } });
+                           { row.isConstant ? std::format (L"{:04X} (constant)", row.address) : std::format (L"${:04X}", row.address) } });
     }
 
     return cells;
@@ -646,7 +704,9 @@ void BookmarksPane::Configure()
                           { L"Address",  0, false, DxuiTextHAlign::Left },
                           { L"Symbol",   0, true,  DxuiTextHAlign::Left } });
 
+    m_list->SetMultiSelect           (true);
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -673,9 +733,84 @@ void BookmarksPane::Configure()
 
 void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_bookmarks = snapshot.bookmarks;
+    m_bookmarks = GetSorted (snapshot.bookmarks, snapshot.symbols.get(), m_sort, m_isReverse);
     m_list->SetRows (GetCells (m_bookmarks, snapshot.symbols.get()));
     ShowNewListRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::SortBy
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same heading reverses the order. The selected bookmark is selected in
+//  its new row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BookmarksPane::SortBy (int column)
+{
+    const DebuggerViewSnapshot                      * snapshot = m_host.GetLatestSnapshot();
+    std::optional<DebuggerViewSnapshot::WatchLine>    selected = GetBookmark (m_list->GetSelectedRow());
+
+
+
+    m_isReverse = (column == m_sort) && !m_isReverse;
+    m_sort      = column;
+    m_list->SetSortIndicator (m_sort, m_isReverse);
+
+    if (snapshot == nullptr)
+    {
+        return;
+    }
+
+    Apply (*snapshot);
+
+    for (size_t row = 0; selected.has_value() && row < m_bookmarks.size(); row++)
+    {
+        if (m_bookmarks[row].id == selected->id)
+        {
+            m_list->SetSelectedRow ((int) row);
+        }
+    }
+
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::GetSorted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DebuggerViewSnapshot::WatchLine> BookmarksPane::GetSorted (std::vector<DebuggerViewSnapshot::WatchLine>   bookmarks,
+                                                                      const DebuggerViewSnapshot::SymbolsState     * symbols, int column, bool isReverse)
+{
+    if (column < 0 || column > 2)
+    {
+        return bookmarks;
+    }
+
+    std::ranges::stable_sort (bookmarks, [symbols, column, isReverse] (const DebuggerViewSnapshot::WatchLine & left, const DebuggerViewSnapshot::WatchLine & right)
+    {
+        int  order = (column == 0) ? left.id - right.id
+                   : (column == 1) ? (int) left.address - (int) right.address
+                   :                 _stricmp (FindSymbolName (symbols, left.address).c_str(), FindSymbolName (symbols, right.address).c_str());
+
+
+
+        return isReverse ? order > 0 : order < 0;
+    });
+
+    return bookmarks;
 }
 
 
@@ -722,11 +857,66 @@ bool BookmarksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
     if (bookmark.has_value())
     {
         items.push_back ({ L"Go to",  [this, at = bookmark->address] { m_host.GoToCode (at); } });
-        items.push_back ({ L"Delete", [this, id = bookmark->id]      { m_host.RunAction (DebuggerActions::GetClearBookmark (id, m_host.GetMode())); } });
+        items.push_back ({ L"Delete", [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
 
     AddCopyItem (items);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::RouteEditKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BookmarksPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
+{
+    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || ev.vk != VK_DELETE)
+    {
+        return false;
+    }
+
+    DeleteRows (GetActedRows (-1));
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::DeleteRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BookmarksPane::DeleteRows (const std::vector<int> & rows)
+{
+    std::vector<int>  ids;
+
+
+
+    for (int row : rows)
+    {
+        std::optional<DebuggerViewSnapshot::WatchLine>  bookmark = GetBookmark (row);
+
+        if (bookmark.has_value())
+        {
+            ids.push_back (bookmark->id);
+        }
+    }
+
+    std::ranges::sort (ids, std::greater<>());
+
+    for (int id : ids)
+    {
+        m_host.RunAction (WatchActions::GetClearBookmark (id, m_host.GetMode()));
+    }
 }
 
 
@@ -815,7 +1005,8 @@ std::optional<Word> BookmarksPane::GetNext (const std::vector<DebuggerViewSnapsh
 ////////////////////////////////////////////////////////////////////////////////
 
 DataBlocksPane::DataBlocksPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges")
+    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges"),
+    m_filters    (host)
 {
 }
 
@@ -835,7 +1026,17 @@ void DataBlocksPane::Configure()
                           { L"Range", 0, false, DxuiTextHAlign::Left },
                           { L"Kind",  0, true,  DxuiTextHAlign::Left } });
 
+    m_list->SetMultiSelect           (true);
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
+
+    m_filters.Attach (m_list, { kKindColumn }, [this]
+    {
+        if (m_host.GetLatestSnapshot() != nullptr)
+        {
+            Apply (*m_host.GetLatestSnapshot());
+        }
+    });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
@@ -862,9 +1063,123 @@ void DataBlocksPane::Configure()
 
 void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_blocks = snapshot.dataBlocks;
-    m_list->SetRows (GetCells (m_blocks));
+    std::vector<std::wstring>  kinds;
+
+
+
+    for (const DataBlockEntry & block : snapshot.dataBlocks)
+    {
+        kinds.push_back (GetKindText (block.kind));
+    }
+
+    m_filters.SetValues (kKindColumn, kinds);
+
+    m_blocks = GetSorted (snapshot.dataBlocks, m_sort, m_isReverse);
+    std::erase_if (m_blocks, [this] (const DataBlockEntry & block) { return !m_filters.IsShown (kKindColumn, GetKindText (block.kind)); });
+
+    if (m_blocks.empty() && !snapshot.dataBlocks.empty())
+    {
+        m_list->SetRows ({ MakeNote (L"No data ranges match the filter.") });
+    }
+    else
+    {
+        m_list->SetRows (GetCells (m_blocks));
+    }
+
     ShowNewListRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::SortBy
+//
+//  A click on a heading sorts by that column, and a second click on the
+//  same heading reverses the order. The selected block is selected in its
+//  new row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlocksPane::SortBy (int column)
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    std::optional<DataBlockEntry>    selected = GetBlock (m_list->GetSelectedRow());
+
+
+
+    m_isReverse = (column == m_sort) && !m_isReverse;
+    m_sort      = column;
+    m_list->SetSortIndicator (m_sort, m_isReverse);
+
+    if (snapshot == nullptr)
+    {
+        return;
+    }
+
+    Apply (*snapshot);
+
+    for (size_t row = 0; selected.has_value() && row < m_blocks.size(); row++)
+    {
+        if (m_blocks[row].first == selected->first)
+        {
+            m_list->SetSelectedRow ((int) row);
+        }
+    }
+
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::GetSorted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DataBlockEntry> DataBlocksPane::GetSorted (std::vector<DataBlockEntry> blocks, int column, bool isReverse)
+{
+    if (column < 0 || column > 2)
+    {
+        return blocks;
+    }
+
+    std::ranges::stable_sort (blocks, [column, isReverse] (const DataBlockEntry & left, const DataBlockEntry & right)
+    {
+        int  order = (column == 0) ? _stricmp (left.name.c_str(), right.name.c_str())
+                   : (column == 1) ? (int) left.first - (int) right.first
+                   :                 _wcsicmp (GetKindText (left.kind), GetKindText (right.kind));
+
+
+
+        return isReverse ? order > 0 : order < 0;
+    });
+
+    return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::GetKindText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DataBlocksPane::GetKindText (DataBlockKind kind)
+{
+    static constexpr const wchar_t *  s_kKinds[] = { L"Bytes", L"Words", L"Addresses", L"Text", L"Floats" };
+
+
+
+    return s_kKinds[(size_t) kind];
 }
 
 
@@ -910,12 +1225,142 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 
     if (block.has_value())
     {
-        items.push_back ({ L"Go to",  [this, at = block->first] { m_host.GoToCode (at); } });
-        items.push_back ({ L"Delete", [this, from = block->first, to = block->last] { m_host.RunAction (DebuggerActions::GetClearData (from, to, m_host.GetMode())); } });
+        items.push_back ({ L"Go to",     [this, at = block->first] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Rename...", [this, renamed = *block] { Rename (renamed); } });
+        items.push_back ({ L"Delete",    [this, rows = GetActedRows (row)] { DeleteRows (rows); } });
     }
 
     AddCopyItem (items);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::RouteEditKey
+//
+//  Delete removes the selected ranges, and F2 renames the one selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DataBlocksPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
+{
+    std::optional<DataBlockEntry>  block;
+
+
+
+    if (focused != m_list || ev.kind != DxuiKeyEventKind::Down || ev.ctrl || ev.alt || (ev.vk != VK_DELETE && ev.vk != VK_F2))
+    {
+        return false;
+    }
+
+    if (ev.vk == VK_DELETE)
+    {
+        DeleteRows (GetActedRows (-1));
+        return true;
+    }
+
+    block = GetBlock (m_list->GetSelectedRow());
+
+    if (block.has_value())
+    {
+        Rename (*block);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::Rename
+//
+//  The range is marked again, as the kind it is, under the name typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlocksPane::Rename (const DataBlockEntry & block)
+{
+    std::optional<std::wstring>  typed = m_host.RunTextDialog (L"Rename data range", L"Name", TextEncoding::NarrowToWide (block.name), [] (const std::wstring & text, std::wstring & error)
+    {
+        error = L"Type a name of letters, digits, _ and ., starting with a letter.";
+        return !text.empty() && iswalpha (text[0]) && std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
+    });
+
+
+
+    if (typed.has_value() && TextEncoding::WideToNarrow (*typed) != block.name)
+    {
+        m_host.RunAction (SymbolActions::GetMarkData (GetDirective (block), block.first, block.last, m_host.GetMode(), TextEncoding::WideToNarrow (*typed)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::GetDirective
+//
+//  The directive that marks a range of the block's kind, a digit after DB
+//  or DW for how many to a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DataBlocksPane::GetDirective (const DataBlockEntry & block)
+{
+    constexpr int  kMaxPerLineDigit = 9;
+    bool           hasDigit         = block.perLine >= 1 && block.perLine <= kMaxPerLineDigit;
+
+
+
+    switch (block.kind)
+    {
+    case DataBlockKind::Text:    return "ASC";
+    case DataBlockKind::Address: return "DA";
+    case DataBlockKind::Float:   return "DF";
+    case DataBlockKind::Words:   return hasDigit ? std::format ("DW{}", block.perLine) : std::string ("DW");
+    default:                     return hasDigit ? std::format ("DB{}", block.perLine) : std::string ("DB");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::DeleteRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlocksPane::DeleteRows (const std::vector<int> & rows)
+{
+    std::vector<DataBlockEntry>  blocks;
+
+
+
+    for (int row : rows)
+    {
+        std::optional<DataBlockEntry>  block = GetBlock (row);
+
+        if (block.has_value())
+        {
+            blocks.push_back (*block);
+        }
+    }
+
+    for (const DataBlockEntry & block : blocks)
+    {
+        m_host.RunAction (SymbolActions::GetClearData (block.first, block.last, m_host.GetMode()));
+    }
 }
 
 
@@ -930,7 +1375,6 @@ bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems &
 
 std::vector<std::vector<DxuiListView::Cell>> DataBlocksPane::GetCells (const std::vector<DataBlockEntry> & blocks)
 {
-    static constexpr const wchar_t *  kKinds[] = { L"Bytes", L"Words", L"Addresses", L"Text", L"Floats" };
     std::vector<std::vector<DxuiListView::Cell>>  cells;
 
 
@@ -938,7 +1382,7 @@ std::vector<std::vector<DxuiListView::Cell>> DataBlocksPane::GetCells (const std
     for (const DataBlockEntry & block : blocks)
     {
         cells.push_back ({ { TextEncoding::NarrowToWide (block.name) }, { std::format (L"${:04X}-${:04X}", block.first, block.last) },
-                           { kKinds[(size_t) block.kind] } });
+                           { GetKindText (block.kind) } });
     }
 
     if (cells.empty())

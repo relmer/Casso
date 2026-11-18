@@ -461,7 +461,7 @@ public:
     {
         // Refusing to name a filesystem is an answer. Guessing one would send
         // a reader at structures that are not there.
-        vector<Byte>  noise (NibblizationLayer::kImageByteSize, 0xE5);
+        vector<Byte>  noise (NibblizationLayer::kImageByteSize, 0x55);
 
         Assert::IsTrue (VolumeKind::Unknown == VolumeImage::DetectFilesystem (noise));
     }
@@ -501,7 +501,7 @@ public:
 
     TEST_METHOD (ProDos_RealDisk_ReadsAFileInsideASubdirectory)
     {
-        // /MERLIN carries real subdirectories. A deeper path is walked through
+        // /MERLIN has real subdirectories. A deeper path is walked through
         // them, and a leaf that is not in the named directory is not found
         // elsewhere by its last component.
         vector<Byte>   disk = Load (kProDosMerlin);
@@ -554,7 +554,7 @@ public:
             }
         }
 
-        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
 
         AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
         AssertSucceeded (volume.BuildIntegrityReport (report));
@@ -657,7 +657,7 @@ public:
             }
         }
 
-        Assert::IsFalse (directory.empty(), L"this disk must carry a subdirectory");
+        Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
 
         AssertSucceeded (volume.EnumerateDirectory (FilePath::Parse (directory), inside));
 

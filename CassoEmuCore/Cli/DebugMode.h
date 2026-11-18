@@ -23,7 +23,7 @@ public:
     static HRESULT  Run (const CommandLineOptions & options, int & exitCode);
 
 private:
-    static HRESULT  ReadScript (const std::string & path, std::string & text);
-    static void     ListInstances  (bool isJson, int & exitCode);
-    static HRESULT  AttachAndRun   (const CommandLineOptions & options, const std::string & script, int & exitCode);
+    static HRESULT  ReadScript    (const std::string & path, std::string & text);
+    static void     ListInstances (bool isJson, int & exitCode);
+    static HRESULT  AttachAndRun  (const CommandLineOptions & options, const std::string & script, int & exitCode);
 };

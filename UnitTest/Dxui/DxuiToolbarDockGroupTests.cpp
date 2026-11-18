@@ -26,7 +26,7 @@ public:
     explicit BandTestEntry (int widthPx) : m_widthPx (widthPx) {}
 
     int              GetWidthPx    (bool, const DxuiDpiScaler &, IDxuiTextRenderer *) const override { return m_widthPx; }
-    int              GetMinWidthPx (const DxuiDpiScaler &) const                             override { return m_widthPx; }
+    int              GetMinWidthPx (bool, const DxuiDpiScaler &, IDxuiTextRenderer *) const override { return m_widthPx; }
     void             Layout        (const RECT &, bool, const DxuiDpiScaler &)              override {}
     void             Paint         (IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &, bool, bool, bool) override {}
     const wchar_t *  GetTooltipAt  (int, int, RECT &) const                                 override { return nullptr; }
@@ -159,7 +159,7 @@ public:
 
         entries[0].command       = command;
         entries[0].custom        = &custom;
-        entries[0].neverOverflow = true;
+        entries[0].pinned        = true;
         entries[0].fill          = fill;
 
         bar.SetGrabHandle (true);

@@ -79,6 +79,12 @@ public:
     //  run code, so they are heard like any other run.
     bool     IsSilent        () const { return m_isRunning && m_isStep; }
 
+    //  True while any step runs: step into and trace, and step over and step
+    //  out, which run a call through to its return. No debugger view is
+    //  built during one, so a step key pressed down doesn't flash the running
+    //  state between steps.
+    bool     IsStepping      () const { return m_isRunning && (m_isStep || m_isStepRun); }
+
 private:
     void     Finish          (StopReason reason, uint64_t cycles);
 
@@ -95,6 +101,7 @@ private:
     bool                     m_pauseRequested = false;
     double                   m_pauseFraction  = 0.0;
     bool                     m_isStep         = false;
+    bool                     m_isStepRun      = false;   // step over or step out
     uint64_t                 m_spent          = 0;
     std::optional<uint64_t>  m_budget;
 

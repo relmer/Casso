@@ -51,6 +51,17 @@ public:
     void  SetOnBrowse       (BrowseFn fn)              { m_attachment.SetOnBrowse (std::move (fn)); }
     void  SetSerialPorts    (IHostSerialPorts * ports) { m_attachment.SetSerialPorts (ports); }
 
+    // Reports a change a switch made on another tab, such as the ImageWriter
+    // II disconnected when the card is switched out of printer mode.
+    void  SetOnNotice       (std::function<void (const std::wstring &)> fn) { m_onNotice = std::move (fn); }
+
+    //  The sentence for an Uthernet II port the card's connector has, empty
+    //  when there is none; read again by SyncListenProblem each dialog tick.
+    void                  SetListenProblem  (std::function<std::wstring ()> fn) { m_listenProblem = std::move (fn); SyncListenProblem(); }
+    void                  SyncListenProblem ();
+    const std::wstring  & GetListenText     () const { return m_listenBanner.GetText(); }
+    bool                  IsListenShown     () const { return m_listenBanner.IsVisible(); }
+
     void  Layout   (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild  ();
 
@@ -85,8 +96,11 @@ private:
     SettingsPanelState *     m_state     = nullptr;
     DxuiHwndSource *         m_popupHost = nullptr;
     std::function<void()>    m_onDownload;
+    std::function<void (const std::wstring &)>  m_onNotice;
 
     DxuiInfoBanner           m_firmwareBanner;
+    DxuiInfoBanner           m_listenBanner;
+    std::function<std::wstring ()>  m_listenProblem;
     DxuiButton               m_download;
     bool                     m_offerDownload = false;
 

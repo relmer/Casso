@@ -33,20 +33,20 @@ public:
 private:
     using Lines = std::vector<std::string>;
 
-    static bool         TryFormatData       (const std::string & name, const ReplyData & data, Lines & lines);
-    static std::string  FormatRegister      (const Cpu6502Registers & registers, const std::string & name);
-    static void         FormatBytes         (const MemoryData         & data, Lines & lines);
-    static void         FormatUnits         (const MemoryData         & data, size_t unit, Lines & lines);
-    static void         FormatString        (const MemoryData         & data, Lines & lines);
-    static void         FormatDisassembly   (const DisassemblyData    & data, Lines & lines);
-    static void         FormatBreakpoints   (const BreakpointListData & data, Lines & lines);
-    static std::string  DescribeTarget      (const BreakpointInfo & breakpoint);
-    static void         FormatCallStack     (const CallStackData      & data, Lines & lines);
-    static void         FormatEvaluation    (const CalcData           & data, Lines & lines);
-    static void         FormatFormats       (const CalcData           & data, Lines & lines);
-    static std::string  FormatCallFrame     (const CallStackFrame & frame);
+    static bool         TryFormatData         (const std::string & name, const ReplyData & data, Lines & lines);
+    static std::string  FormatRegister        (const Cpu6502Registers & registers, const std::string & name);
+    static void         FormatBytes           (const MemoryData         & data, Lines & lines);
+    static void         FormatUnits           (const MemoryData         & data, size_t unit, Lines & lines);
+    static void         FormatString          (const MemoryData         & data, Lines & lines);
+    static void         FormatDisassembly     (const DisassemblyData    & data, Lines & lines);
+    static void         FormatBreakpoints     (const BreakpointListData & data, Lines & lines);
+    static std::string  DescribeTarget        (const BreakpointInfo & breakpoint);
+    static void         FormatCallStack       (const CallStackData      & data, Lines & lines);
+    static void         FormatEvaluation      (const CalcData           & data, Lines & lines);
+    static void         FormatFormats         (const CalcData           & data, Lines & lines);
+    static std::string  FormatCallFrame       (const CallStackFrame & frame);
     static std::string  FormatBreakpointFlags (const BreakpointInfo & breakpoint);
-    static std::string  GetCommandName      (const std::string & command);
+    static std::string  GetCommandName        (const std::string & command);
 
     //  The dump's bytes in order, from the first row's address.
     static std::vector<std::optional<Byte>>  GetBytes (const MemoryData & data);

@@ -36,8 +36,19 @@ public:
     static std::string  GetLineComment (const std::string & line);
 
     //  The defining line's place, (file, line), from the lines and their
-    //  first addresses; none when no line starts at the address.
-    static std::optional<std::pair<int, int>>  FindDefiningLine (const std::map<std::pair<int, int>, Word> & lineAddresses, Word address);
+    //  first addresses; none when no line starts at the address. Of several
+    //  lines starting there, the first isLabelLine accepts, else the earliest.
+    static std::optional<std::pair<int, int>>  FindDefiningLine (const std::map<std::pair<int, int>, Word> & lineAddresses, Word address,
+                                                                 const std::function<bool (int fileId, int line)> & isLabelLine = {});
+
+    //  The line defining the label at an address: of the lines starting
+    //  there, as a macro's call and the lines of its body all do, the one
+    //  with a label in its first column. None with no source loaded.
+    std::optional<std::pair<int, int>>  FindLabelLine (Word address, const FindFn & find);
+
+    //  Whether a source line starts with a label: anything but a blank or a
+    //  comment in its first column.
+    static bool  IsLabelLine (const std::string & text);
 
     //  The comment of the defining line, or of the line above it when that
     //  line is the label alone.

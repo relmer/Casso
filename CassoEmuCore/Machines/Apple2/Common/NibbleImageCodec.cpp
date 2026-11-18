@@ -9,6 +9,27 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NibbleImageCodec::GetTrackSizeForPath
+//
+//  The track size a new image gets from its name: .nb2's, and otherwise .nib's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t NibbleImageCodec::GetTrackSizeForPath (const std::string & path)
+{
+    bool  nb2 = path.size() >= 4 && _stricmp (path.c_str() + path.size() - 4, ".nb2") == 0;
+
+
+
+    return nb2 ? kNb2TrackSize : kNibTrackSize;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  NibbleImageCodec::ResolveGeometry
 //
 //  Which track size a file of this length must hold.

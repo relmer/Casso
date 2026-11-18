@@ -16,7 +16,7 @@
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/SymbolDescriptions.h"
-#include "Cassque/CassquePromptDialog.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
@@ -32,6 +32,9 @@
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineText.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
@@ -156,6 +159,49 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::UpdatePaneTooltip
+//
+//  Outside a mouse event no window's event is being routed, so the tip of a
+//  floating pane is routed as an event from its window would be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdatePaneTooltip (const std::wstring & pane, POINT clientPx)
+{
+    FloatingPanes::RouteScope  scope (*m_floating, m_floating->Contains (pane) ? pane : std::wstring());
+
+
+
+    UpdateTooltip (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsPaneTooltipVisible
+//
+//  Whether the tooltip of the window the pane is in now is up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsPaneTooltipVisible (const std::wstring & pane) const
+{
+    const DxuiTooltip  * tip = m_floating->Contains (pane) ? m_floating->FindTip (pane) : &m_tooltip;
+
+
+
+    return tip != nullptr && tip->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::FindOperandTipView
 //
 //  The disassembly view under a point in the window the event being routed
@@ -194,7 +240,9 @@ int DebuggerWindow::FindOperandTipView (POINT clientPx) const
 //
 //  DebuggerWindow::TryFindOperandTipRow
 //
-//  The disassembly view and row whose operand and result lie under a point.
+//  The view and row under a point: a disassembly row, a line of the BASIC
+//  program, or a line of a source document in front. Any part of the row
+//  counts, since the tip covers the whole row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,32 +251,79 @@ bool DebuggerWindow::TryFindOperandTipRow (
     int    & view,
     int    & row) const
 {
-    HRESULT          hr     = S_OK;
-    DxuiListView   * list   = nullptr;
-    DxuiListView   * basic  = (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
-    RECT             bounds = {};
-    bool             isOver = false;
+    HRESULT          hr       = S_OK;
+    DxuiListView   * list     = nullptr;
+    DxuiListView   * basic    = (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
+    RECT             bounds   = {};
+    bool             isOver   = false;
 
 
 
     view = FindOperandTipView (clientPx);
     row  = -1;
 
-    //  Off the disassembly, the BASIC program's values.
+    //  Off the disassembly, the BASIC program, then the source documents.
     if (view < 0 && basic != nullptr && IsRoutable (basic) && basic->IsVisible() && DxuiDockSite::Contains (basic->GetBounds(), clientPx))
     {
         view = kBasicTipView;
     }
 
+    if (view < 0)
+    {
+        isOver = TryFindSourceTipRow (clientPx, view, row);
+    }
+
+    //  A source document's view has a text view, not a list.
     list = (view >= 0) ? GetTipList (view) : nullptr;
     CBR (list != nullptr);
 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    isOver = row >= 0 && GetColumnAt (list, clientPx.x - bounds.left) == (int) GetTipColumn (view);
+    isOver = row >= 0;
 
 Error:
     return isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryFindSourceTipRow
+//
+//  The line of a source document in front under a point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryFindSourceTipRow (
+    POINT    clientPx,
+    int    & view,
+    int    & row) const
+{
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+        DxuiTextView              * text     = document.GetView();
+        int                         at       = -1;
+
+        if (!document.IsShown() || !text->IsVisible() || !IsRoutable (text) || !DxuiDockSite::Contains (text->GetBounds(), clientPx))
+        {
+            continue;
+        }
+
+        at = text->HitTest (clientPx).row;
+
+        if (at >= 0 && at < (int) text->GetRows().size())
+        {
+            view = kSourceTipView + slot;
+            row  = at;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -248,7 +343,7 @@ DxuiListView * DebuggerWindow::GetTipList (int view) const
         return (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
     }
 
-    return m_code->GetCodeList (view);
+    return (view < kBasicTipView) ? m_code->GetCodeList (view) : nullptr;
 }
 
 
@@ -257,13 +352,116 @@ DxuiListView * DebuggerWindow::GetTipList (int view) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetTipColumn
+//  DebuggerWindow::GetTipTextView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DebuggerWindow::GetTipColumn (int view) const
+DxuiTextView * DebuggerWindow::GetTipTextView (int view) const
 {
-    return (view == kBasicTipView) ? BasicProgramPane::kValuesColumn : (size_t) kCodeOperandColumn;
+    int  slot = view - kSourceTipView;
+
+
+
+    return (slot >= 0 && slot < SourceDocuments::kMaxDocuments) ? m_sources->GetDocument (slot).GetView() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTipParts
+//
+//  A disassembly row's operand and result, its code from the instruction
+//  column, and the symbol its operand is written with; a source row's parts
+//  where it was filled with them. A source line's operand and result, its
+//  code past its label, and the symbol its operand is written with. The
+//  BASIC program's lines have no such parts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
+{
+    OperandTipParts                  parts;
+    DxuiTextView                   * text      = GetTipTextView (view);
+    const DxuiTextView::Row        * textRow   = nullptr;
+    bool                             hasSymbol = false;
+    bool                             hasLine   = false;
+    DisassemblyCells::SourceParts    source;
+
+
+
+    if (view == kBasicTipView)
+    {
+        return parts;
+    }
+
+    if (text == nullptr)
+    {
+        parts.operandColumn = kCodeOperandColumn;
+        parts.codeColumn    = kCodeInstructionColumn;
+        parts.rowColumn     = DisassemblyCells::kAddressColumn;
+
+        if (m_code->TryGetSourceParts (view, row, source))
+        {
+            parts.operandColumn = source.operandColumn;
+            parts.operandChar   = source.operandChar;
+            parts.commentChar   = source.commentChar;
+            parts.codeColumn    = source.codeColumn;
+            parts.codeChar      = source.codeChar;
+        }
+
+        //  The disassembly's operand column has the symbol already
+        //  (DisassemblyGroup::AddOperandSymbol); the tip finds it there and
+        //  doesn't add it again.
+        hasSymbol = m_code->TryGetOperandSymbol (view, row, parts.symbol);
+        IGNORE_RETURN_VALUE (hasSymbol, false);
+        return parts;
+    }
+
+    parts.operandColumn = (size_t) SourceRows::kAnnotationCell;
+    parts.codeColumn    = (size_t) SourceRows::kTextCell;
+    parts.rowColumn     = (size_t) SourceRows::kNumberCell;
+
+    hasLine = row >= 0 && row < (int) text->GetRows().size() && text->GetRows()[(size_t) row].cells.size() > (size_t) SourceRows::kTextCell;
+
+    if (!hasLine)
+    {
+        return parts;
+    }
+
+    textRow          = &text->GetRows()[(size_t) row];
+    parts.codeChar = SourceLineText::FindCodeStart (textRow->cells[(size_t) SourceRows::kTextCell]);
+
+    if (m_snapshot != nullptr && m_snapshot->symbols != nullptr && textRow->cells.size() > (size_t) SourceRows::kAnnotationCell &&
+        !textRow->cells[(size_t) SourceRows::kAnnotationCell].empty())
+    {
+        hasSymbol = SourceLineText::TryGetOperandSymbolText (textRow->cells[(size_t) SourceRows::kTextCell], parts.codeChar, m_snapshot->symbols->symbols, parts.symbol);
+        IGNORE_RETURN_VALUE (hasSymbol, false);
+    }
+
+    return parts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTipPaneId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetTipPaneId (int view) const
+{
+    if (view >= kSourceTipView)
+    {
+        return DebuggerLayout::GetSourcePaneId (view - kSourceTipView);
+    }
+
+    return (view == kBasicTipView) ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (view);
 }
 
 
@@ -297,10 +495,10 @@ bool DebuggerWindow::IsOperandTipCovered (
 
 
     //  The zoom popup and a slid pane lie over this window's panes only.
-    isCovered = isMain && m_zoomOpen && Meets (m_zoomRect, clientPx, tipRect);
+    isCovered = isMain && m_windowZoom.IsOpen() && Meets (m_windowZoom.GetPanelRect(), clientPx, tipRect);
 
     isCovered = isCovered || (isMain && m_dockSite != nullptr && !m_dockSite->GetSlidPane().empty() &&
-                              m_dockSite->GetSlidPane() != (view == kBasicTipView ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (view)) &&
+                              m_dockSite->GetSlidPane() != GetTipPaneId (view) &&
                               Meets (m_dockSite->GetSlidRect(), clientPx, tipRect));
 
     isCovered = isCovered || (m_colorKeys->TryGetPinnedRect (pinned) && Meets (pinned, clientPx, tipRect));
@@ -347,23 +545,29 @@ bool DebuggerWindow::Meets (
 //
 //  DebuggerWindow::TryGetRoutedTip
 //
-//  A floating window has its site's title bar and tabs, and the panes'
-//  controls, which are this window's children. A point there is tested
-//  against the site first, then only against the controls of the panes in
-//  that window.
+//  A floating window has its site's title bar and tabs, and the controls of
+//  the panes in it, which move out of this window into that one. A point
+//  there is tested against the site first, then against that window's
+//  controls; none of this window's lie under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::TryGetRoutedTip (POINT clientPx, DxuiTip & tip) const
 {
-    const std::wstring  & routing = m_floating->GetRoutingPane();
-    const DxuiDockSite  * site    = routing.empty() ? nullptr : m_floating->FindSite (routing);
+    const std::wstring      & routing = m_floating->GetRoutingPane();
+    const DxuiDockSite      * site    = routing.empty() ? nullptr : m_floating->FindSite (routing);
+    const DxuiDockedWindow  * window  = routing.empty() ? nullptr : m_floating->Find (routing);
 
 
 
     if (site != nullptr && site->IsHitAt (clientPx))
     {
         return site->TryGetTip (clientPx, tip);
+    }
+
+    if (window != nullptr)
+    {
+        return window->TryGetTip (clientPx, tip);
     }
 
     return TryGetTip (clientPx, tip);
@@ -378,7 +582,8 @@ bool DebuggerWindow::TryGetRoutedTip (POINT clientPx, DxuiTip & tip) const
 //  DebuggerWindow::TryGetTip
 //
 //  The zoom popup and a pinned color key are drawn over the panes but are
-//  not controls, so over them no control's tip opens.
+//  not controls, so over them no control's tip opens, except over the popup's
+//  percentage, which has a tip for the click that sets 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -389,9 +594,16 @@ bool DebuggerWindow::TryGetTip (POINT clientPx, DxuiTip & tip) const
 
 
 
-    if (isMain && m_zoomOpen && DxuiDockSite::Contains (m_zoomRect, clientPx))
+    if (isMain && m_windowZoom.IsOpen() && DxuiDockSite::Contains (m_windowZoom.GetPanelRect(), clientPx))
     {
-        return false;
+        if (!DxuiDockSite::Contains (GetZoomResetRect(), clientPx))
+        {
+            return false;
+        }
+
+        tip.text   = DebuggerStatusText::GetZoomResetTip();
+        tip.anchor = GetZoomResetRect();
+        return true;
     }
 
     if (isMain && m_colorKeys->TryGetPinnedRect (pinned) && DxuiDockSite::Contains (pinned, clientPx))
@@ -501,7 +713,9 @@ bool DebuggerWindow::MarkImmediate (bool isFound, DxuiTip & tip)
 //  Over a disassembly row: the PC's branch arrow, or a symbol and what the
 //  color of its cell means. A symbol's tip is code, so it reads in the
 //  fixed-width face. Over the heat column, the cell's heat. Elsewhere the
-//  list has its cells' tips.
+//  list has its cells' tips. A row whose in-place tip is up with its
+//  operand's symbol in it has no tip for that symbol; its label's and any
+//  other symbol's come up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -511,6 +725,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
     RECT          anchor   = {};
     std::wstring  text;
     DxuiTip       colorTip;
+    bool          isFolded = m_operandTips->IsSymbolShownAt (clientPx) && m_code->IsOperandSymbolAt (clientPx);
 
 
 
@@ -519,7 +734,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
         return true;
     }
 
-    if (!m_code->TryGetSymbolTip (clientPx, anchor, text))
+    if (isFolded || !m_code->TryGetSymbolTip (clientPx, anchor, text))
     {
         return GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
                list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip);
@@ -546,22 +761,27 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 //  DebuggerWindow::TryGetSourceSymbolTip
 //
 //  Over a word of a source document, the symbol it is, in the fixed-width
-//  face since it is code.
+//  face since it is code; none for the operand's symbol on a line whose
+//  in-place tip is up with that symbol in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip) const
+bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip)
 {
-    std::wstring  text;
-    RECT          anchor = {};
+    std::wstring        text;
+    RECT                anchor = {};
+    const SymbolInfo  * found  = nullptr;
 
 
 
     if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() ||
-        !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor))
+        (m_operandTips->IsSymbolShownAt (clientPx) && document.GetModel().IsOperandSymbolAt (clientPx, m_snapshot->symbols->symbols)) ||
+        !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor, &found))
     {
         return false;
     }
+
+    SourceLineText::AppendSymbolDetails (text, found->name, found->address, found->isConstant, *m_snapshot, GetSymbolComment (found->address, found->name));
 
     tip             = DxuiTip();
     tip.anchor      = anchor;

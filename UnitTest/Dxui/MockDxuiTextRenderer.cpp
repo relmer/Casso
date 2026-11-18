@@ -35,11 +35,11 @@ HRESULT MockDxuiTextRenderer::DrawString (
     float                heightDip,
     uint32_t             argbColor,
     float                fontSizeDip,
-    const wchar_t      * /*fontFamily*/,
+    const wchar_t      * fontFamily,
     DxuiTextHAlign       hAlign,
     DxuiTextVAlign       vAlign,
     DxuiFontWeight       weight,
-    bool                 /*wrap*/)
+    bool                 wrap)
 {
     RecordedTextCall  call;
 
@@ -53,9 +53,11 @@ HRESULT MockDxuiTextRenderer::DrawString (
     call.height      = heightDip;
     call.argb        = argbColor;
     call.fontSizeDip = fontSizeDip;
+    call.fontFamily  = (fontFamily != nullptr) ? fontFamily : L"";
     call.hAlign      = hAlign;
     call.vAlign      = vAlign;
     call.weight      = weight;
+    call.wrap        = wrap;
     m_calls.push_back (call);
 
     return S_OK;
@@ -142,17 +144,74 @@ HRESULT MockDxuiTextRenderer::FillRect (float xDip, float yDip, float widthDip, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MockDxuiTextRenderer::DrawLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::DrawLine (float x0Dip, float y0Dip, float x1Dip, float y1Dip, float thicknessDip, uint32_t argbColor)
+{
+    RecordedTextCall  call;
+
+
+
+    (void) thicknessDip;
+
+    call.kind   = RecordedTextKind::DrawLine;
+    call.x      = x0Dip;
+    call.y      = y0Dip;
+    call.width  = x1Dip;
+    call.height = y1Dip;
+    call.argb   = argbColor;
+    m_calls.push_back (call);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockDxuiTextRenderer::FillVectorIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::FillVectorIcon (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent)
+{
+    RecordedVectorIconCall  call;
+
+
+
+    call.icon       = &icon;
+    call.x          = xDip;
+    call.y          = yDip;
+    call.size       = sizeDip;
+    call.foreground = foreground;
+    call.accent     = accent;
+    m_vectorIconCalls.push_back (call);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureString
 //
 //  Returns the canned size if the caller registered one for the
 //  exact text; otherwise width = text.size() * 7.0f, height = 16.0f.
+//  Records the face of the last call.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MockDxuiTextRenderer::MeasureString (
     const wchar_t * text,
     float           /*fontSizeDip*/,
-    const wchar_t * /*fontFamily*/,
+    const wchar_t * fontFamily,
     float         & outWidthDip,
     float         & outHeightDip)
 {
@@ -162,6 +221,8 @@ HRESULT MockDxuiTextRenderer::MeasureString (
     auto             it                       = m_cannedMetrics.find (key);
 
 
+
+    m_lastMeasureFamily = (fontFamily != nullptr) ? fontFamily : L"";
 
     if (m_measureReturnsZero)
     {
@@ -238,6 +299,40 @@ int MockDxuiTextRenderer::CountWrappedLines (const std::wstring & text,
     }
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureStringWeighted
+//
+//  With a bold glyph width set, text measured bold is that wide a
+//  character; otherwise as MeasureString.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::MeasureStringWeighted (
+    const wchar_t * text,
+    float           fontSizeDip,
+    const wchar_t * fontFamily,
+    DxuiFontWeight  weight,
+    float         & outWidthDip,
+    float         & outHeightDip)
+{
+    HRESULT  hr   = MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    bool     bold = ((int) weight & 0xFFFF) >= (int) DxuiFontWeight::Bold;
+
+
+
+    if (SUCCEEDED (hr) && bold && m_boldGlyphWidthDip > 0.0f && text != nullptr)
+    {
+        outWidthDip = (float) wcslen (text) * m_boldGlyphWidthDip;
+    }
+
+    return hr;
 }
 
 

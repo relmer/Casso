@@ -154,3 +154,18 @@ uint32_t PrinterByteRing::GetFreeBytes() const noexcept
 
     return kByteRingCapacity - inFlight;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Clear
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterByteRing::Clear() noexcept
+{
+    m_head.store (m_tail.load (std::memory_order_relaxed), std::memory_order_release);
+}

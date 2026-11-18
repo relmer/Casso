@@ -41,6 +41,33 @@ public:
         return e;
     }
 
+    //  A SCSI CARD'S DRIVES ARE ROWS UNDER ITS SLOT, each with its image. No
+    //  hard disk has a real timing row.
+    TEST_METHOD (BuildNodes_BlockCardDrivesAndRealTiming)
+    {
+        std::vector<HardwareEntry>  entries;
+        std::vector<DxuiTreeNode>   nodes;
+        HardwareEntry               scsi = MakeEntry (HardwareEntryKind::Slot, "Slot 7: Apple II SCSI Card", CapabilityFlag::Optional, true);
+
+
+
+        scsi.slot           = 7;
+        scsi.type           = "apple-scsi-card";
+        scsi.ports          = { "", "hd20sc", "", "", "", "", "hd20sc" };
+        scsi.portImages     = { "", "C:\\disks\\Total Replay.hdv", "", "", "", "", "stock" };
+        scsi.portRealTiming = { false, true, false, false, false, false, false };
+        entries.push_back (scsi);
+
+        nodes = HardwarePage::BuildNodes (entries);
+
+        Assert::AreEqual<size_t> (2u, nodes[0].children[0].children.size(), L"one row per drive");
+        Assert::AreEqual (std::wstring (L"SCSI ID 1: Apple Hard Disk 20SC (Total Replay.hdv)"), nodes[0].children[0].children[0].label);
+        Assert::AreEqual (std::wstring (L"SCSI ID 6: Apple Hard Disk 20SC (Stock hard disk.hdv)"), nodes[0].children[0].children[1].label);
+        Assert::IsTrue   (nodes[0].children[0].children[0].children.empty(), L"no real timing row for ID 1");
+        Assert::IsTrue   (nodes[0].children[0].children[1].children.empty(), L"no real timing row for ID 6");
+    }
+
+
     TEST_METHOD (BuildNodes_GroupsInternalAndSlotsSeparately)
     {
         std::vector<HardwareEntry>  entries;
@@ -241,6 +268,61 @@ public:
         }
 
         Assert::IsTrue (checkedRows > 0, L"the rows were looked at");
+    }
+
+    TEST_METHOD (SerialChoices_AreNothingTheTcpPortAndEachComPort)
+    {
+        std::vector<std::wstring>  labels;
+        std::vector<std::string>   devices;
+        int                        selected = -1;
+
+        HardwarePage::BuildSerialChoices (2, { L"COM3", L"COM4" }, "", labels, devices, selected);
+
+        Assert::IsTrue (devices == std::vector<std::string> ({ "", "tcp:6502", "com:COM3", "com:COM4" }));
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Not connected", L"TCP port 6502 on this PC", L"COM3", L"COM4" }));
+        Assert::AreEqual (0, selected);
+    }
+
+
+    //  The printer is connected on the Printing tab, and listed only on the
+    //  port that has it.
+    TEST_METHOD (SerialChoices_ListThePrinterOnlyWhereItIs)
+    {
+        std::vector<std::wstring>  labels;
+        std::vector<std::string>   devices;
+        int                        selected = -1;
+
+        HardwarePage::BuildSerialChoices (1, {}, "imagewriter", labels, devices, selected);
+
+        Assert::AreEqual (2, selected);
+        Assert::AreEqual (std::wstring (L"ImageWriter II"), labels[2]);
+    }
+
+
+    TEST_METHOD (SerialChoices_SelectTheCurrentDevice)
+    {
+        std::vector<std::wstring>  labels;
+        std::vector<std::string>   devices;
+        int                        selected = -1;
+
+        HardwarePage::BuildSerialChoices (1, { L"COM3" }, "com:COM3", labels, devices, selected);
+
+        Assert::AreEqual (2, selected);
+        Assert::AreEqual (std::string ("tcp:6501"), devices[1], L"port 1's own TCP port");
+    }
+
+
+    TEST_METHOD (SerialChoices_KeepADeviceTypedIntoTheConfiguration)
+    {
+        std::vector<std::wstring>  labels;
+        std::vector<std::string>   devices;
+        int                        selected = -1;
+
+        HardwarePage::BuildSerialChoices (2, {}, "com:COM9@9600", labels, devices, selected);
+
+        Assert::AreEqual<size_t> (3, devices.size());
+        Assert::AreEqual (2, selected);
+        Assert::AreEqual (std::wstring (L"COM9 at 9600 baud"), labels[2]);
     }
 };
 

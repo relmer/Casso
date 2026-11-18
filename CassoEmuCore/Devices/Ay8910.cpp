@@ -857,37 +857,23 @@ void Ay8910::AppendChannelLevels (const std::string & title, DiagnosticsMeters &
 //
 //  SaveState
 //
+//  THE TONE, NOISE AND ENVELOPE GENERATORS ARE NOT SAVED. They are advanced
+//  by the host's audio thread, one output sample at a time, so how far they
+//  have gone at a given cycle depends on when the audio device pulled
+//  samples, and a replay of history never matches it. Saved, they made every
+//  replay of a Mockingboard program differ from its keyframes, and history
+//  was cut there. The guest reads back only the registers, so the registers,
+//  the latch and the record of the bus's writes are the chip's machine
+//  state; the generators go on from where the host has them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Ay8910::SaveState (StateWriter & writer) const
 {
-    int   i = 0;
-
-
-
     writer.BeginSection (kStateTag, kStateVersion);
 
     writer.WriteBytes (m_regs, kRegCount);
     writer.WriteByte  (m_latched);
-
-    StateFloat::Write (writer, m_tickAccum);
-
-    for (i = 0; i < 3; i++)
-    {
-        writer.WriteUInt32 (static_cast<uint32_t> (m_toneCounter[i]));
-        writer.WriteUInt32 (static_cast<uint32_t> (m_toneState[i]));
-    }
-
-    writer.WriteUInt32 (static_cast<uint32_t> (m_noiseCounter));
-    writer.WriteUInt32 (m_lfsr);
-    writer.WriteUInt32 (static_cast<uint32_t> (m_envCounter));
-    writer.WriteUInt32 (static_cast<uint32_t> (m_envLevel));
-    writer.WriteBool   (m_envDirUp);
-    writer.WriteBool   (m_envHolding);
-    writer.WriteBool   (m_envCont);
-    writer.WriteBool   (m_envAttack);
-    writer.WriteBool   (m_envAlt);
-    writer.WriteBool   (m_envHold);
 
     writer.WriteUInt32 (m_writeCount);
     writer.WriteBool   (m_hasLastWrite);
@@ -905,22 +891,22 @@ HRESULT Ay8910::SaveState (StateWriter & writer) const
 //
 //  LoadState
 //
-//  The envelope level indexes the volume table, so a level outside 0-15
-//  fails the load.
+//  A state before version 3 has the tone, noise and envelope generators
+//  after the latch, which are read and dropped (see SaveState); version
+//  1 has no record of the bus's writes after them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Ay8910::LoadState (StateReader & reader)
 {
-    constexpr uint16_t  kFirstWithWrites = 2;
-    HRESULT             hr               = S_OK;
-    uint16_t            version          = 0;
-    uint32_t            toneCounter[3]   = {};
-    uint32_t            toneState[3]     = {};
-    uint32_t            noiseCounter     = 0;
-    uint32_t            envCounter       = 0;
-    uint32_t            envLevel         = 0;
-    int                 i                = 0;
+    constexpr uint16_t  kFirstWithWrites        = 2;
+    constexpr uint16_t  kFirstWithoutGenerators = 3;
+    HRESULT             hr                      = S_OK;
+    uint16_t            version                 = 0;
+    double              tickAccum               = 0.0;
+    uint32_t            dropped                 = 0;
+    bool                droppedFlag             = false;
+    int                 i                       = 0;
 
 
 
@@ -930,24 +916,22 @@ HRESULT Ay8910::LoadState (StateReader & reader)
     reader.ReadBytes (m_regs, kRegCount);
     reader.ReadByte  (m_latched);
 
-    StateFloat::Read (reader, m_tickAccum);
-
-    for (i = 0; i < 3; i++)
+    if (version < kFirstWithoutGenerators)
     {
-        reader.ReadUInt32 (toneCounter[i]);
-        reader.ReadUInt32 (toneState[i]);
-    }
+        StateFloat::Read (reader, tickAccum);
 
-    reader.ReadUInt32 (noiseCounter);
-    reader.ReadUInt32 (m_lfsr);
-    reader.ReadUInt32 (envCounter);
-    reader.ReadUInt32 (envLevel);
-    reader.ReadBool   (m_envDirUp);
-    reader.ReadBool   (m_envHolding);
-    reader.ReadBool   (m_envCont);
-    reader.ReadBool   (m_envAttack);
-    reader.ReadBool   (m_envAlt);
-    reader.ReadBool   (m_envHold);
+        //  Three tone channels' counter and state, then the noise counter,
+        //  the LFSR, the envelope's counter and level, and its six flags.
+        for (i = 0; i < 3 * 2 + 4; i++)
+        {
+            reader.ReadUInt32 (dropped);
+        }
+
+        for (i = 0; i < 6; i++)
+        {
+            reader.ReadBool (droppedFlag);
+        }
+    }
 
     m_writeCount     = 0;
     m_hasLastWrite   = false;
@@ -965,18 +949,7 @@ HRESULT Ay8910::LoadState (StateReader & reader)
     hr = reader.EndSection();
     CHR (hr);
 
-    CBREx (envLevel <= static_cast<uint32_t> (kMaxEnvLevel), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    for (i = 0; i < 3; i++)
-    {
-        m_toneCounter[i] = static_cast<int> (toneCounter[i]);
-        m_toneState[i]   = static_cast<int> (toneState[i]);
-    }
-
-    m_noiseCounter = static_cast<int> (noiseCounter);
-    m_envCounter   = static_cast<int> (envCounter);
-    m_envLevel     = static_cast<int> (envLevel);
-
 Error:
     return hr;
 }
+

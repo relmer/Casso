@@ -121,10 +121,28 @@ private:
         std::vector<Piece>    strip;
         std::vector<Picture>  pictures;
         int                   leadingDip = 0;
+
+        // A line with one part linked: the text before the link, the link and
+        // the text after it, placed side by side at paint time, when their
+        // widths can be measured. Null on every other run.
+        IDxuiControl *  linkBefore = nullptr;
+        IDxuiControl *  link       = nullptr;
+        IDxuiControl *  linkAfter  = nullptr;
+        std::wstring    beforeText;
+        std::wstring    linkText;
+        RECT            rowPx      = {};
     };
 
     // Builds a strip run's pieces, one label per text piece.
     void  BuildStripRow   (const DialogTextRun & run, Item & item);
+
+    // Builds a run with one part of its line linked: a label, the link and a
+    // label. False, building nothing, when the run links no part of its text.
+    bool  BuildLinkRow    (const DialogTextRun & run, Item & item);
+
+    // Places each linked line's three pieces side by side, measured by the
+    // renderer that is about to draw them.
+    void  PlaceLinkRows   (IDxuiTextRenderer & text);
 
     // Builds a run led by a picture. False, building nothing, when the run
     // has no leading picture with pixels.
@@ -139,7 +157,7 @@ private:
     static int   EstimateLineCount (const std::wstring & text, size_t wrapColumns);
 
     // The height a run takes on its own: its lines, or its picture, with room
-    // around it when it carries one.
+    // around it when it has one.
     static int   RawItemHeightDip  (const Item & item);
 
     // The height a run takes in this body. Every run led by a picture takes
@@ -173,9 +191,10 @@ private:
     int                    m_leftColDip   = 0;
     int                    m_rightColDip  = 0;
 
+    DxuiDpiScaler          m_scaler;
+
     wchar_t                m_glyph        = 0;
     uint32_t               m_glyphArgb    = 0;
     int                    m_glyphSizeDip = 0;
     RECT                   m_glyphRectPx  = {};
-    DxuiDpiScaler          m_scaler;
 };

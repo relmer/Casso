@@ -60,12 +60,41 @@ public:
     //  It contains Apple's ProDOS, so it is fetched rather than committed too.
     static std::vector<Byte>  RequireKermitDisk();
 
+    //  Gutenberg, Jr.'s side A, or a FAILED test, on the same grounds. It is a
+    //  third party's, so it is fetched outside the tree.
+    static std::vector<Byte>  RequireGutenbergJrDisk();
+
+    //  A third party's commercial disk scripts/FetchStockDisks.ps1 fetches
+    //  outside the tree, by its name there, or a FAILED test. The folder is
+    //  the one CASSO_TEST_DISKS is set to, or Casso\TestDisks under Downloads.
+    static std::vector<Byte>  RequireFetchedDisk (const char * fileName);
+
+    //  A disk in the same folder that no script fetches, such as a saved game
+    //  read from the owner's disk; empty when it isn't there, and the test
+    //  skips.
+    static std::vector<Byte>      FindTestDisk       (const char * fileName);
+
+    //  The folder CASSO_TEST_DISKS is set to, or Casso\TestDisks under Downloads.
+    static std::filesystem::path  GetTestDisksFolder ();
+
+    //  The Apple /// System Utilities and System Demo disks with SOS 1.1, or a
+    //  FAILED test, on the same grounds. scripts/FetchStockDisks.ps1 fetches
+    //  both.
+    static std::vector<Byte>  RequireSosUtilitiesDisk ();
+    static std::vector<Byte>  RequireSosDemoDisk      ();
+
     //  An image committed to the repo, such as a readout disk under
     //  Disks/Casso, found from the working directory up; or a FAILED test.
     static std::vector<Byte>  RequireRepoImage (const char * repoPath);
 
-    //  Mounts the bytes in slot 6 drive 1 and parks the processor on the boot
-    //  ROM's entry, having executed nothing.
+    //  A game image from the Casso Disks folder in Documents, outside of
+    //  the repo; empty when it isn't there, and the test skips.
+    static std::vector<Byte>  FindGameImage    (const wchar_t * fileName);
+
+    //  Mounts the bytes in slot 6 drive 1 and puts the processor where a real
+    //  machine is at power-on: on the reset vector of an Autostart
+    //  machine, whose RESET boots the disk, and on the boot ROM's entry after
+    //  RESET on the original ][, whose monitor waits for C600G.
     //
     //  Separate from MountAndBoot so a caller that wants to COUNT what the
     //  boot costs can drive the processor itself. Idling to quiet is the
@@ -75,6 +104,10 @@ public:
     //  answer would be about the disk.
     static void  Mount        (MachineHost              & host,
                                const std::vector<Byte>  & bytes);
+
+    //  The second half of Mount, for a test that mounts an image itself: run
+    //  after the power cycle and the mount, before the processor starts.
+    static void  StartFromPowerOn (MachineHost & host);
 
     //  Mounts the bytes in slot 6 drive 1 and runs the boot ROM until the
     //  machine settles or the ceiling is spent.
@@ -227,6 +260,10 @@ private:
     static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
     static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
     static constexpr const char *     kpszKermitRepoPath  = "Disks/ThirdParty/kermit-65.dsk";
+    static constexpr const char *     kpszGutenbergDiskName = "gutenberg-jr.dsk";
+    static constexpr const wchar_t *  kpszSosCacheName    = L"Apple III System Utilities.dsk";
+    static constexpr const char *     kpszSosRepoPath     = "Disks/Apple/sos-utilities.dsk";
+    static constexpr const char *     kpszSosDemoRepoPath = "Disks/Apple/sos-demo.dsk";
 
     //  How far up from the working directory the repo-path search climbs. The
     //  test host's directory is not fixed, so the walk covers a binary run from
@@ -248,7 +285,6 @@ private:
     static constexpr int  kBootSector = 0;
 
     static constexpr Word  kBootRomEntry = 0xC600;
-    static constexpr Word  kIntCxRomOff  = 0xC006;
 
     //  The original ][ monitor's RESET entry, the value of its reset vector
     //  at $FFFC; the Autostart ROM's is elsewhere. That monitor does not boot
@@ -257,8 +293,6 @@ private:
     static constexpr Word      kResetVector        = 0xFFFC;
     static constexpr Word      kOldMonitorReset    = 0xFF59;
     static constexpr uint64_t  kMonitorResetCycles = 2'000'000ULL;
-
-    static void  RunOldMonitorReset (MachineHost & host);
 
     static constexpr int  kSlot6  = 6;
     static constexpr int  kDrive1 = 0;

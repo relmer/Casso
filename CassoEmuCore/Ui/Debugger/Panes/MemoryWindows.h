@@ -6,7 +6,6 @@ class MemoryAddressEntry;
 class MemoryBarCommands;
 class MemoryPane;
 class MemoryWindowGroup;
-class ToolbarLabelEntry;
 
 
 
@@ -41,13 +40,16 @@ public:
     void                             Configure           () override;
     void                             AddToDock           (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent          () const override;
+    IDxuiFindTarget                * GetFindView         () const override;
     std::vector<IDxuiControl *>      GetControls         () const override;
     std::optional<PaneColorKeySpec>  GetColorKey         () const override;
     bool                             TryGetOpened        (bool & isOpened) const override { isOpened = m_isOpen; return true; }
     bool                             RequestOpen         () override;
     bool                             RequestClose        () override;
     bool                             IsFixed             () const override { return m_windowId == 1; }
+    void                             SetTextZoom         (float zoom) override;
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    bool                             OnGoToKey           () override;
 
 private:
     MemoryWindowGroup                   & m_group;
@@ -99,17 +101,23 @@ public:
     bool                                 IsAnyHeatOn     () const;
     void                                 ClearHistories  ();
 
+    //  The theme's text and heat colors, which a snapshot sets otherwise.
+    void                                 ApplyColors     ();
+
     //  The Address box's text gone to in the active window: a hex address at
     //  once, anything else resolved on the machine's thread.
     void                                 SubmitBox       ();
     void                                 RunBarEntry     (int id);
     void                                 ChooseColumns   (int columns);
-    void                                 ChooseGrouping  (int grouping);
     bool                                 IsBarEnabled    (int id) const;
     void                                 Undo            (MemoryWindowPane * window, bool redo);
 
     //  A window's menu on its bytes.
     void                                 AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items);
+    void                                 FocusAddressBox    () { m_host.FocusControl (m_box); }
+
+    //  A DxuiHexView menu as the pane menu's rows, a submenu's under its label.
+    static void                          AppendViewItems (const std::vector<DxuiPopupMenuItem> & from, const std::wstring & submenu, PaneMenuItems & items);
 
     const std::wstring             & GetId                  () const override { static const std::wstring  s_kId = L"memory-group"; return s_kId; }
     std::wstring                     GetTitle               () const override { return {}; }
@@ -125,7 +133,6 @@ public:
     bool                             TakesTyping            (const IDxuiControl * control) const override;
     void                             Apply                  (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick                   (int64_t nowMs) override;
-    void                             SetTextZoom            (float zoom) override;
     void                             OnFloatClosed          (DxuiWindow * window) override;
     void                             PlaceBar               () override;
     bool                             RouteBarMouse          (const DxuiMouseEvent & ev) override;
@@ -136,18 +143,8 @@ public:
     bool                             TryGetTipAt            (POINT clientPx, DxuiTip & tip);
 
 private:
-    //  A Find's window, the bytes a match covers, the hit it is on, and the
-    //  serial of the snapshot's hits it waits to replace; and a Compare
-    //  with... waiting for its differences the same way.
-    struct Find
-    {
-        int       window     = -1;
-        size_t    length     = 1;
-        int       at         = -1;
-        uint64_t  awaited    = 0;
-        bool      isAwaiting = false;
-    };
-
+    //  A Compare's window and the serial of the snapshot's differences it
+    //  waits to replace.
     struct Compare
     {
         int       window     = -1;
@@ -161,33 +158,25 @@ private:
     void              AddHistory       (const std::wstring & text);
     void              MoveBar          (DxuiWindow * to);
     void              ApplyResults     (const DebuggerViewSnapshot & snapshot);
-    void              FindIn           (MemoryWindowPane * window);
-    void              StepFind         (bool forward);
     void              SetBarEntries    ();
-    void              ShowFindCount    (const std::wstring & text);
     void              FillSelection    (MemoryWindowPane * window);
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
-    static size_t     GetSearchLength  (const std::wstring & items);
 
     std::array<MemoryWindowPane *, DebuggerViewState::kMaxMemoryWindows>  m_windows   = {};
     DxuiToolbar                                                         * m_bar       = nullptr;
     DxuiTextInput                                                       * m_box       = nullptr;
     std::unique_ptr<MemoryBarCommands>                                    m_commands;
     std::unique_ptr<MemoryAddressEntry>                                   m_addressEntry;
-    std::unique_ptr<ToolbarLabelEntry>                                    m_findCount;      // "3 of 12" after a Find, at the bar's end
     std::vector<std::wstring>                                             m_history;
     MemoryWindowPane                                                    * m_active    = nullptr;
     std::wstring                                                          m_barPane;
     DxuiWindow                                                          * m_barHost   = nullptr;
-    //  From the last snapshot: whether the machine is stopped, and a Find's
-    //  hits and the serials of the results the machine sent last.
+    //  From the last snapshot: whether the machine is stopped, and the
+    //  serial of the comparison the machine sent last.
     bool               m_isPaused      = false;
     bool               m_hasSnapshot   = false;
-    std::vector<Word>  m_searchHits;
-    uint64_t           m_searchSerial  = 0;
     uint64_t           m_compareSerial = 0;
     uint32_t           m_goToSerial    = 0;
-    Find               m_find;
     Compare            m_compare;
 };

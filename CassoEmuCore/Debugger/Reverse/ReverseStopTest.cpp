@@ -50,6 +50,54 @@ IDisk2EventSink * ReverseStopTest::GetDiskSink()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReverseStopTest::CanStopIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ReverseStopTest::CanStopIn (const StretchSummary & summary)
+{
+    for (const Watchpoint & entry : m_session.GetWatchpoints().GetAll())
+    {
+        if (entry.enabled && entry.stops)
+        {
+            return true;
+        }
+    }
+
+    for (const Breakpoint & entry : m_session.GetBreakpoints().GetAll())
+    {
+        bool  isAddress = entry.kind == BreakpointKind::Address;
+        bool  isDisk    = entry.kind == BreakpointKind::Disk && !entry.IsDiskCall();
+
+
+
+        if (!entry.enabled || !entry.stops)
+        {
+            continue;
+        }
+
+        if (isAddress && !summary.IsAnyPageRun (entry.first, entry.last))
+        {
+            continue;
+        }
+
+        if (isDisk && summary.isDiskQuiet)
+        {
+            continue;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReverseStopTest::ShouldStopBefore
 //
 //  Breakpoints first, then the disk events the last instruction made, then

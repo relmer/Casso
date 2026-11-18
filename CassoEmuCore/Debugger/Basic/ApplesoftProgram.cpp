@@ -23,6 +23,32 @@ static constexpr size_t    kFoutLength    = 20;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplesoftProgram::MakeLoadWrites
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<ApplesoftProgram::Write> ApplesoftProgram::MakeLoadWrites (const std::vector<Byte> & tokenized, Word top)
+{
+    Word  end    = (Word) (kBase + tokenized.size());
+    auto  toWord = [] (Word value) { return std::vector<Byte> { (Byte) value, (Byte) (value >> 8) }; };
+
+
+
+    return { { kBase,   tokenized },
+             { kTxtTab, toWord (kBase) },
+             { kVarTab, toWord (end) },
+             { kAryTab, toWord (end) },
+             { kStrEnd, toWord (end) },
+             { kPrgEnd, toWord (end) },
+             { kFreTop, toWord (top) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplesoftProgram::TryGetListing
 //
 //  Each line is a link to the next, a line number and its tokens, ending in a

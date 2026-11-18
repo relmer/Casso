@@ -70,8 +70,8 @@ public:
 
     void  SetIntC8Rom    (bool v) { m_intC8Rom = v; }
 
-    Byte *       GetAuxBuffer ()       { return m_auxRam.data (); }
-    const Byte * GetAuxBuffer () const { return m_auxRam.data (); }
+    Byte        * GetAuxBuffer ()       { return m_auxRam.data (); }
+    const Byte  * GetAuxBuffer () const { return m_auxRam.data (); }
 
     // Cxxx-ROM routing (audit C8 carryover). Internal $C100-$CFFF ROM
     // bytes and slot ROM bytes are attached after Initialize; the MMU
@@ -81,10 +81,14 @@ public:
     CxxxRomRouter         * GetCxxxRouter         () { return &m_cxxxRouter; }
     const CxxxRomRouter   * GetCxxxRouter         () const { return &m_cxxxRouter; }
 
+    //  Points the read-page table at the router's internal ROM pages again,
+    //  after the router's fast pages change.
+    void                    RebindCxxxInternalRom ();
+
     // The language card owns $D000-$FFFF and page-maps it for fast reads. ALTZP
     // flips the aux/main LC RAM side, so SetAltZp re-points its window through
     // this handle. Null on machines without an LC (no-op).
-    void               SetLanguageCard       (LanguageCard * lc) { m_lc = lc; }
+    void                    SetLanguageCard       (LanguageCard * lc) { m_lc = lc; }
 
     // The MMU panel: every switch, and the bank each page reads and writes.
     std::string  GetDiagnosticsId    () const override { return "mmu"; }
@@ -108,16 +112,15 @@ public:
     static constexpr uint16_t  kStateVersion = 1;
 
 private:
-    void   RebindCxxxInternalRom ();
-    void   ResolveZeroPage     ();
-    void   ResolveMain02_BF    ();
-    void   ResolveText04_07    ();
-    void   ResolveHires20_3F   ();
-    Byte * SelectMainRead      (int page);
-    Byte * SelectMainWrite     (int page);
-    MemorySource  GetRamSource     (const Byte * page) const;
-    MemorySource  GetCxxxSource    (int page) const;
-    int           GetExpansionSlot () const;
+    void            ResolveZeroPage       ();
+    void            ResolveMain02_BF      ();
+    void            ResolveText04_07      ();
+    void            ResolveHires20_3F     ();
+    Byte          * SelectMainRead        (int page);
+    Byte          * SelectMainWrite       (int page);
+    MemorySource    GetRamSource          (const Byte * page) const;
+    MemorySource    GetCxxxSource         (int page) const;
+    int             GetExpansionSlot      () const;
 
     MemoryBus            *   m_bus         = nullptr;
     Byte                 *   m_mainRamPtr  = nullptr;

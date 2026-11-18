@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Render/DxuiTextRenderer.h"
 
 #include "DxuiRadio.h"
 
@@ -61,6 +62,32 @@ int DxuiRadioGroup::HitTest (int x, int y) const
     }
 
     return hit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLabelRight
+//
+//  Where an option's label ends, for a control placed just past it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiRadioGroup::GetLabelRight (int index, IDxuiTextRenderer & text) const
+{
+    const RECT &  rect     = m_options[(size_t) index].rect;
+    float         widthPx  = 0.0f;
+    float         heightPx = 0.0f;
+    HRESULT       hr       = text.MeasureString (m_options[(size_t) index].label.c_str(), m_scaler.ToPxf (kFontDip), DxuiTheme::kBodyFace, widthPx, heightPx);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return rect.left + (int) std::ceil (m_scaler.ToPxf (kBoxSizeDip + kLabelGapDip) + widthPx);
 }
 
 
@@ -221,6 +248,42 @@ void DxuiRadioGroup::Commit (int newIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiRadioGroup::MeasureOptionHeightPx
+//
+//  The description wraps in the width beside the button, in the label's
+//  font, as Paint draws it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiRadioGroup::MeasureOptionHeightPx (const DxuiRadioOption & option, int widthPx, const DxuiDpiScaler & scaler)
+{
+    HRESULT  hr        = S_OK;
+    float    textPx    = (float) widthPx - scaler.ToPxf (s_kBoxSizeDip) - scaler.ToPxf (s_kLabelGapDip);
+    float    widthDip  = textPx * (float) DxuiDpiScaler::kBaseDpi / (float) scaler.GetDpi();
+    float    heightDip = 0.0f;
+    int      heightPx  = (int) std::ceil (scaler.ToPxf (s_kLabelLineDip));
+
+
+
+    if (!option.description.empty() && widthDip > 0.0f)
+    {
+        hr = DxuiTextRenderer::MeasureWrappedDip (option.description.c_str(), s_kFontDip, DxuiTheme::GetUiFace(), DxuiFontWeight::Normal, widthDip, heightDip);
+
+        if (SUCCEEDED (hr))
+        {
+            heightPx += (int) std::ceil (scaler.ToPxf (heightDip));
+        }
+    }
+
+    return heightPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Draws each option: the circle, the selected dot, the focus ring, and the
@@ -248,29 +311,36 @@ void DxuiRadioGroup::Commit (int newIndex)
 
 void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float  s_kBoxSizeDip    = 16.0f;
-    constexpr float  s_kDotInsetDip   = 4.0f;
-    constexpr float  s_kLabelGapDip   = 6.0f;
-    constexpr float  s_kFontDip       = 13.0f;
-    // The first line of a described option. The label sits in this band, the
-    // BUTTON CENTERS ON IT, and the description gets whatever the caller's
-    // rect has left over. Centering the button on the whole box instead would
-    // float it down beside the description, pointing at neither line.
-    constexpr float  s_kLabelLineDip  = 20.0f;
 
 
 
     HRESULT  hr         = S_OK;
     int      i          = 0;
     size_t   n          = m_options.size();
-    float    boxSize    = m_scaler.ToPxf (s_kBoxSizeDip);
+    float    boxSize    = m_scaler.ToPxf (kBoxSizeDip);
     float    dotInset   = m_scaler.ToPxf (s_kDotInsetDip);
-    float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
-    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
+    float    labelGap   = m_scaler.ToPxf (kLabelGapDip);
+    float    fontDip    = m_scaler.ToPxf (kFontDip);
     uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
-    uint32_t dotColor   = m_enabled ? theme.ButtonText() : theme.ForegroundDisabled();
+    uint32_t outline    = m_enabled ? ((theme.Foreground() & 0x00FFFFFFu) | 0x99000000u) : theme.ForegroundDisabled();
+    uint32_t chosenFill = m_enabled ? theme.Accent() : theme.ForegroundDisabled();
+    uint32_t dotColor   = DxuiTheme::GetContrastingText (chosenFill);
+    float    labelsW    = 0.0f;
 
 
+
+    //  The samples start in one column, after the widest label.
+    for (const DxuiRadioOption & opt : m_options)
+    {
+        float    width    = 0.0f;
+        float    height   = 0.0f;
+        HRESULT  measured = opt.sample.empty() ? S_FALSE : text.MeasureString (opt.label.c_str(), fontDip, DxuiTheme::GetUiFace(), width, height);
+
+        if (measured == S_OK)
+        {
+            labelsW = (std::max) (labelsW, width);
+        }
+    }
 
     for (i = 0; i < (int) n; ++i)
     {
@@ -292,11 +362,18 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                             ? (m_hover == i ? theme.ButtonHover() : theme.ButtonIdle())
                                             : theme.PressedBackground();
 
-        painter.FillCircle (cx, cy, outerR, boxColor);
-
+        //  As Windows 11 draws one: an empty button is outlined in the text
+        //  color at 60%, so it is visible on any background, and the selected one
+        //  is filled with the accent color around its dot.
         if (m_selected == i)
         {
+            painter.FillCircle (cx, cy, outerR, chosenFill);
             painter.FillCircle (cx, cy, innerR, dotColor);
+        }
+        else
+        {
+            painter.FillCircle         (cx, cy, outerR, boxColor);
+            painter.OutlineRoundedRect (cx - outerR, cy - outerR, outerR * 2.0f, outerR * 2.0f, outerR, m_scaler.ToPxf (1.0f), outline);
         }
 
         float   textLeft  = boxLeft + boxSize + labelGap;
@@ -315,10 +392,28 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                               labelH,
                               textColor,
                               fontDip,
-                              DxuiTheme::kBodyFace,
+                              DxuiTheme::GetUiFace(),
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (!opt.sample.empty())
+        {
+            constexpr float  s_kSampleGapDip = 16.0f;
+            float            sampleLeft      = textLeft + labelsW + m_scaler.ToPxf (s_kSampleGapDip);
+
+            hr = text.DrawString (opt.sample.c_str(),
+                                  sampleLeft,
+                                  (float) opt.rect.top,
+                                  textLeft + textWidth - sampleLeft,
+                                  labelH,
+                                  m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled(),
+                                  fontDip,
+                                  DxuiTheme::kMonoFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
         //  The ring encloses the CIRCLE AND ITS LABEL, on the label's line.
         //  An option is one control; ringing the 16 DIP circle alone marked
@@ -327,7 +422,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         //  three-option group is a block, not a mark.
         if (m_focused && m_focusCueVisible && m_selected == i)
         {
-            DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::kBodyFace,
+            DxuiFocusRing::AroundRun (painter, text, opt.label, fontDip, DxuiTheme::GetUiFace(),
                                       boxLeft,
                                       textLeft,
                                       (float) opt.rect.top,
@@ -351,7 +446,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                   rowHeight - labelH,
                                   descColor,
                                   fontDip,
-                                  DxuiTheme::kBodyFace,
+                                  DxuiTheme::GetUiFace(),
                                   DxuiTextHAlign::Left,
                                   DxuiTextVAlign::Top);
             IGNORE_RETURN_VALUE (hr, S_OK);

@@ -67,7 +67,7 @@ void DebugEventLogs::Start (ReverseController * controller)
     Stop();
 
     m_controller = controller;
-    position     = m_machine.GetPosition();
+    position     = m_machine.GetRunner().GetPosition();
 
     m_history.Attach ((controller != nullptr) ? &controller->GetKeyframes() : nullptr);
 
@@ -106,7 +106,7 @@ void DebugEventLogs::Start (ReverseController * controller)
 
     if (controller != nullptr)
     {
-        controller->SetKeyframeListener (this, [this] (uint64_t at) { OnKeyframe (at); });
+        controller->GetCapturer().SetKeyframeListener (this, [this] (uint64_t at) { OnKeyframe (at); });
         controller->SetLiveListener     (this, [this] (uint64_t at) { OnLive (at); });
         controller->GetKeyframes().SetDropListener (this, [this] (KeyframeDrop drop) { OnDrop (drop); });
     }
@@ -138,7 +138,7 @@ void DebugEventLogs::Stop()
 
     if (m_controller != nullptr)
     {
-        m_controller->SetKeyframeListener (this, nullptr);
+        m_controller->GetCapturer().SetKeyframeListener (this, nullptr);
         m_controller->SetLiveListener     (this, nullptr);
         m_controller->GetKeyframes().SetDropListener (this, nullptr);
     }
@@ -374,6 +374,108 @@ bool DebugEventLogs::TakeDelta (DebugLogKind kind, IoLogDelta & outDelta)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TakeDeltas
+//
+//  Each open pane's delta that has anything in it, added to outDeltas;
+//  true when any was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugEventLogs::TakeDeltas (DebugLogDeltas & outDeltas)
+{
+    static constexpr DebugLogKind  kIoKinds[] = { DebugLogKind::Video, DebugLogKind::Sound, DebugLogKind::Serial, DebugLogKind::Network };
+    DiskLogDelta                   disk;
+    InputLogDelta                  input;
+    bool                           isAny      = false;
+
+
+
+    if (TakeDelta (disk))
+    {
+        outDeltas.disk.push_back (std::move (disk));
+        isAny = true;
+    }
+
+    if (TakeDelta (input))
+    {
+        outDeltas.input.push_back (std::move (input));
+        isAny = true;
+    }
+
+    for (DebugLogKind kind : kIoKinds)
+    {
+        IoLogDelta  delta;
+
+
+
+        if (TakeDelta (kind, delta))
+        {
+            outDeltas.GetIo (kind).push_back (std::move (delta));
+            isAny = true;
+        }
+    }
+
+    return isAny;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyRequest
+//
+//  An event log pane opened or closed, or sent a request for the rows
+//  before its oldest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::ApplyRequest (DebugLogKind kind, const DebugLogRequest & request)
+{
+    switch (request.kind)
+    {
+    case DebugLogRequest::Kind::Open:
+    case DebugLogRequest::Kind::Close:
+        SetOpen (kind, request.kind == DebugLogRequest::Kind::Open);
+        break;
+
+    case DebugLogRequest::Kind::Earlier:
+        RequestEarlier (kind);
+        break;
+
+    case DebugLogRequest::Kind::DropBefore:
+        DropBefore (kind, request.from);
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloseAll
+//
+//  Every pane closed; the logs record on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::CloseAll()
+{
+    for (const auto & [kind, name] : s_kDebugLogNames)
+    {
+        SetOpen (kind, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetWorkQueue
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -449,8 +551,8 @@ void DebugEventLogs::OnLive (uint64_t position)
 void DebugEventLogs::EndAt (uint64_t position)
 {
     const KeyframeStore  * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
-    size_t                 count     = (keyframes != nullptr) ? keyframes->GetCount() : 0;
-    bool                   isGap     = count > 0 && keyframes->GetInfo (count - 1).position == position && keyframes->GetInfo (count - 1).hasGapBefore;
+    size_t                 count     = (keyframes != nullptr) ? keyframes->GetArena().GetCount() : 0;
+    bool                   isGap     = count > 0 && keyframes->GetArena().GetInfo (count - 1).position == position && keyframes->GetArena().GetInfo (count - 1).hasGapBefore;
 
 
 
@@ -463,12 +565,12 @@ void DebugEventLogs::EndAt (uint64_t position)
 
     if (isGap)
     {
-        m_disk.cache.MarkGap    (position, keyframes->GetInfo (count - 1).cycle);
-        m_input.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
-        m_video.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
-        m_sound.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
-        m_serial.cache.MarkGap  (position, keyframes->GetInfo (count - 1).cycle);
-        m_network.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
+        m_disk.cache.MarkGap    (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_input.cache.MarkGap   (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_video.cache.MarkGap   (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_sound.cache.MarkGap   (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_serial.cache.MarkGap  (position, keyframes->GetArena().GetInfo (count - 1).cycle);
+        m_network.cache.MarkGap (position, keyframes->GetArena().GetInfo (count - 1).cycle);
     }
 }
 
@@ -488,7 +590,7 @@ void DebugEventLogs::EndAt (uint64_t position)
 
 void DebugEventLogs::OnDrop (KeyframeDrop drop)
 {
-    uint64_t  position = (drop == KeyframeDrop::All) ? 0 : m_machine.GetPosition();
+    uint64_t  position = (drop == KeyframeDrop::All) ? 0 : m_machine.GetRunner().GetPosition();
 
 
 
@@ -531,17 +633,17 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
 
     if (kind == IoLogKind::Video)
     {
-        m_videoClearedAt = m_machine.GetPosition();
+        m_videoClearedAt = m_machine.GetRunner().GetPosition();
         m_isVideoCleared = true;
     }
     else
     {
-        m_soundClearedAt = m_machine.GetPosition();
+        m_soundClearedAt = m_machine.GetRunner().GetPosition();
         m_isSoundCleared = true;
     }
 
     //  The pane drops its rows and starts again from here.
-    log.floor      = m_machine.GetPosition();
+    log.floor      = m_machine.GetRunner().GetPosition();
     log.isResetDue = log.isOpen;
 }
 
@@ -561,7 +663,7 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
 
 void DebugEventLogs::FollowRewind()
 {
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
 
 
 
@@ -784,7 +886,7 @@ Error:
 
 bool DebugEventLogs::IsRecording() const
 {
-    return m_controller == nullptr || !m_controller->IsRecording() || m_controller->IsRecordingLive();
+    return m_controller == nullptr || !m_controller->GetSpan().IsRecording() || m_controller->IsRecordingLive();
 }
 
 
@@ -810,9 +912,9 @@ uint64_t DebugEventLogs::GetWallTime (
 
 
 
-    if (m_controller != nullptr && m_controller->IsRecording())
+    if (m_controller != nullptr && m_controller->GetSpan().IsRecording())
     {
-        return m_controller->GetWallTimeAtPosition (position, historyCycle);
+        return m_controller->GetTimeline().GetWallTimeAtPosition (position, historyCycle);
     }
 
     GetSystemTimeAsFileTime (&now);
@@ -860,11 +962,11 @@ uint64_t DebugEventLogs::GetCycleBase() const
 
 uint64_t DebugEventLogs::GetOldest() const
 {
-    bool  hasHistory = m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetCount() > 0;
+    bool  hasHistory = m_controller != nullptr && m_controller->GetSpan().IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
 
 
 
-    return hasHistory ? m_controller->GetKeyframes().GetInfo (0).position : UINT64_MAX;
+    return hasHistory ? m_controller->GetKeyframes().GetArena().GetInfo (0).position : UINT64_MAX;
 }
 
 
@@ -884,7 +986,7 @@ void DebugEventLogs::CutBack (
     Log<T>    & log,
     uint64_t    position)
 {
-    InputJournal  & journal = m_machine.GetInputJournal();
+    InputJournal  & journal = m_machine.GetHostInput().GetJournal();
 
 
 
@@ -986,7 +1088,7 @@ void DebugEventLogs::SendNewer (
     Log<T>            & log,
     DebugLogDelta<T>  & outDelta)
 {
-    InputJournal                     & journal = m_machine.GetInputJournal();
+    InputJournal                     & journal = m_machine.GetHostInput().GetJournal();
     uint64_t                           first   = log.cache.GetFirstSerial();
     size_t                             index   = 0;
     std::vector<DebugEventEntry<T>>    entries;
@@ -1112,7 +1214,7 @@ void DebugEventLogs::MergeJournal (
     size_t                         firstIndex,
     size_t                         endIndex)
 {
-    InputJournal                 & journal = m_machine.GetInputJournal();
+    InputJournal                 & journal = m_machine.GetHostInput().GetJournal();
     size_t                         index   = 0;
     std::vector<DebugLogRow<T>>    records;
     std::vector<DebugLogRow<T>>    merged;
@@ -1379,7 +1481,7 @@ bool DebugEventLogs::TryMakeRow (
 
 size_t DebugEventLogs::FindJournalIndex (uint64_t position) const
 {
-    const InputJournal  & journal = m_machine.GetInputJournal();
+    const InputJournal  & journal = m_machine.GetHostInput().GetJournal();
     size_t                low     = journal.GetBeginIndex();
     size_t                high    = journal.GetEndIndex();
     size_t                mid     = 0;

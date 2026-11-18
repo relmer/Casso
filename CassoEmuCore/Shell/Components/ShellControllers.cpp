@@ -37,7 +37,7 @@ void ShellControllers::SyncJoyport()
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_input.m_machine.GetLifetimeLock());
     HostInputGate::Entry                 gate;
-    bool                                 isGateOpen = m_input.m_machine.GetHostInputGate().TryEnter (gate);
+    bool                                 isGateOpen = m_input.m_machine.GetHostInput().GetGate().TryEnter (gate);
 
 
 
@@ -49,7 +49,7 @@ void ShellControllers::SyncJoyport()
     }
     else
     {
-        m_input.m_debugger.OweJoyportSync();
+        m_input.m_debugger.GetDivergence().OweJoyportSync();
     }
 
     gate.Leave();
@@ -941,14 +941,14 @@ HRESULT ShellControllers::Start()
                 m_controllerPickHasHolders = m_controllerPickHasHolders || change.haveLastHoldersChanged;
             }
 
-            PostMessageW (m_input.m_host.GetMainWindow(), WM_APP_CONTROLLER_PICK, 0, 0);
+            PostMessageW (m_input.m_host.GetMainWindow(), (UINT) AppMessage::ShellControllerPick, 0, 0);
         });
 
     // A connect or disconnect changes who owns the axes but tells the user
     // nothing, so it takes the same trip to the UI thread without a notice.
     m_controllerService->SetStateChangedFn ([this]
     {
-        PostMessageW (m_input.m_host.GetMainWindow(), WM_APP_CONTROLLER_PICK, 0, 0);
+        PostMessageW (m_input.m_host.GetMainWindow(), (UINT) AppMessage::ShellControllerPick, 0, 0);
     });
 
     // The Controllers page asking for a controller to be read wakes the

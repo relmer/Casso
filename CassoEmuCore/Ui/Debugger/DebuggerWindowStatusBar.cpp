@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -19,6 +20,9 @@
 //  on and off, then the history section, whose bar under its text fills as
 //  the history budget does, and the text zoom at the right. Pressing the zoom opens a slider over
 //  it, from the smallest text size to the largest in the steps the keys take.
+//  The slider has marks at the smallest size, 100% and the largest only. The
+//  wheel over it steps the size, and a double-click on it or a click on its
+//  percentage sets 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,18 +40,11 @@ void DebuggerWindow::CreateStatusBar()
     fields[kStatusSpeed].widthDip   = kStatusSpeedDip;
     fields[kStatusSpeed].onClick    = [this] (const RECT &) { m_isSpeedPressed = true; };
     fields[kStatusZoom].widthDip    = kStatusZoomDip;
-    fields[kStatusZoom].text        = DebuggerStatusText::GetZoomText (m_textZoom);
+    fields[kStatusZoom].text        = DebuggerStatusText::GetZoomText (m_textZooms.GetWindowZoom());
     fields[kStatusZoom].onClick     = [this] (const RECT &) { OpenZoomPopup(); };
 
     m_statusBar = CreateChild<DxuiStatusBar>();
     m_statusBar->SetFields (std::move (fields));
-
-    m_zoomSlider.SetRange         (kMinTextZoom * DebuggerStatusText::kPercent, kMaxTextZoom * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetStep          (kTextZoomStep * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetSuffix        (L"%");
-    m_zoomSlider.SetDecimalPlaces (0);
-    m_zoomSlider.SetValue         (m_textZoom * DebuggerStatusText::kPercent);
-    m_zoomSlider.SetOnChange      ([this] (float percent) { ApplyTextZoom (percent / DebuggerStatusText::kPercent); });
 }
 
 
@@ -58,9 +55,9 @@ void DebuggerWindow::CreateStatusBar()
 //
 //  DebuggerWindow::PlaceStatusBar
 //
-//  The band along the bottom edge, and the zoom popup, while open, over the
-//  zoom field's right end. Returns the band's top, which is where the panes
-//  above it end.
+//  The band along the bottom edge, and the zoom panel, opened from the zoom
+//  field, above it. Returns the band's top, which is where the panes above
+//  it end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,10 +67,6 @@ int DebuggerWindow::PlaceStatusBar (
 {
     int                   bandPx  = m_scaler.ToPx (DxuiStatusBar::GetBandDp());
     int                   top     = (std::max) (0, height - bandPx);
-    int                   popupW  = m_scaler.ToPx (kZoomPopupWidthDip);
-    int                   popupH  = m_scaler.ToPx (kZoomPopupHeightDip);
-    int                   pad     = m_scaler.ToPx (DxuiStatusBar::kFieldPadDip);
-    RECT                  field   = {};
     IDxuiTextRenderer   * text    = GetTextRenderer();
 
 
@@ -90,11 +83,8 @@ int DebuggerWindow::PlaceStatusBar (
 
     m_statusBar->Layout (RECT { 0, top, width, height }, m_scaler);
 
-    field      = m_statusBar->GetFieldRect (kStatusZoom);
-    m_zoomRect = RECT { (std::max) (0L, field.right - popupW), field.top - popupH, field.right, field.top };
-
-    m_zoomSlider.Layout (RECT { m_zoomRect.left + pad, m_zoomRect.top, m_zoomRect.right - pad, m_zoomRect.bottom }, m_scaler);
-    m_zoomSlider.SetDpi (m_scaler.GetDpi());
+    m_windowZoom.PlaceAtButton (m_statusBar->GetFieldRect (kStatusZoom), RECT { 0, 0, width, height }, m_scaler,
+                                (float) DxuiStatusBar::kFieldPadDip, DxuiStatusBar::kFontDip);
     return top;
 }
 
@@ -155,6 +145,18 @@ void DebuggerWindow::UpdateStatusBar()
 
 
 
+    SyncReplayDialog (progress);
+
+    if (m_snapshot != nullptr && m_actionReplySerial != m_snapshot->actionReplySerial)
+    {
+        if (m_actionReplySerial.has_value() && !m_snapshot->actionReply.empty())
+        {
+            ShowActionReply (*m_snapshot);
+        }
+
+        m_actionReplySerial = m_snapshot->actionReplySerial;
+    }
+
     if (m_statusBar == nullptr)
     {
         return;
@@ -165,7 +167,40 @@ void DebuggerWindow::UpdateStatusBar()
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
     m_statusBar->SetText  (kStatusSpeed,   DebuggerStatusText::GetSpeedText ((m_host != nullptr) ? m_host->GetEmulatorSpeed() : SpeedMode::Authentic));
-    m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZoom));
+    m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZooms.GetWindowZoom()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SyncReplayDialog
+//
+//  A search that runs long opens the progress dialog, and the window is
+//  disabled until the search ends and the dialog closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SyncReplayDialog (const ReplayProgress & progress)
+{
+    if (m_replayDialog == nullptr && ReplayProgressDialog::IsDue (progress) && GetHwnd() != nullptr)
+    {
+        m_replayDialog = ReplayProgressDialog::Open (GetHwnd(), m_theme,
+                                                     [this] { return (m_host != nullptr) ? m_host->GetReplayProgress() : ReplayProgress(); },
+                                                     [this] { (void) TryStopReplay(); });
+
+        if (m_replayDialog != nullptr)
+        {
+            EnableWindow (GetHwnd(), FALSE);
+        }
+    }
+    else if (m_replayDialog != nullptr && !progress.isReplaying)
+    {
+        EnableWindow (GetHwnd(), TRUE);
+        m_replayDialog.reset();
+    }
 }
 
 
@@ -243,8 +278,7 @@ void DebuggerWindow::ToggleBeamMark()
 
 void DebuggerWindow::OpenZoomPopup()
 {
-    m_zoomSlider.SetValue (m_textZoom * DebuggerStatusText::kPercent);
-    m_zoomOpen = true;
+    m_windowZoom.SetOpen (true);
     Invalidate();
 }
 
@@ -260,7 +294,7 @@ void DebuggerWindow::OpenZoomPopup()
 
 void DebuggerWindow::CloseZoomPopup()
 {
-    m_zoomOpen = false;
+    m_windowZoom.SetOpen (false);
     Invalidate();
 }
 
@@ -272,16 +306,22 @@ void DebuggerWindow::CloseZoomPopup()
 //
 //  DebuggerWindow::RouteStatusBarMouse
 //
-//  While the zoom popup is open, the slider takes the pointer over the popup
-//  and for the whole of a drag, and a press anywhere else closes it; a press
-//  on the zoom field that opened it only closes it, so the field toggles.
-//  Then the status bar takes the pointer over its band.
+//  The zoom panel works as the heat map's does: it opens with the pointer
+//  over the zoom field, and closes once the pointer moves kNearDip away from
+//  the field and the panel, except during a drag of its thumb. A press or
+//  drag on its track sets the size there, Reset sets 100%, and a press
+//  anywhere else closes it; a press on the zoom field toggles it. The wheel
+//  over the zoom field or the panel steps the size. Then the status bar takes the pointer
+//  over its band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
 {
+    using Hit = HeatMapZoomWidget::Hit;
+
     POINT  point = ev.positionDip;
+    Hit    hit   = Hit::None;
 
 
 
@@ -290,24 +330,79 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    if (m_zoomOpen)
+    hit = m_windowZoom.HitTest (point);
+
+    if (m_windowZoom.IsDragging())
     {
-        if (DxuiDockSite::Contains (m_zoomRect, point) || m_zoomSlider.IsDragging())
+        if (ev.kind == DxuiMouseEventKind::Move)
         {
-            m_zoomSlider.OnMouse (ev);
+            ApplyTextZoom (TextZoomLevels::GetZoomAtSlider (m_windowZoom.GetPositionAt (point)));
+        }
+        else if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            m_windowZoom.SetDragging (false);
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        bool  wasOpen = m_windowZoom.IsOpen();
+
+        m_windowZoom.OnHover (point);
+
+        if (m_windowZoom.IsOpen() != wasOpen)
+        {
             Invalidate();
-            return true;
         }
+    }
+    else if (ev.kind == DxuiMouseEventKind::Leave && m_windowZoom.IsOpen())
+    {
+        CloseZoomPopup();
+    }
 
-        if (ev.kind == DxuiMouseEventKind::Down)
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f && hit != Hit::None)
+    {
+        StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+        Invalidate();
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Button)
+    {
+        m_windowZoom.Toggle();
+        Invalidate();
+        return true;
+    }
+
+    if (m_windowZoom.IsOpen() && hit != Hit::None && hit != Hit::Button)
+    {
+        if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Reset)
         {
-            CloseZoomPopup();
-
-            if (m_statusBar->FindFieldAt (point) == (int) kStatusZoom)
-            {
-                return true;
-            }
+            ResetTextZoom();
         }
+        else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Track)
+        {
+            m_windowZoom.SetDragging (true);
+            ApplyTextZoom (TextZoomLevels::GetZoomAtSlider (m_windowZoom.GetPositionAt (point)));
+        }
+
+        Invalidate();
+        return true;
+    }
+
+    if (m_windowZoom.IsOpen() && ev.kind == DxuiMouseEventKind::Down && hit != Hit::Button)
+    {
+        CloseZoomPopup();
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f &&
+        m_statusBar->FindFieldAt (point) == (int) kStatusZoom)
+    {
+        StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+        return true;
     }
 
     //  Options opens at its History page as a click on the history field
@@ -353,28 +448,15 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
 //
 //  DebuggerWindow::PaintZoomPopup
 //
-//  A raised card with an edge, and the slider on it.
+//  The heat map's zoom panel, above the zoom field, with the window's size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::PaintZoomPopup (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float  lineW = (float) (std::max) (1L, std::lround (m_scaler.ToPxf (1.0f)));
-    float  left  = (float) m_zoomRect.left;
-    float  top   = (float) m_zoomRect.top;
-    float  w     = (float) (m_zoomRect.right - m_zoomRect.left);
-    float  h     = (float) (m_zoomRect.bottom - m_zoomRect.top);
+    UNREFERENCED_PARAMETER (painter);
 
-
-
-    if (!m_zoomOpen)
-    {
-        return;
-    }
-
-    painter.FillRect    (left, top, w, h, theme.BackgroundElevated());
-    painter.OutlineRect (left, top, w, h, lineW, theme.Border());
-    m_zoomSlider.Paint  (painter, text, theme);
+    m_windowZoom.PaintPanel (text, theme, DebuggerStatusText::GetZoomText (m_textZooms.GetWindowZoom()), TextZoomLevels::GetSliderPosition (m_textZooms.GetWindowZoom()));
 }
 
 
@@ -403,4 +485,192 @@ bool DebuggerWindow::TryStopReplay()
     }
 
     return isReplaying;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowActionReply
+//
+//  Over the pane the action came from; in a message box for an action a
+//  dialog ran.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowActionReply (const DebuggerViewSnapshot & snapshot)
+{
+    ShowPaneReply (snapshot.isActionReplyBoxed ? std::wstring() : snapshot.actionReplyPane, snapshot.actionReply, snapshot.isActionReplyError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPaneReply
+//
+//  In an infobar that times out, over the pane; in a message box with no
+//  pane, or when the pane isn't on screen. The box waits for the next frame,
+//  so it doesn't open in the middle of applying a snapshot. The infobar's
+//  icon and the box's icon mark an error, so "Error:" is left out of the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPaneReply (const std::wstring & paneName, const std::vector<std::string> & lines, bool isError)
+{
+    IDebuggerPane              * pane    = paneName.empty() ? nullptr : FindPane (paneName);
+    IDxuiControl               * content = (pane != nullptr) ? pane->GetContent() : nullptr;
+    std::vector<std::wstring>    parts   = GetReplyLines (lines);
+    std::wstring                 text;
+
+
+
+    if (content == nullptr || !content->IsVisible())
+    {
+        for (const std::wstring & part : parts)
+        {
+            text += (text.empty() ? L"" : L"\n\n") + part;
+        }
+
+        m_pendingReplyBox     = text;
+        m_isPendingReplyError = isError;
+        return;
+    }
+
+    for (const std::wstring & part : parts)
+    {
+        text += (text.empty() ? L"" : L" ") + part;
+    }
+
+    if (m_replyBanner == nullptr)
+    {
+        m_replyBanner = CreateChild<DxuiTimedInfoBanner>();
+        m_replyBanner->SetOverContent (true);
+    }
+
+    m_replyBannerPane = paneName;
+    m_replyBanner->SetSeverity (isError ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
+    m_replyBanner->Show        (text, (int64_t) GetTickCount64());
+    m_replyBanner->SetVisible  (true);
+    UpdateTopLayer();
+    PlaceReplyBanner ((int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetReplyLines
+//
+//  A reply's lines as sentences: the console's "Error: " prefix and the
+//  indent of its detail lines left out, and each begun with a capital.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerWindow::GetReplyLines (const std::vector<std::string> & lines)
+{
+    static constexpr std::string_view  kErrorPrefix = "Error: ";
+    std::vector<std::wstring>          parts;
+
+
+
+    for (const std::string & line : lines)
+    {
+        std::string_view  text = line;
+
+        if (text.starts_with (kErrorPrefix))
+        {
+            text.remove_prefix (kErrorPrefix.size());
+        }
+
+        while (!text.empty() && text.front() == ' ')
+        {
+            text.remove_prefix (1);
+        }
+
+        if (text.empty())
+        {
+            continue;
+        }
+
+        parts.push_back (TextEncoding::NarrowToWide (std::string (text)));
+        parts.back()[0] = (wchar_t) towupper (parts.back()[0]);
+    }
+
+    return parts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceReplyBanner
+//
+//  Along the top of its pane, as tall as its text, each frame, since the
+//  pane can move; hidden once it times out or the pane goes. Then the
+//  message box opens for any reply waiting for one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceReplyBanner (int64_t nowMs)
+{
+    IDebuggerPane  * pane    = (m_replyBanner != nullptr && m_replyBanner->IsVisible()) ? FindPane (m_replyBannerPane) : nullptr;
+    IDxuiControl   * content = (pane != nullptr) ? pane->GetContent() : nullptr;
+    RECT             bounds  = {};
+    float            height  = 0.0f;
+
+
+
+    if (m_replyBanner != nullptr && m_replyBanner->IsVisible() && (content == nullptr || !content->IsVisible() || !m_replyBanner->IsShowing (nowMs)))
+    {
+        m_replyBanner->SetVisible (false);
+        UpdateTopLayer();
+        Invalidate();
+    }
+    else if (content != nullptr)
+    {
+        bounds = content->GetBounds();
+        height = m_replyBanner->GetPreferredHeightPx ((float) (bounds.right - bounds.left), m_scaler);
+
+        m_replyBanner->SetDpi (m_scaler.GetDpi());
+        m_replyBanner->Layout (RECT { bounds.left, bounds.top, bounds.right, bounds.top + (LONG) std::ceil (height) }, m_scaler);
+    }
+
+    ShowPendingReplyBox();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowPendingReplyBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowPendingReplyBox()
+{
+    std::wstring  text;
+
+
+
+    if (!m_pendingReplyBox.has_value() || m_isReplyBoxUp || GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    text = std::exchange (m_pendingReplyBox, std::nullopt).value();
+
+    m_isReplyBoxUp = true;
+    (void) ShowMessageBox (GetHwnd(), text, L"Debugger", (m_isPendingReplyError ? MB_ICONWARNING : MB_ICONINFORMATION) | MB_OK);
+    m_isReplyBoxUp = false;
 }

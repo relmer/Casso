@@ -6,6 +6,7 @@
 #include "Cli/McpTools.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 
 
 
@@ -229,6 +230,25 @@ std::string McpServer::RespondError (const JsonValue & id, int code, const std::
     return WriteCompact (JsonValue (Members { { "jsonrpc", JsonValue (std::string ("2.0")) },
                                               { "id",      id },
                                               { "error",   JsonValue (Members { { "code", JsonValue ((double) code) }, { "message", JsonValue (message) } }) } }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  McpServer::RespondLineTooLong
+//
+//  The line is never parsed, so its id is unknown and the response has a null
+//  id, the same as a parse error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string McpServer::RespondLineTooLong()
+{
+    return RespondError (JsonValue (nullptr), kInvalidRequest,
+                         std::format ("line too long: A message line may be at most {} bytes.", ChannelProtocol::kMaxLineBytes));
 }
 
 

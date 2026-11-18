@@ -229,20 +229,33 @@ bool DxuiEditableGrid::IsColumnEditable (int column) const
 //
 //  DxuiEditableGrid::IsCellEditable
 //
-//  Every editable column of the hint row; in a data row that is not
-//  read-only, each editable column but those of its read-only cells.
+//  Every editable column of the hint row, or only its first when the first
+//  field adds the row, since the others have nothing to edit until the row
+//  exists; in a data row that is not read-only, each editable column but
+//  those of its read-only cells.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiEditableGrid::IsCellEditable (int row, int column) const
 {
     const std::vector<bool>  * readOnly = nullptr;
+    int                        first    = 0;
 
 
 
     if (!IsColumnEditable (column))
     {
         return false;
+    }
+
+    if (IsAddRow (row) && m_isAddOnFirst)
+    {
+        while (first < column && !IsColumnEditable (first))
+        {
+            first++;
+        }
+
+        return first == column;
     }
 
     if (IsAddRow (row))
@@ -1101,12 +1114,9 @@ bool DxuiEditableGrid::RouteEditorMouse (const DxuiMouseEvent & ev)
     RECT            bounds = GetBounds();
     RECT            box    = m_editor.GetBounds();
     DxuiMouseEvent  local  = ev;
-    bool            inside = ev.positionDip.x >= 0 && ev.positionDip.y >= 0 &&
-                             ev.positionDip.x < bounds.right - bounds.left && ev.positionDip.y < bounds.bottom - bounds.top;
+    bool            inside = PtInRect (&bounds, ev.positionDip) != FALSE;
 
 
-
-    local.positionDip = { ev.positionDip.x + bounds.left, ev.positionDip.y + bounds.top };
 
     if (PtInRect (&box, local.positionDip) || ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up)
     {
@@ -1144,9 +1154,9 @@ bool DxuiEditableGrid::RouteEditorMouse (const DxuiMouseEvent & ev)
 
 bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 {
-    int   lx      = ev.positionDip.x;
-    int   ly      = ev.positionDip.y;
     RECT  bounds  = GetBounds();
+    int   lx      = ev.positionDip.x - bounds.left;
+    int   ly      = ev.positionDip.y - bounds.top;
     bool  inside  = lx >= 0 && ly >= 0 && lx < bounds.right - bounds.left && ly < bounds.bottom - bounds.top;
     bool  isLeft  = ev.button == DxuiMouseButton::Left;
     bool  handled = false;
@@ -1215,7 +1225,7 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 
         if (row == m_pressRow && column == m_pressColumn)
         {
-            if (IsAddRow (row) && !IsColumnEditable (column))
+            if (IsAddRow (row) && !IsCellEditable (row, column))
             {
                 column = GetNextEditColumn (-1, 1);
             }
@@ -1237,18 +1247,18 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiEditableGrid::GetCursorForPoint
 //
-//  The point is relative to the grid, as the list takes it. Over a gripper,
+//  The point is in the parent's coordinates, as the list takes it. Over a gripper,
 //  and while a row is dragged, the cursor is the up-and-down arrow; over the
 //  box of a cell being edited, or the row a new entry is typed into, the
 //  I-beam.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
+LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT client) const
 {
-    int    row    = HitTestRow (localPx.x, localPx.y);
-    RECT   bounds = GetBounds();
-    POINT  client = { localPx.x + bounds.left, localPx.y + bounds.top };
+    RECT   bounds  = GetBounds();
+    POINT  localPx = { client.x - bounds.left, client.y - bounds.top };
+    int    row     = HitTestRow (localPx.x, localPx.y);
 
 
 
@@ -1267,7 +1277,7 @@ LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
         return IDC_SIZENS;
     }
 
-    return DxuiListView::GetCursorForPoint (localPx);
+    return DxuiListView::GetCursorForPoint (client);
 }
 
 
@@ -1315,6 +1325,11 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
                 {
                     (void) BeginEdit (GetDataRowCount(), column);
                 }
+            }
+            else if (ev.vk == VK_RETURN)
+            {
+                //  Enter on an add row left empty ends the add.
+                EndEdit (false);
             }
 
             return true;

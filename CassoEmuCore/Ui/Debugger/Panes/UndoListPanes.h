@@ -111,11 +111,15 @@ public:
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
 
 protected:
-    //  A row's byte, none for a row with no byte to edit; what goes to the
-    //  console when the machine is running; and the edit's commit.
+    //  A row's byte, none for a row with no byte to edit; the pane's reply
+    //  when the machine is running; and the edit's commit.
     virtual std::optional<Byte>      GetEditValue   (int row) const = 0;
     virtual const char             * GetPauseNote   () const = 0;
     virtual void                     CommitEdit     (int row, Byte typed) = 0;
+
+    //  A row whose value is a word, as PC's is: the word, and its commit.
+    virtual std::optional<Word>      GetEditWord    (int row) const       { (void) row; return std::nullopt; }
+    virtual void                     CommitWord     (int row, Word typed) { (void) row; (void) typed; }
 
     //  The pane's keys on its list with the focus, apart from an edit's.
     virtual bool                     RouteListKey   (const DxuiKeyEvent & ev);
@@ -174,12 +178,14 @@ protected:
     std::optional<Byte>            GetEditValue    (int row) const override;
     const char                   * GetPauseNote    () const override { return "Pause the machine to edit its registers."; }
     void                           CommitEdit      (int row, Byte typed) override;
+    std::optional<Word>            GetEditWord     (int row) const override;
+    void                           CommitWord      (int row, Word typed) override;
     bool                           RouteListKey    (const DxuiKeyEvent & ev) override;
 
 private:
-    std::optional<Byte>            GetRegisterByte (const std::string & name) const;
-    void                           CommitRegister  (const std::string & name, Byte typed);
-    void                           AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
+    std::optional<Byte>  GetRegisterByte      (const std::string & name) const;
+    void                 CommitRegister       (const std::string & name, Byte typed);
+    void                 AddChangedFlagRanges (uint32_t changedBits, DxuiListView::Cell & flags) const;
 
     RegisterHistory                                      m_history;
     HistoryBand                                        * m_band = nullptr;
@@ -209,6 +215,8 @@ public:
     ~StackPane() override;
 
     StackHistory                 & GetHistory   () { return m_history; }
+    IDxuiFindTarget              * GetFindView  () const override { return m_list; }
+    DebuggerPaneFrame            * GetFindFrame () const override { return m_frame.get(); }
 
     void                           Configure    () override;
     void                           Apply        (const DebuggerViewSnapshot & snapshot) override;

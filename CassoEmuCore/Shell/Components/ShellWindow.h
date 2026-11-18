@@ -43,8 +43,8 @@ public:
     // can be told from the others at a glance. Undocumented; set from --title
     // and read by UpdateWindowTitle. Set before the window exists, so it does
     // not refresh the caption itself.
-    void SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
-    const wstring & GetWindowTitlePrefix () const       { return m_titlePrefix; }
+    void            SetWindowTitlePrefix (const wstring & prefix) { m_titlePrefix = prefix; }
+    const wstring & GetWindowTitlePrefix () const                 { return m_titlePrefix; }
 
     void UpdateWindowTitle();
 
@@ -124,7 +124,7 @@ public:
 
     // The accelerator table, loaded once the window exists, and a message
     // translated through it; false when it is not an accelerator.
-    HRESULT  LoadAcceleratorTable       (HINSTANCE hInstance);
+    HRESULT  LoadAcceleratorTable        (HINSTANCE hInstance);
     bool     TranslateAcceleratorMessage (MSG & msg);
 
     // The shell's window message handlers for a move, the OS drag loop, the

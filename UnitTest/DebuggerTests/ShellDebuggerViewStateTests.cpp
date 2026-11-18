@@ -60,7 +60,7 @@ namespace ShellDebuggerViewStateTests
 
             shell->GetMachine().PowerCycle();
             shell->GetDebugger().PrepareFramebuffers();
-            shell->GetDebugger().SetClock ([this] () { return nowMs; });
+            shell->GetDebugger().GetView().SetClock ([this] () { return nowMs; });
 
             controller = std::make_unique<DebuggerController> (shell->GetMachine(), ControllerRig::Paused (shell->GetCpuManager()), transport, files, nullptr, 1);
 
@@ -68,14 +68,14 @@ namespace ShellDebuggerViewStateTests
             AssertSucceeded (hr, L"the debugger opens");
 
             shell->GetDebugger().AttachDebugger (std::move (controller));
-            shell->GetDebugger().SetDebugWindowShown (true);
+            shell->GetDebugger().GetView().SetWindowShown (true);
         }
 
 
 
         ~ViewRig()
         {
-            shell->GetDebugger().SetDebugWindowShown (false);
+            shell->GetDebugger().GetView().SetWindowShown (false);
 
             if (shell->GetDebugger().IsDebuggerOpen())
             {
@@ -127,7 +127,7 @@ namespace ShellDebuggerViewStateTests
         //  shell's count rather than after waiting out a timeout.
         bool PassBuilds (bool isLater)
         {
-            uint64_t  before = shell->GetDebugger().GetBuildsSubmitted();
+            uint64_t  before = shell->GetDebugger().GetView().GetBuildsSubmitted();
 
 
 
@@ -140,7 +140,7 @@ namespace ShellDebuggerViewStateTests
                 shell->GetDebugger().ServiceDebugger();
             }
 
-            return shell->GetDebugger().GetBuildsSubmitted() != before;
+            return shell->GetDebugger().GetView().GetBuildsSubmitted() != before;
         }
 
 
@@ -192,7 +192,10 @@ namespace ShellDebuggerViewStateTests
                 { L"SetDebugHeatMapShown",     [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapShown (true); } },
                 { L"SetDebugSoundMuted",       [] (ShellDebugger & debugger) { debugger.SetDebugSoundMuted (0, true); } },
                 { L"SetDebugBasicShown",       [] (ShellDebugger & debugger) { debugger.SetDebugBasicShown (true); } },
-                { L"SetDebugHeatMapOptions",   [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapOptions (HeatMapOptions().ToText()); } },
+                { L"SetDebugHeatMapOptions",   [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapOptions (HeatMapOptions()); } },
+                { L"SetDebugCodeLines",        [] (ShellDebugger & debugger) { debugger.SetDebugCodeLines (20, 0); } },
+                { L"ShowDebugCode",            [] (ShellDebugger & debugger) { debugger.ShowDebugCode (0, Word (0x0300)); } },
+                { L"SetDebugMemoryWindow",     [] (ShellDebugger & debugger) { debugger.SetDebugMemoryWindow (1, Word (0x0300)); } },
                 { L"SetDebugHeatMapHover",     [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapHover (Word (0x0300)); } },
             };
         }
@@ -221,9 +224,10 @@ namespace ShellDebuggerViewStateTests
         //  A step un-pauses the machine until it lands, and a view built in
         //  between would have a running machine's rows, without the trace's
         //  next instructions, before the stopped view put them back: the
-        //  trace pane's flash on a step (T770). A pass while the step is under
-        //  way builds nothing; one a build interval later builds, so a long
-        //  trace run refreshes as a run does.
+        //  trace pane's flash on a step (T770), and the code views drawn at
+        //  the PC inside a call a step over runs. A pass while the step is
+        //  under way builds nothing, a build interval later as well; one past
+        //  the hold builds, so a long trace run refreshes as a run does.
         TEST_METHOD (APassWhileAStepIsUnderWayBuildsNothing)
         {
             ViewRig  rig;
@@ -237,8 +241,11 @@ namespace ShellDebuggerViewStateTests
 
             Assert::IsFalse (rig.PassBuilds (false), L"no view while the step is under way");
 
-            rig.PassLater();
-            Assert::IsTrue (rig.TryTakeView (ViewRig::kViewWaitMs), L"a view a build interval later");
+            Assert::IsFalse (rig.PassBuilds (true), L"nor a build interval later");
+
+            rig.nowMs += DebuggerViewState::kStepHoldMs;
+            rig.shell->GetDebugger().ServiceDebugger();
+            Assert::IsTrue (rig.TryTakeView (ViewRig::kViewWaitMs), L"a view once the hold passes");
         }
 
 
@@ -260,7 +267,7 @@ namespace ShellDebuggerViewStateTests
 
 
                 {
-                    std::lock_guard<std::mutex>  held (rig.shell->GetDebugger().GetViewStateLock());
+                    std::lock_guard<std::mutex>  held (rig.shell->GetDebugger().GetViewModel().GetLock());
 
 
 

@@ -393,6 +393,8 @@ UnitTest/rockwell65c02/
 # this path, so both must be ignored or a run leaves an untracked file behind.
 /Disks/Apple/dos33-master.dsk
 /Disks/Apple/prodos-users.dsk
+/Disks/Apple/sos-utilities.dsk
+/Disks/Apple/sos-demo.dsk
 /Disks/ThirdParty/kermit-65.dsk
 
 # Third-party network software for the Uthernet II scenario cases, fetched by
@@ -443,3 +445,10 @@ Apple2/Demos/**/*.bin
 # built from, not intermediates. They live under CassoRocks/ and the pattern
 # above would otherwise make `git add` skip a regenerated one without a word.
 !Apple2/Demos/CassoRocks/*.bin
+
+# CiderPress II's test files, fetched by scripts/FetchCiderPressTestFiles.ps1 under its
+# Apache 2.0 license and not redistributed here.
+UnitTest/Fixtures/CiderPress/
+
+# Sample disks from the Asimov Apple II archive, fetched by scripts/FetchAsimovSamples.ps1.
+UnitTest/Fixtures/Asimov/

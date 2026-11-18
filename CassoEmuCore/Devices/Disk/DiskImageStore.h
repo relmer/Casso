@@ -234,6 +234,15 @@ public:
     void          PowerCycle        ();
 
     DiskImage *   GetImage          (int slot, int drive);
+    uint64_t      GetViewerMediaId  (int slot, int drive) const;
+
+    //  A machine state was restored and a mounted disk's tracks may have
+    //  changed under it (FR-069): the bay gets a new media id and the sink
+    //  gets BayChange::Restored, so the drive's counts start over and a viewer
+    //  analyzes the disk as after a reload. The file's bytes as inserted are
+    //  left as they are, so "As inserted" is the disk as first inserted
+    //  (FR-117).
+    void          NoteStateRestored (int slot, int drive);
     bool          IsMounted         (int slot, int drive) const;
     const string &GetSourcePath     (int slot, int drive) const;
 
@@ -392,7 +401,7 @@ public:
     //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
     //  runs on its own thread and the message channel on the UI thread, while
     //  acting on a change belongs to the thread that owns disk writes.
-    void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
+    void          NoteExternalChange (const string & path, ExternalChangeIntent intent, bool fromCassoExplorer = false);
 
     //  Act on whatever has settled. Called on the CPU thread at a moment with
     //  no disk operation in flight.
@@ -406,8 +415,8 @@ public:
     //  the watch wiring, the banner, the prompt -- asks these questions of a
     //  bay, and a dozen forwarding accessors would put one piece of state
     //  behind two names.
-    MountedImageState *        GetSharedState (int slot, int drive);
-    const MountedImageState *  GetSharedState (int slot, int drive) const;
+    MountedImageState        * GetSharedState (int slot, int drive);
+    const MountedImageState  * GetSharedState (int slot, int drive) const;
 
     static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
@@ -489,7 +498,7 @@ private:
 
         //  Which bay this is.
         //
-        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
+        //  KEPT ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
         //  Every message about a disk names the drive it is in, and threading
         //  a pair of ints through five call sites to reach one function is a
         //  worse answer than the entry knowing where it lives.
@@ -498,6 +507,11 @@ private:
 
         //  For a kept disk, the position at which it left its bay.
         uint64_t               retiredAt = 0;
+
+        //  Which disk this is, for a viewer that must tell one disk from the
+        //  next: a new number at every bay change and every reload from the
+        //  file, never reused in a session, and 0 while nothing has mounted.
+        uint64_t               mediaId = 0;
     };
 
     //  Moves a bay's disk into the kept list (or drops it without retention)
@@ -548,10 +562,10 @@ private:
         ShuttingDown,
     };
 
-    Entry &       GetEntry          (int slot, int drive);
-    const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
-    HRESULT       FlushEveryBay     (FlushMoment moment);
+    Entry        & GetEntry      (int slot, int drive);
+    const Entry  & GetEntry      (int slot, int drive) const;
+    HRESULT        FlushEntry    (Entry & entry, FlushMoment moment);
+    HRESULT        FlushEveryBay (FlushMoment moment);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be
@@ -717,6 +731,7 @@ private:
     RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
     DecisionSink             m_decisionSink;
+    uint64_t                 m_lastMediaId = 0;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
     std::function<void ()>     m_mediaChangeListener;

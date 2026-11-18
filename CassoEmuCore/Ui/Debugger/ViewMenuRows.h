@@ -12,8 +12,9 @@
 //
 //  The View menu's rows, from the pane list: a row for every pane with a
 //  place on the menu, in the panes' order there, each checked while its pane
-//  is open. The panes in several instances, and the device panels, fold
-//  into a cascade each, placed where the first of them would have been.
+//  is open. The panes in several instances, the logs and the device panels
+//  fold into a cascade each, placed where the first of them would have been.
+//  A separator divides panes whose ranks are in different hundreds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +25,9 @@ public:
     using TestFn = std::function<bool (const std::wstring & pane)>;
     using TextFn = std::function<std::wstring (const std::wstring & pane)>;
 
-    //  The panes with a row now, in the menu's order.
-    static std::vector<std::wstring>  GetPanes (const std::vector<std::unique_ptr<IDebuggerPane>> & panes, const DebuggerViewSnapshot * snapshot);
+    //  The panes with a row now, in the menu's order, with their ranks.
+    static std::vector<std::wstring>                  GetPanes       (const std::vector<std::unique_ptr<IDebuggerPane>> & panes, const DebuggerViewSnapshot * snapshot);
+    static std::vector<std::pair<int, std::wstring>>  GetRankedPanes (const std::vector<std::unique_ptr<IDebuggerPane>> & panes, const DebuggerViewSnapshot * snapshot);
 
     //  The rows: each opens its pane, and has its pane's key in the scheme
     //  in force. The rows' commands are added to `commands`, which must last

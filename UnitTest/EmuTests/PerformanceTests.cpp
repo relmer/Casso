@@ -118,8 +118,8 @@ public:
         }
 
         machine.PowerCycle();
-        machine.RunCycles  (kColdBootCycles);
-        machine.RunCycles  (kPerfWarmupCycles);
+        machine.GetRunner().RunCycles (kColdBootCycles);
+        machine.GetRunner().RunCycles (kPerfWarmupCycles);
 
         freqHz = QpcFrequencyHz();
         if (freqHz <= 0)
@@ -129,7 +129,7 @@ public:
         }
 
         QueryPerformanceCounter (&startQpc);
-        machine.RunCycles (kPerfMeasureCycles);
+        machine.GetRunner().RunCycles (kPerfMeasureCycles);
         QueryPerformanceCounter (&endQpc);
 
         outElapsedMs = ElapsedMs (startQpc.QuadPart, endQpc.QuadPart, freqHz);

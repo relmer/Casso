@@ -16,7 +16,7 @@ static constexpr int      s_kNavHeightDip           = 32;
 static constexpr int      s_kItemInternalPaddingDip = 8;
 static constexpr int      s_kInterItemPaddingDip    = 4;
 static constexpr float    s_kUnderlineThicknessDip  = 1.0f;
-static constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
+static const wchar_t * const s_kFontFamily           = DxuiTheme::GetUiFace();
 
 static constexpr int  s_kFallbackGlyphWidthDip = 8;
 
@@ -83,7 +83,19 @@ DxuiMenuBar::DxuiMenuBar()
 
     m_dropdown.SetGrabsCapture (false);
     m_dropdown.SetReopenGuard  (false);
-    m_dropdown.SetOnClosed ([this] (bool) { m_isOpen = false; });
+    //  A command chosen from the menu ends the bar's use, as in Windows: no
+    //  title is highlighted after it. The dropdown is a separate window, so
+    //  the pointer leaving the title for it never cleared the title's hover.
+    m_dropdown.SetOnClosed ([this] (bool committed)
+    {
+        m_isOpen = false;
+
+        if (committed)
+        {
+            m_hoverIndex = -1;
+            m_hasFocus   = false;
+        }
+    });
 }
 
 
@@ -200,14 +212,19 @@ void DxuiMenuBar::SetPopupHost (DxuiHwndSource * host)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::SetStripColors (uint32_t stripArgb, uint32_t hoverArgb, uint32_t textArgb)
+void DxuiMenuBar::SetStripColors (
+    uint32_t stripArgb,
+    uint32_t hoverArgb,
+    uint32_t textArgb,
+    uint32_t hoverTextArgb)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_stripColorsSet     = true;
-    m_stripBgOverride    = stripArgb;
-    m_stripHoverOverride = hoverArgb;
-    m_stripTextOverride  = textArgb;
+    m_stripColorsSet         = true;
+    m_stripBgOverride        = stripArgb;
+    m_stripHoverOverride     = hoverArgb;
+    m_stripTextOverride      = textArgb;
+    m_stripHoverTextOverride = hoverTextArgb;
 }
 
 
@@ -224,13 +241,22 @@ void DxuiMenuBar::SetDropdownColors (
     uint32_t bgArgb,
     uint32_t hoverArgb,
     uint32_t textArgb,
+    uint32_t hoverTextArgb,
     uint32_t accelArgb,
+    uint32_t hoverAccelArgb,
     uint32_t borderArgb,
     uint32_t dividerArgb)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_dropdown.SetColors (bgArgb, hoverArgb, textArgb, accelArgb, borderArgb, dividerArgb);
+    m_dropdown.SetColors (bgArgb,
+                          hoverArgb,
+                          textArgb,
+                          hoverTextArgb,
+                          accelArgb,
+                          hoverAccelArgb,
+                          borderArgb,
+                          dividerArgb);
 }
 
 
@@ -1065,13 +1091,14 @@ void DxuiMenuBar::PaintStrip (
     const IDxuiTheme  & theme,
     UINT                dpi)
 {
-    HRESULT   hr        = S_OK;
-    UINT      eDpi      = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
-    float     fontDip   = GetMenuFontPx (eDpi);
-    bool      showCues  = ShouldShowMnemonicCues (IsOpenByKeyboard());
-    uint32_t  stripBg   = m_stripColorsSet ? m_stripBgOverride    : theme.Background();
-    uint32_t  stripHov  = m_stripColorsSet ? m_stripHoverOverride : theme.HoverBackground();
-    uint32_t  stripFg   = m_stripColorsSet ? m_stripTextOverride  : theme.Foreground();
+    HRESULT   hr         = S_OK;
+    UINT      eDpi       = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
+    float     fontDip    = GetMenuFontPx (eDpi);
+    bool      showCues   = ShouldShowMnemonicCues (IsOpenByKeyboard());
+    uint32_t  stripBg    = m_stripColorsSet ? m_stripBgOverride    : theme.Background();
+    uint32_t  stripHov   = m_stripColorsSet ? m_stripHoverOverride : theme.HoverBackground();
+    uint32_t  stripFg    = m_stripColorsSet ? m_stripTextOverride  : theme.Foreground();
+    uint32_t  stripHovFg = m_stripColorsSet ? m_stripHoverTextOverride : theme.Foreground();
 
 
 
@@ -1096,12 +1123,14 @@ void DxuiMenuBar::PaintStrip (
         wchar_t       mnCh  = 0;
         float         rectW = (float) (m_titleRects[i].right - m_titleRects[i].left);
         float         rectH = (float) (m_titleRects[i].bottom - m_titleRects[i].top);
+        bool          isLit = (m_hoverIndex == (int) i) ||
+                              (m_isOpen && m_openIndex == (int) i) ||
+                              (m_hasFocus && !m_isOpen && m_focusedIndex == (int) i);
+        uint32_t      fg    = isLit ? stripHovFg : stripFg;
 
         ParseMnemonic (m_items[i].label, stripped, mnIdx, mnCh);
 
-        if ((m_hoverIndex == (int) i) ||
-            (m_isOpen && m_openIndex == (int) i) ||
-            (m_hasFocus && !m_isOpen && m_focusedIndex == (int) i))
+        if (isLit)
         {
             painter.FillRoundedRect ((float) m_titleRects[i].left,
                                      (float) m_titleRects[i].top,
@@ -1116,7 +1145,7 @@ void DxuiMenuBar::PaintStrip (
                               (float) m_titleRects[i].top,
                               rectW,
                               rectH,
-                              stripFg,
+                              fg,
                               fontDip,
                               s_kFontFamily,
                               DxuiTextHAlign::Center,
@@ -1160,7 +1189,7 @@ void DxuiMenuBar::PaintStrip (
             baseX = (float) m_titleRects[i].left + (rectW - fullW) / 2.0f + prefixW;
             baseY = GetMnemonicUnderlineTop ((float) m_titleRects[i].top + (rectH - fullH) / 2.0f, fullH);
 
-            painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, stripFg);
+            painter.FillRect (baseX, baseY, charW, s_kUnderlineThicknessDip, fg);
         }
     }
 }

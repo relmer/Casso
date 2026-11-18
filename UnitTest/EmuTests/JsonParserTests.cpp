@@ -191,4 +191,74 @@ public:
 
         AssertFailed (hr);
     }
+
+    static std::string NestObjects (size_t depth)
+    {
+        std::string  json;
+
+
+
+        for (size_t i = 0; i < depth; i++)
+        {
+            json += "{\"a\":";
+        }
+
+        return json + "1" + std::string (depth, '}');
+    }
+
+    TEST_METHOD (Parse_NestingAtTheDepthLimit_Parses)
+    {
+        std::string     arrays  = std::string (JsonParser::kMaxDepth, '[') + std::string (JsonParser::kMaxDepth, ']');
+        JsonValue       value;
+        JsonParseError  error;
+        HRESULT         hr      = S_OK;
+
+
+
+        hr = JsonParser::Parse (arrays, value, error);
+        AssertSucceeded (hr);
+
+        hr = JsonParser::Parse (NestObjects (JsonParser::kMaxDepth), value, error);
+        AssertSucceeded (hr);
+    }
+
+    TEST_METHOD (Parse_NestingOneLevelPastTheLimit_ReportsError)
+    {
+        std::string     arrays  = std::string (JsonParser::kMaxDepth + 1, '[') + std::string (JsonParser::kMaxDepth + 1, ']');
+        JsonValue       value;
+        JsonParseError  error;
+        HRESULT         hr      = S_OK;
+
+
+
+        hr = JsonParser::Parse (arrays, value, error);
+        AssertFailed (hr);
+        Assert::IsTrue (error.message.find ("nested") != std::string::npos, L"the error reports the depth");
+
+        hr = JsonParser::Parse (NestObjects (JsonParser::kMaxDepth + 1), value, error);
+        AssertFailed (hr);
+        Assert::IsTrue (error.message.find ("nested") != std::string::npos);
+    }
+
+    //  Without the limit, each `[` is another level of recursion, and this
+    //  many overflows the stack and ends the test process.
+    TEST_METHOD (Parse_AMebibyteOfOpeners_FailsAtTheLimit)
+    {
+        constexpr size_t  kOneMebibyte = 1024 * 1024;
+
+        std::string     arrays  (kOneMebibyte, '[');
+        JsonValue       value;
+        JsonParseError  error;
+        HRESULT         hr      = S_OK;
+
+
+
+        hr = JsonParser::Parse (arrays, value, error);
+        AssertFailed (hr);
+        Assert::IsTrue (error.message.find ("nested") != std::string::npos);
+
+        hr = JsonParser::Parse (NestObjects (kOneMebibyte / (sizeof ("{\"a\":") - 1)), value, error);
+        AssertFailed (hr);
+        Assert::IsTrue (error.message.find ("nested") != std::string::npos);
+    }
 };

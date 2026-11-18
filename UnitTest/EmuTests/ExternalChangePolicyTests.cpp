@@ -139,7 +139,7 @@ public:
     TEST_METHOD (AConflictOutranksEveryStatedIntent)
     {
         //  The rule the whole feature exists for: an intent says how the guest
-        //  carries on, and never that work may be discarded. If this row ever
+        //  continues, and never that work may be discarded. If this row ever
         //  moves below the intent test, `--on-change reload` silently throws
         //  away the guest's unsaved writes.
         const ExternalChangeIntent  intents[] = { ExternalChangeIntent::Unstated,
@@ -815,6 +815,17 @@ public:
         //  reader is checking for.
         Assert::IsTrue (stated.message.find   (L"Drive 1") != std::wstring::npos);
         Assert::IsTrue (answered.message.find (L"Drive 1") != std::wstring::npos);
+    }
+
+
+
+    TEST_METHOD (TheReloadNoticeNamesCassoExplorerForItsOwnWrite)
+    {
+        ChangePrompt  stated = ChangePrompt::ComposeReloadReport ("Game.dsk", 0, false, "Apple //e", ChangeAuthor::CassoExplorer);
+
+
+
+        Assert::IsTrue (stated.message.find (L"Casso Explorer modified Game.dsk and inserted it into Drive 1.") != std::wstring::npos, stated.message.c_str());
     }
 
 

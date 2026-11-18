@@ -202,7 +202,38 @@ namespace DxuiDockSitePaneMenuTests
 
             item = Find (tabbed, L"All to new window");
             RequireItem (item);
-            Assert::IsFalse (item->enabled, L"a floating window holds one pane");
+            Assert::IsFalse (item->enabled, L"without a handler for a group, a group of several can't float whole");
+        }
+
+
+        //  All to new window floats a group of several in one window, and the
+        //  group's selected tab is selected there too.
+        TEST_METHOD (AllToNewWindowFloatsTheWholeGroup)
+        {
+            Rig                        rig;
+            std::vector<std::wstring>  panes;
+            std::wstring               active;
+            std::vector<MenuItem>      items;
+            const MenuItem           * item   = nullptr;
+
+
+
+            rig.site.SetOnFloatGroupRequested ([&] (const std::vector<std::wstring> & group, const std::wstring & shown, POINT)
+            {
+                panes  = group;
+                active = shown;
+            });
+            rig.site.ActivatePane (L"regs");
+
+            items = rig.site.GetPaneMenu (L"stack", true);
+            item  = Find (items, L"All to new window");
+
+            RequireItem (item);
+            Assert::IsTrue   (item->enabled);
+            Assert::IsTrue   (item->action());
+            Assert::IsTrue   (std::vector<std::wstring> { L"regs", L"stack" } == panes, L"the group's panes together");
+            Assert::AreEqual (std::wstring (L"regs"), active, L"the tab the group showed");
+            Assert::IsTrue   (rig.floated.empty(), L"the pane alone was floated");
         }
 
 

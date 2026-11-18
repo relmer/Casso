@@ -9,6 +9,7 @@
 
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
+#include "PacedRun.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 
@@ -141,28 +142,20 @@ namespace UthernetSoftwareTests
         void  Boot (const std::vector<Byte> & disk)
         {
             GuestSession::Mount (m_machine, disk);
-            m_machine.RunCycles (kBootCycles);
+            m_machine.GetRunner().RunCycles (kBootCycles);
         }
 
-        // Runs at 1.023 MHz of wall time, polling the test's sockets.
+        // Runs `ms` of the guest's time, polling the test's sockets after each
+        // slice: as fast as the PC allows, in real time only while the guest
+        // waits on the network.
         void  Run (DWORD ms)
         {
-            ULONGLONG  start = GetTickCount64();
-            uint64_t   done  = 0;
-            uint64_t   due   = 0;
+            TestMachine  * machines[] = { &m_machine };
+            uint64_t       slices     = (uint64_t) ms * kCyclesPerMs / PacedRun::kSliceCycles + 1;
 
-            while (GetTickCount64() - start < ms)
+            for (uint64_t slice = 0; slice < slices; slice++)
             {
-                due = (GetTickCount64() - start) * kCyclesPerMs;
-
-                if (done < due)
-                {
-                    done += m_machine.RunCycles (due - done);
-                }
-                else
-                {
-                    Sleep (1);
-                }
+                PacedRun::Step (machines);
 
                 if (m_poll)
                 {
@@ -221,13 +214,13 @@ namespace UthernetSoftwareTests
             for (moves = 0; moves < kMaxMoves && !ShowsText (marker); moves++)
             {
                 Press (key);
-                m_machine.RunCycles (kSettleCycles);
+                m_machine.GetRunner().RunCycles (kSettleCycles);
             }
 
             Assert::IsTrue (ShowsText (marker), std::format (L"no highlight on \"{}\"\n{}", TextEncoding::NarrowToWide (marker), Screen()).c_str());
         }
 
-        void  Settle (uint64_t cycles) { m_machine.RunCycles (cycles); }
+        void  Settle (uint64_t cycles) { m_machine.GetRunner().RunCycles (cycles); }
 
         std::wstring  Screen()
         {

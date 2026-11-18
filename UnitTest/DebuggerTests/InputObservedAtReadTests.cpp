@@ -200,15 +200,15 @@ public:
 
 
 
-        live.SetInputJournalOn (true);
+        live.GetHostInput().SetJournalOn (true);
 
         SetCycle (live, s_kObservedFirstCycle);
         live.GetMouse()->MoveBy (s_kObservedMoveX, s_kObservedMoveY);
         TickMouse (live);
 
-        Assert::AreEqual<size_t> (1, live.GetInputJournal().GetEndIndex(), L"one record for the motion the tick drained");
+        Assert::AreEqual<size_t> (1, live.GetHostInput().GetJournal().GetEndIndex(), L"one record for the motion the tick drained");
 
-        record = &live.GetInputJournal().GetRecord (0);
+        record = &live.GetHostInput().GetJournal().GetRecord (0);
         data   = (static_cast<uint64_t> (static_cast<uint32_t> (s_kObservedMoveX)) << 32) | static_cast<uint32_t> (s_kObservedMoveY);
 
         Assert::IsTrue (record->kind == InputKind::MouseMove);
@@ -216,7 +216,7 @@ public:
         Assert::AreEqual<uint64_t> (data,                     record->data);
 
         SetCycle (replay, s_kObservedFirstCycle);
-        Assert::IsTrue (replay.ApplyDeviceInput (*record), L"the mouse applies a motion record");
+        Assert::IsTrue (replay.GetHostInput().ApplyDeviceInput (*record), L"the mouse applies a motion record");
         TickMouse (replay);
 
         Assert::AreEqual<Byte> (live.GetMouse()->ReadMouX1(),            replay.GetMouse()->ReadMouX1(),            L"X direction");
@@ -235,15 +235,15 @@ public:
 
 
 
-        live.SetInputJournalOn (true);
+        live.GetHostInput().SetJournalOn (true);
 
         SetCycle (live, s_kObservedFirstCycle);
         live.GetMouse()->SetHostTargetFraction (s_kObservedTargetX, s_kObservedTargetY);
         TickMouse (live);
 
-        Assert::AreEqual<size_t> (1, live.GetInputJournal().GetEndIndex(), L"one record for the target the retarget pass read");
+        Assert::AreEqual<size_t> (1, live.GetHostInput().GetJournal().GetEndIndex(), L"one record for the target the retarget pass read");
 
-        record = &live.GetInputJournal().GetRecord (0);
+        record = &live.GetHostInput().GetJournal().GetRecord (0);
 
         Assert::IsTrue (record->kind == InputKind::MouseTarget);
         Assert::AreEqual<uint64_t> (s_kObservedFirstCycle, record->cycle);
@@ -251,7 +251,7 @@ public:
         Assert::AreEqual<uint64_t> (packed,                record->data);
 
         SetCycle (replay, s_kObservedFirstCycle);
-        Assert::IsTrue (replay.ApplyDeviceInput (*record), L"the mouse applies a target record");
+        Assert::IsTrue (replay.GetHostInput().ApplyDeviceInput (*record), L"the mouse applies a target record");
         TickMouse (replay);
 
         Assert::IsTrue (SaveMouse (live) == SaveMouse (replay), L"the replayed mouse holds the same target and state");
@@ -266,13 +266,13 @@ public:
 
 
 
-        live.SetInputJournalOn (true);
+        live.GetHostInput().SetJournalOn (true);
 
         SetCycle (live, s_kObservedFirstCycle);
         live.GetRefs().keyboard->PressKeyOnCpuThread ('P');
         live.GetMemoryBus().ReadByte (0xC000);
 
-        Assert::AreEqual<size_t> (0, live.GetInputJournal().GetEndIndex());
+        Assert::AreEqual<size_t> (0, live.GetHostInput().GetJournal().GetEndIndex());
     }
 
 
@@ -284,15 +284,15 @@ public:
 
 
 
-        live.SetInputJournalOn (true);
-        live.SetInputJournalOn (false);
-        live.GetInputJournal().SetOn (true);
+        live.GetHostInput().SetJournalOn (true);
+        live.GetHostInput().SetJournalOn (false);
+        live.GetHostInput().GetJournal().SetOn (true);
 
         SetCycle (live, s_kObservedFirstCycle);
         live.GetRefs().keyboard->PressKey ('Z');
         live.GetMemoryBus().ReadByte (0xC000);
 
-        Assert::AreEqual<size_t> (0, live.GetInputJournal().GetEndIndex());
+        Assert::AreEqual<size_t> (0, live.GetHostInput().GetJournal().GetEndIndex());
     }
 
 
@@ -316,7 +316,7 @@ private:
     {
         TestMachine          live      (machineId, TestMachine::Slots::Empty);
         TestMachine          replay    (machineId, TestMachine::Slots::Empty);
-        InputJournal       & journal    = live.GetInputJournal();
+        InputJournal       & journal    = live.GetHostInput().GetJournal();
         const InputRecord  * record     = nullptr;
         Byte                 liveFirst  = 0;
         Byte                 liveSecond = 0;
@@ -331,7 +331,7 @@ private:
             setUp (replay);
         }
 
-        live.SetInputJournalOn (true);
+        live.GetHostInput().SetJournalOn (true);
 
         Assert::AreEqual<Byte> (ReadAt (live, address, s_kObservedBaselineCycle), ReadAt (replay, address, s_kObservedBaselineCycle),
                                 (where + L"the two machines must agree before the write").c_str());
@@ -354,7 +354,7 @@ private:
 
         for (i = journal.GetBeginIndex(); i < journal.GetEndIndex(); i++)
         {
-            Assert::IsTrue (replay.ApplyDeviceInput (journal.GetRecord (i)), (where + L"a device applies the record").c_str());
+            Assert::IsTrue (replay.GetHostInput().ApplyDeviceInput (journal.GetRecord (i)), (where + L"a device applies the record").c_str());
         }
 
         Assert::AreEqual<Byte> (liveFirst,  ReadAt (replay, address, s_kObservedFirstCycle),  (where + L"the replayed first read").c_str());

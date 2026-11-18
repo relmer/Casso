@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Ui/Debugger/UndoText.h"
+#include "Ui/Debugger/BreakpointActions.h"
 
 #include "ControllerRig.h"
 #include "Core/TextEncoding.h"
@@ -35,7 +36,7 @@ namespace BreakpointHistoryTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Do (BreakpointStep::Kind kind, const std::string & path = std::string())
@@ -44,7 +45,7 @@ namespace BreakpointHistoryTests
 
             step.kind = kind;
             step.path = path;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()
@@ -86,7 +87,7 @@ namespace BreakpointHistoryTests
             rig.Run (std::format ("BPCHANGE {} eTs", before.id));
             before = rig.List().at (0);
 
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
             Assert::AreEqual ((size_t) 0, rig.List().size());
 
             rig.Do (BreakpointStep::Kind::Undo);
@@ -103,6 +104,38 @@ namespace BreakpointHistoryTests
         }
 
 
+        //  Grouping two breakpoints is one step: one Undo takes both out of
+        //  the group and Redo puts them back; deleting a group is undone with
+        //  its breakpoints back in it.
+        TEST_METHOD (AGroupActionIsOneStep)
+        {
+            HistoryRig   rig;
+            CommandMode  aw = CommandMode::AppleWin;
+
+
+
+            rig.Run ("BP 0300");
+            rig.Run ("BP 0310");
+
+            rig.Step ({ BreakpointActions::GetGroupBreakpoints (std::format ("\"Loop\" {},{}", rig.List().at (0).id, rig.List().at (1).id), aw) });
+            Assert::AreEqual (std::string ("Loop"), rig.List().at (1).group);
+            Assert::AreEqual (std::wstring (L"regroup 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            Assert::IsTrue (rig.List().at (0).group.empty() && rig.List().at (1).group.empty(), L"one undo takes both out");
+
+            rig.Do (BreakpointStep::Kind::Redo);
+            Assert::AreEqual (std::string ("Loop"), rig.List().at (0).group);
+
+            rig.Step ({ BreakpointActions::GetGroupBreakpoints ("DELETE \"Loop\"", aw) });
+            Assert::AreEqual ((size_t) 0, rig.List().size());
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            Assert::AreEqual ((size_t) 2, rig.List().size(), L"both back");
+            Assert::AreEqual (std::string ("Loop"), rig.List().at (1).group, L"in the group");
+        }
+
+
         //  The snapshot has the step Undo and Redo would act on, as their tips
         //  read it.
         TEST_METHOD (UndoAndRedoTextsNameTheStep)
@@ -113,14 +146,14 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 300", aw) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("300"), aw) });
             Assert::AreEqual (std::wstring (L"add breakpoint #0"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 301", aw) });
-            rig.Step ({ DebuggerActions::GetEnableAllBreakpoints (false, aw) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("301"), aw) });
+            rig.Step ({ BreakpointActions::GetEnableAllBreakpoints (false, aw) });
             Assert::AreEqual (std::wstring (L"disable 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
 
-            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (aw) });
+            rig.Step ({ BreakpointActions::GetClearAllBreakpoints (aw) });
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::AreEqual (std::wstring (L"delete 2 breakpoints"), snapshot.undoBreakpointsText);
             Assert::AreEqual (std::wstring(), snapshot.redoBreakpointsText);
@@ -142,7 +175,7 @@ namespace BreakpointHistoryTests
             rig.Run ("BP 0302");
             rig.Run ("BPMR 0400");
 
-            rig.Step ({ DebuggerActions::GetEnableAllBreakpoints (false, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEnableAllBreakpoints (false, CommandMode::AppleWin) });
             Assert::IsFalse (rig.List().at (2).enabled);
 
             rig.Do (BreakpointStep::Kind::Undo);
@@ -165,7 +198,7 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             rig.Run ("BPMW 0400:0410");
-            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
             Assert::AreEqual ((size_t) 0, rig.List().size());
 
             rig.Do (BreakpointStep::Kind::Undo);
@@ -179,11 +212,11 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             Assert::IsTrue (rig.CanRedo());
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             Assert::IsFalse (rig.CanRedo());
         }
 
@@ -197,7 +230,7 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, "BP 0302", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((Word) 0x0300, rig.List().at (0).address);
@@ -214,11 +247,11 @@ namespace BreakpointHistoryTests
 
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetEnableBreakpoint (id, false, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEnableBreakpoint (id, false, CommandMode::AppleWin) });
             rig.Do   (BreakpointStep::Kind::Undo);
             Assert::IsTrue (rig.List().at (0).enabled);
 
@@ -236,7 +269,7 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPC {}", id));
             rig.Run ("BP 0302");
@@ -258,9 +291,9 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             id = rig.List().at (0).id;
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
 
             rig.Run ("BPC *");
             rig.Run ("BPM 0400");
@@ -286,7 +319,7 @@ namespace BreakpointHistoryTests
 
 
 
-            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPC {}", id));
             rig.Run ("BP 0300");
@@ -305,7 +338,7 @@ namespace BreakpointHistoryTests
 
 
 
-            lines = rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            lines = rig.Step ({ BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::AppleWin) });
             Assert::IsTrue (std::ranges::find (lines, DebugSession::GetPrompt (CommandMode::AppleWin) + std::string ("BP 0300")) != lines.end());
         }
     };
@@ -409,17 +442,17 @@ namespace BreakpointHistoryTests
             first.Run ("BPCHANGE 0 eTs");
             first.Run ("BPNAME 0 \"screen\"");
             first.Run ("BP 0300");
-            first.Step ({ DebuggerActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
-            first.Step ({ DebuggerActions::GetEnableBreakpoint (1, false, CommandMode::AppleWin) });
-            text = first.view.GetBreakpointUndoText();
+            first.Step ({ BreakpointActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
+            first.Step ({ BreakpointActions::GetEnableBreakpoint (1, false, CommandMode::AppleWin) });
+            text = first.view.GetCommands().GetBreakpointUndoText();
 
             second.Run ("BPMW 0400:04FF IF A=41");
             second.Run ("BP 0300");
             second.Run ("BPC 0");
             second.Run ("BPD 1");
-            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+            second.view.GetCommands().SetBreakpointUndoText (second.controller.GetSession(), text);
 
-            Assert::AreEqual (text, second.view.GetBreakpointUndoText());
+            Assert::AreEqual (text, second.view.GetCommands().GetBreakpointUndoText());
             Assert::AreEqual (2, second.controller.GetSession().GetNextId(), L"reading the text adds no id");
             Assert::AreEqual ((size_t) 1, second.List().size(), L"reading the text adds no breakpoint");
 
@@ -453,11 +486,11 @@ namespace BreakpointHistoryTests
 
 
             first.Run ("BRK ON");
-            first.Step ({ DebuggerActions::GetEnableBreakpoint (0, false, CommandMode::AppleWin) });
-            text = first.view.GetBreakpointUndoText();
+            first.Step ({ BreakpointActions::GetEnableBreakpoint (0, false, CommandMode::AppleWin) });
+            text = first.view.GetCommands().GetBreakpointUndoText();
 
             second.Run ("BRK ON IF X == 2");
-            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+            second.view.GetCommands().SetBreakpointUndoText (second.controller.GetSession(), text);
 
             Assert::AreEqual ((size_t) 1, second.List().size());
             Assert::AreEqual (std::string ("BRK ON IF X == 2"), BreakpointHandlers::MakeDefinition (second.List().at (0)), L"the condition set");
@@ -472,11 +505,11 @@ namespace BreakpointHistoryTests
 
 
             rig.Run ("BP 0300");
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (0, CommandMode::AppleWin) });
 
             for (const char * text : { "", "nonsense", "2|1:0|1.4250.|", "2|1:0|1.ZZ:111:.|" })
             {
-                rig.view.SetBreakpointUndoText (rig.controller.GetSession(), text);
+                rig.view.GetCommands().SetBreakpointUndoText (rig.controller.GetSession(), text);
                 Assert::IsFalse (rig.CanUndo(), TextEncoding::NarrowToWide (text).c_str());
             }
         }

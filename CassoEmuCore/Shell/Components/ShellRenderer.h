@@ -105,10 +105,10 @@ public:
     // speed; the Compute* signatures feed the dirty-tracked render gate that
     // skips re-rasterizing an unchanged screen (video RAM dirty + mode +
     // flash phase + color).
-    bool      ShouldPublishFrame  ();
-    uint32_t  ComputeVideoModeSig ();
-    bool      ComputeFlashOn      ();
-    uint64_t  ComputeColorSig     ();
+    bool      ShouldPublishFrame    ();
+    uint32_t  ComputeVideoModeSig   ();
+    bool      ComputeFlashOn        ();
+    uint64_t  ComputeColorSig       ();
     uint64_t  ComputeBeamOverlaySig ();
 
     // Draws a stopped machine's picture again when its colors changed, as
@@ -131,8 +131,8 @@ public:
     // color mode. Cached because resolving the monitor re-reads and re-parses
     // the machine JSON, and the render path needs a key every frame.
     // Refreshed only when the machine changes, on the UI thread.
-    void          RefreshCrtOverrideKeys ();
-    CrtResolved   ResolveCrtForCurrentMode () const;
+    void         RefreshCrtOverrideKeys   ();
+    CrtResolved  ResolveCrtForCurrentMode () const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is

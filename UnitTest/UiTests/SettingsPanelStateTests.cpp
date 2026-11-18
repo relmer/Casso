@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SettingsPanelState.h"
+#include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/HardwarePage.h"
+#include "SettingsRecordingSink.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -44,90 +46,7 @@ public:
     static constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
     static constexpr size_t    s_kFixtureDevices         = 4;
 
-    class RecordingSink : public ISettingsApplySink
-    {
-    public:
-        SettingsSpeedMode    lastSpeed                  = SettingsSpeedMode::Authentic;
-        SettingsColorMode    lastColor                  = SettingsColorMode::Color;
-        bool                 lastFloppySound            = true;
-        bool                 lastFastTapeLoading        = true;
-        float                lastTapeVolume             = 1.0f;
-        bool                 lastTapeAutoStop           = true;
-        bool                 lastTapeIdleStop           = true;
-        bool                 lastTapeEightBit           = false;
-        std::string          lastMechanism;
-        bool                 lastWriteProtect[2]        = { false, false };
-        float                lastDriveMotor             = -1.0f;
-        float                lastDriveHead              = -1.0f;
-        float                lastDriveDoor              = -1.0f;
-        float                lastDriveOnePan            = 0.0f;
-        float                lastDriveTwoPan            = 0.0f;
-        bool                 lastExternalDriveConnected = false;
-        bool                 lastMouseConnected         = true;
-        int                  queuedResetCount           = 0;
-        std::string          lastSerialSw1;
-        std::string          lastSerialSw2;
-        int                  applyCount                 = 0;
-        NetworkCardSettings  lastNetworkCard;
-        int                  networkCardCount           = 0;
-
-        void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
-        void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
-        void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
-        void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
-        void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
-        void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
-        void ApplyTapeIdleStop (bool enabled) override             { lastTapeIdleStop = enabled; }
-        void ApplyTapeEightBit (bool enabled) override             { lastTapeEightBit = enabled; }
-        void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
-        void ApplyDriveVolumes (float motor, float head, float door) override
-        {
-            lastDriveMotor = motor;
-            lastDriveHead  = head;
-            lastDriveDoor  = door;
-            ++applyCount;
-        }
-
-        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
-        {
-            lastDriveOnePan = driveOnePan;
-            lastDriveTwoPan = driveTwoPan;
-            ++applyCount;
-        }
-
-        void ApplyWriteProtect (int drive, bool wp) override
-        {
-            if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
-            ++applyCount;
-        }
-
-        void ApplyExternalDriveConnected (bool connected) override
-        {
-            lastExternalDriveConnected = connected;
-            ++applyCount;
-        }
-
-        void ApplyMouseConnected (bool connected) override
-        {
-            lastMouseConnected = connected;
-            ++applyCount;
-        }
-
-        void ApplySerialCardSwitches (const std::string & sw1, const std::string & sw2) override
-        {
-            lastSerialSw1 = sw1;
-            lastSerialSw2 = sw2;
-            ++applyCount;
-        }
-
-        void ApplyNetworkCard (const NetworkCardSettings & settings) override
-        {
-            lastNetworkCard = settings;
-            ++networkCardCount;
-        }
-
-        void QueueMachineReset() override { ++queuedResetCount; }
-    };
+    using RecordingSink = SettingsRecordingSink;
 
 
     JsonValue ParseOrFail (const std::string & text)
@@ -219,6 +138,25 @@ public:
             "colorMode": "color"
         }
     })JSON";
+
+
+    //  A machine whose accelerator runs the CPU faster than the machine has
+    //  the CPU's clock beside the machine's; another machine has 0.
+    TEST_METHOD (Load_CpuClockSpeedFromTiming)
+    {
+        SettingsPanelState  st;
+        JsonValue           fast  = ParseOrFail (R"JSON({ "name": "Fast", "timing": { "clockSpeed": 1020484, "cpuClockSpeed": 4000000 } })JSON");
+        JsonValue           plain = ParseOrFail (kFixtureJson);
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Fast", fast, fast));
+        Assert::AreEqual (4000000u, st.GetMachineInfo().cpuClockSpeed);
+        Assert::AreEqual (1020484u, st.GetMachineInfo().clockSpeed);
+
+        AssertSucceeded (st.LoadFromMachine ("TestMachine", plain, plain));
+        Assert::AreEqual (0u, st.GetMachineInfo().cpuClockSpeed);
+    }
 
 
     TEST_METHOD (Load_Defaults_NotDirty_NoResetRequired)
@@ -523,7 +461,7 @@ public:
         AssertSucceeded (st.Apply (sink, outJson));
         Assert::IsFalse (sink.lastFastTapeLoading, L"Apply hands the setting to the shell");
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsFalse (reloaded.fastTapeLoading, L"and writes it");
         Assert::AreEqual (0.25f, reloaded.tapeVolume);
         Assert::IsFalse  (reloaded.tapeAutoStop);
@@ -551,7 +489,7 @@ public:
         Assert::IsTrue (sink.lastColor == SettingsColorMode::Green,
                         L"OK must not push the picture back to color");
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsTrue (reloaded.colorMode == SettingsColorMode::Green,
                         L"and must not write color into the file either");
     }
@@ -778,7 +716,7 @@ public:
 
         // The connected state persists into the emitted $cassoUiPrefs, and
         // re-loading that JSON restores it.
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
     }
 
@@ -956,6 +894,284 @@ public:
             L"and a second drive the user detached stays detached.");
     }
 
+
+    // A //c's serial ports are back-panel ports, staged with the rest of the
+    // list. A change is written with the whole list and connected live, as a
+    // cable is plugged in, with no reset; only the port whose device differs
+    // is reconnected.
+    TEST_METHOD (SerialPorts_ChangeIsWrittenAndConnectedWithoutAReset)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "" },
+                       { "name": "serial1", "device": "" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.HasSerialPorts());
+        Assert::AreEqual (std::string(), st.GetSerialPortDevice (2));
+        Assert::IsFalse (st.RequiresReset());
+
+        st.SetSerialPortDevice (2, "tcp:6502");
+
+        Assert::AreEqual (std::string ("tcp:6502"), st.GetSerialPortDevice (2));
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsFalse (st.RequiresReset(), L"a serial device is connected while the machine runs");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "2 tcp:6502" }));
+        Assert::AreEqual (0, sink.queuedResetCount);
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (text.find ("\"serial2\",\"device\":\"tcp:6502\"") != std::string::npos, L"the device is written");
+        Assert::IsTrue (text.find ("\"disk\"") != std::string::npos, L"and the other ports with it");
+    }
+
+
+    // OK re-reads the machine's file before it applies, so the ports other
+    // menus save behind the sheet are written as they are on disk. A serial port is edited on
+    // the Hardware page, so its staged change survives that re-read, and a
+    // second drive connected behind the sheet is taken from the file.
+    TEST_METHOD (SerialPorts_StagedChangeSurvivesTheReReadBeforeApply)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        std::string         text;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "" },
+                       { "name": "serial1", "device": "" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+        JsonValue           onDisk = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "disk-iic-drive" },
+                       { "name": "serial1", "device": "" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSerialPortDevice (2, "tcp:6502");
+
+        st.RefreshMergedJson (onDisk);
+
+        Assert::AreEqual (std::string ("tcp:6502"), st.GetSerialPortDevice (2));
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "2 tcp:6502" }), L"the change is connected");
+        Assert::IsTrue (text.find ("\"serial2\",\"device\":\"tcp:6502\"") != std::string::npos, L"and saved");
+        Assert::IsTrue (text.find ("\"disk\",\"device\":\"disk-iic-drive\"") != std::string::npos, L"with the second drive from the file");
+    }
+
+
+    TEST_METHOD (SerialPorts_AMachineWithoutThemHasNoneToSet)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+        st.LoadFromMachine ("X", v, v);
+        st.SetSerialPortDevice (1, "tcp:6501");
+
+        Assert::IsFalse (st.HasSerialPorts());
+        Assert::AreEqual (std::string(), st.GetSerialPortDevice (1));
+        Assert::IsFalse (st.RequiresReset());
+    }
+
+
+    // The printer is on one connector at a time: on a //c, putting it on
+    // port 2 empties port 1, and moving it rebuilds the machine.
+    TEST_METHOD (Printer_OnAnApple2c_IsOnOnePortAtATime)
+    {
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "" },
+                       { "name": "serial1", "device": "imagewriter" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.GetPrinterChoices() == std::vector<PrinterConnection> ({
+                            PrinterConnection(),
+                            PrinterConnection { PrinterConnection::Kind::SerialPort, 1 },
+                            PrinterConnection { PrinterConnection::Kind::SerialPort, 2 } }));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialPort, 1 });
+
+        st.SetSerialPortDevice (2, kpszImageWriterDevice);
+
+        Assert::AreEqual (std::string(), st.GetSerialPortDevice (1), L"port 1 is emptied");
+        Assert::AreEqual (std::string (kpszImageWriterDevice), st.GetSerialPortDevice (2));
+        Assert::IsFalse (st.RequiresReset(), L"the printer moves while the machine runs");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "1 ", "2 imagewriter" }),
+                        L"port 1 lets the printer go before port 2 takes it");
+    }
+
+
+    // On a machine with cards, the printer moves between the parallel card
+    // and the Super Serial Card. A parallel card read listing nothing has
+    // it, and lists nothing again when it is chosen back.
+    TEST_METHOD (Printer_MovesBetweenTheCards)
+    {
+        SettingsPanelState  st;
+        JsonValue           outJson;
+        RecordingSink       sink;
+        std::string         text;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "slots": [
+                { "slot": 1, "device": "parallel-printer" },
+                { "slot": 2, "device": "super-serial-card", "enabled": true },
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.GetPrinterChoices() == std::vector<PrinterConnection> ({
+                            PrinterConnection(),
+                            PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 },
+                            PrinterConnection { PrinterConnection::Kind::SerialCard, 2 } }));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+
+        Assert::IsTrue  (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        Assert::IsFalse (st.RequiresReset(), L"the printer moves while the machine runs");
+        Assert::IsFalse (st.TakeNotice().empty(), L"the card's mode changed for the printer");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+        Assert::IsTrue (text.find ("\"device\":\"parallel-printer\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"ports\":[\"\"]") != std::string::npos, L"the parallel card's connector is written empty");
+        Assert::IsTrue (text.find ("\"ports\":[\"imagewriter\"]") != std::string::npos, L"and the card's has the printer");
+        Assert::IsTrue (text.find ("\"sw1BeforePrinter\"") != std::string::npos, L"with the card's mode before it");
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "parallel 1 off", "2 imagewriter" }),
+                        L"the parallel card lets the printer go before the serial card takes it");
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+        Assert::IsFalse (st.TakeNotice().empty(), L"the card's mode is restored");
+        Assert::IsFalse (st.IsDirty(), L"back where it was read");
+    }
+
+
+    // The card is set to printer mode for the printer, and its mode is put
+    // back when the printer moves away, unless it was changed since. A mode
+    // change away from printer mode disconnects the printer.
+    TEST_METHOD (Printer_SetsTheSerialCardsMode_AndAModeChangeDisconnectsIt)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kSerialCardJson);
+        SscSwitches         switches;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        Assert::IsTrue (switches.TryParseBankText (SscBank::Sw1, st.GetHardware()[(size_t) st.FindSerialCard()].switchesSw1));
+        Assert::IsTrue (switches.GetMode() == SscMode::Printer);
+        Assert::IsFalse (st.TakeNotice().empty());
+
+        st.SetPrinterConnection (PrinterConnection());
+        Assert::IsTrue (switches.TryParseBankText (SscBank::Sw1, st.GetHardware()[(size_t) st.FindSerialCard()].switchesSw1));
+        Assert::IsTrue (switches.GetMode() == SscMode::Communications, L"the mode it was read with");
+        Assert::IsTrue (st.GetHardware()[(size_t) st.FindSerialCard()].switchesSw1BeforePrinter.empty());
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        AssertSucceeded (st.SetSerialCardSwitches ("off off off on on on on", "on on off on off off off"));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection(), L"communications mode disconnects the printer");
+        Assert::IsTrue (st.TakeNotice().find (L"disconnected") != std::wstring::npos);
+    }
+
+
+    //  The connector the printer takes from the card is put back when the
+    //  printer moves away, with its file, after an Apply in between too.
+    TEST_METHOD (Printer_PutsBackTheSerialCardsConnector)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  reloaded;
+        RecordingSink       sink;
+        JsonValue           v     = ParseOrFail (kSerialCardJson);
+        JsonValue           outJson;
+        std::string         text;
+        int                 index = -1;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        st.SetPrinterConnection (PrinterConnection());
+
+        index = st.FindSerialCard();
+        Assert::IsTrue (st.GetHardware()[(size_t) index].ports == std::vector<std::string> ({ "serial-file-out" }), L"the file attachment is back");
+        Assert::AreEqual (std::string ("C:\\out.txt"), st.GetHardware()[(size_t) index].portPath);
+        Assert::IsFalse (st.IsDirty(), L"back where it was read");
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+        Assert::IsTrue (text.find ("\"beforePrinter\":\"serial-file-out\"") != std::string::npos, L"the displaced connector is written with the printer's");
+
+        AssertSucceeded (reloaded.LoadFromMachine ("X", outJson, outJson));
+        reloaded.SetPrinterConnection (PrinterConnection());
+
+        index = reloaded.FindSerialCard();
+        Assert::IsTrue (reloaded.GetHardware()[(size_t) index].ports == std::vector<std::string> ({ "serial-file-out" }), L"and put back after the Apply");
+        Assert::AreEqual (std::string ("C:\\out.txt"), reloaded.GetHardware()[(size_t) index].portPath);
+    }
+
+
+    //  The printer is disconnected from a card turned off, and the
+    //  change is reported; turning the card on again does not reconnect it.
+    TEST_METHOD (Printer_IsDisconnectedFromACardTurnedOff)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "slots": [
+                { "slot": 1, "device": "parallel-printer" },
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON");
+        size_t              card = 0;
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+
+        for (size_t i = 0; i < st.GetHardware().size(); i++)
+        {
+            card = (st.GetHardware()[i].type == "parallel-printer") ? i : card;
+        }
+
+        AssertSucceeded (st.SetHardwareEnabled (card, false));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection());
+        Assert::IsTrue (st.TakeNotice().find (L"parallel card in slot 1") != std::wstring::npos);
+
+        AssertSucceeded (st.SetHardwareEnabled (card, true));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection(), L"the printer is connected again on the Printing tab");
+        Assert::IsTrue (st.TakeNotice().empty());
+    }
 
     // Detaching must write BOTH connectors. A one-element list would take
     // drive 1 away as a side effect of removing drive 2.
@@ -1159,7 +1375,7 @@ public:
         Assert::IsFalse (sink.lastMouseConnected, L"pushed live");
         Assert::AreEqual (0, sink.queuedResetCount);
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsFalse (reloaded.mouseConnected, L"mouseConnected round-trips");
     }
 
@@ -1286,6 +1502,87 @@ public:
         AssertSucceeded (hr);
         Assert::IsTrue (st.HasDiskIIController(),
             L"Re-enabling the disk-ii slot must restore the controller.");
+    }
+
+
+    //  A HARD DISK'S IMAGE AND REAL TIMING SWITCH, AND A //C DISK PORT'S CHAIN,
+    //  SURVIVE A SAVE of an unrelated change.
+    TEST_METHOD (BuildJson_KeepsDriveImagesAndChains)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        const char         * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 7, "device": "apple-scsi-card",
+                         "ports": [ "", { "device": "hd20sc", "image": "C:/a.hdv", "realTiming": true },
+                                    { "device": "hd20sc", "image": "stock" } ] } ],
+            "ports": [ { "name": "disk", "device": "", "chain": [ { "device": "unidisk35", "image": "u.po" } ] } ]
+        })JSON";
+
+
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        st.SetSpeedMode (SettingsSpeedMode::Double);
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("\"image\":\"C:/a.hdv\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"realTiming\":true")    != std::string::npos);
+        Assert::IsTrue (text.find ("\"image\":\"stock\"")    != std::string::npos);
+        Assert::IsTrue (text.find ("\"chain\"")              != std::string::npos);
+        Assert::IsTrue (text.find ("\"image\":\"u.po\"")     != std::string::npos);
+    }
+
+
+    //  NO DRIVE HAS A REAL TIMING SWITCH in the Machine tab, so setting one
+    //  fails and the saved drive has no realTiming key.
+    TEST_METHOD (SetPortRealTiming_IsSavedWithTheDrive)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        const char         * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 7, "device": "apple-scsi-card", "ports": [ "", "", "hd20sc" ] } ]
+        })JSON";
+        size_t               scsi = 0;
+        HRESULT              hr   = S_OK;
+
+
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        for (size_t i = 0; i < st.GetHardware().size(); i++)
+        {
+            scsi = (st.GetHardware()[i].type == "apple-scsi-card") ? i : scsi;
+        }
+
+        hr = st.SetPortRealTiming (scsi, 0, true);
+        Assert::IsTrue (FAILED (hr), L"no drive on ID 0");
+        hr = st.SetPortRealTiming (scsi, 2, true);
+        Assert::IsTrue (FAILED (hr), L"the HD20SC has no switch");
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("realTiming") == std::string::npos);
     }
 
 
@@ -1545,134 +1842,11 @@ public:
     }
 
 
-    static constexpr const char *  kSerialTcpJson = R"JSON({
-        "$cassoMachineVersion": 1,
-        "name": "TestMachine",
-        "internalDevices": [ { "type": "keyboard" } ],
-        "slots": [
-            { "slot": 2, "device": "super-serial-card", "firmware": "SSC.rom", "enabled": true,
-              "ports": [ { "device": "serial-tcp", "host": "peer.example.org", "port": 2323, "telnet": true } ] }
-        ]
-    })JSON";
-
-
-    TEST_METHOD (SerialCard_AttachmentOptionsAreReadAndWrittenBack)
-    {
-        SettingsPanelState      st;
-        RecordingSink           sink;
-        JsonValue               v       = ParseOrFail (kSerialTcpJson);
-        JsonValue               outJson;
-        std::string             text;
-        SerialAttachmentChoice  choice;
-
-
-
-        AssertSucceeded (st.LoadFromMachine ("X", v, v));
-
-        choice = st.GetSerialAttachment (SerialPortId::Card);
-        Assert::AreEqual (std::string (kpszSerialTcp),      choice.device);
-        Assert::AreEqual (std::string ("peer.example.org"), choice.options.host);
-        Assert::AreEqual (2323,                             choice.options.tcpPort);
-        Assert::IsTrue   (choice.options.IsTelnetOn (false));
-
-        choice.device                 = kpszSerialModem;
-        choice.options.modemListenPort = 6400;
-        choice.options.telnet.reset();
-        AssertSucceeded (st.SetSerialAttachment (SerialPortId::Card, choice));
-        Assert::IsTrue (st.RequiresReset(), L"an attachment is opened when the machine is built");
-
-        st.Apply (sink, outJson);
-        text = WriteCompactOrFail (outJson);
-
-        Assert::IsTrue  (text.find ("\"serial-modem\"")   != std::string::npos, TextEncoding::NarrowToWide (text).c_str());
-        Assert::IsTrue  (text.find ("\"listenPort\":6400") != std::string::npos, L"the modem's listen port is saved");
-        Assert::IsFalse (text.find ("\"telnet\"")         != std::string::npos, L"an unset Telnet option is not written");
-    }
-
-
-    TEST_METHOD (SerialCard_AnOptionChangeAloneRequiresAReset)
-    {
-        SettingsPanelState      st;
-        JsonValue               v      = ParseOrFail (kSerialTcpJson);
-        SerialAttachmentChoice  choice;
-
-
-
-        AssertSucceeded (st.LoadFromMachine ("X", v, v));
-
-        choice              = st.GetSerialAttachment (SerialPortId::Card);
-        choice.options.host = "other.example.org";
-        AssertSucceeded (st.SetSerialAttachment (SerialPortId::Card, choice));
-
-        Assert::IsTrue (st.RequiresReset());
-    }
-
-
-    static constexpr const char *  kApple2cPortsJson = R"JSON({
-        "$cassoMachineVersion": 1,
-        "name": "Apple2c",
-        "internalDevices": [ { "type": "keyboard" } ],
-        "ports": [
-            { "name": "disk",     "device": "disk-iic-drive" },
-            { "name": "serial1",  "device": "serial-com-port", "comPort": "COM3" },
-            { "name": "serial2",  "device": "" },
-            { "name": "joystick", "device": "" }
-        ]
-    })JSON";
-
-
-    TEST_METHOD (Apple2cPorts_AttachmentsAreReadAndWrittenBack)
-    {
-        SettingsPanelState      st;
-        RecordingSink           sink;
-        JsonValue               v       = ParseOrFail (kApple2cPortsJson);
-        JsonValue               outJson;
-        std::string             text;
-        SerialAttachmentChoice  choice;
-
-
-
-        AssertSucceeded (st.LoadFromMachine ("Apple2c", v, v));
-
-        Assert::IsTrue  (st.HasBuiltInSerialPorts());
-        Assert::IsFalse (st.HasEnabledSerialCard());
-        Assert::AreEqual (std::string ("COM3"), st.GetSerialAttachment (SerialPortId::Port1).options.comPort);
-        Assert::AreEqual (std::string(),       st.GetSerialAttachment (SerialPortId::Port2).device);
-
-        choice.device                  = kpszSerialModem;
-        choice.options.modemListenPort = 6400;
-        AssertSucceeded (st.SetSerialAttachment (SerialPortId::Port2, choice));
-        Assert::IsTrue (st.RequiresReset());
-
-        st.Apply (sink, outJson);
-        text = WriteCompactOrFail (outJson);
-
-        Assert::IsTrue (text.find ("\"serial-modem\"")    != std::string::npos, TextEncoding::NarrowToWide (text).c_str());
-        Assert::IsTrue (text.find ("\"comPort\":\"COM3\"") != std::string::npos, L"port 1's COM port is kept");
-        Assert::IsTrue (text.find ("\"disk-iic-drive\"")  != std::string::npos, L"the other ports are kept");
-    }
-
-
-    TEST_METHOD (Apple2cPorts_AMachineWithoutThemHasNone)
+    TEST_METHOD (SerialCard_AttachmentChangeIsAppliedLive)
     {
         SettingsPanelState  st;
-        JsonValue           v  = ParseOrFail (kSerialCardJson);
-        HRESULT             hr = S_OK;
-
-
-
-        AssertSucceeded (st.LoadFromMachine ("X", v, v));
-
-        Assert::IsFalse (st.HasBuiltInSerialPorts());
-
-        hr = st.SetSerialAttachment (SerialPortId::Port1, {});
-        Assert::IsTrue (FAILED (hr));
-    }
-
-
-    TEST_METHOD (SerialCard_AttachmentChangeRequiresAReset)
-    {
-        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
         JsonValue           v = ParseOrFail (kSerialCardJson);
 
 
@@ -1680,7 +1854,10 @@ public:
         AssertSucceeded (st.LoadFromMachine ("X", v, v));
         AssertSucceeded (st.SetSerialCardAttachment ("serial-loopback", ""));
 
-        Assert::IsTrue (st.RequiresReset(), L"the attachment is opened when the machine is built");
+        Assert::IsFalse (st.RequiresReset(), L"the connector is attached while the machine runs");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "2 serial-loopback" }));
     }
 
 
@@ -1782,12 +1959,12 @@ public:
         for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
         {
             info = {};
-            AssertSucceeded (SettingsPanelState::ExtractMachineInfo (id, v, info));
+            AssertSucceeded (SettingsJson::ExtractMachineInfo (id, v, info));
             Assert::IsTrue (info.supportsGamePortAdapter, std::wstring (id, id + strlen (id)).c_str());
         }
 
         info = {};
-        AssertSucceeded (SettingsPanelState::ExtractMachineInfo ("Apple2c", v, info));
+        AssertSucceeded (SettingsJson::ExtractMachineInfo ("Apple2c", v, info));
         Assert::IsFalse (info.supportsGamePortAdapter, L"the //c has no annunciators");
     }
 };

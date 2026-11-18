@@ -81,16 +81,16 @@ public:
 
         Prepare (machine, log, true);
 
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (machine);
 
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         expected = Take (machine);
 
         Load (machine, bytes);
 
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         actual = Take (machine);
 
         AssertSame (expected, actual);
@@ -115,21 +115,21 @@ public:
 
         Prepare (source, sourceLog, true);
 
-        source.RunCycles (s_kStateWarmupCycles);
+        source.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         Assert::IsTrue (source.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the guest wrote to the disk");
         Assert::AreEqual<size_t> (0, sourceLog.flushes, L"and none of it reached the image file");
 
         bytes = Build (source);
 
-        source.RunCycles (s_kStateRunCycles);
+        source.GetRunner().RunCycles (s_kStateRunCycles);
         expected = Take (source);
 
         Prepare (target, targetLog, false);
 
         Load (target, bytes);
 
-        target.RunCycles (s_kStateRunCycles);
+        target.GetRunner().RunCycles (s_kStateRunCycles);
         actual = Take (target);
 
         AssertSucceeded (ReadPatternImage (s_kStatePattern, fileImage), L"ReadPatternImage");
@@ -156,7 +156,7 @@ public:
 
         Prepare (source, sourceLog, true);
 
-        source.RunCycles (s_kStateWarmupCycles);
+        source.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         readsBefore = sourceLog.reads;
         bytes       = Build (source);
@@ -198,7 +198,7 @@ public:
 
 
         Prepare (source, sourceLog, true);
-        source.RunCycles (s_kStateWarmupCycles);
+        source.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (source);
 
@@ -238,11 +238,11 @@ public:
 
 
         Prepare (machine, log, true);
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (machine);
 
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         before = ReverseSessionRig::Save (machine);
 
         damaged = bytes;
@@ -307,7 +307,7 @@ public:
 
 
         Prepare (source, sourceLog, true);
-        source.RunCycles (s_kStateWarmupCycles);
+        source.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (source);
 
@@ -335,8 +335,8 @@ public:
 
         Assert::AreEqual<uint64_t> (diskId,  store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"drive 1 holds the disk it held, not the state's");
         Assert::AreEqual<uint64_t> (otherId, store.GetMediaId (ReverseSessionRig::kDiskSlot, kOtherDrive),                   L"drive 2 still holds the disk the state had no place for");
-        Assert::AreEqual<uint64_t> (diskId,  controller->GetDisk (ReverseSessionRig::kDiskDrive)->GetImageId(),              L"drive 1 reads its own disk");
-        Assert::AreEqual<uint64_t> (otherId, controller->GetDisk (kOtherDrive)->GetImageId(),                                L"drive 2 reads its own disk");
+        Assert::AreEqual<uint64_t> (diskId,  controller->GetDrive (ReverseSessionRig::kDiskDrive).GetDisk()->GetImageId(),              L"drive 1 reads its own disk");
+        Assert::AreEqual<uint64_t> (otherId, controller->GetDrive (kOtherDrive).GetDisk()->GetImageId(),                                L"drive 2 reads its own disk");
         Assert::IsTrue (before == ReverseSessionRig::Save (target), L"and the machine is unchanged");
 
         Assert::IsFalse          (store.IsRetainingMedia(),         L"the store keeps no disks once the load is over");
@@ -370,7 +370,7 @@ public:
 
 
         Prepare (source, sourceLog, true);
-        source.RunCycles (s_kStateWarmupCycles);
+        source.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (source);
 
@@ -428,7 +428,7 @@ public:
 
 
         Prepare (machine, log, true);
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         hr = MachineStateFile::Build (machine, thumbnail, bytes, error);
         AssertSucceeded (hr, L"Build");
@@ -466,7 +466,7 @@ public:
 
 
         Prepare (machine, log, true);
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (machine);
 
@@ -475,7 +475,7 @@ public:
 
         versionOne = Assemble (kVersionOne, kVersionOne, contents);
 
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         expected = Take (machine);
 
         hr = MachineStateFile::Parse (versionOne, contents, error);
@@ -484,7 +484,7 @@ public:
         Assert::IsTrue (contents.thumbnailPng.empty(), L"and no thumbnail");
 
         Load (machine, versionOne);
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         actual = Take (machine);
 
         AssertSame (expected, actual);
@@ -507,7 +507,7 @@ public:
 
 
         Prepare (machine, log, true);
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (machine);
 
@@ -543,7 +543,7 @@ public:
 
 
         Prepare (source, sourceLog, true);
-        source.RunCycles (s_kStateWarmupCycles);
+        source.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (source);
 
@@ -587,7 +587,7 @@ public:
 
 
         Prepare (machine, log, true);
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         hr = MachineStateFile::Build (machine, thumbnail, bytes, error);
         AssertSucceeded (hr, L"Build");
@@ -598,7 +598,7 @@ public:
         savedAt    = contents.savedAtUtc;
         versionTwo = Assemble (kVersionTwo, kVersionTwo, contents);
 
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         expected = Take (machine);
 
         hr = MachineStateFile::Parse (versionTwo, contents, error);
@@ -607,7 +607,7 @@ public:
         Assert::IsTrue (contents.thumbnailPng == thumbnail, L"and its thumbnail");
 
         Load (machine, versionTwo);
-        machine.RunCycles (s_kStateRunCycles);
+        machine.GetRunner().RunCycles (s_kStateRunCycles);
         actual = Take (machine);
 
         AssertSame (expected, actual);
@@ -627,7 +627,7 @@ public:
 
 
         Prepare (machine, log, true);
-        machine.RunCycles (s_kStateWarmupCycles);
+        machine.GetRunner().RunCycles (s_kStateWarmupCycles);
 
         bytes = Build (machine);
 
@@ -794,9 +794,9 @@ private:
 
         store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
 
-        store.SetBayChangeSink ([&machine] (int slot, int drive, BayChange)
+        store.SetBayChangeSink ([&machine] (int slot, int drive, BayChange change)
         {
-            if (slot == ReverseSessionRig::kDiskSlot)
+            if (slot == ReverseSessionRig::kDiskSlot && change != BayChange::Restored)
             {
                 machine.GetRefs().diskController->SetExternalDisk (drive, machine.GetDiskStore().GetImage (slot, drive));
             }
@@ -842,7 +842,7 @@ private:
 
         store.SetBayChangeSink ([&machine, &sounds] (int slot, int changedDrive, BayChange change)
         {
-            if (slot != ReverseSessionRig::kDiskSlot)
+            if (slot != ReverseSessionRig::kDiskSlot || change == BayChange::Restored)
             {
                 return;
             }

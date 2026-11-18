@@ -6,6 +6,14 @@
 
 
 
+//  Numbers each temp file WriteAllText stages, so two writes beside one
+//  target never share a temp file.
+static std::atomic<unsigned>  s_tempCounter { 0 };
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadAllText
@@ -87,9 +95,11 @@ Error:
 //
 //  Atomic write: stages content into a sibling temp file, then
 //  uses MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)
-//  to swap it into place. Any process reading `path` between the
-//  CreateFileW and the MoveFileExW sees the prior content; after
-//  the move, sees the new content.
+//  to swap it into place. A read of `path` between the CreateFileW and
+//  the MoveFileExW returns the prior content, and after the move the new
+//  content. The temp file's name has this process's id and a counter in it,
+//  and the file is opened with CREATE_NEW, so a file of the user's beside
+//  the target, such as one ending in .tmp, is never written over or deleted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +107,10 @@ HRESULT Win32FileSystem::WriteAllText (
     const std::wstring  & path,
     const std::string   & content)
 {
+    constexpr int  kMaxTempAttempts = 16;
+
+
+
     HRESULT          hr             = S_OK;
     HANDLE           hTemp          = INVALID_HANDLE_VALUE;
     DWORD            bytesWritten   = 0;
@@ -106,6 +120,9 @@ HRESULT Win32FileSystem::WriteAllText (
     std::wstring     parentDir;
     size_t           lastSep        = 0;
     size_t           contentSize    = 0;
+    bool             created        = false;
+    bool             taken          = false;
+    int              attempt        = 0;
     std::error_code  ec;
 
 
@@ -121,17 +138,25 @@ HRESULT Win32FileSystem::WriteAllText (
         std::filesystem::create_directories (parentDir, ec);
     }
 
-    tempPath = path + L".tmp";
+    //  A name that is taken, as by another write in flight, is passed over.
+    do
+    {
+        tempPath = std::format (L"{}.{}-{}.tmp", path, GetCurrentProcessId(), s_tempCounter++);
+        hTemp    = CreateFileW (tempPath.c_str(),
+                                GENERIC_WRITE,
+                                0,
+                                nullptr,
+                                CREATE_NEW,
+                                FILE_ATTRIBUTE_NORMAL,
+                                nullptr);
 
-    hTemp = CreateFileW (tempPath.c_str(),
-                         GENERIC_WRITE,
-                         0,
-                         nullptr,
-                         CREATE_ALWAYS,
-                         FILE_ATTRIBUTE_NORMAL,
-                         nullptr);
+        taken = hTemp == INVALID_HANDLE_VALUE && GetLastError() == ERROR_FILE_EXISTS;
+        attempt++;
+    }
+    while (taken && attempt < kMaxTempAttempts);
 
     CWR (hTemp != INVALID_HANDLE_VALUE);
+    created = true;
 
     if (!content.empty())
     {
@@ -163,7 +188,7 @@ Error:
         CloseHandle (hTemp);
     }
 
-    if (FAILED (hr))
+    if (FAILED (hr) && created)
     {
         // Best-effort temp cleanup; don't override hr.
         DeleteFileW (tempPath.c_str());
@@ -238,6 +263,47 @@ bool Win32FileSystem::Exists (const std::wstring & path)
     // whether they can open it for reading.
     return attrs != INVALID_FILE_ATTRIBUTES
         && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DirectoryExists
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32FileSystem::DirectoryExists (const std::wstring & path)
+{
+    DWORD  attrs = GetFileAttributesW (path.c_str());
+
+
+
+    return attrs != INVALID_FILE_ATTRIBUTES
+        && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::MakeDirectory (const std::wstring & path)
+{
+    BOOL   created = CreateDirectoryW (path.c_str(), nullptr);
+    DWORD  error   = created ? ERROR_SUCCESS : GetLastError();
+    bool   there   = created || (error == ERROR_ALREADY_EXISTS && DirectoryExists (path));
+
+
+
+    return there ? S_OK : HRESULT_FROM_WIN32 (error);
 }
 
 
@@ -428,16 +494,52 @@ Error:
 //
 //  EnumerateEntries
 //
-//  Non-recursive listing of files AND sub-directories with metadata. Hidden
-//  and system entries are excluded here, at the Win32 layer, so every
-//  consumer sees the same filtered view. modifiedUnix converts the FILETIME
-//  last-write stamp (100ns ticks since 1601, converted to seconds) to Unix
-//  seconds.
+//  Hidden and system entries are excluded here, at the Win32 layer, so every
+//  consumer that does not ask for them sees the same filtered view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32FileSystem::EnumerateEntries (
     const std::wstring            & directory,
+    std::vector<FileSystemEntry>  & outEntries)
+{
+    return ListEntries (directory, false, outEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnumerateAllEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::EnumerateAllEntries (
+    const std::wstring            & directory,
+    std::vector<FileSystemEntry>  & outEntries)
+{
+    return ListEntries (directory, true, outEntries);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ListEntries
+//
+//  Non-recursive listing of files AND sub-directories with metadata.
+//  modifiedUnix converts the FILETIME last-write stamp (100ns ticks since
+//  1601, converted to seconds) to Unix seconds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::ListEntries (
+    const std::wstring            & directory,
+    bool                            includeHidden,
     std::vector<FileSystemEntry>  & outEntries)
 {
     // FILETIME epoch (1601-01-01) to Unix epoch (1970-01-01), in seconds.
@@ -477,7 +579,7 @@ HRESULT Win32FileSystem::EnumerateEntries (
         ULARGE_INTEGER   size  = {};
         ULARGE_INTEGER   ticks = {};
 
-        if ((findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
+        if (!includeHidden && (findData.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0)
         {
             continue;
         }
@@ -500,6 +602,11 @@ HRESULT Win32FileSystem::EnumerateEntries (
         entry.sizeBytes    = entry.isFolder ? 0 : size.QuadPart;
         entry.modifiedUnix = (int64_t) (ticks.QuadPart / kFiletimeTicksPerSecond)
                            - kFiletimeToUnixSeconds;
+        entry.isHidden     = (findData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)     != 0;
+        entry.isSystem     = (findData.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM)     != 0;
+        entry.isCompressed = (findData.dwFileAttributes & FILE_ATTRIBUTE_COMPRESSED) != 0;
+        entry.isEncrypted  = (findData.dwFileAttributes & FILE_ATTRIBUTE_ENCRYPTED)  != 0;
+        entry.isReadOnly   = (findData.dwFileAttributes & FILE_ATTRIBUTE_READONLY)   != 0;
 
         outEntries.push_back (std::move (entry));
     }
@@ -582,5 +689,68 @@ HRESULT Win32FileSystem::SetReadOnlyAttribute (
     }
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32FileSystem::ResolveFinalPath
+//
+//  Opened with backup semantics, so a folder opens as a file does, and with
+//  no access, so a file open elsewhere does not get in the way. The "\\?\"
+//  prefix of the result is removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::ResolveFinalPath (
+    const std::wstring  & path,
+    std::wstring        & outPath)
+{
+    HRESULT       hr     = S_OK;
+    HANDLE        handle = INVALID_HANDLE_VALUE;
+    DWORD         length = 0;
+    bool          fits   = false;
+    std::wstring  final (MAX_PATH, L'\0');
+
+
+
+    handle = CreateFileW (path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                          nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    CWR (handle != INVALID_HANDLE_VALUE);
+
+    length = GetFinalPathNameByHandleW (handle, final.data(), (DWORD) final.size(), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CWR (length != 0);
+
+    if (length >= final.size())
+    {
+        final.resize (length + 1);
+        length = GetFinalPathNameByHandleW (handle, final.data(), (DWORD) final.size(), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        fits   = length != 0 && length < final.size();
+        CWR (fits);
+    }
+
+    final.resize (length);
+
+    if (final.starts_with (L"\\\\?\\UNC\\"))
+    {
+        final = L"\\\\" + final.substr (8);
+    }
+    else if (final.starts_with (L"\\\\?\\"))
+    {
+        final = final.substr (4);
+    }
+
+    outPath = final;
+
+Error:
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (handle);
+    }
+
     return hr;
 }

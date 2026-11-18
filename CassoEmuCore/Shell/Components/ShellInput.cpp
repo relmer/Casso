@@ -84,7 +84,7 @@ void ShellInput::ReleaseGuestKeys()
     // Behind live in reverse execution's history the keyboard holds a
     // recorded position, which a release must not change; the releases are
     // kept for when the machine is live again.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
     m_heldHostInputs.OnReleaseAll (isGateOpen);
 
     if (!isGateOpen)
@@ -122,7 +122,7 @@ void ShellInput::ReleaseInputsLetGoBehindLive()
 
 
 
-    if (m_machine.GetHostInputGate().IsHeld())
+    if (m_machine.GetHostInput().GetGate().IsHeld())
     {
         return;
     }
@@ -163,7 +163,7 @@ void ShellInput::ReleaseMouseButton()
 
 
 
-    if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
+    if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInput().GetGate().TryEnter (gate))
     {
         m_machine.GetMouse()->SetButton (false);
     }
@@ -297,7 +297,7 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // position, so the guest gets no keys until the machine is live again.
     // Each press and release is tracked either way, so a key let go of behind
     // live is released once the machine is live.
-    isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
+    isGateOpen = m_machine.GetHostInput().GetGate().TryEnter (gate);
 
     if (ev.kind == DxuiKeyEventKind::Down && !ev.repeat)
     {
@@ -313,15 +313,15 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // where the key would change what it reads, or the machine is live; the
     // keys that follow wait with it. A key that drives the game port goes to
     // the mixer now, which holds it there the same way.
-    verdict = m_debugger.GetDivergenceGate().JudgeKey (!isGateOpen, ev);
+    verdict = m_debugger.GetDivergence().GetGate().JudgeKey (!isGateOpen, ev);
 
     if (verdict == DivergenceVerdict::Hold)
     {
         latch = GetHeldKeyLatch (ev, isMachineKey);
 
-        m_debugger.GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
+        m_debugger.GetDivergence().GetGate().HoldKey (ev, latch, isMachineKey);
         RouteKeyToGamePort (ev);
-        m_debugger.PublishHeldInput();
+        m_debugger.GetDivergence().PublishHeldInput();
 
         return true;
     }
@@ -1141,7 +1141,7 @@ void ShellInput::ApplyDefaultPointerForMachine()
         // during SwitchMachine, and the selector sync measures text through
         // the Dxui renderer, which is UI-thread-only (DxuiAssertUiThread
         // fired on a //c -> //e switch). Both paths already sync on the UI
-        // thread afterwards: a machine switch posts WM_APP_DXUI_UPDATE_TITLE,
+        // thread afterwards: a machine switch posts (UINT) AppMessage::ShellUpdateTitle,
         // whose handler runs ReflowChromeForMachineChange, and the launch
         // path lays out the chrome later in Initialize.
         m_pointerMode = InputMappingMode::Mouse;
@@ -1149,7 +1149,7 @@ void ShellInput::ApplyDefaultPointerForMachine()
         // SyncSelectorState touches Dxui (text measurement) and asserts the
         // UI thread. On a machine switch this runs
         // on the CPU thread, so defer the chrome reflection to the post-switch
-        // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
+        // handler on the UI thread (AppMessage::ShellUpdateTitle, posted by the
         // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
         // (launch, or before the window exists) reflect it immediately.
         bool  offUiThread = (m_host.GetMainWindow() != nullptr) &&
@@ -1297,30 +1297,30 @@ void ShellInput::Paste (const std::wstring * text)
     bool    hostCapsLock   = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
-    bool    isBehindLive   = m_debugger.IsBehindLiveForUi();
+    bool    isBehindLive   = m_debugger.GetDivergence().IsBehindLiveForUi();
     Byte    first          = 0;
     size_t  length         = 0;
 
 
 
-    if (m_host.GetClipboard() == nullptr || !m_debugger.AllowCommand (IDM_EDIT_PASTE, std::string()))
+    if (m_host.GetClipboard() == nullptr || !m_debugger.GetDivergence().AllowCommand (IDM_EDIT_PASTE, std::string()))
     {
         return;
     }
 
-    if (isBehindLive && !m_debugger.GetDivergenceGate().HasHeldPaste())
+    if (isBehindLive && !m_debugger.GetDivergence().GetGate().HasHeldPaste())
     {
-        m_debugger.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
+        m_debugger.GetDivergence().SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
     }
 
     raisedLetters = (text != nullptr) ? m_host.GetClipboard()->PasteText (*text, capsLockOn)
                                       : m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
     length        = m_host.GetClipboard()->GetPasteLength (first);
 
-    if (isBehindLive && length > m_debugger.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
+    if (isBehindLive && length > m_debugger.GetDivergence().GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
     {
-        m_debugger.GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
-        m_debugger.PublishHeldInput();
+        m_debugger.GetDivergence().GetGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        m_debugger.GetDivergence().PublishHeldInput();
     }
 
     if (raisedLetters)
@@ -1347,7 +1347,7 @@ void ShellInput::QueuePasteText (const std::wstring & text)
         m_queuedPaste += text;
     }
 
-    PostMessageW (m_host.GetMainWindow(), WM_APP_PASTE_TEXT, 0, 0);
+    PostMessageW (m_host.GetMainWindow(), (UINT) AppMessage::ShellPasteText, 0, 0);
 }
 
 
@@ -1535,7 +1535,7 @@ void ShellInput::TickKeyboardAutoRepeat()
 
     if (fired != 0)
     {
-        m_machine.RecordInput (InputKind::AutoRepeat, fired, 0, {});
+        m_machine.GetHostInput().Record (InputKind::AutoRepeat, fired, 0, {});
     }
 }
 
@@ -1606,18 +1606,18 @@ HRESULT ShellInput::Start()
     });
 
     // Held back while reverse execution has the machine behind live.
-    m_gamePortSink->SetInputGate (&m_machine.GetHostInputGate());
+    m_gamePortSink->SetInputGate (&m_machine.GetHostInput().GetGate());
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.
-    m_gamePortSink->SetDivergenceGate (&m_debugger.GetDivergenceGate(), [this]
+    m_gamePortSink->SetDivergenceGate (&m_debugger.GetDivergence().GetGate(), [this]
     {
-        m_debugger.PublishHeldInput();
+        m_debugger.GetDivergence().PublishHeldInput();
     });
 
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_host.GetMainWindow()]
     {
-        PostMessageW (hwnd, WM_APP_GAMEPORT_FLUSH, 0, 0);
+        PostMessageW (hwnd, (UINT) AppMessage::ShellGameportFlush, 0, 0);
     });
 
     m_gamePortMixer.SetSink (m_gamePortSink.get());

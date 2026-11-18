@@ -52,14 +52,37 @@ void CapturedDebugTarget::SetCapture (std::shared_ptr<const DebugViewCapture> ca
 //
 //  CapturedDebugTarget::TryPeek
 //
-//  A byte the machine's peek would not have read, I/O among them, reads as
-//  zero and says so.
+//  A byte the machine's peek would not have read reads as zero and returns
+//  false. I/O is read only by TryPeekIo, as the machine's is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CapturedDebugTarget::TryPeek (Word address, Byte & value) const
 {
-    bool  isReadable = m_capture->memory.readable[address];
+    bool  isReadable = m_capture->memory.readable[address] && GetRegion (address) != MemoryRegion::Io;
+
+
+
+    value = isReadable ? m_capture->memory.bytes[address] : (Byte) 0;
+    return isReadable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CapturedDebugTarget::TryPeekIo
+//
+//  An I/O byte as the machine's side-effect-free peek read it when the
+//  capture was taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CapturedDebugTarget::TryPeekIo (Word address, Byte & value) const
+{
+    bool  isReadable = m_capture->memory.readable[address] && GetRegion (address) == MemoryRegion::Io;
 
 
 

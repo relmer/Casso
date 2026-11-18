@@ -228,7 +228,7 @@ namespace ReverseSerialLinkTestNs
 
 
 
-            sample.position = machine.GetPosition();
+            sample.position = machine.GetRunner().GetPosition();
             sample.cycle    = machine.GetCpu()->GetTotalCycles();
             sample.state    = ReverseSessionRig::Save (machine);
 
@@ -251,7 +251,7 @@ namespace ReverseSerialLinkTestNs
                 }
 
                 feed (slice);
-                machine.RunCycles (kSliceCycles);
+                machine.GetRunner().RunCycles (kSliceCycles);
             }
 
             return samples;
@@ -260,7 +260,7 @@ namespace ReverseSerialLinkTestNs
 
         static size_t CountRecords (MachineHost & machine, InputKind kind)
         {
-            const InputJournal  & journal = machine.GetInputJournal();
+            const InputJournal  & journal = machine.GetHostInput().GetJournal();
             size_t                count   = 0;
             size_t                i       = 0;
 
@@ -292,13 +292,13 @@ namespace ReverseSerialLinkTestNs
             {
                 const Sample  & sample = samples[(i * kShuffle) % count];
 
-                hr = controller.SeekToCycle (sample.cycle, result);
+                hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
                 AssertSucceeded (hr, L"SeekToCycle");
                 Assert::AreEqual<uint64_t> (sample.position, result.position);
                 CheckState (sample.state, ReverseSessionRig::Save (machine), sample.position);
             }
 
-            hr = controller.SeekToCycle (UINT64_MAX, result);
+            hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
             AssertSucceeded (hr, L"SeekToCycle live");
             CheckState (last.state, ReverseSessionRig::Save (machine), last.position);
         }
@@ -533,19 +533,19 @@ namespace ReverseSerialLinkTestNs
 
             samples = Record (machine, MakeTcpClient (network, client, kSlices + 1));
 
-            hr = controller.SeekToCycle (samples[0].cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (samples[0].cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
             Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"no client at that point");
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
             Assert::IsFalse (client->destroyed, L"the real connection is open");
 
-            machine.RunCycles (kSliceCycles);
+            machine.GetRunner().RunCycles (kSliceCycles);
             Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD on at the next poll");
 
             client->inbound.insert (client->inbound.end(), { 'H', 'I' });
-            machine.RunCycles (kSlices / 2 * kSliceCycles);
+            machine.GetRunner().RunCycles (kSlices / 2 * kSliceCycles);
 
             Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the client's bytes arrive at the guest");
             Assert::IsTrue (std::string (client->sent.begin(), client->sent.end()).ends_with ("HI"), L"and are echoed");
@@ -592,12 +592,12 @@ namespace ReverseSerialLinkTestNs
                 }
             });
 
-            hr = controller.SeekToCycle (samples[samples.size() - 2].cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (samples[samples.size() - 2].cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
             Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"the call is up at that point");
             waiting = machine.GetRefs().serialChips[0]->GetQueuedReceiveCount();
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::IsFalse  (server->destroyed, L"the call is up on the PC");
@@ -605,7 +605,7 @@ namespace ReverseSerialLinkTestNs
             Assert::AreEqual (waiting, machine.GetRefs().serialChips[0]->GetQueuedReceiveCount(), L"no NO CARRIER");
 
             server->inbound.insert (server->inbound.end(), { 'H', 'I' });
-            machine.RunCycles (8 * kSliceCycles);
+            machine.GetRunner().RunCycles (8 * kSliceCycles);
 
             Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the BBS's bytes arrive at the guest");
         }
@@ -638,23 +638,23 @@ namespace ReverseSerialLinkTestNs
             samples = Record (machine, [] (size_t slice) { (void) slice; });
             opens   = com3->opens;
 
-            hr = controller.SeekToCycle (samples[samples.size() / 2].cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (samples[samples.size() / 2].cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
             Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD on at that point");
 
             com3->lines.dcd = false;
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::IsTrue   (com3->isOpen, L"the port is open");
             Assert::AreEqual (opens, com3->opens, L"and was not opened again");
 
-            machine.RunCycles (kSliceCycles);
+            machine.GetRunner().RunCycles (kSliceCycles);
             Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD off at the next poll");
 
             com3->inbound.insert (com3->inbound.end(), { 'H', 'I' });
-            machine.RunCycles (8 * kSliceCycles);
+            machine.GetRunner().RunCycles (8 * kSliceCycles);
 
             Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the port's bytes arrive at the guest");
         }
@@ -685,7 +685,7 @@ namespace ReverseSerialLinkTestNs
 
 
             PrepareEcho (machine);
-            machine.AttachCommEventSink (&recorder);
+            machine.GetObserverWiring().AttachCommEventSink (&recorder);
 
             hr = controller.Start (ReverseSessionRig::MakeSettings (1));
             AssertSucceeded (hr, L"Start");
@@ -709,24 +709,24 @@ namespace ReverseSerialLinkTestNs
             live.assign (recorder.events.begin() + atPoint, recorder.events.end());
             Assert::IsTrue (std::ranges::any_of (live, [] (const LoggedEvent & each) { return each.reg != 0; }), L"bytes with errors after the point");
 
-            hr = controller.SeekToCycle (samples[point / kSampleEvery].cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (samples[point / kSampleEvery].cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
             recorder.events.clear();
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             for (run = point; run < kSlices; run++)
             {
-                machine.RunCycles (kSliceCycles);
+                machine.GetRunner().RunCycles (kSliceCycles);
             }
 
             again.assign (recorder.events.begin(), recorder.events.begin() + std::min (recorder.events.size(), live.size()));
             Assert::AreEqual (live.size(), again.size(), L"each byte received again");
             Assert::IsTrue   (live == again, L"in order, each with its errors");
 
-            machine.AttachCommEventSink (nullptr);
+            machine.GetObserverWiring().AttachCommEventSink (nullptr);
         }
 
 
@@ -748,7 +748,7 @@ namespace ReverseSerialLinkTestNs
             std::vector<KeyframeInfo>             infos;
             std::vector<std::vector<Byte>>        states;
             ReverseResult                         result;
-            const InputJournal                  & journal    = machine.GetInputJournal();
+            const InputJournal                  & journal    = machine.GetHostInput().GetJournal();
             size_t                                bad        = 0;
             size_t                                expected   = 0;
             size_t                                received   = 0;
@@ -772,13 +772,13 @@ namespace ReverseSerialLinkTestNs
                 }
             });
 
-            Assert::IsTrue (store.GetCount() >= 6, L"the session spans several keyframes");
+            Assert::IsTrue (store.GetArena().GetCount() >= 6, L"the session spans several keyframes");
 
-            bad = store.GetCount() - 3;
+            bad = store.GetArena().GetCount() - 3;
 
-            for (i = bad; i < store.GetCount(); i++)
+            for (i = bad; i < store.GetArena().GetCount(); i++)
             {
-                infos.push_back (store.GetInfo (i));
+                infos.push_back (store.GetArena().GetInfo (i));
                 states.emplace_back();
 
                 hr = store.Restore (i, states.back());
@@ -787,7 +787,7 @@ namespace ReverseSerialLinkTestNs
 
             states[0][states[0].size() / 4] ^= 0x5A;
 
-            hr = store.TruncateAfter (store.GetInfo (bad - 1).cycle);
+            hr = store.TruncateAfter (store.GetArena().GetInfo (bad - 1).cycle);
             AssertSucceeded (hr, L"TruncateAfter");
 
             for (i = 0; i < infos.size(); i++)
@@ -796,19 +796,19 @@ namespace ReverseSerialLinkTestNs
                 AssertSucceeded (hr, L"Add");
             }
 
-            for (i = store.GetInfo (bad - 1).journalIndex; i < journal.GetEndIndex(); i++)
+            for (i = store.GetArena().GetInfo (bad - 1).journalIndex; i < journal.GetEndIndex(); i++)
             {
                 expected += journal.GetRecord (i).kind == InputKind::AciaByte ? 1 : 0;
             }
 
             Assert::IsTrue (expected > 0, L"bytes arrived after the last good keyframe");
 
-            hr = controller.SeekToPosition (store.GetInfo (bad).position - 1, result);
+            hr = controller.GetSeeker().SeekToPosition (store.GetArena().GetInfo (bad).position - 1, result);
             AssertSucceeded (hr, L"SeekToPosition before the bad keyframe");
 
-            machine.AttachCommEventSink (&recorder);
+            machine.GetObserverWiring().AttachCommEventSink (&recorder);
 
-            hr = controller.StepBack (result);
+            hr = controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack into the stretch before the bad keyframe");
             Assert::IsTrue (result.outcome == ReverseOutcome::HistoryCut, L"the replay catches the bad keyframe");
 
@@ -816,7 +816,7 @@ namespace ReverseSerialLinkTestNs
 
             for (i = 0; i < kSlices; i++)
             {
-                machine.RunCycles (kSliceCycles);
+                machine.GetRunner().RunCycles (kSliceCycles);
             }
 
             for (const LoggedEvent & each : recorder.events)
@@ -826,7 +826,7 @@ namespace ReverseSerialLinkTestNs
 
             Assert::AreEqual (expected, received, L"each byte after the cut received again");
 
-            machine.AttachCommEventSink (nullptr);
+            machine.GetObserverWiring().AttachCommEventSink (nullptr);
         }
 
 
@@ -856,7 +856,7 @@ namespace ReverseSerialLinkTestNs
             for (slice = 0; slice < kSlices / 2; slice++)
             {
                 feed (slice);
-                machine.RunCycles (kSliceCycles);
+                machine.GetRunner().RunCycles (kSliceCycles);
             }
 
             Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"connected when the state is saved");
@@ -864,7 +864,7 @@ namespace ReverseSerialLinkTestNs
             hr = MachineStateFile::Build (machine, bytes, error);
             AssertSucceeded (hr, L"Build");
 
-            machine.RunCycles (4 * kSliceCycles);
+            machine.GetRunner().RunCycles (4 * kSliceCycles);
 
             hr = MachineStateFile::Parse (bytes, contents, error);
             AssertSucceeded (hr, L"Parse");
@@ -897,7 +897,7 @@ namespace ReverseSerialLinkTestNs
 
 
             PrepareEcho (machine);
-            machine.AttachCommEventSink (&recorder);
+            machine.GetObserverWiring().AttachCommEventSink (&recorder);
 
             hr = controller.Start (ReverseSessionRig::MakeSettings (kOneKeyframe));
             AssertSucceeded (hr, L"Start");
@@ -908,16 +908,16 @@ namespace ReverseSerialLinkTestNs
             Assert::IsTrue (std::ranges::count_if (live, [] (const LoggedEvent & each) { return each.kind == IoEventKind::SerialConnection; }) == 2);
             Assert::IsTrue (std::ranges::count_if (live, [] (const LoggedEvent & each) { return each.kind == IoEventKind::SerialReceived; }) > 0);
 
-            hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+            hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
             AssertSucceeded (hr, L"SeekToPosition oldest");
 
             recorder.events.clear();
-            hr = controller.SeekToCycle (UINT64_MAX, result);
+            hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
             AssertSucceeded (hr, L"SeekToCycle live");
 
             Assert::IsTrue (live == recorder.events, L"the replay lists the same connections and bytes in the same order");
 
-            machine.AttachCommEventSink (nullptr);
+            machine.GetObserverWiring().AttachCommEventSink (nullptr);
         }
     };
 }
