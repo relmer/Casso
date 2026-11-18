@@ -216,6 +216,7 @@
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
     <ClCompile Include="CassoLinkDosProbeTests.cpp" />
+    <ClCompile Include="CassoLinkNetworkTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
     <ClCompile Include="TcpStreamTests.cpp" />
     <ClCompile Include="CassoLinkWin32SeamTests.cpp" />

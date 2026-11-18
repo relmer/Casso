@@ -268,8 +268,13 @@ public:
         Assert::IsTrue (LinkAnnouncement::Parse (datagram, announcement));
         Assert::AreEqual (std::string ("192.168.1.77:6502"), announcement.GetAddressText());
         Assert::IsTrue (announcement.mac == std::array<Byte, 6> { 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 });
+        Assert::IsFalse (announcement.udp, L"version 1 is TCP");
 
-        datagram[9] = 2;
+        datagram[9] = LinkAnnouncement::kVersionUdp;
+        Assert::IsTrue (LinkAnnouncement::Parse (datagram, announcement), L"the network shim's version");
+        Assert::IsTrue (announcement.udp, L"version 2 is UDP");
+
+        datagram[9] = 3;
         Assert::IsFalse (LinkAnnouncement::Parse (datagram, announcement), L"another version");
 
         datagram[9] = 1;

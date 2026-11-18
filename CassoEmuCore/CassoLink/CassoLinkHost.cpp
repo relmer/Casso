@@ -1382,7 +1382,8 @@ Error:
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
     Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag | LinkProgram::kSosReadyFlag);
-    LinkChip  chip  = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
+    LinkChip  chip  = (packet.payload[2] & LinkProgram::kNetworkReadyFlags) == LinkProgram::kNetworkReadyFlags ? LinkChip::Network
+                    : (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
                     : (packet.payload[2] & LinkProgram::kCassetteReadyFlag) != 0 ? LinkChip::Cassette
                     : (packet.payload[2] & LinkProgram::kSosReadyFlag) != 0      ? LinkChip::Sos
                                                                                  : LinkChip::Acia;

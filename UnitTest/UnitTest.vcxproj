@@ -962,6 +962,7 @@
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
     <ClInclude Include="CassoLink\ScriptedCassetteAudio.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
+    <ClInclude Include="CassoLink\FakeNetworkCards.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
     <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />

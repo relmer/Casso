@@ -10,21 +10,25 @@
 //
 //  LinkAnnouncement
 //
-//  What a universal boot disk's Uthernet II broadcasts to UDP port 6510
-//  while it waits for the PC: CASSOLINK in ASCII, a version byte, its IPv4
-//  address, its TCP port, high byte first, and its MAC address.
+//  What a universal boot disk's Uthernet II, original Uthernet or LANceGS
+//  broadcasts to UDP port 6510 while it waits for the PC: CASSOLINK in
+//  ASCII, a version byte, its IPv4 address, its port, high byte first, and
+//  its MAC address. Version kVersion is an Uthernet II's TCP port, and
+//  kVersionUdp the network shim's UDP port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct LinkAnnouncement
 {
     static constexpr Byte    kVersion    = 1;
+    static constexpr Byte    kVersionUdp = 2;
     static constexpr size_t  kLength     = 22;
     static constexpr size_t  kPortOffset = 14;
 
     std::array<Byte, 4>  address = {};
     uint16_t             port    = 0;
     std::array<Byte, 6>  mac     = {};
+    bool                 udp     = false;
 
     bool  operator== (const LinkAnnouncement &) const = default;
 

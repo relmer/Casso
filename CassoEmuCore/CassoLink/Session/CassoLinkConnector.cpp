@@ -79,7 +79,7 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     std::vector<Byte>                          transfer;
     std::vector<std::wstring>                  ports;
     bool                                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
-    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
+    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp;
     LinkFault                                  fault;
     std::unique_ptr<FaultInjectingByteStream>  faulty;
     IByteStream                              * target  = nullptr;
@@ -349,8 +349,10 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
-    //  An Uthernet II and the cassette ports have no speed to set.
-    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Cassette)
+    //  An Uthernet II, the network cards and the cassette ports have no
+    //  speed to set.
+    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp
+        && m_session.m_settings.transport != LinkTransport::Cassette)
     {
         LinkProgram::GetSpeedControl (linkBaud, control);
 
@@ -790,6 +792,10 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
             CBREx (admitted, kDeferredByFirewall);
 
             hr = m_session.m_factory.ListenTcp (port, m_session.m_settings.transport, stream);
+        }
+        else if (m_session.m_settings.transport == LinkTransport::Udp)
+        {
+            hr = m_session.m_factory.OpenUdp (host, port, stream);
         }
         else
         {

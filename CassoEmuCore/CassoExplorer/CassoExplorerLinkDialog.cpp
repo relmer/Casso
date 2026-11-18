@@ -203,6 +203,7 @@ bool CassoExplorerLinkChoices::UsesAddress (LinkTransport transport, int portInd
 {
     return transport == LinkTransport::Tcp
         || transport == LinkTransport::Uthernet
+        || transport == LinkTransport::Udp
         || (transport == LinkTransport::AdtProServer && portIndex <= 0);
 }
 
@@ -261,6 +262,12 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
             note = L"An Uthernet II card on this PC's network. With the address empty, Casso Explorer lists each Apple "
                    L"that boots a CassoLink disk and broadcasts its address. With the card's static address, it "
                    L"connects to that Apple alone.";
+            break;
+
+        case LinkTransport::Udp:
+            note = L"An original Uthernet or a LANceGS card on this PC's network. With the address empty, Casso Explorer "
+                   L"lists each Apple that boots a CassoLink disk and broadcasts its address. With the card's static "
+                   L"address, it connects to that Apple alone.";
             break;
 
         case LinkTransport::AdtProServer:
@@ -356,7 +363,7 @@ int CassoExplorerLinkChoices::GetSoundIndex (const std::vector<AudioDeviceChoice
 
 const wchar_t * CassoExplorerLinkChoices::GetAddressPlaceholder (LinkTransport transport)
 {
-    return (transport == LinkTransport::Uthernet) ? L"Any, or 192.168.1.50:6502" : L"192.168.1.5:6502";
+    return (transport == LinkTransport::Uthernet || transport == LinkTransport::Udp) ? L"Any, or 192.168.1.50:6502" : L"192.168.1.5:6502";
 }
 
 
@@ -412,9 +419,9 @@ std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transpo
 
 
 
-    if (error.empty() && !text.empty() && transport == LinkTransport::Uthernet)
+    if (error.empty() && !text.empty() && (transport == LinkTransport::Uthernet || transport == LinkTransport::Udp))
     {
-        settings.transport = LinkTransport::Uthernet;
+        settings.transport = transport;
         settings.address   = TextEncoding::WideToNarrow (text);
 
         hr    = CassoLinkShimBuilder::MakeNetworkConfig (settings, {}, network);
