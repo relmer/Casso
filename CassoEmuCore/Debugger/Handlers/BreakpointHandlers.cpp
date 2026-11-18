@@ -92,7 +92,7 @@ void BreakpointHandlers::ListAll (DebugSession & session, BreakpointListData & l
     std::sort (list.breakpoints.begin(), list.breakpoints.end(),
                [] (const BreakpointInfo & a, const BreakpointInfo & b) { return a.id < b.id; });
 
-    list.videoBreak = session.GetVideoBreak();
+    list.videoBreak = session.GetStops().GetBeamBreaks().GetVideoBreak();
 }
 
 
@@ -1277,7 +1277,7 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
         }
     }
 
-    if (session.HasUnwrittenBreak())
+    if (session.GetStops().HasUnwrittenBreak())
     {
         script += "BRKUNINIT ON\n";
     }

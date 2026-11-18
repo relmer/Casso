@@ -115,10 +115,6 @@ public:
     // switch the mode every other client is using.
     Reply  ExecuteLine           (const std::string & line, CommandMode mode) { return m_interpreter.ExecuteLine (line, mode); }
 
-    // The same for a pane's read: it runs as a command even while the line
-    // assembler waits for the user's next line.
-    Reply  ExecutePaneLine       (const std::string & line, CommandMode mode) { return m_interpreter.ExecutePaneLine (line, mode); }
-
     //  A command that changes registers or memory, refused while the machine runs.
     static bool  IsMachineWrite  (DebugVerb verb);
 
@@ -190,13 +186,16 @@ public:
     const SymbolTable  & GetSymbols       () const { return m_symbols; }
 
     //  The session's parts: the program's debug files and symbol loads, the
-    //  call records, and the host file rules for paths typed to commands.
+    //  call-stack record, the host file rules for paths typed to commands,
+    //  the command line interpreter, and the stop monitor.
     DebugProgramFiles        & GetFiles       ()       { return m_files; }
     const DebugProgramFiles  & GetFiles       () const { return m_files; }
     CallRecordKeeper         & GetCallRecords ()       { return m_callRecords; }
     const CallRecordKeeper   & GetCallRecords () const { return m_callRecords; }
     DebugHostFiles           & GetHostFiles   ()       { return m_hostFiles; }
     const DebugHostFiles     & GetHostFiles   () const { return m_hostFiles; }
+    DebugLineInterpreter     & GetInterpreter ()       { return m_interpreter; }
+    const DebugStopMonitor   & GetStops       () const { return m_stops; }
 
     // Whether the program in memory is the one each loaded file was made for
     // (ProgramCheck), checked at each stop and when a check is set while
@@ -250,11 +249,6 @@ public:
     void                  TakeView         (DebugSessionView & out);
     void                  InstallView      (const DebugSessionView & view);
 
-    // What the Monitor's line scan carries between lines: where the last
-    // examine stopped, where a bare `:` stores, and whether `^E` armed the
-    // next one to set registers.
-    MonitorState          & GetMonitorState ()      { return m_interpreter.GetMonitorState(); }
-
     // The shipped tables for the target's machine into Main, Basic, Dos33
     // and ProDos; the constructor and a machine switch do this.
     void   LoadRomSymbols        ();
@@ -286,11 +280,6 @@ public:
     const std::vector<CompareDifference>  & GetCompareResults () const              { return m_compareResults; }
     void                                    SetCompareResults (std::vector<CompareDifference> differences) { m_compareResults = std::move (differences); m_compareSerial++; }
     uint64_t                                GetCompareSerial  () const                           { return m_compareSerial; }
-
-    // Line-assembly mode: each following line is assembled at the address,
-    // and a blank line ends it.
-    void   BeginAssembly         (Word address) { m_interpreter.BeginAssembly (address); }
-    bool   IsAssembling          () const       { return m_interpreter.IsAssembling(); }
 
     //  Why the machine last stopped, and at which breakpoint, if one.
     StopReason          GetLastStopReason     () const { return m_lastStopReason; }
@@ -368,26 +357,16 @@ public:
     // BPV: stop when the video scanline enters the range, once.
     void   SetVideoBreak         (uint32_t first, uint32_t last) { m_stops.GetBeamBreaks().SetVideoBreak (first, last); UpdateHookInstalled(); }
     void   ClearVideoBreak       ()       { m_stops.GetBeamBreaks().ClearVideoBreak(); UpdateHookInstalled(); }
-    bool   HasVideoBreak         () const { return m_stops.GetBeamBreaks().HasVideoBreak(); }
-
-    //  The BPV range, first and last scanline, while one is set.
-    std::optional<std::pair<uint32_t, uint32_t>>  GetVideoBreak () const { return m_stops.GetBeamBreaks().GetVideoBreak(); }
 
     // BPBEAM and FRAME: stop when the beam reaches a place in the frame,
     // given as the cycle within it, after passing it `passes - 1` times.
     // A break for one run goes at the run's stop, whatever stopped it.
     void   SetBeamBreak          (uint32_t cycleInFrame, uint32_t passes = 1, bool isForOneRun = false) { m_stops.GetBeamBreaks().SetBeamBreak (cycleInFrame, passes, isForOneRun); UpdateHookInstalled(); }
     void   ClearBeamBreak        (bool isForOneRun = false) { m_stops.GetBeamBreaks().ClearBeamBreak (isForOneRun); UpdateHookInstalled(); }
-    bool   HasBeamBreak          () const { return m_stops.GetBeamBreaks().HasBeamBreak(); }
-
-    //  BPBEAM's place in the frame, as the cycle within it; none for no
-    //  break, or for FRAME's, which goes with its run.
-    std::optional<uint32_t>  GetBeamBreak () const { return m_stops.GetBeamBreaks().GetBeamBreak(); }
 
     // BRKUNINIT: stop after a read of RAM nothing has written since power-on,
     // reported as a watchpoint hit is, with the address and the instruction.
     void   SetUnwrittenBreak     (bool isOn) { m_stops.SetUnwrittenBreak (isOn); UpdateHookInstalled(); }
-    bool   HasUnwrittenBreak     () const    { return m_stops.HasUnwrittenBreak(); }
 
     // DebugHook: the stop conditions consulted before each instruction.
     // None is pending while the debugger is detached, which a run's stop
@@ -398,10 +377,6 @@ public:
     void   OnInterrupt              (Word pc) override;
     bool   ShouldStopAtRunStart     (Word pc) override { return m_stops.ShouldStopAtRunStart (pc); }
     bool   ShouldStopAfterInterrupt (Word pc) override { return m_stops.ShouldStopAfterInterrupt (pc); }
-
-    // The reads the instruction at pc makes on its own account, which no
-    // watchpoint sees: its length in bytes, and an indexed store's target.
-    void   GetCpuOwnReads        (Word pc, Word & length, std::optional<Word> & storeTarget) const { m_stops.GetCpuOwnReads (pc, length, storeTarget); }
 
     // IRunObserver
     void  OnStopped      (const StopEvent & stop) override;

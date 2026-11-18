@@ -116,7 +116,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
         }
 
         //  A blank line only ends the line assembler, as in batch.
-        if ((!isBlank || session.IsAssembling()) && (isBlank || line[firstNonBlank] != ';'))
+        if ((!isBlank || session.GetInterpreter().IsAssembling()) && (isBlank || line[firstNonBlank] != ';'))
         {
             modeBefore = session.GetMode();
             RunScriptLine (session, line, lineMode, result);
@@ -147,7 +147,7 @@ void ConfigHandlers::RunScript (DebugSession & session, const std::string & cont
 
     //  An A block the script leaves open ends with it, as a blank line
     //  would end it, so the next line typed is a command again.
-    if (session.IsAssembling())
+    if (session.GetInterpreter().IsAssembling())
     {
         RunScriptLine (session, "", lineMode, result);
     }

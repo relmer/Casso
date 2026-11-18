@@ -170,7 +170,7 @@ namespace DebuggerViewStateTests
             rig.Run ("A 800");
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling());
             Assert::IsFalse  (snapshot.registers.empty(), L"the register pane is filled");
             Assert::AreEqual ((Word) 0x0300, snapshot.pc);
             Assert::AreEqual (before,        rig.machine.GetMemoryBus().ReadByte (0x0800), L"nothing was assembled");
@@ -214,14 +214,14 @@ namespace DebuggerViewStateTests
 
 
             rig.Run ("!", CommandMode::Monitor);
-            Assert::IsTrue (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue (rig.controller.GetSession().GetInterpreter().IsAssembling());
 
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse  (snapshot.registers.empty(), L"registers");
             Assert::IsFalse  (snapshot.code.empty(),      L"code");
             Assert::IsFalse  (snapshot.memory.empty(),    L"memory");
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"and the assembler is still active");
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"and the assembler is still active");
         }
 
 
@@ -1311,12 +1311,12 @@ namespace DebuggerViewStateTests
             Assert::IsFalse  (snapshot.code.empty(),      L"the code pane");
             Assert::IsFalse  (snapshot.memory.empty(),    L"the memory pane");
             Assert::IsTrue   (snapshot.isAssembling);
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the user's assembly goes on");
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"the user's assembly goes on");
 
             rig.Run ("NOP");
             rig.Run ("");
             Assert::AreEqual ((int) 0xEA, (int) rig.machine.GetMemoryBus().ReadByte (0x0800));
-            Assert::IsFalse  (rig.controller.GetSession().IsAssembling());
+            Assert::IsFalse  (rig.controller.GetSession().GetInterpreter().IsAssembling());
         }
 
 

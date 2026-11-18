@@ -930,10 +930,10 @@ namespace DebuggerTests
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
             rig.target.TryPeek (0x0310, value);
             Assert::AreEqual ((int) 0x42, (int) value);
-            Assert::IsTrue   (rig.session.IsAssembling(), L"a $ command leaves the assembler active");
+            Assert::IsTrue   (rig.session.GetInterpreter().IsAssembling(), L"a $ command leaves the assembler active");
 
             rig.Run ("");
-            Assert::IsFalse (rig.session.IsAssembling());
+            Assert::IsFalse (rig.session.GetInterpreter().IsAssembling());
         }
 
 
@@ -1286,7 +1286,7 @@ namespace DebuggerTests
 
             reply = rig.Run ("/RUN C:\\Work\\asm.txt");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, Widen (reply.error.detail).c_str());
-            Assert::IsFalse  (rig.session.IsAssembling(), L"the blank line ended the block");
+            Assert::IsFalse  (rig.session.GetInterpreter().IsAssembling(), L"the blank line ended the block");
 
             rig.target.TryPeek (0x0300, value);
             Assert::AreEqual ((int) 0xA9, (int) value);

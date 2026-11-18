@@ -753,8 +753,8 @@ namespace DebuggerTests
             cpu.InitForTest();
             target.instructionSet = cpu.GetInstructionSet();
 
-            session.BeginAssembly (0x0300);
-            Assert::IsTrue (session.IsAssembling());
+            session.GetInterpreter().BeginAssembly (0x0300);
+            Assert::IsTrue (session.GetInterpreter().IsAssembling());
 
             reply = session.ExecuteLine ("LDA #$41");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
@@ -764,14 +764,14 @@ namespace DebuggerTests
 
             reply = session.ExecuteLine ("FROB");
             Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
-            Assert::IsTrue   (session.IsAssembling());
+            Assert::IsTrue   (session.GetInterpreter().IsAssembling());
 
             reply = session.ExecuteLine ("RTS");
             Assert::AreEqual ((Byte) 0x60, target.memory[0x0302]);
 
             reply = session.ExecuteLine ("");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
-            Assert::IsFalse  (session.IsAssembling());
+            Assert::IsFalse  (session.GetInterpreter().IsAssembling());
 
             reply = session.ExecuteLine ("RTS");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, L"RTS is a command again");

@@ -88,7 +88,7 @@ void ShellDebugView::Publish()
     //  is folded now and then, so its counts never pile up unfolded.
     if (!m_isWindowShown.load())
     {
-        isBreaking = controller->GetSession().HasUnwrittenBreak();
+        isBreaking = controller->GetSession().GetStops().HasUnwrittenBreak();
 
         controller->GetSession().GetTarget().SetHeatMapOn (isBreaking);
 

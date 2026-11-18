@@ -431,7 +431,7 @@ void DebugBatchRunner::RunLines (
 
 
 
-        if (line.empty() && !session.IsAssembling())
+        if (line.empty() && !session.GetInterpreter().IsAssembling())
         {
             continue;
         }

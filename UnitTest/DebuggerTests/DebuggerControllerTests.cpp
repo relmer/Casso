@@ -293,10 +293,10 @@ namespace DebuggerControllerTests
 
             (void) rig.controller.RunLine ("A 300", {}, {}, {}, false);
             (void) rig.controller.RunLine ("LDA #$41", {}, {}, {}, false);
-            Assert::IsTrue  (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue  (rig.controller.GetSession().GetInterpreter().IsAssembling());
 
             (void) rig.controller.RunLine ("", {}, {}, {}, false);
-            Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the blank line ended the block");
+            Assert::IsFalse (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"the blank line ended the block");
         }
 
 
@@ -310,10 +310,10 @@ namespace DebuggerControllerTests
 
 
             (void) rig.controller.RunLine ("A 300", {}, {}, {}, false);
-            Assert::IsTrue (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue (rig.controller.GetSession().GetInterpreter().IsAssembling());
 
             rig.controller.GetSession().OnMachineChanged ("Apple //c", false);
-            Assert::IsFalse (rig.controller.GetSession().IsAssembling());
+            Assert::IsFalse (rig.controller.GetSession().GetInterpreter().IsAssembling());
             Assert::IsTrue  (rig.controller.GetSession().GetRunState() == RunState::FreeRunning, L"the new machine runs");
 
             rig.controller.GetSession().OnMachineChanged ("Apple //e", true);

@@ -110,7 +110,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
 
     snapshot.isPaused       = isPaused;
-    snapshot.isAssembling   = session.IsAssembling();
+    snapshot.isAssembling   = session.GetInterpreter().IsAssembling();
     snapshot.stopReason     = session.GetLastStopReason();
     snapshot.stopBreakpoint = session.GetLastStopBreakpoint();
     snapshot.runNotice      = session.GetRunNotice();
@@ -854,8 +854,8 @@ std::vector<std::string> DebuggerViewState::DescribeSymbolSources (const SymbolT
 
 void DebuggerViewState::AddSessionStops (DebugSession & session, DebuggerViewSnapshot & snapshot)
 {
-    std::optional<std::pair<uint32_t, uint32_t>>  video = session.GetVideoBreak();
-    std::optional<uint32_t>                       beam  = session.GetBeamBreak();
+    std::optional<std::pair<uint32_t, uint32_t>>  video = session.GetStops().GetBeamBreaks().GetVideoBreak();
+    std::optional<uint32_t>                       beam  = session.GetStops().GetBeamBreaks().GetBeamBreak();
     BreakpointInfo                                info;
 
 
@@ -863,7 +863,7 @@ void DebuggerViewState::AddSessionStops (DebugSession & session, DebuggerViewSna
     info.id      = -1;
     info.enabled = true;
 
-    if (session.HasUnwrittenBreak())
+    if (session.GetStops().HasUnwrittenBreak())
     {
         info.kind       = BreakpointKind::UnwrittenRead;
         info.isTracking = session.GetTarget().GetUnwrittenStatus().isTracking;
