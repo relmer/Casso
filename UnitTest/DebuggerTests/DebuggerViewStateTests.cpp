@@ -28,7 +28,10 @@
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineLookup.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/SourceBannerText.h"
+#include "Ui/Debugger/SourceMacroPlaces.h"
 #include "Ui/Debugger/Panes/TracePane.h"
 #include "Ui/Debugger/InstructionTouches.h"
 #include "Ui/Debugger/InstructionEffect.h"
@@ -1063,9 +1066,9 @@ namespace DebuggerViewStateTests
             id       = snapshot.breakpoints.at (0).id;
 
             Assert::AreEqual ((size_t) 2, snapshot.source->breakpointLines.size(), L"the invocation and the body line");
-            Assert::AreEqual (std::format ("BPC {}", id), SourcePane::GetToggleLine (*snapshot.source, 0, 3));
-            Assert::AreEqual (std::format ("BPC {}", id), SourcePane::GetToggleLine (*snapshot.source, 1, 5));
-            Assert::AreEqual (std::string ("BP main.a65:4"), SourcePane::GetToggleLine (*snapshot.source, 0, 4));
+            Assert::AreEqual (std::format ("BPC {}", id), SourceLineLookup::GetToggleLine (*snapshot.source, 0, 3));
+            Assert::AreEqual (std::format ("BPC {}", id), SourceLineLookup::GetToggleLine (*snapshot.source, 1, 5));
+            Assert::AreEqual (std::string ("BP main.a65:4"), SourceLineLookup::GetToggleLine (*snapshot.source, 0, 4));
         }
 
 
@@ -1080,13 +1083,13 @@ namespace DebuggerViewStateTests
             LoadDebugFile (rig);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue (SourcePane::GetToggleLine (*snapshot.source, -1, 4).empty());
+            Assert::IsTrue (SourceLineLookup::GetToggleLine (*snapshot.source, -1, 4).empty());
         }
 
 
         TEST_METHOD (SplitLinesExpandsTabsAndEveryLineEnding)
         {
-            std::vector<std::wstring>  lines = SourcePane::SplitLines ("a\tb\r\nc\rd\n\te");
+            std::vector<std::wstring>  lines = SourceRows::SplitLines ("a\tb\r\nc\rd\n\te");
 
 
 
@@ -1100,7 +1103,7 @@ namespace DebuggerViewStateTests
         TEST_METHOD (RowsCarryTheMarkersAndLineNumbers)
         {
             std::vector<std::wstring>        lines (12, L"x");
-            std::vector<DxuiTextView::Row>   rows  = SourcePane::BuildRows (lines, 3, { 3, 10 });
+            std::vector<DxuiTextView::Row>   rows  = SourceRows::BuildRows (lines, 3, { 3, 10 });
 
 
 
@@ -1131,10 +1134,10 @@ namespace DebuggerViewStateTests
         //  file that could, or in another file, can.
         TEST_METHOD (AMacroBodyInTheMissingFileIsNotOffered)
         {
-            Assert::IsFalse (SourceBannerText::CanShowBody (false, 1, 0, 0), L"the body is in the missing file");
-            Assert::IsTrue  (SourceBannerText::CanShowBody (false, 1, 1, 0), L"the body is in another file");
-            Assert::IsTrue  (SourceBannerText::CanShowBody (true,  1, 0, 0), L"the file is shown");
-            Assert::IsFalse (SourceBannerText::CanShowBody (true,  0, 0, 0), L"not in a macro");
+            Assert::IsFalse (SourceMacroPlaces::CanShowBody (false, 1, 0, 0), L"the body is in the missing file");
+            Assert::IsTrue  (SourceMacroPlaces::CanShowBody (false, 1, 1, 0), L"the body is in another file");
+            Assert::IsTrue  (SourceMacroPlaces::CanShowBody (true,  1, 0, 0), L"the file is shown");
+            Assert::IsFalse (SourceMacroPlaces::CanShowBody (true,  0, 0, 0), L"not in a macro");
         }
 
 
@@ -1173,7 +1176,7 @@ namespace DebuggerViewStateTests
 
             Assert::AreEqual (1,          finds,                      L"found once, not every snapshot");
             Assert::IsTrue   (pane.IsActive());
-            lines = SourcePane::GetRowLines (view.GetRows());
+            lines = SourceRows::GetRowLines (view.GetRows());
             Assert::AreEqual ((ptrdiff_t) 4, std::count_if (lines.begin(), lines.end(), [] (int line) { return line > 0; }), L"a row for each line, and the instructions below them");
             Assert::AreEqual (std::wstring (L" ") + s_kpszTriangleRight, view.GetRows()[(size_t) (std::find (lines.begin(), lines.end(), 3) - lines.begin())].cells[0], L"the invocation line");
             Assert::IsTrue   (pane.HasBanner(),                           L"inside a macro");

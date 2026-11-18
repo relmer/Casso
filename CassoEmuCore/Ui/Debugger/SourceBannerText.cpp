@@ -10,39 +10,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourceBannerText::GetPlace
-//
-//  The file and line at a level, -1 being the body line. A state with no
-//  places has only its two ends.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::pair<int, int> SourceBannerText::GetPlace (const DebuggerViewSnapshot::SourceState & state, int level)
-{
-    const std::vector<std::pair<int, int>> & places = state.places;
-
-
-
-    if (places.empty())
-    {
-        return (level != 0 && state.depth > 0) ? std::pair<int, int> { state.bodyFileId, state.bodyLine }
-                                               : std::pair<int, int> { state.fileId, state.line };
-    }
-
-    if (level < 0 || level >= (int) places.size())
-    {
-        return places.back();
-    }
-
-    return places[(size_t) level];
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SourceBannerText::GetStaleText
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,75 +121,4 @@ std::wstring SourceBannerText::GetFoundElsewhereText (const std::string & fileNa
     return std::format (L"Source file {} was not found with the debug file {}. Showing the copy in {}.{}",
                         SourcePathList::Utf8ToWide (fileName), debugFilePath, SourceService::GetFolder (foundPath),
                         isVerified ? L" Its contents are the ones the program was built from." : L"");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourceBannerText::CanShowBody
-//
-//  A macro's body can be shown unless it is in the very file that could not
-//  be found: then there is nothing to show, and neither the button nor the
-//  line it would go to means anything.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourceBannerText::CanShowBody (bool hasText, int depth, int bodyFileId, int fileId)
-{
-    return depth > 0 && (hasText || bodyFileId != fileId);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourceBannerText::GetNextMacroLevel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SourceBannerText::GetNextMacroLevel (int level, int deepest)
-{
-    if (deepest <= 0)
-    {
-        return 0;
-    }
-
-    if (level < 0 || level > deepest)
-    {
-        level = deepest;
-    }
-
-    return (level == 0) ? deepest : level - 1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourceBannerText::GetMacroLevel
-//
-//  Outside every macro there is only level 0. Without the places between,
-//  the body line is level 1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int SourceBannerText::GetMacroLevel (const DebuggerViewSnapshot::SourceState & state, int level)
-{
-    int  deepest = state.places.empty() ? 1 : (int) state.places.size() - 1;
-
-
-
-    if (state.depth == 0)
-    {
-        return 0;
-    }
-
-    return (level < 0 || level > deepest) ? deepest : level;
 }

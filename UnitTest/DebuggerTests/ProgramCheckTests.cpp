@@ -7,6 +7,7 @@
 #include "TestHelpers.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceBannerText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -206,7 +207,7 @@ namespace DebuggerTests
                                             L"The program in memory doesn't match a.sym, so its labels are hidden."),
                               DisassemblyViewPane::GetStaleText ({ "main.dbg", "a.sym" }, true));
             Assert::AreEqual (std::wstring (L"The program in memory doesn't match main.dbg, so this file's lines aren't mapped to it."),
-                              SourcePane::GetStaleText (L"C:\\Work\\main.dbg"));
+                              SourceBannerText::GetStaleText (L"C:\\Work\\main.dbg"));
         }
     };
 

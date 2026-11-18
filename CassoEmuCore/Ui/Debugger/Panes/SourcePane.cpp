@@ -1,6 +1,12 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceBannerText.h"
+#include "Ui/Debugger/SourceLineLookup.h"
+#include "Ui/Debugger/SourceLineText.h"
+#include "Ui/Debugger/SourceMacroPlaces.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceLineText.h"
 #include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/DisassemblyCells.h"
@@ -47,9 +53,9 @@ void SourcePane::Configure (HWND hwnd)
 {
     m_view->SetOwnerWindow        (hwnd);
     m_view->SetNoWrap             (true);
-    m_view->SetColumnCap          (kTextCell, kAnnotationColumn);
-    m_view->SetColumnGap          (kNumberCell, kArrowGapCells);
-    m_view->SetFirstClippedColumn (kAnnotationCell);
+    m_view->SetColumnCap          (SourceRows::kTextCell, SourceRows::kAnnotationColumn);
+    m_view->SetColumnGap          (SourceRows::kNumberCell, SourceRows::kArrowGapCells);
+    m_view->SetFirstClippedColumn (SourceRows::kAnnotationCell);
     m_view->SetGutter             (CodeMargins::kGlyphDip, CodeMargins::kIconDip);
     m_view->SetGlyphCenterDip     (CodeMargins::kGlyphCenterDip);
     m_view->SetGutterBand         (CodeMargins::kGlyphDip, CodeMargins::kHeatDip);
@@ -85,7 +91,7 @@ void SourcePane::Configure (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SourcePane::SetStyle (const Style & style)
+void SourcePane::SetStyle (const SourceRowStyle & style)
 {
     if (style == m_style)
     {
@@ -117,36 +123,6 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 
     m_heatPalette = palette;
     m_view->SetGutter (CodeMargins::kGlyphDip + (palette.has_value() ? CodeMargins::kHeatDip : 0), CodeMargins::kIconDip);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::AddHeatStrips
-//
-//  One fill of the hottest byte's color in the gutter's heat band, as the
-//  disassembly fills its heat cell. A line without code, whose bytes nothing
-//  touched, or whose bytes in memory are other code's now, has no fill.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
-                                const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
-                                const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette,
-                                const std::set<std::pair<int, int>> * unmatched)
-{
-    for (size_t i = 0; i < rows.size(); i++)
-    {
-        auto  found = lineRanges.find ({ fileId, (int) i + 1 });
-
-        if (found != lineRanges.end() && (unmatched == nullptr || !unmatched->contains ({ fileId, (int) i + 1 })))
-        {
-            rows[i].gutterFill = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false).hottest;
-        }
-    }
 }
 
 
@@ -410,7 +386,7 @@ void SourcePane::LoadFile (int fileId)
     m_match     = lookup.match;
     m_isDropped = false;
     m_foundPath = lookup.path;
-    m_lines     = SplitLines (lookup.text);
+    m_lines     = SourceRows::SplitLines (lookup.text);
     m_detected  = SourceSyntax::DetectAssembler (m_lines);
     m_listing   = SourceSyntax::DetectListing (m_lines);
     m_isC       = CLexer::IsCFile (lookup.path.empty() ? SourcePathList::Utf8ToWide (name) : lookup.path);
@@ -437,11 +413,11 @@ void SourcePane::Rebuild()
     bool                                  isRowsStale  = false;
     int                                   top          = m_view->GetTopLine();
     int                                   depth        = 0;
-    int                                   level        = SourceBannerText::GetMacroLevel (*m_state, m_macroLevel);
+    int                                   level        = SourceMacroPlaces::GetMacroLevel (*m_state, m_macroLevel);
     bool                                  holdsPc      = false;
     bool                                  isBrowse     = false;
-    std::pair<int, int>                   shown        = SourceBannerText::GetPlace (*m_state, (level > 0) ? level : -1);
-    std::pair<int, int>                   invokedBy    = (level > 0) ? SourceBannerText::GetPlace (*m_state, level - 1) : std::pair<int, int> { -1, 0 };
+    std::pair<int, int>                   shown        = SourceMacroPlaces::GetPlace (*m_state, (level > 0) ? level : -1);
+    std::pair<int, int>                   invokedBy    = (level > 0) ? SourceMacroPlaces::GetPlace (*m_state, level - 1) : std::pair<int, int> { -1, 0 };
     std::string                           invokedName;
     std::wstring                          bannerText;
     std::wstring                          elsewhere;
@@ -506,7 +482,7 @@ void SourcePane::Rebuild()
             }
         }
 
-        rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC, m_hoverLine);
+        rows = SourceRows::BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC, m_hoverLine);
 
         //  The bookmark's outline over the dot's place in each such line's
         //  glyph margin; a row is a line, in order.
@@ -522,7 +498,7 @@ void SourcePane::Rebuild()
 
         if (heat != nullptr)
         {
-            AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette, m_state->unmatchedLines.get());
+            SourceRows::AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette, m_state->unmatchedLines.get());
         }
 
         //  For the same file the selection is left in place, so a drag across
@@ -538,7 +514,7 @@ void SourcePane::Rebuild()
 
         m_rowsHeatLevels   = heat;
         m_rowsUnmatched    = std::move (unmatched);
-        m_rowLines         = GetRowLines (m_view->GetRows());
+        m_rowLines         = SourceRows::GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
         m_rowsLineOperands = m_state->lineOperands;
         m_rowsHover        = m_hoverLine;
@@ -565,7 +541,7 @@ void SourcePane::Rebuild()
     //  Only the document the PC is in speaks of the macro: the invocation's,
     //  or the shown level's while a body is shown.
     holdsPc = m_fileId >= 0 && (m_fileId == m_state->fileId || (level > 0 && m_fileId == shown.first));
-    depth   = (holdsPc && SourceBannerText::CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
+    depth   = (holdsPc && SourceMacroPlaces::CanShowBody (!m_lines.empty(), m_state->depth, m_state->bodyFileId, m_fileId)) ? m_state->depth : 0;
 
     //  A level's invocation in the same file goes by its line alone.
     if (invokedBy.first >= 0 && invokedBy.first != shown.first)
@@ -698,14 +674,14 @@ void SourcePane::ShowLine (int fileId, int line)
     //  The line's text is selected, after the marker and number cells.
     row = GetRowOfLine (line);
 
-    if (row >= 0 && row < (int) m_view->GetRows().size() && m_view->GetRows()[(size_t) row].cells.size() > (size_t) kTextCell)
+    if (row >= 0 && row < (int) m_view->GetRows().size() && m_view->GetRows()[(size_t) row].cells.size() > (size_t) SourceRows::kTextCell)
     {
         const DxuiTextView::Row  & each = m_view->GetRows()[(size_t) row];
 
 
 
         start = (int) (each.cells[0].size() + 1 + each.cells[1].size() + 1);
-        m_view->Select ({ row, start }, { row, start + (int) each.cells[(size_t) kTextCell].size() });
+        m_view->Select ({ row, start }, { row, start + (int) each.cells[(size_t) SourceRows::kTextCell].size() });
     }
 }
 
@@ -726,7 +702,7 @@ bool SourcePane::ShowArrowTarget()
 
 
 
-    if (!m_state.has_value() || !GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) || !targetLine.has_value())
+    if (!m_state.has_value() || !SourceLineLookup::GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) || !targetLine.has_value())
     {
         return false;
     }
@@ -883,9 +859,9 @@ void SourcePane::OnDoubleClick (POINT atDip)
 
 
     //  The window builds the action at once, in the session's mode.
-    if (line.has_value() && HasCode (*line) && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
+    if (line.has_value() && HasCode (*line) && SourceLineLookup::GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
     {
-        m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
+        m_run ([this, file, at = *line] (CommandMode mode) { return *SourceLineLookup::GetToggleAction (*m_state, file, at, mode); });
     }
 }
 
@@ -966,9 +942,9 @@ bool SourcePane::ClickGutter (POINT atDip)
         return false;
     }
 
-    if (line.has_value() && HasCode (*line) && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
+    if (line.has_value() && HasCode (*line) && SourceLineLookup::GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
     {
-        m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
+        m_run ([this, file, at = *line] (CommandMode mode) { return *SourceLineLookup::GetToggleAction (*m_state, file, at, mode); });
     }
 
     return true;
@@ -1063,7 +1039,7 @@ void SourcePane::ShowDropped (const SourceLookup & lookup, int recordIndex)
         return;
     }
 
-    m_lines     = SplitLines (lookup.text);
+    m_lines     = SourceRows::SplitLines (lookup.text);
     m_match     = lookup.match;
     m_isDropped = true;
     m_droppedAt = m_docFileId;
@@ -1093,7 +1069,7 @@ void SourcePane::ShowLoose (const std::wstring & path, const std::string & text,
         m_state = DebuggerViewSnapshot::SourceState();
     }
 
-    m_lines         = SplitLines (text);
+    m_lines         = SourceRows::SplitLines (text);
     m_match         = SourceMatch::NotFound;
     m_isDropped     = false;
     m_isLoose       = true;
@@ -1171,7 +1147,7 @@ void SourcePane::ToggleBody()
 
 int SourcePane::GetShownFileId() const
 {
-    return SourceBannerText::GetPlace (*m_state, SourceBannerText::GetMacroLevel (*m_state, m_macroLevel)).first;
+    return SourceMacroPlaces::GetPlace (*m_state, SourceMacroPlaces::GetMacroLevel (*m_state, m_macroLevel)).first;
 }
 
 
@@ -1186,7 +1162,7 @@ int SourcePane::GetShownFileId() const
 
 int SourcePane::GetShownLine() const
 {
-    return SourceBannerText::GetPlace (*m_state, SourceBannerText::GetMacroLevel (*m_state, m_macroLevel)).second;
+    return SourceMacroPlaces::GetPlace (*m_state, SourceMacroPlaces::GetMacroLevel (*m_state, m_macroLevel)).second;
 }
 
 
@@ -1210,127 +1186,6 @@ std::string SourcePane::GetFileName (int fileId) const
     }
 
     return m_isDropped ? std::string ("The dropped file") : std::string();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::SplitLines
-//
-//  Lines ending in LF, CR LF or CR, with tabs expanded to every fourth
-//  column: the view reads a tab as the break between cells.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> SourcePane::SplitLines (const std::string & text)
-{
-    std::vector<std::wstring>  lines;
-    std::string                line;
-    auto                       flush = [&] ()
-                                       {
-                                           std::wstring  wide = SourcePathList::Utf8ToWide (line);
-                                           std::wstring  expanded;
-
-                                           for (wchar_t c : wide)
-                                           {
-                                               if (c != L'\t')
-                                               {
-                                                   expanded += c;
-                                                   continue;
-                                               }
-
-                                               expanded.append ((size_t) (kTabWidth - (int) expanded.size() % kTabWidth), L' ');
-                                           }
-
-                                           lines.push_back (std::move (expanded));
-                                           line.clear();
-                                       };
-
-
-
-    for (size_t i = 0; i < text.size(); i++)
-    {
-        if (text[i] == '\r' || text[i] == '\n')
-        {
-            flush();
-
-            if (text[i] == '\r' && i + 1 < text.size() && text[i + 1] == '\n')
-            {
-                i++;
-            }
-
-            continue;
-        }
-
-        line += text[i];
-    }
-
-    if (!line.empty())
-    {
-        flush();
-    }
-
-    return lines;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetArrowTarget
-//
-//  The first line in the file that starts at the branch's target. With none,
-//  the target lies below when its address is past the marked line's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SourcePane::GetArrowTarget (const DebuggerViewSnapshot::SourceState & state, int fileId, int markedLine,
-                                 std::optional<int> & outTargetLine, bool & outIsBelow)
-{
-    std::optional<Word>  markedAt;
-
-
-
-    outTargetLine.reset();
-
-    if (!state.pcTarget.has_value() || markedLine <= 0 || state.lineAddresses == nullptr)
-    {
-        return false;
-    }
-
-    for (const auto & [place, address] : *state.lineAddresses)
-    {
-        if (place.first != fileId)
-        {
-            continue;
-        }
-
-        if (address == *state.pcTarget && !outTargetLine.has_value())
-        {
-            outTargetLine = place.second;
-        }
-
-        if (place.second == markedLine)
-        {
-            markedAt = address;
-        }
-    }
-
-    if (outTargetLine.has_value())
-    {
-        outIsBelow = *outTargetLine > markedLine;
-    }
-    else
-    {
-        outIsBelow = !markedAt.has_value() || *state.pcTarget > *markedAt;
-    }
-
-    return true;
 }
 
 
@@ -1366,7 +1221,7 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 
 
     if (!IsActive() || !m_view->IsVisible() ||
-        !GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) ||
+        !SourceLineLookup::GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) ||
         !m_view->GetRowSide (row, side) || !m_view->GetCellLeftPx (row, s_kTextCell, x))
     {
         return false;
@@ -1400,7 +1255,7 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     input.isTargetBelow = isBelow;
     input.edgeY         = isBelow ? bottom : top;
     input.sourceEdgeY   = isBelow ? top : bottom;
-    input.marginPx      = kArrowMarginDip * scale;
+    input.marginPx      = SourceRows::kArrowMarginDip * scale;
     input.stubPx       *= scale;
     input.radiusPx     *= scale;
     input.headPx       *= scale;
@@ -1429,7 +1284,7 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 
 bool SourcePane::IsOverArrowLanes (POINT atDip) const
 {
-    const float              kLanesDip = kArrowMarginDip + BranchArrow::Input().stubPx + DisassemblyCells::kArrowLaneDip;
+    const float              kLanesDip = SourceRows::kArrowMarginDip + BranchArrow::Input().stubPx + DisassemblyCells::kArrowLaneDip;
     DxuiTextView::Position   at        = m_view->HitTest (atDip);
     int                      side      = 0;
     float                    x         = 0.0f;
@@ -1437,7 +1292,7 @@ bool SourcePane::IsOverArrowLanes (POINT atDip) const
 
 
     if (!DxuiDockSite::Contains (m_view->GetBounds(), atDip) || at.row < 0 || at.row >= (int) m_view->GetRows().size() ||
-        !m_view->GetRowSide (at.row, side) || side != 0 || !m_view->GetCellLeftPx (at.row, kTextCell, x))
+        !m_view->GetRowSide (at.row, side) || side != 0 || !m_view->GetCellLeftPx (at.row, SourceRows::kTextCell, x))
     {
         return false;
     }
@@ -1473,19 +1328,19 @@ const SymbolInfo * SourcePane::FindSymbolAt (POINT atDip, const std::vector<Symb
 
     row = &m_view->GetRows()[(size_t) at.row];
 
-    if (row->cells.size() <= (size_t) kTextCell)
+    if (row->cells.size() <= (size_t) SourceRows::kTextCell)
     {
         return nullptr;
     }
 
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
-    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size())
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) SourceRows::kTextCell].size())
     {
         return nullptr;
     }
 
-    return FindSymbolAt (row->cells[(size_t) kTextCell], at.offset - start, symbols, word);
+    return SourceLineText::FindSymbolAt (row->cells[(size_t) SourceRows::kTextCell], at.offset - start, symbols, word);
 }
 
 
@@ -1513,19 +1368,19 @@ std::wstring SourcePane::GetWordAt (POINT atDip) const
 
     row = &m_view->GetRows()[(size_t) at.row];
 
-    if (row->cells.size() <= (size_t) kTextCell)
+    if (row->cells.size() <= (size_t) SourceRows::kTextCell)
     {
         return {};
     }
 
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
-    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size())
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) SourceRows::kTextCell].size())
     {
         return {};
     }
 
-    return GetWordAt (row->cells[(size_t) kTextCell], at.offset - start);
+    return SourceLineText::GetWordAt (row->cells[(size_t) SourceRows::kTextCell], at.offset - start);
 }
 
 
@@ -1553,7 +1408,7 @@ std::optional<int> SourcePane::FindMacroLine (const std::wstring & name) const
 
     for (const DxuiTextView::Row & row : m_view->GetRows())
     {
-        if (row.cells.size() <= (size_t) kTextCell || !SourceLineText::IsMacroDefinition (row.cells[(size_t) kTextCell], name))
+        if (row.cells.size() <= (size_t) SourceRows::kTextCell || !SourceLineText::IsMacroDefinition (row.cells[(size_t) SourceRows::kTextCell], name))
         {
             continue;
         }
@@ -1597,15 +1452,15 @@ bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & s
 
     row = &m_view->GetRows()[(size_t) at.row];
 
-    if (row->cells.size() <= (size_t) kTextCell)
+    if (row->cells.size() <= (size_t) SourceRows::kTextCell)
     {
         return false;
     }
 
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
-    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size() ||
-        !SourceLineText::TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text, found))
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) SourceRows::kTextCell].size() ||
+        !SourceLineText::TryGetSymbolText (row->cells[(size_t) SourceRows::kTextCell], at.offset - start, symbols, text, found))
     {
         return false;
     }
@@ -1642,186 +1497,15 @@ bool SourcePane::IsOperandSymbolAt (POINT atDip, const std::vector<SymbolInfo> &
 
     row = &m_view->GetRows()[(size_t) at.row];
 
-    if (row->cells.size() <= (size_t) kTextCell)
+    if (row->cells.size() <= (size_t) SourceRows::kTextCell)
     {
         return false;
     }
 
     start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
 
-    return at.offset >= start && at.offset <= start + (int) row->cells[(size_t) kTextCell].size() &&
-           IsOperandSymbolAt (row->cells[(size_t) kTextCell], SourceLineText::FindCodeStart (row->cells[(size_t) kTextCell]), at.offset - start, symbols);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::BuildRows
-//
-//  A marker, the line number and the text. The marked line takes the PC's
-//  row fill. With the style's icons, as the disassembly pane draws them, a
-//  breakpoint is its icon in the view's glyph margin, and with its PC arrow
-//  the marked line's arrow is there too, drawn over the line's breakpoint
-//  when it has one, so both sit where Visual Studio puts them. Without the
-//  icons a breakpoint is a bullet in the marker, and without the arrow the
-//  marked line is a triangle there in the marker color.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wstring> & lines, int markedLine,
-                                                      const std::set<int> & breakpointLines,
-                                                      const std::set<int> & disabledLines,
-                                                      const Style         & style,
-                                                      const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands,
-                                                      SourceSyntax::Assembler assembler,
-                                                      SourceSyntax::Listing   listing,
-                                                      bool                    isC,
-                                                      int                     hoverLine)
-{
-    std::vector<DxuiTextView::Row>  rows;
-    int                             width       = (int) std::to_wstring (lines.size()).size();
-    bool                            icons       = style.enabledIcon != nullptr;
-    bool                            arrow       = style.pcIcon != nullptr;
-    bool                            isInComment = false;
-
-
-
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        int                number   = (int) i + 1;
-        bool               isMarked = number == markedLine;
-        std::wstring       marker;
-        DxuiTextView::Row  row;
-
-        if (!icons)
-        {
-            marker = breakpointLines.contains (number) ? std::wstring (1, s_kchBullet) : std::wstring (L" ");
-        }
-
-        if (!arrow)
-        {
-            marker += isMarked ? std::wstring (s_kpszTriangleRight) : std::wstring (L" ");
-        }
-
-        row.cells = { marker, std::format (L"{:>{}}", number, width), lines[i] };
-
-        if (icons && breakpointLines.contains (number))
-        {
-            row.icon = disabledLines.contains (number) ? style.disabledIcon : style.enabledIcon;
-        }
-        else if (number == hoverLine)
-        {
-            row.icon = style.hoverIcon;
-        }
-
-        if (isMarked)
-        {
-            row.background = style.pcRowArgb;
-            row.icon       = arrow ? GutterGlyph::MakeMarked (row.icon, style.pcIcon) : row.icon;
-
-            if (!arrow && style.pcMarkerArgb != 0)
-            {
-                row.spans.push_back ({ 0, (int) marker.size() - 1, 1, style.pcMarkerArgb });
-            }
-        }
-
-        //  What the line's instruction reads in the operand color, then the
-        //  result in the result color, as in the disassembly pane's operand
-        //  column.
-        //  Only on a line whose opcode is a mnemonic: a directive or a macro
-        //  produced its bytes some other way than one instruction.
-        if (!lineOperands.empty())
-        {
-            auto  found  = lineOperands.find (number);
-            int   column = (int) row.cells.size();
-
-            row.cells.emplace_back();
-
-            if (found != lineOperands.end() && SourceLineText::IsInstructionLine (lines[i], assembler))
-            {
-                row.cells.back() = found->second.first;
-
-                if (style.operandArgb != 0 && !row.cells.back().empty())
-                {
-                    row.spans.push_back ({ column, 0, (int) row.cells.back().size(), style.operandArgb });
-                }
-
-                if (!found->second.second.empty())
-                {
-                    std::wstring  result = kpszResultPrefix + found->second.second;
-
-                    row.cells.back() += row.cells.back().empty() ? L"" : L"  ";
-
-                    if (style.resultArgb != 0)
-                    {
-                        row.spans.push_back ({ column, (int) row.cells.back().size(), (int) result.size(), style.resultArgb });
-                    }
-
-                    row.cells.back() += result;
-                }
-            }
-        }
-
-        //  A C block comment can run over lines, so every C line is read in
-        //  order, colored or not.
-        if (isC)
-        {
-            std::vector<SourceSyntax::Run>  runs = SourceSyntax::GetCRuns (lines[i], isInComment);
-
-            for (const SourceSyntax::Run & run : runs)
-            {
-                if (style.syntax.mnemonic != 0)
-                {
-                    row.spans.push_back ({ 2, run.start, run.length, style.syntax.Get (run.token) });
-                }
-            }
-        }
-        else if (style.syntax.mnemonic != 0)
-        {
-            for (const SourceSyntax::Run & run : SourceSyntax::GetLineRuns (lines[i], assembler, listing))
-            {
-                row.spans.push_back ({ 2, run.start, run.length, style.syntax.Get (run.token) });
-            }
-        }
-
-        rows.push_back (std::move (row));
-    }
-
-    return rows;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetRowLines
-//
-//  A row with a line number is the next source line; one without is a row of
-//  the instructions under it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<int> SourcePane::GetRowLines (const std::vector<DxuiTextView::Row> & rows)
-{
-    std::vector<int>  lines;
-    int               line  = 0;
-
-
-
-    for (const DxuiTextView::Row & row : rows)
-    {
-        bool  isLine = row.cells.size() > 1 && row.cells[1].find_first_not_of (L' ') != std::wstring::npos;
-
-        line += isLine ? 1 : 0;
-        lines.push_back (isLine ? line : 0);
-    }
-
-    return lines;
+    return at.offset >= start && at.offset <= start + (int) row->cells[(size_t) SourceRows::kTextCell].size() &&
+           SourceLineText::IsOperandSymbolAt (row->cells[(size_t) SourceRows::kTextCell], SourceLineText::FindCodeStart (row->cells[(size_t) SourceRows::kTextCell]), at.offset - start, symbols);
 }
 
 
@@ -1848,60 +1532,4 @@ int SourcePane::GetRowOfLine (int line) const
     }
 
     return (int) (found - m_rowLines.begin());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetToggleLine
-//
-//  Empty for a file with no record in the debug file, which has no line a
-//  breakpoint could be set on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string SourcePane::GetToggleLine (const DebuggerViewSnapshot::SourceState & state, int fileId, int line)
-{
-    std::optional<DebuggerAction>  action = GetToggleAction (state, fileId, line, CommandMode::AppleWin);
-
-
-
-    return action.has_value() ? action->echo : std::string();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SourcePane::GetToggleAction
-//
-//  Clears the breakpoint on the line by its id, or sets one there. Nothing
-//  for a file with no record in the debug file.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSnapshot::SourceState & state, int fileId, int line, CommandMode mode)
-{
-    for (const std::tuple<int, int, int> & bp : state.breakpointLines)
-    {
-        if (std::get<0> (bp) == fileId && std::get<1> (bp) == line)
-        {
-            return BreakpointActions::GetClearBreakpoint (std::get<2> (bp), mode);
-        }
-    }
-
-    for (const DebugSourceFile & record : state.files)
-    {
-        if (record.id == fileId)
-        {
-            return BreakpointActions::GetSourceBreakpoint (record.name, line, mode);
-        }
-    }
-
-    return std::nullopt;
 }

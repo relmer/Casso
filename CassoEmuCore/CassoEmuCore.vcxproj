@@ -333,6 +333,9 @@
     <ClCompile Include="Ui\Debugger\Panes\SourcePane.cpp" />
     <ClCompile Include="Ui\Debugger\SourceLineText.cpp" />
     <ClCompile Include="Ui\Debugger\SourceBannerText.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceMacroPlaces.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceLineLookup.cpp" />
+    <ClCompile Include="Ui\Debugger\SourceRows.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\BasicPanes.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapView.cpp" />
@@ -1854,6 +1857,10 @@
     <ClInclude Include="Ui\Debugger\Panes\SourcePane.h" />
     <ClInclude Include="Ui\Debugger\SourceLineText.h" />
     <ClInclude Include="Ui\Debugger\SourceBannerText.h" />
+    <ClInclude Include="Ui\Debugger\SourceMacroPlaces.h" />
+    <ClInclude Include="Ui\Debugger\SourceLineLookup.h" />
+    <ClInclude Include="Ui\Debugger\SourceRows.h" />
+    <ClInclude Include="Ui\Debugger\SourceRowStyle.h" />
     <ClInclude Include="Ui\Debugger\Panes\BasicPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapView.h" />

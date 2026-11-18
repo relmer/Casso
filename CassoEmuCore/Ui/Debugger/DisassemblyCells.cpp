@@ -6,6 +6,7 @@
 #include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 
 
 
@@ -443,7 +444,7 @@ DxuiListView::Cell DisassemblyCells::GetOperandAndResultCell (const std::string 
 
     if (!result.empty())
     {
-        result     = SourcePane::kpszResultPrefix + result;
+        result     = SourceRows::kpszResultPrefix + result;
         cell.text += cell.text.empty() ? L"" : L"  ";
         cell.colorRanges.emplace_back ((int) cell.text.size(), (int) (cell.text.size() + result.size()), resultArgb);
         cell.text += result;

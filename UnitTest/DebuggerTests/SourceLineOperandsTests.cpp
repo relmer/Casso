@@ -4,6 +4,9 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceLineLookup.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 
 #include "CppUnitTest.h"
 
@@ -113,7 +116,7 @@ namespace DebuggerTests
             Assert::IsTrue  (snapshot.source->pcTarget.has_value());
             Assert::AreEqual ((int) 0x0305, (int) *snapshot.source->pcTarget);
             Assert::IsTrue  (snapshot.source->isPcTargetTaken);
-            Assert::IsTrue  (SourcePane::GetArrowTarget (*snapshot.source, 0, 2, targetLine, isBelow));
+            Assert::IsTrue  (SourceLineLookup::GetArrowTarget (*snapshot.source, 0, 2, targetLine, isBelow));
             Assert::AreEqual (5, targetLine.value_or (-1));
             Assert::IsTrue  (isBelow);
         }
@@ -133,7 +136,7 @@ namespace DebuggerTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse (snapshot.source->pcTarget.has_value());
-            Assert::IsFalse (SourcePane::GetArrowTarget (*snapshot.source, 0, 2, targetLine, isBelow));
+            Assert::IsFalse (SourceLineLookup::GetArrowTarget (*snapshot.source, 0, 2, targetLine, isBelow));
         }
 
 
@@ -150,7 +153,7 @@ namespace DebuggerTests
             state.lineAddresses = std::make_shared<const std::map<std::pair<int, int>, Word>> (
                                       std::map<std::pair<int, int>, Word> { { { 0, 4 }, (Word) 0x0300 }, { { 1, 9 }, (Word) 0x0200 } });
 
-            Assert::IsTrue  (SourcePane::GetArrowTarget (state, 0, 4, targetLine, isBelow));
+            Assert::IsTrue  (SourceLineLookup::GetArrowTarget (state, 0, 4, targetLine, isBelow));
             Assert::IsFalse (targetLine.has_value(), L"the target's line is in another file");
             Assert::IsFalse (isBelow, L"$0200 lies before the marked line's $0300");
         }
@@ -159,14 +162,14 @@ namespace DebuggerTests
 
         TEST_METHOD (TheOperandFollowsWithItsResultLabeled)
         {
-            SourcePane::Style               style;
+            SourceRowStyle                  style;
             std::vector<DxuiTextView::Row>  rows;
 
 
 
             style.resultArgb  = 0xFF00FFFF;
             style.operandArgb = 0xFF57A64A;
-            rows = SourcePane::BuildRows ({ L"x", L"  lda $10", L"  .byte 1" }, 2, {}, {}, style,
+            rows = SourceRows::BuildRows ({ L"x", L"  lda $10", L"  .byte 1" }, 2, {}, {}, style,
                                           { { 2, { L"$10: 07", L"A=07" } }, { 3, { L"$01: 00", L"" } } });
 
             Assert::AreEqual ((size_t) 4,                       rows[1].cells.size());

@@ -17,6 +17,7 @@
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 
 
@@ -1279,7 +1280,7 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
 
         if (lookup.match != SourceMatch::NotFound && !lookup.text.empty())
         {
-            m_sourceText[fileId] = SourcePane::SplitLines (lookup.text);
+            m_sourceText[fileId] = SourceRows::SplitLines (lookup.text);
         }
         else
         {

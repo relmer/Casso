@@ -4,6 +4,7 @@
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -116,7 +117,7 @@ namespace DebuggerTests
         TEST_METHOD (ASourceLineHasItsBytesStripInTheGutter)
         {
             DebuggerViewSnapshot::HeatColumnLevels                levels  = MakeLevels();
-            std::vector<DxuiTextView::Row>                        rows    = SourcePane::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
+            std::vector<DxuiTextView::Row>                        rows    = SourceRows::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
             std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges  = { { { 0, 1 }, { 0x0300, 0x0301 } } };
             uint32_t                                              hottest = 0;
 
@@ -126,7 +127,7 @@ namespace DebuggerTests
             levels.read[0x0301]    = 255;
             hottest                = HeatStrip::Get (levels, 0x0300, 2, MakePalette(), false).hottest;
 
-            SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
+            SourceRows::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
 
             Assert::AreEqual (std::wstring (L"1"), rows[0].cells[1]);
             Assert::AreEqual (std::wstring (L"2"), rows[1].cells[1]);
@@ -141,7 +142,7 @@ namespace DebuggerTests
         TEST_METHOD (AnUnmatchedLineTakesNoHeat)
         {
             DebuggerViewSnapshot::HeatColumnLevels                levels    = MakeLevels();
-            std::vector<DxuiTextView::Row>                        rows      = SourcePane::BuildRows ({ L"  lda #1" }, -1, {});
+            std::vector<DxuiTextView::Row>                        rows      = SourceRows::BuildRows ({ L"  lda #1" }, -1, {});
             std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges    = { { { 0, 1 }, { 0x0300, 0x0301 } } };
             std::set<std::pair<int, int>>                         unmatched = { { 0, 1 } };
 
@@ -149,7 +150,7 @@ namespace DebuggerTests
 
             levels.execute[0x0300] = 255;
 
-            SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette(), &unmatched);
+            SourceRows::AddHeatStrips (rows, 0, ranges, levels, MakePalette(), &unmatched);
 
             Assert::AreEqual (0u, rows[0].gutterFill);
         }

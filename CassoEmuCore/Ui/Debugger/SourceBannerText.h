@@ -12,8 +12,7 @@
 //  SourceBannerText
 //
 //  The banner over a source document: what it reads for a file that was not
-//  found, was found elsewhere or is out of date, and the macro levels its
-//  button moves through.
+//  found, was found elsewhere or is out of date.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,18 +33,4 @@ public:
     //  and the text has that.
     static std::wstring  GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
                                                 const std::wstring & foundPath, bool isVerified = false);
-
-    //  Whether a macro's body can be offered: not when it is in the file that
-    //  could not be found.
-    static bool          CanShowBody   (bool hasText, int depth, int bodyFileId, int fileId);
-
-    //  The level the banner's button goes to: from outside every macro to the
-    //  body line, and from a body back out one invocation at a time.
-    static int           GetNextMacroLevel (int level, int deepest);
-
-    //  The level a request resolves to, -1 being the deepest.
-    static int           GetMacroLevel (const DebuggerViewSnapshot::SourceState & state, int level);
-
-    //  The file and line at a level, -1 being the body line.
-    static std::pair<int, int>  GetPlace (const DebuggerViewSnapshot::SourceState & state, int level);
 };

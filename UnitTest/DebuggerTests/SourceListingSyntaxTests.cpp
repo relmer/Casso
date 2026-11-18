@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
+#include "Ui/Debugger/SourceRowStyle.h"
 #include "Ui/Debugger/SourceSyntax.h"
 
 #include "CppUnitTest.h"
@@ -98,7 +100,7 @@ namespace DebuggerTests
 
         TEST_METHOD (TheSourcePaneColorsAListingsColumns)
         {
-            SourcePane::Style               style;
+            SourceRowStyle                  style;
             std::vector<DxuiTextView::Row>  rows;
 
 
@@ -106,7 +108,7 @@ namespace DebuggerTests
             style.syntax.mnemonic = 0xFF000001;
             style.syntax.address  = 0xFF000002;
             style.syntax.bytes    = 0xFF000003;
-            rows = SourcePane::BuildRows ({ L"8016: 38        23            SEC" }, 0, {}, {}, style, {},
+            rows = SourceRows::BuildRows ({ L"8016: 38        23            SEC" }, 0, {}, {}, style, {},
                                           Assembler::Merlin, Listing::Merlin);
 
             Assert::IsTrue (std::any_of (rows[0].spans.begin(), rows[0].spans.end(), [] (const DxuiTextView::Span & span)
@@ -140,13 +142,13 @@ namespace DebuggerTests
 
         TEST_METHOD (TheSourcesResultIsLabeledAndColored)
         {
-            SourcePane::Style               style;
+            SourceRowStyle                  style;
             std::vector<DxuiTextView::Row>  rows;
 
 
 
             style.resultArgb = 0xFF00FFFF;
-            rows = SourcePane::BuildRows ({ L"  lda $10" }, 1, {}, {}, style, { { 1, { L"$10: 07", L"A=07" } } });
+            rows = SourceRows::BuildRows ({ L"  lda $10" }, 1, {}, {}, style, { { 1, { L"$10: 07", L"A=07" } } });
 
             Assert::AreEqual (std::wstring (L"$10: 07  Result: A=07"), rows[0].cells[3]);
             Assert::IsTrue   (std::any_of (rows[0].spans.begin(), rows[0].spans.end(), [] (const DxuiTextView::Span & span)

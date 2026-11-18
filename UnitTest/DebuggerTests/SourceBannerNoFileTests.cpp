@@ -4,6 +4,8 @@
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceBannerText.h"
+#include "Ui/Debugger/SourceRows.h"
 
 #include "CppUnitTest.h"
 
@@ -48,7 +50,7 @@ namespace DebuggerTests
 
         TEST_METHOD (NoFile_ShowsNoNotFoundBanner)
         {
-            std::wstring  text = SourcePane::GetBannerText (SourceMatch::NotFound, "", false, 0, false, "", 0);
+            std::wstring  text = SourceBannerText::GetBannerText (SourceMatch::NotFound, "", false, 0, false, "", 0);
 
 
 
@@ -57,7 +59,7 @@ namespace DebuggerTests
 
         TEST_METHOD (AFileThatIsGone_StillShowsTheBanner)
         {
-            std::wstring  text = SourcePane::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0);
+            std::wstring  text = SourceBannerText::GetBannerText (SourceMatch::NotFound, "a.s", false, 0, false, "", 0);
 
 
 
@@ -66,8 +68,8 @@ namespace DebuggerTests
 
         TEST_METHOD (AFileFoundBesideTheDebugFile_SaysNothingMore)
         {
-            Assert::IsTrue (SourcePane::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"C:\\Work\\main.a65").empty());
-            Assert::IsTrue (SourcePane::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"").empty());
+            Assert::IsTrue (SourceBannerText::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"C:\\Work\\main.a65").empty());
+            Assert::IsTrue (SourceBannerText::GetFoundElsewhereText ("main.a65", L"C:\\Work\\main.dbg", L"").empty());
         }
 
         //  The file renamed away beside the debug file, and an identical copy
@@ -183,7 +185,7 @@ namespace DebuggerTests
 
             pane.SetFile (0);
             pane.Apply   (snapshot);
-            lines = SourcePane::GetRowLines (view.GetRows());
+            lines = SourceRows::GetRowLines (view.GetRows());
             Assert::AreEqual ((ptrdiff_t) 2, std::count_if (lines.begin(), lines.end(), [] (int line) { return line > 0; }), L"the file was found");
 
             pane.SetFile (-1);
