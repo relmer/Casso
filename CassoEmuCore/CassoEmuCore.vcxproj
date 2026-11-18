@@ -258,6 +258,8 @@
     <ClCompile Include="Ui\Debugger\WatchHistory.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerKeyActions.cpp" />
+    <ClCompile Include="Ui\Debugger\SavedActionText.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowProject.cpp" />
     <ClCompile Include="Ui\Debugger\ProjectSettingsDialog.cpp" />
     <ClCompile Include="Ui\Debugger\StepFiltersDialog.cpp" />
@@ -1807,6 +1809,8 @@
     <ClInclude Include="Ui\Debugger\WatchHistory.h" />
     <ClInclude Include="Ui\Debugger\BreakpointImport.h" />
     <ClInclude Include="Ui\Debugger\DebuggerActions.h" />
+    <ClInclude Include="Ui\Debugger\DebuggerKeyActions.h" />
+    <ClInclude Include="Ui\Debugger\SavedActionText.h" />
     <ClInclude Include="Ui\Debugger\InstructionEffect.h" />
     <ClInclude Include="Ui\Debugger\InstructionTouches.h" />
     <ClInclude Include="Ui\Debugger\BranchArrow.h" />

@@ -2,7 +2,9 @@
 
 #include "Debugger/BreakpointDefinition.h"
 #include "Debugger/DebugCommand.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
+#include "Ui/Debugger/SavedActionText.h"
 
 struct DebuggerViewSnapshot;
 struct StepFilterEntry;
@@ -211,13 +213,9 @@ public:
     //  SRC CLEAR: the debug file and the symbols it loaded, unloaded.
     static DebuggerAction  GetUnloadDebugFile  (CommandMode mode);
 
-    //  A watch edit's action as a debug project saves it: the verb of an
-    //  AddWatch, ClearWatch, EnterBytes, EnterWords or SetRegister action and
-    //  its fields, apart at dots, with any text among them as hex digits. The
-    //  text of an action of another kind is empty, and TryFromText returns
-    //  false for text that does not parse.
-    static std::string     ToText              (const DebuggerAction & action);
-    static bool            TryFromText         (const std::string & text, DebuggerAction & action);
+    //  A watch edit's action as a debug project saves it (SavedActionText).
+    static std::string     ToText              (const DebuggerAction & action)                     { return SavedActionText::ToText (action); }
+    static bool            TryFromText         (const std::string & text, DebuggerAction & action) { return SavedActionText::TryFromText (text, action); }
     static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
     static DebuggerAction  GetLoadBasic        (const std::string & path, CommandMode mode);
     static DebuggerAction  GetSaveBasic        (const std::string & path, CommandMode mode);
@@ -264,23 +262,14 @@ public:
     static DebuggerAction  GetEnterByte            (Word address, Byte value, CommandMode mode);
     static DebuggerAction  GetSetRegister          (const std::string & name, const std::string & value, CommandMode mode);
 
-    //  The action a keyboard-scheme action takes, which is the action its
-    //  button takes. The cursor actions use the selected code line (toggling
-    //  falls back to the PC's line); Pause has none, since it is the channel's
-    //  pause rather than a command. A step, forward or back, takes nothing
-    //  while the snapshot shows the machine running.
-    static std::optional<DebuggerAction>  GetForKey (DebuggerKeySchemes::Action   action,
-                                                     const DebuggerViewSnapshot * snapshot,
-                                                     int                          selectedRow,
-                                                     CommandMode                  mode);
+    //  The keyboard-scheme keys' actions (DebuggerKeyActions).
+    static std::optional<DebuggerAction>  GetForKey (DebuggerKeySchemes::Action action, const DebuggerViewSnapshot * snapshot, int selectedRow, CommandMode mode)
+    {
+        return DebuggerKeyActions::GetForKey (action, snapshot, selectedRow, mode);
+    }
 
-    //  Step into, over and out, run to cursor, run one frame and the step
-    //  back keys: the actions that need a paused machine.
-    static bool  IsStepAction (DebuggerKeySchemes::Action action);
-
-    //  Run, reverse run and run to cursor: the actions after which the
-    //  machine runs, whose key pauses it while it runs.
-    static bool  IsRunAction  (DebuggerKeySchemes::Action action);
+    static bool  IsStepAction (DebuggerKeySchemes::Action action) { return DebuggerKeyActions::IsStepAction (action); }
+    static bool  IsRunAction  (DebuggerKeySchemes::Action action) { return DebuggerKeyActions::IsRunAction (action); }
 
 private:
     static DebuggerAction  Make         (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);
