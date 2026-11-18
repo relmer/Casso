@@ -1,53 +1,10 @@
 #pragma once
 
+#include "CpuFetchObservers.h"
+#include "CpuOperandInfo.h"
 #include "CpuStatus.h"
+#include "CpuTrace.h"
 #include "Microcode.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IOpcodeWatcher
-//
-//  Told by a Cpu of each fetch of an opcode it watches, and of the fetch after
-//  each one, before the instruction runs: the registers are the ones it starts
-//  from. An interrupt the CPU takes reads as opcode $00, BRK's, which is what
-//  the 6502 forces into its instruction register to take one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class IOpcodeWatcher
-{
-public:
-    virtual ~IOpcodeWatcher() = default;
-
-    virtual void  OnWatchedFetch (Word pc, Byte sp, Byte opcode) = 0;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IFetchSink
-//
-//  Told by a Cpu of every opcode it fetches, before the instruction runs, with
-//  the address it came from. Unlike IOpcodeWatcher it takes no table and sees
-//  every opcode; an interrupt taken in place of an instruction is no fetch and
-//  is not reported.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class IFetchSink
-{
-public:
-    virtual ~IFetchSink() = default;
-
-    virtual void  OnFetch (Word pc, Byte opcode) = 0;
-};
 
 
 
@@ -126,41 +83,36 @@ public:
     // touching the filesystem; the filename overload is a thin wrapper.
     HRESULT LoadBinary (std::istream & stream, Word address);
 
-protected:
-    struct OperandInfo
-    {
-        Word location;
-        Word effectiveAddress;
-        Word operand;
-    };
+    // The trace of recent instructions, and what each opcode fetch goes to.
+    CpuTrace                  & GetTrace          ()       { return m_trace; }
+    const CpuTrace            & GetTrace          () const { return m_trace; }
+    CpuFetchObservers         & GetFetchObservers ()       { return m_fetchObservers; }
 
-    void         PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
-    void         PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
-    void         PrintOperandBytes             (Word initialPC, Byte opcode);
+protected:
     static bool  ReadsTarget                   (const Microcode & microcode);
-    void         FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
-    void         FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
+    void         FetchOperand                  (const Microcode & microcode, CpuOperandInfo & operandInfo);
+    void         FetchOperandAbsoluteX         (CpuOperandInfo & operandInfo);
+    void         FetchOperandAbsoluteY         (CpuOperandInfo & operandInfo);
+    void         FetchOperandZeroPageX         (CpuOperandInfo & operandInfo);
+    void         FetchOperandZeroPageY         (CpuOperandInfo & operandInfo);
+    void         FetchOperandZeroPageIndirectY (CpuOperandInfo & operandInfo);
+    void         FetchOperandAbsolute          (CpuOperandInfo & operandInfo);
+    void         FetchOperandImmediate         (CpuOperandInfo & operandInfo);
+    void         FetchOperandJumpAbsolute      (CpuOperandInfo & operandInfo);
+    void         FetchOperandJumpIndirect      (CpuOperandInfo & operandInfo);
+    void         FetchOperandRelative          (CpuOperandInfo & operandInfo);
+    void         FetchOperandZeroPage          (CpuOperandInfo & operandInfo);
+    void         FetchOperandZeroPageXIndirect (CpuOperandInfo & operandInfo);
 
     // 65C02 addressing-mode fetches. Selected purely by the CMOS instruction
     // table; the NMOS table never references them, so NMOS decode is unchanged.
     // FetchOperandJumpIndirectCmos is the page-boundary-correct JMP ($xxFF).
-    void FetchOperandZeroPageIndirect  (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo);
-    void FetchOperandZeroPageRelative  (Cpu::OperandInfo & operandInfo);
-    void FetchOperandJumpIndirectCmos  (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageIndirect  (CpuOperandInfo & operandInfo);
+    void FetchOperandAbsoluteXIndirect (CpuOperandInfo & operandInfo);
+    void FetchOperandZeroPageRelative  (CpuOperandInfo & operandInfo);
+    void FetchOperandJumpIndirectCmos  (CpuOperandInfo & operandInfo);
 
-    void ExecuteInstruction            (const Microcode & microcode, const OperandInfo & operandInfo);
+    void ExecuteInstruction            (const Microcode & microcode, const CpuOperandInfo & operandInfo);
 
     // Stack operations
     void PushByte (Byte value);
@@ -257,161 +209,33 @@ public:
     static constexpr Byte  kPenaltyBranchTaken = 0x02;
     static constexpr Byte  kPenaltyBranchCross = 0x04;
 
-    // Circular trace of recent instructions for post-mortem debugging.
-    // Runtime-gated by m_traceEnabled and allocated only when tracing is
-    // on, so it costs one predicted branch per step when disabled and is
-    // available in every build config (driven by the --trace switch). In
-    // Debug a small look-back ring is auto-enabled at construction so the
-    // illegal-opcode stderr dump keeps working without --trace.
-    //
-    // The access fields hold the instruction's last data access, filled by
-    // RecordTraceAccess while a bus reports every access (the debugger's
-    // HISTORY); hasAccess stays false otherwise.
-    struct TraceEntry
-    {
-        uint64_t  cycles;         // the cycle counter before the instruction
-        Word      pc;
-        Byte      opcode;
-        Byte      op1;            // operand bytes at PC+1 and PC+2, read
-        Byte      op2;            // through the bank the CPU executes from
-        Byte      a;
-        Byte      x;
-        Byte      y;
-        Byte      sp;
-        Byte      p;
-        Byte      intr;           // kTraceIntr*: this instruction is a handler entry
-        bool      hasAccess;
-        bool      accessIsWrite;
-        Byte      accessData;
-        Word      accessAddress;
-    };
-
-    // Interrupt-dispatch tags for the trace. The dispatch path stamps the
-    // pending kind before the vector is taken; the next TracePush moves it
-    // onto that entry (the handler's first instruction). This lets the dump
-    // flag interrupt entries and summarize the rate -- an interrupt storm
-    // (stuck IRQ line, unacknowledged source, ISR that never returns) is
-    // otherwise invisible in a flat instruction trace.
-    static constexpr Byte    kTraceIntrNone = 0;
-    static constexpr Byte    kTraceIntrIrq  = 1;
-    static constexpr Byte    kTraceIntrNmi  = 2;
-
 protected:
-    static constexpr size_t  kTraceDefaultLookback = 256;
+    // The trace reads mnemonics from instructionSet, which is declared
+    // above it so it is constructed first.
+    CpuFetchObservers        m_fetchObservers;
+    CpuTrace                 m_trace;
 
-    std::vector<TraceEntry>  m_trace;   // sized by EnableTrace
-    size_t                   m_traceCapacity    = 0;
-    size_t                   m_traceHead        = 0;   // next slot to write
-    uint64_t                 m_traceCount       = 0;   // total entries pushed
-    bool                     m_traceEnabled     = false;
-    Byte                     m_pendingTraceIntr = kTraceIntrNone;
-
-    // Where TracePush reads the cycle count and the operand bytes. A derived
-    // CPU with a cycle counter points the first at it; one whose read table
-    // can be unpublished page by page (a watched bus) points the second at a
-    // table that always holds the mapped pages. Null means none and the read
-    // table respectively.
-    const uint64_t *         m_traceCycles      = nullptr;
-    const uint64_t *         m_traceCycleBase   = nullptr;    // added to m_traceCycles, so a trace counts on history's clock
+    // Where TracePush reads the operand bytes: a derived CPU whose read
+    // table can be unpublished page by page (a watched bus) points it at a
+    // table that always has the mapped pages. Null means the read table.
     Byte * const *           m_tracePeekPages   = nullptr;
-
-    // Called from the interrupt-dispatch path just before the vector is taken.
-    // Cheap no-op while tracing is off (the common case).
-    void MarkTraceInterrupt (Byte kind) { if (m_traceEnabled) m_pendingTraceIntr = kind; }
-
-public:
-    // Enable execution tracing with the given ring capacity (in entries).
-    // Allocates the buffer and resets head/count. A capacity of 0 disables
-    // tracing and frees the buffer.
-    void     EnableTrace    (size_t capacity);
-    bool     IsTraceEnabled () const { return m_traceEnabled; }
-    uint64_t GetTraceCount  () const { return m_traceCount; }
-
-    // Stops recording and keeps what the ring holds.
-    void     StopTrace      ()       { m_traceEnabled = false; m_pendingTraceIntr = kTraceIntrNone; UpdateFetchObserved(); }
-
-    // Empties the ring and starts tracing again into the buffer it has, with no new
-    // allocation; nothing when there is no buffer.
-    void    RestartTrace     ()       { m_traceHead = 0; m_traceCount = 0; m_pendingTraceIntr = kTraceIntrNone; m_traceEnabled = m_traceCapacity != 0; UpdateFetchObserved(); }
-    size_t  GetTraceCapacity () const { return m_traceCapacity; }
-
-    // The opcodes, a 256-entry table, whose fetches the watcher is told of,
-    // with the fetch after each; null for none. The table is read in place.
-    void     SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher);
-
-    // Where every opcode fetch is reported; null for nowhere.
-    void     SetFetchSink   (IFetchSink * sink) { m_fetchSink = sink; UpdateFetchObserved(); }
-
-    // The entries the ring holds, oldest first.
-    size_t   GetTraceSize     () const;
-    bool     TryGetTraceEntry (size_t index, TraceEntry & entry) const;
-
-    // A bus access, recorded as the last access of the instruction executing.
-    void     RecordTraceAccess (Word address, Byte data, bool isWrite);
-
-    // Write the recorded ring to a text file, oldest-first. `onProgress`
-    // (may be empty) is invoked periodically with (entriesWritten,
-    // totalEntries) so a UI can show progress. Returns true on success.
-    // CassoCore stays UI-free; the caller owns any progress dialog.
-    // `preamble` is written under the title line as given.
-    HRESULT  DumpTraceToFile (const std::wstring & path,
-                              const std::string  & preamble,
-                              const std::function<void (uint64_t, uint64_t)> & onProgress) const;
-
-protected:
-    static constexpr Byte  kInterruptOpcode = 0x00;
-
-    using OpcodeTable = std::array<bool, 0x100>;
-
-    static constexpr OpcodeTable  s_kNoOpcodes  = {};
-    static constexpr OpcodeTable  s_kAllOpcodes = [] { OpcodeTable all {}; all.fill (true); return all; }();
-
-    // Whether a fetch is looked at at all: the trace is on, an opcode watch
-    // is set, or a fetch sink is. One test per instruction while none is.
-    bool                     m_isFetchObserved  = false;
-
-    // The watcher's table, and the one the next fetch is looked up in: the
-    // watcher's, or every opcode for the fetch after a watched one.
-    const bool             * m_watchOpcodes     = nullptr;
-    const bool             * m_watchFetch       = s_kNoOpcodes.data();
-    IOpcodeWatcher         * m_watcher          = nullptr;
-    IFetchSink             * m_fetchSink        = nullptr;
-
-    void UpdateFetchObserved () { m_isFetchObserved = m_traceEnabled || m_watcher != nullptr || m_fetchSink != nullptr; }
-    void ReportWatchedFetch  (Byte opcode);
 
     // Forced inline: it runs once per instruction while a fetch is observed.
     __forceinline void ObserveFetch (Byte opcode)
     {
-        if (m_watchFetch[opcode])
-        {
-            ReportWatchedFetch (opcode);
-        }
+        m_fetchObservers.ObserveWatch (opcode, PC, SP);
 
-        if (m_traceEnabled)
+        if (m_trace.IsEnabled())
         {
             TracePush (opcode);
         }
 
-        if (m_fetchSink != nullptr)
-        {
-            m_fetchSink->OnFetch (PC, opcode);
-        }
+        m_fetchObservers.ObserveSink (opcode, PC);
     }
 
-    // An interrupt about to be taken in place of the instruction at PC.
-    void ObserveInterrupt ()
-    {
-        if (m_isFetchObserved && m_watchFetch[kInterruptOpcode])
-        {
-            ReportWatchedFetch (kInterruptOpcode);
-        }
-    }
-
-    void TracePush    (Byte opcode);
+    void TracePush (Byte opcode);
 
     // Side-effect-free read for the trace, routed through the same read-page
     // table the fetch uses so operands come from the bank that executed.
-    Byte  PeekForTrace         (Word address) const;
-    void  DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
+    Byte  PeekForTrace (Word address) const;
 };

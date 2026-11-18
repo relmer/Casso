@@ -338,20 +338,28 @@ dump, the fetch observers, and a step printer that nothing calls.
 
 | Class | State | Responsibility |
 |---|---|---|
-| `CpuTrace` | the entry ring, capacity, head, count, enabled, the pending interrupt tag, the cycle sources, the peek pages | `Enable`, `Stop`, `Restart`, `Push` (inline, called from `Cpu::ObserveFetch` with the registers), `RecordAccess`, `GetSize`, `TryGetEntry`, `DumpToFile`, the illegal-opcode dump. `TraceEntry` and the interrupt tags move here. |
-| `CpuFetchObservers` | the opcode watch tables, the watcher, the fetch sink, the observed flag | `SetOpcodeWatch`, `SetFetchSink`, `Observe` (inline). Has the `CpuTrace` enabled test in its flag. |
-| `CpuStepPrinter` | none | The three print functions as statics taking the register values, the `Microcode` and a byte reader. `OperandInfo` becomes a public struct in a separate header. It has no caller today and must stay compiled. |
-| `InstructionSetBuilder` | as now | as now |
-| `Cpu` | registers, status, memory, read pages, the instruction set, last-instruction facts | `StepOne`, operand fetch, execute, stack, memory access, `LoadBinary`. |
+| `CpuTrace` | the entry ring, capacity, head, count, enabled, the pending interrupt tag, the cycle sources | `Enable`, `Stop`, `Restart`, `PushNext` (inline, returns the next entry to fill), `RecordAccess`, `MarkInterrupt`, `GetSize`, `TryGetEntry`, `DumpToFile`, and `DumpRecent` for an illegal opcode. `CpuTrace::Entry`, `kIntrNone`, `kIntrIrq`, `kIntrNmi` and `kDefaultLookback` are declared here. Takes the `CpuFetchObservers` to set its trace flag and the instruction set for mnemonics. |
+| `CpuFetchObservers` | the opcode watch tables, the watcher, the fetch sink, the observed flag | `SetOpcodeWatch`, `SetFetchSink`, `SetTraceOn`, `IsObserved`, and the inline `ObserveWatch`, `ObserveSink` and `ObserveInterrupt`. `IOpcodeWatcher` and `IFetchSink` are declared here. |
+| `CpuStepPrinter` | none | The three print functions as statics taking a `Registers` struct, the instruction set and a byte reader. It has no caller and stays compiled. |
+| `CpuOperandInfo` | location, effective address, operand | A public struct in a separate header, used by the operand fetch and the printer. |
+| `Cpu` | registers, status, memory, read pages, the instruction set, the trace peek pages, last-instruction facts, the two parts | `StepOne`, operand fetch, execute, stack, memory access, `LoadBinary`, `TracePush`, `PeekForTrace`, and `GetTrace` and `GetFetchObservers`. |
+
+**Corrections to the first design.** The peek pages stay in `Cpu`, since the
+operand bytes are read through the CPU's read table, and `TracePush` stays a
+`Cpu` member that fills the entry `PushNext` returns, so the trace doesn't access the
+registers. `RecordAccess` takes the PC of the next instruction, so the trace
+doesn't read the CPU. The members are declared after `instructionSet`, so the
+trace is constructed with it.
 
 **Hot path.** `ObserveFetch` is `__forceinline` and tests one flag per
-instruction. That cost must not change: the flag is a member the fetch path reads
-with no call, and `CpuTrace::Push` is called only when it is set. Run the
-per-instruction measurement before and after this class alone.
+instruction. After: //e 5.09 ns, //c 10.34 ns, every storage
+card 14.91 ns per cycle.
 
-**Callers.** `EnableTrace`, `GetTraceSize`, `TryGetTraceEntry`, `DumpTraceToFile`,
-`RecordTraceAccess` and `Cpu::TraceEntry` users (the debugger's trace pane,
-`TraceController`, `MemoryBusCpu`) use `GetTrace ()` and `CpuTrace::Entry`.
+**Callers.** `EnableTrace`, `StopTrace`, `RestartTrace`, `GetTraceSize`,
+`TryGetTraceEntry`, `DumpTraceToFile` and `RecordTraceAccess` callers (the
+debugger's trace pane, `TraceController`, `TraceEventProbe`, `MemoryBusCpu`)
+use `GetTrace ()`; `SetOpcodeWatch` and `SetFetchSink` callers use
+`GetFetchObservers ()`. `Cpu::TraceEntry` is `CpuTrace::Entry`.
 
 ### 6. AppleWinParser
 

@@ -75,7 +75,7 @@ namespace TraceHistoryTests
 
 
 
-        static bool  IsSame (const Cpu::TraceEntry & a, const Cpu::TraceEntry & b)
+        static bool  IsSame (const CpuTrace::Entry & a, const CpuTrace::Entry & b)
         {
             return a.cycles == b.cycles && a.pc == b.pc && a.opcode == b.opcode && a.op1 == b.op1 && a.op2 == b.op2 &&
                    a.a == b.a && a.x == b.x && a.y == b.y && a.sp == b.sp && a.p == b.p && a.intr == b.intr &&
@@ -104,9 +104,9 @@ namespace TraceHistoryTests
         {
             TraceRig                         rig;
             std::vector<TraceHistoryEntry>   rebuilt;
-            Cpu::TraceEntry                  live      = {};
+            CpuTrace::Entry                  live      = {};
             uint64_t                         position  = rig.machine.GetRunner().GetPosition();
-            size_t                           size      = rig.GetCpu()->GetTraceSize();
+            size_t                           size      = rig.GetCpu()->GetTrace().GetSize();
             size_t                           i         = 0;
 
 
@@ -117,7 +117,7 @@ namespace TraceHistoryTests
 
             for (i = 0; i < size; i++)
             {
-                Assert::IsTrue (rig.GetCpu()->TryGetTraceEntry (i, live));
+                Assert::IsTrue (rig.GetCpu()->GetTrace().TryGetEntry (i, live));
                 Assert::IsTrue (rebuilt[i].isAvailable, std::format (L"entry {} available", i).c_str());
                 Assert::IsTrue (TraceRig::IsSame (live, rebuilt[i].entry), std::format (L"entry {} at position {} matches", i, position - size + i).c_str());
             }
@@ -277,7 +277,7 @@ namespace TraceHistoryTests
         {
             TraceRig                   rig;
             std::vector<TraceRecord>   window;
-            Cpu::TraceEntry            ringLast = {};
+            CpuTrace::Entry            ringLast = {};
             HRESULT                    hr       = S_OK;
 
 
@@ -298,7 +298,7 @@ namespace TraceHistoryTests
                 Assert::IsTrue (record.isAvailable, L"rebuilt from history");
             }
 
-            Assert::IsTrue (rig.GetCpu()->TryGetTraceEntry (rig.GetCpu()->GetTraceSize() - 1, ringLast));
+            Assert::IsTrue (rig.GetCpu()->GetTrace().TryGetEntry (rig.GetCpu()->GetTrace().GetSize() - 1, ringLast));
             Assert::IsTrue (window[2].cycles > ringLast.cycles, L"newer than the ring's last");
         }
     };

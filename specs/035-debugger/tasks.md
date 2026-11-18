@@ -2455,3 +2455,4 @@ Master's new hardware on the default machines (the //e's UniDisk 3.5 card in slo
   - The storage cards: `ICatchUpDevice` and `IReplayMediaSource`, listed in `MachineRefs`, in place of the loops by card type; `IMachineState::HasMedia` is removed and a picture load passes over a replay-media source.
   - `KeyframeStore`: `KeyframeTypes`, `KeyframeLayout`, `KeyframeArena` and `KeyframePackQueue`; the query forwarders are removed and callers use `GetArena()`. Header 358 to 146 lines, `.cpp` 1,899 to 1,127.
   - `ReverseController`: `HistorySpan`, `ReplayStepTable`, `KeyframeCapturer`, `ReverseSeeker` with `IReverseSeeker`, and `ReverseStepper`, which absorbs `ReverseStepSearch` and its friend access. Header 259 to 152 lines, `.cpp` 1,998 to 475.
+  - `Cpu`: `CpuTrace`, `CpuFetchObservers`, `CpuStepPrinter` and `CpuOperandInfo`. Header 417 to 241 lines, `.cpp` 1,667 to 1,087. After: //e 5.09 ns, //c 10.34 ns, every storage card 14.91 ns per cycle.

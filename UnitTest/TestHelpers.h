@@ -104,7 +104,7 @@ public:
         // never changes.
         Byte                opcode      = memory[PC];
         const Microcode  &  microcode   = instructionSet[opcode];
-        OperandInfo         operandInfo = { 0 };
+        CpuOperandInfo      operandInfo = { 0 };
 
         FetchOperand (microcode, operandInfo);
         ++PC;

@@ -84,7 +84,7 @@ private:
     Rebuilt  * Find          (const DebugEventBounds & bounds);
     HRESULT    Rebuild       (const std::vector<DebugEventBounds> & stretches);
     HRESULT    RequestAhead  (const std::vector<DebugEventBounds> & stretches);
-    void       Store         (const DebugEventBounds & bounds, DebugEventStretchResult<Cpu::TraceEntry> && result);
+    void       Store         (const DebugEventBounds & bounds, DebugEventStretchResult<CpuTrace::Entry> && result);
     bool       IsStopped     () const;
     bool       TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceHistoryEntry> & outEntries, bool isRebuiltNow);
 
@@ -92,7 +92,7 @@ private:
     DebugEventHistory                            & m_history;
     ReverseController                            * m_controller = nullptr;
     TraceEventProbe                              * m_probe      = nullptr;   // owned by the runner
-    ScratchEventReplayer<Cpu::TraceEntry>          m_runner;
+    ScratchEventReplayer<CpuTrace::Entry>          m_runner;
     std::list<Rebuilt>                             m_rebuilt;                // most recently used first
     size_t                                         m_wanted     = 0;         // stretches the last request overlapped; the cache evicts none past kRebuiltStretches
     std::vector<DebugEventBounds>                  m_pending;                // the background job's stretches

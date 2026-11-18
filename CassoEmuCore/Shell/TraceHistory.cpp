@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<IDebugEventProbe<Cpu::TraceEntry>> MakeProbe (TraceEventProbe *& outProbe)
+static std::unique_ptr<IDebugEventProbe<CpuTrace::Entry>> MakeProbe (TraceEventProbe *& outProbe)
 {
     auto  probe = std::make_unique<TraceEventProbe>();
 
@@ -124,7 +124,7 @@ void TraceHistory::OnHistoryChanged()
 
 bool TraceHistory::Pump()
 {
-    DebugEventStretchResult<Cpu::TraceEntry>  result;
+    DebugEventStretchResult<CpuTrace::Entry>  result;
     bool                                      isAny  = false;
 
 
@@ -528,7 +528,7 @@ HRESULT TraceHistory::Rebuild (const std::vector<DebugEventBounds> & stretches)
 {
     HRESULT                                               hr = S_OK;
     DebugEventJob                                         job;
-    std::vector<DebugEventStretchResult<Cpu::TraceEntry>> results;
+    std::vector<DebugEventStretchResult<CpuTrace::Entry>> results;
     size_t                                                i  = 0;
 
 
@@ -610,7 +610,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResult<Cpu::TraceEntry> && result)
+void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResult<CpuTrace::Entry> && result)
 {
     Rebuilt   rebuilt;
     uint64_t  length  = bounds.endPosition - bounds.startPosition;
@@ -619,9 +619,9 @@ void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResu
 
     rebuilt.bounds        = bounds;
     rebuilt.isUnavailable = result.isUnavailable || FAILED (result.hr);
-    rebuilt.entries.assign ((size_t) length, TraceHistoryEntry { Cpu::TraceEntry {}, false });
+    rebuilt.entries.assign ((size_t) length, TraceHistoryEntry { CpuTrace::Entry {}, false });
 
-    for (const DebugEventEntry<Cpu::TraceEntry> & each : result.entries)
+    for (const DebugEventEntry<CpuTrace::Entry> & each : result.entries)
     {
         if (!rebuilt.isUnavailable && each.position >= bounds.startPosition && each.position < bounds.endPosition)
         {

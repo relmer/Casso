@@ -339,6 +339,6 @@ void MachineRunner::ApplyOpcodeWatch()
 {
     if (m_parts.cpu != nullptr)
     {
-        m_parts.cpu->GetCpu6502()->SetOpcodeWatch (m_watchOpcodes, m_watcher);
+        m_parts.cpu->GetCpu6502()->GetFetchObservers().SetOpcodeWatch (m_watchOpcodes, m_watcher);
     }
 }

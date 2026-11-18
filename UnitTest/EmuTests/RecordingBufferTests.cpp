@@ -61,12 +61,12 @@ public:
         hr = controller.Start (settings);
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kBufferWarmFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kBufferWarmFrames);
 
         keyframes = CountKeyframesTaken (controller);
 
         counter.Start();
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kBufferCountFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kBufferCountFrames);
         allocated = counter.Stop();
 
         keyframes = CountKeyframesTaken (controller) - keyframes;

@@ -41,7 +41,7 @@ void TraceEventProbe::Reserve (size_t instructions)
 
 HRESULT TraceEventProbe::Attach (
     MachineHost                                    & machine,
-    std::vector<DebugEventEntry<Cpu::TraceEntry>>  & entries)
+    std::vector<DebugEventEntry<CpuTrace::Entry>>  & entries)
 {
     HRESULT    hr       = S_OK;
     EmuCpu   * cpu      = machine.GetCpu();
@@ -55,13 +55,13 @@ HRESULT TraceEventProbe::Attach (
     m_entries = &entries;
     m_start   = machine.GetRunner().GetPosition();
 
-    if (cpu->GetCpu6502()->GetTraceCapacity() != capacity)
+    if (cpu->GetCpu6502()->GetTrace().GetCapacity() != capacity)
     {
-        cpu->GetCpu6502()->EnableTrace (capacity);
+        cpu->GetCpu6502()->GetTrace().Enable (capacity);
     }
     else
     {
-        cpu->GetCpu6502()->RestartTrace();
+        cpu->GetCpu6502()->GetTrace().Restart();
     }
 
     machine.GetMemoryBus().SetTraceSink     (this);
@@ -91,7 +91,7 @@ void TraceEventProbe::Detach (MachineHost & machine)
     size_t             size    = 0;
     uint64_t           first   = 0;
     size_t             i       = 0;
-    Cpu::TraceEntry    entry   = {};
+    CpuTrace::Entry    entry   = {};
 
 
 
@@ -103,14 +103,14 @@ void TraceEventProbe::Detach (MachineHost & machine)
         return;
     }
 
-    cpu->StopTrace();
+    cpu->GetTrace().Stop();
 
-    size  = cpu->GetTraceSize();
-    first = m_start + (cpu->GetTraceCount() - size);
+    size  = cpu->GetTrace().GetSize();
+    first = m_start + (cpu->GetTrace().GetCount() - size);
 
     m_entries->reserve (m_entries->size() + size);
 
-    for (i = 0; i < size && cpu->TryGetTraceEntry (i, entry); i++)
+    for (i = 0; i < size && cpu->GetTrace().TryGetEntry (i, entry); i++)
     {
         m_entries->push_back ({ DebugEventEntryKind::Event, first + i, entry.cycles, entry, nullptr });
     }
@@ -139,6 +139,6 @@ void TraceEventProbe::OnWatchedAccess (
 
     if (m_machine != nullptr && m_machine->GetCpu() != nullptr)
     {
-        m_machine->GetCpu()->GetCpu6502()->RecordTraceAccess (address, value, access == BusAccess::Write);
+        m_machine->GetCpu()->GetCpu6502()->GetTrace().RecordAccess (address, value, access == BusAccess::Write, m_machine->GetCpu()->GetPC());
     }
 }

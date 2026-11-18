@@ -93,8 +93,8 @@ public:
         {
             m_nmiPending = false;
 
-            ObserveInterrupt();
-            MarkTraceInterrupt (kTraceIntrNmi);
+            m_fetchObservers.ObserveInterrupt (PC, SP);
+            m_trace.MarkInterrupt (CpuTrace::kIntrNmi);
             DispatchVector (nmiVector, false);
 
             m_lastCycles    = 7;
@@ -104,8 +104,8 @@ public:
 
         if (m_irqLine && status.flags.interruptDisable == 0)
         {
-            ObserveInterrupt();
-            MarkTraceInterrupt (kTraceIntrIrq);
+            m_fetchObservers.ObserveInterrupt (PC, SP);
+            m_trace.MarkInterrupt (CpuTrace::kIntrIrq);
             DispatchVector (irqVector, false);
 
             m_lastCycles    = 7;

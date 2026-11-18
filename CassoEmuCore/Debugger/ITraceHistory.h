@@ -40,7 +40,7 @@ struct TraceSpan
 
 struct TraceHistoryEntry
 {
-    Cpu::TraceEntry  entry       = {};
+    CpuTrace::Entry  entry       = {};
     bool             isAvailable = true;
 };
 

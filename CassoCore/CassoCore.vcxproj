@@ -134,6 +134,9 @@
     <ClCompile Include="CommandLineParser.cpp" />
     <ClCompile Include="UsageText.cpp" />
     <ClCompile Include="Cpu.cpp" />
+    <ClCompile Include="CpuTrace.cpp" />
+    <ClCompile Include="CpuFetchObservers.cpp" />
+    <ClCompile Include="CpuStepPrinter.cpp" />
     <ClCompile Include="InstructionSetBuilder.cpp" />
     <ClCompile Include="CycleReference.cpp" />
     <ClCompile Include="Cpu6502.cpp" />
@@ -211,6 +214,10 @@
     <ClInclude Include="CommandLineParser.h" />
     <ClInclude Include="UsageText.h" />
     <ClInclude Include="Cpu.h" />
+    <ClInclude Include="CpuTrace.h" />
+    <ClInclude Include="CpuFetchObservers.h" />
+    <ClInclude Include="CpuStepPrinter.h" />
+    <ClInclude Include="CpuOperandInfo.h" />
     <ClInclude Include="InstructionSetBuilder.h" />
     <ClInclude Include="Cpu6502.h" />
     <ClInclude Include="ICpu.h" />

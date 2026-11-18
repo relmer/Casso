@@ -138,7 +138,7 @@ bool MachineDebugTarget::TryConnectHeatMap (
 
     host.GetMemoryBus().SetAllPagesWatched (map != nullptr);
     busCpu->SetAccessSink (map);
-    busCpu->SetFetchSink  (map);
+    busCpu->GetFetchObservers().SetFetchSink (map);
 
     if (map != nullptr)
     {
