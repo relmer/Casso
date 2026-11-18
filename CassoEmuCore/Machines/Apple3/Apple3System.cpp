@@ -137,6 +137,7 @@ uint32_t Apple3System::OnInstruction (uint32_t cycles, Word pc)
 
 
     m_timeBase.SetOneMhz   ((environment & Apple3Mmu::kEnvSlowClock) != 0);
+    m_disk.SetOneMhz       ((environment & Apple3Mmu::kEnvSlowClock) != 0);
     m_timeBase.SetScreenOn ((environment & Apple3Mmu::kEnvScreen) != 0);
 
     ticks  = m_timeBase.ChargeCycles (cycles - slow, GetFetchAccess (pc));
@@ -172,7 +173,7 @@ void Apple3System::SyncDevices()
         m_acia.Tick ((uint32_t) viaCycles);
     }
 
-    m_disk.SyncToMasterClocks (master);
+    m_disk.SyncToTicks (m_timeBase.GetTicks());
 
     m_video.SetScreenOn ((m_mmu.GetEnvironment() & Apple3Mmu::kEnvScreen) != 0);
     m_video.OnBeamLine  (m_timeBase.GetLine());

@@ -109,7 +109,8 @@ it back with Casso's disk tools.
 ### Tests
 
 - [x] T039 [P] [US2] Extend `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp` for four drives: selection, an unconnected drive, write protect, and that selecting one drive does not affect the others' motors or lamps
-- [ ] T040 [US2] Add scenario tests (volumes listed for all four drives; format; copy between drives and read back byte for byte; write-protect error; `.D3` with one external drive) to `ScenarioTests/Apple3SosTests.cpp`
+- [x] T040 [US2] Add scenario tests (volumes listed for all four drives; format; copy between drives and read back byte for byte; write-protect error; `.D3` with one external drive) to `ScenarioTests/Apple3SosTests.cpp`. `.D2` and `.D3` are listed and saved to; `.D4` is not defined by the stock SOS.DRIVER files, and format is T040a
+- [ ] T040a [US2] Add scenario tests for formatting a disk with the System Utilities and for `.D4`, with a SOS.DRIVER configured for four drives
 
 ### Implementation
 

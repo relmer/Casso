@@ -144,6 +144,8 @@ keyboard, `$C03x` speaker toggle, `$C04x` beeper, `$C05x` display register,
 | `$C0E8` / `$C0E9` | drive motors: start the power-off timeout / on | SOS, disk driver |
 | `$C0EA` / `$C0EB` | I/O select: internal drive / external drives | SOS, disk driver |
 | `$C0EC`-`$C0EF` | Q6L, Q6H, Q7L, Q7H (listed as `$C08C`-`$C08F` indexed) | SOS, disk driver |
+| Disk clock | One disk cycle per two 2 MHz ticks, so it stretches with the line's long tick as a 1 MHz CPU cycle does. A steady 14 master clock periods per cycle drifts from the CPU by 0.2%, and SOS writes from Business BASIC then failed with SOS CALL ERROR and undecodable sectors | Business BASIC `SAVE`, 2026-11-18 |
+| SOS devices | The SOS.DRIVER files on the stock Business BASIC, System Utilities and SOS demo disks define `.D1` to `.D3`. `CATALOG .D4` reports FILE NOT FOUND without selecting a drive | disk images, 2026-11-18 |
 | `$C0F0`-`$C0F3` | 6551: data, status, command, control | DDW p. 21; RS |
 
 ### KB port, `$C008`

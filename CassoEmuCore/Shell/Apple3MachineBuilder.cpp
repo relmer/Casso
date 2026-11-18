@@ -168,6 +168,7 @@ void Apple3MachineBuilder::WireDiskDrive()
 
     m_host.GetRefs().diskController = &diskII;
     m_host.GetRefs().apple3Disk     = &m_host.GetApple3()->GetDiskController();
+    m_host.GetApple3()->GetDiskController().SetCycleSources (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetCpu()->GetCycleCounterPtr());
 
     diskII.GetRecorder().SetInstructionAddressSource (m_host.GetCpu()->GetInstructionStartPtr());
 

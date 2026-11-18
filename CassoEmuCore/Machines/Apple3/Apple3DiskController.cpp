@@ -3,6 +3,7 @@
 #include "Apple3DiskController.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Machines/Apple3/Apple3TimeBase.h"
 
 
 
@@ -22,6 +23,7 @@ static constexpr int   s_kInternal     = 0;
 static constexpr int   s_kExternalLine = 1;
 
 static constexpr uint16_t  s_kFirstWithExternals = 2;
+static constexpr uint16_t  s_kFirstWithTicks     = 3;
 static constexpr uint32_t  s_kMaxEngineBytes      = 0x10000;
 
 
@@ -134,6 +136,7 @@ Byte Apple3DiskController::Read (Word address)
     }
     else if (address >= kFirstRegister && address <= kLastRegister)
     {
+        CatchUpToAccess();
         value = m_diskII->Read (address);
     }
 
@@ -158,6 +161,7 @@ void Apple3DiskController::Write (Word address, Byte value)
     }
     else if (address >= kFirstRegister && address <= kLastRegister)
     {
+        CatchUpToAccess();
         m_diskII->Write (address, value);
     }
 }
@@ -410,29 +414,69 @@ Apple3DiskController::DriveActivity Apple3DiskController::GetDriveActivity (int 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncToMasterClocks
+//  SyncToTicks
 //
-//  Converts the master clocks since the last call to disk cycles, keeping
+//  Converts the ticks since the last call to disk cycles, keeping
 //  the remainder, and runs the motor timers by them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple3DiskController::SyncToMasterClocks (uint64_t masterClocks)
+void Apple3DiskController::SyncToTicks (uint64_t ticks)
 {
     uint64_t  before = m_diskCycles;
 
 
 
-    if (masterClocks < m_lastMasterClocks)
+    if (ticks < m_lastTicks)
     {
-        m_lastMasterClocks = masterClocks;
+        m_lastTicks = ticks;
         return;
     }
 
-    m_diskCycles      += (masterClocks - m_lastMasterClocks) / kMasterPerCycle;
-    m_lastMasterClocks = masterClocks - (masterClocks - m_lastMasterClocks) % kMasterPerCycle;
+    m_syncedDiskCycles += (ticks - m_lastTicks) / kTicksPerCycle;
+    m_lastTicks         = ticks - (ticks - m_lastTicks) % kTicksPerCycle;
 
-    m_diskII->Tick ((uint32_t) (m_diskCycles - before));
+    if (m_syncedDiskCycles > m_diskCycles)
+    {
+        m_diskCycles = m_syncedDiskCycles;
+        m_diskII->Tick ((uint32_t) (m_diskCycles - before));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatchUpToAccess
+//
+//  Runs the Disk II logic on by the CPU cycles of the instruction so far,
+//  from the last sync, which was at the instruction's start. The sync after
+//  the instruction runs it the rest of the way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple3DiskController::CatchUpToAccess()
+{
+    uint64_t  elapsed = 0;
+    uint64_t  target  = 0;
+
+
+
+    if (m_busCycle == nullptr || m_instructionStart == nullptr || *m_busCycle < *m_instructionStart)
+    {
+        return;
+    }
+
+    elapsed = *m_busCycle - *m_instructionStart;
+    target  = m_syncedDiskCycles + (m_isOneMhz ? elapsed : elapsed / 2);
+
+    if (target > m_diskCycles)
+    {
+        m_diskII->Tick ((uint32_t) (target - m_diskCycles));
+        m_diskCycles = target;
+    }
 }
 
 
@@ -459,7 +503,7 @@ HRESULT Apple3DiskController::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_isExternal1);
     writer.WriteBool   (m_isExternal2);
     writer.WriteUInt64 (m_diskCycles);
-    writer.WriteUInt64 (m_lastMasterClocks);
+    writer.WriteUInt64 (m_lastTicks);
     writer.WriteByte   ((Byte) m_connected);
 
     for (const External & external : m_externals)
@@ -506,7 +550,15 @@ HRESULT Apple3DiskController::LoadState (StateReader & reader)
     reader.ReadBool   (m_isExternal1);
     reader.ReadBool   (m_isExternal2);
     reader.ReadUInt64 (m_diskCycles);
-    reader.ReadUInt64 (m_lastMasterClocks);
+    reader.ReadUInt64 (m_lastTicks);
+
+    // Before version 3, the count was master clock periods.
+    if (version < s_kFirstWithTicks)
+    {
+        m_lastTicks = m_lastTicks * Apple3TimeBase::kTicksPerLine / Apple3TimeBase::kMasterPerLine;
+    }
+
+    m_syncedDiskCycles = m_diskCycles;
 
     if (version >= s_kFirstWithExternals)
     {

@@ -30,8 +30,11 @@ class Prng;
 //  number plugged in reads as an empty drive.
 //
 //  The drive turns at the same speed as on an Apple II, so the Disk II
-//  logic counts one cycle per 14 master clock periods, whatever the CPU's
-//  speed.
+//  logic counts one cycle per two of the time base's ticks, whatever the
+//  CPU's speed. A tick is seven master clock periods, and the last of each
+//  line is nine, as the Apple II's long cycle is: the disk clock stretches
+//  with the CPU's 1 MHz cycle, so a write loop's nibbles land on the bit
+//  cells it times them for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,12 +46,12 @@ public:
     static constexpr Word      kFirstRegister   = 0xC0E0;
     static constexpr Word      kLastRegister    = 0xC0EF;
     static constexpr int       kDiskIiSlot      = 6;
-    static constexpr uint32_t  kMasterPerCycle  = 14;
+    static constexpr uint32_t  kTicksPerCycle   = 2;
     static constexpr int       kMaxExternal     = 3;
     static constexpr int       kDriveCount      = 1 + kMaxExternal;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', '3', 'D', 'K');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint16_t  kStateVersion = 3;
 
     Apple3DiskController();
 
@@ -59,8 +62,18 @@ public:
     void     PowerOn              (Prng & prng);
     void     Reset                ();
 
-    //  Brings the Disk II logic to a time base's master clock count.
-    void     SyncToMasterClocks   (uint64_t masterClocks);
+    //  Brings the Disk II logic to a time base's tick count.
+    void     SyncToTicks          (uint64_t ticks);
+
+    //  The CPU's bus cycle and the cycle its instruction started on, so an
+    //  access to the disk register brings the Disk II logic to the cycle of
+    //  the access rather than to the end of the instruction before it: a
+    //  write loop's nibbles are 32 cycles apart only when each write lands on
+    //  its cycle. The difference is the access's cycle within the
+    //  instruction. In 1 MHz mode a CPU cycle is a disk cycle, and in 2 MHz
+    //  mode half of one.
+    void     SetCycleSources      (const uint64_t * busCycle, const uint64_t * instructionStart) { m_busCycle = busCycle; m_instructionStart = instructionStart; }
+    void     SetOneMhz            (bool isOneMhz)             { m_isOneMhz = isOneMhz; }
 
     bool     IsInternalSelected   () const { return m_isInternalSelected; }
     bool     IsExternal1Set       () const { return m_isExternal1; }
@@ -114,11 +127,16 @@ private:
     };
 
     void     HandleSelect         (Word address);
+    void     CatchUpToAccess      ();
     void     ConnectExternal      (int index);
 
     std::unique_ptr<Disk2Controller>     m_diskII;
     uint64_t                             m_diskCycles         = 0;
-    uint64_t                             m_lastMasterClocks   = 0;
+    uint64_t                             m_syncedDiskCycles   = 0;
+    uint64_t                             m_lastTicks          = 0;
+    const uint64_t                     * m_busCycle           = nullptr;
+    const uint64_t                     * m_instructionStart   = nullptr;
+    bool                                 m_isOneMhz           = true;
     bool                                 m_isInternalSelected = false;
     bool                                 m_isExternal1        = false;
     bool                                 m_isExternal2        = false;

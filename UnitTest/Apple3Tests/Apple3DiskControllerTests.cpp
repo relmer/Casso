@@ -36,7 +36,7 @@ public:
     static constexpr Word      kQ6Off         = 0xC0EC;
     static constexpr Word      kQ6On          = 0xC0ED;
     static constexpr Word      kQ7Off         = 0xC0EE;
-    static constexpr uint64_t  kMasterPerBit  = Apple3DiskController::kMasterPerCycle * Disk2NibbleEngine::kCyclesPerBit;
+    static constexpr uint64_t  kTicksPerBit   = Apple3DiskController::kTicksPerCycle * Disk2NibbleEngine::kCyclesPerBit;
 
 
     static std::unique_ptr<Apple3DiskController> Make()
@@ -153,8 +153,8 @@ public:
 
         for (int i = 0; i < 20000 && found < 3; i++)
         {
-            now += kMasterPerBit / 2;
-            controller->SyncToMasterClocks (now);
+            now += kTicksPerBit / 2;
+            controller->SyncToTicks (now);
 
             Byte  value = controller->Read (kQ6Off);
 
@@ -170,7 +170,7 @@ public:
     }
 
 
-    TEST_METHOD (DiskCycles_AreOnePerFourteenMasterClocks)
+    TEST_METHOD (DiskCycles_AreOnePerTwoTicks)
     {
         auto  controller = Make();
 
@@ -179,14 +179,14 @@ public:
         controller->GetDiskII().GetDrive (0).GetDisk()->ResizeTrack (0, 8192);
         controller->Read (kMotorOn);
         controller->Read (kQ7Off);
-        controller->SyncToMasterClocks (Apple3DiskController::kMasterPerCycle * Disk2CardSequencer::kMotorSpinupCycles);
+        controller->SyncToTicks (Apple3DiskController::kTicksPerCycle * Disk2CardSequencer::kMotorSpinupCycles);
         controller->Read (kQ6Off);
 
         size_t  before = controller->GetDiskII().GetDrive (0).GetEngine().GetBitPosition();
 
 
 
-        controller->SyncToMasterClocks (Apple3DiskController::kMasterPerCycle * Disk2CardSequencer::kMotorSpinupCycles + kMasterPerBit * 10 + 13);
+        controller->SyncToTicks (Apple3DiskController::kTicksPerCycle * Disk2CardSequencer::kMotorSpinupCycles + kTicksPerBit * 10 + 1);
         controller->Read (kQ6Off);
 
         Assert::AreEqual ((size_t) 10, controller->GetDiskII().GetDrive (0).GetEngine().GetBitPosition() - before);

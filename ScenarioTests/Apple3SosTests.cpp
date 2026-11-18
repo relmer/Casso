@@ -5,6 +5,9 @@
 #include "HResultAssert.h"
 #include "Machines/Apple3/Apple3System.h"
 #include "Machines/Apple3/Apple3TextCells.h"
+#include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -27,11 +30,12 @@ TEST_CLASS (Apple3SosTests)
 {
 public:
 
-    static constexpr uint64_t      kTicksPerSecond   = 2040968;
-    static constexpr int           kSecondsToPrompt  = 40;
-    static constexpr int           kDiskSlot         = 6;
-    static constexpr int           kDrive1           = 0;
-    static constexpr const char *  kpszBusinessBasic = "Disks/Apple/apple3-business-basic.dsk";
+    static constexpr uint64_t      kTicksPerSecond     = 2040968;
+    static constexpr int           kSecondsToPrompt    = 40;
+    static constexpr int           kDiskSlot           = 6;
+    static constexpr int           kDrive1             = 0;
+    static constexpr const char *  kpszBusinessBasic   = "Disks/Apple/apple3-business-basic.dsk";
+    static constexpr size_t        kDiskBytes          = 143360;
 
 
     //  The screen as text: 80 columns when the 80-column switch is set,
@@ -101,6 +105,30 @@ public:
     }
 
 
+    //  Types a command and runs until Business BASIC's prompt is back on the
+    //  last line that has text.
+    static void RunCommand (TestMachine & machine, const std::string & command, int seconds = 20)
+    {
+        bool  isBack = false;
+
+
+
+        Type (machine, command + "\r");
+
+        for (int tenth = 0; tenth < seconds * 10 && !isBack; tenth++)
+        {
+            std::string  screen = GetScreenText (*machine.GetApple3());
+            size_t       last   = screen.find_last_not_of (" \n");
+            size_t       start  = (last == std::string::npos) ? 0 : screen.rfind ('\n', last);
+
+
+
+            machine.GetRunner().RunCycles (kTicksPerSecond / 10);
+            isBack = last != std::string::npos && screen.substr (start + 1, last - start) == ")";
+        }
+    }
+
+
     static void MountBusinessBasic (TestMachine & machine)
     {
         std::vector<Byte>  bytes = GuestSession::RequireRepoImage (kpszBusinessBasic);
@@ -150,6 +178,35 @@ public:
     }
 
 
+    //  A SOS error is on the screen whatever the memory size. The stock
+    //  SOS.DRIVER files have no .D4, so CATALOG .D4 is an error.
+    static void CheckErrorIsReported (uint32_t memoryK)
+    {
+        TestMachine  machine ("Apple3", [memoryK] (MachineConfig & config) { config.memoryK = memoryK; });
+
+
+
+        MountBusinessBasic (machine);
+        Assert::IsTrue (RunUntilScreenHas (machine, "BLOCKS FREE", kSecondsToPrompt));
+
+        Type (machine, "CATALOG .D4\r");
+
+        Assert::IsTrue (RunUntilScreenHas (machine, "?FILE NOT FOUND ERROR", 10), TextEncoding::Utf8ToWide (GetScreenText (*machine.GetApple3())).c_str());
+    }
+
+
+    TEST_METHOD (BusinessBasic_ReportsAnError_128K)
+    {
+        CheckErrorIsReported (128);
+    }
+
+
+    TEST_METHOD (BusinessBasic_ReportsAnError_256K)
+    {
+        CheckErrorIsReported (256);
+    }
+
+
     TEST_METHOD (BusinessBasic_PrintsSixTimesSeven)
     {
         TestMachine  machine ("Apple3");
@@ -162,5 +219,132 @@ public:
         Type (machine, "PRINT 6*7\r");
 
         Assert::IsTrue (RunUntilScreenHas (machine, "\n42 ", 2), L"BASIC prints 42 on the next line");
+    }
+
+
+    //  A blank SOS volume, which has the ProDOS volume format.
+    static std::vector<Byte> MakeBlankVolume (const std::string & name)
+    {
+        std::vector<Byte>  bytes (kDiskBytes);
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (bytes, name), L"the blank volume is built");
+        return bytes;
+    }
+
+
+    static void MountBytes (TestMachine & machine, int drive, const std::string & name, const std::vector<Byte> & bytes)
+    {
+        HRESULT  hr = machine.GetDiskStore().MountFromBytes (kDiskSlot, drive, name, DiskFormat::Dsk, bytes);
+
+
+
+        AssertSucceeded (hr, L"the disk mounts");
+        machine.GetStorage().ConnectDiskToController (kDiskSlot, drive);
+    }
+
+
+    //  Business BASIC in .D1, and blank volumes TWO, THREE and FOUR in .D2 to
+    //  .D4. The SOS.DRIVER files on the stock disks define .D1 to .D3, so
+    //  SOS accesses .D4 only with a driver configured for it.
+    struct FourDriveMachine
+    {
+        TestMachine  machine;
+
+        explicit FourDriveMachine (uint32_t memoryK = 128)
+            : machine ("Apple3", [memoryK] (MachineConfig & config) { config.externalDrives = 3; config.memoryK = memoryK; })
+        {
+            MountBusinessBasic (machine);
+            MountBytes (machine, 1, "two.dsk",   MakeBlankVolume ("TWO"));
+            MountBytes (machine, 2, "three.dsk", MakeBlankVolume ("THREE"));
+            MountBytes (machine, 3, "four.dsk",  MakeBlankVolume ("FOUR"));
+
+            Assert::IsTrue (RunUntilScreenHas (machine, "BLOCKS FREE", kSecondsToPrompt), L"Business BASIC is at its prompt");
+        }
+
+        //  The disk in a drive as the 140K sector image.
+        std::vector<Byte> GetDiskBytes (int drive)
+        {
+            std::vector<Byte>  bytes;
+
+
+
+            AssertSucceeded (NibblizationLayer::Denibblize (*machine.GetDiskStore().GetImage (kDiskSlot, drive), DiskFormat::Dsk, bytes));
+            return bytes;
+        }
+
+        std::wstring GetScreen() { return TextEncoding::Utf8ToWide (GetScreenText (*machine.GetApple3())); }
+    };
+
+
+    TEST_METHOD (FourDrives_EachVolumeIsListed)
+    {
+        FourDriveMachine  rig;
+
+
+
+        Type (rig.machine, "CATALOG .D2\r");
+        Assert::IsTrue (RunUntilScreenHas (rig.machine, "TWO ", 10), rig.GetScreen().c_str());
+
+        Type (rig.machine, "CATALOG .D3\r");
+        Assert::IsTrue (RunUntilScreenHas (rig.machine, "THREE ", 10), rig.GetScreen().c_str());
+    }
+
+
+    //  A program saved to .D2 and to .D3 is on each disk, byte for byte the
+    //  same, when Casso's disk tools read the disks.
+    TEST_METHOD (FourDrives_ASavedProgramReadsBackFromEachDisk)
+    {
+        FourDriveMachine   rig;
+        std::vector<Byte>  two;
+        std::vector<Byte>  three;
+        Byte               fileType = 0;
+        Word               auxType  = 0;
+
+
+
+        RunCommand (rig.machine, "10 PRINT \"FOUR DRIVES\"");
+        RunCommand (rig.machine, "SAVE .D2/HELLO");
+        RunCommand (rig.machine, "SAVE .D3/HELLO");
+        RunCommand (rig.machine, "CATALOG .D3");
+        Assert::IsTrue (GetScreenText (*rig.machine.GetApple3()).find ("HELLO") != std::string::npos, rig.GetScreen().c_str());
+
+        AssertSucceeded (ProDosReader::ExtractFile (rig.GetDiskBytes (1), "HELLO", two,   fileType, auxType), L"HELLO is on .D2");
+        AssertSucceeded (ProDosReader::ExtractFile (rig.GetDiskBytes (2), "HELLO", three, fileType, auxType), L"HELLO is on .D3");
+
+        Assert::IsFalse (two.empty());
+        Assert::IsTrue  (two == three, L"the two copies are the same bytes");
+    }
+
+
+    TEST_METHOD (FourDrives_AWriteProtectedDiskTakesNoSave)
+    {
+        FourDriveMachine  rig;
+
+
+
+        rig.machine.GetDiskStore().GetImage (kDiskSlot, 2)->SetWriteProtected (true);
+
+        RunCommand (rig.machine, "10 PRINT 1");
+        RunCommand (rig.machine, "SAVE .D3/HELLO");
+
+        Assert::IsTrue (GetScreenText (*rig.machine.GetApple3()).find ("?WRITE PROTECT ERROR") != std::string::npos, rig.GetScreen().c_str());
+    }
+
+
+    //  With one external drive plugged in, .D3 has no drive behind it, so no
+    //  volume is found there.
+    TEST_METHOD (OneExternalDrive_D3IsNotThere)
+    {
+        TestMachine  machine ("Apple3", [] (MachineConfig & config) { config.externalDrives = 1; });
+
+
+
+        MountBusinessBasic (machine);
+        Assert::IsTrue (RunUntilScreenHas (machine, "BLOCKS FREE", kSecondsToPrompt));
+
+        RunCommand (machine, "CATALOG .D3");
+        Assert::IsTrue (GetScreenText (*machine.GetApple3()).find ("?VOLUME NOT FOUND ERROR") != std::string::npos, TextEncoding::Utf8ToWide (GetScreenText (*machine.GetApple3())).c_str());
     }
 };
