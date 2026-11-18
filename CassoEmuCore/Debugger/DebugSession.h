@@ -394,16 +394,33 @@ private:
     //  the code that re-enters the Monitor, so an RTS from the program lands
     //  back at the prompt; Casso pushes the same address and stops there.
     static constexpr Word  kMonitorReentry = 0xFF69;
+    static constexpr Word  kStackPage      = 0x0100;
 
-    bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
-    void   ExecuteRun              (const DebugCommand & command, Reply & reply);
-    bool   TryStartNextStep        ();
-    void   ExecuteStepFilter       (const DebugCommand & command, Reply & reply);
-    void   ExecuteBasicStep        (const DebugCommand & command, Reply & reply);
-    void   PushMonitorReturn       ();
-    void   UpdateHookInstalled     ();
-    void   RefreshHookFilter       ();
-    bool   IsProfiling             () const;
+    //  The stack bytes and registers a Monitor `G`'s return address push
+    //  replaced, put back when the run fails to start.
+    struct MonitorReturn
+    {
+        Cpu6502Registers  before    = {};
+        Byte              stackHigh = 0;
+        Byte              stackLow  = 0;
+        bool              isPushed  = false;
+    };
+
+    bool     TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
+    void     ExecuteRun              (const DebugCommand & command, Reply & reply);
+    bool     TryPrepareRun           (const DebugCommand & command, RunRequest & request, bool & outIsStep, Reply & reply);
+    void     SetRunStart             (const DebugCommand & command, const RunRequest & request, bool isStep, MonitorReturn & outReturn);
+    void     AddMonitorStepLine      (Reply & reply);
+    void     FillRunRequest          (const DebugCommand & command, bool isStep, RunRequest & request, Reply & reply);
+    HRESULT  BeginRun                (const RunRequest & request);
+    void     UndoMonitorReturn       (const MonitorReturn & pushed);
+    bool     TryStartNextStep        ();
+    void     ExecuteStepFilter       (const DebugCommand & command, Reply & reply);
+    void     ExecuteBasicStep        (const DebugCommand & command, Reply & reply);
+    void     PushMonitorReturn       ();
+    void     UpdateHookInstalled     ();
+    void     RefreshHookFilter       ();
+    bool     IsProfiling             () const;
 
     static bool         TryGetRunKind          (DebugVerb verb, RunKind & kind);
     static bool         TryGetFlagMask         (const std::string & name, Byte & mask);
