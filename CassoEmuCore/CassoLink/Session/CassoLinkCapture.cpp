@@ -95,8 +95,9 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
         //  protection's timing bytes can be, is read again: on a standard
         //  track, bytes in its data fields, as the bytes after a field's
         //  epilog are often followed by zero bits. So is a track aligned as
-        //  noisy, read with a quiet baseline.
-        hr = Analyze (run, [&] () { Stream mine; bool shaky = false; unsure = MakeStream (read, mine, shaky) && ((mine.noisy && mine.quiet) || (isStandard ? mine.unsureData : mine.unsure) >= s_kUnsureBytes); });
+        //  noisy, read with a quiet baseline, even with a read that doesn't
+        //  align.
+        hr = Analyze (run, [&] () { Stream mine; bool shaky = false; unsure = MakeStream (read, mine, shaky, true) && ((mine.noisy && mine.quiet) || (isStandard ? mine.unsureData : mine.unsure) >= s_kUnsureBytes); });
         CHR (hr);
 
         if (unsure)

@@ -18,13 +18,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream, bool & outUnstable)
+bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant)
 {
     Marks  marks;
 
 
 
-    if (!CollectMarks (position, outStream, marks, outUnstable))
+    if (!CollectMarks (position, outStream, marks, outUnstable, tolerant))
     {
         return false;
     }
@@ -56,11 +56,15 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
 //  whose reads don't align so, or don't repeat, is aligned as one with a
 //  stretch the drive reads as noise (AlignNoisy) when every read aligns
 //  that way. A read with no revolution that aligns makes the stream
-//  unstable. False when the first read doesn't repeat.
+//  unstable. With tolerant, a track aligned as noisy is one even when a read
+//  doesn't align, if at least s_kWeakReads do: a track with no sync bytes is
+//  framed anew after each stretch of noise, so a pass can frame the bytes at
+//  the revolution's start otherwise than the first read did, and such a
+//  track is read again. False when the first read doesn't repeat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable)
+bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable, bool tolerant)
 {
     size_t                  length        = 0;
     std::vector<Alignment>  alignments;
@@ -77,7 +81,16 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
 
     if (!hasStream || outUnstable)
     {
-        noisy = AlignNoisy (position, noisyStream, noisyAlignments, noisyUnstable) && !noisyUnstable;
+        std::set<size_t>  aligned;
+
+        noisy = AlignNoisy (position, noisyStream, noisyAlignments, noisyUnstable);
+
+        for (const Alignment & alignment : noisyAlignments)
+        {
+            aligned.insert (alignment.read);
+        }
+
+        noisy = noisy && (!noisyUnstable || (tolerant && aligned.size() >= s_kWeakReads));
     }
 
     if (noisy)
@@ -152,7 +165,7 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
             MarkRandom (position, outStream.bytes, alignments, outStream.weak);
         }
 
-        TimeZeros (position, length, alignments, outStream.timed);
+        TimeZeros (position, outStream.bytes, alignments, outStream.timed);
     }
 
     return true;
@@ -474,6 +487,12 @@ bool CassoLinkCapture::TryGetVersion (const Position & position, const std::vect
 //  the two can add. A start in a write splice, whose bytes are
 //  framed differently on each pass, doesn't repeat and is skipped. The
 //  starts begin at the read's first byte framed as on the disk (FindFramed).
+//  A track of empty sectors whose every address field is followed by bytes
+//  the drive reads as noise has no window with several values that repeats
+//  so closely, so when no start does, the start that differs least is taken,
+//  with up to s_kLooseMismatch bytes differing: one that differs more has
+//  more of that noise. A start's first s_kExactBytes repeat exactly, as a
+//  revolution that begins in noise joins its end to its start a byte off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -481,42 +500,60 @@ bool CassoLinkCapture::FindReference (std::span<const Byte> read, size_t & outSt
 {
     size_t  estimate = FindLength (read);
     size_t  room     = estimate + s_kWindowDrift + kAlignBytes;
+    size_t  first    = FindFramed (read, read.size() > room ? read.size() - room : 0);
+    size_t  fewest   = SIZE_MAX;
     bool    found    = false;
-
-
-
-    outStart  = 0;
-    outLength = 0;
-
-    for (size_t start = FindFramed (read, read.size() > room ? read.size() - room : 0); estimate > 0 && !found && start + room <= read.size(); start += s_kStartStep)
+    auto    differ   = [&] (size_t start, size_t mismatch, size_t & outRepeat) -> size_t
     {
         std::set<Byte>  values;
-        size_t          fewest = SIZE_MAX;
+        size_t          least = SIZE_MAX;
 
         for (size_t at = 0; at < kAlignBytes; at++)
         {
             values.insert (read[start + at] | 0x80);
         }
 
-        if (values.size() < s_kAnchorValues)
+        for (size_t length = estimate - s_kWindowDrift; values.size() >= s_kAnchorValues && length <= estimate + s_kWindowDrift; length++)
         {
-            continue;
-        }
+            size_t  count = CountDiffer (read, start, read, start + length, mismatch);
+            bool    exact = std::equal (read.begin() + (ptrdiff_t) start, read.begin() + (ptrdiff_t) (start + s_kExactBytes), read.begin() + (ptrdiff_t) (start + length),
+                                        [] (Byte a, Byte b) { return (a | 0x80) == (b | 0x80); });
 
-        for (size_t length = estimate - s_kWindowDrift; length <= estimate + s_kWindowDrift; length++)
-        {
-            size_t  differ = CountDiffer (read, start, read, start + length, s_kAnchorMismatch);
-
-            if (differ <= s_kAnchorMismatch && differ < fewest)
+            if (exact && count <= mismatch && count < least)
             {
-                fewest    = differ;
-                outLength = length;
+                least     = count;
+                outRepeat = length;
             }
         }
 
-        found    = fewest != SIZE_MAX && IsUnique (read, start, outLength);
+        return (least != SIZE_MAX && IsUnique (read, start, outRepeat)) ? least : SIZE_MAX;
+    };
+
+
+
+    outStart  = 0;
+    outLength = 0;
+
+    for (size_t start = first; estimate > 0 && !found && start + room <= read.size(); start += s_kStartStep)
+    {
+        found    = differ (start, s_kAnchorMismatch, outLength) != SIZE_MAX;
         outStart = start;
     }
+
+    for (size_t start = first; estimate > 0 && !found && start + room <= read.size(); start += s_kStartStep)
+    {
+        size_t  repeat = 0;
+        size_t  count  = differ (start, s_kLooseMismatch, repeat);
+
+        if (count < fewest)
+        {
+            fewest    = count;
+            outStart  = start;
+            outLength = repeat;
+        }
+    }
+
+    found = found || fewest != SIZE_MAX;
 
     if (!found)
     {
@@ -749,7 +786,9 @@ bool CassoLinkCapture::IsUnique (std::span<const Byte> read, size_t start, size_
 //  offset, for a read that framed the first bytes differently; each within
 //  s_kAnchorMismatch bytes. A window found elsewhere in the revolution too
 //  is passed over. Places within s_kWindowDrift of one already found are
-//  the same place.
+//  the same place. A place found by a later window is off by the bytes that
+//  the stretches between read otherwise, so each is moved to where the
+//  revolution's first bytes match best, within s_kWindowDrift.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -780,6 +819,22 @@ std::vector<size_t> CassoLinkCapture::FindAnchors (std::span<const Byte> revolut
                 anchors.push_back (start);
             }
         }
+    }
+
+    for (size_t & anchor : anchors)
+    {
+        size_t  best   = anchor;
+        size_t  fewest = SIZE_MAX;
+
+        for (size_t place = anchor > s_kWindowDrift ? anchor - s_kWindowDrift : 0; place <= anchor + s_kWindowDrift && place + revolution.size() + s_kBand <= read.size(); place++)
+        {
+            size_t  count = CountDiffer (revolution, 0, read, place, kAlignBytes);
+
+            best   = count < fewest ? place : best;
+            fewest = std::min (fewest, count);
+        }
+
+        anchor = best;
     }
 
     std::sort (anchors.begin(), anchors.end());

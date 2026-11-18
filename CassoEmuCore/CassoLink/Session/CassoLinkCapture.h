@@ -209,12 +209,12 @@ private:
     static double               TimeRevolution (const std::vector<Position> & positions, const std::map<int, Stream> & streams);
     static size_t               GetBitOffset   (const Stream & stream, size_t byte);
     static void                 Write32        (std::vector<Byte> & bytes, size_t at, uint32_t value);
-    static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable);
+    static bool                 CollectMarks   (const Position & position, Stream & outStream, Marks & outMarks, bool & outUnstable, bool tolerant);
     static bool                 AlignStream    (const Position & position, Stream & outStream, std::vector<Alignment> & outAlignments, bool & outUnstable);
     static bool                 AlignNoisy     (const Position & position, Stream & outStream, std::vector<Alignment> & outAlignments, bool & outUnstable);
     static bool                 FindNoisyStart (std::span<const Byte> read, size_t & outStart, size_t & outLength);
     static void                 AnchorRead     (std::span<const Byte> ring, const std::unordered_map<uint64_t, size_t> & places, size_t read,
-                                                std::span<const Byte> bytes, std::vector<Alignment> & ioAlignments);
+                                                std::span<const Byte> bytes, bool allowPart, std::vector<Alignment> & ioAlignments);
     static bool                 MapAnchored    (std::span<const Byte> ring, std::span<const Byte> bytes, const std::vector<std::pair<size_t, size_t>> & hits, Alignment & outAlignment);
     static void                 MapGap         (std::span<const Byte> ring, std::span<const Byte> bytes, size_t first, size_t end, Alignment & ioAlignment);
     static bool                 TryMapInside   (std::span<const Byte> ring, std::span<const Byte> bytes, size_t from, size_t to, int after, Alignment & ioAlignment, size_t & outSplit);
@@ -241,12 +241,12 @@ private:
     static bool                 IsCrosstalk    (std::span<const Byte> revolution, int position);
     static void                 CountZeros     (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed, bool fine,
                                                 std::vector<uint8_t> & outZeros, size_t & outUnsure, size_t & outUnsureData);
-    static void         TimeZeros      (const Position & position, size_t length, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
+    static void         TimeZeros      (const Position & position, const std::vector<Byte> & bytes, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
     static bool         IsAboveBase    (double set, double read, double base);
     static uint8_t      CountByteZeros (const Marks & marks, size_t at, const double (&base)[2]);
     static bool         IsMarkedOften  (int set, int read, double base);
     static bool         IsQuiet        (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
-    static bool         MakeStream     (const Position & position, Stream & outStream, bool & outUnstable);
+    static bool         MakeStream     (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant = false);
     static int          FindWholeTrack (const std::map<int, Stream> & streams, int position);
     static bool         IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
     static size_t       FindDataField  (std::span<const Byte> bytes, size_t at);
@@ -285,6 +285,8 @@ private:
     static constexpr size_t  s_kStartStep          = 13;    // prime and short, to fall on every part of a sector in turn
     static constexpr size_t  s_kAnchorValues       = 8;
     static constexpr size_t  s_kAnchorMismatch     = 2;
+    static constexpr size_t  s_kLooseMismatch      = 8;     // for a track whose every window with several values has bytes read as noise
+    static constexpr size_t  s_kExactBytes         = 8;     // a start's first bytes, which repeat exactly
     static constexpr size_t  s_kWindowStep         = 997;
     static constexpr size_t  s_kWindowDrift        = 8;
     static constexpr size_t  s_kFramingSyncs       = 4;     // the sync bytes in a row that frame a read's bytes as on the disk
@@ -336,16 +338,19 @@ private:
     //  of a byte to the next poll, one more for a byte marked; and the bytes
     //  in a page of the capture's buffer, at whose end the loop is a cycle
     //  shorter.
-    static constexpr int      s_kPollCycles   = 7;
-    static constexpr uint8_t  s_kAllPhases    = 0x7F;
-    static constexpr int      s_kHoldCycles   = 9;
-    static constexpr int      s_kLoopTail     = 17;
-    static constexpr int      s_kPageBytes    = 256;
-    static constexpr int      s_kWaitCycles[] = { 8, 12 };   // the second read of a byte, by a read's delay
-    static constexpr int      s_kZeroCycles   = 4;           // a bit's cycles
-    static constexpr int      s_kByteCycles   = 32;          // a byte's eight bits
-    static constexpr int      s_kFitNeeded    = 3;           // the revolutions of s_kFitOf whose marks a byte's zero bits must fit
-    static constexpr int      s_kFitOf        = 4;
+    static constexpr int      s_kPollCycles    = 7;
+    static constexpr uint8_t  s_kAllPhases     = 0x7F;
+    static constexpr int      s_kHoldCycles    = 9;
+    static constexpr int      s_kLoopTail      = 17;
+    static constexpr int      s_kPageBytes     = 256;
+    static constexpr int      s_kWaitCycles[]  = { 8, 12 };   // the second read of a byte, by a read's delay
+    static constexpr int      s_kZeroCycles    = 4;           // a bit's cycles
+    static constexpr int      s_kByteCycles    = 32;          // a byte's eight bits
+    static constexpr int      s_kFitNeeded     = 2;           // the revolutions of s_kFitOf whose marks a byte's zero bits must fit
+    static constexpr int      s_kFitOf         = 3;
+    static constexpr size_t   s_kBeamWidth     = 16;          // the sequences of counts followed
+    static constexpr size_t   s_kCoveredNeeded = 3;           // the bytes of every s_kCoveredOf in a revolution that a read's widest part must span
+    static constexpr size_t   s_kCoveredOf     = 4;
 
     //  A field's marks: D5 AA, then 96 for a 16-sector address field, B5 for
     //  a 13-sector one and AD for a data field. RDOS begins its address

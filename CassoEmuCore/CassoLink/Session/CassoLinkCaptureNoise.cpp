@@ -71,9 +71,10 @@ bool CassoLinkCapture::AlignNoisy (const Position & position, Stream & outStream
     {
         size_t  before = outAlignments.size();
 
-        AnchorRead (ring, places, read, position.reads[read], outAlignments);
+        AnchorRead (ring, places, read, position.reads[read], position.reads.size() > kWholeReads, outAlignments);
 
         outUnstable = outUnstable || outAlignments.size() == before;
+
     }
 
     return true;
@@ -137,24 +138,39 @@ void CassoLinkCapture::MarkRandom (const Position & position, const std::vector<
 //  The zero bits after each byte of a stream from the moments the reads
 //  caught their bytes. The capture loop catches a byte up to a poll's
 //  s_kPollCycles after it is whole, and marks it when the latch has it at
-//  the second read too, 8 or 12 cycles later; a byte stays in the
-//  latch s_kHoldCycles and s_kBitCycles more for each zero bit after it. The
-//  next poll is a fixed number of cycles after the catch, so the zero bits
-//  after a byte move the moment its next byte is caught by a known amount.
-//  Each revolution's possible moments are followed byte by byte, and each
-//  byte is given the zero bits that fit the most revolutions' marks, looking
-//  one byte ahead. -1 for a byte that fits too few revolutions.
+//  the second read too, 8 or 12 cycles later; a byte stays in the latch
+//  s_kHoldCycles and s_kZeroCycles more for each zero bit after it. The next
+//  poll is a fixed number of cycles after the catch, so the zero bits after
+//  a byte move the moment its next byte is caught by a known amount, and a
+//  count that fits one byte's marks better can fit the bytes after it worse.
+//  So the counts are the sequence for the whole stream that fits the most
+//  revolutions' marks in all: the s_kBeamWidth best sequences so far are
+//  followed, and one with the same moments as a better one is dropped. A
+//  byte other than a sync byte has at most s_kMaxZeros. -1 for a byte that
+//  fits too few revolutions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkCapture::TimeZeros (const Position & position, size_t length, const std::vector<Alignment> & alignments, std::vector<int> & outZeros)
+void CassoLinkCapture::TimeZeros (const Position & position, const std::vector<Byte> & bytes, const std::vector<Alignment> & alignments, std::vector<int> & outZeros)
 {
-    std::vector<uint8_t>  phases (alignments.size(), s_kAllPhases);
-    int                   weight = (int) alignments.size() + 1;
-    auto                  delay  = [&] (const Alignment & alignment) { return s_kWaitCycles[(alignment.read < position.delays.size() && position.delays[alignment.read] == 1) ? 1 : 0]; };
-    auto                  marked = [&] (const Alignment & alignment, size_t at) { return CaptureStream::IsSync (position.reads[alignment.read][(size_t) alignment.map[at]]); };
-    auto                  fits   = [] (int phase, int zeros, int wait, bool mark) { return (phase + wait < s_kHoldCycles + s_kZeroCycles * zeros) == mark; };
-    auto                  next   = [&] (const Alignment & alignment, size_t at, uint8_t from, int zeros) -> uint8_t
+    struct Hypothesis
+    {
+        std::vector<uint8_t>  phases;
+        int                   score;
+        size_t                node;
+    };
+
+    size_t                               length  = bytes.size();
+    std::vector<uint8_t>                 phases (alignments.size(), s_kAllPhases);
+    std::vector<Hypothesis>              beam;
+    std::vector<std::pair<size_t, int>>  trail;
+    std::vector<int>                     chosen (length, 0);
+    size_t                               placed  = length;
+    auto                                 delay   = [&] (const Alignment & alignment) { return s_kWaitCycles[(alignment.read < position.delays.size() && position.delays[alignment.read] == 1) ? 1 : 0]; };
+    auto                                 limit   = [&] (size_t at) { return (int) ((bytes[at] | 0x80) == s_kSyncByte ? s_kMaxSyncZeros : s_kMaxZeros); };
+    auto                                 marked  = [&] (const Alignment & alignment, size_t at) { return CaptureStream::IsSync (position.reads[alignment.read][(size_t) alignment.map[at]]); };
+    auto                                 fits    = [] (int phase, int zeros, int wait, bool mark) { return (phase + wait < s_kHoldCycles + s_kZeroCycles * zeros) == mark; };
+    auto                                 next    = [&] (const Alignment & alignment, size_t at, uint8_t from, int zeros) -> uint8_t
     {
         int      wait  = delay (alignment);
         bool     mark  = marked (alignment, at);
@@ -180,7 +196,7 @@ void CassoLinkCapture::TimeZeros (const Position & position, size_t length, cons
 
         return to;
     };
-    auto                  count  = [&] (size_t at, int zeros, const std::vector<uint8_t> & from) -> int
+    auto                                 count   = [&] (size_t at, int zeros, const std::vector<uint8_t> & from) -> int
     {
         int  count = 0;
 
@@ -200,76 +216,71 @@ void CassoLinkCapture::TimeZeros (const Position & position, size_t length, cons
 
         return count;
     };
+    auto                                 advance = [&] (size_t at, int zeros, const std::vector<uint8_t> & from) -> std::vector<uint8_t>
+    {
+        std::vector<uint8_t>  to (alignments.size(), s_kAllPhases);
+
+        for (size_t each = 0; each < alignments.size(); each++)
+        {
+            const Alignment  & alignment = alignments[each];
+            bool               broken    = alignment.map[at] < 0 || at + 1 >= length || alignment.map[at + 1] != alignment.map[at] + 1;
+            uint8_t            moved     = broken ? 0 : next (alignment, at, from[each], zeros);
+
+            to[each] = moved == 0 ? s_kAllPhases : moved;
+        }
+
+        return to;
+    };
 
 
 
     outZeros.assign (length, -1);
+    beam.push_back ({ phases, 0, SIZE_MAX });
 
     for (size_t at = 0; at < length; at++)
     {
-        int   best      = -1;
-        int   bestScore = -1;
-        int   present   = 0;
-        bool  tied      = false;
-        int   fit[s_kMaxSyncZeros + 1] = {};
+        std::vector<Hypothesis>         grown;
+        std::set<std::vector<uint8_t>>  seen;
+
+        for (const Hypothesis & hypothesis : beam)
+        {
+            for (int zeros = 0; zeros <= limit (at); zeros++)
+            {
+                trail.push_back ({ hypothesis.node, zeros });
+                grown.push_back ({ advance (at, zeros, hypothesis.phases), hypothesis.score + count (at, zeros, hypothesis.phases), trail.size() - 1 });
+            }
+        }
+
+        std::stable_sort (grown.begin(), grown.end(), [] (const Hypothesis & x, const Hypothesis & y) { return x.score > y.score; });
+
+        beam.clear();
+
+        for (Hypothesis & hypothesis : grown)
+        {
+            if (beam.size() < s_kBeamWidth && seen.insert (hypothesis.phases).second)
+            {
+                beam.push_back (std::move (hypothesis));
+            }
+        }
+    }
+
+    for (size_t node = beam.front().node; node != SIZE_MAX; node = trail[node].first)
+    {
+        chosen[--placed] = trail[node].second;
+    }
+
+    for (size_t at = 0; at < length; at++)
+    {
+        int  present = 0;
+        int  fit     = count (at, chosen[at], phases);
 
         for (const Alignment & alignment : alignments)
         {
             present += alignment.map[at] >= 0 ? 1 : 0;
         }
 
-        for (int zeros = 0; zeros <= s_kMaxSyncZeros; zeros++)
-        {
-            std::vector<uint8_t>  moved (alignments.size(), 0);
-            int                   score = 0;
-            int                   ahead = 0;
-
-            fit[zeros] = count (at, zeros, phases);
-            score      = fit[zeros] * weight;
-
-            for (size_t each = 0; each < alignments.size(); each++)
-            {
-                moved[each] = alignments[each].map[at] >= 0 ? next (alignments[each], at, phases[each], zeros) : s_kAllPhases;
-                moved[each] = moved[each] == 0 ? s_kAllPhases : moved[each];
-            }
-
-            for (int later = 0; at + 1 < length && later <= s_kMaxSyncZeros; later++)
-            {
-                ahead = std::max (ahead, count (at + 1, later, moved));
-            }
-
-            score += ahead;
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best      = zeros;
-            }
-        }
-
-        //  A count that fits more revolutions' marks than any other is taken;
-        //  on a tie, as for revolutions whose moments aren't known yet, the
-        //  moments of each count in the tie are followed.
-        for (int zeros = 0; zeros <= s_kMaxSyncZeros; zeros++)
-        {
-            tied = tied || (zeros != best && fit[zeros] >= fit[best]);
-        }
-
-        outZeros[at] = (!tied && present > 0 && fit[best] * s_kFitOf >= present * s_kFitNeeded) ? best : -1;
-
-        for (size_t each = 0; each < alignments.size(); each++)
-        {
-            const Alignment  & alignment = alignments[each];
-            bool               broken    = alignment.map[at] < 0 || at + 1 >= length || alignment.map[at + 1] != alignment.map[at] + 1;
-            uint8_t            moved     = 0;
-
-            for (int zeros = 0; !broken && zeros <= s_kMaxSyncZeros; zeros++)
-            {
-                moved |= (zeros == best || (tied && fit[zeros] == fit[best])) ? next (alignment, at, phases[each], zeros) : 0;
-            }
-
-            phases[each] = moved == 0 ? s_kAllPhases : moved;
-        }
+        outZeros[at] = (present > 0 && fit * s_kFitOf >= present * s_kFitNeeded) ? chosen[at] : -1;
+        phases       = advance (at, chosen[at], phases);
     }
 }
 
@@ -349,25 +360,50 @@ bool CassoLinkCapture::FindNoisyStart (std::span<const Byte> read, size_t & outS
 //  Each whole revolution of a read aligned to the revolution in `ring`: the
 //  read's windows found in `places` put each byte of the read at its place
 //  in the revolution, and a window more than half a revolution from the
-//  place of the one before it begins another revolution (MapAnchored).
+//  place of the one before it begins another revolution (MapAnchored). A
+//  track with no sync bytes is framed anew after each stretch of noise, so a
+//  pass can frame the bytes at the revolution's start otherwise than the
+//  first read did. With allowPart, for a track read more than kWholeReads
+//  times, as one with a quiet baseline is, a read with no whole revolution
+//  has its revolution that covers the most, when its windows span
+//  s_kCoveredNeeded in s_kCoveredOf of the revolution. A //c's IWM marks
+//  bytes at random, so its reads aren't read again, and a part of one isn't
+//  taken.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkCapture::AnchorRead (std::span<const Byte> ring, const std::unordered_map<uint64_t, size_t> & places, size_t read,
-                                   std::span<const Byte> bytes, std::vector<Alignment> & ioAlignments)
+                                   std::span<const Byte> bytes, bool allowPart, std::vector<Alignment> & ioAlignments)
 {
-    ptrdiff_t                               length = (ptrdiff_t) (ring.size() + 1 - kAlignBytes);
-    ptrdiff_t                               offset = 0;
+    ptrdiff_t                               length  = (ptrdiff_t) (ring.size() + 1 - kAlignBytes);
+    ptrdiff_t                               offset  = 0;
     std::vector<std::pair<size_t, size_t>>  hits;     // a window's place in the read and in the revolution
-    auto                                    flush  = [&] ()
+    size_t                                  wholes  = 0;
+    size_t                                  covered = 0;
+    Alignment                               widest;
+    auto                                    flush   = [&] ()
     {
         Alignment  alignment;
+        size_t     low       = SIZE_MAX;
+        size_t     high      = 0;
 
         alignment.read = read;
+
+        for (const auto & [at, place] : hits)
+        {
+            low  = std::min (low, place);
+            high = std::max (high, place + kAlignBytes);
+        }
 
         if (!hits.empty() && MapAnchored (ring, bytes, hits, alignment))
         {
             ioAlignments.push_back (std::move (alignment));
+            wholes++;
+        }
+        else if (!hits.empty() && high - low > covered)
+        {
+            covered = high - low;
+            widest  = std::move (alignment);
         }
 
         hits.clear();
@@ -397,6 +433,11 @@ void CassoLinkCapture::AnchorRead (std::span<const Byte> ring, const std::unorde
     }
 
     flush();
+
+    if (allowPart && wholes == 0 && covered * s_kCoveredOf >= (size_t) length * s_kCoveredNeeded)
+    {
+        ioAlignments.push_back (std::move (widest));
+    }
 }
 
 
