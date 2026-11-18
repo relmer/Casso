@@ -84,13 +84,44 @@ public:
 
                 if (firmware)
                 {
-                    slot.firmwarePath   = RequireFirmwarePath().string();
+                    slot.firmwarePath   = s_firmwareOverride.empty() ? RequireFirmwarePath().string() : s_firmwareOverride.string();
                     slot.firmwareStatus = SlotFirmwareStatus::Present;
                     slot.switchesSw1    = kCommunicationsSw1;
                     slot.switchesSw2    = kShippedSw2;
                 }
             }
         }
+    }
+
+    //  A firmware file in place of Apple's, for the Rig built next.
+    static inline std::filesystem::path  s_firmwareOverride;
+
+    //  Apple's firmware with another serial card's ID byte at $Cn0C: the
+    //  Pascal 1.1 signature, as a card without a 6551 driver in the link has.
+    static std::filesystem::path  MakeUnknownPascalFirmware()
+    {
+        std::filesystem::path  path = std::filesystem::temp_directory_path() / "CassoUnknownPascalCard.rom";
+        std::ifstream          in (RequireFirmwarePath(), std::ios::binary);
+        std::vector<char>      rom ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+        bool                   patched = false;
+
+
+
+        for (size_t page = 0; page + 0x100 <= rom.size() && !patched; page += 0x100)
+        {
+            if ((Byte) rom[page + 5] == 0x38 && (Byte) rom[page + 7] == 0x18 && (Byte) rom[page + 0x0B] == 0x01 && (Byte) rom[page + 0x0C] == 0x31)
+            {
+                rom[page + 0x0C] = (char) 0x32;
+                patched          = true;
+            }
+        }
+
+        Assert::IsTrue (patched, L"the firmware's slot page has the Pascal 1.1 signature");
+
+        std::ofstream  out (path, std::ios::binary);
+
+        out.write (rom.data(), (std::streamsize) rom.size());
+        return path;
     }
 
     static std::filesystem::path  RequireFirmwarePath()
@@ -302,7 +333,7 @@ public:
 
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("3AA0.3FA7R 3AA0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
@@ -390,6 +421,39 @@ public:
         AssertSucceeded (rig.host->PromptReady());
         Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the card");
         Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
+    }
+
+
+
+    //  A card in slot 5 with the Pascal 1.1 signature and an ID byte without
+    //  a driver in the link: the universal disk lists it, the shim runs it
+    //  through its firmware, and the program reads a disk over it. Apple's
+    //  Pascal read sets bit 7 of each byte, so the link's bytes go as
+    //  characters.
+    TEST_METHOD (TheUniversalDisk_RunsAPascalCard_ThroughItsFirmware)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+
+
+
+        s_firmwareOverride = MakeUnknownPascalFirmware();
+
+        Rig  rig (true);
+
+        s_firmwareOverride.clear();
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        Assert::IsTrue (JoinRows (rig.Screen()).find ("PASCAL CARD, SLOT 5") != std::string::npos, TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+
+        AssertSucceeded (rig.host->PromptReady());
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog through the card's firmware");
+        Assert::AreEqual<Byte> (0x80, rig.machine.GetCpu()->ReadByte (0x3B39), L"the shim runs the card through its firmware");
     }
 
 

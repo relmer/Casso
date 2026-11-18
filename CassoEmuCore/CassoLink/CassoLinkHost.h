@@ -530,6 +530,15 @@ private:
         return hr;
     }
 
+    //  A card run through its Pascal firmware has each byte as two
+    //  characters, kTextHigh plus its high nibble and then kTextLow plus its
+    //  low nibble, with bit 7 ignored (Shim.s). The host takes that form
+    //  when a Ready arrives in it, a $C1 as $4C and then $61.
+    static constexpr Byte  kTextHigh = 0x40;
+    static constexpr Byte  kTextLow  = 0x60;
+
+    void     TakeReceived      (std::span<const Byte> bytes);
+
     HRESULT  ReadStatus        (const CassoLinkPacket & packet, CassoLinkStatus & outStatus);
     void     MakeBlockRequest  (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outRequest) const;
     HRESULT  SendBlock         (uint32_t block, std::span<const Byte> data);
@@ -569,6 +578,8 @@ private:
     LinkByteFault                   m_pcFault;
     std::optional<LinkFault>        m_appleFault;
     int                             m_requests        = 0;   // requests sent since the Apple's fault was armed
+    bool                            m_textForm        = false;   // each byte as two characters
+    int                             m_textNibble      = -1;      // the high nibble received, or -1
 
     //  The host's parts, each with the state it uses.
     friend class           CassoLinkAdtProServer;

@@ -1889,7 +1889,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 **Goal**: the link on a IIgs, Pascal-firmware cards and two more Ethernet cards. **Independent test**: quickstart §7f step 6.
 
 - [ ] T598 [US28] Write `CassoLink/Apple/Modules/Scc.s`: the IIgs's modem and printer ports through the 8530, and the program's speed change at $C036 around each 5.25" read and write (FR-208)
-- [ ] T599 [US28] Write `CassoLink/Apple/Modules/PascalFirmware.s`: a card with the Pascal 1.1 signature and no ID match, through its init, read, write and status entries (FR-209)
+- [X] T599 [US28] Write `CassoLink/Apple/Modules/PascalFirmware.s`: a card with the Pascal 1.1 signature and no ID match, through its init, read, write and status entries (FR-209). Built in `Shim.s`, `Program.s` and `Universal.s` instead of a module, with each byte as two characters (R47 Update); tested by `TheUniversalDisk_RunsAPascalCard_ThroughItsFirmware`
 - [ ] T600 [US28] Write a minimal ARP, IPv4, UDP and TCP stack with one connection, shared by `CassoLink/Apple/Modules/Cs8900a.s` and `Lan91c96.s`, with the Uthernet II's announcement (FR-210)
 - [ ] T601 [US28] Accept a IIgs with a Super Serial Card and compatibles such as the Laser 128 in the program's machine detection (FR-211)
 - [ ] T602 [US28] Add KEGS, GSplus, MAME (IIgs with a Super Serial Card, Laser 128, LANceGS) and AppleWin (Uthernet) targets to `scripts/EmuTargets/`; run Story 14's scenarios on each and record SC-059 in `validation.md`. Check MAME's LANceGS MAC address first

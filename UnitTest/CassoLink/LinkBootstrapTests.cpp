@@ -103,7 +103,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildBootstrapImage (options, shim, start));
         AssertSucceeded (LinkAudioBootstrap::BuildAudio (options, audio, command));
-        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the finder and the shim, to the shim's end");
+        Assert::AreEqual (std::string ("3AA0.3FA7R 3AA0G\r"), command, L"the finder and the shim, to the shim's end");
         Assert::AreEqual (LinkAudioBootstrap::kSampleRate, audio.sampleRate);
 
         LinkAudioBootstrap::AppendRecord (shim, halves);

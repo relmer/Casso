@@ -29,6 +29,13 @@
 ; NMOS 6502 code throughout. The program finds the 6551 through slotx, which
 ; the shim sets.
 ;
+; A serial card in the slot with the Pascal 1.1 firmware signature and not
+; the Super Serial Card's ID byte is run through its firmware instead: its
+; init, read, write and status entries, at the offsets in $Cn0D to $Cn10,
+; called with X at $Cn and Y at $n0. The card's switches or firmware set its
+; speed. The byte at $3B39 is then $80, and the program calls the firmware
+; through the jumps at $3B3A, $3B3D and $3B40, which stay resident.
+;
 ; The W5100 build, for an Uthernet II, has the same header and address.
 ; In the dial command's place are the card's address, subnet mask, gateway
 ; and MAC address, and the TCP port, high byte first; the speed is not used.
@@ -118,6 +125,8 @@ digit    = $15
 lead     = $16                  ; putdec: nonzero once a digit is drawn
 tmolo    = $17                  ; getbto: polls left, and $18
 tmohi    = $18
+psavx    = $19                  ; the firmware's getbto and putb: X and Y as they came
+psavy    = $1A
         ifdef W5100
 rxrd     = $19                  ; and $1A: the next byte to read, as Sn_RX_RD counts
 rxn      = $1B                  ; and $1C: bytes received and not yet read
@@ -137,6 +146,12 @@ dialtxt: .ds 40                  ; $3B0C: the modem's dial command, or empty
 zpsaved: .byte 0                 ; $3B34: nonzero once the machine's state is saved
 oldreset: .byte 0, 0, 0          ; $3B35: the reset vector and its check byte
 slot:   .byte 2                  ; $3B38: the 6551's slot
+        ifndef W5100
+pascal: .byte 0                  ; $3B39: $80 for a card run through its firmware
+        jmp pstat                ; $3B3A: its status entry, with the request in A,
+        jmp pread                ; $3B3D: its read entry,
+        jmp pwrite               ; $3B40: and its write entry, X and Y changed
+        endif
 
 ; The first start saves the machine's zero page at ZPSAVE and its reset
 ; vector, for the program to put back when CassoLink ends. A bootstrap or a
@@ -169,6 +184,12 @@ zpdone:
         jsr home
         jsr wzstart
         else
+        jsr pasinit             ; a card without a 6551 driver here
+        bcc acinit
+        pla                     ; the 6551 control byte, not used
+        jsr home
+        jmp ready
+acinit: lda slotx
         ora #<ACIADATA          ; each read and write of the 6551 is absolute,
         sta gtdata+1            ; set here for the slot
         sta pbdata+1
@@ -239,6 +260,9 @@ wdport: lda #$BA                ; a colon
         jsr putport
         jsr wzwait
         else
+        ldx #4                  ; a card run through its firmware, by name alone
+        bit pascal
+        bmi rdname
         ldx #0                  ; the interface, as the universal disk lists it:
         lda $FBB3               ; a card or a //c's port, by cable or through
         eor #$06                ; a Wi-Fi modem, as SSC, SLOT 2, 115200. A //c
@@ -262,6 +286,8 @@ rdslot: lda slot
         ora #$B0
         sta ROW4,y
         iny
+        bit pascal              ; the card sets its speed
+        bmi rddone
         lda #$AC                ; a comma, and the row is blank, so a column
         sta ROW4,y              ; skipped is a space
         iny
@@ -274,6 +300,7 @@ spdtext: lda speedtxt,x
         inx
         cpx #6
         bne spdtext
+rddone:
         endif
         ldx #0
 sendrdy: lda readypkt,x
@@ -290,12 +317,13 @@ sendrdy: lda readypkt,x
         sta pages
         jsr getb                ; its EOR, the same byte
         cmp pages
-        bne ready
+        beq loadpg
+toready: jmp ready              ; out of a branch's range
 
 loadpg: jsr getenv
-        bcs ready
+        bcs toready
         cmp #CMDDATA
-        bne ready
+        bne toready
         jsr getbto              ; the page number
         bcs badpg
         sta page
@@ -824,10 +852,13 @@ cfgend:
 
         else
 ; getbto: getb with a time limit of about a second: 65,536 polls of 16
-; cycles. The carry is set when no byte comes.
+; cycles, or through a card's firmware 8,192 polls of its status call. The
+; carry is set when no byte comes. Y is restored.
 getbto: lda #0
         sta tmolo
         sta tmohi
+        bit pascal
+        bmi gtpas
 gtwait:
 gtstat: lda ACIASTAT
         and #RDRF
@@ -843,7 +874,9 @@ gtdata: lda ACIADATA
         clc
         rts
 
-putb:   pha
+putb:   bit pascal
+        bmi pbpas
+        pha
 putwait:
 pbstat: lda ACIASTAT
         and #TDRE
@@ -851,6 +884,147 @@ pbstat: lda ACIASTAT
         pla
 pbdata: sta ACIADATA
         rts
+
+; gtpas and pbpas: getbto and putb through the card's firmware, X and Y restored.
+gtpas:  stx psavx
+        sty psavy
+        lda #$E0
+        sta tmohi
+gpwait: lda #1                  ; input ready
+        jsr pstat
+        bcs gpread
+        inc tmolo
+        bne gpwait
+        inc tmohi
+        bne gpwait
+        ldx psavx
+        ldy psavy
+        sec
+        rts
+gpread: jsr pread
+        ldx psavx
+        ldy psavy
+        clc
+        rts
+
+pbpas:  stx psavx
+        sty psavy
+        pha
+ppwait: lda #0                  ; ready for output
+        jsr pstat
+        bcc ppwait
+        pla
+        pha
+        jsr pwrite
+        pla
+        ldx psavx
+        ldy psavy
+        rts
+
+; pasinit: for a card in the slot with the Pascal 1.1 signature, $38, $18
+; and $01 at $Cn05, $Cn07 and $Cn0B, and an ID byte at $Cn0C of a serial
+; card's or a modem's class, 3 or 4 in its high nibble, but not the Super
+; Serial Card's, $31: its entries set, its init called and pascal set, with
+; the carry set; otherwise the carry clear. A //e's 80-column firmware, of
+; class 8, is passed over.
+pasinit: lda slot
+        ora #$C0
+        sta ptr+1
+        sta pcx+1
+        sta pjmp+2
+        lda #0
+        sta ptr
+        sta pascal
+        ldy #$05
+        lda (ptr),y
+        cmp #$38
+        bne pinone
+        ldy #$07
+        lda (ptr),y
+        cmp #$18
+        bne pinone
+        ldy #$0B
+        lda (ptr),y
+        cmp #$01
+        bne pinone
+        ldy #$0C                ; a serial card's or a modem's class, in the
+        lda (ptr),y             ; ID byte's high nibble, but not the SSC's ID
+        cmp #$31
+        beq pinone
+        and #$F0
+        cmp #$30
+        beq pinclass
+        cmp #$40
+        bne pinone
+pinclass:
+        lda slotx
+        sta pcy+1
+        ldx #0
+        ldy #$0D
+pincopy: lda (ptr),y
+        sta pentry,x
+        iny
+        inx
+        cpx #4
+        bne pincopy
+        lda #$80
+        sta pascal
+        ldx #0                  ; init
+        jsr pcall
+        sec
+        rts
+pinone: clc
+        rts
+
+; pstat, pread and pwrite: the card's firmware entry, with A as it came, X
+; at $Cn and Y at $n0, as Pascal 1.1 calls take them. A firmware's read and
+; write are for text: Apple's sets bit 7 of each byte read, drops a line feed
+; and adds one after a return. Each byte goes as two characters instead
+; (CassoLinkHost::kTextHigh): $40 plus its high nibble, then $60 plus its low
+; nibble, with bit 7 ignored. A character of $40 to $4F starts the byte
+; again, so a stray character is passed over.
+pread:  jsr prchar
+prhigh: asl a
+        asl a
+        asl a
+        asl a
+        sta pnib
+        jsr prchar
+        cmp #$60
+        bcc prhigh
+        and #$0F
+        ora pnib
+        rts
+prchar: ldx #1
+        jsr pcall
+        and #$7F
+        rts
+
+pwrite: pha
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora #$40
+        jsr pwchar
+        pla
+        and #$0F
+        ora #$60
+pwchar: ldx #2
+        bne pcall
+pstat:  ldx #3
+pcall:  pha
+        lda pentry,x
+        sta pjmp+1
+        bit $CFFF               ; the $C800 space freed for the card's ROM: Apple's
+        pla                     ; entries jump into it, and the //e's ROM is
+                                ; there after a read of $C3xx
+pcx:    ldx #$C0
+pcy:    ldy #$00
+pjmp:   jmp $C000
+
+pentry: .byte 0, 0, 0, 0         ; the init, read, write and status offsets
+pnib:   .byte 0                 ; pread: the high nibble
         endif
 
 
@@ -871,6 +1045,8 @@ msgport: .text "SERIAL PORT "
         .byte 0
 msgportm: .text "WI-FI MODEM, PORT "
         .byte 0
+msgpas: .text "PASCAL CARD, SLOT "
+        .byte 0
         endif
 msgload: .text "LOADING PROGRAM "
         .byte 0
@@ -882,7 +1058,7 @@ msgdial: .text "DIALING "
 
 ; The interface's name by card or port, then cable or modem. After the
 ; text, as the assembler sizes a forward reference in .byte wrongly.
-ifnames: .byte msgssc-msgs, msgsscm-msgs, msgport-msgs, msgportm-msgs
+ifnames: .byte msgssc-msgs, msgsscm-msgs, msgport-msgs, msgportm-msgs, msgpas-msgs
         endif
 
 ; Ready with no program: version 0, the shim's version, no drives.
