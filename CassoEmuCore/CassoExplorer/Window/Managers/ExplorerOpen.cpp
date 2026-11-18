@@ -216,14 +216,15 @@ bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstr
 //
 //  ExplorerOpen::PickTapeRecording
 //
-//  The format is the extension of the file picked.
+//  The format is the extension of the file picked. A disk recording is of
+//  the image selected, and a tape recording of files in the image listed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerOpen::PickTapeRecording (std::wstring & outTarget)
+bool ExplorerOpen::PickTapeRecording (std::wstring & outTarget, bool disk)
 {
     FileDialogSpec         spec;
-    std::filesystem::path  image  = m_context.browser.GetLocation().path;
+    std::filesystem::path  image  = disk ? std::filesystem::path (m_context.cassoTarget.GetSelectedImagePath()) : std::filesystem::path (m_context.browser.GetLocation().path);
     std::filesystem::path  target;
     bool                   picked = false;
     HRESULT                hr     = S_OK;
@@ -234,10 +235,10 @@ bool ExplorerOpen::PickTapeRecording (std::wstring & outTarget)
 
     spec.filters          = { { L"WAV recording", L"*.wav" }, { L"MP3 recording", L"*.mp3" }, { L"Ogg Vorbis recording", L"*.ogg" } };
     spec.defaultExtension = L"wav";
-    spec.defaultFileName  = image.stem().wstring() + L".wav";
+    spec.defaultFileName  = image.stem().wstring() + (disk ? L" disk audio.wav" : L".wav");
     spec.initialFolder    = image.parent_path();
     spec.askToReplace     = true;
-    spec.title            = L"Convert to tape audio";
+    spec.title            = disk ? L"Convert to disk audio" : L"Convert to tape audio";
 
     hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, target, picked);
 
@@ -249,6 +250,47 @@ bool ExplorerOpen::PickTapeRecording (std::wstring & outTarget)
     outTarget = target.wstring();
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::MakeDiskRecording
+//
+//  Convert to disk audio, then the steps that send the recording to the
+//  Apple once it is made.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::MakeDiskRecording()
+{
+    constexpr double               kSecondsPerMinute = 60.0;
+    std::wstring                   target;
+    std::string                    command;
+    double                         seconds           = 0.0;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    if (!PickTapeRecording (target, true))
+    {
+        return;
+    }
+
+    outcome = m_context.actions.MakeDiskRecording (m_context.cassoTarget.GetSelectedImagePath(), target, command, seconds);
+    m_context.commandManager.ReportOutcome (outcome, L"Convert to disk audio");
+    m_context.folderSync.RefreshAfterHostChange();
+
+    if (outcome.Succeeded() && !command.empty())
+    {
+        command.pop_back();
+        m_context.window.ShowMessage (std::format (L"To write the disk, type CALL -151 and then {} on the ][+ or //e, and play the recording into its "
+                                                   L"cassette input. It replaces the disk in drive 1, and takes about {} minutes.",
+                                                   TextEncoding::NarrowToWide (command), (int) ceil (seconds / kSecondsPerMinute)), MB_ICONINFORMATION);
+    }
 }
 
 
@@ -270,6 +312,10 @@ void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
     if (verb == CassoExplorerActions::Verb::AddToA2retroNet)
     {
         m_context.commandManager.ReportOutcome (m_context.actions.AddToA2retroNet (m_context.cassoTarget.GetSelectedImagePath()), L"Add to A2retroNET drives");
+    }
+    else if (verb == CassoExplorerActions::Verb::ConvertToDiskAudio)
+    {
+        MakeDiskRecording();
     }
     else if (PickTapeRecording (target))
     {

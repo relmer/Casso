@@ -169,7 +169,7 @@ HRESULT CassetteByteStream::Flush()
         size_t  count = std::min (CassetteCodec::kMaxBurst, m_pending.size() - at);
 
         halves.clear();
-        CassetteCodec::AppendBurst (std::span<const Byte> (m_pending).subspan (at, count), halves);
+        CassetteCodec::AppendBurst (std::span<const Byte> (m_pending).subspan (at, count), halves, at > 0 ? kNextToneHalves : CassetteCodec::kToneHalves);
         CassetteCodec::Render (halves, m_audio->GetSampleRate(), kAmplitude, samples);
 
         if (at > 0)
