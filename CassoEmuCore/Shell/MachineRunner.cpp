@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
+#include "Machines/Apple3/Apple3System.h"
 #include "Shell/MachineConnectors.h"
 #include "Shell/MachineParts.h"
 
@@ -184,6 +185,13 @@ Byte MachineRunner::FinishStep()
         cycles = m_parts.accelerator->Scale (cycles);
     }
 
+    //  The Apple /// counts time in ticks of its 2 MHz clock, and a cycle at
+    //  1 MHz is two of them.
+    if (m_parts.apple3 != nullptr)
+    {
+        cycles = (Byte) m_parts.apple3->OnInstruction (cycles, *cpu.GetInstructionStartPtr());
+    }
+
     cpu.AddCycles (cycles);
 
     historyCycles = cpu.GetHistoryCycles();
@@ -194,7 +202,8 @@ Byte MachineRunner::FinishStep()
         CatchUpCards();
     }
 
-    if (refs.diskController != nullptr)
+    //  The Apple /// runs its floppy controller from master clocks.
+    if (refs.diskController != nullptr && m_parts.apple3 == nullptr)
     {
         refs.diskController->Tick (cycles);
     }

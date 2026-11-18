@@ -1703,6 +1703,11 @@
     <ClCompile Include="Machines\Apple3\Apple3DiskController.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Video.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3Palette.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3VideoOutput.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3System.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3IoSpace.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3AnalogInputs.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -1740,6 +1745,7 @@
     <ClCompile Include="Audio\HardDiskAudioSource.cpp" />
     <ClCompile Include="Ui\Settings\SlotCards.cpp" />
     <ClCompile Include="Shell\StorageCardWiring.cpp" />
+    <ClCompile Include="Shell\Apple3MachineBuilder.cpp" />
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -3164,6 +3170,11 @@
     <ClInclude Include="Machines\Apple3\Apple3DiskController.h" />
     <ClInclude Include="Machines\Apple3\Apple3Video.h" />
     <ClInclude Include="Machines\Apple3\Apple3.h" />
+    <ClInclude Include="Machines\Apple3\Apple3Palette.h" />
+    <ClInclude Include="Machines\Apple3\Apple3VideoOutput.h" />
+    <ClInclude Include="Machines\Apple3\Apple3System.h" />
+    <ClInclude Include="Machines\Apple3\Apple3IoSpace.h" />
+    <ClInclude Include="Machines\Apple3\Apple3AnalogInputs.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceCatalog.h" />
     <ClInclude Include="Core\SpscEventRing.h" />
@@ -3213,6 +3224,7 @@
     <ClInclude Include="Audio\HardDiskAudioSource.h" />
     <ClInclude Include="Ui\Settings\SlotCards.h" />
     <ClInclude Include="Shell\StorageCardWiring.h" />
+    <ClInclude Include="Shell\Apple3MachineBuilder.h" />
     <ClInclude Include="Ui\Scene\DeskDrivePlan.h" />
   </ItemGroup>
   <ItemGroup>

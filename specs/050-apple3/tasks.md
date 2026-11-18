@@ -52,13 +52,13 @@ machine definition and the debugger's address type.
 - [ ] T015 Run Dormann and full-depth Harte against `Cpu6502Apple3` with extended addressing inactive and against the existing cores (`scripts/RunDormannTest.ps1`, `scripts/RunHarteTests.ps1 -SkipGenerate`), and the per-instruction timing comparison from `docs/testing.md` for the existing cores before and after T014; store the results in `specs/050-apple3/research.md` under R4. Dormann and full-depth Harte on both cores are done; the timing comparison is not done yet
 - [x] T016 Implement `Apple3Mmu` (RAM for 128K and 256K, the three registers, page table mapping through `MemoryBus::SetReadPage` and `SetWritePage`, ROM, I/O, write protection, zero page and stack pages, `IMachineState`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.h` and `.cpp`
 - [ ] T017 Implement extended access resolution in `Apple3Mmu` (extension byte lookup, the one-page remap from the bank pair for the rest of the instruction, the `$8F` case with the RAM under the VIAs, the restore, and the resolved `DebugAddress`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`. Done except the `DebugAddress`, which waits for T023
-- [ ] T018 Implement the tick time base (cycle cost by environment bit 7 and the 1 MHz rule of `contracts/hardware-map.md`; the beam position in states and lines; device clocks derived from ticks) in `CassoEmuCore/Machines/Apple3/Apple3TimeBase.h` and `.cpp`, wired through `ICycleSink`. Done except the wiring, and the per-cycle access kinds from the CPU and the memory map, which wait for T022
+- [x] T018 Implement the tick time base (cycle cost by environment bit 7 and the 1 MHz rule of `contracts/hardware-map.md`; the beam position in states and lines; device clocks derived from ticks) in `CassoEmuCore/Machines/Apple3/Apple3TimeBase.h` and `.cpp`, wired through `ICycleSink`. Each instruction is charged by its fetch region, with the VIA, 6551 and clock chip accesses at 1 MHz (Apple3System::OnInstruction)
 - [x] T018a Calibrate the refresh states: spread them evenly through each line and choose their count so a loop of RAM accesses averages 1.8 MHz with the screen off and 1.4 MHz with it on, each within 0.05 MHz (SC-005); add the check to `UnitTest/Apple3Tests/Apple3TimeBaseTests.cpp`, and write the count and the measured averages in the open row of `specs/050-apple3/contracts/hardware-map.md`
 - [x] T019 Implement `Apple3SystemVias` (two `Via6522` at `$FFD0-$FFEF`, output change detection, calls into `Apple3Mmu`, input line setters, interrupt wiring) in `CassoEmuCore/Machines/Apple3/Apple3SystemVias.h` and `.cpp`
 - [x] T019a Implement `Apple3Slots` with four empty slots (slot I/O and memory spaces, the `$C800` space selection and its deselect at `$C020`, each slot's interrupt and NMI request wired to the VIAs and the switch register, `IMachineState`) in `CassoEmuCore/Machines/Apple3/Apple3Slots.h` and `.cpp`
 - [x] T020 Add `GetBuiltInDriveCount` and `HasBankedMemory` to `CassoEmuCore/Machines/IMachine.h` with Apple ][ defaults, and implement `Apple3` in `CassoEmuCore/Machines/Apple3/Apple3.h`
 - [x] T021 Register `Apple3` in `CassoEmuCore/Machines/MachineDefinitions.cpp` and add `Resources/Machines/Apple3/Apple3.json` per `contracts/machine-config.md`, with the new keys parsed and validated in `CassoEmuCore/Core/MachineConfig.h` and its loader, and the version step in `CassoEmuCore/Core/MachineConfigUpgrade.cpp`
-- [ ] T022 Factor an `Apple3MachineBuilder` class out of the build path (`CassoEmuCore/Shell/Apple3MachineBuilder.h` and `.cpp`), called from `CassoEmuCore/Shell/MachineBuilder.cpp` for the Apple /// family: create the MMU, VIAs, `Cpu6502Apple3` and the bus wiring
+- [x] T022 Factor an `Apple3MachineBuilder` class out of the build path (`CassoEmuCore/Shell/Apple3MachineBuilder.h` and `.cpp`), called from `CassoEmuCore/Shell/MachineBuilder.cpp` for the Apple /// family: create the MMU, VIAs, `Cpu6502Apple3` and the bus wiring
 - [x] T023 Implement `DebugAddress` (address, space, bank; implicit conversion from `Word`; parse and print) in `CassoEmuCore/Debugger/DebugAddress.h` and `.cpp`
 - [ ] T024 Add the `DebugAddress` forms of `TryPeek`, `TryPoke`, `TryPatch` and `GetRegion`, and the current-view resolver, to `CassoEmuCore/Debugger/IDebugTarget.h`, with Apple II implementations in `CassoEmuCore/Debugger/MachineDebugTarget.cpp` and `DebugMemoryView.cpp` that accept the current view only
 
@@ -81,7 +81,7 @@ the screen text.
 - [x] T026 [P] [US1] Write text mode decoding tests for 40-column, 40-column color and 80-column: normal, inverse, and flashing in the 40-column black and white mode, in `UnitTest/Apple3Tests/Apple3TextModeTests.cpp`
 - [x] T027 [P] [US1] Write keyboard tests (code and flags for every key of the Apple /// layout, strobe, repeat, interrupt) in `UnitTest/Apple3Tests/Apple3KeyboardTests.cpp`
 - [x] T028 [P] [US1] Write disk controller tests for the built-in drive (select, motor, read latch, write) in `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp`
-- [ ] T029 [US1] Write scenario tests (no-disk screen with an empty drive; Business BASIC prompt on 128K and 256K; `PRINT 6*7` prints 42; a missing disk or ROM fails the test) in `ScenarioTests/Apple3SosTests.cpp`
+- [x] T029 [US1] Write scenario tests (no-disk screen with an empty drive; Business BASIC prompt on 128K and 256K; `PRINT 6*7` prints 42; a missing disk or ROM fails the test) in `ScenarioTests/Apple3SosTests.cpp`
 
 ### Implementation
 
@@ -91,9 +91,9 @@ the screen text.
 - [ ] T033 [P] [US1] Implement `Apple3Keyboard` and add the `Apple3` layout to the keyboard layout tables in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.h` and `.cpp`. Done except the layout tables, the settings key list and the input journal records for the KB port's modifier keys, which touch shell and debugger files and wait for the 035 merge
 - [x] T034 [US1] List in `specs/050-apple3/research.md` under R8 every place `Disk2Controller` and its consumers assume two drives
 - [x] T035 [US1] Implement `Apple3DiskController` over `Disk2NibbleEngine` with the built-in drive working, in `CassoEmuCore/Machines/Apple3/Apple3DiskController.h` and `.cpp`
-- [ ] T036 [US1] Wire video, keyboard, disk and power-on state into `CassoEmuCore/Shell/Apple3MachineBuilder.cpp` and the frame renderer in `CassoEmuCore/Video/MachineFrameRenderer.cpp`
-- [ ] T037 [US1] Report a missing or wrong-size `Apple3.rom` through the existing missing-ROM path (FR-005) in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
-- [ ] T038 [US1] Boot the Business BASIC disk headless, fix what stops it, and get T029 passing
+- [x] T036 [US1] Wire video, keyboard, disk and power-on state into `CassoEmuCore/Shell/Apple3MachineBuilder.cpp` and the frame renderer in `CassoEmuCore/Video/MachineFrameRenderer.cpp`
+- [x] T037 [US1] Report a missing or wrong-size `Apple3.rom` through the existing missing-ROM path (FR-005) in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
+- [x] T038 [US1] Boot the Business BASIC disk headless, fix what stops it, and get T029 passing
 
 **Checkpoint**: SOS boots to Business BASIC.
 

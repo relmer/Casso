@@ -18,6 +18,8 @@ Cpu6502Apple3::Cpu6502Apple3 (MemoryBus & memoryBus, IExtendedAddressing & exten
       m_extended   (extended)
 {
     FlagIndirectInstructions();
+
+    m_extendsZeroPageCode = true;
 }
 
 

@@ -90,6 +90,9 @@ public:
 
 protected:
     static bool  ReadsTarget                   (const Microcode & microcode);
+    static bool  IsAbsoluteData                (const Microcode & microcode);
+
+    static constexpr Word  kLastZeroPageAddress = 0x00FF;
     Byte         GetIndirectPointerHigh        (const Microcode & microcode, const CpuOperandInfo & operandInfo) const;
     void         FetchOperand                  (const Microcode & microcode, CpuOperandInfo & operandInfo);
     void         FetchOperandAbsoluteX         (CpuOperandInfo & operandInfo);
@@ -124,6 +127,12 @@ protected:
     virtual void EndExtendedAccess       ()                                        {}
 
     bool  m_isExtendedAccess = false;
+
+    // Set by a core whose hardware latches the extension byte on any zero
+    // page read: an absolute instruction running in zero page reads its
+    // operand's high byte there, and its data access is resolved as an
+    // indirect one is, with that byte's offset.
+    bool  m_extendsZeroPageCode = false;
 
     // Stack operations
     void PushByte (Byte value);

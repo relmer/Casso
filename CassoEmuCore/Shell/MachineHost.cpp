@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple3/Apple3System.h"
 
 
 
@@ -250,6 +251,21 @@ void MachineHost::SetVideoTiming (std::unique_ptr<VideoTiming> videoTiming)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::SetApple3
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetApple3 (std::unique_ptr<Apple3System> apple3)
+{
+    m_parts.apple3 = std::move (apple3);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::GetPendingPrintDir
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -358,6 +374,13 @@ void MachineHost::SoftReset()
         m_parts.videoTiming->SoftReset();
     }
 
+    // The Apple ///'s reset line resets the VIAs, which selects the ROM the
+    // CPU's reset vector is read from.
+    if (m_parts.apple3 != nullptr)
+    {
+        m_parts.apple3->Reset();
+    }
+
     if (m_parts.cpu != nullptr)
     {
         m_parts.cpu->SoftReset();
@@ -432,13 +455,22 @@ void MachineHost::PowerCycle()
         m_parts.videoTiming->PowerCycle (*m_parts.prng);
     }
 
+    if (m_parts.apple3 != nullptr)
+    {
+        m_parts.apple3->PowerOn (*m_parts.prng);
+    }
+
     if (m_parts.cpu != nullptr)
     {
         m_parts.cpu->PowerCycle (*m_parts.prng);
     }
 
-    // After the CPU's power cycle, which is what fills main RAM.
-    ApplyPowerOnOverrides();
+    // After the CPU's power cycle, which is what fills main RAM. The bytes are
+    // the Apple II monitor's, so they don't apply to the Apple ///.
+    if (m_parts.apple3 == nullptr)
+    {
+        ApplyPowerOnOverrides();
+    }
 
     // Last: the CPU's power cycle zeroes the cycle counter, and the window
     // is measured from that zero.
@@ -513,6 +545,11 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
         {
             outParts.push_back (part);
         }
+    }
+
+    if (m_parts.apple3 != nullptr)
+    {
+        m_parts.apple3->GetStateParts (outParts);
     }
 
     for (const std::unique_ptr<MemoryDevice> & owned : m_parts.ownedDevices)

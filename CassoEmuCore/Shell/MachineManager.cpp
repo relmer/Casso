@@ -54,6 +54,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple3/Apple3System.h"
 
 
 
@@ -501,6 +502,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         m_shell.m_machine.GetMemoryBus() = MemoryBus();
         m_shell.m_machine.GetRefs()      = {};
         m_shell.m_machine.SetMmu (nullptr);
+        m_shell.m_machine.SetApple3 (nullptr);
 
         // Initialize with new config
         m_shell.m_machine.SetCurrentMachineName (machineName);

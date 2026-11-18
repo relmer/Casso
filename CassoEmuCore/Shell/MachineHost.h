@@ -19,6 +19,7 @@
 
 class Apple2cRomBank;
 class Apple2eMmu;
+class Apple3System;
 class AppleMouse;
 class CharacterRomData;
 class HeldInputWatch;
@@ -107,6 +108,7 @@ public:
     Apple2cPlusAccelerator  * GetAccelerator    () noexcept { return m_parts.accelerator.get(); }
     SiriusJoyport           * GetJoyport        () noexcept { return m_parts.joyport.get(); }
     VideoTiming             * GetVideoTiming    () noexcept { return m_parts.videoTiming.get(); }
+    Apple3System            * GetApple3         () noexcept { return m_parts.apple3.get(); }
 
     const EmuCpu          *  GetCpu            () const noexcept { return m_parts.cpu.get(); }
     const Prng            *  GetPrng           () const noexcept { return m_parts.prng.get(); }
@@ -124,6 +126,7 @@ public:
     void  SetAccelerator    (std::unique_ptr<Apple2cPlusAccelerator> accelerator);
     void  SetJoyport        (std::unique_ptr<SiriusJoyport>          joyport);
     void  SetVideoTiming    (std::unique_ptr<VideoTiming>            videoTiming);
+    void  SetApple3         (std::unique_ptr<Apple3System>           apple3);
 
     VideoScanner        &  GetVideoScanner()       noexcept { return m_parts.videoScanner; }
     const VideoScanner  &  GetVideoScanner() const noexcept { return m_parts.videoScanner; }

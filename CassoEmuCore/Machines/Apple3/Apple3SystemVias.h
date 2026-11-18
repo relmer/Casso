@@ -61,6 +61,9 @@ public:
     //  Advances both VIAs' timers by ticks of their 1 MHz clock.
     void     Tick      (uint32_t cycles);
 
+    //  The CPU's accesses since the last call, each a cycle at 1 MHz.
+    uint32_t TakeAccessCount () { uint32_t count = m_accesses; m_accesses = 0; return count; }
+
     //  Input lines. A request is asserted low on the board; these take
     //  whether it is asserted.
     void     SetSlotInterrupt (int slot, bool asserted);
@@ -86,4 +89,5 @@ private:
     Via6522      m_e;
     Byte         m_eInputA      = kPulledUp;
     Byte         m_slotRequests = 0;            // bit n - 1 set while slot n requests
+    uint32_t     m_accesses     = 0;
 };

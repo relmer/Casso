@@ -14,6 +14,7 @@
 
 class Apple2cRomBank;
 class Apple2eMmu;
+class Apple3System;
 class AppleMouse;
 class CharacterRomData;
 class IAciaEndpoint;
@@ -51,6 +52,10 @@ struct MachineParts
     std::unique_ptr<MemoryBus>                   memoryBus;
     ComponentRegistry                            registry;
     InterruptController                          interruptController;
+
+    // The Apple ///'s parts, ahead of the CPU, which has a reference to its
+    // memory map. Null on every Apple II.
+    std::unique_ptr<Apple3System>                apple3;
 
     std::unique_ptr<EmuCpu>                      cpu;
     std::unique_ptr<Prng>                        prng;

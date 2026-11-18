@@ -295,4 +295,61 @@ public:
 
         Assert::IsTrue (flagged > 0);
     }
+
+    //  The hardware latches the extension byte on any zero page read, so an
+    //  absolute load running in zero page reads its operand's high byte
+    //  there and is extended by that byte. Business BASIC's character fetch
+    //  depends on this.
+    static Byte LoadAbsolute (Apple3TestFixture & f, Word codeAddress, Byte extension)
+    {
+        constexpr Word  kTarget  = 0x0345;
+        constexpr Byte  kLdaAbs  = 0xAD;
+        Byte            extPage  = (Byte) (kZeroPage ^ kExtensionXor);
+
+
+
+        f.mmu.SetZeroPage (kZeroPage);
+        PokeBank (f, 1, kTarget, 0x5C);
+        f.bus.WriteByte (kTarget, 0x11);
+
+        f.bus.WriteByte (codeAddress,                  kLdaAbs);
+        f.bus.WriteByte ((Word) (codeAddress + 1),     (Byte) (kTarget & 0xFF));
+        f.bus.WriteByte ((Word) (codeAddress + 2),     (Byte) (kTarget >> 8));
+        f.bus.WriteByte ((Word) ((extPage << 8) | (Byte) (codeAddress + 2)), extension);
+
+        f.cpu.SetPC (codeAddress);
+        f.cpu.StepOne();
+
+        return f.cpu.GetA();
+    }
+
+
+    TEST_METHOD (AbsoluteInZeroPage_IsExtendedByItsOperandsByte)
+    {
+        Apple3TestFixture  f;
+
+
+
+        Assert::AreEqual ((Byte) 0x5C, LoadAbsolute (f, 0x0040, 0x81));
+    }
+
+
+    TEST_METHOD (AbsoluteInZeroPage_WithBit7Clear_IsNotExtended)
+    {
+        Apple3TestFixture  f;
+
+
+
+        Assert::AreEqual ((Byte) 0x11, LoadAbsolute (f, 0x0040, 0x01));
+    }
+
+
+    TEST_METHOD (AbsoluteOutsideZeroPage_IsNotExtended)
+    {
+        Apple3TestFixture  f;
+
+
+
+        Assert::AreEqual ((Byte) 0x11, LoadAbsolute (f, 0x0240, 0x81));
+    }
 };

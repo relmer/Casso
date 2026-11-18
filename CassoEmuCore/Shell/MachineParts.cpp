@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/MachineParts.h"
+#include "Machines/Apple3/Apple3System.h"
 #include "Core/Prng.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"

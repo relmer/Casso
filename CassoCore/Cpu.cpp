@@ -312,6 +312,30 @@ void Cpu::StepOne()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsAbsoluteData
+//
+//  Whether an instruction accesses data at an absolute address, plain or
+//  indexed. A jump's target is an opcode fetch, not a data access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Cpu::IsAbsoluteData (const Microcode & microcode)
+{
+    GlobalAddressingMode::AddressingMode  mode = microcode.globalAddressingMode;
+
+
+
+    return mode == GlobalAddressingMode::Absolute
+        || mode == GlobalAddressingMode::AbsoluteX
+        || mode == GlobalAddressingMode::AbsoluteY;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadsTarget
 //
 //  Whether an instruction reads the byte at its effective address before it
@@ -455,6 +479,10 @@ void Cpu::FetchOperand (const Microcode & microcode, CpuOperandInfo & operandInf
         if (microcode.isExtendedIndirect)
         {
             ResolveExtendedIndirect (GetIndirectPointerHigh (microcode, operandInfo), operandInfo.effectiveAddress);
+        }
+        else if (m_extendsZeroPageCode && PC <= kLastZeroPageAddress && IsAbsoluteData (microcode))
+        {
+            ResolveExtendedIndirect ((Byte) PC, operandInfo.effectiveAddress);
         }
 
         if (ReadsTarget (microcode))

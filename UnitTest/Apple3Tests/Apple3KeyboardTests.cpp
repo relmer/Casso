@@ -29,8 +29,8 @@ public:
     static constexpr Word  kKb      = 0xC008;
     static constexpr Word  kClear   = 0xC010;
     static constexpr Byte  kStrobe  = 0x80;
-    static constexpr Byte  kAllUp   = Apple3Keyboard::kKbShift | Apple3Keyboard::kKbControl | Apple3Keyboard::kKbAlphaLock |
-                                      Apple3Keyboard::kKbApple1 | Apple3Keyboard::kKbApple2;
+    static constexpr Byte  kAllUp   = Apple3Keyboard::kKbControl | Apple3Keyboard::kKbAlphaLock |
+                                      Apple3Keyboard::kKbApple1 | Apple3Keyboard::kKbApple2 | Apple3Keyboard::kKbStartup;
 
 
     //  SVC page 8.6, every key that sends a code and is not a special key:
@@ -134,7 +134,7 @@ public:
 
         keyboard.PressKey ('A');
         Assert::AreEqual ((Byte) (0x41 | kStrobe), keyboard.Read (kKa));
-        Assert::AreEqual ((Byte) (kAllUp & ~Apple3Keyboard::kKbShift), keyboard.Read (kKb));
+        Assert::AreEqual ((Byte) (kAllUp | Apple3Keyboard::kKbShift), keyboard.Read (kKb));
     }
 
 
@@ -219,7 +219,7 @@ public:
         keyboard.SetKeyDown (false);
 
         keyboard.SetShift (true);
-        Assert::AreEqual ((Byte) (kAllUp & ~Apple3Keyboard::kKbShift), keyboard.Read (kKb));
+        Assert::AreEqual ((Byte) (kAllUp | Apple3Keyboard::kKbShift), keyboard.Read (kKb));
         keyboard.SetShift (false);
 
         keyboard.SetControl (true);

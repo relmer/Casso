@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "MachineBuilder.h"
+#include "Apple3MachineBuilder.h"
+#include "Machines/Apple3/Apple3VideoOutput.h"
 #include "StorageCardWiring.h"
 
 #include "Audio/DriveAudioMixer.h"
@@ -98,7 +100,8 @@ MachineBuilder::MachineBuilder (MachineHost & host, const MachineBuildServices &
 
 HRESULT MachineBuilder::Build (const MachineConfig & config)
 {
-    HRESULT  hr = S_OK;
+    HRESULT                    hr         = S_OK;
+    const MachineDefinition  * definition = MachineDefinitions::Find (config.machineId);
 
 
 
@@ -111,6 +114,12 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     //  built, and this is where it is built.
     ComponentRegistry::RegisterBuiltinDevices (m_host.GetRegistry());
     m_host.GetStorage().GetBlockMediaProblems().clear();
+
+    //  The Apple /// isn't an Apple II, so Apple3MachineBuilder builds it.
+    if (definition != nullptr && definition->hasBankedMemory)
+    {
+        return Apple3MachineBuilder (m_host, m_services, *this).Build (config);
+    }
 
     hr = CreateMemoryDevices (config);
     CHR (hr);
@@ -2074,6 +2083,13 @@ void MachineBuilder::SelectVideoMode()
     // cleared together, so text40 answers for all of them.
     if (m_host.GetRefs().text40 == nullptr)
     {
+        return;
+    }
+
+    // The Apple ///'s modes are decoded by Apple3Video.
+    if (m_host.GetRefs().apple3Video != nullptr)
+    {
+        m_host.GetRefs().activeVideoMode = m_host.GetRefs().apple3Video;
         return;
     }
 

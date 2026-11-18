@@ -223,6 +223,9 @@ Byte Apple3Keyboard::MapSpecialKey (AppleSpecialKey key) const
 //
 //  Shift and Control read as down while the host has them down or the last
 //  key's stroke used them, so a pasted uppercase letter reads as shifted.
+//  Bit 6 reads 1: with it 0 the ROM repeats its diagnostics instead of
+//  booting (the branch at $F67B). Shift reads 1 while down, unlike the other
+//  modifiers: the console driver inverts bits 2-5 and not bit 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,12 +238,13 @@ Byte Apple3Keyboard::GetKbPort() const
 
 
     value |= m_anyKeyDown.load (memory_order_acquire)    ? kKbAnyKey  : 0;
-    value |= isShift                                     ? 0 : kKbShift;
+    value |= isShift                                     ? kKbShift : 0;
     value |= isControl                                   ? 0 : kKbControl;
     value |= m_alphaLock.load (memory_order_acquire)     ? 0 : kKbAlphaLock;
     value |= m_apple1.load (memory_order_acquire)        ? 0 : kKbApple1;
     value |= m_apple2.load (memory_order_acquire)        ? 0 : kKbApple2;
     value |= m_strokeSpecial.load (memory_order_acquire) ? kKbSpecial : 0;
+    value |= kKbStartup;
 
     return value;
 }

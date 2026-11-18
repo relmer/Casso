@@ -17,7 +17,9 @@ class MemoryBus;
 //
 //  The Apple ///'s 6502B: the NMOS core with its indirect instructions
 //  flagged so their data access goes through the memory map's extended
-//  addressing. The other instructions are the NMOS core's.
+//  addressing. The hardware latches the extension byte on any zero page
+//  read, so an absolute instruction running in zero page is extended by its
+//  operand's high byte too. The other instructions are the NMOS core's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

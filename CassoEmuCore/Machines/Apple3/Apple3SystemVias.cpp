@@ -95,6 +95,8 @@ void Apple3SystemVias::Reset()
 
 Byte Apple3SystemVias::Read (Word address)
 {
+    m_accesses++;
+
     return GetVia (address).ReadRegister ((Byte) address);
 }
 
@@ -110,6 +112,8 @@ Byte Apple3SystemVias::Read (Word address)
 
 void Apple3SystemVias::Write (Word address, Byte value)
 {
+    m_accesses++;
+
     GetVia (address).WriteRegister ((Byte) address, value);
     UpdateOutputs();
 }

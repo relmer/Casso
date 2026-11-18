@@ -1,0 +1,69 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Core/MemoryDevice.h"
+
+class Acia6551;
+class Apple3AnalogInputs;
+class Apple3DiskController;
+class Apple3Keyboard;
+class Apple3Slots;
+class Apple3Video;
+class MemoryBus;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple3IoSpace
+//
+//  The Apple ///'s I/O space while I/O is on, which the memory map calls for
+//  $C000-$CFFF: the keyboard at $C000-$C01F, the display switches at
+//  $C050-$C057, the A/D at $C058-$C05F, the switch register at $C06x, the
+//  6551 at $C0Fx, the slots at $C020 and
+//  $C090-$C0CF and in the slot ROM spaces, the drive select latches and the
+//  smooth scroll and character download switches at $C0Dx, and the disk
+//  register at $C0Ex. An address with nothing behind it yet reads the
+//  floating bus.
+//
+//  An access to the clock chip at $C07x or the 6551 at $C0Fx runs at 1 MHz
+//  and is counted for the time base.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class Apple3IoSpace : public MemoryDevice
+{
+public:
+    static constexpr Word  kFirst = 0xC000;
+    static constexpr Word  kLast  = 0xCFFF;
+
+    Apple3IoSpace (MemoryBus & bus, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
+                   Apple3AnalogInputs & analog, Acia6551 & acia);
+
+    Byte      Read            (Word address) override;
+    void      Write           (Word address, Byte value) override;
+    Word      GetStart        () const override { return kFirst; }
+    Word      GetEnd          () const override { return kLast;  }
+    void      Reset           () override {}
+    bool      TryPeekIo       (Word address, Byte & value) override;
+
+    //  The 1 MHz accesses since the last call.
+    uint32_t  TakeSlowAccessCount () { uint32_t count = m_slowAccesses; m_slowAccesses = 0; return count; }
+
+private:
+    Byte      Access          (Word address, bool isWrite, Byte value);
+    Byte      ReadSwitch      (Word address) const;
+    bool      IsSlowAddress   (Word address) const;
+
+    MemoryBus             & m_bus;
+    Apple3Keyboard        & m_keyboard;
+    Apple3Video           & m_video;
+    Apple3Slots           & m_slots;
+    Apple3DiskController  & m_disk;
+    Apple3AnalogInputs    & m_analog;
+    Acia6551              & m_acia;
+    uint32_t                m_slowAccesses = 0;
+};

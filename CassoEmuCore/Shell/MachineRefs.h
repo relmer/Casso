@@ -104,4 +104,7 @@ struct MachineRefs
     class AppleHiResMode *        hiRes            = nullptr;
     class AppleDoubleHiResMode *  doubleHiRes      = nullptr;
     class Apple80ColTextMode *    text80           = nullptr;
+
+    // The Apple ///'s display, which SelectVideoMode chooses on an Apple ///.
+    class Apple3VideoOutput *     apple3Video      = nullptr;
 };

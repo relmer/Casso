@@ -16,8 +16,9 @@ class Apple3SystemVias;
 //
 //  The Apple /// keyboard. $C000-$C007 read the KA port: the encoder's
 //  code in bits 0-6 and the data ready flag in bit 7. $C008-$C00F read the
-//  KB port: any key down in bit 0, then Shift, Control, Alpha Lock, Apple 1
-//  and Apple 2 in bits 1-5, each 0 while down or set, and bit 7 of the
+//  KB port: any key down in bit 0, Shift in bit 1, 1 while down, then
+//  Control, Alpha Lock, Apple 1 and Apple 2 in bits 2-5, each 0 while down or
+//  set, bit 6 set, and bit 7 of the
 //  encoder's code, which is set for the special keys (Escape, Tab, Space,
 //  the arrows and the keypad). $C010-$C01F clear the data ready flag.
 //
@@ -44,6 +45,7 @@ public:
     static constexpr Byte      kKbAlphaLock   = 0x08;
     static constexpr Byte      kKbApple1      = 0x10;
     static constexpr Byte      kKbApple2      = 0x20;
+    static constexpr Byte      kKbStartup     = 0x40;
     static constexpr Byte      kKbSpecial     = 0x80;
 
     static constexpr uint32_t  kRepeatRateHz     = 10;

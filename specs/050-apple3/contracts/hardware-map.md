@@ -151,12 +151,12 @@ keyboard, `$C03x` speaker toggle, `$C04x` beeper, `$C05x` display register,
 | Bit | Meaning | Checked |
 |---|---|---|
 | 0 | 1 = any key down | SVC 8.5 |
-| 1 | 0 = Shift down | SVC 8.5 |
+| 1 | 1 = Shift down. SVC 8.5 lists 0; the console driver inverts bits 2-5 of the port (`EOR #$3C`) and not bit 1, and reads bit 1 as Shift down when set | CON 1.31, `KYBDMIH` and `KIHXFORM` |
 | 2 | 0 = Control down | SVC 8.5 |
 | 3 | 0 = Alpha Lock set | SVC 8.5 |
 | 4 | 0 = Apple 1 (Open Apple) down | SVC 8.5 |
 | 5 | 0 = Apple 2 (Solid Apple) down | SVC 8.5 |
-| 6 | 1 = start-up, mode not yet set | SVC 8.5 |
+| 6 | 1 = start-up, mode not yet set. It reads 1 in normal use: with it 0 the ROM repeats its diagnostics instead of booting (the branch at ``) | SVC 8.5; ROM |
 | 7 | bit 7 of the key code (set for the special keys) | SVC 8.5, 8.6 |
 
 ### Drive selection
@@ -286,6 +286,7 @@ boot) when the device is built.
 | Flash rate | about 2 per second | |
 | Extension byte | Read in the same cycle as the zero page pointer byte, from the S-bank at the pointer byte's address XOR `$0C00`, with no added cycle. It applies to accesses at `$0100` and above until the next opcode fetch | SVC 2.10 ("the sister fetched data byte"); SRM 2.1.2 |
 | `$8F` | `$0000-$1FFF` and `$A000-$FFFF` are the S-bank, `$2000-$9FFF` is bank 0, and `$FFD0-$FFEF` is the RAM under the VIAs | SRM 2.1.2; J82 |
+| Zero page code | The extension byte is latched on any zero page read, so an absolute instruction running in zero page reads its operand's high byte there and its data access is extended by that byte. Business BASIC's character fetch at `$00BB` is `LDA abs` with the extension byte for `$BD` set, and reads its program from a bank this way | Business BASIC 1.23, measured |
 | Absent bank | RAM is physical 32K banks with the system bank last. A bank number wraps modulo the physical bank count, and a number that lands on the system bank selects bank 2. An extended address adds to the bank's start and wraps at the end of RAM, so `$82` with an address of `$8000` or above on 128K is the system bank | not confirmed elsewhere |
 | VIA decode | The VIAs are at `$FFD0-$FFEF` whatever environment bit 6 is; only the Apple II lockout removes them | SVC 2.30 (I/O decode covers `$C000-$CFFF` only) |
 | `$C500-$C7FF` | always RAM; with I/O on, `$C000-$C4FF` and `$C800-$CFFF` are the I/O space and slot ROMs | DDW p. 22 lists slots 1 to 4 only |
