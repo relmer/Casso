@@ -447,10 +447,9 @@
     <ClInclude Include="Widgets\DxuiTextViewHitTest.h" />
     <ClInclude Include="Widgets\DxuiTextViewInput.h" />
     <ClInclude Include="Widgets\DxuiTextViewSelection.h" />
-    <ClInclude Include="Widgets\IDxuiTextSelectionHost.h" />
     <ClInclude Include="Widgets\IDxuiTextInputHost.h" />
-    <ClInclude Include="Widgets\IDxuiTextFindHost.h" />
-    <ClInclude Include="Widgets\IDxuiTextLayoutSource.h" />
+    <ClInclude Include="Widgets\DxuiTextViewport.h" />
+    <ClInclude Include="Widgets\IDxuiTextScroller.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiImageStrip.h" />
     <ClInclude Include="Widgets\IDxuiImageStripSource.h" />

@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiTextViewSelection.h"
-#include "IDxuiTextSelectionHost.h"
+#include "DxuiTextLayout.h"
 #include "Core/DxuiClipboard.h"
 
 
@@ -16,12 +16,12 @@
 
 void DxuiTextViewSelection::SelectAll()
 {
-    const std::vector<DxuiTextRow>  & rows = m_host.GetSelectionRows();
+    const std::vector<DxuiTextRow>  & rows = m_layout.GetRows();
 
 
 
     m_anchor = Position();
-    m_caret  = rows.empty() ? Position() : Position { (int) rows.size() - 1, m_host.GetRowLength (rows.back()) };
+    m_caret  = rows.empty() ? Position() : Position { (int) rows.size() - 1, DxuiTextLayout::GetRowLength (rows.back()) };
 }
 
 
@@ -39,8 +39,8 @@ void DxuiTextViewSelection::SelectAll()
 
 void DxuiTextViewSelection::GetWordBounds (Position pos, Position & outFirst, Position & outLast) const
 {
-    const std::vector<DxuiTextRow>  & rows  = m_host.GetSelectionRows();
-    std::wstring                      text  = (pos.row < (int) rows.size()) ? m_host.GetRowText (rows[(size_t) pos.row]) : std::wstring();
+    const std::vector<DxuiTextRow>  & rows  = m_layout.GetRows();
+    std::wstring                      text  = (pos.row < (int) rows.size()) ? DxuiTextLayout::GetRowText (rows[(size_t) pos.row]) : std::wstring();
     int                               size  = (int) text.size();
     int                               first = (std::min) (pos.offset, size);
     int                               last  = first;
@@ -87,7 +87,7 @@ void DxuiTextViewSelection::GetWordBounds (Position pos, Position & outFirst, Po
 
 std::wstring DxuiTextViewSelection::GetText() const
 {
-    const std::vector<DxuiTextRow>  & rows = m_host.GetSelectionRows();
+    const std::vector<DxuiTextRow>  & rows = m_layout.GetRows();
     Position                          from = (std::min) (m_anchor, m_caret);
     Position                          to   = (std::max) (m_anchor, m_caret);
     std::wstring                      out;
@@ -96,7 +96,7 @@ std::wstring DxuiTextViewSelection::GetText() const
 
     for (int r = from.row; HasSelection() && r <= to.row && r < (int) rows.size(); r++)
     {
-        std::wstring  text  = m_host.GetRowText (rows[(size_t) r]);
+        std::wstring  text  = DxuiTextLayout::GetRowText (rows[(size_t) r]);
         int           begin = (r == from.row) ? (std::min) (from.offset, (int) text.size()) : 0;
         int           end   = (r == to.row)   ? (std::min) (to.offset,   (int) text.size()) : (int) text.size();
 

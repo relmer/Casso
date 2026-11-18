@@ -3,7 +3,9 @@
 #include "DxuiTextViewFind.h"
 #include "DxuiTextSearch.h"
 #include "DxuiScrollbar.h"
-#include "IDxuiTextFindHost.h"
+#include "DxuiTextLayout.h"
+#include "DxuiTextViewSelection.h"
+#include "IDxuiTextScroller.h"
 #include "Theme/IDxuiTheme.h"
 
 
@@ -22,7 +24,7 @@
 
 DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool forward)
 {
-    std::vector<std::wstring>  texts  = m_host.GetFindRowTexts();
+    std::vector<std::wstring>  texts  = m_layout.GetRowTexts();
     Position                   anchor;
     Position                   caret;
     Position                   from;
@@ -31,13 +33,13 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatch (const std::wstring &
 
 
 
-    m_host.GetFindSelection (anchor, caret);
+    GetSelection (anchor, caret);
     from   = forward ? (std::max) (anchor, caret) : (std::min) (anchor, caret);
     result = DxuiTextSearch::FindInRows (texts, needle, matchCase, wholeWord, forward, from, start);
 
     if (result != FindResult::NotFound)
     {
-        m_host.SelectFound (start, Position { start.row, start.offset + (int) needle.size() });
+        SelectFound (start, Position { start.row, start.offset + (int) needle.size() });
     }
 
     return result;
@@ -71,7 +73,7 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatch (const std::wstring &
     outIndex = 0;
     outCount = 0;
 
-    m_host.GetFindSelection (anchor, caret);
+    GetSelection (anchor, caret);
     from = forward ? (std::max) (anchor, caret) : (std::min) (anchor, caret);
 
     KeepUserSelection();
@@ -106,7 +108,7 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatch (const std::wstring &
         }
     }
 
-    m_host.SelectFound (matches[pick].start, Position { matches[pick].start.row, matches[pick].start.offset + matches[pick].length });
+    SelectFound (matches[pick].start, Position { matches[pick].start.row, matches[pick].start.offset + matches[pick].length });
 
     outIndex = (int) pick + 1;
     outCount = (int) matches.size();
@@ -130,8 +132,8 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatch (const std::wstring &
 DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount)
 {
     std::vector<FindMatch>  matches;
-    int                     cap    = m_host.GetFindLineCap();
-    int                     top    = m_host.GetFindTopLine();
+    int                     cap    = m_scroller.GetLineCap();
+    int                     top    = m_scroller.GetTopLine();
     size_t                  pick   = 0;
     FindResult              result = FindResult::Found;
 
@@ -152,12 +154,12 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatchInView (const std::wst
 
     auto  onScreen = std::ranges::find_if (matches, [this, cap, top] (const FindMatch & match)
     {
-        int  line = m_host.GetFindLineOfPosition (match.start);
+        int  line = m_layout.GetLineOfPosition (match.start);
 
         return line >= top && line < top + cap;
     });
 
-    auto  below = std::ranges::find_if (matches, [this, top] (const FindMatch & match) { return m_host.GetFindLineOfPosition (match.start) >= top; });
+    auto  below = std::ranges::find_if (matches, [this, top] (const FindMatch & match) { return m_layout.GetLineOfPosition (match.start) >= top; });
 
     if (onScreen != matches.end())
     {
@@ -172,7 +174,7 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatchInView (const std::wst
         result = FindResult::Wrapped;
     }
 
-    m_host.SelectFound (matches[pick].start, Position { matches[pick].start.row, matches[pick].start.offset + matches[pick].length });
+    SelectFound (matches[pick].start, Position { matches[pick].start.row, matches[pick].start.offset + matches[pick].length });
 
     outIndex = (int) pick + 1;
     outCount = (int) matches.size();
@@ -194,7 +196,7 @@ DxuiTextViewFind::FindResult DxuiTextViewFind::SelectMatchInView (const std::wst
 
 bool DxuiTextViewFind::GetScopedMatches (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, std::vector<FindMatch> & outMatches) const
 {
-    std::vector<std::wstring>  texts = m_host.GetFindRowTexts();
+    std::vector<std::wstring>  texts = m_layout.GetRowTexts();
     bool                       valid = false;
 
 
@@ -233,7 +235,7 @@ bool DxuiTextViewFind::IsCurrentMatch (const FindMatch & match) const
 
 
 
-    m_host.GetFindSelection (anchor, caret);
+    GetSelection (anchor, caret);
 
     return (std::min) (anchor, caret) == match.start && (std::max) (anchor, caret) == Position { match.start.row, match.start.offset + match.length };
 }
@@ -276,7 +278,7 @@ void DxuiTextViewFind::SetScopeToSelection()
 
 
 
-    m_host.GetFindSelection (anchor, caret);
+    GetSelection (anchor, caret);
 
     //  A search selects its match, so the selection to keep to is the one
     //  there before the search moved it.
@@ -306,7 +308,7 @@ void DxuiTextViewFind::KeepUserSelection()
 
     if (!byFind)
     {
-        m_host.GetFindSelection (m_userAnchor, m_userCaret);
+        GetSelection (m_userAnchor, m_userCaret);
     }
 }
 
@@ -409,13 +411,13 @@ void DxuiTextViewFind::SetScrollMarks (DxuiScrollbar & bar, int lineCount) const
         return;
     }
 
-    m_host.GetFindSelection (anchor, caret);
+    GetSelection (anchor, caret);
     selected = (std::min) (anchor, caret);
 
     for (const FindMatch & match : m_highlights)
     {
         bool  isCurrent = match.start == selected && !(anchor == caret);
-        int   line      = m_host.GetFindLineOfPosition (match.start);
+        int   line      = m_layout.GetLineOfPosition (match.start);
 
         if (line >= 0 && line != last)
         {
@@ -429,4 +431,38 @@ void DxuiTextViewFind::SetScrollMarks (DxuiScrollbar & bar, int lineCount) const
     }
 
     bar.SetMarks (std::move (marks), m_matchArgb, m_currentArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextViewFind::GetSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextViewFind::GetSelection (Position & anchor, Position & caret) const
+{
+    anchor = m_selection.GetAnchor();
+    caret  = m_selection.GetCaret();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextViewFind::SelectFound
+//
+//  A match is selected and scrolled into view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextViewFind::SelectFound (Position anchor, Position caret)
+{
+    m_selection.Select (anchor, caret);
+    m_scroller.ScrollToPosition (anchor);
 }

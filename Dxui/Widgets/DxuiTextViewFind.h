@@ -6,7 +6,9 @@
 
 
 class DxuiScrollbar;
-class IDxuiTextFindHost;
+class DxuiTextLayout;
+class DxuiTextViewSelection;
+class IDxuiTextScroller;
 class IDxuiTheme;
 
 
@@ -31,7 +33,7 @@ public:
     using FindResult = DxuiFindResult;
     using ClampFn    = std::function<void (Position & at)>;
 
-    explicit DxuiTextViewFind (IDxuiTextFindHost & host) : m_host (host) {}
+    DxuiTextViewFind (const DxuiTextLayout & layout, DxuiTextViewSelection & selection, IDxuiTextScroller & scroller) : m_layout (layout), m_selection (selection), m_scroller (scroller) {}
 
     FindResult  SelectMatch       (const std::wstring & needle, bool matchCase, bool wholeWord, bool forward);
     FindResult  SelectMatch       (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
@@ -60,14 +62,18 @@ public:
 private:
     bool  GetScopedMatches  (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, std::vector<FindMatch> & outMatches) const;
     void  KeepUserSelection ();
+    void  GetSelection      (Position & anchor, Position & caret) const;
+    void  SelectFound       (Position anchor, Position caret);
 
-    IDxuiTextFindHost       & m_host;
-    bool                      m_scoped      = false;
-    Position                  m_scopeStart;
-    Position                  m_scopeEnd;
-    std::vector<FindMatch>    m_highlights;
-    Position                  m_userAnchor;
-    Position                  m_userCaret;
-    uint32_t                  m_matchArgb   = 0;
-    uint32_t                  m_currentArgb = 0;
+    const DxuiTextLayout     & m_layout;
+    DxuiTextViewSelection    & m_selection;
+    IDxuiTextScroller        & m_scroller;
+    bool                       m_scoped      = false;
+    Position                   m_scopeStart;
+    Position                   m_scopeEnd;
+    std::vector<FindMatch>     m_highlights;
+    Position                   m_userAnchor;
+    Position                   m_userCaret;
+    uint32_t                   m_matchArgb   = 0;
+    uint32_t                   m_currentArgb = 0;
 };

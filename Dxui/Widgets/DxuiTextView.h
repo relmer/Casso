@@ -12,11 +12,10 @@
 #include "DxuiTextViewHitTest.h"
 #include "DxuiTextViewInput.h"
 #include "DxuiTextViewSelection.h"
+#include "DxuiTextViewport.h"
 #include "IDxuiFindTarget.h"
-#include "IDxuiTextFindHost.h"
 #include "IDxuiTextInputHost.h"
-#include "IDxuiTextSelectionHost.h"
-#include "IDxuiTextLayoutSource.h"
+#include "IDxuiTextScroller.h"
 
 struct DxuiIconImage;
 
@@ -63,10 +62,8 @@ struct DxuiIconImage;
 
 class DxuiTextView : public IDxuiControl,
                      public IDxuiFindTarget,
-                     private IDxuiTextFindHost,
                      private IDxuiTextInputHost,
-                     private IDxuiTextSelectionHost,
-                     private IDxuiTextLayoutSource
+                     private IDxuiTextScroller
 {
 public:
     using Span     = DxuiTextSpan;
@@ -109,7 +106,7 @@ public:
     //  A column ahead of the text for each row's icon, none by default. The
     //  icon is drawn at the given size, centered in the column.
     void  SetGutter        (int widthDip, int iconDip) { m_gutterDip = widthDip; m_gutterIconDip = iconDip; }
-    int   GetGutterPx      () const override      { return m_scaler.ToPx (m_gutterDip); }
+    int   GetGutterPx      () const               { return m_scaler.ToPx (m_gutterDip); }
 
     //  The gutter as an editor's glyph margin: its icon centered this far in
     //  from the view's left edge, as Visual Studio centers a breakpoint, and
@@ -140,7 +137,7 @@ public:
 
     //  Whether a row is drawn as the focused row: row focus on, the view
     //  focused, no text selected, and the row the focused one.
-    bool  IsRowSelectionShown (int row) const override { return m_rowFocus && m_isFocused && row == m_focusRow && !HasSelection(); }
+    bool  IsRowSelectionShown (int row) const { return m_rowFocus && m_isFocused && row == m_focusRow && !HasSelection(); }
 
     //  A row drawn in the theme's hover across the view, under the row's
     //  fill, as a list draws the row under the pointer, for a tip laid over
@@ -152,7 +149,7 @@ public:
     //  scroll bar; and a cell's rect from its left to the text area's right,
     //  on the first line of its row, false when that line is not drawn.
     int   GetTextAreaLeftPx  () const;
-    int   GetTextAreaRightPx () const override;
+    int   GetTextAreaRightPx () const;
     bool  GetCellRectPx      (int row, int cell, RECT & outRect) const;
 
     //  Where Paint starts a cell's text on the first line of its row and where
@@ -193,9 +190,9 @@ public:
     //  default.
     void  SetNoWrap              (bool noWrap);
     bool  IsNoWrap               () const               { return m_layout.IsNoWrap(); }
-    int   GetLeftColumn          () const               { return m_leftColumn; }
-    void  SetLeftColumn          (int column);
-    void  ScrollColumns          (int delta)            { SetLeftColumn (m_leftColumn + delta); }
+    int   GetLeftColumn          () const override      { return m_leftColumn; }
+    void  SetLeftColumn          (int column) override;
+    void  ScrollColumns          (int delta) override   { SetLeftColumn (m_leftColumn + delta); }
     bool  IsHorzScrollbarVisible () const;
 
     //  Cells in this column and after it are cut off at the view's right
@@ -218,10 +215,10 @@ public:
 
     //  How many characters fit across the text with a scroll bar beside it.
     int   GetVisibleColumns () const { return GetTextColumns (true); }
-    int   GetLineCap        () const;
-    int   GetTopLine        () const { return m_topLine; }
-    void  SetTopLine        (int line);
-    void  ScrollLines       (int delta) { SetTopLine (m_topLine + delta); }
+    int   GetLineCap        () const override;
+    int   GetTopLine        () const override { return m_topLine; }
+    void  SetTopLine        (int line) override;
+    void  ScrollLines       (int delta) override { SetTopLine (m_topLine + delta); }
 
     //  A view that follows its end, as a console does: at the bottom, it stays
     //  there through new rows and a layout; scrolled up, new rows keep its place.
@@ -241,17 +238,17 @@ public:
     bool  GetRowSide (int row, int & outSide) const;
 
     //  The left of a cell, drawn or not; false for a row not laid out.
-    bool  GetCellLeftPx (int row, int cell, float & outX) const override;
+    bool  GetCellLeftPx (int row, int cell, float & outX) const;
 
     //  The top and bottom of the drawn lines, and pixels to a DIP.
     void   GetLinesSpanPx (float & outTop, float & outBottom) const;
     float  GetPxPerDip    () const { return m_scaler.ToPxf (1.0f); }
 
-    Position  HitTest (POINT point) const { return DxuiTextViewHitTest (*this).HitTest (point); }
+    Position  HitTest (POINT point) const { return DxuiTextViewHitTest (m_layout, GetViewport()).HitTest (point); }
 
     //  The link under a point: its row, its index in the row's spans, and the
     //  part of it drawn on the line the point is on. False off every link.
-    bool      TryGetLinkAt (POINT point, int & outRow, int & outSpan, RECT & outRect) const { return DxuiTextViewHitTest (*this).TryGetLinkAt (point, outRow, outSpan, outRect); }
+    bool      TryGetLinkAt (POINT point, int & outRow, int & outSpan, RECT & outRect) const { return !IsOverScrollbar (point) && DxuiTextViewHitTest (m_layout, GetViewport()).TryGetLinkAt (point, outRow, outSpan, outRect); }
 
     //  The pointer's place, which sets the link drawn underlined; true when
     //  that link changed, so the view is drawn again. A point outside the view
@@ -262,7 +259,7 @@ public:
     void          Select           (Position anchor, Position caret) { m_selection.Select (anchor, caret); }
     void          SelectAll        ()                                { m_selection.SelectAll(); }
     void          ClearSelection   ()                                { m_selection.Clear(); }
-    bool          HasSelection     () const override                 { return m_selection.HasSelection(); }
+    bool          HasSelection     () const                          { return m_selection.HasSelection(); }
     std::wstring  GetSelectionText () const override                 { return m_selection.GetText(); }
     void          CopySelection    () const                          { m_selection.Copy (m_hwnd); }
 
@@ -343,10 +340,10 @@ public:
                                    Position                        & outStart) { return DxuiTextSearch::FindInRows (rows, needle, matchCase, wholeWord, forward, from, outStart); }
 
     //  Scrolls as little as it takes to show the line a position is drawn on.
-    void  ScrollToPosition (Position pos);
+    void  ScrollToPosition (Position pos) override;
 
     bool  IsInteracting      () const { return m_input.IsDragging() || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
-    bool  IsScrollbarVisible () const override { return m_layout.GetLineCount() > GetLineCap(); }
+    bool  IsScrollbarVisible () const { return m_layout.GetLineCount() > GetLineCap(); }
 
     //  Whether a point is on the scrollbar, and the hover that widens it.
     bool  IsOverScrollbar   (POINT pt) const override { return (IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y)) || (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y)); }
@@ -380,78 +377,31 @@ private:
     static constexpr int  s_kPadDip             = 6;
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
-    void          Rebuild           ();
-    int           GetTextColumns    (bool scrollbar) const;
-    float         GetTextWidthPx    (bool scrollbar) const override;
-
-    //  Proportional text: the lines wrapped by the measured characters, each
-    //  cell's characters measured, where a cell begins on its line, how wide
-    //  a cell's characters from one place to another are drawn, and the
-    //  boundary nearest a point. In the fixed-width face each is the cell
-    //  arithmetic.
-    void          MeasureCharacters      (IDxuiTextRenderer & text, const DxuiFontHandle & font);
-    float         GetCellX               (const Row & row, int cell) const override             { return m_layout.GetCellX (row, cell); }
-    float         GetCharsPx             (int row, int cell, int from, int to) const override   { return m_layout.GetCharsPx (row, cell, from, to); }
-    int           GetNearestChar         (int row, int cell, int from, int to, float x) const override { return m_layout.GetNearestChar (row, cell, from, to, x); }
-
-    //  How far from the text's left the character `index` places into a
-    //  part of a cell drawn on a line, starting at `cellFrom` in the cell,
-    //  is drawn: a wrapped line of the last cell starts at its wrap indent.
-    float         GetPartPx         (int row, int cell, int cellFrom, int index) const override { return m_layout.GetPartPx (row, cell, cellFrom, index); }
-    int           GetCellStart      (const Row & row, int cell) const override                  { return m_layout.GetCellStart (row, cell); }
-    int           GetLineColumn     (const Row & row, const Line & line) const override         { return m_layout.GetLineColumn (row, line); }
-    int           GetCellBase       (const Row & row, int cell) const override                  { return DxuiTextLayout::GetCellBase (row, cell); }
-    int           GetRowLength      (const Row & row) const override                            { return DxuiTextLayout::GetRowLength (row); }
-    std::wstring  GetRowText        (const Row & row) const override                            { return DxuiTextLayout::GetRowText (row); }
-    void          SyncScrollbar     ();
-    void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void          SelectWordAt      (Position pos) { m_selection.SelectWordAt (pos); }
-    void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const { m_selection.GetWordBounds (pos, outFirst, outLast); }
-    void          SetFindMarks      () { m_find.SetScrollMarks (m_vertScroll, m_layout.GetLineCount()); }
-
-
-    int           GetTextLeft       () const override;
-    int           GetPadLeftPx      () const;
-    int           GetGutterLeftPx   () const;
-    int           GetTextBaseLeft   () const override;
-    int           GetHorzBarPx      () const;
-
-    //  Each character's style bits by the row's spans, empty for a row with
-    //  no styled span; and how far a line of an aligned row starts from the
-    //  text's left.
-    std::vector<uint8_t>  GetRowStyles    (const Row & row) const override { return DxuiTextLayout::GetRowStyles (row); }
-    float                 GetLineShift    (int lineIndex) const override   { return m_layout.GetLineShift (lineIndex, GetTextWidthPx (IsScrollbarVisible())); }
-    bool                  TryMoveFocusRow (WPARAM vk, bool ctrl);
+    void              Rebuild           ();
+    int               GetTextColumns    (bool scrollbar) const;
+    float             GetTextWidthPx    (bool scrollbar) const;
+    void              MeasureCharacters (IDxuiTextRenderer & text, const DxuiFontHandle & font);
+    void              SyncScrollbar     ();
+    void              EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void              SetFindMarks      () { m_find.SetScrollMarks (m_vertScroll, m_layout.GetLineCount()); }
+    int               GetTextLeft       () const;
+    int               GetPadLeftPx      () const;
+    int               GetGutterLeftPx   () const;
+    int               GetTextBaseLeft   () const;
+    int               GetHorzBarPx      () const;
+    bool              TryMoveFocusRow   (WPARAM vk, bool ctrl);
+    DxuiTextViewport  GetViewport       () const;
 
     //  A drawn line's height, a line's top counted from the first line shown,
     //  and the first line to show for a given line to be the last that fits.
-    int           GetLineHeightPx   (int lineIndex) const override { return m_layout.GetLineHeightPx (lineIndex); }
-    int           GetLineOffsetPx   (int lineIndex) const override { return m_layout.GetLineOffsetPx (m_topLine, lineIndex); }
+    int           GetLineHeightPx   (int lineIndex) const { return m_layout.GetLineHeightPx (lineIndex); }
+    int           GetLineOffsetPx   (int lineIndex) const { return m_layout.GetLineOffsetPx (m_topLine, lineIndex); }
     int           GetTopForLast     (int lineIndex) const;
-
-
-    //  The part of a cell drawn on a line: where it starts in the row's text,
-    //  its length and where it starts in the cell. False when none of the
-    //  cell is on the line, as a wrapped line has only the last cell's text.
-    bool          GetLinePart       (const Row & row, const Line & line, int cell, int & outFlat, int & outLength, int & outCellFrom) const override { return DxuiTextLayout::GetLinePart (row, line, cell, outFlat, outLength, outCellFrom); }
-
-    //  The character under a point, not the nearest edge as HitTest takes:
-    //  its line, its place in the row's text and its column. False between
-    //  characters, past a line's end and off the lines.
-    bool  TryGetCharAt       (POINT point, int & outLine, int & outFlat, int & outColumn) const { return DxuiTextViewHitTest (*this).TryGetCharAt (point, outLine, outFlat, outColumn); }
-
-    //  IDxuiTextFindHost: the view, for find.
-    std::vector<std::wstring>  GetFindRowTexts       () const override                                { return m_layout.GetRowTexts(); }
-    void                       GetFindSelection      (Position & anchor, Position & caret) const override { anchor = m_selection.GetAnchor(); caret = m_selection.GetCaret(); }
-    void                       SelectFound           (Position anchor, Position caret) override       { m_selection.Select (anchor, caret); ScrollToPosition (anchor); }
-    int                        GetFindLineOfPosition (Position pos) const override                    { return m_layout.GetLineOfPosition (pos); }
-    int                        GetFindTopLine        () const override                                { return m_topLine; }
-    int                        GetFindLineCap        () const override                                { return GetLineCap(); }
 
     //  IDxuiTextInputHost: the view, for its mouse and keys.
     Position                   HitTestInput          (POINT point) const override                                    { return HitTest (point); }
     bool                       TryGetInputLink       (POINT point, int & outRow, int & outSpan) const override { RECT  rect = {}; return TryGetLinkAt (point, outRow, outSpan, rect); }
-    void                       GetInputWordBounds    (Position pos, Position & outFirst, Position & outLast) const override { GetWordBounds (pos, outFirst, outLast); }
+    void                       GetInputWordBounds    (Position pos, Position & outFirst, Position & outLast) const override { m_selection.GetWordBounds (pos, outFirst, outLast); }
     RECT                       GetInputBounds        () const override                                               { return m_boundsDip; }
     int                        GetInputTextLeft      () const override                                               { return GetTextBaseLeft(); }
     bool                       IsInputNoWrap         () const override                                               { return m_layout.IsNoWrap(); }
@@ -477,19 +427,6 @@ private:
     void                       ShowInputMenu         (POINT point) override                                          { if (m_onContextMenu) { m_onContextMenu (point); } }
     void                       ClickInputLink        (int row, int span) override                                    { if (m_onLink) { m_onLink (row, span); } }
 
-    //  IDxuiTextSelectionHost: the view, for its selection.
-    const std::vector<Row>   & GetSelectionRows      () const override { return m_layout.GetRows(); }
-
-    //  IDxuiTextLayoutSource: the view, for its painter and hit tests.
-    const std::vector<Row>   & GetLayoutRows          () const override { return m_layout.GetRows(); }
-    const std::vector<Line>  & GetLayoutLines         () const override { return m_layout.GetLines(); }
-    const DxuiDpiScaler      & GetLayoutScaler        () const override { return m_scaler; }
-    RECT                       GetLayoutBounds        () const override { return m_boundsDip; }
-    Position                   GetLayoutAnchor        () const override { return m_selection.GetAnchor(); }
-    Position                   GetLayoutCaret         () const override { return m_selection.GetCaret(); }
-    const DxuiTextViewFind   & GetLayoutFind          () const override { return m_find; }
-    Look                       GetLayoutLook          () const override;
-
     DxuiTextLayout          m_layout;
     bool                    m_cellPinned      = false;
     float                   m_zoom            = 1.0f;
@@ -508,8 +445,8 @@ private:
     bool                            m_followEnd       = false;
     bool                            m_paneTextInset   = false;
     bool                            m_atEnd           = true;
-    DxuiTextViewSelection           m_selection       { *this };
-    DxuiTextViewFind                m_find            { *this };
+    DxuiTextViewSelection           m_selection       { m_layout };
+    DxuiTextViewFind                m_find            { m_layout, m_selection, *this };
     DxuiTextViewInput               m_input           { *this };
     HWND                            m_hwnd            = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";

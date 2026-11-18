@@ -460,35 +460,42 @@ void DxuiTextView::SyncScrollbar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextView::GetLayoutLook
+//  DxuiTextView::GetViewport
+//
+//  The view's place, edges, top line and paint settings as they are now, for
+//  its painter and hit tests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTextView::Look DxuiTextView::GetLayoutLook() const
+DxuiTextViewport DxuiTextView::GetViewport() const
 {
-    Look  look;
+    DxuiTextViewport  viewport;
 
 
 
-    look.cellAdvance    = m_layout.GetCellAdvance();
-    look.cellWidthPx    = m_layout.GetCellWidthPx();
-    look.cellHeightPx   = m_layout.GetCellHeightPx();
-    look.textTopPx      = m_textTopPx;
-    look.padPx          = m_scaler.ToPx (s_kPadDip);
-    look.topLine        = m_topLine;
-    look.proportional   = m_layout.IsProportional();
-    look.textStrength   = m_textStrength;
-    look.gutterIconDip  = m_gutterIconDip;
-    look.glyphCenterDip = m_glyphCenterDip;
-    look.bandLeftDip    = m_bandLeftDip;
-    look.bandWidthDip   = m_bandWidthDip;
-    look.iconFace       = m_iconFace;
-    look.highlightRow   = m_highlightRow;
-    look.highlightCell  = m_highlightCell;
-    look.hoverRow       = m_hoverRow;
-    look.hoverSpan      = m_hoverSpan;
+    viewport.bounds         = m_boundsDip;
+    viewport.scaler         = m_scaler;
+    viewport.padPx          = m_scaler.ToPx (s_kPadDip);
+    viewport.textLeft       = GetTextLeft();
+    viewport.textBaseLeft   = GetTextBaseLeft();
+    viewport.textAreaRight  = GetTextAreaRightPx();
+    viewport.textWidthPx    = GetTextWidthPx (IsScrollbarVisible());
+    viewport.gutterPx       = GetGutterPx();
+    viewport.topLine        = m_topLine;
+    viewport.textTopPx      = m_textTopPx;
+    viewport.textStrength   = m_textStrength;
+    viewport.gutterIconDip  = m_gutterIconDip;
+    viewport.glyphCenterDip = m_glyphCenterDip;
+    viewport.bandLeftDip    = m_bandLeftDip;
+    viewport.bandWidthDip   = m_bandWidthDip;
+    viewport.iconFace       = m_iconFace;
+    viewport.focusRow       = IsRowSelectionShown (m_focusRow) ? m_focusRow : -1;
+    viewport.highlightRow   = m_highlightRow;
+    viewport.highlightCell  = m_highlightCell;
+    viewport.hoverRow       = m_hoverRow;
+    viewport.hoverSpan      = m_hoverSpan;
 
-    return look;
+    return viewport;
 }
 
 
@@ -684,7 +691,8 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     DxuiFontHandle       font        = m_layout.IsProportional() ? theme.BodyFont() : theme.MonospaceFont();
     int                  last        = 0;
     float                clipLeft    = 0.0f;
-    DxuiTextViewPainter  linePainter (*this);
+    DxuiTextViewport     viewport;
+    DxuiTextViewPainter  linePainter (m_layout, viewport, m_selection, m_find);
 
 
 
@@ -710,7 +718,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     last = (std::min) (m_layout.GetLineCount(), m_topLine + GetLineCap() + 1);
 
-    linePainter.Begin();
+    viewport = GetViewport();
 
     //  The rows' fills and the gutter's icons, which do not scroll sideways,
     //  then the text, clipped to the text area once it has scrolled.

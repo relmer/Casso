@@ -4,7 +4,7 @@
 #include "DxuiTextPosition.h"
 
 
-class IDxuiTextSelectionHost;
+class DxuiTextLayout;
 
 
 
@@ -26,7 +26,7 @@ public:
     using Position = DxuiTextPosition;
     using ClampFn  = std::function<void (Position & at)>;
 
-    explicit DxuiTextViewSelection (const IDxuiTextSelectionHost & host) : m_host (host) {}
+    explicit DxuiTextViewSelection (const DxuiTextLayout & layout) : m_layout (layout) {}
 
     Position      GetAnchor     () const { return m_anchor; }
     Position      GetCaret      () const { return m_caret; }
@@ -52,7 +52,7 @@ private:
     //  what a double-click selects.
     static int  GetCharClass (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
 
-    const IDxuiTextSelectionHost  & m_host;
-    Position                        m_anchor;
-    Position                        m_caret;
+    const DxuiTextLayout  & m_layout;
+    Position                m_anchor;
+    Position                m_caret;
 };
