@@ -1264,16 +1264,18 @@ Error:
 //  CassoLinkHost::ServeReady
 //
 //  A client of another version is sent the current program, and so is one
-//  whose CRC differs from the image.
+//  whose CRC differs from the image. A shim of another version can't run
+//  the current program, so its boot disk is made again instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
 {
-    HRESULT  hr      = S_OK;
-    bool     whole   = IsWholeReady (packet);
-    bool     current = false;
-    bool     intact  = false;
+    HRESULT  hr          = S_OK;
+    bool     whole       = IsWholeReady (packet);
+    bool     current     = false;
+    bool     intact      = false;
+    bool     shimMatches = false;
 
 
 
@@ -1313,6 +1315,15 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     }
 
     CBREx (intact || m_programChip != LinkChip::Sos, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
+
+    shimMatches = m_programChip == LinkChip::Sos || m_client.shimVersion == LinkProgram::kShimVersion;
+
+    if (!shimMatches && m_adtProServer.m_activity)
+    {
+        m_adtProServer.m_activity ("The CassoLink boot disk on the Apple doesn't match this version of Casso. Make the disk again from the connection's menu.");
+    }
+
+    CBREx (intact || shimMatches, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
 
     if (intact)
     {

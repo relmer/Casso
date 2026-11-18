@@ -244,6 +244,25 @@ public:
 
 
 
+    //  A boot disk from another version of Casso has a shim the current
+    //  program can't run with, so no program is sent to it.
+    TEST_METHOD (Ready_FromAnotherShim_IsNotSentTheProgram)
+    {
+        Client             client;
+        const Byte         sectors[] = { 0 };
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+        auto               reading   = std::async (std::launch::async, [&] () { return client.host->ReadSectors (1, 0, sectors, data, status); });
+
+
+
+        client.SendPacket (CassoLinkCodec::kReady, { 0, 0, (Byte) (LinkProgram::kShimVersion - 1), 0x03 });
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH), reading.get());
+        Assert::IsTrue   (client.IsQuiet(), L"no Load program");
+    }
+
+
     TEST_METHOD (Ready_FromAnotherProgram_ReturnsItToTheShim)
     {
         Client           client;

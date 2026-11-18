@@ -103,8 +103,8 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 104;
-    static constexpr Byte    kShimVersion       = 11;
+    static constexpr Word    kProgramVersion    = 105;
+    static constexpr Byte    kShimVersion       = 12;
     static constexpr Word    kShimAddress       = 0x3A00;
 
     //  A IIgs's ports alone run at kIIgsBaud; on any other interface the
