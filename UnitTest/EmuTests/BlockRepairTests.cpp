@@ -2,8 +2,11 @@
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "PartitionCard.h"
+#include "CassoExplorer/Model/DiskOperations.h"
+#include "CommandLineOptions.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/BlockImage.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
@@ -627,5 +630,81 @@ public:
 
         Dos33SectorLayout::Walk (io.files["volume.dsk"], 50, 32, map);
         Assert::IsTrue (BlockRepair::GetVerdict (map) == FileSystemVerdict::Ok, L"the volume written alone is repaired");
+    }
+
+    static DiskCommandResult RunCli (FakeDiskFileIo & io, CommandLineOptions::DiskOptions::Command command, const char * image)
+    {
+        CommandLineOptions  options = DiskOperations::MakeOptions (command, image);
+        DiskCommandRunner   runner (io);
+
+
+
+        return runner.Run (options);
+    }
+
+
+    //  A block of SEED marked free and a block in no file marked used.
+    static vector<Byte> MakeDamagedVolume (uint32_t & outSeedBlock)
+    {
+        vector<Byte>  buffer = MakeVolume();
+        BlockMap      map    = BuildMap (buffer);
+
+
+
+        outSeedBlock = map.GetBlocksOf (FindEntry (map, L"SEED"))[0];
+
+        SetFree (buffer, outSeedBlock, true);
+        SetFree (buffer, kFarBlock, false);
+
+        return buffer;
+    }
+
+
+    TEST_METHOD (Cli_Inspect_ListsEachVolumeAndItsFindings)
+    {
+        FakeDiskFileIo     io;
+        uint32_t           seed   = 0;
+        DiskCommandResult  result;
+
+
+
+        io.files["C:\\Disks\\Big.po"]  = MakeDamagedVolume (seed);
+        io.stamps["C:\\Disks\\Big.po"] = { kBlocks * kBlockBytes, kTime };
+        result                         = RunCli (io, CommandLineOptions::DiskOptions::Command::Inspect, "C:\\Disks\\Big.po");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::Utf8ToWide (result.diagnostics).c_str());
+        Assert::IsTrue   (result.output.starts_with ("10000 blocks; volume 1, ProDOS \"BIG\": Bad\n"), TextEncoding::Utf8ToWide (result.output).c_str());
+        Assert::IsTrue   (result.output.contains (std::format ("1\t{}\tIn a file, marked free\n", seed)), TextEncoding::Utf8ToWide (result.output).c_str());
+        Assert::IsTrue   (result.output.contains (std::format ("1\t{}\tMarked used, in no file\n", kFarBlock)));
+    }
+
+
+    TEST_METHOD (Cli_Repair_WritesOneCopyAndKeepsBlocksInNoFileMarkedUsed)
+    {
+        FakeDiskFileIo     io;
+        uint32_t           seed   = 0;
+        vector<Byte>       damage = MakeDamagedVolume (seed);
+        DiskCommandResult  result;
+        BlockMap           map;
+
+
+
+        io.files["C:\\Disks\\Big.po"]               = damage;
+        io.stamps["C:\\Disks\\Big.po"]              = { damage.size(), kTime };
+        io.stamps["C:\\Disks\\Big (repaired).po"]   = { damage.size(), kTime };
+        result                                      = RunCli (io, CommandLineOptions::DiskOptions::Command::Repair, "C:\\Disks\\Big.po");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::Utf8ToWide (result.diagnostics).c_str());
+        Assert::IsTrue   (result.output.contains ("Big.po: volume 1, ProDOS \"BIG\": file system: Bad\n"), TextEncoding::Utf8ToWide (result.output).c_str());
+        Assert::IsTrue   (result.output.contains ("Big.po: volume 1, ProDOS \"BIG\": In a file, marked free: 1 block\n"));
+        Assert::IsTrue   (result.output.contains ("Big.po: volume 1, ProDOS \"BIG\": change: Mark 1 block of SEED as used in the bitmap\n"));
+        Assert::IsTrue   (result.output.contains ("Big.po: volume 1, ProDOS \"BIG\": not changed: "));
+        Assert::IsTrue   (result.output.contains ("repaired copy written to C:\\Disks\\Big (repaired).po\n"));
+        Assert::IsTrue   (io.files["C:\\Disks\\Big.po"] == damage, L"the image isn't written");
+
+        map = BuildMap (io.files["C:\\Disks\\Big (repaired).po"]);
+
+        Assert::IsTrue (map.blocks[seed].role != SectorRole::OwnedMarkedFree, L"SEED's block is marked used");
+        Assert::IsTrue (map.blocks[kFarBlock].role == SectorRole::AllocatedUnowned, L"the block in no file stays marked used");
     }
 };

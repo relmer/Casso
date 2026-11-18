@@ -307,7 +307,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         nullptr,
         "Analyzes <image> as the disk inspector does. The first line is the summary the inspector's status bar has; each line"
         " after it is one of its Issues, tab-separated: the track, the category, the sector, the cell and the finding. A field"
-        " the finding doesn't have is a hyphen.",
+        " the finding doesn't have is a hyphen. For an 800K disk, a hard disk or a card image, the first line is the block"
+        " count and each volume's file system, name and verdict, and each finding is the volume, the blocks, or a DOS volume's"
+        " tracks and sectors, and the finding.",
         "CassoCli disk inspect Capture.woz"
     },
 
@@ -322,7 +324,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         " then writes a repaired copy to <copy>, or beside <image> with \" (repaired)\" before its extension. The bitmap is set"
         " from the files, the catalog's links and counts are corrected, and a DOS 3.3 VTOC header is restored to DOS's values."
         " <image> isn't changed. A copy-protected disk, a volume with a file whose chain can't be followed, or a disk with no"
-        " standard file system can't be repaired, and the command exits with 1.",
+        " standard file system can't be repaired, and the command exits with 1. On an 800K disk, a hard disk or a card image,"
+        " each ProDOS, SOS, Apple Pascal, HFS and DOS 3.3 volume is repaired, all into one copy. Blocks not in any file stay"
+        " marked as used there, as a nested volume or a larger DOS can be in them.",
         "CassoCli disk repair Capture.dsk"
     },
 

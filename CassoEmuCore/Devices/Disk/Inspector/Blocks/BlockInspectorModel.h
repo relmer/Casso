@@ -147,12 +147,13 @@ public:
     //  partitions. Each has its first block in the image, its count of
     //  blocks and its map. FindVolume is -1 for a block in no volume of
     //  blocks.
-    int               GetVolumeCount () const           { return (int) m_volumes.size(); }
-    uint32_t          GetVolumeFirst (int volume) const { return m_volumes[volume]->first; }
-    uint32_t          GetVolumeSize  (int volume) const { return m_volumes[volume]->count; }
-    bool              IsSectorVolume (int volume) const { return m_volumes[volume]->isSectors; }
-    const BlockMap  & GetVolumeMap   (int volume) const { return m_volumes[volume]->map; }
-    int               FindVolume     (uint32_t block) const;
+    int               GetVolumeCount     () const           { return (int) m_volumes.size(); }
+    uint32_t          GetVolumeFirst     (int volume) const { return m_volumes[volume]->first; }
+    uint32_t          GetVolumeSize      (int volume) const { return m_volumes[volume]->count; }
+    bool              IsSectorVolume     (int volume) const { return m_volumes[volume]->isSectors; }
+    int               GetSectorsPerTrack (int volume) const { return m_volumes[volume]->sectorsPerTrack; }
+    const BlockMap  & GetVolumeMap       (int volume) const { return m_volumes[volume]->map; }
+    int               FindVolume         (uint32_t block) const;
 
     //  The map of the volume a block is in, with the block's number in it.
     const BlockMap *  FindMap (uint32_t block, uint32_t & outInner) const;

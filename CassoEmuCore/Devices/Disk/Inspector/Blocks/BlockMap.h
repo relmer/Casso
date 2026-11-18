@@ -199,6 +199,10 @@ struct BlockMap
     static SectorRole  PickRole    (SectorRole a, SectorRole b);
     static int         GetPriority (SectorRole role);
 
+    //  A role's name in the map's pointer text and status line, and for
+    //  damage, in its findings.
+    static LPCWSTR     GetRoleName (SectorRole role);
+
     //  The first 512-byte block of an HFS allocation block.
     uint32_t          GetAllocationBlock (uint32_t allocationBlock) const { return allocationStart + allocationBlock * blocksPerAllocation; }
 };

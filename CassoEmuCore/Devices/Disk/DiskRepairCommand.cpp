@@ -3,7 +3,10 @@
 #include "Devices/Disk/DiskRepairCommand.h"
 #include "CommandLineOptions.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskInspectCommand.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
@@ -32,8 +35,16 @@ void DiskRepairCommand::Run (IDiskFileIo & io, const CommandLineOptions & option
     bool           isRead     = false;
     bool           isAnalyzed = false;
     bool           isWritten  = false;
+    bool           isBlock    = BlockImageFile::IsBlockImage (io, imagePath);
 
 
+
+    if (isBlock)
+    {
+        RunBlocks (io, options, result);
+    }
+
+    BAIL_OUT_IF (isBlock, S_OK);
 
     hr     = io.ReadAllBytes (imagePath, bytes);
     isRead = SUCCEEDED (hr);
@@ -65,6 +76,124 @@ void DiskRepairCommand::Run (IDiskFileIo & io, const CommandLineOptions & option
 
         result.output += imagePath + ": repaired copy written to " + written + "\n";
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepairCommand::RunBlocks
+//
+//  Each volume's verdict, findings and changes after the volume, then one
+//  repaired copy with every volume's changes. Blocks in no file stay marked
+//  used: on a hybrid disk or one with a larger DOS image, they can be
+//  another file system's or a program's data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskRepairCommand::RunBlocks (IDiskFileIo & io, const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT                             hr        = S_OK;
+    std::string                         imagePath = options.disk.imagePath;
+    std::string                         target    = options.disk.hostFile;
+    std::unique_ptr<BlockImageFile>     file;
+    BlockInspectorModel                 model;
+    vector<std::pair<int, RepairPlan>>  repairs;
+    vector<Byte>                        bytes;
+    std::wstring                        error;
+    std::string                         prefix;
+    std::string                         count;
+    RepairPlan                          full;
+    RepairPlan                          plan;
+    std::set<std::wstring>              chosen;
+    bool                                isOpen    = false;
+    bool                                isTaken   = false;
+    bool                                isCopied  = false;
+    bool                                isWritten = false;
+    bool                                isDone    = false;
+    int                                 volume    = 0;
+
+
+
+    hr     = BlockImageFile::Open (io, imagePath, file, error);
+    isOpen = SUCCEEDED (hr);
+    CBRF (isOpen, result.FailAction (imagePath, "check the image", TextEncoding::WideToNarrow (error)));
+
+    hr     = model.Open (std::move (file));
+    isOpen = SUCCEEDED (hr);
+    CBRF (isOpen, result.FailAction (imagePath, "check the image", "its blocks couldn't be read"));
+
+    for (volume = 0; volume < model.GetVolumeCount(); volume++)
+    {
+        prefix         = imagePath + ": " + DiskInspectCommand::FormatVolume (model, volume) + ": ";
+        full           = model.PlanRepair (volume, {});
+        result.output += prefix + "file system: " + TextEncoding::WideToNarrow (FileSystemCheck::FormatVerdict (full.before)) + "\n";
+
+        for (const DiskInspectCommand::BlockFinding & finding : DiskInspectCommand::GetBlockFindings (model.GetVolumeMap (volume)))
+        {
+            count          = finding.isRole ? std::format (": {} {}{}", finding.units.size(), model.IsSectorVolume (volume) ? "sector" : "block", finding.units.size() == 1 ? "" : "s") : std::string();
+            result.output += prefix + TextEncoding::WideToNarrow (finding.text) + count + "\n";
+        }
+
+        for (const RepairChange & change : full.changes)
+        {
+            result.output += prefix + (change.key == L"unowned" ? "not changed: " : "change: ") + TextEncoding::WideToNarrow (change.text) + "\n";
+        }
+
+        chosen = DiskRepair::GetKeys (full);
+        chosen.erase (L"unowned");
+        plan   = chosen.empty() ? full : model.PlanRepair (volume, chosen);
+
+        if (!full.canRepair && full.before != FileSystemVerdict::Ok && full.before != FileSystemVerdict::None)
+        {
+            result.output += prefix + "can't repair: " + TextEncoding::WideToNarrow (full.reason) + "\n";
+        }
+        else if (!chosen.empty() && plan.canRepair)
+        {
+            repairs.push_back ({ volume, plan });
+        }
+
+        if (full.before == FileSystemVerdict::Bad && (chosen.empty() || !plan.canRepair))
+        {
+            result.exitStatus = DiskCommandResult::kWithComplaints;
+        }
+    }
+
+    isDone = repairs.empty() || options.disk.listOnly;
+    BAIL_OUT_IF (isDone, S_OK);
+
+    target  = target.empty() ? RepairCopy::GetCopyPath (io, imagePath) : target;
+    isTaken = io.Exists (target);
+    CBRF (!isTaken, result.FailAction (imagePath, "write the repaired copy", fs::path (target).filename().string() + " already exists"));
+
+    hr       = io.ReadAllBytes (imagePath, bytes);
+    isCopied = SUCCEEDED (hr);
+    CBRF (isCopied, result.FailAction (imagePath, "write the repaired copy", "the image couldn't be read"));
+
+    hr       = io.WriteAllBytes (target, bytes);
+    isCopied = SUCCEEDED (hr);
+    CBRF (isCopied, result.FailAction (imagePath, "write the repaired copy", "the copy couldn't be written"));
+
+    for (const auto & [repaired, repair] : repairs)
+    {
+        hr        = model.WriteRepairTo (io, target, repaired, repair, false, error);
+        isWritten = SUCCEEDED (hr);
+
+        if (!isWritten)
+        {
+            hr = io.Remove (target);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        CBRF (isWritten, result.FailAction (imagePath, "write the repaired copy", TextEncoding::WideToNarrow (error)));
+    }
+
+    result.output += imagePath + ": repaired copy written to " + target + "\n";
 
 Error:
     return;

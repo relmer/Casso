@@ -658,7 +658,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
     }
 
     text   = DescribeBlocks (cell) + L": ";
-    text  += first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMapGrid::GetRoleName (m_roles[cell]);
+    text  += first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMap::GetRoleName (m_roles[cell]);
     owners = m_model->GetOwners (first);
 
     if (!owners.empty())
@@ -1255,7 +1255,7 @@ std::wstring BlockMapView::GetBlockLabel (uint32_t block) const
         return m_model->GetMapLabel (block);
     }
 
-    return role == SectorRole::Free ? std::wstring() : BlockMapGrid::GetRoleName (role);
+    return role == SectorRole::Free ? std::wstring() : BlockMap::GetRoleName (role);
 }
 
 
@@ -1413,7 +1413,7 @@ bool BlockMapView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & out
     first   = m_grid.GetFirstBlock ((uint32_t) cell);
     last    = m_grid.GetLastBlock ((uint32_t) cell);
     owners  = m_model->GetOwners (first);
-    outText = DescribeBlocks ((uint32_t) cell) + L"\n" + (first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMapGrid::GetRoleName (m_roles[(size_t) cell]));
+    outText = DescribeBlocks ((uint32_t) cell) + L"\n" + (first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMap::GetRoleName (m_roles[(size_t) cell]));
 
     if (!owners.empty())
     {
