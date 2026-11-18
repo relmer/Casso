@@ -251,7 +251,7 @@ reads the clock and both joystick ports.
 
 ## Phase 11: User Story 9 - Rewind an Apple /// session (Priority: P2)
 
-- [ ] T101 [P] [US9] Write save and load round-trip tests for every new device and the MMU in `UnitTest/Apple3Tests/Apple3StateTests.cpp`
+- [x] T101 [P] [US9] Write save and load round-trip tests for every new device and the MMU in `UnitTest/Apple3Tests/Apple3StateTests.cpp`
 - [ ] T102 [US9] Write a history test: store a SOS boot, seek to 100 random cycles, compare the full state hash with the live run at each (SC-009), in `ScenarioTests/Apple3HistoryTests.cpp`
 - [ ] T103 [US9] Register every bank with history's page diff and keyframes, and add every new device to the machine state list, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
 - [ ] T104 [US9] Route the clock chip's host time and the analog inputs through `InputJournal` (FR-057) in `CassoEmuCore/Devices/Mm58167.cpp` and `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.cpp`
