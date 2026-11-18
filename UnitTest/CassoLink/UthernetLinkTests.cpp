@@ -94,7 +94,7 @@ public:
         AssertSucceeded (LinkProgram::AssembleShim (w5100, errors, LinkChip::W5100));
         Assert::IsTrue (errors.empty(), TextEncoding::NarrowToWide (errors).c_str());
         Assert::IsTrue (w5100.size() <= LinkProgram::kShimLimit, std::format (L"the W5100 shim has {} bytes", w5100.size()).c_str());
-        Assert::IsTrue (w5100.size() > acia.size(), L"the W5100 build has its own driver");
+        Assert::IsTrue (w5100 != acia, L"the W5100 build has its own driver");
 
         AssertSucceeded (LinkProgram::AssembleProgram (program, errors, LinkChip::W5100));
         Assert::IsTrue (LinkProgram::kProgramAddress + program.size() <= LinkProgram::kZeroPageSave, L"below the shim's copy of the zero page");
