@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -341,8 +343,8 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
     }
 
     PaneMenu::AddBreakpointRows (items, breakpoint->isEnabled, nullptr,
-                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
-                                 [this, id = breakpoint->id] { m_host.RunAction (DebuggerActions::GetClearBreakpoint (id, m_host.GetMode())); });
+                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                 [this, id = breakpoint->id] { m_host.RunAction (BreakpointActions::GetClearBreakpoint (id, m_host.GetMode())); });
 }
 
 
@@ -1176,7 +1178,7 @@ void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
     {
         if (host->DoesDebuggerFileExist (beside))
         {
-            m_host.RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
             m_pendingLoose = path;
             break;
         }

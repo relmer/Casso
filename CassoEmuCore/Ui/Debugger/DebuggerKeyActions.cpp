@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/DebuggerViewSnapshot.h"
 
 
@@ -40,21 +42,21 @@ std::optional<DebuggerAction> DebuggerKeyActions::GetForKey (
 
     switch (action)
     {
-    case Action::Run:      taken = DebuggerActions::GetRun      (mode); break;
-    case Action::StepInto: taken = DebuggerActions::GetStepInto (mode); break;
-    case Action::StepOver: taken = DebuggerActions::GetStepOver (mode); break;
-    case Action::StepOut:  taken = DebuggerActions::GetStepOut  (mode); break;
-    case Action::RunFrame: taken = DebuggerActions::GetRunFrame();      break;
+    case Action::Run:      taken = RunActions::GetRun      (mode); break;
+    case Action::StepInto: taken = RunActions::GetStepInto (mode); break;
+    case Action::StepOver: taken = RunActions::GetStepOver (mode); break;
+    case Action::StepOut:  taken = RunActions::GetStepOut  (mode); break;
+    case Action::RunFrame: taken = RunActions::GetRunFrame();      break;
 
-    case Action::StepBackInto: taken = DebuggerActions::GetReverse (DebugVerb::StepBack,     mode); break;
-    case Action::StepBackOver: taken = DebuggerActions::GetReverse (DebugVerb::StepBackOver, mode); break;
-    case Action::StepBackOut:  taken = DebuggerActions::GetReverse (DebugVerb::StepBackOut,  mode); break;
-    case Action::ReverseRun:   taken = DebuggerActions::GetReverse (DebugVerb::ReverseGo,    mode); break;
+    case Action::StepBackInto: taken = RunActions::GetReverse (DebugVerb::StepBack,     mode); break;
+    case Action::StepBackOver: taken = RunActions::GetReverse (DebugVerb::StepBackOver, mode); break;
+    case Action::StepBackOut:  taken = RunActions::GetReverse (DebugVerb::StepBackOut,  mode); break;
+    case Action::ReverseRun:   taken = RunActions::GetReverse (DebugVerb::ReverseGo,    mode); break;
 
     case Action::RunToCursor:
         if (selected.has_value())
         {
-            taken = DebuggerActions::GetRunToCursor (*selected);
+            taken = RunActions::GetRunToCursor (*selected);
         }
 
         break;
@@ -62,7 +64,7 @@ std::optional<DebuggerAction> DebuggerKeyActions::GetForKey (
     case Action::ToggleBreakpoint:
         if (snapshot != nullptr && current.has_value())
         {
-            taken = DebuggerActions::GetToggleBreakpoint (*snapshot, *current, mode);
+            taken = BreakpointActions::GetToggleBreakpoint (*snapshot, *current, mode);
         }
 
         break;

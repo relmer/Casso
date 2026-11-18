@@ -8,7 +8,9 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Debugger/DiskBreakSpecText.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -151,8 +153,8 @@ namespace DiskBreakpointPaneTests
             Assert::AreEqual (std::string ("MYRWTS"), rig.Cell (BreakpointColumns::Column::Symbol));
             Assert::IsTrue   (BreakpointColumns::HasRoutine (snapshot.breakpoints.at (0).info));
             Assert::AreEqual ((Word) 0x0300, snapshot.breakpoints.at (0).address, L"Go to disassembly goes to the routine");
-            Assert::IsTrue   (DebuggerViewState::IsDiskRoutineAt (snapshot.breakpoints.at (0), 0x0300), L"the gutter marks it");
-            Assert::IsFalse  (DebuggerViewState::IsCodeBreakpointAt (snapshot.breakpoints.at (0), 0x0300), L"toggling the line adds a breakpoint");
+            Assert::IsTrue   (DebuggerCommandLines::IsDiskRoutineAt (snapshot.breakpoints.at (0), 0x0300), L"the gutter marks it");
+            Assert::IsFalse  (DebuggerCommandLines::IsCodeBreakpointAt (snapshot.breakpoints.at (0), 0x0300), L"toggling the line adds a breakpoint");
         }
 
         TEST_METHOD (AnEventBreakpointHasNoAddress)
@@ -387,7 +389,7 @@ namespace DiskBreakpointPaneTests
             rig.Run ("BPCHANGE 0 s");
             before = rig.List().at (0);
 
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (before.id, CommandMode::AppleWin) });
             Assert::IsTrue (rig.List().empty());
 
             rig.Do (BreakpointStep::Kind::Undo);

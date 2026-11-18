@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ConsolePanes.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -106,7 +109,7 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
 
 
 
-    while (m_lines.empty() && first != lines.end() && (first->empty() || DebuggerViewState::IsCommandGap (*first)))
+    while (m_lines.empty() && first != lines.end() && (first->empty() || DebuggerViewCommands::IsCommandGap (*first)))
     {
         ++first;
     }
@@ -211,7 +214,7 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
     {
         size_t  end = start + 1;
 
-        while (end < m_lines.size() && !DebuggerViewState::IsCommandGap (m_lines[end].text))
+        while (end < m_lines.size() && !DebuggerViewCommands::IsCommandGap (m_lines[end].text))
         {
             end++;
         }
@@ -237,10 +240,10 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
 
 
 
-            if (DebuggerViewState::IsCommandGap (text))
+            if (DebuggerViewCommands::IsCommandGap (text))
             {
                 row.cells  = { std::wstring() };
-                row.height = DebuggerViewState::kCommandGapHeight;
+                row.height = DebuggerViewCommands::kCommandGapHeight;
                 m_rowLines.push_back (-1);
             }
             else
@@ -816,9 +819,9 @@ void CommandLine::Submit()
 
     BAIL_OUT_IF (host == nullptr, S_OK);
 
-    fileVerb = DebuggerViewState::GetMissingFileVerb (line,
-                                                      snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
-                                                      snapshot != nullptr && snapshot->isAssembling);
+    fileVerb = DebuggerCommandLines::GetMissingFileVerb (line,
+                                                         snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
+                                                         snapshot != nullptr && snapshot->isAssembling);
 
     if (fileVerb.has_value())
     {
@@ -830,7 +833,7 @@ void CommandLine::Submit()
 
         BAIL_OUT_IF (!picked, S_OK);
 
-        line = DebuggerViewState::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
+        line = DebuggerCommandLines::GetLineWithFileName (line, TextEncoding::WideToNarrow (chosen.wstring()));
     }
 
     m_history.Add (typed);
@@ -1230,7 +1233,7 @@ void ConsoleModeBar::SetMenus()
 
         modes.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (label, current, [this, target]
         {
-            DebuggerAction  action = DebuggerActions::GetSetMode (target, m_host.GetMode());
+            DebuggerAction  action = SessionActions::GetSetMode (target, m_host.GetMode());
 
 
 

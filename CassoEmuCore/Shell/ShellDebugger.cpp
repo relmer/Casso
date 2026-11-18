@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/IDebuggerHost.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Shell/ShellDebugger.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
@@ -855,7 +856,7 @@ void ShellDebugger::OpenDebugChannel()
             lines = m_debugViewState.ExecuteConsoleLine (m_debugController->GetSession(), line, mode);
         }
 
-        DebuggerViewState::AddCommandGap (lines);
+        DebuggerViewCommands::AddCommandGap (lines);
 
         {
             std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -968,7 +969,7 @@ void ShellDebugger::RunDebugActions()
     {
         std::vector<std::string>  shown = m_debugViewState.ExecuteAction (m_debugController->GetSession(), action);
 
-        DebuggerViewState::AddCommandGap (shown);
+        DebuggerViewCommands::AddCommandGap (shown);
         lines.insert (lines.end(), shown.begin(), shown.end());
     }
 

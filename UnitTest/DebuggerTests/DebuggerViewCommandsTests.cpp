@@ -22,6 +22,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -94,7 +95,7 @@ namespace DebuggerViewStateTests
 
                 for (const char * line : { "SRC ON", "SRC OFF" })
                 {
-                    Reply  reply = RunInWindow (*rig, DebuggerViewState::GetModeLine (line, mode), mode);
+                    Reply  reply = RunInWindow (*rig, DebuggerCommandLines::GetModeLine (line, mode), mode);
 
                     Assert::IsTrue (reply.status != CommandStatus::Unknown, L"the mode reads the line");
                 }

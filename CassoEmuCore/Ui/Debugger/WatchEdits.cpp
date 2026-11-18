@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/WatchEdits.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/WatchTable.h"
@@ -87,8 +89,8 @@ std::string WatchEdits::GetWatchError (const DebuggerViewSnapshot & snapshot, co
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DebuggerAction> WatchEdits::GetWatchEditActions (const DebuggerViewSnapshot & snapshot,
-                                                                   std::optional<int> watchId, std::optional<int> autoIndex,
-                                                                   int column, const std::string & typed, CommandMode mode)
+                                                             std::optional<int> watchId, std::optional<int> autoIndex,
+                                                             int column, const std::string & typed, CommandMode mode)
 {
     static constexpr std::pair<char, Byte>  kFlagBits[] =
     {
@@ -116,11 +118,11 @@ std::vector<DebuggerAction> WatchEdits::GetWatchEditActions (const DebuggerViewS
             if (watch.id == *watchId)
             {
                 //  A BASIC watch's value is the program's to change.
-                return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
+                return (column == 0)               ? std::vector<DebuggerAction> { WatchActions::GetClearWatch (watch.id, mode), WatchActions::GetAddWatch (text, mode) }
                      : !watch.basicName.empty() || !watch.isValueEditable ? std::vector<DebuggerAction> {}
-                     : IsRegisterWatch (watch)      ? std::vector<DebuggerAction> { DebuggerActions::GetSetRegister (GetUpper (watch.expression), text, mode) }
-                     : IsByteWatch (watch)          ? std::vector<DebuggerAction> { oneValue (DebuggerActions::GetEnterByte (watch.address, text, mode)) }
-                     :                               std::vector<DebuggerAction> { oneValue (DebuggerActions::GetEnterWord (watch.address, text, mode)) };
+                     : IsRegisterWatch (watch)      ? std::vector<DebuggerAction> { MemoryActions::GetSetRegister (GetUpper (watch.expression), text, mode) }
+                     : IsByteWatch (watch)          ? std::vector<DebuggerAction> { oneValue (MemoryActions::GetEnterByte (watch.address, text, mode)) }
+                     :                               std::vector<DebuggerAction> { oneValue (MemoryActions::GetEnterWord (watch.address, text, mode)) };
             }
         }
 
@@ -136,12 +138,12 @@ std::vector<DebuggerAction> WatchEdits::GetWatchEditActions (const DebuggerViewS
 
     if (key.starts_with ("R:"))
     {
-        return { DebuggerActions::GetSetRegister (key.substr (2), text, mode) };
+        return { MemoryActions::GetSetRegister (key.substr (2), text, mode) };
     }
 
     if (key.starts_with ("M:") && TryParseHexWord (key.substr (2), address))
     {
-        return { oneValue (DebuggerActions::GetEnterByte (address, text, mode)) };
+        return { oneValue (MemoryActions::GetEnterByte (address, text, mode)) };
     }
 
     //  A flag is 0 or 1 and nothing else; it is written as the whole status
@@ -161,7 +163,7 @@ std::vector<DebuggerAction> WatchEdits::GetWatchEditActions (const DebuggerViewS
             {
                 if (key[2] == letter)
                 {
-                    return { DebuggerActions::GetSetRegister ("P", (Word) ((text == "1") ? (Byte) (p | bit) : (Byte) (p & ~bit)), mode) };
+                    return { MemoryActions::GetSetRegister ("P", (Word) ((text == "1") ? (Byte) (p | bit) : (Byte) (p & ~bit)), mode) };
                 }
             }
         }
@@ -240,9 +242,9 @@ std::string WatchEdits::GetUpper (const std::string & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<WatchEdits::WatchUndo> WatchEdits::GetWatchUndo (const DebuggerViewSnapshot & before,
-                                                                            std::optional<int> watchId,
-                                                                            std::optional<int> autoIndex, int column,
-                                                                            CommandMode mode)
+                                                               std::optional<int> watchId,
+                                                               std::optional<int> autoIndex, int column,
+                                                               CommandMode mode)
 {
     WatchUndo  undo;
     Word       value   = 0;
@@ -278,9 +280,9 @@ std::optional<WatchEdits::WatchUndo> WatchEdits::GetWatchUndo (const DebuggerVie
                 return std::nullopt;
             }
 
-            undo.actions = { IsRegisterWatch (watch) ? DebuggerActions::GetSetRegister (GetUpper (watch.expression), value, mode)
-                           : IsByteWatch (watch)     ? DebuggerActions::GetEnterByte (watch.address, (Byte) value, mode)
-                           :                           DebuggerActions::GetEnterWord (watch.address, value, mode) };
+            undo.actions = { IsRegisterWatch (watch) ? MemoryActions::GetSetRegister (GetUpper (watch.expression), value, mode)
+                           : IsByteWatch (watch)     ? MemoryActions::GetEnterByte (watch.address, (Byte) value, mode)
+                           :                           MemoryActions::GetEnterWord (watch.address, value, mode) };
             return undo;
         }
 
@@ -302,7 +304,7 @@ std::optional<WatchEdits::WatchUndo> WatchEdits::GetWatchUndo (const DebuggerVie
         {
             if (reg.name == "P" && TryParseHexWord (reg.value, value))
             {
-                undo.actions = { DebuggerActions::GetSetRegister ("P", value, mode) };
+                undo.actions = { MemoryActions::GetSetRegister ("P", value, mode) };
                 return undo;
             }
         }
@@ -317,11 +319,11 @@ std::optional<WatchEdits::WatchUndo> WatchEdits::GetWatchUndo (const DebuggerVie
 
     if (line.key.starts_with ("R:"))
     {
-        undo.actions = { DebuggerActions::GetSetRegister (line.key.substr (2), value, mode) };
+        undo.actions = { MemoryActions::GetSetRegister (line.key.substr (2), value, mode) };
     }
     else if (line.key.starts_with ("M:") && TryParseHexWord (line.key.substr (2), address))
     {
-        undo.actions = { DebuggerActions::GetEnterByte (address, (Byte) value, mode) };
+        undo.actions = { MemoryActions::GetEnterByte (address, (Byte) value, mode) };
     }
 
     return undo.actions.empty() ? std::nullopt : std::optional<WatchUndo> (undo);
@@ -422,7 +424,7 @@ std::optional<std::vector<DebuggerAction>> WatchEdits::GetWatchUndoActions (cons
     {
         if (watch.id == *undo.movedToId)
         {
-            return std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (*undo.restoreText, mode) };
+            return std::vector<DebuggerAction> { WatchActions::GetClearWatch (watch.id, mode), WatchActions::GetAddWatch (*undo.restoreText, mode) };
         }
     }
 

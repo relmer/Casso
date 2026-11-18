@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DisassemblyViewPane.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
@@ -555,7 +557,7 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
 
 
-    items.push_back ({ L"Run to cursor", [this, at] { m_host.RunAction (DebuggerActions::GetRunToCursor (at)); } });
+    items.push_back ({ L"Run to cursor", [this, at] { m_host.RunAction (RunActions::GetRunToCursor (at)); } });
 
     if (snapshot->isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
     {
@@ -569,13 +571,13 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     {
         PaneMenu::AddBreakpointRows (items, line.isEnabled, nullptr,
                                      (breakpoint == snapshot->breakpoints.end()) ? std::function<void (bool)>()
-                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
-                                     [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); });
+                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); });
     }
     else if (DisassemblyOptions::CanTakeBreakpoint (line))
     {
         PaneMenu::AddBreakpointRows (items, std::nullopt,
-                                     [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); },
+                                     [this, at] { m_host.RunAction (BreakpointActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); },
                                      nullptr, nullptr);
     }
 

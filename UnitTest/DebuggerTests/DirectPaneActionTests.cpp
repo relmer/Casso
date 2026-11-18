@@ -3,7 +3,10 @@
 #include "Debugger/AppleWinParser.h"
 #include "ControllerRig.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/WatchEdits.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/DiskBreakSpecText.h"
 
@@ -53,7 +56,7 @@ public:
     //  is the line that would make the same edit.
     TEST_METHOD (AnEditHasItsDefinitionAsFieldsAndItsLineAsItsEcho)
     {
-        DebuggerAction  action = DebuggerActions::GetEditBreakpoint (3, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin);
+        DebuggerAction  action = BreakpointActions::GetEditBreakpoint (3, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin);
 
 
 
@@ -105,7 +108,7 @@ public:
 
         for (const BreakpointDefinition & definition : definitions)
         {
-            std::string          line   = DebuggerActions::GetBreakpointEcho (definition);
+            std::string          line   = BreakpointActions::GetBreakpointEcho (definition);
             std::wstring         what   = TextEncoding::NarrowToWide (line);
             AppleWinParseResult  parsed = AppleWinParser::Parse (line, rig.controller.GetSession());
             DebugCommand         made;
@@ -171,13 +174,13 @@ public:
 
 
 
-        AssertParsesTo (rig, "BPC *",             DebuggerActions::GetClearAllBreakpoints  (aw));
-        AssertParsesTo (rig, "BPE *",             DebuggerActions::GetEnableAllBreakpoints (true,  aw));
-        AssertParsesTo (rig, "BPD *",             DebuggerActions::GetEnableAllBreakpoints (false, aw));
-        AssertParsesTo (rig, "BPCHANGE 3 eTs",    DebuggerActions::GetChangeBreakpoint     (3, false, true, false, aw));
-        AssertParsesTo (rig, "MEW 0400 1234",     DebuggerActions::GetEnterWord            (0x0400, (Word) 0x1234, aw));
-        AssertParsesTo (rig, "MEB 0402 7F",       DebuggerActions::GetEnterByte            (0x0402, (Byte) 0x7F, aw));
-        AssertParsesTo (rig, "R PC 300",          DebuggerActions::GetSetRegister          ("PC", (Word) 0x0300, aw));
+        AssertParsesTo (rig, "BPC *",             BreakpointActions::GetClearAllBreakpoints  (aw));
+        AssertParsesTo (rig, "BPE *",             BreakpointActions::GetEnableAllBreakpoints (true,  aw));
+        AssertParsesTo (rig, "BPD *",             BreakpointActions::GetEnableAllBreakpoints (false, aw));
+        AssertParsesTo (rig, "BPCHANGE 3 eTs",    BreakpointActions::GetChangeBreakpoint     (3, false, true, false, aw));
+        AssertParsesTo (rig, "MEW 0400 1234",     MemoryActions::GetEnterWord            (0x0400, (Word) 0x1234, aw));
+        AssertParsesTo (rig, "MEB 0402 7F",       MemoryActions::GetEnterByte            (0x0402, (Byte) 0x7F, aw));
+        AssertParsesTo (rig, "R PC 300",          MemoryActions::GetSetRegister          ("PC", (Word) 0x0300, aw));
     }
 
 
@@ -191,7 +194,7 @@ public:
 
 
         snapshot.watches = { { 3, 0x0400, "0000" } };
-        actions          = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "BEEF", CommandMode::AppleWin);
+        actions          = WatchEdits::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "BEEF", CommandMode::AppleWin);
 
         Assert::AreEqual ((size_t) 1, actions.size());
         Assert::AreEqual ((int) DebugVerb::EnterWords, (int) actions[0].command.verb, L"built directly, not parsed from text");
@@ -208,10 +211,10 @@ public:
     //  back.
     TEST_METHOD (ARegisterWatchValueEditSetsTheRegister)
     {
-        ControllerRig                                rig;
-        DebuggerViewSnapshot                         snapshot;
-        std::vector<DebuggerAction>                  actions;
-        std::optional<DebuggerViewState::WatchUndo>  undo;
+        ControllerRig                         rig;
+        DebuggerViewSnapshot                  snapshot;
+        std::vector<DebuggerAction>           actions;
+        std::optional<WatchEdits::WatchUndo>  undo;
 
 
 
@@ -220,8 +223,8 @@ public:
         snapshot.watches[0].isValueEditable = true;
         snapshot.watches[0].isRegister      = true;
 
-        actions = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "41", CommandMode::AppleWin);
-        undo    = DebuggerViewState::GetWatchUndo (snapshot, 3, std::nullopt, 1, CommandMode::AppleWin);
+        actions = WatchEdits::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "41", CommandMode::AppleWin);
+        undo    = WatchEdits::GetWatchUndo (snapshot, 3, std::nullopt, 1, CommandMode::AppleWin);
 
         Assert::AreEqual ((size_t) 1, actions.size());
         Assert::AreEqual ((int) DebugVerb::SetRegister, (int) actions[0].command.verb);
@@ -247,7 +250,7 @@ public:
         snapshot.watches[0].expression      = "x";
         snapshot.watches[0].isValueEditable = true;
 
-        actions = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "BEEF", CommandMode::AppleWin);
+        actions = WatchEdits::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "BEEF", CommandMode::AppleWin);
 
         Assert::AreEqual ((size_t) 1, actions.size());
         Assert::AreEqual ((int) DebugVerb::EnterWords, (int) actions[0].command.verb, L"the word at the symbol, not register X");
@@ -264,12 +267,12 @@ public:
 
         snapshot.autoWatches = { { "R:A", "A", "10" }, { "M:0402", "$0402", "00" } };
 
-        for (const DebuggerAction & action : DebuggerViewState::GetWatchEditActions (snapshot, std::nullopt, 0, 1, "42", CommandMode::AppleWin))
+        for (const DebuggerAction & action : WatchEdits::GetWatchEditActions (snapshot, std::nullopt, 0, 1, "42", CommandMode::AppleWin))
         {
             rig.view.ExecuteAction (rig.controller.GetSession(), action);
         }
 
-        for (const DebuggerAction & action : DebuggerViewState::GetWatchEditActions (snapshot, std::nullopt, 1, 1, "99", CommandMode::AppleWin))
+        for (const DebuggerAction & action : WatchEdits::GetWatchEditActions (snapshot, std::nullopt, 1, 1, "99", CommandMode::AppleWin))
         {
             rig.view.ExecuteAction (rig.controller.GetSession(), action);
         }
@@ -291,7 +294,7 @@ public:
         snapshot = rig.view.Build (rig.controller.GetSession());
         Assert::AreEqual ((size_t) 1, snapshot.watches.size());
 
-        for (const DebuggerAction & action : DebuggerViewState::GetWatchEditActions (snapshot, snapshot.watches[0].id, std::nullopt, 0, "0500", CommandMode::AppleWin))
+        for (const DebuggerAction & action : WatchEdits::GetWatchEditActions (snapshot, snapshot.watches[0].id, std::nullopt, 0, "0500", CommandMode::AppleWin))
         {
             rig.view.ExecuteAction (rig.controller.GetSession(), action);
         }
@@ -305,18 +308,18 @@ public:
 
     TEST_METHOD (AWatchValuesUndoWritesBackTheWordItHeld)
     {
-        ControllerRig                                rig;
-        DebuggerViewSnapshot                         before;
-        std::optional<DebuggerViewState::WatchUndo>  undo;
-        std::optional<std::vector<DebuggerAction>>   actions;
+        ControllerRig                               rig;
+        DebuggerViewSnapshot                        before;
+        std::optional<WatchEdits::WatchUndo>        undo;
+        std::optional<std::vector<DebuggerAction>>  actions;
 
 
 
         before.watches = { { 3, 0x0400, "1234" } };
-        undo           = DebuggerViewState::GetWatchUndo (before, 3, std::nullopt, 1, CommandMode::AppleWin);
+        undo           = WatchEdits::GetWatchUndo (before, 3, std::nullopt, 1, CommandMode::AppleWin);
         Assert::IsTrue (undo.has_value());
 
-        actions = DebuggerViewState::GetWatchUndoActions (before, *undo, CommandMode::AppleWin);
+        actions = WatchEdits::GetWatchUndoActions (before, *undo, CommandMode::AppleWin);
         Assert::IsTrue (actions.has_value());
 
         for (const DebuggerAction & action : *actions)
@@ -342,7 +345,7 @@ public:
 
         held             = Peek (rig, 0x0400);
         snapshot.watches = { { 3, 0x0400, "0000" } };
-        actions          = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "NOSUCHSYMBOL", CommandMode::AppleWin);
+        actions          = WatchEdits::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "NOSUCHSYMBOL", CommandMode::AppleWin);
         lines            = rig.view.ExecuteAction (rig.controller.GetSession(), actions.at (0));
 
         Assert::AreEqual (held, Peek (rig, 0x0400));
@@ -365,7 +368,7 @@ public:
 
         rig.Run ("MODE GSSQUARED");
 
-        step.actions = { DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::GSSquared) };
+        step.actions = { BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeExecute ("0300"), CommandMode::GSSquared) };
         rig.view.ExecuteBreakpointStep (rig.controller.GetSession(), step);
         Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).breakpoints.size());
 

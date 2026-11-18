@@ -258,6 +258,12 @@
     <ClCompile Include="Ui\Debugger\WatchHistory.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
+    <ClCompile Include="Ui\Debugger\SessionActions.cpp" />
+    <ClCompile Include="Ui\Debugger\SymbolActions.cpp" />
+    <ClCompile Include="Ui\Debugger\MemoryActions.cpp" />
+    <ClCompile Include="Ui\Debugger\WatchActions.cpp" />
+    <ClCompile Include="Ui\Debugger\BreakpointActions.cpp" />
+    <ClCompile Include="Ui\Debugger\RunActions.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerKeyActions.cpp" />
     <ClCompile Include="Ui\Debugger\SavedActionText.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowProject.cpp" />
@@ -1814,6 +1820,12 @@
     <ClInclude Include="Ui\Debugger\WatchHistory.h" />
     <ClInclude Include="Ui\Debugger\BreakpointImport.h" />
     <ClInclude Include="Ui\Debugger\DebuggerActions.h" />
+    <ClInclude Include="Ui\Debugger\SessionActions.h" />
+    <ClInclude Include="Ui\Debugger\SymbolActions.h" />
+    <ClInclude Include="Ui\Debugger\MemoryActions.h" />
+    <ClInclude Include="Ui\Debugger\WatchActions.h" />
+    <ClInclude Include="Ui\Debugger\BreakpointActions.h" />
+    <ClInclude Include="Ui\Debugger\RunActions.h" />
     <ClInclude Include="Ui\Debugger\DebuggerKeyActions.h" />
     <ClInclude Include="Ui\Debugger\SavedActionText.h" />
     <ClInclude Include="Ui\Debugger\InstructionEffect.h" />

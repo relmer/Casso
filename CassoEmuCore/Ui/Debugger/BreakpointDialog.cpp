@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Debugger/DiskBreakSpecText.h"
 #include "Debugger/Source/SourcePathList.h"
 
@@ -747,7 +748,7 @@ BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
 
 std::string BreakpointDialog::MakeDefinition (const Fields & fields)
 {
-    return DebuggerActions::GetBreakpointEcho (ToDefinition (fields));
+    return BreakpointActions::GetBreakpointEcho (ToDefinition (fields));
 }
 
 

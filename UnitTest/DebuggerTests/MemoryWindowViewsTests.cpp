@@ -22,6 +22,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/MemoryGoTo.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -69,7 +70,7 @@ namespace DebuggerViewStateTests
             std::map<Word, Byte>          memory = { { 0x0010, 0x34 }, { 0x0011, 0x12 },
                                                      { 0x0014, 0x78 }, { 0x0015, 0x56 },
                                                      { 0x0300, 0xCD }, { 0x0301, 0xAB } };
-            DebuggerViewState::GoToPeek   peek   = [&memory] (Word address) -> std::optional<Byte>
+            MemoryGoTo::GoToPeek   peek   = [&memory] (Word address) -> std::optional<Byte>
             {
                 if (address >= 0xC000 && address < 0xC100) { return std::nullopt; }
                 return memory.contains (address) ? memory[address] : (Byte) 0;
@@ -79,7 +80,7 @@ namespace DebuggerViewStateTests
                 Word         address = 0;
                 std::string  error;
 
-                return DebuggerViewState::TryResolveGoTo (text, context, peek, address, error) ? std::optional<Word> (address) : std::nullopt;
+                return MemoryGoTo::TryResolveGoTo (text, context, peek, address, error) ? std::optional<Word> (address) : std::nullopt;
             };
 
 
@@ -112,7 +113,7 @@ namespace DebuggerViewStateTests
             MockExpressionContext         context;
             std::map<Word, Byte>          memory = { { 0x0028, 0x00 }, { 0x0029, 0x04 },
                                                      { 0x002A, 0x80 }, { 0x002B, 0x07 } };
-            DebuggerViewState::GoToPeek   peek   = [&memory] (Word address) -> std::optional<Byte>
+            MemoryGoTo::GoToPeek   peek   = [&memory] (Word address) -> std::optional<Byte>
             {
                 return memory.contains (address) ? memory[address] : (Byte) 0;
             };
@@ -121,7 +122,7 @@ namespace DebuggerViewStateTests
             {
                 Word  address = 0;
 
-                return DebuggerViewState::TryResolveGoTo (text, context, peek, address, error) ? std::optional<Word> (address) : std::nullopt;
+                return MemoryGoTo::TryResolveGoTo (text, context, peek, address, error) ? std::optional<Word> (address) : std::nullopt;
             };
 
 

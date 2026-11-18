@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/DevicePanelController.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/PaneBarSlot.h"
@@ -313,7 +314,7 @@ bool DevicePanelController::RouteBarMouse (const DxuiMouseEvent & ev)
 
 bool DevicePanelController::RequestOpen()
 {
-    m_host.RunAction (DebuggerActions::GetPanel (m_panelId, true, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetPanel (m_panelId, true, m_host.GetMode()));
     return true;
 }
 
@@ -329,7 +330,7 @@ bool DevicePanelController::RequestOpen()
 
 bool DevicePanelController::RequestClose()
 {
-    m_host.RunAction (DebuggerActions::GetPanel (m_panelId, false, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetPanel (m_panelId, false, m_host.GetMode()));
     return true;
 }
 

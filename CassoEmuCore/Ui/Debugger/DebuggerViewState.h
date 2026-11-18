@@ -2,24 +2,16 @@
 
 #include "Ui/Debugger/DebuggerViewSnapshot.h"
 #include "Ui/Debugger/AutoWatchBuilder.h"
-#include "Ui/Debugger/CodeAnnotations.h"
 #include "Ui/Debugger/CodeViews.h"
 #include "Ui/Debugger/DebuggerActions.h"
-#include "Ui/Debugger/DebuggerCommandLines.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Ui/Debugger/DevicePanelViews.h"
 #include "Ui/Debugger/HeatMapReader.h"
-#include "Ui/Debugger/MemoryGoTo.h"
 #include "Ui/Debugger/MemoryWindowViews.h"
-#include "Ui/Debugger/OpenViewsText.h"
-#include "Ui/Debugger/WatchEdits.h"
 
 class DebugSession;
-class Disassembler;
-class IDebugExpressionContext;
 class IParallelRunner;
-class Microcode;
 class SymbolTable;
 
 
@@ -120,8 +112,7 @@ public:
     //  The first entry of the window read for a pane scrolled to top, or at
     //  the end when top is empty: the window ends at the newest entry at the
     //  latest, so a pane at the end never reads past it.
-    static uint64_t     GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
-    static std::string  GetTraceToggleLine  (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
+    static uint64_t  GetTraceWindowFirst (uint64_t total, std::optional<uint64_t> top, int rows);
 
     //  The BASIC panes: while one is visible each snapshot includes the
     //  Applesoft program; with none visible the program is not read.
@@ -204,83 +195,8 @@ public:
     void                      SetBreakpointUndoText (DebugSession & session, const std::string & text)                                                      { m_commands.SetBreakpointUndoText (session, text); }
     void                      RequestGoTo           (DebugSession & session, int window, const std::string & text)                                          { m_commands.RequestGoTo (session, window, text); }
 
-    //  Helpers the window and its panes call through this class. Each is in the
-    //  part that implements it.
-    using WatchUndo = WatchEdits::WatchUndo;
-    using OpenViews = OpenViewsText::OpenViews;
-    using GoToPeek  = MemoryGoTo::GoToPeek;
-
-    static constexpr CommandMode  kRunToCursorMode  = DebuggerCommandLines::kRunToCursorMode;
-    static constexpr const char * kCommandGap       = DebuggerViewCommands::kCommandGap;
-    static constexpr float        kCommandGapHeight = DebuggerViewCommands::kCommandGapHeight;
-
-    static std::vector<Word>  GetKnownStarts   (const CallStackData & calls, Word pc, const DebugMemoryImage & image) { return CodeViews::GetKnownStarts (calls, pc, image); }
-    static std::vector<Word>  GetCodeLabels    (const DebugSession & session)                                         { return CodeViews::GetCodeLabels (session); }
-    static std::vector<Word>  GetBranchTargets (const Disassembler & disassembler, const DebugMemoryImage & image)    { return CodeViews::GetBranchTargets (disassembler, image); }
-    static std::string        GetOpcodeForm    (const Microcode * instructionSet, Byte opcode)                        { return HeatMapReader::GetOpcodeForm (instructionSet, opcode); }
-    static std::string        GetRegionLabel   (MemoryRegion region)                                                  { return MemoryWindowViews::GetRegionLabel (region); }
-
-    static std::string  GetToggleBreakpointLine (const DebuggerViewSnapshot & snapshot, Word address)            { return DebuggerCommandLines::GetToggleBreakpointLine (snapshot, address); }
-    static std::string  GetPokeLine             (Word address, Byte value)                                       { return DebuggerCommandLines::GetPokeLine (address, value); }
-    static bool         IsCodeBreakpointAt      (const DebuggerViewSnapshot::BreakpointLine & bp, Word address)  { return DebuggerCommandLines::IsCodeBreakpointAt (bp, address); }
-    static bool         IsDiskRoutineAt         (const DebuggerViewSnapshot::BreakpointLine & bp, Word address)  { return DebuggerCommandLines::IsDiskRoutineAt (bp, address); }
-    static std::string  GetStepLine             ()                                                               { return DebuggerCommandLines::GetStepLine(); }
-    static std::string  GetStepOverLine         ()                                                               { return DebuggerCommandLines::GetStepOverLine(); }
-    static std::string  GetStepOutLine          ()                                                               { return DebuggerCommandLines::GetStepOutLine(); }
-    static std::string  GetRunLine              ()                                                               { return DebuggerCommandLines::GetRunLine(); }
-    static std::string  GetRunToCursorLine      (Word address)                                                   { return DebuggerCommandLines::GetRunToCursorLine (address); }
-    static std::string  GetPanelLine            (const std::string & id, bool open)                              { return DebuggerCommandLines::GetPanelLine (id, open); }
-    static std::string  GetModeLine             (const std::string & line, CommandMode mode)                     { return DebuggerCommandLines::GetModeLine (line, mode); }
-    static bool         IsHexBytes              (const std::string & text)                                       { return DebuggerCommandLines::IsHexBytes (text); }
-
-    static std::string  GetWinDbgLine (const std::string & name, const std::string & rest, const std::string & line) { return DebuggerCommandLines::GetWinDbgLine (name, rest, line); }
-
-    static std::optional<std::string>  GetActionLine (DebuggerKeySchemes::Action action, const DebuggerViewSnapshot * snapshot, int selectedRow)
-    {
-        return DebuggerCommandLines::GetActionLine (action, snapshot, selectedRow);
-    }
-
-    static std::optional<DebuggerKeySchemes::Action>  GetConsoleKeyAction (CommandMode mode, WPARAM vk, bool ctrl, bool alt, bool shift, bool isLineEmpty)
-    {
-        return DebuggerCommandLines::GetConsoleKeyAction (mode, vk, ctrl, alt, shift, isLineEmpty);
-    }
-
-    static bool                      DoesAssemblerKeepKey (const DebuggerViewSnapshot * snapshot, WPARAM vk, bool ctrl, bool alt) { return DebuggerCommandLines::DoesAssemblerKeepKey (snapshot, vk, ctrl, alt); }
-    static bool                      DoesConsoleKeepKey   (CommandMode mode, WPARAM vk, bool ctrl, bool alt)                      { return DebuggerCommandLines::DoesConsoleKeepKey (mode, vk, ctrl, alt); }
-    static std::optional<DebugVerb>  GetMissingFileVerb   (const std::string & line, CommandMode mode, bool isAssembling)        { return DebuggerCommandLines::GetMissingFileVerb (line, mode, isAssembling); }
-    static std::string               GetLineWithFileName  (const std::string & line, const std::string & path)                   { return DebuggerCommandLines::GetLineWithFileName (line, path); }
-
-    static std::vector<DebuggerAction>  GetWatchEditActions (const DebuggerViewSnapshot & snapshot, std::optional<int> watchId, std::optional<int> autoIndex,
-                                                             int column, const std::string & typed, CommandMode mode)
-    {
-        return WatchEdits::GetWatchEditActions (snapshot, watchId, autoIndex, column, typed, mode);
-    }
-
-    static std::optional<WatchUndo>  GetWatchUndo (const DebuggerViewSnapshot & before, std::optional<int> watchId, std::optional<int> autoIndex, int column, CommandMode mode)
-    {
-        return WatchEdits::GetWatchUndo (before, watchId, autoIndex, column, mode);
-    }
-
-    static std::string                                 GetWatchError       (const DebuggerViewSnapshot & snapshot, const std::string & typed)         { return WatchEdits::GetWatchError (snapshot, typed); }
-    static void                                        NoteMovedWatch      (const DebuggerViewSnapshot & now, WatchUndo & undo)                       { WatchEdits::NoteMovedWatch (now, undo); }
-    static std::optional<std::vector<DebuggerAction>>  GetWatchUndoActions (const DebuggerViewSnapshot & now, WatchUndo & undo, CommandMode mode)     { return WatchEdits::GetWatchUndoActions (now, undo, mode); }
-    static bool                                        IsRegisterWatch     (const DebuggerViewSnapshot::WatchLine & watch)                            { return WatchEdits::IsRegisterWatch (watch); }
-    static bool                                        IsByteWatch         (const DebuggerViewSnapshot::WatchLine & watch)                            { return WatchEdits::IsByteWatch (watch); }
-    static std::string                                 GetUpper            (const std::string & text)                                                 { return WatchEdits::GetUpper (text); }
-
-    static std::string  FormatOpenViews   (const DebuggerViewSnapshot & snapshot)                                                            { return OpenViewsText::FormatOpenViews (snapshot); }
-    static OpenViews    ParseOpenViews    (const std::string & text)                                                                         { return OpenViewsText::ParseOpenViews (text); }
-    static std::string  ComposeAnnotation (const DebuggerViewSnapshot::AnnotationParts & parts, bool withOperandValue, bool withPointer)     { return CodeAnnotations::ComposeAnnotation (parts, withOperandValue, withPointer); }
-    static Reply        ExecuteLine       (DebugSession & session, const std::string & line, CommandMode mode)                               { return DebuggerViewCommands::ExecuteLine (session, line, mode); }
-    static void         AddCommandGap     (std::vector<std::string> & lines)                                                                 { DebuggerViewCommands::AddCommandGap (lines); }
-    static bool         IsCommandGap      (const std::string & line)                                                                         { return DebuggerViewCommands::IsCommandGap (line); }
-
-    static bool  TryResolveGoTo (const std::string & text, const IDebugExpressionContext & context, const GoToPeek & peek, Word & address, std::string & error)
-    {
-        return MemoryGoTo::TryResolveGoTo (text, context, peek, address, error);
-    }
-
-private:    void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+private:
+    void  BuildSource    (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTrace     (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildTraceNext (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     void  BuildSymbols   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;

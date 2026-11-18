@@ -2,12 +2,7 @@
 
 #include "Debugger/BreakpointDefinition.h"
 #include "Debugger/DebugCommand.h"
-#include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
-#include "Ui/Debugger/SavedActionText.h"
-
-struct DebuggerViewSnapshot;
-struct StepFilterEntry;
 
 
 
@@ -104,174 +99,17 @@ using DebuggerActionBuilder = std::function<DebuggerAction (CommandMode mode)>;
 //
 //  DebuggerActions
 //
-//  The actions the window's controls, keys and menus take. Each builds the
-//  command the matching typed line parses to, and its echo in the session's
-//  mode, `mode`.
+//  The actions the window's controls, keys and menus take are built by the
+//  action families named below. Each builds the command the matching typed
+//  line parses to, and its echo in the session's mode, `mode`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class DebuggerActions
 {
 public:
-    static DebuggerAction  GetRun              (CommandMode mode);
-    static DebuggerAction  GetStepInto         (CommandMode mode);
-    static DebuggerAction  GetStepOver         (CommandMode mode);
-    static DebuggerAction  GetStepOut          (CommandMode mode);
-
-    //  BASICSTEP, BASICLINE or BASICOUT, by its verb.
-    static DebuggerAction  GetBasicStep        (DebugVerb verb, CommandMode mode);
-
-    //  T-, P-, GU-, G- or LIVE: the verb is one of the reverse verbs.
-    static DebuggerAction  GetReverse          (DebugVerb verb, CommandMode mode);
-
-    //  Runs to the address. Its echo is Casso's G, whatever the mode, since
-    //  GSSquared's g takes no address.
-    static DebuggerAction  GetRunToCursor      (Word address);
-    static DebuggerAction  GetRunFrame         ();
-
-    //  Sets a breakpoint at the address, or clears the execution breakpoint
-    //  there by its id, so a click never clears a different breakpoint that
-    //  happens to cover the same address.
-    static DebuggerAction  GetToggleBreakpoint (const DebuggerViewSnapshot & snapshot, Word address, CommandMode mode);
-
-    static DebuggerAction  GetEnableBreakpoint (int id, bool enable, CommandMode mode);
-    static DebuggerAction  GetClearBreakpoint  (int id, CommandMode mode);
-    static DebuggerAction  GetClearWatch       (int id, CommandMode mode);
-    static DebuggerAction  GetBreakpointStep   (BreakpointStep step);
-    static DebuggerAction  GetPanel            (const std::string & id, bool open, CommandMode mode);
-    static DebuggerAction  GetPoke             (Word address, Byte value, CommandMode mode);
-    static DebuggerAction  GetTraceToggle      (bool isOn, CommandMode mode);
-    static DebuggerAction  GetSetMode          (CommandMode target, CommandMode mode);
-    static DebuggerAction  GetSetRegister      (const std::string & name, Word value, CommandMode mode);
-    static DebuggerAction  GetPatch            (Word address, std::span<const Byte> bytes, CommandMode mode, std::span<const Byte> required = {});
-    static DebuggerAction  GetCallStackMode    (const std::string & mechanism, CommandMode mode);
-    static DebuggerAction  GetSaveHistory      (const std::string & path, CommandMode mode);
-
-    //  BLOAD and BSAVE: a file loaded in a format (BinaryImageReader's word,
-    //  or empty for the format the file's contents indicate), at an address
-    //  and for a length when given; and a range saved as raw bytes. A length
-    //  runs from the address, which is required with it, and ends within
-    //  memory.
-    static DebuggerAction  GetLoadBinary       (const std::string & path, const std::string & format, std::optional<Word> address,
-                                                std::optional<uint32_t> length, CommandMode mode);
-    static DebuggerAction  GetSaveBinary       (const std::string & path, Word address, uint32_t length, CommandMode mode);
-
-    //  RCC, which starts the trip count again; and PUSH, POP and PPOP, the
-    //  Stack pane's push and pops.
-    static DebuggerAction  GetResetCycles      (CommandMode mode);
-    static DebuggerAction  GetPushByte         (Byte value, CommandMode mode);
-    static DebuggerAction  GetPopByte          (CommandMode mode);
-    static DebuggerAction  GetPopWord          (CommandMode mode);
-
-    //  WE and WD, by the watch's id; ZP, ZPC, ZPE and ZPD for the zero-page
-    //  pointers, by slot.
-    static DebuggerAction  GetEnableWatch            (int id, bool enable, CommandMode mode);
-    static DebuggerAction  GetAddZeroPagePointer     (Byte address, CommandMode mode);
-    static DebuggerAction  GetAddZeroPagePointerAt   (int slot, Byte address, CommandMode mode);
-    static DebuggerAction  GetClearZeroPagePointer   (int slot, CommandMode mode);
-    static DebuggerAction  GetEnableZeroPagePointer  (int slot, bool enable, CommandMode mode);
-
-    //  A Memory pane's S over all memory, F, M and MC. `items` are S's, as
-    //  typed, which the session parses as it runs.
-    static DebuggerAction  GetSearchMemory   (const std::string & items, CommandMode mode);
-    static DebuggerAction  GetFillMemory     (Word first, Word last, std::span<const Byte> bytes, CommandMode mode);
-    static DebuggerAction  GetMoveMemory     (Word destination, Word first, Word last, CommandMode mode);
-    static DebuggerAction  GetCompareMemory  (Word other, Word first, Word last, CommandMode mode);
-
-    //  The code pane's menu: a range marked as data of a directive's kind
-    //  (DB, DW, DA, ASC or DF) or as code again, a symbol, a routine never
-    //  stepped into, a bookmark added or removed, the stopwatch between two
-    //  addresses, and a routine run as JSR runs it.
-    static DebuggerAction  GetMarkData       (const std::string & directive, Word first, Word last, CommandMode mode, const std::string & name = {});
-    static DebuggerAction  GetClearData      (Word first, Word last, CommandMode mode);
-    static DebuggerAction  GetAddSymbol      (const std::string & name, Word address, CommandMode mode);
-    static DebuggerAction  GetSkipRoutine    (const std::string & name, Word address, CommandMode mode);
-    static DebuggerAction  GetSkipRange      (Word first, Word last, CommandMode mode);
-    static DebuggerAction  GetAddBookmark    (Word address, CommandMode mode);
-    static DebuggerAction  GetClearBookmark  (int id, CommandMode mode);
-    static DebuggerAction  GetStopwatch      (Word start, Word stop, CommandMode mode);
-    static DebuggerAction  GetCallSubroutine (Word address, CommandMode mode);
-
-    //  The Symbols, Profiler and step filter views: a table on or off,
-    //  cleared, saved, or one of its symbols removed, where the table is its
-    //  name as SYM writes it after SYM (USER, MAIN); PROFILE with its words;
-    //  and a step filter removed by its name or range.
-    static DebuggerAction  GetEnableSymbols  (const std::string & table, bool enable, CommandMode mode);
-    static DebuggerAction  GetClearSymbols   (const std::string & table, CommandMode mode);
-    static DebuggerAction  GetSaveSymbols    (const std::string & table, const std::string & path, CommandMode mode);
-    static DebuggerAction  GetRemoveSymbol   (const std::string & table, const std::string & name, CommandMode mode);
-    static DebuggerAction  GetProfile        (const std::string & words, CommandMode mode);
-
-    //  VIDEOLOG or SOUNDLOG with its words: CLEAR, or SAVE and a path.
-    static DebuggerAction  GetIoLog          (bool isVideo, const std::string & words, CommandMode mode);
-    static DebuggerAction  GetRemoveSkip     (const StepFilterEntry & entry, CommandMode mode);
-
-    //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as
-    //  OPEN or SAVEAS, each on a file the user picked.
-    static DebuggerAction  GetSourceStepping   (bool isSource, CommandMode mode);
-
-    //  SRC CLEAR: the debug file and the symbols it loaded, unloaded.
-    static DebuggerAction  GetUnloadDebugFile  (CommandMode mode);
-
-    //  A watch edit's action as a debug project saves it (SavedActionText).
-    static std::string     ToText              (const DebuggerAction & action)                     { return SavedActionText::ToText (action); }
-    static bool            TryFromText         (const std::string & text, DebuggerAction & action) { return SavedActionText::TryFromText (text, action); }
-    static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
-    static DebuggerAction  GetLoadBasic        (const std::string & path, CommandMode mode);
-    static DebuggerAction  GetSaveBasic        (const std::string & path, CommandMode mode);
-    static DebuggerAction  GetClearBasic       (CommandMode mode);
-    static DebuggerAction  GetSaveBreakpoints  (const std::string & path, CommandMode mode);
-    static DebuggerAction  GetProject          (const std::string & subcommand, const std::string & path, CommandMode mode);
-    static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
-    static DebuggerAction  GetSourceBreakpoint (const std::string & fileName, int line, CommandMode mode);
-
-    //  The breakpoints pane's changes, where `*` is every breakpoint.
-    static DebuggerAction  GetEnableAllBreakpoints (bool enable, CommandMode mode);
-    static DebuggerAction  GetClearAllBreakpoints  (CommandMode mode);
-    static DebuggerAction  GetEditBreakpoint       (int id, const BreakpointDefinition & definition, CommandMode mode);
-    static DebuggerAction  GetChangeBreakpoint     (int id, bool enabled, bool temporary, bool stops, CommandMode mode);
-    static DebuggerAction  GetDefineBreakpoint     (const BreakpointDefinition & definition, CommandMode mode);
-
-    //  A definition as the line that would set it, for the console's echo.
-    //  Nothing parses it.
-    static std::string     GetBreakpointEcho       (const BreakpointDefinition & definition);
-
-    //  BPNAME # "text"; an empty text returns the breakpoint to its default
-    //  name.
-    static DebuggerAction  GetNameBreakpoint       (int id, const std::string & name, CommandMode mode);
-
-    //  BPGROUP with its arguments as typed: a quoted name and ids, ! and ids,
-    //  or a word and a quoted name.
-    static DebuggerAction  GetGroupBreakpoints     (const std::string & arguments, CommandMode mode);
-
-    //  BPLOG # [GO] "text", GO when a hit goes on running; an empty text is
-    //  BPLOG # CLEAR.
-    static DebuggerAction  GetLogBreakpoint        (int id, const std::string & message, bool isGo, CommandMode mode);
-
-    //  The watches pane's edits. A string value is what the user typed, which
-    //  the session evaluates in its mode when the action runs.
-    static DebuggerAction  GetAddWatch             (const std::string & expression, CommandMode mode);
-
-    //  A watch added back under the id it had, as an undone removal puts it,
-    //  so it returns to its place in the list; under a new id if that one is
-    //  taken.
-    static DebuggerAction  GetAddWatchAt           (int id, const std::string & expression, CommandMode mode);
-    static DebuggerAction  GetEnterWord            (Word address, const std::string & value, CommandMode mode);
-    static DebuggerAction  GetEnterWord            (Word address, Word value, CommandMode mode);
-    static DebuggerAction  GetEnterByte            (Word address, const std::string & value, CommandMode mode);
-    static DebuggerAction  GetEnterByte            (Word address, Byte value, CommandMode mode);
-    static DebuggerAction  GetSetRegister          (const std::string & name, const std::string & value, CommandMode mode);
-
-    //  The keyboard-scheme keys' actions (DebuggerKeyActions).
-    static std::optional<DebuggerAction>  GetForKey (DebuggerKeySchemes::Action action, const DebuggerViewSnapshot * snapshot, int selectedRow, CommandMode mode)
-    {
-        return DebuggerKeyActions::GetForKey (action, snapshot, selectedRow, mode);
-    }
-
-    static bool  IsStepAction (DebuggerKeySchemes::Action action) { return DebuggerKeyActions::IsStepAction (action); }
-    static bool  IsRunAction  (DebuggerKeySchemes::Action action) { return DebuggerKeyActions::IsRunAction (action); }
-
-private:
-    static DebuggerAction  Make         (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);
-    static void            SetRangeFrom (DebugCommand & command, Word other, Word first, Word last);
+    //  The action for a verb, echoed as the AppleWin line in the words of the
+    //  mode. RunActions, BreakpointActions, WatchActions, MemoryActions,
+    //  SymbolActions and SessionActions build every action through here.
+    static DebuggerAction  Make (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);
 };

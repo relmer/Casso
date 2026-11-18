@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/ReplyJson.h"
@@ -180,8 +181,8 @@ namespace BreakpointNameTests
 
 
             rig.Run  ("BP 0300");
-            rig.Step (DebuggerActions::GetNameBreakpoint (0, "First", CommandMode::AppleWin));
-            rig.Step (DebuggerActions::GetNameBreakpoint (0, "Second", CommandMode::AppleWin));
+            rig.Step (BreakpointActions::GetNameBreakpoint (0, "First", CommandMode::AppleWin));
+            rig.Step (BreakpointActions::GetNameBreakpoint (0, "Second", CommandMode::AppleWin));
             Assert::AreEqual (std::string ("Second"), rig.Name());
 
             rig.Undo();

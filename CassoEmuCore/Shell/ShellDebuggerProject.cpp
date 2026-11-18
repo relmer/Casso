@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/ShellDebugger.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Config/DebuggerSettings.h"
 #include "Core/PathResolver.h"
@@ -532,7 +534,7 @@ void ShellDebugger::RunStartupCommands()
             echoed = m_debugViewState.ExecuteConsoleLine (m_debugController->GetSession(), command.text, command.mode);
         }
 
-        DebuggerViewState::AddCommandGap (echoed);
+        DebuggerViewCommands::AddCommandGap (echoed);
         lines.insert (lines.end(), echoed.begin(), echoed.end());
     }
 
@@ -664,7 +666,7 @@ void ShellDebugger::OnConfirmProjectMerge()
 
     if (choice == IDYES)
     {
-        RunDebuggerAction (DebuggerActions::GetProject ("MERGE", std::string(), CommandMode::AppleWin));
+        RunDebuggerAction (SessionActions::GetProject ("MERGE", std::string(), CommandMode::AppleWin));
     }
 }
 

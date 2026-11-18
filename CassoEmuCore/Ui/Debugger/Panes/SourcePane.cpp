@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/GutterGlyph.h"
@@ -573,7 +574,7 @@ void SourcePane::Rebuild()
     }
 
     bannerText = SourceBannerText::GetBannerText (m_match, GetFileName (m_fileId), !m_lines.empty(), depth, level > 0,
-                                GetFileName (shown.first), shown.second, invokedName, invokedBy.second);
+                                                  GetFileName (shown.first), shown.second, invokedName, invokedBy.second);
     elsewhere  = m_isDropped ? std::wstring() : SourceBannerText::GetFoundElsewhereText (GetFileName (m_fileId), m_state->debugFilePath, m_foundPath, m_match == SourceMatch::Exact);
 
     if (!elsewhere.empty())
@@ -1035,7 +1036,7 @@ std::optional<DebuggerAction> SourcePane::GetSetBreakpointAction (int line, Comm
     {
         if (record.id == m_fileId)
         {
-            return DebuggerActions::GetSourceBreakpoint (record.name, line, mode);
+            return BreakpointActions::GetSourceBreakpoint (record.name, line, mode);
         }
     }
 
@@ -1890,7 +1891,7 @@ std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSna
     {
         if (std::get<0> (bp) == fileId && std::get<1> (bp) == line)
         {
-            return DebuggerActions::GetClearBreakpoint (std::get<2> (bp), mode);
+            return BreakpointActions::GetClearBreakpoint (std::get<2> (bp), mode);
         }
     }
 
@@ -1898,7 +1899,7 @@ std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSna
     {
         if (record.id == fileId)
         {
-            return DebuggerActions::GetSourceBreakpoint (record.name, line, mode);
+            return BreakpointActions::GetSourceBreakpoint (record.name, line, mode);
         }
     }
 

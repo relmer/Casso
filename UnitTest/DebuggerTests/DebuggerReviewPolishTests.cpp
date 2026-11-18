@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/CommandModeNames.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -198,7 +199,7 @@ namespace DebuggerReviewPolishTests
 
 
             window.Build();
-            DebuggerViewState::AddCommandGap (lines);
+            DebuggerViewCommands::AddCommandGap (lines);
             window.AppendConsole (lines);
 
             const std::vector<DxuiTextView::Row> & rows = window.GetConsolePane().GetOutput().GetView()->GetRows();
@@ -226,7 +227,7 @@ namespace DebuggerReviewPolishTests
 
             window.Build();
             output = &window.GetConsolePane().GetOutput();
-            DebuggerViewState::AddCommandGap (lines);
+            DebuggerViewCommands::AddCommandGap (lines);
             output->Append (lines, time);
 
             const std::vector<DxuiTextView::Row> & rows = output->GetView()->GetRows();

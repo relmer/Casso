@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
+#include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/HistoryBand.h"
@@ -85,7 +87,7 @@ public:
 
         for (const Case & each : kCases)
         {
-            std::optional<DebuggerAction>  taken = DebuggerActions::GetForKey (each.action, nullptr, -1, CommandMode::AppleWin);
+            std::optional<DebuggerAction>  taken = DebuggerKeyActions::GetForKey (each.action, nullptr, -1, CommandMode::AppleWin);
 
 
 
@@ -94,8 +96,8 @@ public:
             Assert::AreEqual (std::string (each.echo), taken->echo, L"echoed as typed");
         }
 
-        Assert::AreEqual (std::string ("LIVE"), DebuggerActions::GetReverse (DebugVerb::GoLive,    CommandMode::AppleWin).echo);
-        Assert::AreEqual (std::string ("G-"),   DebuggerActions::GetReverse (DebugVerb::ReverseGo, CommandMode::AppleWin).echo);
+        Assert::AreEqual (std::string ("LIVE"), RunActions::GetReverse (DebugVerb::GoLive,    CommandMode::AppleWin).echo);
+        Assert::AreEqual (std::string ("G-"),   RunActions::GetReverse (DebugVerb::ReverseGo, CommandMode::AppleWin).echo);
     }
 
 

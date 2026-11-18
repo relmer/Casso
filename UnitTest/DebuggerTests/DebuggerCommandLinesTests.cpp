@@ -22,6 +22,8 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -65,12 +67,12 @@ namespace DebuggerViewStateTests
 
 
 
-            rig.Run (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300));
+            rig.Run (DebuggerCommandLines::GetToggleBreakpointLine (snapshot, 0x0300));
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (LineAt (snapshot, 0x0300).hasBreakpoint, L"set");
 
-            rig.Run (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300));
+            rig.Run (DebuggerCommandLines::GetToggleBreakpointLine (snapshot, 0x0300));
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse (LineAt (snapshot, 0x0300).hasBreakpoint, L"and cleared");
@@ -134,7 +136,7 @@ namespace DebuggerViewStateTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse   (LineAt (snapshot, 0x0300).hasBreakpoint, L"no mark");
-            Assert::AreEqual  (std::string ("BP 0300"), DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0300));
+            Assert::AreEqual  (std::string ("BP 0300"), DebuggerCommandLines::GetToggleBreakpointLine (snapshot, 0x0300));
         }
 
 
@@ -146,7 +148,7 @@ namespace DebuggerViewStateTests
 
 
 
-            reply = rig.Run (DebuggerViewState::GetPokeLine (0x0400, 0xC1));
+            reply = rig.Run (DebuggerCommandLines::GetPokeLine (0x0400, 0xC1));
 
             Assert::IsTrue   (reply.status == CommandStatus::Ok);
             Assert::AreEqual ((Byte) 0xC1, rig.machine.GetMemoryBus().ReadByte (0x0400));
@@ -169,16 +171,16 @@ namespace DebuggerViewStateTests
 
             //  Each run is stopped before the next starts, as the machine would
             //  stop it; a second run while one is going is refused as running.
-            for (const std::string & line : { DebuggerViewState::GetStepLine(),
-                                              DebuggerViewState::GetStepOverLine(),
-                                              DebuggerViewState::GetRunLine(),
-                                              DebuggerViewState::GetRunToCursorLine (0x0320) })
+            for (const std::string & line : { DebuggerCommandLines::GetStepLine(),
+                 DebuggerCommandLines::GetStepOverLine(),
+                 DebuggerCommandLines::GetRunLine(),
+                 DebuggerCommandLines::GetRunToCursorLine (0x0320) })
             {
                 StopEvent  stop;
 
 
 
-                DebuggerViewState::ExecuteLine (session, line, CommandMode::AppleWin);
+                DebuggerViewCommands::ExecuteLine (session, line, CommandMode::AppleWin);
 
                 stop.reason = StopReason::Step;
                 session.OnStopped (stop);
@@ -203,7 +205,7 @@ namespace DebuggerViewStateTests
 
 
 
-            viaWindow  = DebuggerViewState::ExecuteLine (rig.controller.GetSession(), "300.305", CommandMode::Monitor);
+            viaWindow  = DebuggerViewCommands::ExecuteLine (rig.controller.GetSession(), "300.305", CommandMode::Monitor);
             viaSession = rig.controller.GetSession().ExecuteLine ("300.305", CommandMode::Monitor);
             rig.controller.GetSession().FormatReply (viaSession, CommandMode::Monitor);
 
@@ -272,7 +274,7 @@ namespace DebuggerViewStateTests
             snapshot = rig.view.Build (rig.controller.GetSession());
             Assert::IsTrue (LineAt (snapshot, 0x0302).hasBreakpoint, L"the client's breakpoint is in the pane");
 
-            rig.Run (DebuggerViewState::GetToggleBreakpointLine (snapshot, 0x0305));
+            rig.Run (DebuggerCommandLines::GetToggleBreakpointLine (snapshot, 0x0305));
 
             rig.transport.Send (client, R"({"type":"command","id":2,"line":"BPL"})");
             rig.controller.Pump();
@@ -293,16 +295,16 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFR", CommandMode::Monitor, false) == DebugVerb::ReadFile,  L"R");
-            Assert::IsTrue (DebuggerViewState::GetMissingFileVerb ("300.3FFW", CommandMode::Monitor, false) == DebugVerb::WriteFile, L"W");
+            Assert::IsTrue (DebuggerCommandLines::GetMissingFileVerb ("300.3FFR", CommandMode::Monitor, false) == DebugVerb::ReadFile,  L"R");
+            Assert::IsTrue (DebuggerCommandLines::GetMissingFileVerb ("300.3FFW", CommandMode::Monitor, false) == DebugVerb::WriteFile, L"W");
 
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR a.bin", CommandMode::Monitor, false).has_value(), L"named");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FF",        CommandMode::Monitor, false).has_value(), L"no R or W");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("/R",             CommandMode::Monitor, false).has_value(), L"an AppleWin line");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("300.3FFR",       CommandMode::AppleWin, false).has_value(), L"AppleWin mode");
-            Assert::IsFalse (DebuggerViewState::GetMissingFileVerb ("LSR",            CommandMode::Monitor,  true).has_value(),  L"an assembly line");
+            Assert::IsFalse (DebuggerCommandLines::GetMissingFileVerb ("300.3FFR a.bin", CommandMode::Monitor, false).has_value(), L"named");
+            Assert::IsFalse (DebuggerCommandLines::GetMissingFileVerb ("300.3FF",        CommandMode::Monitor, false).has_value(), L"no R or W");
+            Assert::IsFalse (DebuggerCommandLines::GetMissingFileVerb ("/R",             CommandMode::Monitor, false).has_value(), L"an AppleWin line");
+            Assert::IsFalse (DebuggerCommandLines::GetMissingFileVerb ("300.3FFR",       CommandMode::AppleWin, false).has_value(), L"AppleWin mode");
+            Assert::IsFalse (DebuggerCommandLines::GetMissingFileVerb ("LSR",            CommandMode::Monitor,  true).has_value(),  L"an assembly line");
 
-            line   = DebuggerViewState::GetLineWithFileName ("300.3FFW", "C:\\My Files\\dump.bin");
+            line   = DebuggerCommandLines::GetLineWithFileName ("300.3FFW", "C:\\My Files\\dump.bin");
             parsed = MonitorParser::Parse (line, state);
 
             Assert::AreEqual ((size_t) 1, parsed.commands.size());
@@ -320,7 +322,7 @@ namespace DebuggerViewStateTests
 
             auto  action = [] (CommandMode mode, WPARAM vk, bool shift, bool isEmpty)
             {
-                return DebuggerViewState::GetConsoleKeyAction (mode, vk, false, false, shift, isEmpty);
+                return DebuggerCommandLines::GetConsoleKeyAction (mode, vk, false, false, shift, isEmpty);
             };
 
 
@@ -335,18 +337,18 @@ namespace DebuggerViewStateTests
             Assert::IsFalse (action (CommandMode::GSSquared, 'O',       false, true).has_value(),  L"O is the scheme's");
             Assert::IsFalse (action (CommandMode::AppleWin,  VK_SPACE,  false, true).has_value(),  L"AppleWin mode");
             Assert::IsFalse (action (CommandMode::Monitor,   VK_RETURN, false, true).has_value(),  L"Monitor mode");
-            Assert::IsFalse (DebuggerViewState::GetConsoleKeyAction (CommandMode::GSSquared, VK_SPACE, true, false, false, true).has_value(), L"Ctrl+Space");
+            Assert::IsFalse (DebuggerCommandLines::GetConsoleKeyAction (CommandMode::GSSquared, VK_SPACE, true, false, false, true).has_value(), L"Ctrl+Space");
         }
 
         //  In Monitor mode Return on an empty line shows the next row of bytes,
         //  so the command line keeps it rather than handing it to the scheme.
         TEST_METHOD (MonitorMode_EmptyLineReturn_StaysInCommandLine)
         {
-            Assert::IsTrue  (DebuggerViewState::DoesConsoleKeepKey (CommandMode::Monitor,   VK_RETURN, false, false));
-            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::Monitor,   VK_SPACE,  false, false), L"Space");
-            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::Monitor,   VK_RETURN, true,  false), L"Ctrl+Return");
-            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::AppleWin,  VK_RETURN, false, false), L"AppleWin mode");
-            Assert::IsFalse (DebuggerViewState::DoesConsoleKeepKey (CommandMode::GSSquared, VK_RETURN, false, false), L"GSSquared mode");
+            Assert::IsTrue  (DebuggerCommandLines::DoesConsoleKeepKey (CommandMode::Monitor,   VK_RETURN, false, false));
+            Assert::IsFalse (DebuggerCommandLines::DoesConsoleKeepKey (CommandMode::Monitor,   VK_SPACE,  false, false), L"Space");
+            Assert::IsFalse (DebuggerCommandLines::DoesConsoleKeepKey (CommandMode::Monitor,   VK_RETURN, true,  false), L"Ctrl+Return");
+            Assert::IsFalse (DebuggerCommandLines::DoesConsoleKeepKey (CommandMode::AppleWin,  VK_RETURN, false, false), L"AppleWin mode");
+            Assert::IsFalse (DebuggerCommandLines::DoesConsoleKeepKey (CommandMode::GSSquared, VK_RETURN, false, false), L"GSSquared mode");
         }
 
         //  The controls send AppleWin lines; in GSSquared mode they go in its
@@ -357,23 +359,23 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (std::string ("s"),              DebuggerViewState::GetModeLine ("T",            CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("o"),              DebuggerViewState::GetModeLine ("P",            CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("r"),              DebuggerViewState::GetModeLine ("RTS",          CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("g"),              DebuggerViewState::GetModeLine ("G",            CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("bp 0300"),        DebuggerViewState::GetModeLine ("BP 0300",      CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("nobp 3"),         DebuggerViewState::GetModeLine ("BPC 3",        CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("0300: 41"),       DebuggerViewState::GetModeLine ("MEB 0300 41",  CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("SRC ON"),         DebuggerViewState::GetModeLine ("SRC ON",       CommandMode::GSSquared));
-            Assert::AreEqual (std::string ("T"),              DebuggerViewState::GetModeLine ("T",            CommandMode::AppleWin));
+            Assert::AreEqual (std::string ("s"),              DebuggerCommandLines::GetModeLine ("T",            CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("o"),              DebuggerCommandLines::GetModeLine ("P",            CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("r"),              DebuggerCommandLines::GetModeLine ("RTS",          CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("g"),              DebuggerCommandLines::GetModeLine ("G",            CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("bp 0300"),        DebuggerCommandLines::GetModeLine ("BP 0300",      CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("nobp 3"),         DebuggerCommandLines::GetModeLine ("BPC 3",        CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("0300: 41"),       DebuggerCommandLines::GetModeLine ("MEB 0300 41",  CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("SRC ON"),         DebuggerCommandLines::GetModeLine ("SRC ON",       CommandMode::GSSquared));
+            Assert::AreEqual (std::string ("T"),              DebuggerCommandLines::GetModeLine ("T",            CommandMode::AppleWin));
 
             rig.controller.GetSession().ExecuteLine ("MODE GSSQUARED");
 
             for (const char * line : { "BP 0300", "MEB 0300 41", "BPC 0" })
             {
-                Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
-                                                               DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),
-                                                               CommandMode::GSSquared);
+                Reply  reply = DebuggerViewCommands::ExecuteLine (rig.controller.GetSession(),
+                                                                  DebuggerCommandLines::GetModeLine (line, CommandMode::GSSquared),
+                                                                  CommandMode::GSSquared);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
             }
@@ -394,9 +396,9 @@ namespace DebuggerViewStateTests
                                                    std::pair<const char *, Byte> { "MEB 0400 A",   0x0A },
                                                    std::pair<const char *, Byte> { "MEB 0400 44",  0x44 } })
             {
-                Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
-                                                               DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),
-                                                               CommandMode::GSSquared);
+                Reply  reply = DebuggerViewCommands::ExecuteLine (rig.controller.GetSession(),
+                                                                  DebuggerCommandLines::GetModeLine (line, CommandMode::GSSquared),
+                                                                  CommandMode::GSSquared);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
                 Assert::AreEqual (expected, rig.machine.GetMemoryBus().ReadByte (0x0400), std::wstring (line, line + strlen (line)).c_str());
@@ -416,9 +418,9 @@ namespace DebuggerViewStateTests
 
             for (const char * line : { "BP 0300", "BPD 0", "BPE 0", "R A 41", "R P 30", "R S F0" })
             {
-                Reply  reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
-                                                               DebuggerViewState::GetModeLine (line, CommandMode::GSSquared),
-                                                               CommandMode::GSSquared);
+                Reply  reply = DebuggerViewCommands::ExecuteLine (rig.controller.GetSession(),
+                                                                  DebuggerCommandLines::GetModeLine (line, CommandMode::GSSquared),
+                                                                  CommandMode::GSSquared);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status,
                                   std::wstring (line, line + strlen (line)).append (L": ").append (reply.error.detail.begin(), reply.error.detail.end()).c_str());
@@ -443,7 +445,7 @@ namespace DebuggerViewStateTests
 
                 rig.controller.GetSession().ExecuteLine ("MODE " + CommandModeNames::GetUpperName (from));
                 Assert::IsTrue (rig.controller.GetSession().GetMode() == from);
-                reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(), DebuggerViewState::GetModeLine ("MODE APPLEWIN", from), from);
+                reply = DebuggerViewCommands::ExecuteLine (rig.controller.GetSession(), DebuggerCommandLines::GetModeLine ("MODE APPLEWIN", from), from);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
                 Assert::IsTrue   (rig.controller.GetSession().GetMode() == CommandMode::AppleWin);
@@ -460,16 +462,16 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (std::string ("/T"),       DebuggerViewState::GetModeLine ("T",       CommandMode::Monitor));
-            Assert::AreEqual (std::string ("/BP 0300"), DebuggerViewState::GetModeLine ("BP 0300", CommandMode::Monitor));
+            Assert::AreEqual (std::string ("/T"),       DebuggerCommandLines::GetModeLine ("T",       CommandMode::Monitor));
+            Assert::AreEqual (std::string ("/BP 0300"), DebuggerCommandLines::GetModeLine ("BP 0300", CommandMode::Monitor));
 
             rig.controller.GetSession().ExecuteLine ("MODE MONITOR");
 
             for (const char * line : { "BP 0300", "MEB 0300 41", "BPC 0", "SRC OFF" })
             {
-                reply = DebuggerViewState::ExecuteLine (rig.controller.GetSession(),
-                                                        DebuggerViewState::GetModeLine (line, CommandMode::Monitor),
-                                                        CommandMode::Monitor);
+                reply = DebuggerViewCommands::ExecuteLine (rig.controller.GetSession(),
+                                                           DebuggerCommandLines::GetModeLine (line, CommandMode::Monitor),
+                                                           CommandMode::Monitor);
 
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, std::wstring (line, line + strlen (line)).c_str());
             }
@@ -508,10 +510,10 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::AreEqual (std::string ("G"),                    *DebuggerViewState::GetActionLine (Action::Run,      &snapshot, -1));
-            Assert::AreEqual (std::string ("T"),                    *DebuggerViewState::GetActionLine (Action::StepInto, &snapshot, -1));
-            Assert::AreEqual (std::string ("P"),                    *DebuggerViewState::GetActionLine (Action::StepOver, &snapshot, -1));
-            Assert::AreEqual (std::string ("RTS"),                  *DebuggerViewState::GetActionLine (Action::StepOut,  &snapshot, -1));
+            Assert::AreEqual (std::string ("G"),                    *DebuggerCommandLines::GetActionLine (Action::Run,      &snapshot, -1));
+            Assert::AreEqual (std::string ("T"),                    *DebuggerCommandLines::GetActionLine (Action::StepInto, &snapshot, -1));
+            Assert::AreEqual (std::string ("P"),                    *DebuggerCommandLines::GetActionLine (Action::StepOver, &snapshot, -1));
+            Assert::AreEqual (std::string ("RTS"),                  *DebuggerCommandLines::GetActionLine (Action::StepOut,  &snapshot, -1));
         }
 
 
@@ -521,7 +523,7 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::IsFalse (DebuggerViewState::GetActionLine (Action::Pause, &snapshot, 0).has_value());
+            Assert::IsFalse (DebuggerCommandLines::GetActionLine (Action::Pause, &snapshot, 0).has_value());
         }
 
 
@@ -532,9 +534,9 @@ namespace DebuggerViewStateTests
 
 
             Assert::AreEqual (std::string ("G 0302"),
-                              *DebuggerViewState::GetActionLine (Action::RunToCursor, &snapshot, 1));
+                              *DebuggerCommandLines::GetActionLine (Action::RunToCursor, &snapshot, 1));
             Assert::AreEqual (std::string ("BP 0302"),
-                              *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, 1));
+                              *DebuggerCommandLines::GetActionLine (Action::ToggleBreakpoint, &snapshot, 1));
         }
 
 
@@ -545,7 +547,7 @@ namespace DebuggerViewStateTests
 
 
             Assert::AreEqual (std::string ("BP 0300"),
-                              *DebuggerViewState::GetActionLine (Action::ToggleBreakpoint, &snapshot, -1));
+                              *DebuggerCommandLines::GetActionLine (Action::ToggleBreakpoint, &snapshot, -1));
         }
 
 
@@ -555,8 +557,8 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::IsFalse (DebuggerViewState::GetActionLine (Action::RunToCursor, &snapshot, -1).has_value());
-            Assert::IsFalse (DebuggerViewState::GetActionLine (Action::RunToCursor, nullptr,   0).has_value(), L"no snapshot yet");
+            Assert::IsFalse (DebuggerCommandLines::GetActionLine (Action::RunToCursor, &snapshot, -1).has_value());
+            Assert::IsFalse (DebuggerCommandLines::GetActionLine (Action::RunToCursor, nullptr,   0).has_value(), L"no snapshot yet");
         }
     };
 }

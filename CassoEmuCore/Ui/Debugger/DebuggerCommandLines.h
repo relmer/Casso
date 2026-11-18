@@ -35,6 +35,7 @@ public:
     static std::string  GetStepOutLine          ()             { return "RTS"; }
     static std::string  GetRunLine              ()             { return "G"; }
     static std::string  GetRunToCursorLine      (Word address);
+    static std::string  GetTraceToggleLine      (bool isOn) { return isOn ? "HISTORY OFF" : "HISTORY ON"; }
 
     //  PANEL to open or close a device panel, as an AppleWin line, which
     //  GetModeLine gives in the words of the current mode.

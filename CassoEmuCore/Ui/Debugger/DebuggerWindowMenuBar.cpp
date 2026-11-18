@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/SymbolTable.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -280,7 +283,7 @@ void DebuggerWindow::SetWindowMenus()
     {
         if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
         {
-            RunAction (DebuggerActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
+            RunAction (RunActions::GetSourceStepping (!m_snapshot->source->stepBySource, m_snapshot->mode));
         }
     });
     row->isEnabled = [this] { return m_snapshot != nullptr && m_snapshot->source.has_value(); };
@@ -404,7 +407,7 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
 
         row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), [this, name = table.name, isDebugFile]
         {
-            RunAction (isDebugFile ? DebuggerActions::GetUnloadDebugFile (GetMode()) : DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
+            RunAction (isDebugFile ? SymbolActions::GetUnloadDebugFile (GetMode()) : SymbolActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
         });
 
         m_menuCommands.push_back (row);
@@ -936,7 +939,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunAction (DebuggerActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
+    RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
     m_sources->SetPendingLoose (thenShow);
 
 Error:
@@ -1067,7 +1070,7 @@ void DebuggerWindow::LoadBasicProgram (const std::wstring & path, const std::wst
         return;
     }
 
-    RunAction (DebuggerActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
+    RunAction (SessionActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
     ShowPane  (DebuggerLayout::kBasicProgram);
 }
 
@@ -1176,7 +1179,7 @@ void DebuggerWindow::ClearBasicProgram()
         return;
     }
 
-    RunAction (DebuggerActions::GetClearBasic (GetMode()));
+    RunAction (SessionActions::GetClearBasic (GetMode()));
     ShowPane  (DebuggerLayout::kBasicProgram);
 }
 
@@ -1214,7 +1217,7 @@ void DebuggerWindow::SaveBasicProgram()
     BAIL_OUT_IF (!picked, S_OK);
 
     m_host->SetDebuggerWindowState ("folder.basic", SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
-    RunAction (DebuggerActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
+    RunAction (SessionActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
 
 Error:
     return;

@@ -4,6 +4,7 @@
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -135,10 +136,10 @@ namespace DebuggerTests
         //  The action's command is what the handler reads after the id.
         TEST_METHOD (TheLogActionsCommandIsWhatTheHandlerReads)
         {
-            Assert::AreEqual (std::string ("GO \"x={X}\""), DebuggerActions::GetLogBreakpoint (2, "x={X}", true,  CommandMode::AppleWin).command.text);
-            Assert::AreEqual (std::string ("x={X}"),        DebuggerActions::GetLogBreakpoint (2, "x={X}", false, CommandMode::AppleWin).command.text);
-            Assert::AreEqual (std::string ("CLEAR"),        DebuggerActions::GetLogBreakpoint (2, "",      false, CommandMode::AppleWin).command.text);
-            Assert::AreEqual (2,                            (int) DebuggerActions::GetLogBreakpoint (2, "", false, CommandMode::AppleWin).command.count);
+            Assert::AreEqual (std::string ("GO \"x={X}\""), BreakpointActions::GetLogBreakpoint (2, "x={X}", true,  CommandMode::AppleWin).command.text);
+            Assert::AreEqual (std::string ("x={X}"),        BreakpointActions::GetLogBreakpoint (2, "x={X}", false, CommandMode::AppleWin).command.text);
+            Assert::AreEqual (std::string ("CLEAR"),        BreakpointActions::GetLogBreakpoint (2, "",      false, CommandMode::AppleWin).command.text);
+            Assert::AreEqual (2,                            (int) BreakpointActions::GetLogBreakpoint (2, "", false, CommandMode::AppleWin).command.count);
         }
 
 

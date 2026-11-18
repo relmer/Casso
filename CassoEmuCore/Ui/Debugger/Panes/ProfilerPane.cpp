@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ProfilerPane.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -801,7 +802,7 @@ void ProfilerPane::Refresh()
 
 void ProfilerPane::RunProfile (const char * words)
 {
-    m_host.RunAction (DebuggerActions::GetProfile (words, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetProfile (words, m_host.GetMode()));
 }
 
 

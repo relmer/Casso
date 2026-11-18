@@ -54,7 +54,7 @@ Byte CodeAnnotations::GetRegisterByte (const std::string & name, const Cpu6502Re
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CodeAnnotations::GetAnnotation (DebugSession & session, const DisassemblyLine & line,
-                                              const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
+                                            const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
 {
     return ComposeAnnotation (GetAnnotationParts (session, line, registers, touches), true, false);
 }
@@ -73,7 +73,7 @@ std::string CodeAnnotations::GetAnnotation (DebugSession & session, const Disass
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerViewSnapshot::AnnotationParts CodeAnnotations::GetAnnotationParts (DebugSession & session, const DisassemblyLine & line,
-                                                                             const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
+                                                                           const Cpu6502Registers & registers, const InstructionTouches::Result & touches)
 {
     static constexpr Word                  kZeroPageLast = 0x00FF;
     DebuggerViewSnapshot::AnnotationParts  parts;
@@ -235,7 +235,7 @@ std::string CodeAnnotations::ComposeAnnotation (const DebuggerViewSnapshot::Anno
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CodeAnnotations::GetEffect (DebugSession & session, const Cpu6502Registers & registers,
-                                          const InstructionTouches::Result & touches, Word next)
+                                        const InstructionTouches::Result & touches, Word next)
 {
     //  A write to a soft switch stores no byte: it operates the machine, and
     //  what it operates is what the line should say (FR-112).

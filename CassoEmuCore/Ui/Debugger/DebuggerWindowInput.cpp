@@ -1,6 +1,10 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 #include "Ui/Debugger/ControlTreeWalk.h"
 #include "resource.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -162,7 +166,7 @@ void DebuggerWindow::NoteViewFocus (bool isSource)
 
     if (m_snapshot->source->stepBySource != isSource)
     {
-        RunAction (DebuggerActions::GetSourceStepping (isSource, m_snapshot->mode));
+        RunAction (RunActions::GetSourceStepping (isSource, m_snapshot->mode));
     }
 }
 
@@ -286,7 +290,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (opening == DroppedFiles::Opening::Symbols)
         {
-            RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (path), GetMode()));
+            RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (path), GetMode()));
             continue;
         }
 
@@ -444,7 +448,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
     //  A key that starts the machine running stops it while it runs, so a
     //  second press of F5 is Pause, as the bar's Run button becomes.
     if (action == DebuggerKeySchemes::Action::Pause ||
-        (DebuggerActions::IsRunAction (action) && IsCommandBarEntryEnabled (DebuggerCommands::kPause)))
+        (DebuggerKeyActions::IsRunAction (action) && IsCommandBarEntryEnabled (DebuggerCommands::kPause)))
     {
         if (m_host != nullptr)
         {
@@ -462,7 +466,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         active.code = GetCodeLines (m_code->GetActive());
     }
 
-    taken = DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
+    taken = DebuggerKeyActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
 
     if (taken.has_value())
     {
@@ -509,19 +513,19 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
     //  While the line assembler takes the box's lines, Return and Space are
     //  the box's, so an empty line ends the assembly.
     if (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_consolePane->GetCommandLine().GetBox() &&
-        DebuggerViewState::DoesAssemblerKeepKey (m_snapshot.get(), ev.vk, ev.ctrl, ev.alt))
+        DebuggerCommandLines::DoesAssemblerKeepKey (m_snapshot.get(), ev.vk, ev.ctrl, ev.alt))
     {
         return false;
     }
 
     consoleAction = (ev.kind == DxuiKeyEventKind::Down && box != nullptr && box == m_consolePane->GetCommandLine().GetBox())
-                  ? DebuggerViewState::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())
+                  ? DebuggerCommandLines::GetConsoleKeyAction (mode, ev.vk, ev.ctrl, ev.alt, ev.shift, box->GetText().empty())
                   : std::nullopt;
 
     //  Only the command line steps from an empty line; the Address box is no
     //  command line, so it keeps Space and Return however empty it is.
     boxEmpty = box != nullptr && box == m_consolePane->GetCommandLine().GetBox() && box->GetText().empty() &&
-               !DebuggerViewState::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt);
+               !DebuggerCommandLines::DoesConsoleKeepKey (mode, ev.vk, ev.ctrl, ev.alt);
 
     boxKeeps = DebuggerKeySchemes::DoesBoxKeepKey (ev.vk, ev.ctrl, ev.alt, true, boxEmpty,
                                                    box != nullptr && box == m_consolePane->GetCommandLine().GetBox() && mode == CommandMode::Monitor);

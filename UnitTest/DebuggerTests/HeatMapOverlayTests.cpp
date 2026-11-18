@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../Dxui/MockDxuiPainter.h"
+#include "Ui/Debugger/HeatMapReader.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "ControllerRig.h"
@@ -157,11 +158,11 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("LDA (..),Y"),   DebuggerViewState::GetOpcodeForm (set, 0xB1));
-            Assert::AreEqual (std::string ("LDA #.."),      DebuggerViewState::GetOpcodeForm (set, 0xA9));
-            Assert::AreEqual (std::string ("LDA ...."),     DebuggerViewState::GetOpcodeForm (set, 0xAD));
-            Assert::AreEqual (std::string ("JMP (....,X)"), DebuggerViewState::GetOpcodeForm (set, 0x7C));
-            Assert::AreEqual (std::string ("INX"),          DebuggerViewState::GetOpcodeForm (set, 0xE8));
+            Assert::AreEqual (std::string ("LDA (..),Y"),   HeatMapReader::GetOpcodeForm (set, 0xB1));
+            Assert::AreEqual (std::string ("LDA #.."),      HeatMapReader::GetOpcodeForm (set, 0xA9));
+            Assert::AreEqual (std::string ("LDA ...."),     HeatMapReader::GetOpcodeForm (set, 0xAD));
+            Assert::AreEqual (std::string ("JMP (....,X)"), HeatMapReader::GetOpcodeForm (set, 0x7C));
+            Assert::AreEqual (std::string ("INX"),          HeatMapReader::GetOpcodeForm (set, 0xE8));
         }
 
 

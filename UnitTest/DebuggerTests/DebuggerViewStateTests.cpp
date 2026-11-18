@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/RunActions.h"
 
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugHandlerSet.h"
@@ -22,6 +23,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -98,7 +100,7 @@ namespace DebuggerViewStateTests
 
 
             rig.machine.RunCycles (5000);
-            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetResetCycles (CommandMode::AppleWin));
+            rig.view.ExecuteAction (rig.controller.GetSession(), RunActions::GetResetCycles (CommandMode::AppleWin));
             rig.machine.RunCycles (100);
 
             snapshot = rig.view.Build (rig.controller.GetSession());
@@ -908,13 +910,13 @@ namespace DebuggerViewStateTests
 
                 LoadDebugFile (rig);
 
-                rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSourceStepping (true, mode));
+                rig.view.ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (true, mode));
                 Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
-                rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSourceStepping (false, mode));
+                rig.view.ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (false, mode));
                 Assert::IsFalse  (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
-                reply = rig.Run (DebuggerActions::GetSourceStepping (true, mode).echo, mode);
+                reply = rig.Run (RunActions::GetSourceStepping (true, mode).echo, mode);
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
                 Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
 
@@ -1346,14 +1348,14 @@ namespace DebuggerViewStateTests
 
 
 
-            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_RETURN, false, false));
+            Assert::IsFalse (DebuggerCommandLines::DoesAssemblerKeepKey (&snapshot, VK_RETURN, false, false));
 
             snapshot.isAssembling = true;
-            Assert::IsTrue  (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_RETURN, false, false));
-            Assert::IsTrue  (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_SPACE,  false, false));
-            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_F5,     false, false), L"a function key is still the scheme's");
-            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (&snapshot, VK_SPACE,  true,  false));
-            Assert::IsFalse (DebuggerViewState::DoesAssemblerKeepKey (nullptr,   VK_RETURN, false, false));
+            Assert::IsTrue  (DebuggerCommandLines::DoesAssemblerKeepKey (&snapshot, VK_RETURN, false, false));
+            Assert::IsTrue  (DebuggerCommandLines::DoesAssemblerKeepKey (&snapshot, VK_SPACE,  false, false));
+            Assert::IsFalse (DebuggerCommandLines::DoesAssemblerKeepKey (&snapshot, VK_F5,     false, false), L"a function key is still the scheme's");
+            Assert::IsFalse (DebuggerCommandLines::DoesAssemblerKeepKey (&snapshot, VK_SPACE,  true,  false));
+            Assert::IsFalse (DebuggerCommandLines::DoesAssemblerKeepKey (nullptr,   VK_RETURN, false, false));
         }
     };
 }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/CpuManagerRunDriver.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "Debugger/IRunObserver.h"
 #include "Shell/CpuManager.h"
@@ -1714,8 +1715,8 @@ namespace EmulatorDebugWiringTests
             Assert::AreEqual ((int) CommandStatus::Ok, (int) rig.Run ("MODE GSSQUARED").status);
 
             lines = rig.view.ExecuteConsoleLine (rig.controller.GetSession(),
-                                                 DebuggerViewState::GetRunToCursorLine (0x0302),
-                                                 DebuggerViewState::kRunToCursorMode);
+                                                 DebuggerCommandLines::GetRunToCursorLine (0x0302),
+                                                 DebuggerCommandLines::kRunToCursorMode);
             ControllerStepOutTests::RunFrames (rig, 50);
 
             Assert::AreEqual ((Word) 0x0302, target.GetRegisters().pc, L"stopped at the cursor");

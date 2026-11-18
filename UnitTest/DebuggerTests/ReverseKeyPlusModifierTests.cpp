@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
@@ -150,7 +151,7 @@ namespace ReverseKeyPlusModifier
 
         TEST_METHOD (ReverseRunKeyRunsBackward)
         {
-            std::optional<DebuggerAction>  taken = DebuggerActions::GetForKey (Action::ReverseRun, nullptr, -1, CommandMode::AppleWin);
+            std::optional<DebuggerAction>  taken = DebuggerKeyActions::GetForKey (Action::ReverseRun, nullptr, -1, CommandMode::AppleWin);
 
 
 
@@ -169,8 +170,8 @@ namespace ReverseKeyPlusModifier
 
             running.isPaused = false;
 
-            Assert::IsTrue  (DebuggerActions::IsStepAction (Action::ReverseRun));
-            Assert::IsFalse (DebuggerActions::GetForKey (Action::ReverseRun, &running, -1, CommandMode::AppleWin).has_value());
+            Assert::IsTrue  (DebuggerKeyActions::IsStepAction (Action::ReverseRun));
+            Assert::IsFalse (DebuggerKeyActions::GetForKey (Action::ReverseRun, &running, -1, CommandMode::AppleWin).has_value());
         }
 
 

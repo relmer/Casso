@@ -133,8 +133,8 @@ bool AutoWatchBuilder::IsSameRegisters (const Cpu6502Registers & left, const Cpu
 ////////////////////////////////////////////////////////////////////////////////
 
 void AutoWatchBuilder::AddAutoWatches (DebugSession & session, const InstructionTouches::Result & touches,
-                                        const Cpu6502Registers & now, bool isPrevious,
-                                        std::vector<DebuggerViewSnapshot::AutoWatchLine> & lines)
+                                       const Cpu6502Registers & now, bool isPrevious,
+                                       std::vector<DebuggerViewSnapshot::AutoWatchLine> & lines)
 {
     static constexpr std::pair<char, Byte>  kFlagBits[] =
     {

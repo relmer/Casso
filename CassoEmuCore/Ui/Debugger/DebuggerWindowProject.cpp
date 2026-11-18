@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Ui/Debugger/Panes/ConsolePanes.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
@@ -60,7 +61,7 @@ void DebuggerWindow::SaveProjectAs()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunAction (DebuggerActions::GetProject ("SAVEAS", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
+    RunAction (SessionActions::GetProject ("SAVEAS", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;
@@ -91,7 +92,7 @@ void DebuggerWindow::OpenProject()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    RunAction (DebuggerActions::GetProject ("OPEN", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
+    RunAction (SessionActions::GetProject ("OPEN", TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
 
 Error:
     return;

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -505,7 +507,7 @@ void DebuggerWindow::AddZeroPagePointer()
 
     if (address.has_value())
     {
-        RunAction (DebuggerActions::GetAddZeroPagePointer (*address, GetMode()));
+        RunAction (WatchActions::GetAddZeroPagePointer (*address, GetMode()));
     }
 }
 
@@ -1088,7 +1090,7 @@ void DebuggerWindow::EditStepFilters()
 
     for (const StepFilterEntry & entry : m_snapshot->stepFilters)
     {
-        before.push_back (TextEncoding::NarrowToWide (DebuggerActions::GetRemoveSkip (entry, GetMode()).command.text));
+        before.push_back (TextEncoding::NarrowToWide (RunActions::GetRemoveSkip (entry, GetMode()).command.text));
     }
 
     after = RunStepFiltersDialog (before, [&findSymbol] (const std::wstring & text, std::wstring & error)
@@ -1110,7 +1112,7 @@ void DebuggerWindow::EditStepFilters()
     {
         if (std::ranges::find (*after, before[i]) == after->end())
         {
-            actions.push_back (DebuggerActions::GetRemoveSkip (m_snapshot->stepFilters[i], GetMode()));
+            actions.push_back (RunActions::GetRemoveSkip (m_snapshot->stepFilters[i], GetMode()));
         }
     }
 
@@ -1129,11 +1131,11 @@ void DebuggerWindow::EditStepFilters()
 
         if (StepFiltersDialog::TryParseRange (text, first, last))
         {
-            actions.push_back (DebuggerActions::GetSkipRange (first, last, GetMode()));
+            actions.push_back (RunActions::GetSkipRange (first, last, GetMode()));
         }
         else if (address = findSymbol (text); address.has_value())
         {
-            actions.push_back (DebuggerActions::GetSkipRoutine (TextEncoding::WideToNarrow (text), *address, GetMode()));
+            actions.push_back (RunActions::GetSkipRoutine (TextEncoding::WideToNarrow (text), *address, GetMode()));
         }
     }
 
@@ -1202,8 +1204,8 @@ void DebuggerWindow::ToggleBookmarkAtCursor()
 
 
 
-    RunAction (bookmark != m_snapshot->bookmarks.end() ? DebuggerActions::GetClearBookmark (bookmark->id, GetMode())
-                                                       : DebuggerActions::GetAddBookmark (at, GetMode()));
+    RunAction (bookmark != m_snapshot->bookmarks.end() ? WatchActions::GetClearBookmark (bookmark->id, GetMode())
+                                                       : WatchActions::GetAddBookmark (at, GetMode()));
 }
 
 

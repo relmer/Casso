@@ -66,8 +66,8 @@ std::wstring SourceBannerText::GetStaleText (const std::wstring & debugFilePath)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring SourceBannerText::GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
-                                        int depth, bool showingBody, const std::string & bodyName, int bodyLine,
-                                        const std::string & invokedByName, int invokedByLine)
+                                              int depth, bool showingBody, const std::string & bodyName, int bodyLine,
+                                              const std::string & invokedByName, int invokedByLine)
 {
     std::string  text;
     std::string  invokedBy;
@@ -133,7 +133,7 @@ std::wstring SourceBannerText::GetBannerText (SourceMatch match, const std::stri
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring SourceBannerText::GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,
-                                                const std::wstring & foundPath, bool isVerified)
+                                                      const std::wstring & foundPath, bool isVerified)
 {
     std::wstring  recorded;
 

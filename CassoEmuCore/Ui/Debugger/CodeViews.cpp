@@ -128,7 +128,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> CodeViews::BuildCode (DebugSession &
             row.annotation      = CodeAnnotations::ComposeAnnotation (row.annotationParts, true, false);
 
             row.effect     = row.isCurrent ? CodeAnnotations::GetEffect (session, now, touches,
-                                                        (Word) (line.instruction.address + line.instruction.bytes.size()))
+                                                                         (Word) (line.instruction.address + line.instruction.bytes.size()))
                                            : std::string();
 
             if (row.isCurrent && row.target.has_value() && touches.isKnown)

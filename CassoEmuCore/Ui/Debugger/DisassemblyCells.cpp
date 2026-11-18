@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/CodeAnnotations.h"
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/HeatStrip.h"
@@ -330,9 +331,9 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
 {
     bool         symbols    = options.IsOn (DisassemblyOptions::Option::Symbols);
     bool         colon      = options.IsOn (DisassemblyOptions::Option::AddressColon);
-    std::string  annotation = DebuggerViewState::ComposeAnnotation (line.annotationParts,
-                                                                    options.IsOn (DisassemblyOptions::Option::OperandValues),
-                                                                    options.IsOn (DisassemblyOptions::Option::Pointers));
+    std::string  annotation = CodeAnnotations::ComposeAnnotation (line.annotationParts,
+                                                                  options.IsOn (DisassemblyOptions::Option::OperandValues),
+                                                                  options.IsOn (DisassemblyOptions::Option::Pointers));
 
 
 

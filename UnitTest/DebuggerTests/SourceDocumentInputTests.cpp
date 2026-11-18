@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../Dxui/MockDxuiPainter.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/CodeMargins.h"
@@ -267,10 +268,10 @@ namespace SourceDocumentInputTests
 
             Assert::IsTrue   (rig.pane.ClickGutter (POINT { GetGutterX(), GetRowY (1) }));
             Assert::AreEqual ((size_t) 1, rig.echoes.size());
-            Assert::AreEqual (DebuggerActions::GetSourceBreakpoint ("main.a65", 2, CommandMode::AppleWin).echo, rig.echoes.back(), L"set on LDA's line");
+            Assert::AreEqual (BreakpointActions::GetSourceBreakpoint ("main.a65", 2, CommandMode::AppleWin).echo, rig.echoes.back(), L"set on LDA's line");
 
             Assert::IsTrue   (rig.pane.ClickGutter (POINT { GetGutterX(), GetRowY (2) }));
-            Assert::AreEqual (DebuggerActions::GetClearBreakpoint (kBreakpointId, CommandMode::AppleWin).echo, rig.echoes.back(), L"cleared on RTS's line");
+            Assert::AreEqual (BreakpointActions::GetClearBreakpoint (kBreakpointId, CommandMode::AppleWin).echo, rig.echoes.back(), L"cleared on RTS's line");
 
             Assert::IsTrue   (rig.pane.ClickGutter (POINT { GetGutterX(), GetRowY (0) }), L"the press is the margin's");
             Assert::AreEqual ((size_t) 2, rig.echoes.size(), L"but a comment can't take a breakpoint");
@@ -359,15 +360,15 @@ namespace SourceDocumentInputTests
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (1) }, items);
             Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Set breakpoint" }, (L"LDA's line has no breakpoint: " + JoinLabels (items)).c_str());
             Run (items, L"Set breakpoint");
-            Assert::AreEqual (DebuggerActions::GetSourceBreakpoint ("main.a65", 2, snapshot->mode).echo, host.echoes.back());
+            Assert::AreEqual (BreakpointActions::GetSourceBreakpoint ("main.a65", 2, snapshot->mode).echo, host.echoes.back());
 
             items.clear();
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (2) }, items);
             Assert::IsTrue (GetLabels (items) == std::vector<std::wstring> { L"Go to disassembly", L"Disable breakpoint", L"Remove breakpoint" }, L"RTS's line has one");
             Run (items, L"Disable breakpoint");
-            Assert::AreEqual (DebuggerActions::GetEnableBreakpoint (kBreakpointId, false, snapshot->mode).echo, host.echoes.back());
+            Assert::AreEqual (BreakpointActions::GetEnableBreakpoint (kBreakpointId, false, snapshot->mode).echo, host.echoes.back());
             Run (items, L"Remove breakpoint");
-            Assert::AreEqual (DebuggerActions::GetClearBreakpoint (kBreakpointId, snapshot->mode).echo, host.echoes.back());
+            Assert::AreEqual (BreakpointActions::GetClearBreakpoint (kBreakpointId, snapshot->mode).echo, host.echoes.back());
 
             snapshot = MakeSnapshot (true);
             window.TakeSnapshot (snapshot);

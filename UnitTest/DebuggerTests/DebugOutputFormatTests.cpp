@@ -5,6 +5,7 @@
 #include "Debugger/DebuggerController.h"
 #include "HandlerTestRig.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 
 #include "CppUnitTest.h"
 #include "Core/TextEncoding.h"
@@ -188,7 +189,7 @@ namespace DebuggerTests
             rig.Run ("MODE GSSQUARED");
             rig.Run ("OUTPUT MONITOR");
 
-            reply = DebuggerViewState::ExecuteLine (rig.session, "300.301", rig.session.GetMode());
+            reply = DebuggerViewCommands::ExecuteLine (rig.session, "300.301", rig.session.GetMode());
             Assert::IsTrue (reply.text.front().starts_with ("0300- A9 41"), Widen (reply.text.front()).c_str());
         }
 

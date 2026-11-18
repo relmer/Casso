@@ -22,6 +22,8 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerKeySchemes.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/DebuggerCommandLines.h"
+#include "Ui/Debugger/DebuggerViewCommands.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
@@ -173,11 +175,11 @@ namespace DebuggerViewStateTests
 
 
 
-                reply = rig->Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), mode), mode);
+                reply = rig->Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), mode), mode);
                 Assert::IsTrue (reply.status == CommandStatus::Ok, L"the control opens the panel");
                 Assert::IsTrue (rig->view.IsPanelOpen ("fake"));
 
-                reply = rig->Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), mode), mode);
+                reply = rig->Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), mode), mode);
                 Assert::IsTrue  (reply.status == CommandStatus::Ok, L"the control closes the panel");
                 Assert::IsFalse (rig->view.IsPanelOpen ("fake"));
             }
@@ -231,19 +233,19 @@ namespace DebuggerViewStateTests
 
 
 
-            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), CommandMode::GSSquared), CommandMode::GSSquared);
+            reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), CommandMode::GSSquared), CommandMode::GSSquared);
             Assert::IsTrue (reply.status == CommandStatus::Ok);
             Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"GSSquared");
 
-            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), CommandMode::GSSquared), CommandMode::GSSquared);
+            reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), CommandMode::GSSquared), CommandMode::GSSquared);
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
             Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"GSSquared close");
 
-            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), CommandMode::WinDbg), CommandMode::WinDbg);
+            reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), CommandMode::WinDbg), CommandMode::WinDbg);
             Assert::IsTrue (reply.status == CommandStatus::Ok);
             Assert::IsTrue (rig.view.IsPanelOpen ("fake"), L"WinDbg");
 
-            reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), CommandMode::WinDbg), CommandMode::WinDbg);
+            reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), CommandMode::WinDbg), CommandMode::WinDbg);
             Assert::IsTrue  (reply.status == CommandStatus::Ok);
             Assert::IsFalse (rig.view.IsPanelOpen ("fake"), L"WinDbg close");
         }
@@ -288,7 +290,7 @@ namespace DebuggerViewStateTests
         TEST_METHOD (OutsideTheWindowPanelIsNotAvailable)
         {
             PanelRig  rig;
-            Reply     reply = DebuggerViewState::ExecuteLine (rig.session, "PANEL fake", CommandMode::AppleWin);
+            Reply     reply = DebuggerViewCommands::ExecuteLine (rig.session, "PANEL fake", CommandMode::AppleWin);
 
 
 
@@ -327,14 +329,14 @@ namespace DebuggerViewStateTests
             for (CommandMode mode : { CommandMode::AppleWin, CommandMode::Monitor, CommandMode::GSSquared, CommandMode::WinDbg })
             {
                 PanelRig  rig;
-                Reply     reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", true), mode), mode);
+                Reply     reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", true), mode), mode);
 
 
 
                 Assert::IsTrue  (reply.status == CommandStatus::Ok);
                 Assert::IsTrue  (rig.view.IsPanelOpen ("fake"));
 
-                reply = rig.Run (DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("fake", false), mode), mode);
+                reply = rig.Run (DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("fake", false), mode), mode);
                 Assert::IsTrue  (reply.status == CommandStatus::Ok);
                 Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
             }
@@ -343,9 +345,9 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (TheMenuSendsPanelLines)
         {
-            Assert::AreEqual (std::string ("PANEL disk"),        DebuggerViewState::GetPanelLine ("disk", true));
-            Assert::AreEqual (std::string ("PANEL CLOSE disk"),  DebuggerViewState::GetPanelLine ("disk", false));
-            Assert::AreEqual (std::string ("/PANEL disk"),       DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("disk", true), CommandMode::Monitor));
+            Assert::AreEqual (std::string ("PANEL disk"),        DebuggerCommandLines::GetPanelLine ("disk", true));
+            Assert::AreEqual (std::string ("PANEL CLOSE disk"),  DebuggerCommandLines::GetPanelLine ("disk", false));
+            Assert::AreEqual (std::string ("/PANEL disk"),       DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("disk", true), CommandMode::Monitor));
         }
 
 
@@ -430,7 +432,7 @@ namespace DebuggerViewStateTests
                 MachineRig            rig;
                 Reply                 reply;
                 DebuggerViewSnapshot  snapshot;
-                std::string           line = DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", true), mode);
+                std::string           line = DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", true), mode);
 
 
 
@@ -473,11 +475,11 @@ namespace DebuggerViewStateTests
 
 
 
-                reply = rig.view.ExecuteWindowLine (session, DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", true), mode), mode);
+                reply = rig.view.ExecuteWindowLine (session, DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", true), mode), mode);
                 Assert::IsTrue   (reply.status == CommandStatus::Ok, L"PANEL mmu");
                 Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
 
-                reply = rig.view.ExecuteWindowLine (session, DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", false), mode), mode);
+                reply = rig.view.ExecuteWindowLine (session, DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", false), mode), mode);
                 Assert::IsTrue   (reply.status == CommandStatus::Ok, L"PANEL CLOSE mmu");
                 Assert::IsFalse  (rig.view.IsPanelOpen ("mmu"));
             }
@@ -490,7 +492,7 @@ namespace DebuggerViewStateTests
             for (CommandMode mode : { CommandMode::GSSquared, CommandMode::WinDbg, CommandMode::Monitor })
             {
                 MachineRig  rig;
-                std::string line = DebuggerViewState::GetModeLine (DebuggerViewState::GetPanelLine ("mmu", true), mode);
+                std::string line = DebuggerCommandLines::GetModeLine (DebuggerCommandLines::GetPanelLine ("mmu", true), mode);
                 Reply       reply;
 
 

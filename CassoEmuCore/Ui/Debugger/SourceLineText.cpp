@@ -275,7 +275,7 @@ bool SourceLineText::IsOperandSymbolAt (const std::wstring & line, int codeAt, i
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SourceLineText::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text,
-                                   const SymbolInfo ** symbol)
+                                       const SymbolInfo ** symbol)
 {
     int                 start       = 0;
     const SymbolInfo  * found       = FindSymbolAt (line, ch, symbols, start);
@@ -319,7 +319,7 @@ bool SourceLineText::TryGetSymbolText (const std::wstring & line, int ch, const 
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceLineText::AppendSymbolDetails (std::wstring & text, const std::string & name, Word address, bool isConstant,
-                                      const DebuggerViewSnapshot & snapshot, const std::string & comment)
+                                          const DebuggerViewSnapshot & snapshot, const std::string & comment)
 {
     const char  * about = SymbolDescriptions::Find (name);
     auto          read  = std::ranges::lower_bound (snapshot.symbolBytes, address, {}, &DebuggerViewSnapshot::SymbolBytes::address);

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/StackHistory.h"
+#include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/UndoText.h"
 #include "Ui/Debugger/ByteChanges.h"
 
@@ -81,7 +82,7 @@ std::optional<DebuggerAction> StackHistory::TryUndo (CommandMode mode)
     step = m_undo.back();
     m_undo.pop_back();
     m_redo.push_back (step);
-    return DebuggerActions::GetEnterByte (step.address, step.before, mode);
+    return MemoryActions::GetEnterByte (step.address, step.before, mode);
 }
 
 
@@ -108,7 +109,7 @@ std::optional<DebuggerAction> StackHistory::TryRedo (CommandMode mode)
     step = m_redo.back();
     m_redo.pop_back();
     m_undo.push_back (step);
-    return DebuggerActions::GetEnterByte (step.address, step.after, mode);
+    return MemoryActions::GetEnterByte (step.address, step.after, mode);
 }
 
 

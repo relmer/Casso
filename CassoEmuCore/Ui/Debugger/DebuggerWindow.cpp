@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/OpenViewsText.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Ui/Debugger/CommandBarEntryStates.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
@@ -472,7 +475,7 @@ void DebuggerWindow::RunCommandBarEntry (int id)
     {
         if (IsCommandBarEntryEnabled (id))
         {
-            RunAction (DebuggerActions::GetTraceToggle (m_snapshot != nullptr && m_snapshot->trace.isOn, GetMode()));
+            RunAction (SessionActions::GetTraceToggle (m_snapshot != nullptr && m_snapshot->trace.isOn, GetMode()));
         }
 
         return;
@@ -480,7 +483,7 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 
     if (id == DebuggerCommands::kReverseContinue || id == DebuggerCommands::kGoLive)
     {
-        RunAction (DebuggerActions::GetReverse ((id == DebuggerCommands::kGoLive) ? DebugVerb::GoLive : DebugVerb::ReverseGo, GetMode()));
+        RunAction (RunActions::GetReverse ((id == DebuggerCommands::kGoLive) ? DebugVerb::GoLive : DebugVerb::ReverseGo, GetMode()));
         return;
     }
 
@@ -789,7 +792,7 @@ int DebuggerWindow::GetSourceSlotOf (const std::wstring & pane) const
 
 void DebuggerWindow::RunToCursor (Word address)
 {
-    RunAction (DebuggerActions::GetRunToCursor (address));
+    RunAction (RunActions::GetRunToCursor (address));
 }
 
 
@@ -1647,7 +1650,7 @@ void DebuggerWindow::UpdateLiveTrace()
     }
 
     m_liveTraceRequest = isWanted;
-    action             = DebuggerActions::GetTraceToggle (m_snapshot->trace.isOn, GetMode());
+    action             = SessionActions::GetTraceToggle (m_snapshot->trace.isOn, GetMode());
     action.quiet       = true;
     RunAction (action);
 }
@@ -1667,8 +1670,8 @@ void DebuggerWindow::UpdateLiveTrace()
 
 void DebuggerWindow::KeepOpenViews()
 {
-    std::string                   text;
-    DebuggerViewState::OpenViews  views;
+    std::string               text;
+    OpenViewsText::OpenViews  views;
     auto                          nameOf = [this] (int fileId)
     {
         std::string  name;
@@ -1692,7 +1695,7 @@ void DebuggerWindow::KeepOpenViews()
     }
 
     //  The source documents open, each at the line at its top (FR-113).
-    text  = DebuggerViewState::FormatOpenViews (*m_snapshot);
+    text  = OpenViewsText::FormatOpenViews (*m_snapshot);
     text += m_sources->FormatOpen (nameOf);
     text += BreakpointColumns::FormatShown (m_breakpointsPane->GetShown());
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
@@ -1707,7 +1710,7 @@ void DebuggerWindow::KeepOpenViews()
         m_openViewsRestored = true;
         m_openViewsSaved    = m_host->GetDebuggerOpenViews();
         m_openViewsSettling = m_openViewsSaved.empty() ? 0 : kSettlingSnapshots;
-        views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
+        views               = OpenViewsText::ParseOpenViews (m_openViewsSaved);
         m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
 
         m_sources->SetSaved         (SourceDocuments::Parse (m_openViewsSaved));
@@ -1738,7 +1741,7 @@ void DebuggerWindow::KeepOpenViews()
         //  console shows only what the user did.
         for (const std::string & panel : views.panels)
         {
-            DebuggerAction  reopen = DebuggerActions::GetPanel (panel, true, GetMode());
+            DebuggerAction  reopen = SessionActions::GetPanel (panel, true, GetMode());
 
             reopen.quiet = true;
             RunAction (reopen);
