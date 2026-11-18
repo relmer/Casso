@@ -619,7 +619,52 @@ were rewritten to those sections' components and to the view state parts
   construction can't replace them. The other four call back into
   `ShellDebugger`. It stays.
 - `DebuggerWindow::RouteWindowMouse` and `RenderFrame` are split into stages,
-  one function each, called in the order the original ran them.
+  one function each, called in the order the original ran them. The mouse
+  stages are in `DebuggerWindowMouse.cpp`.
+
+### 9. The classes near the limit (as built, 2026-11-18)
+
+Five classes passed the size check just under its limit, which the method
+above counts as doing too much. Each is split along its state.
+
+- `ProfilerPane`:
+  - `ProfileRows`: the list's rows, sorts, row addresses and totals line,
+    static, with the `View` enum.
+  - `ProfileTimelineNavigator`: the zoom states, each range's built profile,
+    the wheel gesture and the drag, with references to the timeline and the
+    flame graph, and `IProfileNavigatorOwner` (run a profile, refresh) back
+    to the pane. Tests call it through `GetNavigator()`.
+- `HistoryThumbnails`:
+  - `HistoryCellGrid`: the grid of points and the offset math, static, with
+    `HistoryThumbnailCell`.
+  - `HistoryPlayhead`: the machine's position as the machine thread sets it
+    (atomics), the line the user drags until its seek lands (UI thread only),
+    and the labels. Callers use `GetPlayhead()`.
+  - The pictures and the render job stay, since they share the lock.
+- `DisassemblyGroup`:
+  - `DisassemblySourceText`: the source lines for the source rows, which
+    replaces the `GetSourceText` forwarder.
+  - `DisassemblySymbols`: the symbol tips and the operand's symbol, with a
+    reference to the group. Callers use `GetSymbols()`.
+  - `ApplyView` is split into `MakeRowContext`, `BuildRow`, `FillSourceRow`,
+    `FillCodeRow`, `SetRowTips` and `KeepSelection`.
+  - The edge keys stay: they change the group's selection.
+- `DebugSession`:
+  - The forwarders to `DebugProgramFiles`, `CallRecordKeeper`,
+    `DebugHostFiles`, `DebugLineInterpreter` and `DebugStopMonitor` are
+    removed; callers use `GetFiles()`, `GetCallRecords()`, `GetHostFiles()`,
+    `GetInterpreter()` and `GetStops()`. The beam break setters stay, since
+    each updates the hook.
+  - `MonitorRun`: the Monitor `G`'s return address push and its undo, and
+    the Monitor step's display line, static.
+  - `CountedStepRunner`: a counted step over, step out or source step as
+    single steps, with `ICountedStepOwner` (pause, start a step, deliver a
+    stop) back to the session.
+  - `ExecuteRun` is split into `TryPrepareRun`, `SetRunStart` and
+    `FillRunRequest`.
+- `DebuggerWindow`: not split here. Its weight is `IDebuggerPaneHost`, the
+  host every pane calls, far past rule 3's size. That is the seam to
+  redesign, and the redesign touches every pane.
 
 ### Dxui (separate)
 
