@@ -315,6 +315,7 @@ void DxuiDockSite::ArrangeSlid()
 {
     DxuiTabGroup        & slidGroup = m_groups.GetSlid();
     const DxuiDockPane  * slid      = m_edges.GetSlidPane().empty() ? nullptr : m_panes.Find (m_edges.GetSlidPane());
+    bool                  isShown   = slid != nullptr && slid->content != nullptr;
 
 
 
@@ -323,9 +324,9 @@ void DxuiDockSite::ArrangeSlid()
         slidGroup.RemoveTab (slidGroup.GetContent (0));
     }
 
-    slidGroup.SetVisible (slid != nullptr && slid->content != nullptr);
+    slidGroup.SetVisible (isShown);
 
-    if (slidGroup.IsVisible())
+    if (isShown)
     {
         slidGroup.AddTab         (slid->title, slid->content);
         slidGroup.SetFocusedLook (m_edges.GetSlidPane() == m_focusedPane);
