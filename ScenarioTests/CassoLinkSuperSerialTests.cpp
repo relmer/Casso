@@ -104,12 +104,12 @@ public:
     static inline std::filesystem::path  s_firmwareOverride;
     static inline bool                   s_emptySlot4 = false;
 
-    //  A slot 4 card with the Pascal 1.1 signature and no 6551:
-    //  its entries drive slot 5's 6551, at $C0D8 to $C0DB. Its read sets bit
-    //  7 of each byte, as Apple's does.
+    //  A slot 4 card with the Pascal 1.1 signature, the ID byte given and no
+    //  6551: its entries drive slot 5's 6551, at $C0D8 to $C0DB. Its read
+    //  sets bit 7 of each byte, as Apple's does.
     static constexpr int  kFirmwareSlot = 4;
 
-    static std::vector<Byte>  MakeFirmwareCardRom()
+    static std::vector<Byte>  MakeFirmwareCardRom (Byte id = 0x32)
     {
         std::vector<Byte>  rom (0x100, 0xFF);
         size_t             at  = 0x20;
@@ -130,7 +130,7 @@ public:
         rom[0x05] = 0x38;
         rom[0x07] = 0x18;
         rom[0x0B] = 0x01;
-        rom[0x0C] = 0x32;
+        rom[0x0C] = id;
 
         //  init: 9,600 baud, 8 data bits, DTR on; a byte waiting is dropped.
         rom[0x0D] = put ({ 0xA9, 0x1E, 0x8D, 0xDB, 0xC0, 0xA9, 0x0B, 0x8D, 0xDA, 0xC0, 0xAD, 0xD8, 0xC0, 0xA2, 0x00, 0x18, 0x60 });
@@ -385,7 +385,7 @@ public:
 
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3AA0.3FDBR 3AA0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("3AA0.3FEBR 3AA0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
@@ -537,6 +537,41 @@ public:
         AssertSucceeded (rig.host->PromptReady());
         Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog through the card's firmware");
         Assert::AreEqual<Byte> (0x80, rig.machine.GetCpu()->ReadByte (0x3B39), L"the shim runs the card through its firmware");
+    }
+
+
+
+    //  A card in slot 4 with the Pascal 1.1 signature, the Super Serial
+    //  Card's ID byte and no 6551, as a IIgs's port has: the universal disk
+    //  lists it as a serial port, and the shim runs it through its firmware.
+    //  Set speed changes nothing on a //e, which has no 8530.
+    TEST_METHOD (TheUniversalDisk_RunsAPortWithTheSscsId_ThroughItsFirmware)
+    {
+        std::vector<Byte>  boot;
+        LinkShimOptions    options;
+
+
+
+        s_emptySlot4 = true;
+
+        Rig  rig (false);
+
+        s_emptySlot4 = false;
+
+        rig.machine.GetMmu()->AttachSlotRom (kFirmwareSlot, MakeFirmwareCardRom (0x31));
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        rig.MountDisk();
+        rig.machine.RunCycles (kBootCycles);
+
+        Assert::IsTrue (JoinRows (rig.Screen()).find ("SERIAL PORT 4") != std::string::npos, TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+
+        AssertSucceeded (rig.host->PromptReady());
+        AssertSucceeded (rig.host->SetSpeed (0x1E));
+        Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog through the port's firmware");
+        Assert::AreEqual<Byte> (0xC0, rig.machine.GetCpu()->ReadByte (0x3B39), L"the shim runs the port through its firmware");
+        Assert::AreEqual<Byte> (0x00, rig.machine.GetCpu()->ReadByte (0x3B43), L"no IIgs speed kept on a //e");
     }
 
 

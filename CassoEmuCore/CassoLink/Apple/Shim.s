@@ -29,12 +29,17 @@
 ; NMOS 6502 code throughout. The program finds the 6551 through slotx, which
 ; the shim sets.
 ;
-; A serial card in the slot with the Pascal 1.1 firmware signature and not
-; the Super Serial Card's ID byte is run through its firmware instead: its
-; init, read, write and status entries, at the offsets in $Cn0D to $Cn10,
-; called with X at $Cn and Y at $n0. The card's switches or firmware set its
-; speed. The byte at $3B39 is then $80, and the program calls the firmware
+; A serial card or port in the slot with the Pascal 1.1 firmware signature
+; and no 6551 is run through its firmware instead: its init, read, write and
+; status entries, at the offsets in $Cn0D to $Cn10, called with X at $Cn and
+; Y at $n0. The card's switches or firmware set its speed. The byte at $3B39
+; is then $80, or $C0 for a port with the Super Serial Card's ID byte, as a
+; IIgs's modem and printer ports have, and the program calls the firmware
 ; through the jumps at $3B3A, $3B3D and $3B40, which stay resident.
+;
+; The byte at $3B43 is 0 until the program starts on a IIgs, and then the
+; IIgs's speed register as it was, plus 1: the program runs the IIgs
+; at 1 MHz and restores its speed when CassoLink ends.
 ;
 ; The W5100 build, for an Uthernet II, has the same header and address.
 ; In the dial command's place are the card's address, subnet mask, gateway
@@ -147,11 +152,14 @@ zpsaved: .byte 0                 ; $3B34: nonzero once the machine's state is sa
 oldreset: .byte 0, 0, 0          ; $3B35: the reset vector and its check byte
 slot:   .byte 2                  ; $3B38: the 6551's slot
         ifndef W5100
-pascal: .byte 0                  ; $3B39: $80 for a card run through its firmware
+pascal: .byte 0                  ; $3B39: $80 for a card run through its firmware, $C0 for a port
         jmp pstat                ; $3B3A: its status entry, with the request in A,
         jmp pread                ; $3B3D: its read entry,
         jmp pwrite               ; $3B40: and its write entry, X and Y changed
+        else
+        .ds 10                   ; $3B39: the 6551 build's firmware entries
         endif
+        .byte 0                  ; $3B43: a IIgs's speed register as found, plus 1
 
 ; The first start saves the machine's zero page at ZPSAVE and its reset
 ; vector, for the program to put back when CassoLink ends. A bootstrap or a
@@ -260,10 +268,13 @@ wdport: lda #$BA                ; a colon
         jsr putport
         jsr wzwait
         else
-        ldx #4                  ; a card run through its firmware, by name alone
-        bit pascal
-        bmi rdname
-        ldx #0                  ; the interface, as the universal disk lists it:
+        ldx #4                  ; a card run through its firmware, by name alone,
+        bit pascal              ; and a IIgs's port as SERIAL PORT 2
+        bpl rdacia
+        bvc rdname
+        ldx #2
+        bne rdmodem
+rdacia: ldx #0                  ; the interface, as the universal disk lists it:
         lda $FBB3               ; a card or a //c's port, by cable or through
         eor #$06                ; a Wi-Fi modem, as SSC, SLOT 2, 115200. A //c
         ora $FBC0               ; has $06 at $FBB3 and $00 at $FBC0
@@ -945,10 +956,12 @@ i51no:  pla
 
 ; pasinit: for a card in the slot with the Pascal 1.1 signature, $38, $18
 ; and $01 at $Cn05, $Cn07 and $Cn0B, an ID byte at $Cn0C of a serial card's
-; or a modem's class, 3 or 4 in its high nibble, but not the Super Serial
-; Card's, $31, and no 6551: its entries set, its init called and pascal set,
-; with the carry set; otherwise the carry clear. A //e's 80-column firmware,
-; of class 8, is passed over.
+; or a modem's class, 3 or 4 in its high nibble, and no 6551: its entries
+; set, its init called and pascal set, with the carry set; otherwise the
+; carry clear. A Super Serial Card and a //c's port have a 6551. A IIgs's
+; port has the Super Serial Card's ID byte, $31, and an 8530 instead, and
+; pascal is $C0 for it. A //e's 80-column firmware, of class 8, is passed
+; over.
 pasinit: lda slot
         ora #$C0
         sta ptr+1
@@ -970,16 +983,14 @@ pasinit: lda slot
         cmp #$01
         bne pinone
         ldy #$0C                ; a serial card's or a modem's class, in the
-        lda (ptr),y             ; ID byte's high nibble, but not the SSC's ID
-        cmp #$31
-        beq pinone
+        lda (ptr),y             ; ID byte's high nibble
         and #$F0
         cmp #$30
         beq pinclass
         cmp #$40
         bne pinone
 pinclass:
-        ldy slotx               ; a clone with a 6551 is driven as the SSC is
+        ldy slotx               ; a card or port with a 6551 is driven as the SSC is
         jsr is6551
         bcs pinone
         lda slotx
@@ -994,7 +1005,13 @@ pincopy: lda (ptr),y
         bne pincopy
         lda #$80
         sta pascal
-        ldx #0                  ; init
+        ldy #$0C
+        lda (ptr),y
+        cmp #$31
+        bne pinit
+        lda #$C0
+        sta pascal
+pinit:  ldx #0                  ; init
         jsr pcall
         sec
         rts

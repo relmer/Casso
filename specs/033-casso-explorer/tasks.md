@@ -1888,10 +1888,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: the link on a IIgs, Pascal-firmware cards and two more Ethernet cards. **Independent test**: quickstart §7f step 6.
 
-- [ ] T598 [US28] Write `CassoLink/Apple/Modules/Scc.s`: the IIgs's modem and printer ports through the 8530, and the program's speed change at $C036 around each 5.25" read and write (FR-208)
+- [X] T598 [US28] Write `CassoLink/Apple/Modules/Scc.s`: the IIgs's modem and printer ports through the 8530, and the program's speed change at $C036 around each 5.25" read and write (FR-208). Built in `Shim.s`, `Universal.s` and `Program.s` instead of a module (R47 Update 2): a IIgs's port is run through its Pascal firmware until Set speed, then the program sets the 8530 and drives it directly; the IIgs runs at 1 MHz from the program's start to CassoLink's end. `TheUniversalDisk_RunsAPortWithTheSscsId_ThroughItsFirmware` covers the routing on a //e; the 8530 itself runs under T602
 - [X] T599 [US28] Write `CassoLink/Apple/Modules/PascalFirmware.s`: a card with the Pascal 1.1 signature and no ID match, through its init, read, write and status entries (FR-209). Built in `Shim.s`, `Program.s` and `Universal.s` instead of a module, with each byte as two characters (R47 Update); tested by `TheUniversalDisk_RunsAPascalCard_ThroughItsFirmware`
 - [ ] T600 [US28] Write a minimal ARP, IPv4, UDP and TCP stack with one connection, shared by `CassoLink/Apple/Modules/Cs8900a.s` and `Lan91c96.s`, with the Uthernet II's announcement (FR-210)
-- [ ] T601 [US28] Accept a IIgs with a Super Serial Card and compatibles such as the Laser 128 in the program's machine detection (FR-211)
+- [X] T601 [US28] Accept a IIgs with a Super Serial Card and compatibles such as the Laser 128 in the program's machine detection (FR-211). A IIgs is identified by its ID call at $FE1F and runs at 1 MHz; its Super Serial Card has a 6551 and is driven as on a //e. No published source has the Laser 128's ID bytes; posts on comp.sys.apple2 report that it identifies as a //e, so the program has no Laser 128 case. Its port is driven directly when it has a 6551 and through its firmware otherwise Runs under T602
 - [ ] T602 [US28] Add KEGS, GSplus, MAME (IIgs with a Super Serial Card, Laser 128, LANceGS) and AppleWin (Uthernet) targets to `scripts/EmuTargets/`; run Story 14's scenarios on each and record SC-059 in `validation.md`. Check MAME's LANceGS MAC address first
 
 ## Phase 46: An Apple /// client (User Story 29)
