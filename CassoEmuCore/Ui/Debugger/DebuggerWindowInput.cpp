@@ -1119,6 +1119,7 @@ bool DebuggerWindow::ScrollCodeViewAt (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DebuggerWindow::GetRoutedPaneAt
