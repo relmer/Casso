@@ -313,15 +313,15 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // where the key would change what it reads, or the machine is live; the
     // keys that follow wait with it. A key that drives the game port goes to
     // the mixer now, which holds it there the same way.
-    verdict = m_debugger.GetDivergenceGate().JudgeKey (!isGateOpen, ev);
+    verdict = m_debugger.GetDivergence().GetGate().JudgeKey (!isGateOpen, ev);
 
     if (verdict == DivergenceVerdict::Hold)
     {
         latch = GetHeldKeyLatch (ev, isMachineKey);
 
-        m_debugger.GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
+        m_debugger.GetDivergence().GetGate().HoldKey (ev, latch, isMachineKey);
         RouteKeyToGamePort (ev);
-        m_debugger.PublishHeldInput();
+        m_debugger.GetDivergence().PublishHeldInput();
 
         return true;
     }
@@ -1297,30 +1297,30 @@ void ShellInput::Paste (const std::wstring * text)
     bool    hostCapsLock   = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
-    bool    isBehindLive   = m_debugger.IsBehindLiveForUi();
+    bool    isBehindLive   = m_debugger.GetDivergence().IsBehindLiveForUi();
     Byte    first          = 0;
     size_t  length         = 0;
 
 
 
-    if (m_host.GetClipboard() == nullptr || !m_debugger.AllowCommand (IDM_EDIT_PASTE, std::string()))
+    if (m_host.GetClipboard() == nullptr || !m_debugger.GetDivergence().AllowCommand (IDM_EDIT_PASTE, std::string()))
     {
         return;
     }
 
-    if (isBehindLive && !m_debugger.GetDivergenceGate().HasHeldPaste())
+    if (isBehindLive && !m_debugger.GetDivergence().GetGate().HasHeldPaste())
     {
-        m_debugger.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
+        m_debugger.GetDivergence().SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
     }
 
     raisedLetters = (text != nullptr) ? m_host.GetClipboard()->PasteText (*text, capsLockOn)
                                       : m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
     length        = m_host.GetClipboard()->GetPasteLength (first);
 
-    if (isBehindLive && length > m_debugger.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
+    if (isBehindLive && length > m_debugger.GetDivergence().GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
     {
-        m_debugger.GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
-        m_debugger.PublishHeldInput();
+        m_debugger.GetDivergence().GetGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        m_debugger.GetDivergence().PublishHeldInput();
     }
 
     if (raisedLetters)
@@ -1610,9 +1610,9 @@ HRESULT ShellInput::Start()
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.
-    m_gamePortSink->SetDivergenceGate (&m_debugger.GetDivergenceGate(), [this]
+    m_gamePortSink->SetDivergenceGate (&m_debugger.GetDivergence().GetGate(), [this]
     {
-        m_debugger.PublishHeldInput();
+        m_debugger.GetDivergence().PublishHeldInput();
     });
 
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_host.GetMainWindow()]

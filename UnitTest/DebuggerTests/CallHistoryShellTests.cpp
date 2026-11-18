@@ -93,7 +93,7 @@ namespace CallHistoryShellTests
             LoadProgram (shell->GetMachine());
 
             shell->GetDebugger().PrepareFramebuffers();
-            shell->GetDebugger().GetCallReplayer().SetWorkQueue (&queue);
+            shell->GetDebugger().GetHistory().GetCallReplayer().SetWorkQueue (&queue);
 
             Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (true, kBudgetMb); });
 
@@ -429,13 +429,13 @@ namespace CallHistoryShellTests
 
             rig.RunTo (ShellRig::kOpenAt * 2);
             rig.Dispatch (IDM_DEBUG_REVERSE, [=] (IDebugCommandTarget & debug) { debug.RunReverseCommand (ReverseCommand::Seek, landing); });
-            rig.shell->GetDebugger().UpdateReplayCaption();
+            rig.shell->GetDebugger().GetHistory().UpdateCaption();
 
-            Assert::IsFalse (rig.shell->GetDebugger().GetReplayCaption().empty(), L"behind live, the caption notes the replay");
+            Assert::IsFalse (rig.shell->GetDebugger().GetHistory().GetCaption().empty(), L"behind live, the caption notes the replay");
 
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
 
-            Assert::IsTrue (rig.shell->GetDebugger().GetReplayCaption().empty(), L"with history off, the note is gone");
+            Assert::IsTrue (rig.shell->GetDebugger().GetHistory().GetCaption().empty(), L"with history off, the note is gone");
         }
 
 
@@ -460,7 +460,7 @@ namespace CallHistoryShellTests
 
             rig.queue.WaitAll();
 
-            isLeft = rig.shell->GetDebugger().GetCallReplayer().TryTakeResult (result);
+            isLeft = rig.shell->GetDebugger().GetHistory().GetCallReplayer().TryTakeResult (result);
 
             Assert::IsFalse (isLeft, L"the rebuild was dropped, not run");
         }
@@ -480,8 +480,8 @@ namespace CallHistoryShellTests
 
             //  The shell's clock is moved on a few build intervals between
             //  passes rather than slept through.
-            rig.shell->GetDebugger().SetClock ([&nowMs] () { return nowMs; });
-            rig.shell->GetDebugger().SetDebugWindowShown (true);
+            rig.shell->GetDebugger().GetView().SetClock ([&nowMs] () { return nowMs; });
+            rig.shell->GetDebugger().GetView().SetWindowShown (true);
 
             rig.shell->GetDebugger().ServiceDebugger();
 
@@ -502,13 +502,13 @@ namespace CallHistoryShellTests
 
             //  The shell's count of views sent to be built, read at once
             //  rather than after waiting out a timeout.
-            before = rig.shell->GetDebugger().GetBuildsSubmitted();
+            before = rig.shell->GetDebugger().GetView().GetBuildsSubmitted();
             nowMs += kBuildPassingMs;
             rig.shell->GetDebugger().ServiceDebugger();
 
-            Assert::AreEqual (before, rig.shell->GetDebugger().GetBuildsSubmitted(), L"then a stopped machine doesn't build again");
+            Assert::AreEqual (before, rig.shell->GetDebugger().GetView().GetBuildsSubmitted(), L"then a stopped machine doesn't build again");
 
-            rig.shell->GetDebugger().SetDebugWindowShown (false);
+            rig.shell->GetDebugger().GetView().SetWindowShown (false);
         }
     };
 }

@@ -1,6 +1,7 @@
 #pragma once
 
-class DebuggerViewState;
+#include "Ui/Debugger/DebuggerViewState.h"
+
 class HeatMapOptions;
 
 
@@ -9,19 +10,24 @@ class HeatMapOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugViewRequests
+//  DebugViewModel
 //
-//  The debugger window's changes to the views in its panes, made on the
-//  CPU thread: the code views, the memory windows, the trace and the heat
-//  map. Each takes the view state lock a build reads under, and a change
-//  calls the function given, which marks the view for building again.
+//  The debugger window's view state on the CPU thread, the lock every change
+//  to it and every build that reads it are made under, and whether it
+//  changed since the views were last built. The window's changes to its code
+//  views, memory windows, trace and heat map are made here, each under the
+//  lock.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebugViewRequests
+class DebugViewModel
 {
 public:
-    DebugViewRequests (DebuggerViewState & state, std::mutex & lock, std::function<void()> onChanged);
+    DebuggerViewState  & GetState    ()       { return m_state; }
+    std::mutex         & GetLock     ()       { return m_lock; }
+    void                 MarkDirty   ()       { m_isDirty = true; }
+    void                 ClearDirty  ()       { m_isDirty = false; }
+    bool                 IsDirty     () const { return m_isDirty; }
 
     void  SetFollowView       (int view);
     void  CloseCodeView       (int view);
@@ -44,7 +50,7 @@ public:
 private:
     static bool  IsCodeView   (int view);
 
-    DebuggerViewState      & m_state;
-    std::mutex             & m_lock;
-    std::function<void()>    m_onChanged;
+    DebuggerViewState  m_state;
+    std::mutex         m_lock;
+    bool               m_isDirty = true;
 };

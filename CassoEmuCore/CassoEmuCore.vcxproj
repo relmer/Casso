@@ -400,8 +400,6 @@
     <ClCompile Include="Debugger\Reverse\HeldInputWatch.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryStatus.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
-    <ClCompile Include="Shell\ShellDebuggerReverse.cpp" />
-    <ClCompile Include="Shell\ShellDebuggerProject.cpp" />
     <ClCompile Include="Shell\ShellDebuggerPrefs.cpp" />
     <ClCompile Include="Shell\TraceHistory.cpp" />
     <ClCompile Include="Shell\ProfileHistory.cpp" />
@@ -1558,7 +1556,12 @@
     <ClCompile Include="Shell\Components\ShellDeskScene.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
     <ClCompile Include="Shell\ShellDebugger.cpp" />
-    <ClCompile Include="Shell\DebugViewRequests.cpp" />
+    <ClCompile Include="Shell\DebugProjectMerge.cpp" />
+    <ClCompile Include="Shell\HistoryDivergence.cpp" />
+    <ClCompile Include="Shell\ShellDebugProject.cpp" />
+    <ClCompile Include="Shell\ShellDebugView.cpp" />
+    <ClCompile Include="Shell\ShellHistory.cpp" />
+    <ClCompile Include="Shell\DebugViewModel.cpp" />
     <ClCompile Include="Shell\DebugWindowMailbox.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
     <ClCompile Include="Shell\Components\ShellInput.cpp" />
@@ -2885,7 +2888,13 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
-    <ClInclude Include="Shell\DebugViewRequests.h" />
+    <ClInclude Include="Shell\DebugProjectMerge.h" />
+    <ClInclude Include="Shell\HistoryDivergence.h" />
+    <ClInclude Include="Shell\ShellDebugProject.h" />
+    <ClInclude Include="Shell\ShellDebugView.h" />
+    <ClInclude Include="Shell\ShellHistory.h" />
+    <ClInclude Include="Shell\IShellDebugContext.h" />
+    <ClInclude Include="Shell\DebugViewModel.h" />
     <ClInclude Include="Shell\DebugWindowMailbox.h" />
     <ClInclude Include="Shell\ShellDebuggerPrefs.h" />
     <ClInclude Include="Shell\IDebuggerHost.h" />

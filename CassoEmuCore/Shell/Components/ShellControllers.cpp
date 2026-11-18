@@ -49,7 +49,7 @@ void ShellControllers::SyncJoyport()
     }
     else
     {
-        m_input.m_debugger.OweJoyportSync();
+        m_input.m_debugger.GetDivergence().OweJoyportSync();
     }
 
     gate.Leave();

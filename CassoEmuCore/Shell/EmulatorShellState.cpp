@@ -241,11 +241,11 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
     hr = MachineStateFile::Check (m_machine, contents, outError);
     CHR (hr);
 
-    m_debugger->StopReverseRecording();
+    m_debugger->GetHistory().StopRecording();
 
     hr = MachineStateFile::Apply (m_machine, contents, outError);
 
-    m_debugger->StartReverseRecording();
+    m_debugger->GetHistory().StartRecording();
 
     CHR (hr);
 
@@ -259,7 +259,7 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
 
     m_debugger->NotifyDebugMachineChanged (fs::path (m_machine.GetCurrentMachineName()).string(), true);
 
-    m_debugger->MarkViewDirty();
+    m_debugger->GetViewModel().MarkDirty();
 
     m_renderer->RenderFramebuffer();
     m_renderer->PublishFramebuffer();

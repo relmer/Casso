@@ -1511,7 +1511,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
         case Apple2cSwitchBar::Part::EightyForty:
             // The guest reads this switch, so behind live it asks first.
-            m_shell.m_debugger->ToggleEightyColumnSwitch (iieKbd);
+            m_shell.m_debugger->GetDivergence().ToggleEightyColumnSwitch (iieKbd);
             break;
 
         case Apple2cSwitchBar::Part::Keyboard:

@@ -380,8 +380,8 @@ void ShellMouseInput::UpdateGuestMouseFromHost (int xPx, int yPx)
 
     if (!isGateOpen)
     {
-        m_input.m_debugger.GetDivergenceGate().SetMouseTarget (target);
-        m_input.m_debugger.PublishHeldInput();
+        m_input.m_debugger.GetDivergence().GetGate().SetMouseTarget (target);
+        m_input.m_debugger.GetDivergence().PublishHeldInput();
     }
     else if (target.has_value())
     {
@@ -426,7 +426,7 @@ void ShellMouseInput::PressGuestMouseButton (int x, int y)
 
     if (!isGateOpen)
     {
-        m_input.m_debugger.HoldInputBehindLive (HeldInput::MousePress);
+        m_input.m_debugger.GetDivergence().HoldInput (HeldInput::MousePress);
         return;
     }
 
@@ -465,8 +465,8 @@ void ShellMouseInput::ReleaseGuestMouseButton()
 
     if (!isGateOpen)
     {
-        m_input.m_debugger.GetDivergenceGate().ReleaseMousePress();
-        m_input.m_debugger.PublishHeldInput();
+        m_input.m_debugger.GetDivergence().GetGate().ReleaseMousePress();
+        m_input.m_debugger.GetDivergence().PublishHeldInput();
         return;
     }
 

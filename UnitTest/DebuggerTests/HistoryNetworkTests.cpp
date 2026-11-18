@@ -139,7 +139,7 @@ namespace HistoryNetworkTests
 
             for (i = 0; i < count; i++)
             {
-                shell->GetDebugger().RecordHistoryFrame (false);
+                shell->GetDebugger().GetHistory().RecordFrame (false);
                 shell->GetMachine().RunCycles (kFrameCycles);
             }
         }
@@ -180,7 +180,7 @@ namespace HistoryNetworkTests
 
         bool IsRecording() const
         {
-            return shell->GetDebugger().GetReverseHost() != nullptr && shell->GetDebugger().GetReverseHost()->IsRecording();
+            return shell->GetDebugger().GetHistory().GetReverseHost() != nullptr && shell->GetDebugger().GetHistory().GetReverseHost()->IsRecording();
         }
     };
 
@@ -220,7 +220,7 @@ namespace HistoryNetworkTests
             rig.CloseSocket();
             rig.RunFrames (3);
             Assert::IsTrue (rig.IsRecording(), L"and after it closes");
-            Assert::IsTrue (rig.shell->GetDebugger().GetReverseHost()->GetController().GetOldestPosition() < openedAt,
+            Assert::IsTrue (rig.shell->GetDebugger().GetHistory().GetReverseHost()->GetController().GetOldestPosition() < openedAt,
                             L"history starts before the time the card was in use");
         }
 
