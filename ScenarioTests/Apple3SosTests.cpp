@@ -207,6 +207,26 @@ public:
     }
 
 
+    //  SOS reads the date from the clock chip, which starts at the host's
+    //  local time.
+    TEST_METHOD (BusinessBasic_DateIsTheHostsDate)
+    {
+        TestMachine  machine ("Apple3");
+        SYSTEMTIME   local = {};
+        std::string  date;
+
+
+
+        MountBusinessBasic (machine);
+        Assert::IsTrue (RunUntilScreenHas (machine, "BLOCKS FREE", kSecondsToPrompt));
+
+        GetLocalTime (&local);
+        date = std::format ("\n{:02}/{:02}/{:02}", local.wYear % 100, local.wMonth, local.wDay);
+
+        RunCommand (machine, "PRINT DATE$");
+        Assert::IsTrue (GetScreenText (*machine.GetApple3()).find (date) != std::string::npos, TextEncoding::Utf8ToWide (GetScreenText (*machine.GetApple3())).c_str());
+    }
+
     TEST_METHOD (BusinessBasic_PrintsSixTimesSeven)
     {
         TestMachine  machine ("Apple3");

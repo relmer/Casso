@@ -30,7 +30,7 @@ Apple3System::Apple3System (MemoryBus & bus)
       m_video  (m_characterSet),
       m_analog (m_timeBase),
       m_acia   (kAciaAddress),
-      m_io     (bus, m_keyboard, m_video, m_slots, m_disk, m_analog, m_acia)
+      m_io     (bus, m_mmu, m_keyboard, m_video, m_slots, m_disk, m_analog, m_acia, m_clock)
 {
 }
 
@@ -180,6 +180,9 @@ void Apple3System::SyncDevices()
 
     m_keyboard.UpdateInterruptLine();
 
+    // The clock chip's interrupt is E VIA CA1, active on a falling edge.
+    m_vias.GetE().SetCa1 (!m_clock.IsInterruptAsserted());
+
     if (m_interrupts != nullptr)
     {
         m_vias.SetInterruptLine (m_interrupts->IsAnyAsserted());
@@ -204,6 +207,7 @@ void Apple3System::PowerOn (Prng & prng)
     m_mmu.PowerCycle (prng);
     m_characterSet.PowerOn (prng);
     m_disk.PowerOn (prng);
+    m_clock.PowerOn();
 
     Reset();
 }
@@ -248,4 +252,5 @@ void Apple3System::GetStateParts (std::vector<IMachineState *> & outParts)
     outParts.push_back (&m_disk);
     outParts.push_back (&m_analog);
     outParts.push_back (&m_acia);
+    outParts.push_back (&m_clock);
 }

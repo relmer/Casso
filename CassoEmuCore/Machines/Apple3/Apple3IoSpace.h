@@ -8,6 +8,8 @@ class Acia6551;
 class Apple3AnalogInputs;
 class Apple3DiskController;
 class Apple3Keyboard;
+class Apple3Mmu;
+class Mm58167;
 class Apple3Slots;
 class Apple3Video;
 class MemoryBus;
@@ -29,8 +31,9 @@ class MemoryBus;
 //  register at $C0Ex. An address with nothing behind it yet reads the
 //  floating bus.
 //
-//  An access to the clock chip at $C07x or the 6551 at $C0Fx runs at 1 MHz
-//  and is counted for the time base.
+//  Any address in $C070-$C07F is the clock chip register the zero page
+//  register selects. An access to the clock chip or the 6551 at $C0Fx runs
+//  at 1 MHz and is counted for the time base.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +43,8 @@ public:
     static constexpr Word  kFirst = 0xC000;
     static constexpr Word  kLast  = 0xCFFF;
 
-    Apple3IoSpace (MemoryBus & bus, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
-                   Apple3AnalogInputs & analog, Acia6551 & acia);
+    Apple3IoSpace (MemoryBus & bus, Apple3Mmu & mmu, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
+                   Apple3AnalogInputs & analog, Acia6551 & acia, Mm58167 & clock);
 
     Byte      Read            (Word address) override;
     void      Write           (Word address, Byte value) override;
@@ -59,11 +62,13 @@ private:
     bool      IsSlowAddress   (Word address) const;
 
     MemoryBus             & m_bus;
+    Apple3Mmu             & m_mmu;
     Apple3Keyboard        & m_keyboard;
     Apple3Video           & m_video;
     Apple3Slots           & m_slots;
     Apple3DiskController  & m_disk;
     Apple3AnalogInputs    & m_analog;
     Acia6551              & m_acia;
+    Mm58167               & m_clock;
     uint32_t                m_slowAccesses = 0;
 };

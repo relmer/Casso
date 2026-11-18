@@ -1752,6 +1752,7 @@
     <ClCompile Include="Devices\Floppy35\SmartPortHost.cpp" />
     <ClCompile Include="Devices\Floppy35\Apple2cSmartPort.cpp" />
     <ClCompile Include="Devices\Floppy35\Apple2cPlusDiskPort.cpp" />
+    <ClCompile Include="Devices\Mm58167.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2cPlus\MigChip.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.cpp" />
     <ClCompile Include="Audio\Floppy35AudioSource.cpp" />
@@ -3242,6 +3243,7 @@
     <ClInclude Include="Devices\Floppy35\Apple2cSmartPort.h" />
     <ClInclude Include="Machines\Apple2\Common\IDiskPortHook.h" />
     <ClInclude Include="Devices\Floppy35\Apple2cPlusDiskPort.h" />
+    <ClInclude Include="Devices\Mm58167.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlus.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\MigChip.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.h" />

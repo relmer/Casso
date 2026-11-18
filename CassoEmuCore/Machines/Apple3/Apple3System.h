@@ -13,6 +13,7 @@
 #include "Apple3TimeBase.h"
 #include "Apple3Video.h"
 #include "Devices/Acia6551.h"
+#include "Devices/Mm58167.h"
 
 class IMachineState;
 class InterruptController;
@@ -72,6 +73,7 @@ public:
     Apple3DiskController  & GetDiskController () { return m_disk; }
     Apple3AnalogInputs    & GetAnalogInputs   () { return m_analog; }
     Acia6551              & GetAcia           () { return m_acia; }
+    Mm58167               & GetClock          () { return m_clock; }
     Apple3IoSpace         & GetIoSpace        () { return m_io; }
 
 private:
@@ -89,6 +91,7 @@ private:
     Apple3DiskController    m_disk;
     Apple3AnalogInputs      m_analog;
     Acia6551                m_acia;
+    Mm58167                 m_clock;
     Apple3IoSpace           m_io;
     InterruptController   * m_interrupts      = nullptr;
     uint64_t                m_viaMasterClocks = 0;

@@ -4,10 +4,12 @@
 #include "Apple3AnalogInputs.h"
 #include "Apple3DiskController.h"
 #include "Apple3Keyboard.h"
+#include "Apple3Mmu.h"
 #include "Apple3Slots.h"
 #include "Apple3Video.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Acia6551.h"
+#include "Devices/Mm58167.h"
 
 
 
@@ -38,15 +40,17 @@ static constexpr int   s_kSlot2          = 2;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Apple3IoSpace::Apple3IoSpace (MemoryBus & bus, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
-                              Apple3AnalogInputs & analog, Acia6551 & acia)
+Apple3IoSpace::Apple3IoSpace (MemoryBus & bus, Apple3Mmu & mmu, Apple3Keyboard & keyboard, Apple3Video & video, Apple3Slots & slots, Apple3DiskController & disk,
+                              Apple3AnalogInputs & analog, Acia6551 & acia, Mm58167 & clock)
     : m_bus      (bus),
+      m_mmu      (mmu),
       m_keyboard (keyboard),
       m_video    (video),
       m_slots    (slots),
       m_disk     (disk),
       m_analog   (analog),
-      m_acia     (acia)
+      m_acia     (acia),
+      m_clock    (clock)
 {
 }
 
@@ -136,6 +140,21 @@ Byte Apple3IoSpace::Access (Word address, bool isWrite, Byte value)
         else
         {
             result = m_acia.Read (register_);
+        }
+    }
+    else if (address >= s_kFirstClock && address <= s_kLastClock)
+    {
+        Byte  reg = (Byte) (m_mmu.GetZeroPage() & (Mm58167::kRegisterCount - 1));
+
+
+
+        if (isWrite)
+        {
+            m_clock.Write (reg, value);
+        }
+        else
+        {
+            result = m_clock.Read (reg);
         }
     }
     else if (m_disk.IsControllerAddress (address))
@@ -247,6 +266,11 @@ bool Apple3IoSpace::TryPeekIo (Word address, Byte & value)
     else if (address >= s_kFirstSwitchReg && address <= s_kLastSwitchReg)
     {
         value    = ReadSwitch (address);
+        isPeeked = true;
+    }
+    else if (address >= s_kFirstClock && address <= s_kLastClock)
+    {
+        value    = m_clock.Peek ((Byte) (m_mmu.GetZeroPage() & (Mm58167::kRegisterCount - 1)));
         isPeeked = true;
     }
 

@@ -212,10 +212,10 @@ debugger tests pass with their expectations as they were.
 **Independent Test**: a test disk reads every key, drives each sound path,
 reads the clock and both joystick ports.
 
-- [ ] T079 [P] [US4] Write `Mm58167` tests (counters, latches, set and read, interrupts, host time through the input journal) in `UnitTest/EmuTests/Mm58167Tests.cpp`
+- [x] T079 [P] [US4] Write `Mm58167` tests (counters, latches, set and read, interrupts, host time through the input journal) in `UnitTest/EmuTests/Mm58167Tests.cpp`
 - [ ] T080 [P] [US4] Write sound tests (speaker toggle, beeper tone and length, DAC samples and pitch at both speeds for SC-006) in `UnitTest/Apple3Tests/Apple3SoundTests.cpp`
 - [ ] T081 [P] [US4] Write analog input tests (axes and buttons on ports A and B) in `UnitTest/Apple3Tests/Apple3AnalogInputsTests.cpp`
-- [ ] T082 [P] [US4] Implement `Mm58167` in `CassoEmuCore/Devices/Mm58167.h` and `.cpp` and wire its address lines and interrupt through `Apple3SystemVias`
+- [x] T082 [P] [US4] Implement `Mm58167` in `CassoEmuCore/Devices/Mm58167.h` and `.cpp` and wire its address lines and interrupt through `Apple3SystemVias`
 - [ ] T083 [P] [US4] Implement `Apple3Sound` (speaker through `AppleSpeaker`, beeper, DAC, mixing) and its audio source in `CassoEmuCore/Machines/Apple3/Apple3Sound.h` and `.cpp`
 - [ ] T084 [P] [US4] Implement `Apple3AnalogInputs` over 034's controller assignments in `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.h` and `.cpp`
 - [ ] T085 [US4] Complete the keyboard: PC key mappings for every Apple /// key in the settings key list, repeat rates, pasted text (FR-025), and Control with Reset obeying the environment register's reset bit, in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.cpp` and `CassoEmuCore/Ui/Settings/`
