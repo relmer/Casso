@@ -373,7 +373,7 @@ void HeatRangesPane::OpenForShownSet()
         EditRangeSet (m_sets.shown);
     }
 
-    m_host.OpenPane (GetId());
+    m_host.OpenPane (GetId(), true);
 }
 
 

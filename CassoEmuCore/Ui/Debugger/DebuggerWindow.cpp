@@ -1799,33 +1799,6 @@ void DebuggerWindow::AppendConsole (const std::vector<std::string> & lines)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetRegisterByte
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) const
-{
-    Word  value = 0;
-
-
-
-    for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
-    {
-        if (reg.name == name && !DebuggerViewState::IsReadOnlyRegister (name) && TextDialog::TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
-        {
-            return (Byte) value;
-        }
-    }
-
-    return std::nullopt;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::ConfigureCommandBarHost
 //
 //  The command bar docks and floats through a Dxui toolbar host; the

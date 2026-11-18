@@ -8,6 +8,7 @@
 #include "Debugger/SymbolDescriptions.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DensePaneList.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/HistoryBand.h"
@@ -53,7 +54,7 @@ bool DisassemblySymbols::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::ws
 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    column = m_host.GetListColumnAt (list, clientPx.x - bounds.left);
+    column = DensePaneList::GetColumnAt (list, clientPx.x - bounds.left);
     index  = m_group.GetCodeLineOfRow (view, row);
 
     if (index < 0)
@@ -161,7 +162,7 @@ bool DisassemblySymbols::TryGetSymbolAt (POINT clientPx, std::string & name, Wor
 
     if (index >= 0)
     {
-        GetLineSymbol (m_group.GetCodeLines (view)[(size_t) index], m_host.GetListColumnAt (list, clientPx.x - bounds.left), name, address);
+        GetLineSymbol (m_group.GetCodeLines (view)[(size_t) index], DensePaneList::GetColumnAt (list, clientPx.x - bounds.left), name, address);
         return !name.empty();
     }
 
@@ -265,7 +266,7 @@ bool DisassemblySymbols::IsOperandSymbolAt (POINT clientPx) const
 
     if (m_group.GetCodeLineOfRow (view, row) >= 0)
     {
-        return m_host.GetListColumnAt (list, clientPx.x - bounds.left) == (int) DisassemblyCells::kInstructionColumn;
+        return DensePaneList::GetColumnAt (list, clientPx.x - bounds.left) == (int) DisassemblyCells::kInstructionColumn;
     }
 
     return snapshot->symbols != nullptr && m_group.TryGetSourceParts (view, row, parts) &&

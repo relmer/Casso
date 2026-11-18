@@ -410,17 +410,17 @@ namespace DebuggerWindowThemeTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
             view   = window.GetSourceGroup().GetDocument (0).GetView();
-            before = window.GetPaneHostForTest().GetPcRowArgb();
+            before = window.GetPaneHostForTest().GetTextColors().pcRow;
 
             Assert::AreEqual (before, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background, L"the code view's PC row");
             Assert::AreEqual (before, view->GetRows()[1].background, L"the document's PC line");
 
             window.ApplyTheme ("SystemLight");
 
-            Assert::AreNotEqual (before, window.GetPaneHostForTest().GetPcRowArgb(), L"the light theme's PC row differs");
-            Assert::AreEqual    (window.GetPaneHostForTest().GetPcRowArgb(), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background,
+            Assert::AreNotEqual (before, window.GetPaneHostForTest().GetTextColors().pcRow, L"the light theme's PC row differs");
+            Assert::AreEqual    (window.GetPaneHostForTest().GetTextColors().pcRow, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background,
                                  L"the code view's PC row in the new theme's color");
-            Assert::AreEqual    (window.GetPaneHostForTest().GetPcRowArgb(), view->GetRows()[1].background, L"the document's PC line in it too");
+            Assert::AreEqual    (window.GetPaneHostForTest().GetTextColors().pcRow, view->GetRows()[1].background, L"the document's PC line in it too");
         }
     };
 }

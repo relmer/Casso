@@ -5,6 +5,7 @@
 #include "Ui/Debugger/RunActions.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DensePaneList.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
@@ -364,7 +365,7 @@ void DisassemblyViewPane::AddToDock (DxuiDockSite & dock)
 
     if (m_historyBand != nullptr)
     {
-        m_frame->AddPart (m_historyBand, [this] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (m_host.GetPaneRowDip())); },
+        m_frame->AddPart (m_historyBand, [this] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (DensePaneList::kRowDip)); },
                           [this] { return HistoryBand::IsShown (m_historyBand->GetStatus()); });
     }
 
@@ -537,7 +538,7 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
     int                           index    = m_group.GetMenuLineOfRow (m_view, row);
     RECT                          bounds   = m_list->GetBounds();
-    int                           column   = m_host.GetListColumnAt (m_list, m_host.GetLastPressPx().x - bounds.left);
+    int                           column   = DensePaneList::GetColumnAt (m_list, m_host.GetLastPressPx().x - bounds.left);
 
 
 
@@ -564,7 +565,7 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
         items.push_back ({ L"Set next statement", [this, at] { m_group.GetGutter().SetNextStatement (at); } });
     }
 
-    items.push_back ({ L"Show next statement", [this] { m_host.ShowPcCode(); } });
+    items.push_back ({ L"Show next statement", [this] { m_host.GoToCode (std::nullopt); } });
     items.push_back (PaneMenu::MakeSeparator());
 
     if (line.hasBreakpoint)

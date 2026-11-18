@@ -736,7 +736,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 
     if (isFolded || !m_code->GetSymbols().TryGetSymbolTip (clientPx, anchor, text))
     {
-        return GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
+        return DensePaneList::GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
                list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip);
     }
 

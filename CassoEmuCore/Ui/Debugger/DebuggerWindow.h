@@ -145,7 +145,7 @@ public:
     void     SavePlacementIfMoved ();
 
     //  Puts an event log pane in front, opening it for good.
-    void     OpenEventLog         (DebugLogKind kind) override;
+    void     OpenEventLog         (DebugLogKind kind);
 
 protected:
     //  Posted to the window to run a frame, the floating panes' Sync first,
@@ -194,7 +194,7 @@ protected:
     void             FocusControl    (IDxuiControl * control) override { SetFocusedControl (control); }
 
     //  Protected so a test can write to the console as the host's lines do.
-    void             AppendConsole   (const std::vector<std::string> & lines) override;
+    void             AppendConsole   (const std::vector<std::string> & lines);
 
     //  Protected so a test can raise a pane's reply as an action raises one.
     void             ShowPaneReply   (const std::wstring & pane, const std::vector<std::string> & lines, bool isError) override;
@@ -597,7 +597,6 @@ private:
     std::vector<std::shared_ptr<DxuiCommand>>    GetConsoleMenuCommands ();
     void                                         AddListMenuItems       (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     void                                         AddShowInMemory        (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    static int                                   GetColumnAt            (const DxuiListView * list, int xPx);
     bool                                         RouteDockKey           (const DxuiKeyEvent & ev);
     void                                         ApplySavedPlacement    ();
 
@@ -698,7 +697,6 @@ private:
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.
     static RECT          GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }
-    std::optional<Byte>  GetRegisterByte  (const std::string & name) const override;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the
     //  PC's arrow and row, the row another pane brought into view, a branch's
@@ -712,16 +710,8 @@ private:
     std::shared_ptr<const DxuiIconImage>  GetPcIcon           (const std::shared_ptr<const DxuiIconImage> & dot);
     uint32_t                              GetPcMarkerArgb     () const override;
     uint32_t                              GetPcTabMarkArgb    () const override;
-    uint32_t                              GetPcRowArgb        () const override;
-    uint32_t                              GetNavigatedRowArgb () const override;
-    uint32_t                              GetTargetRowArgb    () const override;
-    uint32_t                              GetAnnotationArgb   () const;
-    uint32_t                              GetChangedArgb      () const;
 
-    //  The disassembly views' bytes, for the changed color in their bytes
-    //  column.
-    uint32_t                 GetResultArgb   () const override;
-    SourceSyntax::Colors     GetSyntaxColors () const override;
+    //  Every text color the panes draw, in the theme in force.
     DebuggerTextColors::Set  GetTextColors   () const override;
 
     //  The pointer's press, release or wheel over a find widget's plate.
@@ -940,13 +930,12 @@ private:
 
     //  The window's calls the panes make (IDebuggerPaneHost).
     DxuiPanel                             & GetControlParent     () override { return *this; }
-    void                                    GoToCode             (Word address) override { ShowCode (address); }
+    void                                    GoToCode             (std::optional<Word> address) override { ShowCode (address); }
     IDebuggerWindowHost                   * GetWindowHost        () override { return m_host; }
     bool                                    IsPaneOpen           (const std::wstring & pane) const override { return IsPaneShown (pane); }
     IDxuiControl                          * GetFocusedControl    () const override { return GetFocused(); }
     void                                    FocusDefault         () override { m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox()); }
     void                                    HideTooltip          () override { GetRoutedTooltip().HideImmediate(); }
-    void                                    ShowPcCode           () override { ShowCode (std::nullopt); }
     void                                    GoToMemory           (Word address) override;
     void                                    AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) override { AddShowInMemory (what, goTo, items); }
     void                                    AddSkipItem          (const std::string & name, Word address, PaneMenuItems & items) override;
@@ -955,7 +944,6 @@ private:
     void                                    GoLive               () override { GoLiveFromBand(); }
     const StopChanges                     & GetStopChanges       () const override { return m_stopChanges; }
     POINT                                   GetLastPressPx       () const override { return m_lastPressPx; }
-    int                                     GetPaneRowDip        () const override { return DensePaneList::kRowDip; }
     const DebuggerViewSnapshot            * GetLatestSnapshot    () const override { return m_snapshot.get(); }
     void                                    ActivatePaneTab      (const std::wstring & pane) override;
     bool                                    IsSameTabGroup       (const std::wstring & a, const std::wstring & b) const override;
@@ -965,11 +953,9 @@ private:
     void                                    MoveSharedControls   (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to) override;
     void                                    AddHeatAccessItems   (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) override;
     const DxuiTheme                       * GetTheme             () const override { return m_theme; }
-    void                                    OpenPane             (const std::wstring & pane) override { ShowPane (pane); }
-    void                                    RaisePane            (const std::wstring & pane) override { ShowPane (pane, false); }
+    void                                    OpenPane             (const std::wstring & pane, bool isFocused) override { ShowPane (pane, isFocused); }
     void                                    ShowMemoryAddress    (Word address) override;
     IHostDialogs                          * GetHostDialogs       () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
-    bool                                    IsTooltipVisible     () const override { return m_tooltip.IsVisible(); }
     void                                    UpdatePaneTooltip    (const std::wstring & pane, POINT clientPx) override;
     bool                                    IsPaneTooltipVisible (const std::wstring & pane) const override;
     void                                    RepaintLater         () override { RequestPaint(); }
@@ -980,12 +966,10 @@ private:
     const DxuiDpiScaler                   & GetPaneScaler        () const override { return m_scaler; }
     bool                                    IsBarRouted          (const std::wstring & pane) const override { return m_floating->GetRoutingPane() == GetBarRoutingPane (pane); }
     void                                    Repaint              () override { Invalidate(); }
-    int                                     GetListColumnAt      (const DxuiListView * list, int xPx) const override { return GetColumnAt (list, xPx); }
     void                                    OpenSource           (int fileId, int line) override;
     void                                    SetPaneTitle         (const std::wstring & pane, const std::wstring & title) override { m_dockSite->SetTitle (pane, title); }
     void                                    SetPaneTabMark       (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) override;
     void                                    UpdateWindowMenus    () override { SetWindowMenus(); }
-    void                                    ShowPopupMenu        (const PaneMenuItems & items, POINT clientPx) override;
     void                                    ShowListAbove        (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) override;
     std::string                             GetSymbolComment     (Word address, const std::string & name) override;
     void                                    MarkPaneTab          (const std::wstring & pane) override;

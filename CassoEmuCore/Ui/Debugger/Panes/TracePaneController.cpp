@@ -189,7 +189,7 @@ std::vector<IDxuiControl *> TracePaneController::GetControls() const
 void TracePaneController::Apply (const DebuggerViewSnapshot & snapshot)
 {
     m_model->SetColors  (m_host.GetTextColors());
-    m_model->SetPcStyle (m_host.GetPcMarker (nullptr), m_host.GetPcRowArgb());
+    m_model->SetPcStyle (m_host.GetPcMarker (nullptr), m_host.GetTextColors().pcRow);
     m_model->Apply      (snapshot.trace);
 }
 

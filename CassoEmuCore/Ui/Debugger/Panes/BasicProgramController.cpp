@@ -236,7 +236,7 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
 
     if (isStop && snapshot.stopReason != StopReason::Step && snapshot.stopReason != StopReason::RunTo && IsMachineStop (snapshot) && m_list->IsVisible())
     {
-        m_host.RaisePane (DebuggerLayout::GetCodePaneId (snapshot.followView));
+        m_host.OpenPane (DebuggerLayout::GetCodePaneId (snapshot.followView), false);
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
@@ -333,9 +333,9 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
     style.pcOnDisabledIcon = m_host.GetPcMarker (style.disabledIcon);
     style.hoverIcon        = m_host.GetHoverBreakpointIcon();
     style.hoverRow         = m_model->GetStyle().hoverRow;
-    style.pcRowArgb        = m_host.GetPcRowArgb();
+    style.pcRowArgb        = m_host.GetTextColors().pcRow;
     style.textArgb         = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->Foreground() : 0;
-    style.syntax           = m_host.GetSyntaxColors();
+    style.syntax           = m_host.GetTextColors().syntax;
 
     (void) UpdateWrap();
 
@@ -608,11 +608,11 @@ void BasicProgramController::ShowLine (Word line, bool isFocused)
 {
     if (isFocused)
     {
-        m_host.OpenPane (DebuggerLayout::kBasicProgram);
+        m_host.OpenPane (DebuggerLayout::kBasicProgram, true);
     }
     else
     {
-        m_host.RaisePane (DebuggerLayout::kBasicProgram);
+        m_host.OpenPane (DebuggerLayout::kBasicProgram, false);
     }
 
     m_model->ShowLine (line);

@@ -634,18 +634,18 @@ void DevicePanelController::AddContentMenuItems (POINT clientPx, PaneMenuItems &
 
     if (m_panelId == "video")
     {
-        items.push_back ({ L"Open video log", [this] { m_host.OpenEventLog (DebugLogKind::Video); } });
+        items.push_back ({ L"Open video log", [this] { m_host.OpenPane (DebuggerLayout::kVideoLog, true); } });
     }
     else if (m_panelId == "mockingboard")
     {
-        items.push_back ({ L"Open sound log", [this] { m_host.OpenEventLog (DebugLogKind::Sound); } });
+        items.push_back ({ L"Open sound log", [this] { m_host.OpenPane (DebuggerLayout::kSoundLog, true); } });
     }
     else if (m_panelId == "serial-card" || m_panelId.starts_with ("serial-port-"))
     {
-        items.push_back ({ L"Open serial log", [this] { m_host.OpenEventLog (DebugLogKind::Serial); } });
+        items.push_back ({ L"Open serial log", [this] { m_host.OpenPane (DebuggerLayout::kSerialLog, true); } });
     }
     else if (m_panelId == "uthernet")
     {
-        items.push_back ({ L"Open network log", [this] { m_host.OpenEventLog (DebugLogKind::Network); } });
+        items.push_back ({ L"Open network log", [this] { m_host.OpenPane (DebuggerLayout::kNetworkLog, true); } });
     }
 }

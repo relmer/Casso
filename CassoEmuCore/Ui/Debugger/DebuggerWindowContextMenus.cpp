@@ -246,7 +246,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
             SetFocusedControl (list);
         }
 
-        AddListMenuItems (list, row, GetColumnAt (list, clientPx.x - bounds.left), items);
+        AddListMenuItems (list, row, DensePaneList::GetColumnAt (list, clientPx.x - bounds.left), items);
     }
 
     if (FindPane (pane) != nullptr)
@@ -713,7 +713,7 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
     std::vector<DxuiPopupMenuItem>             menu;
     std::vector<DxuiPopupMenuItem>             filter;
     RECT                                       bounds   = list->GetBounds();
-    int                                        column   = GetColumnAt (list, clientPx.x - bounds.left);
+    int                                        column   = DensePaneList::GetColumnAt (list, clientPx.x - bounds.left);
 
 
 
@@ -862,38 +862,6 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
     {
         DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetColumnAt
-//
-//  The columns start after the list's pane lead, so their edges are counted
-//  from there; a point in the lead is in the first column.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DebuggerWindow::GetColumnAt (const DxuiListView * list, int xPx)
-{
-    int  right = list->GetPaneLeadPx() - list->GetLeftPx();
-
-
-
-    for (size_t c = 0; c < list->GetColumnCount(); c++)
-    {
-        right += list->GetColumnEffectiveWidthPx (c);
-
-        if (xPx < right)
-        {
-            return (int) c;
-        }
-    }
-
-    return (int) list->GetColumnCount() - 1;
 }
 
 

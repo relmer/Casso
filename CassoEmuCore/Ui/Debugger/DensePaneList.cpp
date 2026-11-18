@@ -41,3 +41,35 @@ void DensePaneList::MakeDense (DxuiListView * list)
     list->SetKeyboardColumnNav       (true);
     list->SetKeyboardMoveNotify      (true);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DensePaneList::GetColumnAt
+//
+//  The columns start after the list's pane lead, so their edges are counted
+//  from there; a point in the lead is in the first column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DensePaneList::GetColumnAt (const DxuiListView * list, int xPx)
+{
+    int  right = list->GetPaneLeadPx() - list->GetLeftPx();
+
+
+
+    for (size_t c = 0; c < list->GetColumnCount(); c++)
+    {
+        right += list->GetColumnEffectiveWidthPx (c);
+
+        if (xPx < right)
+        {
+            return (int) c;
+        }
+    }
+
+    return (int) list->GetColumnCount() - 1;
+}

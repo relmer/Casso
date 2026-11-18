@@ -915,34 +915,6 @@ std::wstring DebuggerWindow::GetModeLabel (const wchar_t * mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ShowPopupMenu
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
-{
-    std::vector<DxuiPopupMenuItem>  menu;
-
-
-
-    m_menuCommands.clear();
-    SetWindowMenus();
-
-    for (const auto & [label, action] : items)
-    {
-        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
-
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::ShowListAbove
 //
 ////////////////////////////////////////////////////////////////////////////////

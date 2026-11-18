@@ -222,7 +222,7 @@ bool DisassemblyBranchArrows::ClickBranchArrow (POINT pointPx)
 
             if (m_isArrowAtTarget)
             {
-                m_host.ShowPcCode();
+                m_host.GoToCode (std::nullopt);
             }
             else
             {

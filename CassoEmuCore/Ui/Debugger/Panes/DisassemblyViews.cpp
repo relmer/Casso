@@ -958,17 +958,17 @@ void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::C
     {
         gutter.icon = m_host.GetPcMarker (gutter.icon);
         gutter.tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), gutter.tip });
-        fill        = m_host.GetPcRowArgb();
+        fill        = m_host.GetTextColors().pcRow;
         rowTip      = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
     }
     else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line.address)
     {
-        fill   = m_host.GetNavigatedRowArgb();
+        fill   = m_host.GetTextColors().navigatedRow;
         rowTip = ColorLegend::GetText (ColorLegend::Meaning::NavigatedRow);
     }
     else if (target.has_value() && *target == line.address)
     {
-        fill   = m_host.GetTargetRowArgb();
+        fill   = m_host.GetTextColors().targetRow;
         rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
     }
 }

@@ -383,8 +383,8 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
         m_pcArrow     = GutterGlyph::MakeArrow (m_pcArrowArgb);
     }
 
-    m_model->SetStyle      ({ m_host.GetPcMarkerArgb(), m_host.GetPcRowArgb(), m_host.GetBreakpointIcon (true), m_host.GetBreakpointIcon (false),
-                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_host.GetTextColors().annotation, m_pcArrow,
+    m_model->SetStyle      ({ m_host.GetPcMarkerArgb(), m_host.GetTextColors().pcRow, m_host.GetBreakpointIcon (true), m_host.GetBreakpointIcon (false),
+                              m_host.GetTextColors().syntax, m_host.GetTextColors().result, m_host.GetTextColors().annotation, m_pcArrow,
                               m_host.GetHoverBreakpointIcon() });
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);

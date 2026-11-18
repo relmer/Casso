@@ -8,6 +8,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DensePaneList.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/FlagsDialog.h"
 #include "Ui/Debugger/HistoryBand.h"
@@ -600,7 +601,7 @@ void RegistersPane::OnDocked()
 
 void RegistersPane::AddMiddleParts (DebuggerPaneFrame & frame)
 {
-    frame.AddPart (m_band, [this] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (m_host.GetPaneRowDip())); },
+    frame.AddPart (m_band, [this] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (DensePaneList::kRowDip)); },
                    [this] { return HistoryBand::IsShown (m_band->GetStatus()); });
 }
 
@@ -1084,7 +1085,7 @@ bool RegistersPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & 
 
     if (name == "PC")
     {
-        items.push_back ({ L"Show in code", [this] { m_host.ShowPcCode(); } });
+        items.push_back ({ L"Show in code", [this] { m_host.GoToCode (std::nullopt); } });
     }
 
     if (!DebuggerViewState::IsReadOnlyRegister (name))
