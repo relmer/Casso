@@ -586,22 +586,19 @@ private:
     static void        SetTextInputsWindowActive (IDxuiControl * node, bool active);
 
     //  IDxuiDialogHost: the window and its hooks, for the dialog mode.
-    bool                IsDialogHostCreated    () const override                 { return m_source != nullptr; }
-    HWND                GetDialogHwnd          () const override                 { return GetHwnd(); }
-    HWND                GetDialogOwnerHwnd     () const override                 { return m_ownerHwnd; }
-    DxuiPanel         & GetDialogRoot          () override                       { return *this; }
-    DxuiFocusManager  & GetDialogFocus         () override                       { return m_focus; }
-    const IDxuiTheme  * GetDialogTheme         () const override                 { return m_theme; }
-    void                SetDialogTimer         (UINT ms) override;
-    void                KillDialogTimer        () override;
-    void                ShowDialogWindow       (bool activate) override          { Show (activate); }
-    void                HideDialogWindow       () override                       { Hide(); }
-    void                InvalidateDialog       () override                       { Invalidate(); }
-    bool                HasDialogOverlay       () const override                 { return HasModalOverlay(); }
-    void                SendDialogOverlayKey   (WPARAM vk) override              { (void) OnOverlayKey (vk); }
-    void                NotifyDialogShowing    () override                       { OnDialogShowing(); }
-    bool                TrySwitchDialogTab     (bool backward) override          { return OnDialogTabSwitch (backward); }
-    void                NotifyDialogKeyHandled (IDxuiControl * focused) override { OnDialogKeyHandled (focused); }
+    bool                IsDialogHostCreated     () const override                 { return m_source != nullptr; }
+    HWND                GetDialogHwnd           () const override                 { return GetHwnd(); }
+    HWND                GetDialogOwnerHwnd      () const override                 { return m_ownerHwnd; }
+    const IDxuiTheme  * GetDialogTheme          () const override                 { return m_theme; }
+    void                SetDialogTimer          (UINT ms) override;
+    void                KillDialogTimer         () override;
+    void                ShowDialogWindow        (bool activate) override          { Show (activate); }
+    void                HideDialogWindow        () override                       { Hide(); }
+    void                InvalidateDialog        () override                       { Invalidate(); }
+    bool                TrySendDialogOverlayKey (WPARAM vk) override;
+    void                NotifyDialogShowing     () override                       { OnDialogShowing(); }
+    bool                TrySwitchDialogTab      (bool backward) override          { return OnDialogTabSwitch (backward); }
+    void                NotifyDialogKeyHandled  (IDxuiControl * focused) override { OnDialogKeyHandled (focused); }
 
 
     std::unique_ptr<DxuiHwndSource>    m_source;
@@ -618,7 +615,7 @@ private:
     DxuiFocusManager                   m_focus;
     bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
     std::function<void ()>             m_onModalLoopTick;           // OS size/move-loop keep-alive tick
-    DxuiDialogMode                     m_dialog          { *this };
+    DxuiDialogMode                     m_dialog          { *this, *this, m_focus };
     DxuiInputFilters                   m_inputFilters;
     DxuiPointerTracker                 m_pointer         { *this };
 };

@@ -5,6 +5,8 @@
 
 
 class DxuiButton;
+class DxuiFocusManager;
+class DxuiPanel;
 class IDxuiControl;
 class IDxuiDialogHost;
 
@@ -29,7 +31,7 @@ class DxuiDialogMode
 public:
     static constexpr UINT  kDefaultTickMs = 250;
 
-    explicit DxuiDialogMode (IDxuiDialogHost & host) : m_host (host) {}
+    DxuiDialogMode (IDxuiDialogHost & host, DxuiPanel & root, DxuiFocusManager & focus) : m_host (host), m_root (root), m_focus (focus) {}
 
     int                ShowModal         (int defaultButtonId);
     void               ShowModeless      (int defaultButtonId, bool activate);
@@ -51,6 +53,8 @@ private:
     static void          ForEachButton     (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
 
     IDxuiDialogHost            & m_host;
+    DxuiPanel                  & m_root;
+    DxuiFocusManager           & m_focus;
     IDxuiControl               * m_initialFocus    = nullptr;
     bool                         m_isActive        = false;   // dialog behaviors on (modal or modeless)
     bool                         m_isModal         = false;   // blocking-modal (owner disabled + private loop)

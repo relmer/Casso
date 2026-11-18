@@ -1470,6 +1470,32 @@ void DxuiWindow::SetDialogTimer (UINT ms)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrySendDialogOverlayKey
+//
+//  A modal overlay takes every key; false with none up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::TrySendDialogOverlayKey (WPARAM vk)
+{
+    bool  hasOverlay = HasModalOverlay();
+
+
+
+    if (hasOverlay)
+    {
+        (void) OnOverlayKey (vk);
+    }
+
+    return hasOverlay;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  KillDialogTimer
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1756,17 +1782,7 @@ DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
 
 DxuiKeyEvent DxuiWindow::MakeKeyEvent (DxuiKeyEventKind kind, WPARAM vk)
 {
-    DxuiKeyEvent  ev;
-
-
-
-    ev.kind  = kind;
-    ev.vk    = vk;
-    ev.shift = DxuiInputState::IsKeyDown (VK_SHIFT);
-    ev.ctrl  = DxuiInputState::IsKeyDown (VK_CONTROL);
-    ev.alt   = DxuiInputState::IsKeyDown (VK_MENU);
-
-    return ev;
+    return DxuiInputState::MakeKeyEvent (kind, vk);
 }
 
 

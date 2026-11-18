@@ -2,7 +2,6 @@
 
 #include "DxuiDialogMode.h"
 #include "IDxuiDialogHost.h"
-#include "DxuiWindow.h"
 
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiInputState.h"
@@ -287,9 +286,8 @@ DxuiMessageResult DxuiDialogMode::DispatchKey (WPARAM vk)
     // modeless pre-translate path (ProcessMessage) arrives here without
     // passing through OnKeyDown, so the check has to live here too, or Tab
     // walks the focus of the page hidden behind the overlay.
-    if (m_host.HasDialogOverlay())
+    if (m_host.TrySendDialogOverlayKey (vk))
     {
-        m_host.SendDialogOverlayKey (vk);
         return DxuiMessageResult::Handled;
     }
 
@@ -310,7 +308,7 @@ DxuiMessageResult DxuiDialogMode::DispatchKey (WPARAM vk)
             // the last, and the focus manager then moves focus to the next
             // control.
             isHandled = RouteKeyToFocused (vk, shift)
-                     || m_host.GetDialogFocus().HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+                     || m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             break;
 
         case VK_ESCAPE:
@@ -339,9 +337,9 @@ DxuiMessageResult DxuiDialogMode::DispatchKey (WPARAM vk)
         default:
             // An arrow key is the keyboard in use, so a control focused by a
             // click shows its focus rectangle from here on.
-            if ((vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN) && m_host.GetDialogFocus().GetFocusedControl() != nullptr)
+            if ((vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN) && m_focus.GetFocusedControl() != nullptr)
             {
-                m_host.GetDialogFocus().GetFocusedControl()->SetFocusCueVisible (true);
+                m_focus.GetFocusedControl()->SetFocusCueVisible (true);
             }
 
             isHandled = RouteKeyToFocused (vk, shift);
@@ -352,7 +350,7 @@ DxuiMessageResult DxuiDialogMode::DispatchKey (WPARAM vk)
     // repaints so the change shows at once rather than on the next tick.
     if (isHandled)
     {
-        m_host.NotifyDialogKeyHandled (m_host.GetDialogFocus().GetFocusedControl());
+        m_host.NotifyDialogKeyHandled (m_focus.GetFocusedControl());
         m_host.InvalidateDialog();
     }
 
@@ -389,13 +387,13 @@ void DxuiDialogMode::Begin (int defaultButtonId, bool modal)
 
     WireButtons();
 
-    m_host.GetDialogFocus().SetTheme (m_host.GetDialogTheme());
-    m_host.GetDialogFocus().Attach   (&m_host.GetDialogRoot());
-    m_host.GetDialogFocus().Rebuild();
+    m_focus.SetTheme (m_host.GetDialogTheme());
+    m_focus.Attach   (&m_root);
+    m_focus.Rebuild();
 
     if (m_initialFocus != nullptr)
     {
-        m_host.GetDialogFocus().SetFocused (m_initialFocus);
+        m_focus.SetFocused (m_initialFocus);
     }
 }
 
@@ -420,7 +418,7 @@ void DxuiDialogMode::WireButtons()
 
 
 
-    ForEachButton (&m_host.GetDialogRoot(), [this, defaultId] (DxuiButton * button)
+    ForEachButton (&m_root, [this, defaultId] (DxuiButton * button)
     {
         int  id = button->GetCommandId();
 
@@ -452,8 +450,8 @@ bool DxuiDialogMode::RouteKeyToFocused (WPARAM vk, bool shift)
 {
     HRESULT         hr        = S_OK;
     bool            isHandled = false;
-    IDxuiControl *  focused   = m_host.GetDialogFocus().GetFocusedControl();
-    DxuiKeyEvent    ke        = DxuiWindow::MakeKeyEvent (DxuiKeyEventKind::Down, vk);
+    IDxuiControl *  focused   = m_focus.GetFocusedControl();
+    DxuiKeyEvent    ke        = DxuiInputState::MakeKeyEvent (DxuiKeyEventKind::Down, vk);
 
 
 
@@ -482,7 +480,7 @@ Error:
 bool DxuiDialogMode::TryTriggerButton (int commandId)
 {
     bool          fired  = false;
-    DxuiButton *  button = FindButtonById (&m_host.GetDialogRoot(), commandId);
+    DxuiButton *  button = FindButtonById (&m_root, commandId);
 
 
 
