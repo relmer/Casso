@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/HeatMapCellText.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/HeatMapSymbols.h"
 
 
 
@@ -172,3 +173,87 @@ HeatMapCellText::InstructionLines HeatMapCellText::SplitInstruction (const std::
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapCellText::GetInstructionText
+//
+//  The form with its dots filled in from the operand bytes: an address with
+//  a symbol is the symbol's name; any other one, an immediate value or a zero
+//  page address in hex; a branch's offset is its target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HeatMapCellText::GetInstructionText (const std::string & form, Word cpu, const std::vector<Byte> & operands, const HeatMapSymbols * symbols)
+{
+    int           length   = GetInstructionLength (form);
+    std::string   mnemonic = form.substr (0, form.find (' '));
+    bool          isBranch = length == 2 && form.find ('#') == std::string::npos && std::ranges::count (form, '.') == 4;
+    std::string   text;
+    std::string   name;
+    size_t        next     = 0;
+    int           group    = 0;
+    auto          symbolic = [symbols, &name] (Word address, int digits)
+    {
+        name.clear();
+
+        if (symbols != nullptr && symbols->TryGetNameAt (address, name) && !name.empty())
+        {
+            return name;
+        }
+
+        return (digits == 4) ? std::format ("${:04X}", address) : std::format ("${:02X}", address);
+    };
+
+
+
+    for (size_t i = 0; i < form.size(); i = next)
+    {
+        size_t  run      = 0;
+        bool    isImmed  = i > 0 && form[i - 1] == '#';
+        Word    at       = 0;
+        size_t  operand  = (size_t) group;
+
+
+
+        next = i + 1;
+
+        if (form[i] != '.')
+        {
+            text += form[i];
+            continue;
+        }
+
+        while (i + run < form.size() && form[i + run] == '.')
+        {
+            run++;
+        }
+
+        next = i + run;
+
+        if (mnemonic.starts_with ("BBR") || mnemonic.starts_with ("BBS"))
+        {
+            at    = (group == 0) ? (Word) operands.at (0) : (Word) (cpu + 3 + (int8_t) operands.at (1));
+            text += (group == 0) ? symbolic (at, 2) : symbolic (at, 4);
+        }
+        else if (isBranch)
+        {
+            text += symbolic ((Word) (cpu + 2 + (int8_t) operands.at (0)), 4);
+        }
+        else if (run == 4)
+        {
+            text += symbolic ((Word) (operands.at (operand) | (operands.at (operand + 1) << 8)), 4);
+        }
+        else if (isImmed)
+        {
+            text += std::format ("${:02X}", operands.at (operand));
+        }
+        else
+        {
+            text += symbolic (operands.at (operand), 2);
+        }
+
+        group++;
+    }
+
+    return TextEncoding::NarrowToWide (text);
+}

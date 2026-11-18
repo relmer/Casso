@@ -236,9 +236,9 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
 
     anchor   = m_grid.GetPlaceRect (*pick);
     InflateRect (&anchor, kStreetPx, kStreetPx);
-    lead     = m_cells.GetTipLead (m_bands.GetAddressOf (*pick));
-    text     = m_cells.GetTipText (m_bands.GetAddressOf (*pick));
-    contents = m_cells.GetContentsLine (m_bands.GetAddressOf (*pick));
+    lead     = m_tips.GetTipLead (m_bands.GetAddressOf (*pick));
+    text     = m_tips.GetTipText (m_bands.GetAddressOf (*pick));
+    contents = m_tips.GetContentsLine (m_bands.GetAddressOf (*pick));
     rest     = contents.empty() ? text : text.substr (contents.size() + 1);
 
     //  The cell's contents come first, with no swatch. An untouched cell's
@@ -289,7 +289,7 @@ bool HeatMapView::IsTipComplete (POINT point) const
 
     address = m_bands.GetAddressOf (*pick);
 
-    return m_cells.HasHoverAccess (address);
+    return m_tips.HasHoverAccess (address);
 }
 
 

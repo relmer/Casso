@@ -1,5 +1,7 @@
 #pragma once
 
+class HeatMapSymbols;
+
 
 
 
@@ -46,4 +48,8 @@ public:
     static uint32_t          GetDetailTextColor   (uint32_t cell, uint32_t foreground, uint32_t background);
     static int               GetInstructionLength (const std::string & form);
     static InstructionLines  SplitInstruction     (const std::wstring & instruction, const std::wstring & bytes, const std::vector<long> & pieceCells);
+
+    //  An instruction from its form and operand bytes at a CPU address, with
+    //  each address that has a symbol written as the symbol.
+    static std::wstring      GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands, const HeatMapSymbols * symbols);
 };

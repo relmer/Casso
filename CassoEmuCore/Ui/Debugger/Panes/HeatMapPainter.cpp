@@ -579,7 +579,7 @@ void HeatMapPainter::PaintInstruction (IDxuiTextRenderer & text, const IDxuiThem
         cells.push_back (std::max (1L, (piece.right - piece.left + HeatMapSections::kStreetPx) / std::max (1L, pitch)));
     }
 
-    instruction = m_cells.GetInstructionText ((*m_cells.GetOpcodeForms())[opcode], HeatMapOptions::GetCpuAddress (m_cells.GetShownBank(), merged.opcode), operands);
+    instruction = HeatMapCellText::GetInstructionText ((*m_cells.GetOpcodeForms())[opcode], HeatMapOptions::GetCpuAddress (m_cells.GetShownBank(), merged.opcode), operands, m_cells.GetSymbols().get());
     lines       = HeatMapCellText::SplitInstruction (instruction, bytes, cells);
     fontPx      = std::min (m_grid.GetScaler().ToPxf (font.sizeDip), ((float) tall - pad * 2.0f) / (HeatMapCellText::kLinePerEm * 2.0f));
 

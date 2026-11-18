@@ -14,6 +14,7 @@
 #include "Ui/Debugger/Panes/HeatMapPainter.h"
 #include "Ui/Debugger/Panes/HeatMapPicker.h"
 #include "Ui/Debugger/Panes/HeatMapSections.h"
+#include "Ui/Debugger/Panes/HeatMapTips.h"
 #include "Ui/Debugger/Panes/HeatMapZoomWidget.h"
 
 struct BreakpointInfo;
@@ -94,7 +95,7 @@ public:
     using BreakKind        = HeatMapCells::BreakKind;
     using Breakpoint       = HeatMapCells::Breakpoint;
     using CellKind         = HeatMapCells::CellKind;
-    using TipLead          = HeatMapCells::TipLead;
+    using TipLead          = HeatMapTips::TipLead;
     using Band             = HeatMapSections::Band;
     using Detail           = HeatMapCellText::Detail;
     using InstructionLines = HeatMapCellText::InstructionLines;
@@ -141,7 +142,7 @@ public:
     //  An instruction's length in bytes from its opcode's form ("LDA ....",
     //  3), and its text with the operand bytes filled in.
     static int       GetInstructionLength (const std::string & form) { return HeatMapCellText::GetInstructionLength (form); }
-    std::wstring     GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const { return m_cells.GetInstructionText (form, cpu, operands); }
+    std::wstring     GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const { return HeatMapCellText::GetInstructionText (form, cpu, operands, m_cells.GetSymbols().get()); }
     static uint32_t  GetDetailTextColor   (uint32_t cell, uint32_t foreground, uint32_t background) { return HeatMapCellText::GetDetailTextColor (cell, foreground, background); }
 
     //  An instruction's text and bytes for each piece of a cell that wraps to
@@ -200,7 +201,7 @@ public:
     //  their byte, drawn by the next SetLevels; and a mark for each byte the
     //  debugger edited, which the tip says.
     void  SetChannelLevels (const std::vector<Byte> & unwritten, const std::vector<Byte> & changed, const std::vector<Byte> & edited = {}) { m_cells.SetChannelLevels (unwritten, changed, edited); }
-    void  SetTop           (double top) { m_cells.SetTop (top); }
+    void  SetTop           (double top) { m_tips.SetTop (top); }
     void  SetPalette       (const Palette & palette);
     void  SetMode          (Mode mode);
     Mode  GetMode          () const { return m_cells.GetOptions().view; }
@@ -267,16 +268,16 @@ public:
     //  from it and its bytes, with any symbol before it, "LOOP: BPL $1075
     //  (10 FB)"; else its symbol or "Value" and its byte, "KBD: C1",
     //  "Value: A8". Empty for a byte not known.
-    std::wstring  GetContentsLine (Word address) const { return m_cells.GetContentsLine (address); }
+    std::wstring  GetContentsLine (Word address) const { return m_tips.GetContentsLine (address); }
 
     //  The frame a cell's tip is drawn in: its range's label with the ROM
     //  behind it, and its color, 0 for the tip's. "RAM" for main RAM, and no
     //  frame in a bank with no regions.
-    void   GetTipFrame     (Word address, std::wstring & label, uint32_t & argb) const { m_cells.GetTipFrame (address, label, argb); }
+    void   GetTipFrame     (Word address, std::wstring & label, uint32_t & argb) const { m_tips.GetTipFrame (address, label, argb); }
 
     //  The tag at the end of a cell's tip's first line: "PC", "SP" or both,
     //  in the PC's or the stack's color; empty for neither.
-    void   GetTipTag       (Word address, std::wstring & tag, uint32_t & argb) const { m_cells.GetTipTag (address, tag, argb); }
+    void   GetTipTag       (Word address, std::wstring & tag, uint32_t & argb) const { m_tips.GetTipTag (address, tag, argb); }
 
     //  The outlines around an address's cell, outermost first: the PC's, the
     //  stack pointer's, then each breakpoint's on it.
@@ -334,14 +335,14 @@ public:
 
     //  A click with Ctrl on a cell; the cell the mouse frames changed.
     void   SetOnPickAccess     (std::function<void(Word, PickAction)> fn)    { m_onPickAccess    = std::move (fn); }
-    void   SetOnHoverChanged   (std::function<void(std::optional<Word>)> fn) { m_onHoverChanged  = std::move (fn); m_cells.SetLookingUp ((bool) m_onHoverChanged); }
+    void   SetOnHoverChanged   (std::function<void(std::optional<Word>)> fn) { m_onHoverChanged  = std::move (fn); m_tips.SetLookingUp ((bool) m_onHoverChanged); }
 
     //  The bank the levels are of, and whether the machine has aux RAM, for
     //  the tip's location; the last writer and reader the machine looked up
     //  for a cell.
-    void   SetShownBank        (Bank bank, bool hasAux) { m_cells.SetShownBank (bank, hasAux); }
+    void   SetShownBank        (Bank bank, bool hasAux) { m_cells.SetShownBank (bank); m_tips.SetHasAux (hasAux); }
     Bank   GetShownBank        () const                 { return m_cells.GetShownBank(); }
-    void   SetHoverAccess      (std::shared_ptr<const HeatAccessHover> hover) { m_cells.SetHoverAccess (std::move (hover)); }
+    void   SetHoverAccess      (std::shared_ptr<const HeatAccessHover> hover) { m_tips.SetHoverAccess (std::move (hover)); }
 
     //  The zoom, as a cell's height in pixels and the width a row's cells are
     //  stretched from; the addresses in a row and the rows; and how far the
@@ -447,7 +448,7 @@ public:
 
     CellKind         GetCellKind (Word address) const { return m_cells.GetCellKind (address); }
 
-    TipLead              GetTipLead   (Word address) const { return m_cells.GetTipLead (address); }
+    TipLead              GetTipLead   (Word address) const { return m_tips.GetTipLead (address); }
 
     //  The scale a cell's color is from, faintest to full, as the legend's
     //  Ramp swatch draws it, and where on it the cell's level lies, 0 to 1;
@@ -459,7 +460,7 @@ public:
     //  the cell it picks are in, or nothing looks them up. A tip shown before
     //  them gains two lines when they arrive.
     bool          IsTipComplete (POINT point) const;
-    std::wstring  GetTipText    (Word address) const { return m_cells.GetTipText (address); }
+    std::wstring  GetTipText    (Word address) const { return m_tips.GetTipText (address); }
 
     //  The widening of a scrollbar under the mouse, carried out over frames.
     bool                 TickScrollbars (int64_t nowMs) { return m_controls.Tick (nowMs); }
@@ -482,6 +483,7 @@ private:
     std::optional<HeatMapBands::Place>  GetKeyTarget  (const DxuiKeyEvent & ev) const;
 
     HeatMapCells               m_cells;
+    HeatMapTips                m_tips         { m_cells };
     HeatMapBands               m_bands;
     HeatMapControls            m_controls;
     HeatMapGrid                m_grid         { m_cells, m_bands, m_controls };

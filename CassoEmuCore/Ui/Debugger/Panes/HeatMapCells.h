@@ -17,8 +17,8 @@ class  HeatMapSymbols;
 //
 //  The heat map's data for each address of the bank on the map: how hot
 //  each kind of access made it, the color its cell is drawn in, the bytes,
-//  opcodes and symbols there, the outlines over it, and the text of its
-//  tip. The layout of the cells on the pane is in HeatMapGrid.
+//  opcodes and symbols there, and the outlines over it. The layout of the
+//  cells on the pane is in HeatMapGrid, and a cell's tip in HeatMapTips.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,14 +89,6 @@ public:
         Blended,
     };
 
-    //  The first line of a cell's tip: the label of what drew the cell, and
-    //  the color the cell is drawn in.
-    struct TipLead
-    {
-        std::wstring  meaning;
-        uint32_t      argb = 0;
-    };
-
     static constexpr int    kAddressCount      = 0x10000;
     static constexpr float  kSymbolTint        = 0.25f;
     static constexpr float  kFaintest          = 0.3f;
@@ -117,7 +109,6 @@ public:
     bool   SetPalette       (const Palette & palette);
     void   SetMode          (Mode mode);
     void   SetOptions       (const HeatMapOptions & options);
-    void   SetTop           (double top) { m_top = top; }
     void   SetOpcodes       (const std::vector<Byte> & opcodes);
     void   SetBreakpoints   (std::vector<Breakpoint> breakpoints);
     bool   SetSymbols       (std::shared_ptr<const HeatMapSymbols> symbols);
@@ -130,28 +121,31 @@ public:
     void   SetSlotCards     (const MemoryRegionKeys::SlotCards & cards)              { m_slotCards = cards; }
     void   SetMachineId     (const std::string & machineId)                          { m_machineId = machineId; }
     void   SetRegionColors  (const MemoryRegionKeys::Colors & colors)                { m_regionColors = colors; }
-    void   SetShownBank     (Bank bank, bool hasAux)                                 { m_shownBank = bank; m_hasAux = hasAux; }
-    void   SetHoverAccess   (std::shared_ptr<const HeatAccessHover> hover)          { m_hoverAccess = std::move (hover); }
+    void   SetShownBank     (Bank bank)                                              { m_shownBank = bank; }
 
-    //  Whether the machine looks up a hovered cell's last writer and reader,
-    //  which the tip then has lines for.
-    void   SetLookingUp     (bool isLookingUp)                                       { m_isLookingUp = isLookingUp; }
-
-    const HeatMapOptions                                   & GetOptions      () const { return m_options; }
-    const Palette                                          & GetPalette      () const { return m_palette; }
-    const std::vector<int16_t>                             & GetValues       () const { return m_values; }
-    const std::vector<Byte>                                & GetOpcodes      () const { return m_opcodes; }
-    const std::shared_ptr<const std::vector<std::string>>  & GetOpcodeForms  () const { return m_opcodeForms; }
-    std::optional<Word>                                      GetPc           () const { return m_pc; }
-    std::optional<Word>                                      GetStack        () const { return m_stack; }
-    std::optional<Word>                                      GetFound        () const { return m_found; }
-    const std::vector<Breakpoint>                          & GetBreakpoints  () const { return m_breakpoints; }
-    const std::vector<uint16_t>                            & GetRegions      () const { return m_regions; }
-    const MemoryRegionKeys::SlotCards                      & GetSlotCards    () const { return m_slotCards; }
-    const std::string                                      & GetMachineId    () const { return m_machineId; }
-    const MemoryRegionKeys::Colors                         & GetRegionColors () const { return m_regionColors; }
-    Bank                                                     GetShownBank    () const { return m_shownBank; }
-    uint16_t                                                 GetRegionAt     (Word address) const { return (m_regions.size() == (size_t) kAddressCount) ? m_regions[address] : (uint16_t) 0; }
+    const HeatMapOptions                                   & GetOptions         () const { return m_options; }
+    const Palette                                          & GetPalette         () const { return m_palette; }
+    const std::vector<int16_t>                             & GetValues          () const { return m_values; }
+    const std::vector<Byte>                                & GetOpcodes         () const { return m_opcodes; }
+    const std::shared_ptr<const std::vector<std::string>>  & GetOpcodeForms     () const { return m_opcodeForms; }
+    std::optional<Word>                                      GetPc              () const { return m_pc; }
+    std::optional<Word>                                      GetStack           () const { return m_stack; }
+    std::optional<Word>                                      GetFound           () const { return m_found; }
+    const std::vector<Breakpoint>                          & GetBreakpoints     () const { return m_breakpoints; }
+    const std::vector<uint16_t>                            & GetRegions         () const { return m_regions; }
+    const MemoryRegionKeys::SlotCards                      & GetSlotCards       () const { return m_slotCards; }
+    const std::string                                      & GetMachineId       () const { return m_machineId; }
+    const MemoryRegionKeys::Colors                         & GetRegionColors    () const { return m_regionColors; }
+    Bank                                                     GetShownBank       () const { return m_shownBank; }
+    const std::shared_ptr<const HeatMapSymbols>            & GetSymbols         () const { return m_symbols; }
+    const std::vector<Byte>                                & GetExecuteLevels   () const { return m_execute; }
+    const std::vector<Byte>                                & GetReadLevels      () const { return m_read; }
+    const std::vector<Byte>                                & GetWriteLevels     () const { return m_write; }
+    const std::vector<Byte>                                & GetUnwrittenLevels () const { return m_unwritten; }
+    const std::vector<Byte>                                & GetChangedLevels   () const { return m_changed; }
+    const std::vector<Byte>                                & GetEditedLevels    () const { return m_edited; }
+    bool                                                     HasCellColors      () const { return m_cells.size() == (size_t) kAddressCount; }
+    uint16_t                                                 GetRegionAt        (Word address) const { return (m_regions.size() == (size_t) kAddressCount) ? m_regions[address] : (uint16_t) 0; }
 
     Byte                   GetShownLevel       (Word address) const;
     bool                   IsOperand           (Word address) const;
@@ -168,22 +162,12 @@ public:
     bool                   CanMerge            () const;
     int                    GetMergeLength      (Word address) const;
 
-    std::wstring           GetTipText          (Word address) const;
-    std::wstring           GetContentsLine     (Word address) const;
-    void                   GetTipTag           (Word address, std::wstring & tag, uint32_t & argb) const;
-    void                   GetTipFrame         (Word address, std::wstring & label, uint32_t & argb) const;
-    TipLead                GetTipLead          (Word address) const;
     bool                   TryGetCellScale     (Word address, std::vector<uint32_t> & gradient, float & mark) const;
     std::vector<uint32_t>  GetScaleStops       (CellKind kind) const;
-    bool                   HasHoverAccess      (Word address) const;
-    std::wstring           GetInstructionText  (const std::string & form, Word cpu, const std::vector<Byte> & operands) const;
 
 private:
     void                   BuildCells          ();
     void                   MarkSymbols         ();
-    std::wstring           FormatAmount        (Byte level) const;
-    std::wstring           DescribeMarks       (Word address) const;
-    std::wstring           DescribeInstruction (Word address) const;
 
     std::vector<Byte>                                m_execute;
     std::vector<Byte>                                m_read;
@@ -194,7 +178,6 @@ private:
     std::vector<uint32_t>                            m_cells;
     Palette                                          m_palette;
     HeatMapOptions                                   m_options;
-    double                                           m_top           = 0.0;
     std::vector<Byte>                                m_opcodes;
     std::vector<int16_t>                             m_values;
     std::shared_ptr<const std::vector<std::string>>  m_opcodeForms;
@@ -209,8 +192,5 @@ private:
     MemoryRegionKeys::SlotCards                      m_slotCards;
     std::string                                      m_machineId;
     MemoryRegionKeys::Colors                         m_regionColors;
-    std::shared_ptr<const HeatAccessHover>           m_hoverAccess;
     Bank                                             m_shownBank     = Bank::Cpu;
-    bool                                             m_hasAux        = false;
-    bool                                             m_isLookingUp   = false;
 };

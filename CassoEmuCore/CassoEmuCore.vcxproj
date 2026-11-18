@@ -319,6 +319,7 @@
     <ClCompile Include="Ui\Debugger\Panes\HeatMapFrame.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPicker.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapGrid.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatMapTips.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPainter.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapSections.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapZoomWidget.cpp" />
@@ -1832,6 +1833,7 @@
     <ClInclude Include="Ui\Debugger\Panes\HeatMapFrame.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapPicker.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapGrid.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatMapTips.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapPainter.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapSections.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapZoomWidget.h" />
