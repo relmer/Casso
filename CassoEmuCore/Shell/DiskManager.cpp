@@ -4,6 +4,8 @@
 
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple3/Apple3DiskController.h"
+#include "Shell/DiskDriveCommands.h"
 #include "Shell/MachineHost.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
@@ -34,18 +36,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskManager::DiskManager (
-    MachineHost                                     & machine,
-    DiskImageStore                                  & diskStore,
-    std::vector<std::unique_ptr<Disk2AudioSource>> & diskAudioSources,
-    WasapiAudio                                     & wasapiAudio,
-    DriveWidgetController                           & driveWidgets,
-    std::array<DriveWidgetState, 2>                 & driveWidgetState,
-    std::array<DriveWidget, 2>                      & driveChrome,
-    CpuManager                                      & cpuManager,
-    const std::wstring                              & currentMachineName,
-    UserConfigStore                                 & userConfigStore,
-    IFileSystem                                     & fileSystem,
-    std::array<bool, 2>                             & userWriteProtect)
+    MachineHost                                                & machine,
+    DiskImageStore                                             & diskStore,
+    std::vector<std::unique_ptr<Disk2AudioSource>>             & diskAudioSources,
+    WasapiAudio                                                & wasapiAudio,
+    DriveWidgetController                                      & driveWidgets,
+    std::array<DriveWidgetState, DiskImageStore::kDriveCount>  & driveWidgetState,
+    std::array<DriveWidget, DiskImageStore::kDriveCount>       & driveChrome,
+    CpuManager                                                 & cpuManager,
+    const std::wstring                                         & currentMachineName,
+    UserConfigStore                                            & userConfigStore,
+    IFileSystem                                                & fileSystem,
+    std::array<bool, DiskImageStore::kDriveCount>              & userWriteProtect)
     : m_machine            (machine),
       m_diskStore          (diskStore),
       m_diskAudioSources   (diskAudioSources),
@@ -221,7 +223,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
 
 
-    CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
+    CBRAEx (drive >= 0 && drive < DiskImageStore::kDriveCount, E_INVALIDARG);
 
     image = m_diskStore.GetImage (6, drive);
     path  = m_diskStore.GetSourcePath (6, drive);
@@ -720,9 +722,8 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
-
-    command = (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2;
+    command = DiskDriveCommands::GetCommand (DiskDriveCommands::Kind::Insert, drive);
+    CBRAEx (command != 0, E_INVALIDARG);
 
     m_cpuManager.PostCommand (command, fs::path (path).string());
 
@@ -751,8 +752,8 @@ Error:
 //  transitions to empty, so clicking eject on an already-empty drive would be
 //  a visual no-op -- the user would press the button and see nothing happen.
 //
-//  Only slot 6 drives 1 and 2 have an eject affordance; anything else leaves
-//  the command at 0, which is the nothing-to-do signal for both halves.
+//  Only slot 6's drives have an eject affordance. For anything else the
+//  command is 0, which is the nothing-to-do signal for both halves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -762,12 +763,11 @@ void DiskManager::Eject (int slot, int drive)
 
 
 
-    // Only slot 6 drives 1 and 2 have an eject affordance; command stays 0
-    // for anything else, which is the "nothing to do" signal below.
+    // Only slot 6's drives have an eject affordance; command stays 0 for
+    // anything else, which is the "nothing to do" signal below.
     if (slot == 6)
     {
-        if      (drive == 0) { command = IDM_DISK_EJECT1; }
-        else if (drive == 1) { command = IDM_DISK_EJECT2; }
+        command = DiskDriveCommands::GetCommand (DiskDriveCommands::Kind::Eject, drive);
     }
     else
     {
@@ -810,6 +810,7 @@ void DiskManager::Eject (int slot, int drive)
 void DiskManager::UpdateDriveWidgets()
 {
     Disk2Controller                                     * controller   = FindSlot6Controller();
+    const Apple3DiskController                          * apple3Disk   = m_machine.GetRefs().apple3Disk;
     int64_t                                               nowMs        = GetNowMs();
     std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents   = m_driveWidgets.ConsumeSyncEvents();
     WozMachineFacts                                       machineFacts = WozCompatibility::GetMachineFacts (m_machine.GetConfig());
@@ -882,7 +883,17 @@ void DiskManager::UpdateDriveWidgets()
         // the bool + monotonic counters with relaxed atomics
         // semantics (existing audio-system pattern).
 
-        if (controller != nullptr)
+        if (apple3Disk != nullptr)
+        {
+            Apple3DiskController::DriveActivity  activity = apple3Disk->GetDriveActivity (drive);
+
+            motorOn          = activity.isMotorOn;
+            reads            = activity.readNibbles;
+            writes           = activity.writeNibbles;
+            headQuarterTrack = activity.quarterTrack;
+            active           = reads != m_lastReadNibbles[drive] || writes != m_lastWriteNibbles[drive];
+        }
+        else if (controller != nullptr && drive < Disk2Controller::kDriveCount)
         {
             auto &  engine = controller->GetDrive (drive).GetEngine();
             motorOn = engine.IsMotorOn();
@@ -931,8 +942,11 @@ void DiskManager::UpdateDriveWidgets()
     }
 
     m_driveWidgets.SyncFromStates (m_driveWidgetState);
-    m_driveChrome[0].SyncFromState (m_driveWidgetState[0]);
-    m_driveChrome[1].SyncFromState (m_driveWidgetState[1]);
+
+    for (drive = 0; drive < static_cast<int> (m_driveChrome.size()); drive++)
+    {
+        m_driveChrome[drive].SyncFromState (m_driveWidgetState[drive]);
+    }
 }
 
 

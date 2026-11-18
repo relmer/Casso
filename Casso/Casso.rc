@@ -105,6 +105,7 @@ BEGIN
     "1",            IDM_DISK_INSERT1,       VIRTKEY, CONTROL
     "2",            IDM_DISK_INSERT2,       VIRTKEY, CONTROL
     "3",            IDM_DISK_INSERT3,       VIRTKEY, CONTROL
+    "4",            IDM_DISK_INSERT4,       VIRTKEY, CONTROL
     VK_F1,          IDM_HELP_KEYMAP,        VIRTKEY
     "D",            IDM_VIEW_DISK2_LOG,     VIRTKEY, CONTROL, SHIFT
     "I",            IDM_VIEW_INPUT_LOG,     VIRTKEY, CONTROL, SHIFT

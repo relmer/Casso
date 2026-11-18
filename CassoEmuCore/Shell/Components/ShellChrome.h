@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Pch.h"
+
+#include "Devices/Disk/DiskImageStore.h"
 #include "Shell/Components/ShellFrameRateReadout.h"
 #include "Shell/Components/ShellNotices.h"
 #include "Shell/Components/ShellStandInBar.h"
@@ -180,7 +182,7 @@ public:
     // drive centers its one drive rather than leaving a gap where the second
     // would have been.
     void         LayoutDriveWidgetsInCommandBar (
-        std::array<DriveWidget, 2>  & driveChrome,
+        std::array<DriveWidget, DiskImageStore::kDriveCount>  & driveChrome,
         int                           bottomInsetPx,
         int                           clientW,
         int                           clientH,

@@ -227,6 +227,17 @@
 #define IDM_DISK_INSPECT3           40604
 #define IDM_DISK_THUMBNAIL3         40605
 
+// The Apple ///'s drive 4, and the write-protect preference for drives 3 and
+// 4. Posted to the CPU thread, the drive 3 commands address Disk II drive 3.
+#define IDM_DISK_INSERT4            40606
+#define IDM_DISK_EJECT4             40607
+#define IDM_DISK_WP4                40608
+#define IDM_DISK_SALVAGE4           40609
+#define IDM_DISK_INSPECT4           40610
+#define IDM_DISK_THUMBNAIL4         40611
+#define IDM_DISK_WRITEPROTECT3      40612
+#define IDM_DISK_WRITEPROTECT4      40613
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042

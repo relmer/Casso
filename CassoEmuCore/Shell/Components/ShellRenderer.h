@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImageStore.h"
+
 #include "Capture/CapturedImage.h"
 
 #include "Capture/ScreenshotMetadata.h"
@@ -176,12 +178,12 @@ private:
     // The padlock each drive last showed, 2D widget or 3D drive. Write
     // protection moves no pixel the machine owns, so the frame that shows it
     // has to be asked for; see the guard in the present path.
-    std::array<bool, 2>         m_driveWpShown = {};
+    std::array<bool, DiskImageStore::kDriveCount>         m_driveWpShown = {};
 
     // The info icon each drive last showed. The same reasoning: a machine
     // switch or a mount can bring it or take it away with no other pixel
     // changing.
-    std::array<bool, 2>         m_driveInfoShown = {};
+    std::array<bool, DiskImageStore::kDriveCount>         m_driveInfoShown = {};
 
     //  A SCREENSHOT IN FLIGHT.
     //

@@ -269,6 +269,8 @@ void Apple3DiskController::ConnectExternal (int index)
     }
 
     before.quarterTrack = drive.GetQuarterTrack();
+    before.readNibbles  = drive.GetEngine().GetReadNibbles();
+    before.writeNibbles = drive.GetEngine().GetWriteNibbles();
     drive.GetEngine().SaveState (writer);
     before.engineState = writer.GetBytes();
 
@@ -326,6 +328,42 @@ int Apple3DiskController::GetSelectedExternal() const
     }
 
     return drive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDriveActivity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Apple3DiskController::DriveActivity Apple3DiskController::GetDriveActivity (int drive) const
+{
+    DriveActivity  activity;
+    int            external = drive - 1;
+
+
+
+    if (drive == 0 || external == m_connected)
+    {
+        const Disk2NibbleEngine  & engine = m_diskII->GetDrive ((drive == 0) ? 0 : s_kExternalLine).GetEngine();
+
+        activity.isMotorOn    = engine.IsMotorOn();
+        activity.quarterTrack = engine.GetCurrentTrack();
+        activity.readNibbles  = engine.GetReadNibbles();
+        activity.writeNibbles = engine.GetWriteNibbles();
+    }
+    else if (external >= 0 && external < kMaxExternal)
+    {
+        activity.quarterTrack = m_externals[(size_t) external].quarterTrack;
+        activity.readNibbles  = m_externals[(size_t) external].readNibbles;
+        activity.writeNibbles = m_externals[(size_t) external].writeNibbles;
+    }
+
+    return activity;
 }
 
 

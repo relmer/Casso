@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImageStore.h"
+
 #include "Devices/Disk/BayChange.h"
 
 
@@ -50,18 +52,18 @@ class IFileSystem;
 class DiskManager
 {
 public:
-    DiskManager (class MachineHost                               & machine,
-                 DiskImageStore                                  & diskStore,
-                 std::vector<std::unique_ptr<Disk2AudioSource>> & diskAudioSources,
-                 WasapiAudio                                     & wasapiAudio,
-                 DriveWidgetController                           & driveWidgets,
-                 std::array<DriveWidgetState, 2>                 & driveWidgetState,
-                 std::array<DriveWidget, 2>                      & driveChrome,
-                 CpuManager                                      & cpuManager,
-                 const std::wstring                              & currentMachineName,
-                 UserConfigStore                                 & userConfigStore,
-                 IFileSystem                                     & fileSystem,
-                 std::array<bool, 2>                             & userWriteProtect);
+    DiskManager (class MachineHost                                          & machine,
+                 DiskImageStore                                             & diskStore,
+                 std::vector<std::unique_ptr<Disk2AudioSource>>             & diskAudioSources,
+                 WasapiAudio                                                & wasapiAudio,
+                 DriveWidgetController                                      & driveWidgets,
+                 std::array<DriveWidgetState, DiskImageStore::kDriveCount>  & driveWidgetState,
+                 std::array<DriveWidget, DiskImageStore::kDriveCount>       & driveChrome,
+                 CpuManager                                                 & cpuManager,
+                 const std::wstring                                         & currentMachineName,
+                 UserConfigStore                                            & userConfigStore,
+                 IFileSystem                                                & fileSystem,
+                 std::array<bool, DiskImageStore::kDriveCount>              & userWriteProtect);
 
     Disk2Controller *   FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
@@ -173,33 +175,33 @@ public:
                                        bool              & outNoPermission);
 
 private:
-    class MachineHost                               & m_machine;
-    DiskImageStore                                  & m_diskStore;
-    std::vector<std::unique_ptr<Disk2AudioSource>>  & m_diskAudioSources;
-    WasapiAudio                                     & m_wasapiAudio;
-    DriveWidgetController                           & m_driveWidgets;
-    std::array<DriveWidgetState, 2>                 & m_driveWidgetState;
-    std::array<DriveWidget, 2>                      & m_driveChrome;
-    CpuManager                                      & m_cpuManager;
-    const std::wstring                              & m_currentMachineName;
-    UserConfigStore                                 & m_userConfigStore;
-    IFileSystem                                     & m_fileSystem;
-    std::array<bool, 2>                             & m_userWriteProtect;
+    class MachineHost                                          & m_machine;
+    DiskImageStore                                             & m_diskStore;
+    std::vector<std::unique_ptr<Disk2AudioSource>>             & m_diskAudioSources;
+    WasapiAudio                                                & m_wasapiAudio;
+    DriveWidgetController                                      & m_driveWidgets;
+    std::array<DriveWidgetState, DiskImageStore::kDriveCount>  & m_driveWidgetState;
+    std::array<DriveWidget, DiskImageStore::kDriveCount>       & m_driveChrome;
+    CpuManager                                                 & m_cpuManager;
+    const std::wstring                                         & m_currentMachineName;
+    UserConfigStore                                            & m_userConfigStore;
+    IFileSystem                                                & m_fileSystem;
+    std::array<bool, DiskImageStore::kDriveCount>              & m_userWriteProtect;
 
     //  Both outlive every mount, because the store holds bare pointers to them
     //  and a watch may be started at any mount.
     std::unique_ptr<IImageWatcher>  m_imageWatcher;
     std::unique_ptr<IDiskFileIo>    m_imageFileIo;
 
-    std::array<uint64_t, 2>  m_lastReadNibbles      {};
-    std::array<uint64_t, 2>  m_lastWriteNibbles     {};
+    std::array<uint64_t, DiskImageStore::kDriveCount>    m_lastReadNibbles      {};
+    std::array<uint64_t, DiskImageStore::kDriveCount>    m_lastWriteNibbles     {};
 
     //  The narrow source path each drive showed last frame, so UpdateDriveWidgets
     //  can tell whether the file in the bay changed with a cheap std::string
     //  compare and skip the wide-path conversion when it did not. Without this
     //  every frame built a fresh fs::path(src).wstring() for a value that
     //  changes only on a mount or eject.
-    std::array<std::string, 2>  m_lastDriveSourcePath  {};
+    std::array<std::string, DiskImageStore::kDriveCount>  m_lastDriveSourcePath  {};
 
     bool                     m_coldBootMountWindow  = true;
     bool                     m_programmaticRemount  = false;

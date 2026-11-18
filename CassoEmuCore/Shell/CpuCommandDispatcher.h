@@ -160,6 +160,8 @@ public:
 
 private:
 
+    static void  DispatchDiskDrive          (const EmulatorCommand & cmd, ICpuDiskCommands & disks);
+    static bool  TryGetDiskDriveInput       (const EmulatorCommand & cmd, InputRecord & input);
     static void  DispatchResolveChange      (const std::string & payload, ICpuDiskCommands & disks);
     static void  DispatchFloppy35           (const EmulatorCommand & cmd, ICpuDiskCommands & disks);
     static void  DispatchHardDiskAttach     (const EmulatorCommand & cmd, const CpuCommandTargets & targets);

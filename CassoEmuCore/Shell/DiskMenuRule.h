@@ -13,7 +13,7 @@
 //
 //  DiskMenuDrive
 //
-//  The drive a Storage menu command for drive 1 or drive 2 acts on: the
+//  The drive a Storage menu command for drive 1 to drive 4 acts on: the
 //  //c Plus's built-in 3.5-inch drive, a Disk II drive, or none.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,7 +38,8 @@ struct DiskMenuDrive
 //  drives are external units on the disk port. Its drive 1 commands act on
 //  the built-in drive, and its drive 2 and drive 3 commands on the first and
 //  second 5.25-inch drives, when they are attached. On every other machine,
-//  drive 1 and drive 2 are slot 6's Disk II drives, and there is no drive 3.
+//  drive N is slot 6's Disk II drive N: drives 1 and 2 on an Apple II, and up
+//  to four on the Apple ///.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +47,6 @@ class DiskMenuRule
 {
 public:
     static bool           HasBuiltIn35Drive (const MachineConfig & config);
-    static DiskMenuDrive  Resolve           (int menuDrive, bool hasBuiltIn35, int portFloppies);
+    static DiskMenuDrive  Resolve           (int menuDrive, bool hasBuiltIn35, int portFloppies, int diskIiDrives = 2);
     static DeskDrive      GetBuiltIn35Drive ()                                                    { return DeskDrive { DeskDriveModel::Apple35Plus, 0, 0 }; }
 };

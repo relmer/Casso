@@ -2,6 +2,7 @@
 
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugCommandPayload.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Config/NetworkCardSettings.h"
 
@@ -67,6 +68,27 @@ public:
 
         Assert::AreEqual (std::string ("EjectDisk 1"), target.calls[0]);
         Assert::AreEqual (std::string ("EjectDisk 0"), target.calls[1]);
+    }
+
+
+    //  The Apple ///'s drives 3 and 4.
+    TEST_METHOD (TheThirdAndFourthDrivesHaveTheirOwnCommands)
+    {
+        Notebook     target;
+        InputRecord  input;
+
+        Dispatch (IDM_DISK_INSERT3, "C:\\Disks\\three.dsk", target);
+        Dispatch (IDM_DISK_EJECT4,  "",                     target);
+        Dispatch (IDM_DISK_WP4,     "",                     target);
+
+        Assert::AreEqual ((size_t) 3, target.calls.size());
+        Assert::AreEqual (std::string ("MountDisk 2 C:\\Disks\\three.dsk"), target.calls[0]);
+        Assert::AreEqual (std::string ("EjectDisk 3"),                       target.calls[1]);
+        Assert::AreEqual (std::string ("ToggleImageWriteProtect 3"),         target.calls[2]);
+
+        Assert::IsTrue   (CpuCommandDispatcher::TryGetJournalInput (EmulatorCommand { IDM_DISK_INSERT4, "four.dsk" }, input));
+        Assert::IsTrue   (input.kind == InputKind::DiskMount);
+        Assert::AreEqual (3, (int) input.value);
     }
 
 

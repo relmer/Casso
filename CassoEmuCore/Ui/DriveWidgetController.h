@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DiskImageStore.h"
+
 struct DriveWidgetState;
 class IDriveCommandSink;
 
@@ -50,7 +52,7 @@ public:
     HRESULT                     LoadDocument      (IDriveCommandSink * pSink,
                                                    HWND                ownerHwnd);
     void                        UnloadDocument    ();
-    void                        SyncFromStates    (const std::array<DriveWidgetState, 2> & states);
+    void                        SyncFromStates    (const std::array<DriveWidgetState, DiskImageStore::kDriveCount> & states);
     void                      * HitTest           (int clientX, int clientY) const;
     uint64_t                    PublishSyncEvent  (int driveId, SyncAction action, int64_t timestampMs);
     std::vector<DriveSyncEvent> ConsumeSyncEvents ();

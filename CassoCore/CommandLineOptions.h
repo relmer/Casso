@@ -353,6 +353,8 @@ struct CommandLineOptions
         std::string  machine;                          // --machine <name>
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
+        std::string  disk3;                            // --disk3 <image>, Apple /// only
+        std::string  disk4;                            // --disk4 <image>, Apple /// only
         std::string  tape;                             // --tape <file>
 
         //  An image for one unit of a block device card, or for one device

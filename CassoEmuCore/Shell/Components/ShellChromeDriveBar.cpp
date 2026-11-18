@@ -32,20 +32,20 @@
 
 void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, UINT dpi)
 {
-    std::array<DriveWidget, 2>  & widgets     = m_shell.m_disks->GetDriveChrome();
-    DriveBarFan                 & fan         = m_driveBarFan.GetFan();
-    DxuiDpiScaler                 scaler;
-    RECT                          probe       = {};
-    SIZE                          slot        = {};
-    int                           gap         = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
-    int                           bottomGap   = MulDiv (s_kLabelBottomGapDp,        (int) dpi, s_kBaseDpi);
-    int                           gapY        = MulDiv (4, (int) dpi, s_kBaseDpi);
-    int                           pad         = MulDiv (6, (int) dpi, s_kBaseDpi);
-    int                           arrow       = MulDiv (14, (int) dpi, s_kBaseDpi);
-    bool                          sliding     = m_shell.AreDrivesAutoHidden();
-    int                           originX     = 0;
-    int                           rowTop      = 0;
-    int                           stripBottom = (m_driveStripAreaPx.bottom > m_driveStripAreaPx.top) ? (int) m_driveStripAreaPx.bottom : clientH;
+    std::array<DriveWidget, DiskImageStore::kDriveCount>  & widgets     = m_shell.m_disks->GetDriveChrome();
+    DriveBarFan                                           & fan         = m_driveBarFan.GetFan();
+    DxuiDpiScaler                                           scaler;
+    RECT                                                    probe       = {};
+    SIZE                                                    slot        = {};
+    int                                                     gap         = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
+    int                                                     bottomGap   = MulDiv (s_kLabelBottomGapDp,        (int) dpi, s_kBaseDpi);
+    int                                                     gapY        = MulDiv (4, (int) dpi, s_kBaseDpi);
+    int                                                     pad         = MulDiv (6, (int) dpi, s_kBaseDpi);
+    int                                                     arrow       = MulDiv (14, (int) dpi, s_kBaseDpi);
+    bool                                                    sliding     = m_shell.AreDrivesAutoHidden();
+    int                                                     originX     = 0;
+    int                                                     rowTop      = 0;
+    int                                                     stripBottom = (m_driveStripAreaPx.bottom > m_driveStripAreaPx.top) ? (int) m_driveStripAreaPx.bottom : clientH;
 
 
 
@@ -174,8 +174,8 @@ void ShellChrome::HideDriveBar()
 
 void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 {
-    std::array<DriveWidget, 2>  & widgets = m_shell.m_disks->GetDriveChrome();
-    DeskDriveModel                model   = m_shell.m_scene->IsMachineC() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+    std::array<DriveWidget, DiskImageStore::kDriveCount>  & widgets = m_shell.m_disks->GetDriveChrome();
+    DeskDriveModel                                          model   = m_shell.m_scene->IsMachineC() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
 
 
 
@@ -211,9 +211,9 @@ void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 
 void ShellChrome::PlaceDriveBarWidgets()
 {
-    std::array<DriveWidget, 2>  & widgets = m_shell.m_disks->GetDriveChrome();
-    const DriveBarFan           & fan     = m_driveBarFan.GetFan();
-    DxuiDpiScaler                 scaler;
+    std::array<DriveWidget, DiskImageStore::kDriveCount>  & widgets = m_shell.m_disks->GetDriveChrome();
+    const DriveBarFan                                     & fan     = m_driveBarFan.GetFan();
+    DxuiDpiScaler                                           scaler;
 
 
 

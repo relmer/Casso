@@ -94,7 +94,7 @@ void DriveWidgetController::UnloadDocument()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DriveWidgetController::SyncFromStates (const std::array<DriveWidgetState, 2> & /*states*/)
+void DriveWidgetController::SyncFromStates (const std::array<DriveWidgetState, DiskImageStore::kDriveCount> & /*states*/)
 {
 }
 

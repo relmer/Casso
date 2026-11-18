@@ -1579,7 +1579,8 @@ bool ShellDisks::IsSecondDriveOffered() const
 //  reasoning that the card is two-drive hardware -- but the CARD having two
 //  connectors was never the same claim as both of them having a drive on the
 //  end, and this is the question the 2D widgets and the desk scene both ask,
-//  so answering it from the config is what keeps them agreeing.
+//  so the result comes from the config for both, and the two match. On the
+//  Apple ///, the result is whether an external drive is plugged in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1598,6 +1599,11 @@ bool ShellDisks::ShouldShowExternalDrive() const
     if (externalIsOptional)
     {
         return m_externalDriveConnected;
+    }
+
+    if (GetApple3DriveCount() > 0)
+    {
+        return GetApple3DriveCount() >= kDiskIiPortCount;
     }
 
     return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount() >= kDiskIiPortCount;
@@ -1631,6 +1637,26 @@ bool ShellDisks::MachineHasBuiltInDrive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::GetApple3DriveCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetApple3DriveCount() const
+{
+    const MachineConfig      & config     = m_shell.m_machine.GetConfig();
+    const MachineDefinition  * definition = MachineDefinitions::Find (config.machineId);
+
+
+
+    return (definition != nullptr && definition->hasBankedMemory) ? 1 + config.externalDrives : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::GetMenuDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1641,7 +1667,11 @@ DiskMenuDrive ShellDisks::GetMenuDrive (int menuDrive) const
 
 
 
-    return DiskMenuRule::Resolve (menuDrive, DiskMenuRule::HasBuiltIn35Drive (config), config.CountDiskPortFloppies());
+    int  diskIiDrives = (GetApple3DriveCount() > 0) ? GetApple3DriveCount() : Disk2Controller::kDriveCount;
+
+
+
+    return DiskMenuRule::Resolve (menuDrive, DiskMenuRule::HasBuiltIn35Drive (config), config.CountDiskPortFloppies(), diskIiDrives);
 }
 
 
@@ -1660,7 +1690,7 @@ int ShellDisks::GetMenuIndex (int diskIiDrive) const
 
 
 
-    for (int menuDrive = 0; menuDrive < 3 && index < 0; menuDrive++)
+    for (int menuDrive = 0; menuDrive < DiskImageStore::kDriveCount && index < 0; menuDrive++)
     {
         index = (GetMenuDrive (menuDrive).diskIiDrive == diskIiDrive) ? menuDrive : -1;
     }

@@ -7,6 +7,7 @@
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Core/JsonWriter.h"
+#include "Shell/DiskDriveCommands.h"
 #include "resource.h"
 
 
@@ -231,12 +232,11 @@ void SettingsApplyAdapter::ApplyWriteProtect (int drive, bool wp)
     // eject) so the mounted DiskImage's write-protect flag -- read
     // by the controller on that thread -- is mutated there. The
     // command id encodes the drive; the payload carries the bool.
-    WORD  id = (drive == 0) ? IDM_DISK_WRITEPROTECT1
-                            : IDM_DISK_WRITEPROTECT2;
+    WORD  id = DiskDriveCommands::GetCommand (DiskDriveCommands::Kind::UserWriteProtect, drive);
 
 
 
-    if (drive == 0 || drive == 1)
+    if (id != 0)
     {
         m_shell.PostCommand (id, wp ? std::string ("1") : std::string ("0"));
     }

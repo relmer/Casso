@@ -336,6 +336,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "disk3",
+    "disk4",
     "hd",
     "smartport",
     "tape",
@@ -375,6 +377,8 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "disk3",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "disk4",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "hd",             CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "smartport",      CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "tape",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
@@ -404,6 +408,8 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--disk3",   " <image>", "Insert this image into drive 3, on an Apple /// with that drive." },
+    { "--disk4",   " <image>", "Insert this image into drive 4, on an Apple /// with that drive." },
     { "--hd",      " <slot>[.<unit>]=<image>",
                                "Attach this image to the hard disk or UniDisk 3.5 card "
                                "in the slot, for this run. The unit is a SCSI ID or a "
@@ -4967,6 +4973,8 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         if      (arg == "--machine" && hasValue) { parsed.machine = argv[++i]; }
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
+        else if (arg == "--disk3"   && hasValue) { parsed.disk3   = argv[++i]; }
+        else if (arg == "--disk4"   && hasValue) { parsed.disk4   = argv[++i]; }
         else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
         else if (arg == "--hd"        && hasValue) { ApplyBlockAttachment (argv[++i], false, parsed); }
         else if (arg == "--smartport" && hasValue) { ApplyBlockAttachment (argv[++i], true,  parsed); }
@@ -5125,7 +5133,8 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
         parsed.refusalMessage = "Error: unexpected argument " + raw;
     }
     else if (canonical == "--machine" || canonical == "--disk1"
-          || canonical == "--disk2"   || canonical == "--title"
+          || canonical == "--disk2"   || canonical == "--disk3"
+          || canonical == "--disk4"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
           || canonical == "--cleanup-old" || canonical == "--hd"
           || canonical == "--smartport")

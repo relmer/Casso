@@ -25,6 +25,9 @@ Sentence case throughout. **Status** is `proposed` until approved.
 | Where | String | Status |
 |---|---|---|
 | Disk menus, drop targets | Drive 3, Drive 4 | proposed |
+| Disk menu, drive 4 rows | Insert drive &4..., E&ject drive 4, Write-pr&otect disk 4, Salva&ge readable sectors..., Inspect disk 4..., Save screenshot as disk 4's th&umbnail | proposed |
+| Disk menu access keys | On the Apple ///, the drive 3 rows (shared with the //c Plus) use the drive 1 rows' keys W, l, d and m | open question |
+| Command line help | --disk3: Insert this image into drive 3, on an Apple /// with that drive. --disk4: the same for drive 4. | proposed |
 | Drive tips | Built-in drive | proposed |
 
 ## Messages

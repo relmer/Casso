@@ -1759,6 +1759,7 @@
     <ClCompile Include="Ui\Settings\SlotCards.cpp" />
     <ClCompile Include="Shell\StorageCardWiring.cpp" />
     <ClCompile Include="Shell\Apple3MachineBuilder.cpp" />
+    <ClCompile Include="Shell\DiskDriveCommands.cpp" />
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -3249,6 +3250,7 @@
     <ClInclude Include="Ui\Settings\SlotCards.h" />
     <ClInclude Include="Shell\StorageCardWiring.h" />
     <ClInclude Include="Shell\Apple3MachineBuilder.h" />
+    <ClInclude Include="Shell\DiskDriveCommands.h" />
     <ClInclude Include="Ui\Scene\DeskDrivePlan.h" />
   </ItemGroup>
   <ItemGroup>

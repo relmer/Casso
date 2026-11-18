@@ -80,6 +80,19 @@ public:
     //  The external drive on the Disk II logic's second drive, 0 to 2.
     int      GetConnectedExternal () const { return m_connected; }
 
+    //  A drive's motor, head and nibble counts, for the drive widgets: the
+    //  Disk II logic's for a connected drive, and what a disconnected drive
+    //  had when it was swapped out. Drive 0 is the built-in drive.
+    struct DriveActivity
+    {
+        bool      isMotorOn    = false;
+        int       quarterTrack = -1;
+        uint64_t  readNibbles  = 0;
+        uint64_t  writeNibbles = 0;
+    };
+
+    DriveActivity  GetDriveActivity (int drive) const;
+
     Disk2Controller        & GetDiskII ()       { return *m_diskII; }
     const Disk2Controller  & GetDiskII () const { return *m_diskII; }
 
@@ -92,6 +105,8 @@ private:
     {
         DiskImage          * disk         = nullptr;
         int                  quarterTrack = 0;
+        uint64_t             readNibbles  = 0;
+        uint64_t             writeNibbles = 0;
         std::vector<Byte>    engineState;
     };
 

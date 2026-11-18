@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Shell/DiskDriveCommands.h"
 #include "Shell/Components/ShellInput.h"
 
 #include "Core/ThreadName.h"
@@ -565,28 +566,35 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int   drive1  = m_disks->GetMenuDrive (0).diskIiDrive;
         int   drive2  = m_disks->GetMenuDrive (1).diskIiDrive;
         int   drive3  = m_disks->GetMenuDrive (2).diskIiDrive;
-        auto  isShown = [this] (int drive) { return drive == 0 || (drive == 1 && m_disks->ShouldShowExternalDrive()); };
+        int   drive4  = m_disks->GetMenuDrive (3).diskIiDrive;
+        auto  isShown = [this] (int drive) { return drive == 0 || (drive == 1 && m_disks->ShouldShowExternalDrive()) || drive >= 2; };
 
         switch (commandId)
         {
             case IDM_DISK_WP1:      return drive1 >= 0 && m_disks->IsWriteProtectToggleOffered (drive1);
             case IDM_DISK_WP2:      return drive2 >= 0 && m_disks->IsWriteProtectToggleOffered (drive2);
             case IDM_DISK_WP3:      return drive3 >= 0 && m_disks->IsWriteProtectToggleOffered (drive3);
+            case IDM_DISK_WP4:      return drive4 >= 0 && m_disks->IsWriteProtectToggleOffered (drive4);
             case IDM_DISK_SALVAGE1: return drive1 >= 0 && m_disks->IsSalvageOffered (drive1);
             case IDM_DISK_SALVAGE2: return drive2 >= 0 && m_disks->IsSalvageOffered (drive2);
             case IDM_DISK_SALVAGE3: return drive3 >= 0 && m_disks->IsSalvageOffered (drive3);
+            case IDM_DISK_SALVAGE4: return drive4 >= 0 && m_disks->IsSalvageOffered (drive4);
             case IDM_DISK_INSPECT1: return isShown (drive1) && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_INSPECT2: return isShown (drive2) && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_INSPECT3: return isShown (drive3) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT4: return isShown (drive4) && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_THUMBNAIL1: return isShown (drive1) && !m_disks->GetMountedImagePath (drive1).empty();
             case IDM_DISK_THUMBNAIL2: return isShown (drive2) && !m_disks->GetMountedImagePath (drive2).empty();
             case IDM_DISK_THUMBNAIL3: return isShown (drive3) && !m_disks->GetMountedImagePath (drive3).empty();
+            case IDM_DISK_THUMBNAIL4: return isShown (drive4) && !m_disks->GetMountedImagePath (drive4).empty();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
             case IDM_DISK_INSERT2:     return isShown (drive2);
             case IDM_DISK_EJECT2:      return isShown (drive2);
             case IDM_DISK_INSERT3:     return isShown (drive3);
             case IDM_DISK_EJECT3:      return isShown (drive3);
+            case IDM_DISK_INSERT4:     return isShown (drive4);
+            case IDM_DISK_EJECT4:      return isShown (drive4);
             case IDM_TAPE_INSERT:      return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_NEW:         return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_PLAY:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        m_tapeDeck->GetTapeView());
@@ -618,14 +626,21 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_STORAGE_ATTACH_FLOPPY:   visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszDiskIicDevice);      break;
 
             // The drive 3 commands are for a //c Plus with two 5.25-inch
-            // drives on its port. Its built-in drive 1 has only insert and
-            // eject.
+            // drives on its port, and the drive 3 and drive 4 commands for an
+            // Apple /// with that many drives. The //c Plus's built-in drive 1
+            // has only insert and eject.
             case IDM_DISK_INSERT3:
             case IDM_DISK_EJECT3:
             case IDM_DISK_WP3:
             case IDM_DISK_SALVAGE3:
             case IDM_DISK_INSPECT3:
             case IDM_DISK_THUMBNAIL3:         visible = m_disks->GetMenuDrive (2).IsDiskIi();                                       break;
+            case IDM_DISK_INSERT4:
+            case IDM_DISK_EJECT4:
+            case IDM_DISK_WP4:
+            case IDM_DISK_SALVAGE4:
+            case IDM_DISK_INSPECT4:
+            case IDM_DISK_THUMBNAIL4:         visible = m_disks->GetMenuDrive (3).IsDiskIi();                                       break;
             case IDM_DISK_WP1:
             case IDM_DISK_SALVAGE1:
             case IDM_DISK_INSPECT1:
@@ -668,6 +683,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_WP1:
             case IDM_DISK_WP2:
             case IDM_DISK_WP3:
+            case IDM_DISK_WP4:
             {
                 // Give the mounted image and the ACTION the click will take:
                 // write-enable when the WOZ flag or the read-only attribute
@@ -675,7 +691,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 // preference is a different toggle and does not flip it. An
                 // empty return keeps the static "Write-protect disk N" label
                 // for an empty (disabled) drive.
-                int           drive = m_disks->GetMenuDrive ((commandId == IDM_DISK_WP1) ? 0 : ((commandId == IDM_DISK_WP3) ? 2 : 1)).diskIiDrive;
+                int           drive = m_disks->GetMenuDrive (DiskDriveCommands::GetMenuDrive (commandId)).diskIiDrive;
                 DiskImage  *  image = (drive >= 0) ? m_machine.GetDiskStore().GetImage (6, drive) : nullptr;
                 std::wstring  name;
 

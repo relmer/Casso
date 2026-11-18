@@ -16,6 +16,7 @@
 #include "Core/PathResolver.h"
 #include "Seams/Win32ProcessLauncher.h"
 #include "resource.h"
+#include "Shell/DiskDriveCommands.h"
 
 
 
@@ -454,7 +455,7 @@ void EmulatorShell::DebuggerHost::Reset (bool isPowerCycle)
 
 void EmulatorShell::DebuggerHost::InsertDisk (int drive, const std::wstring & path)
 {
-    PostCommand ((drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2, TextEncoding::WideToNarrow (path));
+    PostCommand (DiskDriveCommands::GetCommand (DiskDriveCommands::Kind::Insert, drive), TextEncoding::WideToNarrow (path));
 }
 
 
@@ -469,7 +470,7 @@ void EmulatorShell::DebuggerHost::InsertDisk (int drive, const std::wstring & pa
 
 void EmulatorShell::DebuggerHost::EjectDisk (int drive)
 {
-    PostCommand ((drive == 0) ? IDM_DISK_EJECT1 : IDM_DISK_EJECT2, std::string());
+    PostCommand (DiskDriveCommands::GetCommand (DiskDriveCommands::Kind::Eject, drive), std::string());
 }
 
 

@@ -138,7 +138,7 @@ ShellChrome::~ShellChrome() = default;
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellChrome::LayoutDriveWidgetsInCommandBar (
-    std::array<DriveWidget, 2>  & driveChrome,
+    std::array<DriveWidget, DiskImageStore::kDriveCount>  & driveChrome,
     int                           bottomInsetPx,
     int                           clientW,
     int                           clientH,

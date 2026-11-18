@@ -65,10 +65,10 @@ public:
     void  InstallChangeReporting ();
 
     // Null before Initialize.
-    DiskManager                      * GetManager          () const { return m_diskManager.get(); }
-    std::array<DriveWidget, 2>       & GetDriveChrome      ()       { return m_driveChrome; }
-    std::array<DriveWidgetState, 2>  & GetDriveWidgetState ()       { return m_driveWidgetState; }
-    DriveWidgetController            & GetDriveWidgets     ()       { return m_driveWidgets; }
+    DiskManager                                                * GetManager          () const { return m_diskManager.get(); }
+    std::array<DriveWidget, DiskImageStore::kDriveCount>       & GetDriveChrome      ()       { return m_driveChrome; }
+    std::array<DriveWidgetState, DiskImageStore::kDriveCount>  & GetDriveWidgetState ()       { return m_driveWidgetState; }
+    DriveWidgetController                                      & GetDriveWidgets     ()       { return m_driveWidgets; }
 
     // Live per-drive user write-protect preference (Settings > Disk
     // checkbox / write-protect menu). Seeded from $cassoUiPrefs at
@@ -76,7 +76,7 @@ public:
     // sees the disk as protected and dirty writes never flush. Distinct
     // from the image's own embedded flag and from the backing file's
     // read-only state; all three are surfaced independently in the UI.
-    std::array<bool, 2>  & GetUserWriteProtect () { return m_userWriteProtect; }
+    std::array<bool, DiskImageStore::kDriveCount>  & GetUserWriteProtect () { return m_userWriteProtect; }
 
     // Records the user's per-drive write-protect preference and applies it to
     // the currently mounted image (if any) so the change takes effect
@@ -157,6 +157,10 @@ public:
     // card, which decides the drive the desk scene draws.
     bool  MachineHasBuiltInDrive () const;
     bool  HasDiskIicDrives       () const;
+
+    // On the Apple ///, the built-in drive and the external drives plugged
+    // in; 0 on every other machine.
+    int   GetApple3DriveCount    () const;
 
     // The drive the Storage menu's drive 1 (0), drive 2 (1) or drive 3 (2)
     // commands act on, and the reverse: which commands act on a Disk II
@@ -294,18 +298,18 @@ private:
 
     EmulatorShell                    & m_shell;
 
-    std::array<DriveWidget, 2>         m_driveChrome;
+    std::array<DriveWidget, DiskImageStore::kDriveCount>         m_driveChrome;
 
     // Live per-drive user write-protect preference; see GetUserWriteProtect.
-    std::array<bool, 2>                m_userWriteProtect { { false, false } };
+    std::array<bool, DiskImageStore::kDriveCount>                m_userWriteProtect {};
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter consumes. Per-drive
     // UI/CPU bridge state lives in m_driveWidgetState; the CPU thread's
     // motor + nibble counters are sampled once per UI frame and pushed
     // through the controller.
-    DriveWidgetController              m_driveWidgets;
-    std::array<DriveWidgetState, 2>    m_driveWidgetState;
+    DriveWidgetController                                        m_driveWidgets;
+    std::array<DriveWidgetState, DiskImageStore::kDriveCount>    m_driveWidgetState;
 
     // //c only: whether the optional external drive is "connected". Mirrors
     // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at

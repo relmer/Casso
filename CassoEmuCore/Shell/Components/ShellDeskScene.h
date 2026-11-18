@@ -381,6 +381,9 @@ public:
     // the cassette, the name of the drive under the pointer, and the two
     // drives' info icons, which are last.
     static constexpr size_t  s_kSceneLabelCount    = 9;
+
+    // The Disk II drives the desk has room for.
+    static constexpr int     s_kDeskDiskIiMax      = 2;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
     static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;

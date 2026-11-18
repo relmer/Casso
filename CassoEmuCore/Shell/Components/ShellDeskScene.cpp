@@ -1110,6 +1110,13 @@ int ShellDeskScene::CountDiskIiDrives() const
         return 0;
     }
 
+    // The Apple ///'s drives are its built-in drive and the external drives
+    // on its drive port.
+    if (m_shell.m_disks->GetApple3DriveCount() > 0)
+    {
+        return m_shell.m_disks->GetApple3DriveCount();
+    }
+
     // The //c's drives are not carded -- one is soldered in and the second
     // hangs off the back-panel disk port -- so its slot list says nothing
     // about them and the internal drive is always there. The //c Plus's
@@ -4530,8 +4537,8 @@ void ShellDeskScene::ClearHover (int64_t nowMs)
 
 void ShellDeskScene::GetDriveTooltip (int x, int y, std::wstring & outTip, RECT & outAnchor) const
 {
-    POINT                                     pt     = { x, y };
-    const std::array<DriveWidgetState, 2>  &  states = m_shell.m_disks->GetDriveWidgetState();
+    POINT                                                               pt     = { x, y };
+    const std::array<DriveWidgetState, DiskImageStore::kDriveCount>  &  states = m_shell.m_disks->GetDriveWidgetState();
 
 
 
@@ -5438,6 +5445,13 @@ void ShellDeskScene::PlanDrives()
     if (m_shell.m_chrome->GetTheme().compactDrives)
     {
         DeskDrivePlan::GetCompactPlaces (drives, floppies, hardDisks);
+    }
+
+    // The desk has room for two Disk II drives, so the Apple ///'s third and
+    // fourth drives put its floppies on the drive bar.
+    if (m_plannedDiskIiCount > s_kDeskDiskIiMax)
+    {
+        floppies = DeskClassPlace::Bar;
     }
 
     m_drivePlan         = DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, prefs.deskFloppyPairBeside);

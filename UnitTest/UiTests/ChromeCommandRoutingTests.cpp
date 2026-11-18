@@ -171,6 +171,14 @@ public:
         { L"IDM_DISK_SALVAGE3",             IDM_DISK_SALVAGE3             },
         { L"IDM_DISK_INSPECT3",             IDM_DISK_INSPECT3             },
         { L"IDM_DISK_THUMBNAIL3",           IDM_DISK_THUMBNAIL3           },
+        { L"IDM_DISK_INSERT4",              IDM_DISK_INSERT4              },
+        { L"IDM_DISK_EJECT4",               IDM_DISK_EJECT4               },
+        { L"IDM_DISK_WP4",                  IDM_DISK_WP4                  },
+        { L"IDM_DISK_SALVAGE4",             IDM_DISK_SALVAGE4             },
+        { L"IDM_DISK_INSPECT4",             IDM_DISK_INSPECT4             },
+        { L"IDM_DISK_THUMBNAIL4",           IDM_DISK_THUMBNAIL4           },
+        { L"IDM_DISK_WRITEPROTECT3",        IDM_DISK_WRITEPROTECT3        },
+        { L"IDM_DISK_WRITEPROTECT4",        IDM_DISK_WRITEPROTECT4        },
 
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },
@@ -444,11 +452,15 @@ public:
     // one of them may share a letter with a row visible only there.
     static constexpr WORD  kHiddenOnSlot6[]    = { IDM_STORAGE_ATTACH_APPLE35, IDM_STORAGE_ATTACH_FLOPPY,
                                                    IDM_DISK_INSERT3, IDM_DISK_EJECT3, IDM_DISK_WP3,
-                                                   IDM_DISK_SALVAGE3, IDM_DISK_INSPECT3, IDM_DISK_THUMBNAIL3 };
+                                                   IDM_DISK_SALVAGE3, IDM_DISK_INSPECT3, IDM_DISK_THUMBNAIL3,
+                                                   IDM_DISK_INSERT4, IDM_DISK_EJECT4, IDM_DISK_WP4,
+                                                   IDM_DISK_SALVAGE4, IDM_DISK_INSPECT4, IDM_DISK_THUMBNAIL4 };
     static constexpr WORD  kHiddenOnTheCPlus[] = { IDM_STORAGE_DRIVE2, IDM_STORAGE_RECORDER, IDM_TAPE_INSERT,
                                                    IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
                                                    IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT, IDM_DISK_WP1,
-                                                   IDM_DISK_SALVAGE1, IDM_DISK_INSPECT1, IDM_DISK_THUMBNAIL1 };
+                                                   IDM_DISK_SALVAGE1, IDM_DISK_INSPECT1, IDM_DISK_THUMBNAIL1,
+                                                   IDM_DISK_INSERT4, IDM_DISK_EJECT4, IDM_DISK_WP4,
+                                                   IDM_DISK_SALVAGE4, IDM_DISK_INSPECT4, IDM_DISK_THUMBNAIL4 };
 
 
     // The Storage menu's labels in table order, less the rows in `hidden`,

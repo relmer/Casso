@@ -5,6 +5,7 @@
 #include "Debugger/DebugCommandPayload.h"
 #include "Debugger/HeatMapRangeSets.h"
 #include "resource.h"
+#include "Shell/DiskDriveCommands.h"
 #include "Core/TextEncoding.h"
 #include "Shell/CpuManager.h"
 #include "Debugger/Reverse/InputJournal.h"
@@ -73,11 +74,6 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             DispatchNetworkConfigure (cmd.payload, targets.machine);
             break;
 
-        case IDM_DISK_INSERT1:
-        case IDM_DISK_INSERT2:
-            hr = targets.disks.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-            break;
 
         case IDM_FLOPPY35_INSERT:
         case IDM_FLOPPY35_EJECT:
@@ -88,26 +84,11 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             DispatchHardDiskAttach (cmd, targets);
             break;
 
-        case IDM_DISK_EJECT1:
-        case IDM_DISK_EJECT2:
-            targets.disks.EjectDisk ((cmd.id == IDM_DISK_EJECT1) ? 0 : 1);
-            break;
-
-        case IDM_DISK_WRITEPROTECT1:
-        case IDM_DISK_WRITEPROTECT2:
-            targets.disks.SetDriveUserWriteProtect ((cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1,
-                                                    !cmd.payload.empty() && cmd.payload[0] == '1');
-            break;
 
         case IDM_SSC_SWITCHES:
             DispatchSerialCardSwitches (cmd.payload, targets.machine);
             break;
 
-        case IDM_DISK_WP1:
-        case IDM_DISK_WP2:
-            hr = targets.disks.ToggleImageWriteProtect ((cmd.id == IDM_DISK_WP1) ? 0 : 1);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-            break;
 
         case IDM_DISK_RESOLVE_CHANGE:
             DispatchResolveChange (cmd.payload, targets.disks);
@@ -240,7 +221,54 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             break;
 
         default:
+            DispatchDiskDrive (cmd, targets.disks);
             break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchDiskDrive
+//
+//  A Disk II drive's insert, eject or write-protect command, for any of the
+//  drives DiskDriveCommands lists. Anything else does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchDiskDrive (const EmulatorCommand & cmd, ICpuDiskCommands & disks)
+{
+    HRESULT                  hr    = S_OK;
+    DiskDriveCommands::Kind  kind  = DiskDriveCommands::Kind::Insert;
+    int                      drive = 0;
+
+
+
+    if (DiskDriveCommands::TryGetDrive (cmd.id, kind, drive))
+    {
+        switch (kind)
+        {
+            case DiskDriveCommands::Kind::Insert:
+                hr = disks.MountDisk (drive, cmd.payload);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+                break;
+
+            case DiskDriveCommands::Kind::Eject:
+                disks.EjectDisk (drive);
+                break;
+
+            case DiskDriveCommands::Kind::ImageWriteProtect:
+                hr = disks.ToggleImageWriteProtect (drive);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+                break;
+
+            case DiskDriveCommands::Kind::UserWriteProtect:
+                disks.SetDriveUserWriteProtect (drive, !cmd.payload.empty() && cmd.payload[0] == '1');
+                break;
+        }
     }
 }
 
@@ -289,35 +317,59 @@ bool CpuCommandDispatcher::TryGetJournalInput (const EmulatorCommand & cmd, Inpu
             input.kind = InputKind::PowerCycle;
             break;
 
-        case IDM_DISK_INSERT1:
-        case IDM_DISK_INSERT2:
-            input.kind    = InputKind::DiskMount;
-            input.value   = (cmd.id == IDM_DISK_INSERT1) ? 0 : 1;
-            input.payload = cmd.payload;
-            break;
-
-        case IDM_DISK_EJECT1:
-        case IDM_DISK_EJECT2:
-            input.kind  = InputKind::DiskEject;
-            input.value = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
-            break;
-
-        case IDM_DISK_WRITEPROTECT1:
-        case IDM_DISK_WRITEPROTECT2:
-            input.kind   = InputKind::DriveWriteProtect;
-            input.value  = (cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1;
-            input.detail = (!cmd.payload.empty() && cmd.payload[0] == '1') ? 1 : 0;
-            break;
-
-        case IDM_DISK_WP1:
-        case IDM_DISK_WP2:
-            input.kind  = InputKind::ImageWriteProtect;
-            input.value = (cmd.id == IDM_DISK_WP1) ? 0 : 1;
-            break;
-
         default:
-            isInput = false;
+            isInput = TryGetDiskDriveInput (cmd, input);
             break;
+    }
+
+    return isInput;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetDiskDriveInput
+//
+//  A Disk II drive's insert, eject or write-protect command as a journal
+//  input, with the drive in value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetDiskDriveInput (const EmulatorCommand & cmd, InputRecord & input)
+{
+    DiskDriveCommands::Kind  kind    = DiskDriveCommands::Kind::Insert;
+    int                      drive   = 0;
+    bool                     isInput = DiskDriveCommands::TryGetDrive (cmd.id, kind, drive);
+
+
+
+    if (isInput)
+    {
+        input.value = static_cast<decltype (input.value)> (drive);
+
+        switch (kind)
+        {
+            case DiskDriveCommands::Kind::Insert:
+                input.kind    = InputKind::DiskMount;
+                input.payload = cmd.payload;
+                break;
+
+            case DiskDriveCommands::Kind::Eject:
+                input.kind = InputKind::DiskEject;
+                break;
+
+            case DiskDriveCommands::Kind::ImageWriteProtect:
+                input.kind = InputKind::ImageWriteProtect;
+                break;
+
+            case DiskDriveCommands::Kind::UserWriteProtect:
+                input.kind   = InputKind::DriveWriteProtect;
+                input.detail = (!cmd.payload.empty() && cmd.payload[0] == '1') ? 1 : 0;
+                break;
+        }
     }
 
     return isInput;

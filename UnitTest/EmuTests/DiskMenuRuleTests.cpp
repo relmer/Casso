@@ -65,6 +65,18 @@ namespace DiskMenuRuleTests
         }
 
 
+        TEST_METHOD (Resolve_Apple3_DriveNIsDiskIiDriveN)
+        {
+            for (int menuDrive = 0; menuDrive < 4; menuDrive++)
+            {
+                Assert::AreEqual (menuDrive, DiskMenuRule::Resolve (menuDrive, false, 0, 4).diskIiDrive);
+            }
+
+            Assert::IsFalse (DiskMenuRule::Resolve (3, false, 0, 3).IsDiskIi(), L"drive 4 with two external drives");
+            Assert::IsFalse (DiskMenuRule::Resolve (1, false, 0, 1).IsDiskIi(), L"drive 2 with no external drive");
+        }
+
+
         TEST_METHOD (Resolve_BuiltIn35_Drive1IsBuiltIn)
         {
             DiskMenuDrive  drive1 = DiskMenuRule::Resolve (0, true, 2);

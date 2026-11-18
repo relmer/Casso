@@ -31,6 +31,7 @@ struct MachineRefs
     class CassettePort *          cassettePort     = nullptr;
     class RamDevice *             mainRamDev       = nullptr;
     class Disk2Controller *       diskController   = nullptr;
+    class Apple3DiskController *  apple3Disk       = nullptr;
     class MockingboardCard *      mockingboard     = nullptr;
     class VideoOutput *           activeVideoMode  = nullptr;
     class SuperSerialCard *       superSerialCard  = nullptr;

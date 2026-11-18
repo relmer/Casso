@@ -35,14 +35,15 @@ bool DiskMenuRule::HasBuiltIn35Drive (const MachineConfig & config)
 //
 //  DiskMenuRule::Resolve
 //
-//  `menuDrive` is 0 for the drive 1 commands, 1 for the drive 2 commands
-//  and 2 for the drive 3 commands, which only the //c Plus has: they act on
-//  its second 5.25-inch drive. `portFloppies` is the count of 5.25-inch
-//  drives on the disk port.
+//  `menuDrive` is 0 for the drive 1 commands, 1 for the drive 2 commands,
+//  and so on. On the //c Plus the drive 3 commands act on its second
+//  5.25-inch drive. `portFloppies` is the count of 5.25-inch drives on the
+//  disk port, and `diskIiDrives` the count of slot 6 drives on a machine
+//  without a built-in 3.5-inch drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskMenuDrive DiskMenuRule::Resolve (int menuDrive, bool hasBuiltIn35, int portFloppies)
+DiskMenuDrive DiskMenuRule::Resolve (int menuDrive, bool hasBuiltIn35, int portFloppies, int diskIiDrives)
 {
     DiskMenuDrive  target;
 
@@ -50,7 +51,7 @@ DiskMenuDrive DiskMenuRule::Resolve (int menuDrive, bool hasBuiltIn35, int portF
 
     if (!hasBuiltIn35)
     {
-        target.diskIiDrive = (menuDrive < 2) ? menuDrive : -1;
+        target.diskIiDrive = (menuDrive >= 0 && menuDrive < diskIiDrives) ? menuDrive : -1;
     }
     else if (menuDrive == 0)
     {
