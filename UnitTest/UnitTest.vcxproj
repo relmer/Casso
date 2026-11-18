@@ -1378,6 +1378,7 @@
     <ClCompile Include="Apple3Tests\Apple3KeyboardTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3DiskControllerTests.cpp" />
     <ClCompile Include="Apple3Tests\Apple3VideoTests.cpp" />
+    <ClCompile Include="Apple3Tests\Apple3MachineConfigTests.cpp" />
     <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />

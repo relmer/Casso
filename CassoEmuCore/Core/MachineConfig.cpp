@@ -1528,12 +1528,15 @@ HRESULT MachineConfigLoader::Load (
                         outConfig, outError);
     CHR (hr);
 
-    // Optional: characterRom (object)
+    // Optional: characterRom (object). A machine with banked memory has its
+    // character set in RAM, and LoadBankedMachine reports the key.
     {
-        const JsonValue * pOpt = nullptr;
-        HRESULT           hrOpt = root.GetObject ("characterRom", pOpt);
+        const JsonValue *          pOpt       = nullptr;
+        HRESULT                    hrOpt      = root.GetObject ("characterRom", pOpt);
+        const MachineDefinition *  definition = MachineDefinitions::Find (machineName);
+        bool                       isBanked   = definition != nullptr && definition->hasBankedMemory;
 
-        if (SUCCEEDED (hrOpt))
+        if (SUCCEEDED (hrOpt) && !isBanked)
         {
             hr = LoadCharacterRom (*pOpt, machineName, searchPaths, resolver,
                                    outConfig, outError);
@@ -1589,11 +1592,100 @@ HRESULT MachineConfigLoader::Load (
         LoadKeyboardConfig (*pKeyboard, outConfig);
     }
 
+    {
+        const MachineDefinition *  definition = MachineDefinitions::Find (machineName);
+
+
+
+        if (definition != nullptr && definition->hasBankedMemory)
+        {
+            hr = LoadBankedMachine (root, *definition, outConfig, outError);
+            CHR (hr);
+        }
+    }
+
     //
     // Last, and deliberately last: a shipped machine's invariant hardware comes
     // from its definition in code, whatever the document just said.
     //
     ApplyMachineDefinition (machineName, outConfig);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfigLoader::LoadBankedMachine
+//
+//  `memory` must be one of the machine's options and `externalDrives` within
+//  what its drive port takes (zero when absent). A `characterRom` key is an
+//  error rather than ignored, since the file then lists hardware the
+//  machine doesn't have. The slots take no cards yet, so a slot must be
+//  empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::LoadBankedMachine (
+    const JsonValue          & root,
+    const MachineDefinition  & definition,
+    MachineConfig            & outConfig,
+    string                   & outError)
+{
+    HRESULT             hr             = S_OK;
+    const JsonValue   * pCharRom       = nullptr;
+    HRESULT             hrCharRom      = root.GetObject ("characterRom", pCharRom);
+    bool                isKnown        = false;
+    string              memory;
+    string              options;
+    int                 externalDrives = 0;
+    uint32_t            memoryK        = 0;
+    HRESULT             hrDrives       = S_OK;
+    bool                hasCharRom     = false;
+
+
+
+    hasCharRom = SUCCEEDED (hrCharRom);
+
+    CBRF (!hasCharRom, outError = format ("Invalid field: 'characterRom' (the {} has its character set in RAM)", outConfig.name));
+
+    hr = root.GetString ("memory", memory);
+    CHRF (hr, outError = "Missing or invalid field: 'memory'");
+
+    for (const string & option : definition.memoryOptions)
+    {
+        options += (options.empty() ? "" : " or ") + option;
+        isKnown  = isKnown || option == memory;
+    }
+
+    CBRF (isKnown, outError = format ("Invalid memory: '{}' (the options are {})", memory, options));
+
+    std::from_chars (memory.data(), memory.data() + memory.size(), memoryK);
+    outConfig.memoryK = memoryK;
+
+    hrDrives = root.GetInt ("externalDrives", externalDrives);
+
+    if (SUCCEEDED (hrDrives))
+    {
+        CBRF (externalDrives >= 0 && externalDrives <= definition.maxExternalDrives,
+              outError = format ("Invalid externalDrives: {} (the range is 0 to {})", externalDrives, definition.maxExternalDrives));
+    }
+
+    outConfig.externalDrives = externalDrives;
+
+    for (const SlotConfig & slot : outConfig.slots)
+    {
+        bool  isEmpty = slot.device.empty();
+
+
+
+        CBRF (isEmpty,
+              outError = format ("Unsupported device in slot {}: '{}' (the slot can only be empty)", slot.slot, slot.device));
+    }
 
 Error:
     return hr;

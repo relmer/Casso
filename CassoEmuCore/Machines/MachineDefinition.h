@@ -67,4 +67,11 @@ struct MachineDefinition
 
     //  The machine's bit in a WOZ image's compatible-hardware field.
     uint16_t                     wozHardwareFlag = 0;
+    //  The drives built into the machine, and whether its RAM is banked
+    //  behind a memory map, with the `memory` values it accepts and the
+    //  external drives its drive port takes.
+    int                          builtInDriveCount = 0;
+    bool                         hasBankedMemory   = false;
+    std::vector<std::string>     memoryOptions;
+    int                          maxExternalDrives = 0;
 };

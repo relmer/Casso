@@ -377,6 +377,12 @@ struct MachineConfig
     vector<PortConfig>          ports;
     string                      keyboardType;
 
+    // A machine with banked memory (MachineDefinition::hasBankedMemory): its
+    // RAM in K from `memory`, and the external drives on its drive port from
+    // `externalDrives`. Zero on every other machine.
+    uint32_t                    memoryK        = 0;
+    int                         externalDrives = 0;
+
     // True when an enabled slot hosts the given device type -- e.g. a query for
     // "parallel-printer" tells the UI whether this machine can print. A slot the
     // user disabled in Settings > Hardware does not count.
@@ -716,6 +722,14 @@ private:
                                        string                 & outError);
 
     static void    LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
+
+    // A machine with banked memory: `memory` and `externalDrives` checked
+    // against the definition, no `characterRom`, and only the slot devices
+    // the machine hosts.
+    static HRESULT LoadBankedMachine  (const JsonValue                & root,
+                                       const struct MachineDefinition & definition,
+                                       MachineConfig                  & outConfig,
+                                       string                         & outError);
 
     // Resolves a slot's optional `firmware` file into the slot's path and
     // status. Never fails the load.

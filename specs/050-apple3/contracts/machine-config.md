@@ -5,7 +5,7 @@
 
 ```jsonc
 {
-    "$cassoMachineVersion": 7,
+    "$cassoMachineVersion": 1,
     "monitor": "AppleMonitorIII",
     "name": "Apple ///",
     "releaseYear": 1980,
@@ -20,12 +20,7 @@
     },
     "memory": "128K",                   // "128K" or "256K"; the Plus accepts "256K" only
     "externalDrives": 1,                // 0 to 3
-    "slots": [
-        { "slot": 1, "device": "" },
-        { "slot": 2, "device": "" },
-        { "slot": 3, "device": "" },
-        { "slot": 4, "device": "profile" }
-    ],
+    // slots: only occupied slots are listed, as { "slot": n, "device": "..." }
     "ports": [
         { "name": "serial",    "device": "" },
         { "name": "joystickA", "device": "" },
@@ -48,8 +43,8 @@
 - The timing numbers are from the hardware map's timing rows: 130 ticks per
   line, one stretched by two master clock periods, so 912 periods of
   14.31818 MHz per line (SVC 5.1, 5.5).
-- `$cassoMachineVersion` is raised once for the new keys; the Apple II files
-  are upgraded by `MachineConfigUpgrade` with no change in meaning.
+- Each embedded file has a separate `$cassoMachineVersion`, so the Apple /// file
+  starts at 1 and the Apple II files do not change.
 
 ## Command line
 

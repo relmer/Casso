@@ -94,4 +94,19 @@ public:
     //  The machine's bit in a WOZ disk image's compatible-hardware field, or
     //  zero for a machine the format has no bit for.
     virtual uint16_t  GetWozHardwareFlag () const = 0;
+
+    //  How many drives are built into the machine: one on the //c and the
+    //  Apple ///, none on a machine whose drives are on a card.
+    virtual int  GetBuiltInDriveCount () const { return HasBuiltInDrive() ? 1 : 0; }
+
+    //  Whether the machine's RAM is banked behind a memory map with bank
+    //  registers, as on the Apple ///, rather than laid out in fixed regions.
+    virtual bool  HasBankedMemory () const { return false; }
+
+    //  The `memory` values the machine file accepts, or none for a machine
+    //  whose RAM comes from its regions.
+    virtual std::vector<std::string>  GetMemoryOptions () const { return {}; }
+
+    //  The external drives the machine's drive port takes, or zero.
+    virtual int  GetMaxExternalDrives () const { return 0; }
 };

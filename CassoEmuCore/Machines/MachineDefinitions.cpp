@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Apple2c/Apple2c.h"
 #include "Machines/MachineDefinition.h"
 #include "Machines/Apple2/Apple2cPlus/Apple2cPlus.h"
+#include "Machines/Apple3/Apple3.h"
 
 
 //
@@ -24,6 +25,7 @@ static const Apple2e          s_kApple2e;
 static const Apple2c          s_kApple2c;
 static const Apple2eEnhanced  s_kApple2eEnhanced;
 static const Apple2cPlus      s_kApple2cPlus;
+static const Apple3           s_kApple3;
 
 static const IMachine * const  s_kpAllMachines[] =
 {
@@ -32,7 +34,8 @@ static const IMachine * const  s_kpAllMachines[] =
     &s_kApple2e,
     &s_kApple2c,
     &s_kApple2eEnhanced,
-    &s_kApple2cPlus
+    &s_kApple2cPlus,
+    &s_kApple3
 };
 
 
@@ -137,6 +140,10 @@ std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
         definition.diskPortFloppyCount = machine->GetDiskPortFloppyCount();
         definition.diskPortApple35Count = machine->GetDiskPortApple35Count();
         definition.wozHardwareFlag = machine->GetWozHardwareFlag();
+        definition.builtInDriveCount = machine->GetBuiltInDriveCount();
+        definition.hasBankedMemory   = machine->HasBankedMemory();
+        definition.memoryOptions     = machine->GetMemoryOptions();
+        definition.maxExternalDrives = machine->GetMaxExternalDrives();
 
         table.emplace (definition.id, std::move (definition));
     }
