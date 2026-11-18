@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "FileTypes/LisaSource.h"
-#include "FileTypes/AppleWorks.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -11,52 +10,25 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::Context::Tab
+//  LisaSource::Listing::Tab
 //
-//  Pads to the column's stop, or a space when the line is already past it.
+//  Spaces to the column, or one space when the text is already there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::Context::Tab (int column)
+void LisaSource::Listing::Tab (int column)
 {
-    size_t  stop = (size_t) stops[(size_t) column];
+    size_t  stop = (size_t) columns[column];
 
 
 
-    if (line.size() < stop)
+    if (text.size() < stop)
     {
-        line.append (stop - line.size(), ' ');
+        text.append (stop - text.size(), ' ');
     }
-    else if (!line.empty())
+    else if (!text.empty() && text.back() != ' ')
     {
-        line += ' ';
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LisaSource::Context::Append
-//
-//  A control character becomes a space.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void LisaSource::Context::Append (char c)
-{
-    line += ((unsigned char) c < 0x20 || c == 0x7F) ? ' ' : c;
-}
-
-
-
-void LisaSource::Context::Append (const std::string & text)
-{
-    for (char c : text)
-    {
-        Append (c);
+        text.push_back (' ');
     }
 }
 
@@ -66,20 +38,13 @@ void LisaSource::Context::Append (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::Context::AppendSymbol
+//  LisaSource::Listing::Put
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::Context::AppendSymbol (size_t index)
+void LisaSource::Listing::Put (char c)
 {
-    if (index >= symbols.size())
-    {
-        line += "!BAD SYM!";
-        Note (std::format (L"Symbol {} isn't in the symbol table.", index));
-        return;
-    }
-
-    line += symbols[index];
+    text.push_back (c);
 }
 
 
@@ -88,19 +53,13 @@ void LisaSource::Context::AppendSymbol (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::Context::EndLine
+//  LisaSource::Listing::Put
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::Context::EndLine()
+void LisaSource::Listing::Put (std::string_view value)
 {
-    while (!line.empty() && line.back() == ' ')
-    {
-        line.pop_back();
-    }
-
-    file->lines.push_back (TextEncoding::NarrowToWide (line));
-    line.clear();
+    text.append (value);
 }
 
 
@@ -109,17 +68,62 @@ void LisaSource::Context::EndLine()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::Context::Note
+//  LisaSource::Listing::PutByte
 //
-//  A note is added once, however many lines have the problem.
+//  A character of the file with bit 7 cleared; a control character is a
+//  period.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::Context::Note (const std::wstring & note)
+void LisaSource::Listing::PutByte (Byte value)
 {
-    if (std::find (file->notes.begin(), file->notes.end(), note) == file->notes.end())
+    char  c = (char) (value & 0x7F);
+
+
+
+    text.push_back ((c < 0x20 || c == 0x7F) ? '.' : c);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::Listing::EndLine
+//
+//  The line without its trailing spaces, as a line of the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::Listing::EndLine()
+{
+    while (!text.empty() && text.back() == ' ')
     {
-        file->notes.push_back (note);
+        text.pop_back();
+    }
+
+    file.lines.push_back (TextEncoding::NarrowToWide (text));
+    text.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::Listing::Note
+//
+//  A note is listed once, however many lines it applies to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::Listing::Note (const std::wstring & note)
+{
+    if (std::find (file.notes.begin(), file.notes.end(), note) == file.notes.end())
+    {
+        file.notes.push_back (note);
     }
 }
 
@@ -129,29 +133,21 @@ void LisaSource::Context::Note (const std::wstring & note)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::IsVersion3
+//  LisaSource::Cursor::Take
 //
-//  The code's length and the symbol table's, at most 512 entries of 8
-//  bytes, fit in the file.
+//  The next byte, or 0 with `failed` set past the end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LisaSource::IsVersion3 (const FileFacts & facts, std::span<const Byte> bytes)
+Byte LisaSource::Cursor::Take()
 {
-    size_t  code    = 0;
-    size_t  symbols = 0;
-
-
-
-    if (!facts.HasProDosType (kProDosInt) || !facts.hasAuxType || facts.auxType < 0x1000 || facts.auxType >= 0x4000 || bytes.size() < 6 || bytes.size() > kMaxBytes)
+    if (!HasMore())
     {
-        return false;
+        failed = true;
+        return 0;
     }
 
-    code    = AppleWorks::ReadWord (bytes, 0);
-    symbols = AppleWorks::ReadWord (bytes, 2);
-
-    return (symbols & 0x03) == 0 && symbols <= 512 * 8 && 4 + code + symbols <= bytes.size();
+    return bytes[at++];
 }
 
 
@@ -160,30 +156,93 @@ bool LisaSource::IsVersion3 (const FileFacts & facts, std::span<const Byte> byte
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::IsVersion4
+//  LisaSource::Cursor::TakeValue
 //
-//  The symbol table ends inside the file, and the three column stops are
-//  in order of their least values.
+//  A little-endian number of `count` bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LisaSource::IsVersion4 (const FileFacts & facts, std::span<const Byte> bytes)
+uint32_t LisaSource::Cursor::TakeValue (int count)
 {
-    size_t  end   = 0;
-    size_t  count = 0;
+    uint32_t  value = 0;
 
 
 
-    if (!facts.HasProDosType (kProDosInt) || !facts.hasAuxType || facts.auxType < 0x4000 || facts.auxType >= 0x6000 || bytes.size() < 18 || bytes.size() > kMaxBytes)
+    for (int i = 0; i < count; i++)
     {
-        return false;
+        value |= (uint32_t) Take() << (8 * i);
     }
 
-    end   = AppleWorks::ReadWord (bytes, 2);
-    count = AppleWorks::ReadWord (bytes, 4);
+    return value;
+}
 
-    return end != 0 && end <= bytes.size() && count * 2 <= end
-        && bytes[6] >= 1 && bytes[6] < 128 && bytes[7] >= 2 && bytes[7] < 128 && bytes[8] >= 3 && bytes[8] < 128;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::ReadWord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word LisaSource::ReadWord (std::span<const Byte> bytes, size_t at)
+{
+    return (at + 1 < bytes.size()) ? (Word) (bytes[at] | (bytes[at + 1] << 8)) : (Word) 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::GetVersion
+//
+//  The version a file's type, aux type and header fit, or None.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LisaSource::Version LisaSource::GetVersion (const FileFacts & facts, std::span<const Byte> bytes)
+{
+    size_t  size = bytes.size();
+
+
+
+    if (facts.IsDos33() && facts.type == kDosAlternateB)
+    {
+        Word  end = ReadWord (bytes, 2);
+
+        return (size >= 6 && end >= 6 && end <= size) ? Version::Two : Version::None;
+    }
+
+    if (!facts.HasProDosType (kProDosInt) || !facts.hasAuxType)
+    {
+        return Version::None;
+    }
+
+    if (facts.auxType >= 0x1000 && facts.auxType < 0x4000)
+    {
+        size_t  code    = ReadWord (bytes, 0);
+        size_t  symbols = ReadWord (bytes, 2);
+        bool    fits    = size >= 4 && symbols % 4 == 0 && symbols <= 512 * 8 && 4 + code + symbols <= size;
+
+        return fits ? Version::Three : Version::None;
+    }
+
+    if (facts.auxType >= 0x4000 && facts.auxType < 0x6000 && size >= 16)
+    {
+        size_t  end   = ReadWord (bytes, 2);
+        size_t  count = ReadWord (bytes, 4);
+        bool    fits  = end >= 16 && end <= size && count * 2 <= end
+                     && bytes[6] >= 1 && bytes[6] < 128
+                     && bytes[7] >= 2 && bytes[7] < 128
+                     && bytes[8] >= 3 && bytes[8] < 128;
+
+        return fits ? Version::Four : Version::None;
+    }
+
+    return Version::None;
 }
 
 
@@ -194,105 +253,11 @@ bool LisaSource::IsVersion4 (const FileFacts & facts, std::span<const Byte> byte
 //
 //  LisaSource::Matches
 //
-//  A v2 file's second word is its length.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool LisaSource::Matches (const FileFacts & facts, std::span<const Byte> bytes)
 {
-    if (facts.IsDos33() && facts.type == kDosAlternateB)
-    {
-        size_t  length = (bytes.size() >= 4) ? AppleWorks::ReadWord (bytes, 2) : 0;
-
-        return bytes.size() <= kMaxBytes && length >= 7 && length <= bytes.size();
-    }
-
-    return IsVersion3 (facts, bytes) || IsVersion4 (facts, bytes);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LisaSource::ReadString
-//
-//  A string in high ASCII is delimited by double quotes, in low ASCII by
-//  single ones; a delimiter inside it is doubled.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string LisaSource::ReadString (Context & context, size_t & offset, int & length, int count)
-{
-    char         delimiter = (context.At (offset) >= 0x80) ? '"' : '\'';
-    std::string  text (1, delimiter);
-
-
-
-    while (count-- > 0)
-    {
-        char  c = (char) (context.At (offset++) & 0x7F);
-
-        if (c == delimiter)
-        {
-            text += delimiter;
-        }
-
-        text += c;
-        length--;
-    }
-
-    return text + delimiter;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LisaSource::FormatValue
-//
-//  A number of `count` bytes, low byte first: decimal, or hex or binary from
-//  its high byte down.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string LisaSource::FormatValue (Context & context, char radix, int count, size_t & offset, int & length)
-{
-    std::string  text;
-    uint32_t     value = 0;
-
-
-
-    for (int i = 0; i < count; i++)
-    {
-        value |= (uint32_t) context.At (offset + (size_t) i) << (8 * i);
-    }
-
-    if (radix == 'd')
-    {
-        text = std::to_string (value);
-    }
-    else if (radix == 'h')
-    {
-        text = std::format ("${:0{}X}", value, count * 2);
-    }
-    else
-    {
-        text = "%";
-
-        for (int bit = count * 8 - 1; bit >= 0; bit--)
-        {
-            text += ((value >> bit) & 1) ? '1' : '0';
-        }
-    }
-
-    offset += (size_t) count;
-    length -= count;
-
-    return text;
+    return GetVersion (facts, bytes) != Version::None;
 }
 
 
@@ -303,28 +268,31 @@ std::string LisaSource::FormatValue (Context & context, char radix, int count, s
 //
 //  LisaSource::DecodeVersion2
 //
-//  A length of $FF ends the file.
+//  Lines from offset 4 to the data end at +2. A length of $FF ends them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::DecodeVersion2 (Context & context)
+void LisaSource::DecodeVersion2 (std::span<const Byte> bytes, Listing & out)
 {
-    size_t  end    = std::min<size_t> (AppleWorks::ReadWord (context.bytes, 2), context.bytes.size());
-    size_t  offset = 4;
+    size_t  end    = (std::min) ((size_t) ReadWord (bytes, 2), bytes.size());
+    size_t  at     = 4;
+    size_t  length = 0;
 
 
 
-    context.stops = { 0, 9, 13, 29 };
+    out.columns[kMnemonic] = 9;
+    out.columns[kOperand]  = 13;
+    out.columns[kComment]  = 29;
 
-    while (offset < end)
+    while (at < end)
     {
-        size_t  length = context.At (offset++);
+        length = bytes[at++];
 
         if (length == 0xFF)
         {
-            if (end - offset > 2)
+            if (end - at > 2)
             {
-                context.Note (L"The file ends early, at its end marker.");
+                out.Note (L"The file ends early, before its data length.");
             }
 
             break;
@@ -332,13 +300,13 @@ void LisaSource::DecodeVersion2 (Context & context)
 
         if (length == 0)
         {
-            context.Note (L"A line has a length of 0.");
+            out.Note (L"A line has a length of 0; the lines after it aren't listed.");
             break;
         }
 
-        DecodeVersion2Line (context, offset, length);
-        context.EndLine();
-        offset += length;
+        length = (std::min) (length, end - at);
+        DecodeLine2 (bytes.subspan (at, length), out);
+        at += length;
     }
 }
 
@@ -348,113 +316,347 @@ void LisaSource::DecodeVersion2 (Context & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::DecodeVersion2Line
+//  LisaSource::DecodeLine2
 //
-//  A line starting * or ; is a comment. A label's spaces are dropped; then
-//  a mnemonic token, an address mode, the operand's text, and a high-ASCII
-//  semicolon before a comment. A space follows each mnemonic, as LISA 2.5's
-//  WRITE command adds one.
+//  A comment line, or an optional label, a mnemonic token, an operand kind,
+//  the operand's text and a comment after $BB. The line ends in $0D.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::DecodeVersion2Line (Context & context, size_t offset, size_t length)
+void LisaSource::DecodeLine2 (std::span<const Byte> line, Listing & out)
 {
-    static constexpr char  kOpcodes[] =
-        "BGEBLTBMIBCCBCSBPLBNEBEQBVSBVCBSBBNMBM1BNZBIZBIMBIPBICBNCBRABTRBFLBRKBKS"
-        "CLVCLCCLDCLIDEXDEYINXINYNOPPHAPLAPHPPLPRTSRTIRSBRTNSECSEISEDTAXTAYTSXTXA"
-        "TXSTYAADDCPRDCRINRSUBLDDPOPPPDSTDSTPLDRSTOSET___ADCANDORABITCMPCPXCPYDEC"
-        "EORINCJMPJSR___LDALDXLDYSTASTXSTYXORLSRRORROLASLADREQUORGOBJEPZSTRDCMASC"
-        "ICLENDLSTNLSHEXBYTHBYPAUDFSDCI...PAGINVBLKDBYTTLSBC___LET.IF.EL.FI=  PHS"
-        "DPH.DAGENNOGUSR_________";
+        static constexpr const char *  s_kMnemonics[128] =
+        {
+            "BGE", "BLT", "BMI", "BCC", "BCS", "BPL", "BNE", "BEQ",
+            "BVS", "BVC", "BSB", "BNM", "BM1", "BNZ", "BIZ", "BIM",
+            "BIP", "BIC", "BNC", "BRA", "BTR", "BFL", "BRK", "BKS",
+            "CLV", "CLC", "CLD", "CLI", "DEX", "DEY", "INX", "INY",
+            "NOP", "PHA", "PLA", "PHP", "PLP", "RTS", "RTI", "RSB",
+            "RTN", "SEC", "SEI", "SED", "TAX", "TAY", "TSX", "TXA",
+            "TXS", "TYA", "ADD", "CPR", "DCR", "INR", "SUB", "LDD",
+            "POP", "PPD", "STD", "STP", "LDR", "STO", "SET", nullptr,
+            "ADC", "AND", "ORA", "BIT", "CMP", "CPX", "CPY", "DEC",
+            "EOR", "INC", "JMP", "JSR", nullptr, "LDA", "LDX", "LDY",
+            "STA", "STX", "STY", "XOR", "LSR", "ROR", "ROL", "ASL",
+            "ADR", "EQU", "ORG", "OBJ", "EPZ", "STR", "DCM", "ASC",
+            "ICL", "END", "LST", "NLS", "HEX", "BYT", "HBY", "PAU",
+            "DFS", "DCI", "...", "PAG", "INV", "BLK", "DBY", "TTL",
+            "SBC", nullptr, "LET", ".IF", ".EL", ".FI", "=  ", "PHS",
+            "DPH", ".DA", "GEN", "NOG", "USR", nullptr, nullptr, nullptr,
+        };
 
 
 
-    size_t  start = offset;
-    char    c     = (char) context.At (offset);
-    Byte    index = 0;
-    Byte    mode  = 0;
-    Byte    mark  = 0;
+    std::span<const Byte>  body;
+    size_t                 at       = 0;
+    Byte                   first    = 0;
+    Byte                   token    = 0;
+    Byte                   kind     = 0;
+    const char           * mnemonic = nullptr;
 
 
 
-    if (context.At (offset + length - 1) != kEndOfLine)
+    if (line.empty() || line.back() != kEndOfLine)
     {
-        context.Note (L"A line doesn't end in a carriage return.");
+        out.Note (L"A line doesn't end in a carriage return, and isn't listed.");
         return;
     }
 
-    if (c == '*' || c == ';')
+    body  = line.first (line.size() - 1);
+    first = body.empty() ? kEndOfLine : body[0];
+
+    if (first == '*' || first == ';')
     {
-        while (offset - start < length - 1)
+        for (Byte value : body)
         {
-            context.Append ((char) context.At (offset++));
+            out.PutByte (value);
         }
 
+        out.EndLine();
         return;
     }
 
-    if ((c >= 'A' && c <= 'Z') || c == '^')
+    if ((first >= 'A' && first <= 'Z') || first == '^')
     {
-        while ((Byte) c < 0x80 && (Byte) c != kEndOfLine)
+        for (; at < body.size() && body[at] < 0x80; at++)
         {
-            if (c != ' ')
+            if (body[at] != ' ')
             {
-                context.Append (c);
+                out.PutByte (body[at]);
+            }
+        }
+    }
+    else if (!body.empty() && first < 0x80)
+    {
+        out.Note (L"A line starts with a character that isn't a label, a comment or a mnemonic.");
+    }
+
+    if (at < body.size())
+    {
+        token    = body[at++];
+        mnemonic = (token >= 0x80) ? s_kMnemonics[token - 0x80] : nullptr;
+
+        out.Tab (kMnemonic);
+        out.Put (mnemonic != nullptr ? mnemonic : "???");
+        out.Put (' ');
+
+        if (mnemonic == nullptr)
+        {
+            out.Note (L"A mnemonic token isn't in LISA's table.");
+        }
+    }
+
+    if (at < body.size())
+    {
+        kind = body[at++];
+
+        for (; kind != 0 && kind <= 0x20 && at < body.size() && body[at] < 0x80; at++)
+        {
+            out.PutByte (body[at]);
+        }
+    }
+
+    if (at < body.size())
+    {
+        if (body[at] == kHighSemicolon)
+        {
+            out.Tab (kComment);
+            out.Put (';');
+
+            for (at++; at < body.size(); at++)
+            {
+                out.PutByte (body[at]);
+            }
+        }
+        else
+        {
+            out.Note (L"A line has bytes after its operand that aren't a comment.");
+        }
+    }
+
+    out.EndLine();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::PutSymbol (size_t index, const std::vector<std::string> & symbols, Listing & out)
+{
+    if (index >= symbols.size())
+    {
+        out.Put ('?');
+        out.Note (L"A symbol's number is past the end of the symbol table.");
+        return;
+    }
+
+    out.Put (symbols[index]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutNumber
+//
+//  A `count`-byte value in decimal ('d'), or with $ in hex ('$') or with %
+//  in binary ('%'), the most significant byte first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::PutNumber (Cursor & line, char radix, int count, Listing & out)
+{
+    uint32_t  value = line.TakeValue (count);
+
+
+
+    if (radix == 'd')
+    {
+        out.Put (std::to_string (value));
+        return;
+    }
+
+    out.Put (radix);
+
+    for (int i = count - 1; i >= 0; i--)
+    {
+        if (radix == '$')
+        {
+            PutHex ((Byte) (value >> (8 * i)), out);
+        }
+        else
+        {
+            PutBits ((Byte) (value >> (8 * i)), out);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutHex
+//
+//  A byte as two uppercase hex digits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::PutHex (Byte value, Listing & out)
+{
+    static constexpr const char *  kHexDigits = "0123456789ABCDEF";
+
+
+
+    out.Put (kHexDigits[value >> 4]);
+    out.Put (kHexDigits[value & 0xF]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutBits
+//
+//  A byte's eight bits, high bit first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::PutBits (Byte value, Listing & out)
+{
+    for (int bit = 7; bit >= 0; bit--)
+    {
+        out.Put ((char) ('0' + ((value >> bit) & 1)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutString
+//
+//  A quoted string whose length is the token's low 5 bits, or the next byte
+//  when they are 0. It is in double quotes when its first character has
+//  bit 7 set, otherwise in single quotes, and a quote inside it is doubled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LisaSource::Expect LisaSource::PutString (Cursor & line, Byte token, Listing & out)
+{
+    size_t  length = (token & 0x1F) != 0 ? (size_t) (token & 0x1F) : (size_t) line.Take();
+    char    quote  = (line.Peek() & 0x80) ? '"' : '\'';
+    char    c      = 0;
+
+
+
+    if (length > line.GetLeft())
+    {
+        out.Note (L"A string is longer than its line.");
+        return Expect::Failed;
+    }
+
+    out.Put (quote);
+
+    for (size_t i = 0; i < length; i++)
+    {
+        c = (char) (line.Take() & 0x7F);
+
+        if (c == quote)
+        {
+            out.Put (quote);
+        }
+
+        out.PutByte ((Byte) c);
+    }
+
+    out.Put (quote);
+    return Expect::Operator;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutRest
+//
+//  The rest of a line as a comment at the comment column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::PutRest (Cursor & line, Listing & out)
+{
+    if (!line.HasMore())
+    {
+        return;
+    }
+
+    out.Tab (kComment);
+    out.Put (';');
+
+    while (line.HasMore())
+    {
+        out.PutByte (line.Take());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::ReadSymbols3
+//
+//  Eight-byte entries, each eight 6-bit characters packed into six bytes,
+//  high bits first, and a value. A character of $20 ends a name; one below
+//  $20 is a letter, its value plus $40.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::ReadSymbols3 (std::span<const Byte> table, std::vector<std::string> & outSymbols)
+{
+    for (size_t entry = 0; entry + 8 <= table.size(); entry += 8)
+    {
+        uint64_t     packed = 0;
+        std::string  name;
+        int          c      = 0;
+
+
+
+        for (size_t i = 0; i < 6; i++)
+        {
+            packed = (packed << 8) | table[entry + i];
+        }
+
+        for (int shift = 42; shift >= 0; shift -= 6)
+        {
+            c = (int) ((packed >> shift) & 0x3F);
+
+            if (c == 0x20)
+            {
+                break;
             }
 
-            c = (char) context.At (++offset);
+            name.push_back ((char) ((c < 0x20) ? c + 0x40 : c));
         }
-    }
-    else if ((Byte) c < 0x80)
-    {
-        context.Note (L"A line starts with a character that isn't a label or a token.");
-    }
 
-    if ((Byte) c == kEndOfLine)
-    {
-        return;
-    }
-
-    context.Tab (kOpcode);
-    index = context.At (offset++);
-
-    if (index < 0x80)
-    {
-        context.Note (L"A mnemonic token is below $80.");
-    }
-    else
-    {
-        context.Append (std::string (kOpcodes + (index - 0x80) * 3, 3) + " ");
-    }
-
-    mode = context.At (offset++);
-
-    if (mode != 0 && mode <= 0x20)
-    {
-        c = (char) context.At (offset);
-
-        while ((Byte) c != kEndOfLine && (Byte) c < 0x80 && offset < context.bytes.size())
-        {
-            context.Append (c);
-            c = (char) context.At (++offset);
-        }
-    }
-
-    mark = context.At (offset++);
-
-    if (mark == (';' | 0x80))
-    {
-        context.Tab (kComment);
-        context.Append (';');
-
-        while (offset - start < length - 1)
-        {
-            context.Append ((char) context.At (offset++));
-        }
-    }
-    else if (mark != kEndOfLine)
-    {
-        context.Note (L"A comment marker isn't a high-ASCII semicolon.");
+        outSymbols.push_back (std::move (name));
     }
 }
 
@@ -466,110 +668,73 @@ void LisaSource::DecodeVersion2Line (Context & context, size_t offset, size_t le
 //
 //  LisaSource::DecodeVersion3
 //
-//  The header is the code's length and the symbol table's; each 8-byte
-//  symbol packs eight 6-bit characters into its first six bytes. A line's
-//  first byte below $80 is its length; $F0 to $F9 are local labels, $FA
-//  and $FB a label, $FC and $FD a macro and $FE and $FF a full-line
-//  comment; any other byte is a mnemonic alone.
+//  The symbol table after the 4-byte header, then the code's lines, each a
+//  flag byte that is a whole line by itself or the length of a long one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::DecodeVersion3 (Context & context)
+void LisaSource::DecodeVersion3 (std::span<const Byte> bytes, Listing & out)
 {
-    size_t  code    = AppleWorks::ReadWord (context.bytes, 0);
-    size_t  table   = AppleWorks::ReadWord (context.bytes, 2);
-    size_t  offset  = 4 + table;
-    size_t  end     = std::min (offset + code, context.bytes.size());
+    size_t                    codeLength  = ReadWord (bytes, 0);
+    size_t                    tableLength = ReadWord (bytes, 2);
+    std::vector<std::string>  symbols;
+    Cursor                    code;
+    Cursor                    line;
+    Byte                      flag        = 0;
 
 
 
-    context.stops = { 0, 9, 18, 40 };
+    ReadSymbols3 (bytes.subspan (4, tableLength), symbols);
 
-    for (size_t at = 4; at + 8 <= 4 + table; at += 8)
+    code.bytes = bytes.subspan (4 + tableLength, codeLength);
+
+    while (code.HasMore())
     {
-        Byte         b[6] = {};
-        int          packed[8];
-        std::string  name;
+        flag = code.Take();
 
-        for (size_t i = 0; i < 6; i++)
-        {
-            b[i] = context.At (at + i);
-        }
-
-        packed[0] = b[0] >> 2;
-        packed[1] = ((b[0] << 4) & 0x3C) | (b[1] >> 4);
-        packed[2] = ((b[1] << 2) & 0x3C) | (b[2] >> 6);
-        packed[3] = b[2] & 0x3F;
-        packed[4] = b[3] >> 2;
-        packed[5] = ((b[3] << 4) & 0x3C) | (b[4] >> 4);
-        packed[6] = ((b[4] << 2) & 0x3C) | (b[5] >> 6);
-        packed[7] = b[5] & 0x3F;
-
-        for (int value : packed)
-        {
-            if (value == ' ')
-            {
-                break;
-            }
-
-            name += (char) ((value > ' ') ? value : (value | 0x40));
-        }
-
-        context.symbols.push_back (std::move (name));
-    }
-
-    while (offset < end)
-    {
-        Byte    flag   = context.At (offset++);
-        size_t  length = 1;
-
-        if (flag == 0)
+        if (flag == 0x00)
         {
             break;
         }
 
         if (flag < 0x80)
         {
-            length = flag;
-            DecodeVersion3Line (context, offset, flag - 1);
+            line.bytes  = code.bytes.subspan (code.at, (std::min) ((size_t) flag - 1, code.GetLeft()));
+            line.at     = 0;
+            line.failed = false;
+            code.at    += line.bytes.size();
+
+            DecodeLine3 (line, symbols, out);
+            continue;
         }
-        else if (flag == 0xFF)
+        if (flag >= 0xFE)
         {
-            context.Append (';');
+            out.Put ((flag == 0xFE) ? '*' : ';');
         }
-        else if (flag == 0xFE)
+        else if (flag >= 0xFC)
         {
-            context.Append ('*');
+            out.Tab (kMnemonic);
+            out.Put ('/');
+            PutSymbol (code.Take() | ((flag & 1) << 8), symbols, out);
         }
-        else if (flag >= 0xF0 && flag < 0xFA)
+        else if (flag >= 0xFA)
         {
-            context.Append (std::format ("^{}:", flag - 0xF0));
+            PutSymbol (code.Take() | ((flag & 1) << 8), symbols, out);
+            out.Put (':');
         }
-        else if (flag == 0xFA || flag == 0xFB)
+        else if (flag >= 0xF0)
         {
-            context.AppendSymbol (context.At (offset) | ((size_t) (flag & 0x01) << 8));
-            context.Append (':');
-            length = 2;
-        }
-        else if (flag == 0xFC || flag == 0xFD)
-        {
-            context.Tab (kOpcode);
-            context.Append ('/');
-            context.AppendSymbol (context.At (offset) | ((size_t) (flag & 0x01) << 8));
-            length = 2;
+            out.Put ('^');
+            out.Put ((char) ('0' + flag - 0xF0));
+            out.Put (':');
         }
         else
         {
-            context.Tab (kOpcode);
-
-            if (!PrintMnemonic3 (context, flag))
-            {
-                context.Note (L"A mnemonic token isn't in LISA's table.");
-            }
+            out.Tab (kMnemonic);
+            PutMnemonic3 (flag, out);
         }
 
-        context.EndLine();
-        offset += length - 1;
+        out.EndLine();
     }
 }
 
@@ -579,41 +744,58 @@ void LisaSource::DecodeVersion3 (Context & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::PrintMnemonic3
-//
-//  LISA.MNEMONICS's tables: $00 to $4D the instructions with operands, and
-//  from $B0 the directives and single-byte instructions.
+//  LisaSource::PutMnemonic3
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LisaSource::PrintMnemonic3 (Context & context, Byte value)
+void LisaSource::PutMnemonic3 (Byte token, Listing & out)
 {
-    static constexpr char  kWithOperands[] =
-        "addadcandcmpeorldaorasbcstasubxor" "asldecinclsrrolror"
-        ".ifwhlbrabccbcsbeqbflbgebltbmibnebplbtrbvcbvsjsrobjorgphs"
-        ".mdfzrinplclrls" "bitcpxcpyjmpldxldystxstytrbtsbstz" "=  conepzequset"
-        ".daadrbytcspdbyhby" "anxsbtttlchnblkdciinvrvsmsgstrzro" "dfshexusrsav";
-    static constexpr char  kSingles[] =
-        ".el.fi.me.wedphif1if2endexpgenlstnlsnognoxpagpaunlccnd   "
-        "asllsrrolrordecincbrkclccldcliclvdexdeyinxinynopphaphpplaplprti"
-        "rtssecsedseitaxtaytsxtxatxstyaphxphyplxply";
+        static constexpr const char *  s_kMnemonics[256] =
+        {
+            "add", "adc", "and", "cmp", "eor", "lda", "ora", "sbc",
+            "sta", "sub", "xor", "asl", "dec", "inc", "lsr", "rol",
+            "ror", ".if", "whl", "bra", "bcc", "bcs", "beq", "bfl",
+            "bge", "blt", "bmi", "bne", "bpl", "btr", "bvc", "bvs",
+            "jsr", "obj", "org", "phs", ".md", "fzr", "inp", "lcl",
+            "rls", "bit", "cpx", "cpy", "jmp", "ldx", "ldy", "stx",
+            "sty", "trb", "tsb", "stz", "=  ", "con", "epz", "equ",
+            "set", ".da", "adr", "byt", "csp", "dby", "hby", "anx",
+            "sbt", "ttl", "chn", "blk", "dci", "inv", "rvs", "msg",
+            "str", "zro", "dfs", "hex", "usr", "sav", nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            ".el", ".fi", ".me", ".we", "dph", "if1", "if2", "end",
+            "exp", "gen", "lst", "nls", "nog", "nox", "pag", "pau",
+            "nlc", "cnd", "   ", "asl", "lsr", "rol", "ror", "dec",
+            "inc", "brk", "clc", "cld", "cli", "clv", "dex", "dey",
+            "inx", "iny", "nop", "pha", "php", "pla", "plp", "rti",
+            "rts", "sec", "sed", "sei", "tax", "tay", "tsx", "txa",
+            "txs", "tya", "phx", "phy", "plx", "ply", nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        };
 
 
 
-    const char *  text = nullptr;
-
-    if ((size_t) value * 3 + 3 <= sizeof (kWithOperands) - 1)
+    if (s_kMnemonics[token] == nullptr)
     {
-        text = kWithOperands + (size_t) value * 3;
-    }
-    else if (value >= 0xB0 && (size_t) (value - 0xB0) * 3 + 3 <= sizeof (kSingles) - 1)
-    {
-        text = kSingles + (size_t) (value - 0xB0) * 3;
+        out.Put ("???");
+        out.Note (L"A mnemonic token isn't in LISA's table.");
+        return;
     }
 
-    context.Append ((text != nullptr) ? std::string (text, 3) : std::string ("???"));
-
-    return text != nullptr;
+    out.Put (s_kMnemonics[token]);
 }
 
 
@@ -622,73 +804,61 @@ bool LisaSource::PrintMnemonic3 (Context & context, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::DecodeVersion3Line
+//  LisaSource::DecodeLine3
 //
-//  A line with a length: a comment; or a macro, a label or a local label,
-//  then a mnemonic or a macro, then its operand.
+//  A long line: a comment, or an optional label, then a mnemonic or a
+//  macro call, then the operand.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::DecodeVersion3Line (Context & context, size_t offset, int length)
+void LisaSource::DecodeLine3 (Cursor & line, const std::vector<std::string> & symbols, Listing & out)
 {
-    Byte  first    = context.At (offset);
+    Byte  first    = line.Peek();
     Byte  mnemonic = 0;
 
 
 
-    if (first == 0xFE || first == 0xFF)
+    if (first >= 0xFE)
     {
-        context.Append ((first == 0xFF) ? ';' : '*');
+        line.Take();
+        out.Put ((first == 0xFE) ? '*' : ';');
 
-        while (--length > 0)
+        while (line.HasMore())
         {
-            context.Append ((char) (context.At (++offset) & 0x7F));
+            out.PutByte (line.Take());
         }
 
+        out.EndLine();
         return;
     }
 
-    if (first == 0xFC || first == 0xFD)
+    if (first >= 0xFA && first < 0xFC)
     {
-        context.Tab (kOpcode);
-        context.Append ('/');
-        context.AppendSymbol (context.At (offset + 1) | ((size_t) (first & 0x01) << 8));
-        offset += 2;
-        length -= 2;
-        ConvertOperand3 (context, first, offset, length);
-        return;
+        line.Take();
+        PutSymbol (line.Take() | ((first & 1) << 8), symbols, out);
+    }
+    else if (first >= 0xF0 && first < 0xFA)
+    {
+        line.Take();
+        out.Put ('^');
+        out.Put ((char) (first - 0xC0));
     }
 
-    if (first == 0xFA || first == 0xFB)
+    mnemonic = line.Take();
+    out.Tab (kMnemonic);
+
+    if (mnemonic == 0xFC || mnemonic == 0xFD)
     {
-        context.AppendSymbol (context.At (offset + 1) | ((size_t) (first & 0x01) << 8));
-        offset += 2;
-        length -= 2;
+        out.Put ('/');
+        PutSymbol (line.Take() | ((mnemonic & 1) << 8), symbols, out);
     }
-    else if (first >= 0xF0)
+    else if (mnemonic < 0xFE)
     {
-        context.Append ('^');
-        context.Append ((char) (first - 0xC0));
-        offset++;
-        length--;
+        PutMnemonic3 (mnemonic, out);
     }
 
-    mnemonic = context.At (offset++);
-    length--;
-    context.Tab (kOpcode);
-
-    if (mnemonic >= 0xFC)
-    {
-        context.Append ('/');
-        context.AppendSymbol (context.At (offset++) | ((size_t) (mnemonic & 0x01) << 8));
-        length--;
-    }
-    else if (!PrintMnemonic3 (context, mnemonic))
-    {
-        context.Note (L"A mnemonic token isn't in LISA's table.");
-    }
-
-    ConvertOperand3 (context, mnemonic, offset, length);
+    PutOperand3 (line, mnemonic, symbols, out);
+    out.EndLine();
 }
 
 
@@ -697,283 +867,223 @@ void LisaSource::DecodeVersion3Line (Context & context, size_t offset, int lengt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::ConvertOperand3
+//  LisaSource::PutOperand3
 //
-//  Group 1 and 2 and group 5 instructions have an address mode byte; $10
-//  to $7F open a parenthesis. The operand alternates operands and
-//  operators: below $0E an operator, $20 to $2F a + with a digit, $FF a
-//  comment, and anything else two operands in a row.
+//  An address mode byte for the mnemonics that take one, then terms and
+//  operators to the end of the line or a comment token, then the address
+//  mode's closing text and the comment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::ConvertOperand3 (Context & context, Byte mnemonic, size_t & offset, int & length)
+void LisaSource::PutOperand3 (Cursor & line, Byte mnemonic, const std::vector<std::string> & symbols, Listing & out)
 {
-    static constexpr char  kOperator1[] = "+-*/&|^=<>%<><";
-    static constexpr char  kOperator2[] = "\0\0\0\0\0\0\0\0\0\0\0==>";
+    static constexpr const char *  kOperators = "+-*/&|^=<><%<><";
+    static constexpr const char *  kSecond    = "           ==>";
 
 
 
-    int   mode         = 0;
-    bool  wantOperator = false;
+    Byte    mode   = 0;
+    Byte    token  = 0;
+    Expect  expect = Expect::Term;
 
 
 
     if (mnemonic >= 0xFE)
     {
-        PrintComment3 (context, 0, offset, length);
+        PutRest (line, out);
         return;
     }
 
     if (mnemonic < 0xB0 && (mnemonic < 0x11 || (mnemonic >= 0x29 && mnemonic < 0x34)))
     {
-        mode = context.At (offset++);
-        length--;
+        mode = line.Take();
     }
 
-    context.Tab (kOperand);
+    out.Tab (kOperand);
 
     if (mode >= 0x10 && mode < 0x80)
     {
-        context.Append ('(');
+        out.Put ('(');
     }
 
-    while (length > 0)
+    while (line.HasMore() && expect != Expect::End && expect != Expect::Failed)
     {
-        Byte  value = 0;
-        Next  next  = Next::Operator;
+        token = line.Take();
 
-        if (!wantOperator)
+        if (expect == Expect::Term)
         {
-            value = context.At (offset++);
-            length--;
-
-            switch (value)
-            {
-                case 0x0E: context.Append ('~'); continue;
-                case 0x0F: context.Append ('-'); continue;
-                case 0x3A: context.Append ('#'); continue;
-                case 0x3B: context.Append ('/'); continue;
-                case 0x3D: context.Append ('@'); continue;
-                default:                         break;
-            }
-
-            next = PrintNumber3 (context, mode, value, offset, length);
-
-            if (next == Next::Failed)
-            {
-                return;
-            }
-
-            if (next == Next::Operand)
-            {
-                continue;
-            }
-
-            if (length <= 0)
-            {
-                break;
-            }
+            expect = PutTerm3 (line, token, symbols, out);
         }
-
-        wantOperator = false;
-        value        = context.At (offset++);
-        length--;
-
-        if (value < 0x0E)
+        else if (token < 0x0E)
         {
-            context.Append (' ');
-            context.Append (kOperator1[value]);
+            out.Put (' ');
+            out.Put (kOperators[token]);
 
-            if (kOperator2[value] != '\0')
+            if (kSecond[token] != ' ')
             {
-                context.Append (kOperator2[value]);
+                out.Put (kSecond[token]);
             }
 
-            context.Append (' ');
+            out.Put (' ');
+            expect = Expect::Term;
         }
-        else if (value < 0x20 || value >= 0x30)
+        else if (token >= 0x20 && token < 0x30)
         {
-            if (value == 0xFF)
-            {
-                PrintComment3 (context, mode, offset, length);
-                return;
-            }
-
-            context.Append (',');
-            offset--;
-            length++;
+            out.Put ('+');
+            expect = PutTerm3 (line, (Byte) (token - 0x10), symbols, out);
+        }
+        else if (token == 0xFF)
+        {
+            expect = Expect::End;
         }
         else
         {
-            context.Append ('+');
-            next = PrintNumber3 (context, mode, (Byte) (value - 0x10), offset, length);
-
-            if (next == Next::Failed)
-            {
-                return;
-            }
-
-            wantOperator = next == Next::Operator;
+            out.Put (',');
+            line.Back();
+            expect = Expect::Term;
         }
     }
 
-    PrintComment3 (context, mode, offset, length);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LisaSource::PrintNumber3
-//
-//  Below $1A a digit; $1A to $1F one or two bytes of decimal, hex or
-//  binary; $36 to $39 an immediate symbol; $3C the location counter; $40
-//  to $5F the < > and ? tokens; $60 to $7F a string, its length in the low
-//  five bits or the next byte; $FA and $FB a symbol.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LisaSource::Next LisaSource::PrintNumber3 (Context & context, int mode, Byte value, size_t & offset, int & length)
-{
-    Next  next = Next::Operator;
-
-
-
-    if (value < 0x1A)
+    if (expect == Expect::Failed)
     {
-        context.Append ((char) ('0' | value));
-    }
-    else if (value == 0x1A || value == 0x1B)
-    {
-        context.Append (FormatValue (context, 'd', value - 0x19, offset, length));
-    }
-    else if (value == 0x1C || value == 0x1D)
-    {
-        context.Append (FormatValue (context, 'h', value - 0x1B, offset, length));
-    }
-    else if (value == 0x1E || value == 0x1F)
-    {
-        //  v3 writes a two-byte binary low byte first.
-        context.Append ('%');
-
-        for (int i = 0; i < value - 0x1D; i++)
-        {
-            Byte  b = context.At (offset++);
-
-            for (int bit = 7; bit >= 0; bit--)
-            {
-                context.Append (((b >> bit) & 1) ? '1' : '0');
-            }
-
-            length--;
-        }
-    }
-    else if (value >= 0x36 && value <= 0x39)
-    {
-        context.Append ((value <= 0x37) ? '#' : '/');
-        context.AppendSymbol (context.At (offset++) | ((size_t) (value & 0x01) << 8));
-        length--;
-    }
-    else if (value == 0x3C)
-    {
-        context.Append ('*');
-    }
-    else if (value < 0x4A)
-    {
-        context.Append ('<');
-        context.Append ((char) (value - 0x10));
-    }
-    else if (value < 0x50)
-    {
-        context.Append ('?');
-        context.Append ((char) (value - 0x1A));
-    }
-    else if (value < 0x5A)
-    {
-        context.Append ('>');
-        context.Append ((char) (value - 0x20));
-    }
-    else if (value < 0x60)
-    {
-        int  shifted = value - 0x24;
-
-        context.Append ('?');
-        context.Append ((shifted == ';') ? '#' : (char) shifted);
-
-        if (shifted == ':')
-        {
-            next = Next::Operand;
-        }
-    }
-    else if (value < 0x80)
-    {
-        int  count = value & 0x1F;
-
-        if (count == 0)
-        {
-            count = context.At (offset++);
-            length--;
-        }
-
-        if (count > length)
-        {
-            context.Append ("!BAD STR!");
-            context.Note (L"A string runs past the end of its line.");
-            return Next::Failed;
-        }
-
-        context.line += ReadString (context, offset, length, count);
-    }
-    else if (value == 0xFA || value == 0xFB)
-    {
-        context.AppendSymbol (context.At (offset++) | ((size_t) (value & 0x01) << 8));
-        length--;
-    }
-    else if (value == 0xFF)
-    {
-        PrintComment3 (context, mode, offset, length);
-        offset += (size_t) std::max (length, 0);
-        length  = 0;
+        return;
     }
 
-    return next;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LisaSource::PrintComment3
-//
-//  The address mode's close, then the rest of the line as a comment.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void LisaSource::PrintComment3 (Context & context, int mode, size_t offset, int length)
-{
     switch (mode)
     {
-        case 0x04: context.Append (",X");  break;
-        case 0x08: context.Append (",Y");  break;
-        case 0x10: context.Append (")");   break;
-        case 0x20: context.Append (",X)"); break;
-        case 0x40: context.Append ("),Y"); break;
-        default:                           break;
+        case 0x04: out.Put (",X");  break;
+        case 0x08: out.Put (",Y");  break;
+        case 0x10: out.Put (")");   break;
+        case 0x20: out.Put (",X)"); break;
+        case 0x40: out.Put ("),Y"); break;
+        default:                    break;
     }
 
-    if (length > 0)
-    {
-        context.Tab (kComment);
-        context.Append (';');
+    PutRest (line, out);
+}
 
-        while (length-- > 0)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutTerm3
+//
+//  A v3 operand term: a prefix, a digit, a number, a symbol, a string or a
+//  macro parameter. Returns whether a term or an operator is next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LisaSource::Expect LisaSource::PutTerm3 (Cursor & line, Byte token, const std::vector<std::string> & symbols, Listing & out)
+{
+    switch (token)
+    {
+        case 0x0E: out.Put ('~'); return Expect::Term;
+        case 0x0F: out.Put ('-'); return Expect::Term;
+        case 0x3A: out.Put ('#'); return Expect::Term;
+        case 0x3B: out.Put ('/'); return Expect::Term;
+        case 0x3D: out.Put ('@'); return Expect::Term;
+        case 0x1A: PutNumber (line, 'd', 1, out); return Expect::Operator;
+        case 0x1B: PutNumber (line, 'd', 2, out); return Expect::Operator;
+        case 0x1C: PutNumber (line, '$', 1, out); return Expect::Operator;
+        case 0x1D: PutNumber (line, '$', 2, out); return Expect::Operator;
+        case 0x1E: PutNumber (line, '%', 1, out); return Expect::Operator;
+        case 0x3C: out.Put ('*'); return Expect::Operator;
+        case 0xFF: return Expect::End;
+        default:   break;
+    }
+
+    if (token == 0x1F)
+    {
+        //  Two bytes of binary in the order they are stored.
+        out.Put ('%');
+        PutBits (line.Take(), out);
+        PutBits (line.Take(), out);
+        return Expect::Operator;
+    }
+
+    if (token < 0x1A)
+    {
+        out.Put ((char) (0x30 + token));
+    }
+    else if (token >= 0x36 && token <= 0x39)
+    {
+        out.Put ((token <= 0x37) ? '#' : '/');
+        PutSymbol (line.Take() | ((token & 1) << 8), symbols, out);
+    }
+    else if (token < 0x4A)
+    {
+        out.Put ('<');
+        out.Put ((char) (token - 0x10));
+    }
+    else if (token < 0x50)
+    {
+        out.Put ('?');
+        out.Put ((char) ('0' + token - 0x4A));
+    }
+    else if (token < 0x5A)
+    {
+        out.Put ('>');
+        out.Put ((char) ('0' + token - 0x50));
+    }
+    else if (token < 0x60)
+    {
+        out.Put ('?');
+        out.Put ((token == 0x5F) ? '#' : (char) (token - 0x24));
+
+        return (token == 0x5E) ? Expect::Term : Expect::Operator;
+    }
+    else if (token < 0x80)
+    {
+        return PutString (line, token, out);
+    }
+    else if (token == 0xFA || token == 0xFB)
+    {
+        PutSymbol (line.Take() | ((token & 1) << 8), symbols, out);
+    }
+
+    return Expect::Operator;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::ReadSymbols4
+//
+//  Each symbol is a length byte, skipped, then characters to a $00. A
+//  character below $80 has bit 5 set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LisaSource::ReadSymbols4 (std::span<const Byte> table, size_t count, std::vector<std::string> & outSymbols, Listing & out)
+{
+    size_t  at = 0;
+
+
+
+    for (size_t i = 0; i < count; i++)
+    {
+        std::string  name;
+
+
+
+        if (at >= table.size())
         {
-            context.Append ((char) (context.At (offset++) & 0x7F));
+            out.Note (L"The symbol table ends before its last symbol.");
+            break;
         }
+
+        for (at++; at < table.size() && table[at] != 0x00; at++)
+        {
+            name.push_back ((char) (((table[at] < 0x80) ? (table[at] | 0x20) : table[at]) & 0x7F));
+        }
+
+        at++;
+        outSymbols.push_back (std::move (name));
     }
 }
 
@@ -985,107 +1095,78 @@ void LisaSource::PrintComment3 (Context & context, int mode, size_t offset, int 
 //
 //  LisaSource::DecodeVersion4
 //
-//  The header is the version, the symbol table's end, the symbol count,
-//  the three column stops and the CPU; the symbols start at 16, each a
-//  length byte, its characters and a $00. A line's first byte below $80 is
-//  its length; $F0 to $F9 are local labels, $FA a label, $FC a macro, $FD
-//  a blank line, and $FE and $FF comments; any other byte is a mnemonic.
+//  The columns and the symbol table from the header, then the code's lines
+//  to the end of the file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::DecodeVersion4 (Context & context)
+void LisaSource::DecodeVersion4 (std::span<const Byte> bytes, Listing & out)
 {
-    size_t  end    = std::min<size_t> (AppleWorks::ReadWord (context.bytes, 2), context.bytes.size());
-    size_t  count  = AppleWorks::ReadWord (context.bytes, 4);
-    size_t  offset = 16;
+    size_t                    tableEnd = ReadWord (bytes, 2);
+    std::vector<std::string>  symbols;
+    Cursor                    code;
+    Cursor                    line;
+    Byte                      flag     = 0;
 
 
 
-    context.stops = { 0, context.At (6), context.At (7), context.At (8) };
+    out.columns[kMnemonic] = bytes[6];
+    out.columns[kOperand]  = bytes[7];
+    out.columns[kComment]  = bytes[8];
 
-    for (size_t symbol = 0; symbol < count; symbol++)
+    ReadSymbols4 (bytes.subspan (16, tableEnd - 16), ReadWord (bytes, 4), symbols, out);
+
+    code.bytes = bytes.subspan (tableEnd);
+
+    while (code.HasMore())
     {
-        std::string  name;
-        bool         first = true;
-        Byte         b     = 0;
+        flag = code.Take();
 
-        if (offset >= end)
-        {
-            context.symbols.push_back ("!FAIL!");
-            context.Note (L"The symbol table ends before its last symbol.");
-            continue;
-        }
-
-        while (offset < end && (b = context.At (offset++)) != 0)
-        {
-            if (first)
-            {
-                first = false;
-                continue;
-            }
-
-            name += (char) (((b < 0x80) ? (b | 0x20) : b) & 0x7F);
-        }
-
-        context.symbols.push_back (std::move (name));
-    }
-
-    offset = end;
-
-    while (offset < context.bytes.size())
-    {
-        Byte    flag   = context.At (offset++);
-        size_t  length = 1;
-
-        if (flag == 0)
+        if (flag == 0x00)
         {
             break;
         }
 
         if (flag < 0x80)
         {
-            length = flag;
-            DecodeVersion4Line (context, offset, flag - 1);
+            line.bytes  = code.bytes.subspan (code.at, (std::min) ((size_t) flag - 1, code.GetLeft()));
+            line.at     = 0;
+            line.failed = false;
+            code.at    += line.bytes.size();
+
+            DecodeLine4 (line, symbols, out);
+            continue;
         }
-        else if (flag == 0xFF)
+        if (flag == 0xFF || flag == 0xFE)
         {
-            context.Append (';');
-        }
-        else if (flag == 0xFE)
-        {
-            context.Append ('*');
-        }
-        else if (flag == 0xFD)
-        {
-        }
-        else if (flag >= 0xF0 && flag < 0xFA)
-        {
-            context.Append (std::format ("^{}", flag - 0xF0));
-        }
-        else if (flag == 0xFA)
-        {
-            context.AppendSymbol (context.At (offset) | ((size_t) context.At (offset + 1) << 8));
-            length = 3;
-        }
-        else if (flag == 0xFB)
-        {
-            context.Append ("??? ");
+            out.Put ((flag == 0xFE) ? '*' : ';');
         }
         else if (flag == 0xFC)
         {
-            context.Tab (kOpcode);
-            context.Append ('_');
-            context.AppendSymbol (context.At (offset) | ((size_t) context.At (offset + 1) << 8));
-            length = 3;
+            out.Tab (kMnemonic);
+            out.Put ('_');
+            PutSymbol (code.TakeValue (2), symbols, out);
         }
-        else
+        else if (flag == 0xFA)
         {
-            context.Tab (kOpcode);
-            PrintMnemonic4 (context, flag);
+            PutSymbol (code.TakeValue (2), symbols, out);
+        }
+        else if (flag == 0xFB)
+        {
+            out.Note (L"A line has the token $FB, which isn't known.");
+        }
+        else if (flag >= 0xF0 && flag < 0xFA)
+        {
+            out.Put ('^');
+            out.Put ((char) ('0' + flag - 0xF0));
+        }
+        else if (flag < 0xF0)
+        {
+            out.Tab (kMnemonic);
+            PutMnemonic4 (flag, out);
         }
 
-        context.EndLine();
-        offset += length - 1;
+        out.EndLine();
     }
 }
 
@@ -1095,47 +1176,58 @@ void LisaSource::DecodeVersion4 (Context & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::PrintMnemonic4
-//
-//  The v5.0a editor's table, with .assume at $6C and .table at $7F as
-//  sample sources use them.
+//  LisaSource::PutMnemonic4
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool LisaSource::PrintMnemonic4 (Context & context, Byte value)
+void LisaSource::PutMnemonic4 (Byte token, Listing & out)
 {
-    static constexpr const char *  kMnemonics[256] =
+        static constexpr const char *  s_kMnemonics[256] =
+        {
+            "???", "add", "adc", "and", "cmp", "eor", "lda", "ora",
+            "sbc", "sta", "sub", "xor", "asl", "dec", "inc", "lsr",
+            "rol", "ror", ".if", "whl", ".go", "bra", "bcc", "bcs",
+            "beq", "bfl", "bge", "blt", "bmi", "bne", "bpl", "btr",
+            "bvc", "bvs", "obj", "org", "phs", ".db", "pea", "per",
+            "brl", ".md", "far", "fdr", "fzr", "inp", "lcl", "rls",
+            "bit", "cpx", "cpy", "ldx", "ldy", "stx", "sty", "trb",
+            "tsb", "stz", "pei", "rep", "sep", "jmp", "jsr", "jml",
+            "jsl", "mvn", "mvp", "= ", "con", "epd", "epz", "eql",
+            "equ", "set", ".da", "adr", "byt", "csp", "dby", "hby",
+            "bby", "anx", "chn", "icl", "lib", "lnk", "msg", "psm",
+            "rlb", "sbt", "ttl", "dci", "rvs", "str", "zro", "dfs",
+            "hex", "usr", "sav", ".tf", "seg", "cpu", ".entry", ".ref",
+            ".group", ".deref", "long", nullptr, ".assume", nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, ".table",
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            ".el", ".fi", ".me", ".we", ".la", ".lx", ".sa", ".sx",
+            "dph", "if1", "if2", "end", "exp", "gen", "lst", "nls",
+            "nog", "nox", "pag", "pau", "nlc", "cnd", "asl", "lsr",
+            "rol", "ror", "dec", "inc", "mvn", "mvp", "brk", "clc",
+            "cld", "cli", "clv", "dex", "dey", "inx", "iny", "nop",
+            "pha", "php", "pla", "plp", "rti", "rts", "sec", "sed",
+            "sei", "tax", "tay", "tsx", "txa", "txs", "tya", "phx",
+            "phy", "plx", "ply", "cop", "phb", "phd", "phk", "plb",
+            "pld", "rtl", "stp", "swa", "tad", "tas", "tcd", "tcs",
+            "tda", "tdc", "tsa", "tsc", "txy", "tyx", "wai", "xba",
+            "xce", ".proc", ".endp", ".table", ".endt", nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        };
+
+
+
+    if (s_kMnemonics[token] == nullptr)
     {
-        "???", "add", "adc", "and", "cmp", "eor", "lda", "ora", "sbc", "sta", "sub", "xor", "asl", "dec", "inc", "lsr",
-        "rol", "ror", ".if", "whl", ".go", "bra", "bcc", "bcs", "beq", "bfl", "bge", "blt", "bmi", "bne", "bpl", "btr",
-        "bvc", "bvs", "obj", "org", "phs", ".db", "pea", "per", "brl", ".md", "far", "fdr", "fzr", "inp", "lcl", "rls",
-        "bit", "cpx", "cpy", "ldx", "ldy", "stx", "sty", "trb", "tsb", "stz", "pei", "rep", "sep", "jmp", "jsr", "jml",
-        "jsl", "mvn", "mvp", "= ", "con", "epd", "epz", "eql", "equ", "set", ".da", "adr", "byt", "csp", "dby", "hby",
-        "bby", "anx", "chn", "icl", "lib", "lnk", "msg", "psm", "rlb", "sbt", "ttl", "dci", "rvs", "str", "zro", "dfs",
-        "hex", "usr", "sav", ".tf", "seg", "cpu", ".entry", ".ref", ".group", ".deref", "long", nullptr, ".assume", nullptr, nullptr, nullptr,
-        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, ".table",
-        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-        ".el", ".fi", ".me", ".we", ".la", ".lx", ".sa", ".sx", "dph", "if1", "if2", "end", "exp", "gen", "lst", "nls",
-        "nog", "nox", "pag", "pau", "nlc", "cnd", "asl", "lsr", "rol", "ror", "dec", "inc", "mvn", "mvp", "brk", "clc",
-        "cld", "cli", "clv", "dex", "dey", "inx", "iny", "nop", "pha", "php", "pla", "plp", "rti", "rts", "sec", "sed",
-        "sei", "tax", "tay", "tsx", "txa", "txs", "tya", "phx", "phy", "plx", "ply", "cop", "phb", "phd", "phk", "plb",
-        "pld", "rtl", "stp", "swa", "tad", "tas", "tcd", "tcs", "tda", "tdc", "tsa", "tsc", "txy", "tyx", "wai", "xba",
-        "xce", ".proc", ".endp", ".table", ".endt", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    };
-
-
-
-    if (kMnemonics[value] == nullptr)
-    {
-        context.Append ("!BAD MNEMONIC!");
-        context.Note (L"A mnemonic token isn't in LISA's table.");
-        return false;
+        out.Put ("???");
+        out.Note (L"A mnemonic token isn't in LISA's table.");
+        return;
     }
 
-    context.Append (kMnemonics[value]);
-
-    return true;
+    out.Put (s_kMnemonics[token]);
 }
 
 
@@ -1144,82 +1236,79 @@ bool LisaSource::PrintMnemonic4 (Context & context, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::DecodeVersion4Line
+//  LisaSource::DecodeLine4
 //
-//  A line with a length: a comment or an error line; or a macro, a label or
-//  a local label, then a mnemonic or a macro, then its operand. A mnemonic
-//  from $90 has no operand, only a comment.
+//  A long line: a comment, or an optional label, then a mnemonic or a
+//  macro call, then the operand. A mnemonic of $90 and above has no
+//  operand, only a comment after a comment token.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::DecodeVersion4Line (Context & context, size_t offset, int length)
+void LisaSource::DecodeLine4 (Cursor & line, const std::vector<std::string> & symbols, Listing & out)
 {
-    Byte  first    = context.At (offset);
+    static constexpr const char *  kFullLine = "!*;";
+
+
+
+    Byte  first    = line.Peek();
     Byte  mnemonic = 0;
 
 
 
-    if (first == 0xFF || first == 0xFE || first == 0xFD)
+    if (first >= 0xFD)
     {
-        context.Append ((first == 0xFF) ? ';' : (first == 0xFE) ? '*' : '!');
-        offset++;
+        line.Take();
+        out.Put (kFullLine[first - 0xFD]);
 
-        while (--length > 0)
+        while (line.HasMore())
         {
-            context.Append ((char) (context.At (offset++) & 0x7F));
+            out.PutByte (line.Take());
         }
 
-        return;
-    }
-
-    if (first == 0xFC)
-    {
-        context.Tab (kOpcode);
-        context.Append ('_');
-        context.AppendSymbol (context.At (offset + 1) | ((size_t) context.At (offset + 2) << 8));
-        offset += 3;
-        length -= 3;
-        ConvertOperand4 (context, first, offset, length);
+        out.EndLine();
         return;
     }
 
     if (first == 0xFA)
     {
-        context.AppendSymbol (context.At (offset + 1) | ((size_t) context.At (offset + 2) << 8));
-        offset += 3;
-        length -= 3;
+        line.Take();
+        PutSymbol (line.TakeValue (2), symbols, out);
     }
-    else if (first >= 0xF0)
+    else if (first >= 0xF0 && first != 0xFC)
     {
-        context.Append ('^');
-        context.Append ((char) (first - 0xC0));
-        offset++;
-        length--;
+        line.Take();
+        out.Put ('^');
+        out.Put ((char) (first - 0xC0));
     }
 
-    mnemonic = context.At (offset++);
-    length--;
-    context.Tab (kOpcode);
+    mnemonic = line.Take();
+    out.Tab (kMnemonic);
 
     if (mnemonic >= 0xFC)
     {
-        context.Append ('_');
-        context.AppendSymbol (context.At (offset) | ((size_t) context.At (offset + 1) << 8));
-        offset += 2;
-        length -= 2;
+        out.Put ('_');
+        PutSymbol (line.TakeValue (2), symbols, out);
+        mnemonic = 0xFC;
     }
     else
     {
-        PrintMnemonic4 (context, mnemonic);
-
-        if (mnemonic >= 0x90 && length > 0)
-        {
-            offset++;
-            length--;
-        }
+        PutMnemonic4 (mnemonic, out);
     }
 
-    ConvertOperand4 (context, mnemonic, offset, length);
+    if (mnemonic >= 0x90 && mnemonic != 0xFC)
+    {
+        if (line.HasMore())
+        {
+            line.Take();
+        }
+    }
+    else
+    {
+        PutOperand4 (line, mnemonic, symbols, out);
+    }
+
+    PutRest (line, out);
+    out.EndLine();
 }
 
 
@@ -1228,176 +1317,56 @@ void LisaSource::DecodeVersion4Line (Context & context, size_t offset, int lengt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::ConvertOperand4
+//  LisaSource::PutOperand4
 //
-//  Group 1 and 2, and group 5 but MVN and MVP, have an address mode byte,
-//  which sets the operand's opening and closing characters. A token below
-//  $80 with a first character in the operand table is a simple operand,
-//  two characters or a unary operator; otherwise it's a number, a string or
-//  a coerced symbol. Between operands, an operator in the operator table,
-//  a + with a digit, or a comma before a second operand.
+//  An address mode byte for the mnemonics that take one, its opening
+//  bracket, then terms and operators to the end of the line or a comment
+//  token, then the address mode's closing text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LisaSource::ConvertOperand4 (Context & context, Byte mnemonic, size_t & offset, int & length)
+void LisaSource::PutOperand4 (Cursor & line, Byte mnemonic, const std::vector<std::string> & symbols, Listing & out)
 {
-    static constexpr char         kOperand1[] =
-        "+-*/&|^=" "<>%<><~-" "01234567" "89\0\0\0\0\0\0" "++++++++" "++\0\0\0\0\0\0" "\0<>\0\0\0\0\0" "\0*@#/^|\\"
-        "<<<<<<<<" "<<??????" ">>>>>>>>" ">>????\0?" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0";
-    static constexpr char         kOperand2[] =
-        "\0\0\0\0\0\0\0\0" "\0\0\0==>!!" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "01234567" "89\0\0\0\0\0\0" "\0<>\0\0\0\0\0" "\0\0!!!!!!"
-        "01234567" "89012345" "01234567" "896789\0#" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0";
-    static constexpr char         kOperator1[] =
-        "+-*/&|^=" "<>%<><\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "!!!!!!!!" "!!!!!!!!" "\0<>\0\0\0\0\0" "\0\0\0\0\0\0\0\0"
-        "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0" "\0\0\0\0\0\0\0\0";
-    static constexpr char         kOpen[16]   = { 0, 0, 0, 0, 0, 0, 0, 0, 0, '(', '(', '(', '(', '[', '[', 0 };
-    static constexpr const char * kClose[16]  = { nullptr, nullptr, nullptr, ",X", ",X", ",X", nullptr, ",S", ",Y", "),Y", ",X)", ")", ",S),Y", "]", "],Y", nullptr };
+    static constexpr const char *  kClosing[15] = { "", "", "", ",X", ",X", ",X", "", ",S", ",Y", "),Y", ",X)", ")", ",S),Y", "]", "],Y" };
 
 
 
-    int   mode         = 0;
-    bool  wantOperator = false;
+    Byte    mode   = 0;
+    bool    moded  = mnemonic != 0xFC && (mnemonic < 0x12 || (mnemonic >= 0x30 && mnemonic <= 0x40));
+    Expect  expect = Expect::Term;
 
 
 
-    if (mnemonic == 0xFC || mnemonic < 0x90)
+    out.Tab (kOperand);
+
+    if (moded)
     {
-        context.Tab (kOperand);
+        mode = line.Take();
 
-        if (mnemonic != 0xFC)
+        if (mode >= 15)
         {
-            if (mnemonic < 0x12 || !(mnemonic < 0x30 || mnemonic == 0x41 || mnemonic == 0x42 || mnemonic >= 0x43))
-            {
-                mode = context.At (offset++);
-                length--;
-            }
-
-            if (mode < 16 && kOpen[mode] != 0)
-            {
-                context.Append (kOpen[mode]);
-            }
-        }
-
-        while (length > 0)
-        {
-            Byte  value = 0;
-
-            if (!wantOperator)
-            {
-                value = context.At (offset++);
-                length--;
-
-                if (value >= 0x80)
-                {
-                    if (value == 0xFA)
-                    {
-                        context.AppendSymbol (context.At (offset) | ((size_t) context.At (offset + 1) << 8));
-                        offset += 2;
-                        length -= 2;
-                    }
-                    else if (value == 0xFF)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        context.Append ("!,");
-                        continue;
-                    }
-                }
-                else if (kOperand1[value] != '\0')
-                {
-                    context.Append (kOperand1[value]);
-
-                    if (kOperand2[value] == '!')
-                    {
-                        continue;
-                    }
-
-                    if (kOperand2[value] != '\0')
-                    {
-                        context.Append (kOperand2[value]);
-                    }
-                }
-                else
-                {
-                    Next  next = PrintComplex4 (context, value, offset, length);
-
-                    if (next == Next::Failed)
-                    {
-                        break;
-                    }
-
-                    if (next == Next::Operand)
-                    {
-                        continue;
-                    }
-                }
-
-                if (length <= 0)
-                {
-                    break;
-                }
-            }
-
-            wantOperator = false;
-            value        = context.At (offset++);
-            length--;
-
-            if (value >= 0x80 || kOperator1[value] == '\0')
-            {
-                if (value == 0xFF)
-                {
-                    break;
-                }
-
-                context.Append (',');
-                offset--;
-                length++;
-            }
-            else if (kOperator1[value] == '!')
-            {
-                context.Append ('+');
-
-                if (kOperand2[value] != '\0')
-                {
-                    context.Append (kOperand2[value]);
-                    wantOperator = true;
-                }
-                else
-                {
-                    wantOperator = PrintNumber4 (context, (Byte) (value - 0x10), offset, length) == Next::Operator;
-                }
-            }
-            else
-            {
-                context.Append (' ');
-                context.Append (kOperator1[value]);
-
-                if (kOperand2[value] != '\0')
-                {
-                    context.Append (kOperand2[value]);
-                }
-
-                context.Append (' ');
-            }
+            out.Note (L"An operand's address mode isn't one of LISA's.");
+            mode = 0;
         }
     }
 
-    if (mode != 0 && mode < 16 && kClose[mode] != nullptr)
+    if (mode >= 9 && mode <= 12)
     {
-        context.Append (kClose[mode]);
+        out.Put ('(');
+    }
+    else if (mode == 13 || mode == 14)
+    {
+        out.Put ('[');
     }
 
-    if (length > 0)
+    while (line.HasMore() && expect != Expect::End && expect != Expect::Failed)
     {
-        context.Tab (kComment);
-        context.Append (';');
+        expect = (expect == Expect::Term) ? PutTerm4 (line, symbols, out) : PutOperator4 (line, symbols, out);
+    }
 
-        while (length-- > 0)
-        {
-            context.Append ((char) (context.At (offset++) & 0x7F));
-        }
+    if (expect != Expect::Failed)
+    {
+        out.Put (kClosing[mode]);
     }
 }
 
@@ -1407,64 +1376,55 @@ void LisaSource::ConvertOperand4 (Context & context, Byte mnemonic, size_t & off
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::PrintComplex4
+//  LisaSource::PutTerm4
 //
-//  $33 is followed by a class: a 4-byte decimal, hex or binary number, a
-//  HEX directive's string of bytes, or an undelimited string. Any other
-//  token is a number or a string.
+//  A v4 operand term: a symbol, one of the term table's characters, or a
+//  value. Returns whether a term or an operator is next.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LisaSource::Next LisaSource::PrintComplex4 (Context & context, Byte value, size_t & offset, int & length)
+LisaSource::Expect LisaSource::PutTerm4 (Cursor & line, const std::vector<std::string> & symbols, Listing & out)
 {
-    Byte  kind  = 0;
-    int   count = 0;
+    Byte  token = line.Take();
 
 
 
-    if (value != 0x33)
+    if (token == 0xFA)
     {
-        return PrintNumber4 (context, value, offset, length);
+        PutSymbol (line.TakeValue (2), symbols, out);
+        return Expect::Operator;
     }
 
-    kind = context.At (offset++);
-    length--;
-
-    switch (kind)
+    if (token == 0xFF)
     {
-        case 0x00: context.Append (FormatValue (context, 'd', 4, offset, length)); break;
-        case 0x01: context.Append (FormatValue (context, 'h', 4, offset, length)); break;
-        case 0x02: context.Append (FormatValue (context, 'b', 4, offset, length)); break;
-
-        case 0x03:
-        case 0x04:
-            count = context.At (offset++);
-            length--;
-
-            if (count > length)
-            {
-                context.Append ("!BAD STR!");
-                context.Note (L"A string runs past the end of its line.");
-                return Next::Failed;
-            }
-
-            while (count-- > 0)
-            {
-                Byte  b = context.At (offset++);
-
-                context.Append ((kind == 0x03) ? std::format ("{:02X}", b) : std::string (1, (char) (b & 0x7F)));
-                length--;
-            }
-
-            break;
-
-        default:
-            context.Append ("!BAD CPLX OPRND!");
-            context.Note (L"A complex operand's class isn't one LISA writes.");
-            return Next::Failed;
+        return Expect::End;
     }
 
-    return Next::Operator;
+    if (token >= 0x80)
+    {
+        out.Put (',');
+        out.Note (L"An operand has a token that isn't one of LISA's.");
+        return Expect::Term;
+    }
+
+    if (s_kTermFirst[token] != ' ')
+    {
+        out.Put (s_kTermFirst[token]);
+
+        if (s_kTermSecond[token] == '!')
+        {
+            return Expect::Term;
+        }
+
+        if (s_kTermSecond[token] != ' ')
+        {
+            out.Put (s_kTermSecond[token]);
+        }
+
+        return Expect::Operator;
+    }
+
+    return PutValue4 (line, token, symbols, out);
 }
 
 
@@ -1473,77 +1433,137 @@ LisaSource::Next LisaSource::PrintComplex4 (Context & context, Byte value, size_
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LisaSource::PrintNumber4
+//  LisaSource::PutOperator4
 //
-//  $1A to $1F and $34 to $36 one to three bytes of decimal, hex or binary;
-//  $37 and $38 a symbol coerced absolute or long; $5E a macro expression;
-//  $60 to $7F a string.
+//  An operator between terms. A byte that isn't one starts the next term
+//  after a comma.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LisaSource::Next LisaSource::PrintNumber4 (Context & context, Byte value, size_t & offset, int & length)
+LisaSource::Expect LisaSource::PutOperator4 (Cursor & line, const std::vector<std::string> & symbols, Listing & out)
 {
-    int  count = 0;
+    Byte  token = line.Take();
+    char  first = (token < 0x80) ? s_kOperators[token] : ' ';
 
 
 
-    switch (value)
+    if (token == 0xFF)
     {
-        case 0x1A: context.Append (FormatValue (context, 'd', 1, offset, length)); break;
-        case 0x1B: context.Append (FormatValue (context, 'd', 2, offset, length)); break;
-        case 0x34: context.Append (FormatValue (context, 'd', 3, offset, length)); break;
-        case 0x1C: context.Append (FormatValue (context, 'h', 1, offset, length)); break;
-        case 0x1D: context.Append (FormatValue (context, 'h', 2, offset, length)); break;
-        case 0x35: context.Append (FormatValue (context, 'h', 3, offset, length)); break;
-        case 0x1E: context.Append (FormatValue (context, 'b', 1, offset, length)); break;
-        case 0x1F: context.Append (FormatValue (context, 'b', 2, offset, length)); break;
-        case 0x36: context.Append (FormatValue (context, 'b', 3, offset, length)); break;
-
-        case 0x37:
-        case 0x38:
-            if (context.At (offset) == 0xFA)
-            {
-                offset++;
-                length--;
-            }
-
-            context.AppendSymbol (context.At (offset) | ((size_t) context.At (offset + 1) << 8));
-            context.Append ((value == 0x37) ? ":A" : ":L");
-            offset += 2;
-            length -= 2;
-            break;
-
-        case 0x5E:
-            context.Append ("?:");
-            return Next::Operand;
-
-        default:
-            if (value >= 0x80)
-            {
-                context.Append ("{CheckMoreOprnd}");
-                break;
-            }
-
-            count = value & 0x1F;
-
-            if (count == 0)
-            {
-                count = context.At (offset++);
-                length--;
-            }
-
-            if (count > length)
-            {
-                context.Append ("!BAD STR!");
-                context.Note (L"A string runs past the end of its line.");
-                return Next::Failed;
-            }
-
-            context.line += ReadString (context, offset, length, count);
-            break;
+        return Expect::End;
     }
 
-    return Next::Operator;
+    if (first == ' ')
+    {
+        out.Put (',');
+        line.Back();
+        return Expect::Term;
+    }
+
+    if (first == '!')
+    {
+        out.Put ('+');
+
+        if (s_kTermSecond[token] != ' ')
+        {
+            out.Put (s_kTermSecond[token]);
+            return Expect::Operator;
+        }
+
+        return PutValue4 (line, (Byte) (token - 0x10), symbols, out);
+    }
+
+    out.Put (' ');
+    out.Put (first);
+
+    if (s_kTermSecond[token] != ' ')
+    {
+        out.Put (s_kTermSecond[token]);
+    }
+
+    out.Put (' ');
+    return Expect::Term;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LisaSource::PutValue4
+//
+//  A number, a long value, a coerced symbol, a macro parameter or a string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LisaSource::Expect LisaSource::PutValue4 (Cursor & line, Byte token, const std::vector<std::string> & symbols, Listing & out)
+{
+    Byte    kind  = 0;
+    size_t  count = 0;
+
+
+
+    switch (token)
+    {
+        case 0x1A: PutNumber (line, 'd', 1, out); return Expect::Operator;
+        case 0x1B: PutNumber (line, 'd', 2, out); return Expect::Operator;
+        case 0x34: PutNumber (line, 'd', 3, out); return Expect::Operator;
+        case 0x1C: PutNumber (line, '$', 1, out); return Expect::Operator;
+        case 0x1D: PutNumber (line, '$', 2, out); return Expect::Operator;
+        case 0x35: PutNumber (line, '$', 3, out); return Expect::Operator;
+        case 0x1E: PutNumber (line, '%', 1, out); return Expect::Operator;
+        case 0x1F: PutNumber (line, '%', 2, out); return Expect::Operator;
+        case 0x36: PutNumber (line, '%', 3, out); return Expect::Operator;
+        case 0x5E: out.Put ("?:");               return Expect::Term;
+        default:   break;
+    }
+
+    if (token == 0x37 || token == 0x38)
+    {
+        if (line.Peek() == 0xFA)
+        {
+            line.Take();
+        }
+
+        PutSymbol (line.TakeValue (2), symbols, out);
+        out.Put ((token == 0x37) ? ":A" : ":L");
+        return Expect::Operator;
+    }
+
+    if (token != 0x33)
+    {
+        return PutString (line, token, out);
+    }
+
+    kind = line.Take();
+
+    if (kind <= 2)
+    {
+        PutNumber (line, "d$%"[kind], 4, out);
+        return Expect::Operator;
+    }
+
+    count = (kind <= 4) ? line.Take() : 0;
+
+    if (kind > 4 || count > line.GetLeft())
+    {
+        out.Note (L"A long value in an operand isn't one of LISA's, or is longer than its line.");
+        return Expect::Failed;
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+        if (kind == 3)
+        {
+            PutHex (line.Take(), out);
+        }
+        else
+        {
+            out.PutByte (line.Take());
+        }
+    }
+
+    return Expect::Operator;
 }
 
 
@@ -1558,33 +1578,24 @@ LisaSource::Next LisaSource::PrintNumber4 (Context & context, Byte value, size_t
 
 HRESULT LisaSource::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
 {
-    Context  context;
+    HRESULT  hr      = S_OK;
+    Version  version = GetVersion (facts, bytes);
+    bool     known   = version != Version::None;
+    Listing  out     = { outFile };
 
 
 
     UNREFERENCED_PARAMETER (options);
-    UNREFERENCED_PARAMETER (outError);
 
-    context.bytes = bytes;
-    context.file  = &outFile;
+    CBRFEx (known, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = L"The file isn't LISA source.");
 
-    if (facts.IsDos33())
+    switch (version)
     {
-        DecodeVersion2 (context);
-    }
-    else if (facts.auxType < 0x4000)
-    {
-        DecodeVersion3 (context);
-    }
-    else
-    {
-        DecodeVersion4 (context);
+        case Version::Two:   DecodeVersion2 (bytes, out); break;
+        case Version::Three: DecodeVersion3 (bytes, out); break;
+        default:             DecodeVersion4 (bytes, out); break;
     }
 
-    if (!context.line.empty())
-    {
-        context.EndLine();
-    }
-
-    return S_OK;
+Error:
+    return hr;
 }

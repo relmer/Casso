@@ -417,4 +417,68 @@ public:
         Assert::IsTrue (file.lines == std::vector<std::wstring> { L"start", L"         lda      $10", L"         rts" });
         Assert::IsTrue (file.notes.empty());
     }
+
+
+    TEST_METHOD (Decode_Version3PackedSymbolsOperatorsAndComment)
+    {
+        //  LOOP packed in six bits a character: L, O, O, P, then spaces.
+        std::vector<Byte>  bytes = { 14, 0, 8, 0, 0x30, 0xF3, 0xD0, 0x82, 0x08, 0x20, 0, 0 };
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        bytes.insert (bytes.end(), { 0xFA, 0x00 });
+        bytes.insert (bytes.end(), { 10, 0x05, 0x00, 0x36, 0x00, 0x00, 0x01, 0xFF, 0xC8, 0xC9 });
+        bytes.insert (bytes.end(), { 0xD8, 0x00 });
+
+        facts.volume     = VolumeKind::ProDos;
+        facts.type       = 0xFA;
+        facts.auxType    = 0x2000;
+        facts.hasAuxType = true;
+
+        Assert::IsTrue (LisaSource::Matches (facts, bytes));
+        AssertSucceeded (LisaSource::Decode (bytes, facts, DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.lines == std::vector<std::wstring> { L"LOOP:", L"         lda      #LOOP + 1             ;HI", L"         rts" });
+        Assert::IsTrue (file.notes.empty());
+    }
+
+
+    TEST_METHOD (Decode_Version4ModesStringsAndLongValues)
+    {
+        std::vector<Byte>  bytes (16, 0);
+        FileFacts          facts;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        bytes[4] = 1;
+        bytes[6] = 9;
+        bytes[7] = 18;
+        bytes[8] = 40;
+        bytes.insert (bytes.end(), { 5, 'P', 'T', 'R', 0 });
+        bytes[2] = (Byte) bytes.size();
+        bytes.insert (bytes.end(), { 6, 0x06, 0x09, 0xFA, 0x00, 0x00 });
+        bytes.insert (bytes.end(), { 8, 0x5D, 0x63, 0xC1, 0xC2, 0xC3, 0xFF, 'x' });
+        bytes.insert (bytes.end(), { 8, 0x23, 0x33, 0x01, 0x78, 0x56, 0x34, 0x12 });
+        bytes.insert (bytes.end(), { 6, 0x06, 0x00, 0x3B, 0x11, 0x22 });
+        bytes.insert (bytes.end(), { 0x00 });
+
+        facts.volume     = VolumeKind::ProDos;
+        facts.type       = 0xFA;
+        facts.auxType    = 0x40E8;
+        facts.hasAuxType = true;
+
+        Assert::IsTrue (LisaSource::Matches (facts, bytes));
+        AssertSucceeded (LisaSource::Decode (bytes, facts, DecodeOptions(), file, error));
+
+        Assert::AreEqual (std::wstring (L"         lda      (ptr),Y"),                     file.lines[0]);
+        Assert::AreEqual (std::wstring (L"         str      \"ABC\"                 ;x"),  file.lines[1]);
+        Assert::AreEqual (std::wstring (L"         org      $12345678"),                   file.lines[2]);
+        Assert::AreEqual (std::wstring (L"         lda      #1+2"),                        file.lines[3]);
+        Assert::IsTrue   (file.notes.empty());
+    }
 };
