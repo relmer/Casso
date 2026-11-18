@@ -129,7 +129,7 @@ void DisassemblyViewPane::CreateControls()
                                              [this] { return GetFindLines(); },
                                              [this] (bool isTop) { return GetFindStart (isTop); },
                                              [this] (Word address) { SelectFound (address); },
-                                             [this] (int fileId, int line, std::wstring & text) { return m_group.GetSourceText (fileId, line, text); });
+                                             [this] (int fileId, int line, std::wstring & text) { return m_group.GetSourceText().TryGet (fileId, line, text); });
 
     if (m_view == 0)
     {

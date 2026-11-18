@@ -60,9 +60,9 @@ void StateFileHandlers::Request (DebugSession & session, const DebugCommand & co
         return;
     }
 
-    path = session.ResolvePath (name);
+    path = session.GetHostFiles().ResolvePath (name);
 
-    if (!session.CheckHostAccess (path, isLoad ? HostAccess::Read : HostAccess::Write, reply))
+    if (!session.GetHostFiles().CheckHostAccess (path, isLoad ? HostAccess::Read : HostAccess::Write, reply))
     {
         return;
     }

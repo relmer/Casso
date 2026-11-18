@@ -250,9 +250,9 @@ void MachineHandlers::Screenshot (DebugSession & session, const DebugCommand & c
         name = GetDefaultScreenshotName (now);
     }
 
-    path = session.ResolvePath (name);
+    path = session.GetHostFiles().ResolvePath (name);
 
-    if (!session.CheckHostAccess (path, HostAccess::Write, reply))
+    if (!session.GetHostFiles().CheckHostAccess (path, HostAccess::Write, reply))
     {
         return;
     }

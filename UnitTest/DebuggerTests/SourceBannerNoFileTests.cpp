@@ -43,7 +43,7 @@ namespace DebuggerTests
             file.spans = { { 0, 0, 0, 2 } };
             file.lines = { { 0, 0, 2, DebugLineType::Asm, 0, { 0 } } };
 
-            rig.controller.GetSession().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
+            rig.controller.GetSession().GetFiles().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
         }
 
 

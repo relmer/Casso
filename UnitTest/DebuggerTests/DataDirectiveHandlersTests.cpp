@@ -294,12 +294,12 @@ namespace DebuggerTests
 
 
             Assert::AreEqual (std::string ("Assembling at $0300. Enter a blank line to stop."), rig.RunOk ("A 300").text.at (0));
-            Assert::IsTrue   (rig.session.IsAssembling());
+            Assert::IsTrue   (rig.session.GetInterpreter().IsAssembling());
 
             rig.RunOk ("LDA #$41");
             Assert::AreEqual ((Byte) 0xA9, rig.target.memory[0x0300]);
             rig.RunOk ("");
-            Assert::IsFalse  (rig.session.IsAssembling());
+            Assert::IsFalse  (rig.session.GetInterpreter().IsAssembling());
 
             rig.target.registers.pc = 0x0400;
             Assert::AreEqual (std::string ("Assembling at $0400. Enter a blank line to stop."), rig.RunOk ("A").text.at (0));

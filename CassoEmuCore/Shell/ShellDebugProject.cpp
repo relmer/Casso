@@ -112,11 +112,11 @@ void ShellDebugProject::OpenStore()
 ProjectScope ShellDebugProject::GetScope()
 {
     DebugSession  & session   = m_context.GetDebugController()->GetSession();
-    std::string     debugName = TextEncoding::WideToNarrow (fs::path (session.GetDebugFilePath()).filename().native());
+    std::string     debugName = TextEncoding::WideToNarrow (fs::path (session.GetFiles().GetDebugFilePath()).filename().native());
 
 
 
-    return ProjectScope::Choose (session.GetDebugFileKey(), debugName, session.GetBinaryKey(), session.GetBinaryName(),
+    return ProjectScope::Choose (session.GetFiles().GetDebugFileKey(), debugName, session.GetFiles().GetBinaryKey(), session.GetFiles().GetBinaryName(),
                                  m_machine.GetConfig().name, GetBootDisk());
 }
 
@@ -159,8 +159,8 @@ std::wstring ShellDebugProject::GetScopeFilePath (const ProjectScope & scope)
 
     switch (scope.kind)
     {
-    case ProjectScopeKind::DebugFile:   return session.GetDebugFilePath();
-    case ProjectScopeKind::Binary:      return session.GetBinaryPath();
+    case ProjectScopeKind::DebugFile:   return session.GetFiles().GetDebugFilePath();
+    case ProjectScopeKind::Binary:      return session.GetFiles().GetBinaryPath();
     case ProjectScopeKind::MachineBoot: return GetBootDisk();
     default:                            return std::wstring();
     }
@@ -237,24 +237,24 @@ void ShellDebugProject::UnloadProgramFiles()
         return;
     }
 
-    table = session->GetDebugFileTable();
+    table = session->GetFiles().GetDebugFileTable();
 
-    if (session->HasDebugFile())
+    if (session->GetFiles().HasDebugFile())
     {
         lines.push_back (std::format ("Unloaded {}: another disk was booted from drive 1.",
-                                      ConsoleLinks::LinkFileName (TextEncoding::WideToNarrow (fs::path (session->GetDebugFilePath()).filename().native()),
-                                                                  TextEncoding::WideToNarrow (session->GetDebugFilePath()))));
+                                      ConsoleLinks::LinkFileName (TextEncoding::WideToNarrow (fs::path (session->GetFiles().GetDebugFilePath()).filename().native()),
+                                                                  TextEncoding::WideToNarrow (session->GetFiles().GetDebugFilePath()))));
     }
 
     if (table.has_value())
     {
         session->GetSymbols().Clear (*table);
-        session->ForgetSymbolLoads  (*table);
-        session->ForgetAddedSymbols (*table);
+        session->GetFiles().ForgetSymbolLoads (*table);
+        session->GetFiles().ForgetAddedSymbols (*table);
     }
 
-    session->ClearDebugFile();
-    session->ForgetBinaryLoad();
+    session->GetFiles().ClearDebugFile();
+    session->GetFiles().ForgetBinaryLoad();
     m_context.AddConsoleLines (lines);
 }
 
@@ -590,7 +590,7 @@ void ShellDebugProject::RunRequest (const std::string & text, Reply & reply)
         return;
     }
 
-    if (!path.empty() && !session.CheckHostAccess (session.ResolvePath (path), verb == "SAVEAS" ? HostAccess::Write : HostAccess::Read, reply))
+    if (!path.empty() && !session.GetHostFiles().CheckHostAccess (session.GetHostFiles().ResolvePath (path), verb == "SAVEAS" ? HostAccess::Write : HostAccess::Read, reply))
     {
         return;
     }
@@ -598,7 +598,7 @@ void ShellDebugProject::RunRequest (const std::string & text, Reply & reply)
     if (verb == "SAVEAS" && !path.empty())
     {
         Capture (m_project);
-        hr = m_projectStore->SaveAs (m_project, m_context.GetDebugController()->GetSession().ResolvePath (path));
+        hr = m_projectStore->SaveAs (m_project, m_context.GetDebugController()->GetSession().GetHostFiles().ResolvePath (path));
 
         if (FAILED (hr))
         {
@@ -611,7 +611,7 @@ void ShellDebugProject::RunRequest (const std::string & text, Reply & reply)
     }
     else if (verb == "OPEN" && !path.empty())
     {
-        hr = m_projectStore->OpenFile (m_context.GetDebugController()->GetSession().ResolvePath (path), opened, notices);
+        hr = m_projectStore->OpenFile (m_context.GetDebugController()->GetSession().GetHostFiles().ResolvePath (path), opened, notices);
 
         if (FAILED (hr) || !notices.empty())
         {

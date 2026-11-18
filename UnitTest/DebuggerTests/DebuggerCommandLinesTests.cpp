@@ -92,7 +92,7 @@ namespace DebuggerViewStateTests
             Assert::IsTrue (rig.Run ("A 300").status == CommandStatus::Ok);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the assembly is still open");
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"the assembly is still open");
             Assert::AreEqual ((size_t) 9, snapshot.registers.size(), L"six registers, the cycle and trip counts and the last branch");
             Assert::IsFalse  (snapshot.memory.empty());
             Assert::AreEqual ((Byte) 0xA9, rig.machine.GetMemoryBus().ReadByte (0x0300), L"nothing was assembled");

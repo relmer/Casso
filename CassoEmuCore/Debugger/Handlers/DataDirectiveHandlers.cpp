@@ -357,7 +357,7 @@ void DataDirectiveHandlers::EnterAssembler (DebugSession & session, const DebugC
 
 
 
-    session.BeginAssembly (address);
+    session.GetInterpreter().BeginAssembly (address);
     reply.data = MessageData { { std::format ("Assembling at ${:04X}. Enter a blank line to stop.", address) } };
 }
 

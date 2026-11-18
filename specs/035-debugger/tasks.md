@@ -2460,3 +2460,4 @@ Master's new hardware on the default machines (the //e's UniDisk 3.5 card in slo
   - The storage hardware: each read and its peek share one evaluation; `BlockDeviceMedia` reads through `FileBlockSource` or `MemoryBlockSource`, and `Sony35Drive` through `Sony35BlockDisk` or `Sony35WozDisk`; three state loads check their fields.
   - The debugger pair: the UI and debug engine splits are merged and checked against rules 1 to 5; class-redesign-plan.md section 8 has the result. The code-edge and pane-layout forwarders are removed from `DebuggerWindow`, and `RouteWindowMouse` and `RenderFrame` are split into stages.
   - Dxui: the Dxui split is merged.
+  - The classes near the limit: `ProfilerPane`, `HistoryThumbnails`, `DisassemblyGroup` and `DebugSession` are split along their state, and `DebugSession` calls its parts directly; class-redesign-plan.md section 9 has the classes.

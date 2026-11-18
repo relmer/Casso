@@ -92,7 +92,7 @@ void BreakpointHandlers::ListAll (DebugSession & session, BreakpointListData & l
     std::sort (list.breakpoints.begin(), list.breakpoints.end(),
                [] (const BreakpointInfo & a, const BreakpointInfo & b) { return a.id < b.id; });
 
-    list.videoBreak = session.GetVideoBreak();
+    list.videoBreak = session.GetStops().GetBeamBreaks().GetVideoBreak();
 }
 
 
@@ -406,13 +406,13 @@ bool BreakpointHandlers::TryResolveSourceLine (DebugSession & session, const Deb
 
 
 
-    if (!session.HasDebugFile())
+    if (!session.GetFiles().HasDebugFile())
     {
         reply.SetError (CommandStatus::Error, "no debug file", "There is no debug file to set a source breakpoint by. Load one with SYM LOAD.");
         return false;
     }
 
-    fileId = FindSourceFile (session.GetDebugFile(), command.text);
+    fileId = FindSourceFile (session.GetFiles().GetDebugFile(), command.text);
 
     if (!fileId.has_value())
     {
@@ -422,7 +422,7 @@ bool BreakpointHandlers::TryResolveSourceLine (DebugSession & session, const Deb
 
     if (command.count <= (uint32_t) INT_MAX)
     {
-        found = session.GetLineTable().GetNextLineWithCode (*fileId, (int) command.count);
+        found = session.GetFiles().GetLineTable().GetNextLineWithCode (*fileId, (int) command.count);
     }
 
     if (!found.has_value())
@@ -432,7 +432,7 @@ bool BreakpointHandlers::TryResolveSourceLine (DebugSession & session, const Deb
     }
 
     target = *found;
-    ranges = session.GetLineTable().GetRanges (*fileId, target);
+    ranges = session.GetFiles().GetLineTable().GetRanges (*fileId, target);
 
     return !ranges.empty();
 }
@@ -1202,7 +1202,7 @@ void BreakpointHandlers::Change (DebugSession & session, const DebugCommand & co
 
 void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem       * files = session.GetFileSystem();
+    IFileSystem       * files = session.GetHostFiles().GetFileSystem();
     BreakpointListData  list;
     HRESULT             hr    = S_OK;
 
@@ -1220,16 +1220,16 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
         return;
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), MakeScript (session));
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), MakeScript (session));
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
     ListAll (session, list);
-    reply.data = MessageData { { std::format ("Saved {} breakpoint{}{}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", session.GetPathEcho (command.text, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved {} breakpoint{}{}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", session.GetHostFiles().GetPathEcho (command.text, "to", reply)) } };
 }
 
 
@@ -1277,7 +1277,7 @@ std::string BreakpointHandlers::MakeScript (DebugSession & session)
         }
     }
 
-    if (session.HasUnwrittenBreak())
+    if (session.GetStops().HasUnwrittenBreak())
     {
         script += "BRKUNINIT ON\n";
     }

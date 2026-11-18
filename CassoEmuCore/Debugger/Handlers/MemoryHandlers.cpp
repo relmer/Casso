@@ -505,11 +505,11 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
         return;
     }
 
-    hr = files->ReadAllText (session.ResolvePath (name), content);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
@@ -567,12 +567,12 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
         loaded += count;
     }
 
-    session.NoteBinaryLoad (Sha1::ToHex (Sha1::Compute (std::span<const uint8_t> ((const uint8_t *) content.data(), content.size()))),
+    session.GetFiles().NoteBinaryLoad (Sha1::ToHex (Sha1::Compute (std::span<const uint8_t> ((const uint8_t *) content.data(), content.size()))),
                             image.segments.empty() ? (Word) 0 : image.segments.front().address,
-                            name.substr (name.find_last_of ("/\\") + 1), session.ResolvePath (name));
+                            name.substr (name.find_last_of ("/\\") + 1), session.GetHostFiles().ResolvePath (name));
 
     data.path        = std::format ("{} ({})", name, BinaryImageReader::GetFormatName (image.format));
-    data.echo        = session.GetPathEcho (name, "from", reply);
+    data.echo        = session.GetHostFiles().GetPathEcho (name, "from", reply);
     data.address     = image.segments.empty() ? (Word) 0 : image.segments.front().address;
     data.isLoad      = true;
     data.requested   = (uint32_t) requested;
@@ -620,12 +620,12 @@ std::string MemoryHandlers::LoadCompanion (DebugSession & session, IFileSystem &
 
 
 
-        if (sibling == name || !files.Exists (session.ResolvePath (sibling)))
+        if (sibling == name || !files.Exists (session.GetHostFiles().ResolvePath (sibling)))
         {
             continue;
         }
 
-        resolved            = TextEncoding::WideToNarrow (session.ResolvePath (sibling));
+        resolved            = TextEncoding::WideToNarrow (session.GetHostFiles().ResolvePath (sibling));
         symbols.verb        = DebugVerb::LoadSymbols;
         symbols.sourceName  = "BLOAD";
         symbols.text        = std::format ("\"{}\"", resolved);
@@ -699,16 +699,16 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
         content.push_back ((char) value);
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), content);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (Unquote (command.text))));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (Unquote (command.text))));
         return;
     }
 
     data.path        = Unquote (command.text);
-    data.echo        = session.GetPathEcho (command.text, "to", reply);
+    data.echo        = session.GetHostFiles().GetPathEcho (command.text, "to", reply);
     data.address     = (Word) command.a1;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
@@ -788,11 +788,11 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    hr = files->ReadAllText (session.ResolvePath (name), content);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
@@ -841,7 +841,7 @@ void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & com
         }
     }
 
-    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, as the BASIC program{}.", lines, bytes.size(), session.GetPathEcho (name, "from", reply)) } };
+    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, as the BASIC program{}.", lines, bytes.size(), session.GetHostFiles().GetPathEcho (name, "from", reply)) } };
 }
 
 
@@ -1019,15 +1019,15 @@ void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    hr = files->WriteAllText (session.ResolvePath (name), listing);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (name), listing);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes{}.", bytes.size(), session.GetPathEcho (name, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes{}.", bytes.size(), session.GetHostFiles().GetPathEcho (name, "to", reply)) } };
 }
 
 
@@ -1131,15 +1131,15 @@ void MemoryHandlers::SaveText (DebugSession & session, const DebugCommand & comm
         content.push_back ('\n');
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), content);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the text screen{}.", session.GetPathEcho (command.text, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved the text screen{}.", session.GetHostFiles().GetPathEcho (command.text, "to", reply)) } };
 }
 
 
@@ -1370,7 +1370,7 @@ bool MemoryHandlers::TryPeekByte (IDebugTarget & target, Word address, Byte & va
 
 bool MemoryHandlers::TryGetFiles (DebugSession & session, Reply & reply, IFileSystem *& files)
 {
-    files = session.GetFileSystem();
+    files = session.GetHostFiles().GetFileSystem();
 
     if (files == nullptr)
     {

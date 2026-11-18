@@ -730,7 +730,7 @@ void WatchHandlers::GoTo (DebugSession & session, const DebugCommand & command, 
 
 void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply)
 {
-    IFileSystem  * files = session.GetFileSystem();
+    IFileSystem  * files = session.GetHostFiles().GetFileSystem();
     HRESULT        hr    = S_OK;
     size_t         count = 0;
 
@@ -748,16 +748,16 @@ void WatchHandlers::Save (DebugSession & session, const DebugCommand & command, 
         return;
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), MakeScript (session, kind));
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), MakeScript (session, kind));
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
     count      = GetTable (session, kind).GetAll().size();
-    reply.data = MessageData { { std::format ("Saved {} {}{}.", count, count == 1 ? GetNoun (kind) : GetPlural (kind), session.GetPathEcho (command.text, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved {} {}{}.", count, count == 1 ? GetNoun (kind) : GetPlural (kind), session.GetHostFiles().GetPathEcho (command.text, "to", reply)) } };
 }
 
 

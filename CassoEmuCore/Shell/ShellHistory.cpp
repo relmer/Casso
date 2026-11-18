@@ -245,7 +245,7 @@ void ShellHistory::StartRecording()
 
         m_reverseHost->GetController().GetStepper().SetCallerProbe ([this] (uint64_t historyStartCycle)
         {
-            return m_context.GetDebugSession() != nullptr && m_context.GetDebugSession()->HasNoCallSince (historyStartCycle);
+            return m_context.GetDebugSession() != nullptr && m_context.GetDebugSession()->GetCallRecords().HasNoCallSince (historyStartCycle);
         });
 
         m_reverseHost->GetController().GetStepper().SetCallerLinksProbe ([this] (std::vector<CallerLink> & outLinks)
@@ -254,7 +254,7 @@ void ShellHistory::StartRecording()
 
             if (m_context.GetDebugSession() != nullptr)
             {
-                m_context.GetDebugSession()->GetCallerLinks (outLinks);
+                m_context.GetDebugSession()->GetCallRecords().GetCallerLinks (outLinks);
             }
         });
 
@@ -526,7 +526,7 @@ Error:
         isPublished = TryPublishPlayhead();
         IGNORE_RETURN_VALUE (isPublished, false);
 
-        m_historyThumbnails.NoteSeekLanded (argument);
+        m_historyThumbnails.GetPlayhead().NoteSeekLanded (argument);
     }
 
     if (FAILED (hr))
@@ -816,12 +816,12 @@ bool ShellHistory::TryPublishPlayhead()
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 
-    m_historyThumbnails.SetPlayhead     (m_machine.GetRunner().GetPosition(), isBehind);
-    m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetTimeline().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetSeeker().GetLiveEndCycle() : cycle);
+    m_historyThumbnails.GetPlayhead().SetPosition (m_machine.GetRunner().GetPosition(), isBehind);
+    m_historyThumbnails.GetPlayhead().SetTime (cycle, m_reverseHost->GetController().GetTimeline().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetSeeker().GetLiveEndCycle() : cycle);
 
     if (keyframes->GetArena().GetCount() > 0)
     {
-        m_historyThumbnails.SetBegin (keyframes->GetArena().GetInfo (0).cycle, keyframes->GetArena().GetInfo (0).wallTime);
+        m_historyThumbnails.GetPlayhead().SetBegin (keyframes->GetArena().GetInfo (0).cycle, keyframes->GetArena().GetInfo (0).wallTime);
     }
 
     return true;

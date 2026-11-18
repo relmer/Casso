@@ -170,7 +170,7 @@ namespace DebuggerViewStateTests
             rig.Run ("A 800");
             snapshot = rig.view.Build (rig.controller.GetSession());
 
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling());
             Assert::IsFalse  (snapshot.registers.empty(), L"the register pane is filled");
             Assert::AreEqual ((Word) 0x0300, snapshot.pc);
             Assert::AreEqual (before,        rig.machine.GetMemoryBus().ReadByte (0x0800), L"nothing was assembled");
@@ -214,14 +214,14 @@ namespace DebuggerViewStateTests
 
 
             rig.Run ("!", CommandMode::Monitor);
-            Assert::IsTrue (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue (rig.controller.GetSession().GetInterpreter().IsAssembling());
 
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse  (snapshot.registers.empty(), L"registers");
             Assert::IsFalse  (snapshot.code.empty(),      L"code");
             Assert::IsFalse  (snapshot.memory.empty(),    L"memory");
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"and the assembler is still active");
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"and the assembler is still active");
         }
 
 
@@ -521,7 +521,7 @@ namespace DebuggerViewStateTests
 
             hr = rig.controller.Open();
             Assert::IsTrue (SUCCEEDED (hr));
-            Assert::IsTrue (rig.controller.GetSession().IsCallRecording(), L"attached: the record is kept");
+            Assert::IsTrue (rig.controller.GetSession().GetCallRecords().IsRecording(), L"attached: the record is kept");
 
             rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
@@ -893,7 +893,7 @@ namespace DebuggerViewStateTests
                            { 2, 1, 5, DebugLineType::Macro, 1, { 1 } },
                            { 3, 0, 4, DebugLineType::Asm,   0, { 2 } } };
 
-            rig.controller.GetSession().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
+            rig.controller.GetSession().GetFiles().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
         }
 
 
@@ -914,14 +914,14 @@ namespace DebuggerViewStateTests
                 LoadDebugFile (rig);
 
                 rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (true, mode));
-                Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
+                Assert::IsTrue   (rig.controller.GetSession().GetFiles().IsStepBySource(), where.c_str());
 
                 rig.view.GetCommands().ExecuteAction (rig.controller.GetSession(), RunActions::GetSourceStepping (false, mode));
-                Assert::IsFalse  (rig.controller.GetSession().IsStepBySource(), where.c_str());
+                Assert::IsFalse  (rig.controller.GetSession().GetFiles().IsStepBySource(), where.c_str());
 
                 reply = rig.Run (RunActions::GetSourceStepping (true, mode).echo, mode);
                 Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, where.c_str());
-                Assert::IsTrue   (rig.controller.GetSession().IsStepBySource(), where.c_str());
+                Assert::IsTrue   (rig.controller.GetSession().GetFiles().IsStepBySource(), where.c_str());
 
                 Assert::AreEqual ((int) 0x0300, (int) rig.controller.GetSession().GetTarget().GetRegisters().pc, where.c_str());
             }
@@ -1311,12 +1311,12 @@ namespace DebuggerViewStateTests
             Assert::IsFalse  (snapshot.code.empty(),      L"the code pane");
             Assert::IsFalse  (snapshot.memory.empty(),    L"the memory pane");
             Assert::IsTrue   (snapshot.isAssembling);
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"the user's assembly goes on");
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"the user's assembly goes on");
 
             rig.Run ("NOP");
             rig.Run ("");
             Assert::AreEqual ((int) 0xEA, (int) rig.machine.GetMemoryBus().ReadByte (0x0800));
-            Assert::IsFalse  (rig.controller.GetSession().IsAssembling());
+            Assert::IsFalse  (rig.controller.GetSession().GetInterpreter().IsAssembling());
         }
 
 

@@ -270,7 +270,7 @@ namespace DebuggerTests
             rig.RunFails ("BRKUNINIT MAYBE", "invalid arguments");
 
             rig.RunOk ("BPC *");
-            Assert::IsFalse (rig.session.HasUnwrittenBreak(), L"BPC * clears it with the rest");
+            Assert::IsFalse (rig.session.GetStops().HasUnwrittenBreak(), L"BPC * clears it with the rest");
         }
 
 
@@ -376,7 +376,7 @@ namespace DebuggerTests
             rig.target.SetHeatMapOn (true);
 
             status = rig.target.GetUnwrittenStatus();
-            Assert::IsFalse  (rig.session.HasUnwrittenBreak(), L"the break goes with the machine's other breakpoints");
+            Assert::IsFalse  (rig.session.GetStops().HasUnwrittenBreak(), L"the break goes with the machine's other breakpoints");
             Assert::IsFalse  (status.isTracking);
             Assert::AreEqual ((uint64_t) 0, status.reads);
             Assert::AreEqual ((uint64_t) 0, rig.Fold().GetTotal (HeatSpace::Cpu, HeatKind::Write, kStored), L"the counts started over");

@@ -45,7 +45,7 @@ void HeatMapReader::BuildHeatMap (DebugSession & session, DebuggerViewSnapshot &
 
 
 
-    target.SetHeatMapOn         (m_isHeatMapShown || m_isHeatColumnsShown || session.HasUnwrittenBreak());
+    target.SetHeatMapOn         (m_isHeatMapShown || m_isHeatColumnsShown || session.GetStops().HasUnwrittenBreak());
     target.SetHeatMapFade       ((double) m_heatMapOptions.fadeSeconds);
     target.SetHeatMapCumulative (m_heatMapOptions.cumulative);
     map = target.FoldHeatMap();

@@ -415,7 +415,7 @@ OperandTipParts DebuggerWindow::GetTipParts (int view, int row) const
         //  The disassembly's operand column has the symbol already
         //  (DisassemblyGroup::AddOperandSymbol); the tip finds it there and
         //  doesn't add it again.
-        hasSymbol = m_code->TryGetOperandSymbol (view, row, parts.symbol);
+        hasSymbol = m_code->GetSymbols().TryGetOperandSymbol (view, row, parts.symbol);
         IGNORE_RETURN_VALUE (hasSymbol, false);
         return parts;
     }
@@ -725,7 +725,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
     RECT          anchor   = {};
     std::wstring  text;
     DxuiTip       colorTip;
-    bool          isFolded = m_operandTips->IsSymbolShownAt (clientPx) && m_code->IsOperandSymbolAt (clientPx);
+    bool          isFolded = m_operandTips->IsSymbolShownAt (clientPx) && m_code->GetSymbols().IsOperandSymbolAt (clientPx);
 
 
 
@@ -734,7 +734,7 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
         return true;
     }
 
-    if (isFolded || !m_code->TryGetSymbolTip (clientPx, anchor, text))
+    if (isFolded || !m_code->GetSymbols().TryGetSymbolTip (clientPx, anchor, text))
     {
         return GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
                list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip);

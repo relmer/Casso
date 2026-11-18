@@ -387,7 +387,7 @@ namespace DebuggerViewStateTests
 
             (void) rig.view.GetCommands().ExecuteWindowLine (rig.controller.GetSession(), "RUN \"C:\\Work\\asm.txt\"", CommandMode::AppleWin);
 
-            Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the script's end ended the block");
+            Assert::IsFalse (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"the script's end ended the block");
         }
 
 

@@ -136,7 +136,7 @@ bool ReverseStopTest::ShouldStopBefore (
 
     m_lastCycle = cycle;
 
-    m_session.GetCpuOwnReads (pc, length, m_storeTarget);
+    m_session.GetStops().GetCpuOwnReads (pc, length, m_storeTarget);
     m_fetchPc     = pc;
     m_fetchesLeft = (Byte) ((1u << length) - 1);
 

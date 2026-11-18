@@ -349,7 +349,7 @@ namespace ProjectShellTests
             data = std::get_if<ProjectData> (&(reply = rig.Run ("PROJECT")).data);
             Assert::IsNotNull (data);
             Assert::AreEqual (std::string ("machineBoot"), data->scope, L"the second disk's project");
-            Assert::IsTrue   (rig.debugger->GetSession().GetBinaryKey().empty(), L"the binary is unloaded");
+            Assert::IsTrue   (rig.debugger->GetSession().GetFiles().GetBinaryKey().empty(), L"the binary is unloaded");
         }
 
 

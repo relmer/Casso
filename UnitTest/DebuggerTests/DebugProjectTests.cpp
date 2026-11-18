@@ -138,7 +138,7 @@ namespace DebuggerTests
             Assert::IsTrue   (List (second, "WL").find ("0300") != std::string::npos);
             Assert::IsTrue   (List (second, "DB").find ("TABLE") != std::string::npos);
             Assert::IsTrue   (List (second, "SKIP").find ("0A00") != std::string::npos);
-            Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
+            Assert::AreEqual ((size_t) 1, second.rig.session.GetFiles().GetSymbolLoads().size());
         }
 
         //  Loading another debug file switches to its project, and the project
@@ -159,9 +159,9 @@ namespace DebuggerTests
             s.rig.files.WriteAllText (L"C:\\Work\\two.dbg", "version\tmajor=2,minor=0\nsym\tid=0,name=\"TWO\",addrsize=absolute,val=0x7000,type=lab\n");
 
             s.rig.RunOk ("SYMUSER LOAD one.dbg");
-            one.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetDebugFileKey(), "one.dbg" };
+            one.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetFiles().GetDebugFileKey(), "one.dbg" };
             s.rig.RunOk ("SYMUSER LOAD two.dbg");
-            two.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetDebugFileKey(), "two.dbg" };
+            two.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetFiles().GetDebugFileKey(), "two.dbg" };
 
             one.CaptureEngine (s.rig.session);
             Assert::IsTrue (one.symbolFiles.empty(), L"one.dbg's project, saved with two.dbg loaded, doesn't list two.dbg");
@@ -171,7 +171,7 @@ namespace DebuggerTests
 
             two.symbolFiles = { { SymbolTableId::User, L"C:\\Work\\one.dbg", 0 } };
             two.ApplyEngine (s.rig.session, failures);
-            Assert::IsTrue (s.rig.session.GetDebugFilePath() == L"C:\\Work\\two.dbg", L"a project saved that way doesn't load the other file");
+            Assert::IsTrue (s.rig.session.GetFiles().GetDebugFilePath() == L"C:\\Work\\two.dbg", L"a project saved that way doesn't load the other file");
         }
 
         //  A load replaces its table, so the session has one load a table
@@ -194,7 +194,7 @@ namespace DebuggerTests
             first.rig.files.WriteAllText (L"C:\\Work\\two.sym", "0A00 SECOND\n");
             first.rig.RunOk ("SYMUSER LOAD one.sym");
             first.rig.RunOk ("SYMUSER LOAD two.sym");
-            Assert::AreEqual ((size_t) 1, first.rig.session.GetSymbolLoads().size(), L"the second load replaced the first");
+            Assert::AreEqual ((size_t) 1, first.rig.session.GetFiles().GetSymbolLoads().size(), L"the second load replaced the first");
 
             second.rig.files.WriteAllText (L"C:\\Work\\one.sym",  "0900 FIRST\n");
             second.rig.files.WriteAllText (L"C:\\Work\\game.bas", "10 HOME\n20 VTAB 5\n30 END\n");
@@ -406,7 +406,7 @@ namespace DebuggerTests
             Assert::IsTrue   (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
             Assert::IsFalse  (second.rig.session.GetSymbols().IsEnabled (SymbolTableId::Dos33), L"the table stays off");
             Assert::IsTrue   (second.rig.session.GetSymbols().IsEnabled (SymbolTableId::Main));
-            Assert::IsTrue   (second.rig.session.GetCurrentDirectory() == L"C:\\Work");
+            Assert::IsTrue   (second.rig.session.GetHostFiles().GetCurrentDirectory() == L"C:\\Work");
             Assert::IsTrue   (second.rig.session.GetMode() == CommandMode::Monitor);
             Assert::AreEqual ((uint64_t) 1234, second.rig.session.GetCycleMarker());
             Assert::IsTrue   (std::ranges::find (read.engineScript, std::string ("STOPWATCH 0300 0310")) != read.engineScript.end());

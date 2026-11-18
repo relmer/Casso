@@ -370,7 +370,7 @@ namespace DebuggerControllerTests
             Assert::IsTrue (rig.files.Exists (L"C:\\Elsewhere\\y.bin"), L"the script's write was made");
 
             Assert::IsTrue (rig.console.empty(), Joined (rig.console).c_str());
-            Assert::IsTrue (rig.controller.GetSession().GetHostAccessGuard() == nullptr);
+            Assert::IsTrue (rig.controller.GetSession().GetHostFiles().GetHostAccessGuard() == nullptr);
         }
 
 
@@ -410,7 +410,7 @@ namespace DebuggerControllerTests
 
 
             rig.resolver.AddFolder (L"C:\\Syms");
-            rig.controller.GetSession().NoteSymbolLoad (SymbolTableId::User, L"C:\\Syms\\prog.sym", 0);
+            rig.controller.GetSession().GetFiles().NoteSymbolLoad (SymbolTableId::User, L"C:\\Syms\\prog.sym", 0);
 
             reply = rig.Send ("BSAVE C:\\Syms\\out.bin 300,10");
 
@@ -428,14 +428,14 @@ namespace DebuggerControllerTests
             std::unique_ptr<Rig>    rigOwner = std::make_unique<Rig>();   // heap: more than a function's stack allows (C6262)
             Rig                   & rig      = *rigOwner;
             JsonValue               reply;
-            std::wstring            before   = rig.controller.GetSession().GetCurrentDirectory();
+            std::wstring            before   = rig.controller.GetSession().GetHostFiles().GetCurrentDirectory();
 
 
 
             reply = rig.Send ("CD C:\\Elsewhere");
 
             Assert::AreEqual (std::string ("C:\\Elsewhere is outside the allowed folders."), Rig::DetailOf (reply));
-            Assert::AreEqual (before, rig.controller.GetSession().GetCurrentDirectory());
+            Assert::AreEqual (before, rig.controller.GetSession().GetHostFiles().GetCurrentDirectory());
         }
 
 
@@ -458,7 +458,7 @@ namespace DebuggerControllerTests
 
             Assert::AreEqual (std::string ("error"), Rig::StatusOf (reply));
             Assert::IsTrue   (Rig::DetailOf (reply).find ("allowed folders") == std::string::npos, Widen (Rig::DetailOf (reply)).c_str());
-            Assert::IsTrue   (rig.controller.GetSession().GetFileSystem() == &rig.files);
+            Assert::IsTrue   (rig.controller.GetSession().GetHostFiles().GetFileSystem() == &rig.files);
         }
     };
 }

@@ -45,7 +45,7 @@ namespace DebuggerTests
             file.lines = { { 0, 0, 2, DebugLineType::Asm, 0, { 0 } },
                            { 1, 0, 3, DebugLineType::Asm, 0, { 1 } } };
 
-            rig.controller.GetSession().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
+            rig.controller.GetSession().GetFiles().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
         }
 
 
@@ -68,7 +68,7 @@ namespace DebuggerTests
             file.lines = { { 0, 0, 2, DebugLineType::Asm, 0, { 0 } },
                            { 1, 0, 5, DebugLineType::Asm, 0, { 1 } } };
 
-            rig.controller.GetSession().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
+            rig.controller.GetSession().GetFiles().SetDebugFile (std::move (file), L"C:\\Work\\main.dbg", "key");
         }
 
 

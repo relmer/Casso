@@ -1022,7 +1022,7 @@ namespace DebuggerTests
             rig.target.videoPosition.scanline = 160;
             Assert::IsTrue   (rig.session.ShouldStopBefore (0x0300));
             rig.target.Stop (StopEvent { StopReason::Breakpoint, 0x0300 });
-            Assert::IsFalse  (rig.session.HasVideoBreak(), L"a video break clears when it fires");
+            Assert::IsFalse  (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"a video break clears when it fires");
             Assert::IsFalse  (rig.target.hookInstalled);
         }
 
@@ -1050,14 +1050,14 @@ namespace DebuggerTests
 
 
             rig.RunOk ("BPV A0");
-            Assert::IsTrue  (rig.session.HasVideoBreak());
+            Assert::IsTrue  (rig.session.GetStops().GetBeamBreaks().HasVideoBreak());
             rig.session.ClearAllBreakpoints();
-            Assert::IsFalse (rig.session.HasVideoBreak(), L"clearing every breakpoint clears the video break");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"clearing every breakpoint clears the video break");
             Assert::IsFalse (rig.target.hookInstalled);
 
             rig.RunOk ("BPV A0");
             rig.session.OnMachineChanged ("Apple //e", true);
-            Assert::IsFalse (rig.session.HasVideoBreak(), L"a machine change clears the video break");
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"a machine change clears the video break");
             Assert::IsFalse (rig.target.hookInstalled);
         }
 
@@ -1074,10 +1074,10 @@ namespace DebuggerTests
             rig.RunFails ("BPV 200",   "invalid arguments");
             rig.RunFails ("BPV FFFF",  "invalid arguments");
             rig.RunFails ("BPV A0:10", "invalid arguments");
-            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak());
 
             rig.RunOk ("BPV 105");
-            Assert::IsTrue  (rig.session.HasVideoBreak(), L"scanline 261 is the frame's last");
+            Assert::IsTrue  (rig.session.GetStops().GetBeamBreaks().HasVideoBreak(), L"scanline 261 is the frame's last");
         }
 
 
@@ -1090,7 +1090,7 @@ namespace DebuggerTests
 
 
             rig.RunFails ("BPV 100:50", "invalid arguments");
-            Assert::IsFalse (rig.session.HasVideoBreak());
+            Assert::IsFalse (rig.session.GetStops().GetBeamBreaks().HasVideoBreak());
         }
 
 

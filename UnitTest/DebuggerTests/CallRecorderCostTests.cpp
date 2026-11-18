@@ -123,7 +123,7 @@ namespace CallRecorderCostTests
         {
             if (controller != nullptr)
             {
-                controller->GetSession().SetCallRecording (isOn);
+                controller->GetSession().GetCallRecords().SetRecording (isOn);
             }
         }
 

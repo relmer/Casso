@@ -306,26 +306,26 @@ namespace DebuggerTests
                 "scope\tid=0,name=\"\",mod=0\n");
             rig.RunOk ("SYMUSER LOAD main.dbg");
 
-            Assert::IsFalse (rig.session.IsDebugFileStale(), L"the program is in memory");
+            Assert::IsFalse (rig.session.GetFiles().IsDebugFileStale(), L"the program is in memory");
             Assert::IsTrue  (HasLabel (rig, 0x6000));
-            Assert::IsTrue  (rig.session.TryGetSourceLine (0x6000, file, line));
+            Assert::IsTrue  (rig.session.GetFiles().TryGetSourceLine (0x6000, file, line));
 
             Store (rig, 0xEA);
             Stop  (rig, 0x0300);
 
-            Assert::IsTrue   (rig.session.IsDebugFileStale(), L"another program");
+            Assert::IsTrue   (rig.session.GetFiles().IsDebugFileStale(), L"another program");
             Assert::IsFalse  (HasLabel (rig, 0x6000), L"its label is hidden");
-            Assert::IsFalse  (rig.session.TryGetSourceLine (0x6000, file, line), L"and its lines");
+            Assert::IsFalse  (rig.session.GetFiles().TryGetSourceLine (0x6000, file, line), L"and its lines");
             Assert::IsTrue   (rig.session.GetSymbols().TryResolve ("COUT", address, table), L"a name in the file resolves");
-            Assert::AreEqual ((size_t) 1, rig.session.GetStaleFileNames().size());
-            Assert::AreEqual (std::string ("main.dbg"), rig.session.GetStaleFileNames().front());
+            Assert::AreEqual ((size_t) 1, rig.session.GetFiles().GetStaleFileNames().size());
+            Assert::AreEqual (std::string ("main.dbg"), rig.session.GetFiles().GetStaleFileNames().front());
 
             Store (rig, 0);
             Stop  (rig, 0x0300);
 
-            Assert::IsFalse (rig.session.IsDebugFileStale(), L"the program again");
+            Assert::IsFalse (rig.session.GetFiles().IsDebugFileStale(), L"the program again");
             Assert::IsTrue  (HasLabel (rig, 0x6000));
-            Assert::IsTrue  (rig.session.TryGetSourceLine (0x6000, file, line));
+            Assert::IsTrue  (rig.session.GetFiles().TryGetSourceLine (0x6000, file, line));
         }
 
 
@@ -347,14 +347,14 @@ namespace DebuggerTests
             Stop  (rig, 0x6000);
 
             Assert::IsFalse  (HasLabel (rig, 0x6000), L"another program");
-            Assert::AreEqual (std::string ("prog.sym"), rig.session.GetStaleFileNames().at (0));
+            Assert::AreEqual (std::string ("prog.sym"), rig.session.GetFiles().GetStaleFileNames().at (0));
 
             rig.RunOk ("SYMUSER LOAD prog.sym");
             Assert::IsTrue (HasLabel (rig, 0x6000), L"loaded again over the program in memory");
 
             rig.RunOk ("SYMUSER CLEAR");
             Stop (rig, 0x6000);
-            Assert::IsTrue (rig.session.GetStaleFileNames().empty(), L"a cleared table has nothing to check");
+            Assert::IsTrue (rig.session.GetFiles().GetStaleFileNames().empty(), L"a cleared table has nothing to check");
         }
 
 

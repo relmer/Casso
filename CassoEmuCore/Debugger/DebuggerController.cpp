@@ -36,7 +36,7 @@ DebuggerController::DebuggerController (MachineHost & host, CpuManager & cpuMana
     m_session    (m_target, m_server, cpuManager.IsPaused() ? RunState::Paused : RunState::FreeRunning)
 {
     m_target.SetRunDriver (&m_driver);
-    m_session.SetFileSystem (&files);
+    m_session.GetHostFiles().SetFileSystem (&files);
     m_handlers.Attach (m_session);
 }
 
@@ -77,7 +77,7 @@ HRESULT DebuggerController::Open()
     hr = m_server.Open();
     CHR (hr);
 
-    m_session.SetCallRecording (true);
+    m_session.GetCallRecords().SetRecording (true);
 
 Error:
     return hr;
@@ -100,7 +100,7 @@ Error:
 void DebuggerController::Close()
 {
     m_server.Close();
-    m_session.SetCallRecording (false);
+    m_session.GetCallRecords().SetRecording (false);
 }
 
 
@@ -152,13 +152,13 @@ Reply DebuggerController::RunLine (const std::string          & line,
 
 
 
-    m_session.SetFileSystem      (&guarded);
-    m_session.SetHostAccessGuard (&guard);
+    m_session.GetHostFiles().SetFileSystem (&guarded);
+    m_session.GetHostFiles().SetHostAccessGuard (&guard);
 
     reply = RunGuardedLine (line, mode, budget);
 
-    m_session.SetHostAccessGuard (nullptr);
-    m_session.SetFileSystem      (&m_files);
+    m_session.GetHostFiles().SetHostAccessGuard (nullptr);
+    m_session.GetHostFiles().SetFileSystem (&m_files);
 
     lines = guard.TakeConsoleLines();
 
@@ -194,7 +194,7 @@ Reply DebuggerController::RunGuardedLine (const std::string          & line,
 
     //  A blank line matters only inside an A block, where it ends the block.
     //  Elsewhere it is nothing, as it is in a batch script.
-    if (line.find_first_not_of (" \t\r") == std::string::npos && !m_session.IsAssembling())
+    if (line.find_first_not_of (" \t\r") == std::string::npos && !m_session.GetInterpreter().IsAssembling())
     {
         reply.command = line;
         return reply;
@@ -308,12 +308,12 @@ std::vector<std::wstring> DebuggerController::GetAllowedFolders (const ChannelCl
         }
     }
 
-    if (session.HasDebugFile())
+    if (session.GetFiles().HasDebugFile())
     {
-        folders.push_back (GetFolder (session.GetDebugFilePath()));
+        folders.push_back (GetFolder (session.GetFiles().GetDebugFilePath()));
     }
 
-    for (const DebugSession::SymbolLoad & load : session.GetSymbolLoads())
+    for (const DebugSession::SymbolLoad & load : session.GetFiles().GetSymbolLoads())
     {
         folders.push_back (GetFolder (load.path));
     }

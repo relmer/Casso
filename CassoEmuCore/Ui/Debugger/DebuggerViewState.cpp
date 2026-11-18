@@ -110,7 +110,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
 
     snapshot.isPaused       = isPaused;
-    snapshot.isAssembling   = session.IsAssembling();
+    snapshot.isAssembling   = session.GetInterpreter().IsAssembling();
     snapshot.stopReason     = session.GetLastStopReason();
     snapshot.stopBreakpoint = session.GetLastStopBreakpoint();
     snapshot.runNotice      = session.GetRunNotice();
@@ -222,7 +222,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     BuildSource (session, snapshot);
-    snapshot.staleFileNames = session.GetStaleFileNames();
+    snapshot.staleFileNames = session.GetFiles().GetStaleFileNames();
 
     //  A stopped machine's program is read whatever is on screen: its
     //  variables are in the Watches pane and its frames in the Call stack.
@@ -326,14 +326,14 @@ void DebuggerViewState::BuildSymbols (DebugSession & session, DebuggerViewSnapsh
 
         for (int table = 0; table < SymbolTable::kTableCount; table++)
         {
-            auto  load = std::ranges::find_if (session.GetSymbolLoads(), [table] (const DebugSession::SymbolLoad & each) { return each.table == (SymbolTableId) table; });
+            auto  load = std::ranges::find_if (session.GetFiles().GetSymbolLoads(), [table] (const DebugSession::SymbolLoad & each) { return each.table == (SymbolTableId) table; });
 
 
 
             state->tables.push_back ({ ReplyJson::GetSymbolTableName ((SymbolTableId) table), session.GetSymbols().GetCount ((SymbolTableId) table),
                                        session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table,
                                        session.GetSymbols().GetOrigins ((SymbolTableId) table),
-                                       (load != session.GetSymbolLoads().end()) ? load->path : std::wstring() });
+                                       (load != session.GetFiles().GetSymbolLoads().end()) ? load->path : std::wstring() });
             session.GetSymbols().GetAll ((SymbolTableId) table, state->symbols);
         }
 
@@ -617,22 +617,22 @@ uint64_t DebuggerViewState::GetTraceWindowFirst (uint64_t total, std::optional<u
 
 void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapshot & snapshot) const
 {
-    const LineTable                       & table = session.GetLineTable();
-    const DebugFile                       & file  = session.GetDebugFile();
+    const LineTable                       & table = session.GetFiles().GetLineTable();
+    const DebugFile                       & file  = session.GetFiles().GetDebugFile();
     const std::vector<SourcePosition>     & atPc  = table.GetPositionsAt (snapshot.pc);
     DebuggerViewSnapshot::SourceState       state;
     std::string                             key;
 
 
 
-    if (!session.HasDebugFile())
+    if (!session.GetFiles().HasDebugFile())
     {
         return;
     }
 
     //  The same file loaded at another offset has the same text, so the key
     //  holds where each segment was placed too.
-    key = session.GetDebugFileKey() + SourcePathList::WideToUtf8 (session.GetDebugFilePath());
+    key = session.GetFiles().GetDebugFileKey() + SourcePathList::WideToUtf8 (session.GetFiles().GetDebugFilePath());
 
     for (const DebugSegment & segment : file.segments)
     {
@@ -663,17 +663,17 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
         m_lineAddressesKey = key;
     }
 
-    state.debugFilePath = session.GetDebugFilePath();
-    state.programKey    = session.GetDebugFileKey();
+    state.debugFilePath = session.GetFiles().GetDebugFilePath();
+    state.programKey    = session.GetFiles().GetDebugFileKey();
     state.files         = file.files;
-    state.stepBySource  = session.IsStepBySource();
+    state.stepBySource  = session.GetFiles().IsStepBySource();
     state.lineAddresses = m_lineAddresses;
     state.lineRanges    = m_lineRanges;
-    state.isStale       = session.IsDebugFileStale();
+    state.isStale       = session.GetFiles().IsDebugFileStale();
 
     if (m_heatMap.IsHeatColumnsShown())
     {
-        state.unmatchedLines = std::make_shared<const std::set<std::pair<int, int>>> (session.GetUnmatchedSourceLines());
+        state.unmatchedLines = std::make_shared<const std::set<std::pair<int, int>>> (session.GetFiles().GetUnmatchedSourceLines());
     }
 
     //  Over a program that isn't the file's, the documents are open but
@@ -854,8 +854,8 @@ std::vector<std::string> DebuggerViewState::DescribeSymbolSources (const SymbolT
 
 void DebuggerViewState::AddSessionStops (DebugSession & session, DebuggerViewSnapshot & snapshot)
 {
-    std::optional<std::pair<uint32_t, uint32_t>>  video = session.GetVideoBreak();
-    std::optional<uint32_t>                       beam  = session.GetBeamBreak();
+    std::optional<std::pair<uint32_t, uint32_t>>  video = session.GetStops().GetBeamBreaks().GetVideoBreak();
+    std::optional<uint32_t>                       beam  = session.GetStops().GetBeamBreaks().GetBeamBreak();
     BreakpointInfo                                info;
 
 
@@ -863,7 +863,7 @@ void DebuggerViewState::AddSessionStops (DebugSession & session, DebuggerViewSna
     info.id      = -1;
     info.enabled = true;
 
-    if (session.HasUnwrittenBreak())
+    if (session.GetStops().HasUnwrittenBreak())
     {
         info.kind       = BreakpointKind::UnwrittenRead;
         info.isTracking = session.GetTarget().GetUnwrittenStatus().isTracking;

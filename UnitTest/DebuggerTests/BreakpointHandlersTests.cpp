@@ -833,7 +833,7 @@ namespace DebuggerTests
             Assert::IsTrue   (before == List (rig), L"the replayed table lists as the saved one did");
 
             rig.RunFails ("BPSAVE", "invalid arguments");
-            rig.session.SetFileSystem (nullptr);
+            rig.session.GetHostFiles().SetFileSystem (nullptr);
             rig.RunFails ("BPSAVE x.txt", "no file access");
         }
 

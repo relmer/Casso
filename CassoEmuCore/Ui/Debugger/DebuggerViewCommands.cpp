@@ -549,7 +549,7 @@ void DebuggerViewCommands::ImportBreakpoints (
     const BreakpointImport::LineRunner   & run,
     std::vector<std::string>             & lines)
 {
-    IFileSystem  * files   = session.GetFileSystem();
+    IFileSystem  * files   = session.GetHostFiles().GetFileSystem();
     std::string    script;
     std::string    line;
     int            skipped = 0;
@@ -559,13 +559,13 @@ void DebuggerViewCommands::ImportBreakpoints (
 
     CBRF (files != nullptr, lines.push_back ("This session cannot read or write host files."));
 
-    hr = files->ReadAllText (session.ResolvePath (path), script);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (path), script);
     CHRF (hr, lines.push_back (std::format ("{} could not be read.", path)));
 
     skipped = BreakpointImport::Run (session, script, run);
     line    = std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
-                           session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are");
-    lines.push_back (ConsoleLinks::LinkFiles (line, { TextEncoding::WideToNarrow (session.ResolvePath (path)) }));
+                           session.GetHostFiles().GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are");
+    lines.push_back (ConsoleLinks::LinkFiles (line, { TextEncoding::WideToNarrow (session.GetHostFiles().ResolvePath (path)) }));
 
 Error:
     return;
@@ -608,7 +608,7 @@ Reply DebuggerViewCommands::ExecuteWindowLine (DebugSession & session, const std
     if (mode == CommandMode::GSSquared || mode == CommandMode::WinDbg)
     {
         //  debug and nodebug are GSSquared's PANEL, which the window runs.
-        if (mode == CommandMode::GSSquared && !session.IsAssembling())
+        if (mode == CommandMode::GSSquared && !session.GetInterpreter().IsAssembling())
         {
             parsed = GSSquaredParser::Parse (line, session);
             verb   = parsed.commands.size() == 1 ? parsed.commands.front().verb : DebugVerb::None;
@@ -635,7 +635,7 @@ Reply DebuggerViewCommands::ExecuteWindowLine (DebugSession & session, const std
         stream.str (text);
         stream >> name;
 
-        entry = (name.empty() || session.IsAssembling()) ? nullptr : AppleWinCommandTable::Find (name);
+        entry = (name.empty() || session.GetInterpreter().IsAssembling()) ? nullptr : AppleWinCommandTable::Find (name);
 
         if (entry != nullptr && entry->verb == DebugVerb::ListPanels)
         {
@@ -665,7 +665,7 @@ Reply DebuggerViewCommands::ExecuteWindowLine (DebugSession & session, const std
     argument.erase (0, std::min (argument.size(), argument.find_first_not_of (" \t")));
     argument.erase (argument.find_last_not_of (" \t") + 1);
 
-    if (!name.empty() && !session.IsAssembling())
+    if (!name.empty() && !session.GetInterpreter().IsAssembling())
     {
         entry = AppleWinCommandTable::Find (name);
     }

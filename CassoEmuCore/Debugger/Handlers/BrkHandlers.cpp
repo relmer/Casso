@@ -637,7 +637,7 @@ void BrkHandlers::ReportUnwritten (DebugSession & session, Reply & reply)
 
 
 
-    message.lines.push_back (std::string ("Break on read before written: ") + (session.HasUnwrittenBreak() ? "on" : "off"));
+    message.lines.push_back (std::string ("Break on read before written: ") + (session.GetStops().HasUnwrittenBreak() ? "on" : "off"));
 
     if (!status.isOn)
     {

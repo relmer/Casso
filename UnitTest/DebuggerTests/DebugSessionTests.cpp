@@ -624,13 +624,13 @@ namespace DebuggerTests
 
 
 
-            session.SetCurrentDirectory (L"C:\\Work");
+            session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
 
-            Assert::AreEqual (std::wstring (L"C:\\Work\\out.bin"), session.ResolvePath ("out.bin"));
-            Assert::AreEqual (std::wstring (L"C:\\Work\\Test.txt"), session.ResolvePath ("\"Test.txt\""));
-            Assert::AreEqual (std::wstring (L"D:\\x\\y.bin"),       session.ResolvePath ("D:\\x\\y.bin"));
-            Assert::AreEqual (std::wstring (L"\\\\server\\s\\f"),   session.ResolvePath ("\\\\server\\s\\f"));
-            Assert::IsTrue   (session.ResolvePath ("").empty());
+            Assert::AreEqual (std::wstring (L"C:\\Work\\out.bin"), session.GetHostFiles().ResolvePath ("out.bin"));
+            Assert::AreEqual (std::wstring (L"C:\\Work\\Test.txt"), session.GetHostFiles().ResolvePath ("\"Test.txt\""));
+            Assert::AreEqual (std::wstring (L"D:\\x\\y.bin"),       session.GetHostFiles().ResolvePath ("D:\\x\\y.bin"));
+            Assert::AreEqual (std::wstring (L"\\\\server\\s\\f"),   session.GetHostFiles().ResolvePath ("\\\\server\\s\\f"));
+            Assert::IsTrue   (session.GetHostFiles().ResolvePath ("").empty());
         }
 
 
@@ -647,9 +647,9 @@ namespace DebuggerTests
 
 
 
-            session.SetCurrentDirectory (L"C:\\Work");
+            session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
 
-            Assert::AreEqual (std::wstring (L"C:\\Work\\") + name, session.ResolvePath (TextEncoding::WideToNarrow (name)));
+            Assert::AreEqual (std::wstring (L"C:\\Work\\") + name, session.GetHostFiles().ResolvePath (TextEncoding::WideToNarrow (name)));
         }
 
 
@@ -663,9 +663,9 @@ namespace DebuggerTests
 
 
 
-            session.SetCurrentDirectory (L"C:\\Work");
+            session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
 
-            Assert::AreEqual (std::wstring (L"C:\\Work\\caf\u00E9.bin"), session.ResolvePath (name));
+            Assert::AreEqual (std::wstring (L"C:\\Work\\caf\u00E9.bin"), session.GetHostFiles().ResolvePath (name));
         }
 
 
@@ -681,7 +681,7 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (name, session.ResolvePath (TextEncoding::WideToNarrow (name)));
+            Assert::AreEqual (name, session.GetHostFiles().ResolvePath (TextEncoding::WideToNarrow (name)));
         }
 
 
@@ -753,8 +753,8 @@ namespace DebuggerTests
             cpu.InitForTest();
             target.instructionSet = cpu.GetInstructionSet();
 
-            session.BeginAssembly (0x0300);
-            Assert::IsTrue (session.IsAssembling());
+            session.GetInterpreter().BeginAssembly (0x0300);
+            Assert::IsTrue (session.GetInterpreter().IsAssembling());
 
             reply = session.ExecuteLine ("LDA #$41");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
@@ -764,14 +764,14 @@ namespace DebuggerTests
 
             reply = session.ExecuteLine ("FROB");
             Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
-            Assert::IsTrue   (session.IsAssembling());
+            Assert::IsTrue   (session.GetInterpreter().IsAssembling());
 
             reply = session.ExecuteLine ("RTS");
             Assert::AreEqual ((Byte) 0x60, target.memory[0x0302]);
 
             reply = session.ExecuteLine ("");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status);
-            Assert::IsFalse  (session.IsAssembling());
+            Assert::IsFalse  (session.GetInterpreter().IsAssembling());
 
             reply = session.ExecuteLine ("RTS");
             Assert::AreEqual ((int) CommandStatus::Ok, (int) reply.status, L"RTS is a command again");

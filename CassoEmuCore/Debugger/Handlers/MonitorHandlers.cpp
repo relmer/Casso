@@ -427,11 +427,11 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
         return;
     }
 
-    hr = files->ReadAllText (session.ResolvePath (command.text), content);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (command.text), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (command.text)));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
@@ -444,7 +444,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
     }
 
     data.path        = command.text;
-    data.echo        = session.GetPathEcho (command.text, "from", reply);
+    data.echo        = session.GetHostFiles().GetPathEcho (command.text, "from", reply);
     data.address     = (Word) command.a1;
     data.isLoad      = true;
     data.requested   = wanted;
@@ -495,16 +495,16 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
         content.push_back ((char) Peek (session.GetTarget(), (Word) address));
     }
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), content);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
     data.path        = command.text;
-    data.echo        = session.GetPathEcho (command.text, "to", reply);
+    data.echo        = session.GetHostFiles().GetPathEcho (command.text, "to", reply);
     data.address     = (Word) command.a1;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
@@ -552,7 +552,7 @@ void MonitorHandlers::RunAt (DebugSession & session, Word address, Reply & reply
 
 bool MonitorHandlers::TryGetFiles (DebugSession & session, Reply & reply, IFileSystem *& files)
 {
-    files = session.GetFileSystem();
+    files = session.GetHostFiles().GetFileSystem();
 
     if (files == nullptr)
     {

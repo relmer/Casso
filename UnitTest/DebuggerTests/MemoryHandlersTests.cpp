@@ -272,7 +272,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("\xA9\x41\x60", 3), rig.files.PeekContent (L"C:\\Work\\out.bin"));
             rig.RunFails ("BSAVE out.bin", "invalid arguments");
 
-            rig.session.SetFileSystem (nullptr);
+            rig.session.GetHostFiles().SetFileSystem (nullptr);
             rig.RunFails ("BLOAD prog.bin 300", "no file access");
         }
 
@@ -506,7 +506,7 @@ namespace DebuggerTests
             reply = rig.RunOk ("BLOAD prog.bin 300");
             Assert::AreEqual ((size_t) 2, reply.text.size(), L"the debug file, not both");
             Assert::AreEqual (std::string ("Loaded 1 symbols into user and 1 source lines from C:\\Work\\prog.dbg."), reply.text.at (1));
-            Assert::IsTrue   (rig.session.HasDebugFile());
+            Assert::IsTrue   (rig.session.GetFiles().HasDebugFile());
 
             rig.files.WriteAllText (L"C:\\Work\\lone.bin", std::string ("\x60", 1));
             Assert::AreEqual ((size_t) 1, rig.RunOk ("BLOAD lone.bin 300").text.size(), L"nothing beside it, nothing more");

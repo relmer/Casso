@@ -49,6 +49,11 @@ public:
     IWatchSink             * watchSink        = nullptr;
     std::vector<RunRequest>  runs;
     HRESULT                  startRunResult   = S_OK;
+
+    //  Called inside StartRun, as a target that runs to the stop before it
+    //  returns calls the session.
+    std::function<void (const RunRequest &)>  onStartRun;
+
     int                      pauseRequests    = 0;
     std::vector<Byte>        injectedKeys;
     std::vector<Word>        ioReads;
@@ -114,7 +119,7 @@ public:
     bool  TryGetExpansionRomSlot (int & slot) const override { slot = expansionRomSlot; return expansionRomSlot >= 0; }
 
     void     SetRunObserver    (IRunObserver * value) override         { observer = value; }
-    HRESULT  StartRun          (const RunRequest & request) override   { runs.push_back (request); return startRunResult; }
+    HRESULT  StartRun          (const RunRequest & request) override   { runs.push_back (request); if (onStartRun) { onStartRun (request); } return startRunResult; }
     void     RequestPause      () override                             { ++pauseRequests; }
     void     SetHookInstalled  (bool installed) override               { hookInstalled = installed; ++hookChanges; }
     void     SetOpcodeWatch    (const bool * opcodes, IOpcodeWatcher *) override { watchedOpcodes = opcodes; }

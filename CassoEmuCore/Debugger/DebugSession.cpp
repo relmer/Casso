@@ -13,6 +13,7 @@
 #include "Debugger/IDebugNotificationSink.h"
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/MonitorFormatter.h"
+#include "Debugger/MonitorRun.h"
 #include "Debugger/RomSymbols.h"
 #include "Debugger/WinDbgFormatter.h"
 
@@ -592,11 +593,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
 
     m_stops.OnMachineChanged (isKeepingStops);
     m_interpreter.EndAssembly();
-    m_nextStep.reset();
-    m_stepsLeft     = 0;
-    m_stepCycles    = 0;
-    m_isStepPending = false;
-    m_state         = isPaused ? RunState::Paused : RunState::FreeRunning;
+    m_countedSteps.Reset();
+    m_state = isPaused ? RunState::Paused : RunState::FreeRunning;
     m_target.ClearTrace();
     m_target.ClearHeatMap();
 
@@ -678,7 +676,7 @@ void DebugSession::OnUserPaused()
     stop.registers = m_target.GetRegisters();
     stop.pc        = stop.registers.pc;
 
-    TryGetSourceLine (stop.pc, stop.sourceFile, stop.sourceLine);
+    m_files.TryGetSourceLine (stop.pc, stop.sourceFile, stop.sourceLine);
     m_sink.OnStopped (stop);
 }
 
@@ -769,44 +767,14 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
 
 
-    //  One step of a counted step has ended. The next begins here, or, when
-    //  the run that ended was started from ExecuteRun and has not returned
-    //  yet, from there, so a long count does not nest a call per step.
-    if (event.reason == StopReason::Step && m_stepsLeft > 0 && m_nextStep.has_value())
+    if (m_countedSteps.TryContinue (event))
     {
-        --m_stepsLeft;
-        m_stepCycles += event.cycles;
-        m_state       = RunState::Paused;
-        m_heldStop    = event;
-
-        if (m_nextStep->budget.has_value())
-        {
-            m_nextStep->budget = (*m_nextStep->budget > event.cycles) ? *m_nextStep->budget - event.cycles : 1;
-        }
-
-        if (m_isStartingRun)
-        {
-            m_isStepPending = true;
-            return;
-        }
-
-        if (TryStartNextStep())
-        {
-            return;
-        }
-
-        event.cycles = 0;
-        m_stepsLeft  = 0;
+        return;
     }
-
-    event.cycles += m_stepCycles;
-    m_stepCycles  = 0;
-    m_stepsLeft   = 0;
-    m_nextStep.reset();
 
     m_stops.ReportStop (event);
     m_files.CheckProgram();
-    TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
+    m_files.TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
     m_lastStopReason     = event.reason;
     m_lastStopBreakpoint = event.breakpointId;
@@ -825,6 +793,64 @@ void DebugSession::OnStopped (const StopEvent & stop)
     }
 
     m_sink.OnStopped (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::PauseForNextStep
+//
+//  ICountedStepOwner: between the steps of a count, the machine is paused,
+//  so the next step's run starts as a run from a stop does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::PauseForNextStep()
+{
+    m_state = RunState::Paused;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::StartStep
+//
+//  ICountedStepOwner: the count's next step, run as its command would be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::StartStep (const DebugCommand & step)
+{
+    Reply  next;
+
+
+
+    ExecuteRun (step, next);
+    return next.status == CommandStatus::Ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::DeliverStop
+//
+//  ICountedStepOwner: the stop that ends a count whose next step didn't
+//  start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::DeliverStop (const StopEvent & stop)
+{
+    OnStopped (stop);
 }
 
 
@@ -1258,60 +1284,128 @@ void DebugSession::ExecuteStepFilter (const DebugCommand & command, Reply & repl
 
 void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
 {
-    static constexpr Word  kStackPage = 0x0100;
-    RunRequest             request;
-    Cpu6502Registers       registers  = {};
-    Cpu6502Registers       before     = m_target.GetRegisters();
-    Byte                   stackHigh  = 0;
-    Byte                   stackLow   = 0;
-    bool                   isPushed   = false;
-    HRESULT                hr         = S_OK;
-    bool                   isStep     = false;
-    bool                   isOuter    = false;
+    RunRequest          request;
+    MonitorRun::Pushed  monitorReturn;
+    HRESULT             hr     = S_OK;
+    bool                isStep = false;
 
 
 
+    if (!TryPrepareRun (command, request, isStep, reply))
+    {
+        return;
+    }
+
+    SetRunStart (command, request, isStep, monitorReturn);
+
+    if (command.mode == CommandMode::Monitor && request.kind == RunKind::StepInto)
+    {
+        reply.data = MonitorRun::GetStepLine (m_target);
+    }
+
+    FillRunRequest (command, isStep, request, reply);
+
+    m_stops.OnRunStarting();
+
+    m_state = isStep ? RunState::Stepping : RunState::DebugRun;
+    UpdateHookInstalled();
+
+    hr = m_countedSteps.Begin (m_target, request);
+
+    if (FAILED (hr))
+    {
+        MonitorRun::Undo (m_target, m_stops, monitorReturn);
+
+        m_state = RunState::Paused;
+        UpdateHookInstalled();
+        SetError (reply, CommandStatus::Error, "run failed", "The machine could not start the run.");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TryPrepareRun
+//
+//  The run's kind from the command, and the errors that stop it before it
+//  starts: a run while one is in progress, and a run from an address while
+//  the machine runs, since setting the program counter, like any register
+//  change, waits for the machine to stop. G with a stop address runs to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryPrepareRun (
+    const DebugCommand  & command,
+    RunRequest          & request,
+    bool                & outIsStep,
+    Reply               & reply)
+{
     if (m_state == RunState::DebugRun || m_state == RunState::Stepping)
     {
         //  PAUSE as the line's mode types it: /PAUSE in Monitor mode, !PAUSE in
         //  WinDbg mode.
         SetError (reply, CommandStatus::Error, "already running",
                   std::format ("A run is in progress. Use {} to stop it.", CommandModeHelp::GetTypedName (command.mode, "PAUSE")));
-        return;
+        return false;
     }
 
     TryGetRunKind (command.verb, request.kind);
 
-    // G with a stop address runs to it; addrG sets the program counter
-    // first; a skip range ends the run when PC leaves it.
     if (request.kind == RunKind::Go && command.hasA1)
     {
         request.kind = RunKind::RunTo;
     }
 
-    isStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
+    outIsStep = request.kind != RunKind::Go && request.kind != RunKind::RunTo;
 
-    //  A run from an address sets the PC first, which, like any register
-    //  change, waits for the machine to stop.
     if (m_state != RunState::Paused &&
-        ((request.kind == RunKind::Go && command.hasA3 && !command.hasA2) || (isStep && command.hasA1)))
+        ((request.kind == RunKind::Go && command.hasA3 && !command.hasA2) || (outIsStep && command.hasA1)))
     {
         SetError (reply, CommandStatus::Error, "machine running",
                   std::format ("{} from an address sets the program counter. Pause the machine first.", command.sourceName));
-        return;
+        return false;
     }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SetRunStart
+//
+//  addrG sets the program counter first. A Monitor `G` leaves the Monitor's
+//  return address on the stack before it, so a program ending in RTS comes
+//  back rather than running on into whatever follows it; outReturn has what
+//  the push replaced, for MonitorRun::Undo. The Monitor's `300S` and `300T`
+//  step and trace FROM an address, where AppleWin's T and P take a count and
+//  never an address. Keying on the address being present is what lets one
+//  run path serve both.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetRunStart (
+    const DebugCommand  & command,
+    const RunRequest    & request,
+    bool                  isStep,
+    MonitorRun::Pushed  & outReturn)
+{
+    Cpu6502Registers  registers = {};
+
+
 
     if (request.kind == RunKind::Go && command.hasA3 && !command.hasA2)
     {
-        //  A Monitor `G` leaves the Monitor's own return address on the
-        //  stack first, so a program ending in RTS comes back rather than
-        //  running on into whatever follows it.
         if (command.mode == CommandMode::Monitor)
         {
-            m_target.TryPeek ((Word) (kStackPage + before.sp), stackHigh);
-            m_target.TryPeek ((Word) (kStackPage + (Byte) (before.sp - 1)), stackLow);
-            PushMonitorReturn();
-            isPushed = true;
+            outReturn = MonitorRun::Push (m_target, m_stops);
+            RefreshHookFilter();
         }
 
         registers    = m_target.GetRegisters();
@@ -1319,47 +1413,42 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         m_target.SetRegisters (registers);
     }
 
-    //  The Monitor's `300S` and `300T` step and trace FROM an address, where
-    //  AppleWin's T and P take a count and never an address. Keying on the
-    //  address being present is what lets one run path serve both.
     if (isStep && command.hasA1)
     {
         registers    = m_target.GetRegisters();
         registers.pc = command.a1;
         m_target.SetRegisters (registers);
     }
-
-    //  The original ]['s step display is the instruction the step runs,
-    //  carried here, and then the registers, which the stop prints.
-    if (command.mode == CommandMode::Monitor && request.kind == RunKind::StepInto)
-    {
-        Disassembler     disassembler (m_target.GetInstructionSet());
-        DisassemblyData  data;
-        DisassemblyLine  shown;
-        Byte             bytes[Disassembler::kMaxInstructionBytes] = {};
-        Word             pc                                        = m_target.GetRegisters().pc;
+}
 
 
 
-        for (size_t i = 0; i < std::size (bytes); ++i)
-        {
-            m_target.TryPeek ((Word) (pc + i), bytes[i]);
-        }
 
-        hr = disassembler.DisassembleOne (pc, bytes, shown.instruction);
-        IGNORE_RETURN_VALUE (hr, S_OK);
 
-        data.lines.push_back (shown);
-        reply.data = data;
-    }
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::FillRunRequest
+//
+//  The run's stop address, skip range, count, budget, line table and step
+//  filter. The Monitor's T traces until a stop or the budget: no count is no
+//  end. A step out looks up its frame, and adds a notice when there is no
+//  frame to step out to.
+//  A count of steps CountedStepRunner runs one at a time goes to it.
+//
+////////////////////////////////////////////////////////////////////////////////
 
+void DebugSession::FillRunRequest (
+    const DebugCommand  & command,
+    bool                  isStep,
+    RunRequest          & request,
+    Reply               & reply)
+{
     request.fullSpeed  = command.verb == DebugVerb::GoFullSpeed;
     request.hasUntilPc = command.hasA1 && request.kind == RunKind::RunTo;
     request.untilPc    = command.a1;
     request.hasSkip    = command.hasA2 && command.hasA3 && !isStep;
     request.skipFirst  = command.a2;
     request.skipLast   = command.a3;
-    //  The Monitor's T traces until a stop or the budget: no count is no end.
     request.count      = (command.count != 0) ? command.count : (request.kind == RunKind::Trace) ? UINT32_MAX : 1;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
     request.lineTable  = isStep ? m_files.GetSteppingLineTable() : nullptr;
@@ -1378,122 +1467,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
         }
     }
 
-    //  The run stop hook counts instructions, which is what T n asks for. A
-    //  step over, a step out or a source step is not a count of instructions,
-    //  so it runs as single steps, each begun as the last one ends. The last
-    //  stop, or any stop that is not a step's end, clears them.
-    if (request.count > 1 && (request.kind == RunKind::StepOver || request.kind == RunKind::StepOut || request.lineTable != nullptr))
-    {
-        m_nextStep        = command;
-        m_nextStep->count = 1;
-        m_stepsLeft       = request.count - 1;
-        request.count     = 1;
-    }
-
-    m_stops.OnRunStarting();
-
-    m_state = isStep ? RunState::Stepping : RunState::DebugRun;
-    UpdateHookInstalled();
-
-    isOuter         = !m_isStartingRun;
-    m_isStartingRun = true;
-
-    hr = m_target.StartRun (request);
-
-    //  A driver that runs to the stop before returning leaves each further
-    //  step of a counted step pending here, and they run in turn.
-    while (isOuter && SUCCEEDED (hr) && m_isStepPending)
-    {
-        m_isStepPending = false;
-
-        if (!TryStartNextStep())
-        {
-            StopEvent  held = m_heldStop;
-
-            held.cycles     = 0;
-            m_stepsLeft     = 0;
-            m_isStartingRun = false;
-            OnStopped (held);
-        }
-    }
-
-    if (isOuter)
-    {
-        m_isStartingRun = false;
-    }
-
-    //  A run that never started leaves no trace of the Monitor's return
-    //  address: not on the stack, not in the registers, and not as a stop.
-    if (FAILED (hr) && isPushed)
-    {
-        m_target.TryPoke ((Word) (kStackPage + before.sp), stackHigh);
-        m_target.TryPoke ((Word) (kStackPage + (Byte) (before.sp - 1)), stackLow);
-        m_target.SetRegisters (before);
-        m_stops.DisarmMonitorReturn();
-    }
-
-    if (FAILED (hr))
-    {
-        m_state = RunState::Paused;
-        UpdateHookInstalled();
-        SetError (reply, CommandStatus::Error, "run failed", "The machine could not start the run.");
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::TryStartNextStep
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebugSession::TryStartNextStep()
-{
-    Reply  next;
-
-
-
-    ExecuteRun (DebugCommand (*m_nextStep), next);
-    return next.status == CommandStatus::Ok;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebugSession::PushMonitorReturn
-//
-//  The address an RTS returns to, pushed as the 6502 pushes one: high byte
-//  first, and one less than the address itself, because RTS adds one.
-//
-//  REGISTERS ARE NOT RELOADED FROM $45-$49 the way the ROM's G does. The CPU
-//  is the single truth here, so a register set in AppleWin mode survives a
-//  Monitor G rather than being overwritten by five bytes of zero page.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebugSession::PushMonitorReturn()
-{
-    static constexpr Word  kStackPage = 0x0100;
-    Cpu6502Registers       registers  = m_target.GetRegisters();
-    Word                   pushed     = (Word) (kMonitorReentry - 1);
-
-
-
-    m_target.TryPoke ((Word) (kStackPage + registers.sp), (Byte) (pushed >> 8));
-    registers.sp = (Byte) (registers.sp - 1);
-
-    m_target.TryPoke ((Word) (kStackPage + registers.sp), (Byte) (pushed & 0xFF));
-    registers.sp = (Byte) (registers.sp - 1);
-
-    m_target.SetRegisters (registers);
-    m_stops.ArmMonitorReturn (kMonitorReentry);
-    RefreshHookFilter();
+    m_countedSteps.Arm (command, request);
 }
 
 

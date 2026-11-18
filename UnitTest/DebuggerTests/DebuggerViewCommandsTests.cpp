@@ -554,11 +554,11 @@ namespace DebuggerViewStateTests
 
             rig.view.GetCodeViews().SetCodeLines (20, 0);
             rig.Run ("A 300");
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling());
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling());
 
             snapshot = rig.view.Build (rig.controller.GetSession(), true);
 
-            Assert::IsTrue   (rig.controller.GetSession().IsAssembling(), L"still assembling");
+            Assert::IsTrue   (rig.controller.GetSession().GetInterpreter().IsAssembling(), L"still assembling");
             Assert::AreEqual ((Word) 0x0300, snapshot.pc);
             Assert::IsFalse  (snapshot.registers.empty());
             Assert::IsFalse  (snapshot.memory.empty());
