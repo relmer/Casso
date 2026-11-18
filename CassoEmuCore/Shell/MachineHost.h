@@ -22,7 +22,10 @@
 #include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 #include "Shell/HostInputGate.h"
+#include "Shell/MachineConnectors.h"
 #include "Shell/MachineRefs.h"
+#include "Shell/MachineRomIdentity.h"
+#include "Shell/MachineStateStream.h"
 #include "Ui/UiCommandTypes.h"
 #include "Video/VideoOutput.h"
 
@@ -136,7 +139,7 @@ struct SoftSwitchMirror
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MachineHost : public IDiagnosticsProvider
+class MachineHost : public IDiagnosticsProvider, private IMachineStateParts
 {
 public:
     MachineHost  ();
@@ -205,47 +208,21 @@ public:
     const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
-    //  The serial ports, by number: a //c's built-in ports 1 and 2, or a
-    //  Super Serial Card's slot. A stream attached to one replaces the port's
-    //  endpoint with a bridge that runs at the line's speed, ticked after
-    //  every instruction.
-    //
-    //  ConnectSerialPort plugs a port's device in while the machine runs, as
-    //  a cable is: the old device's stream is closed first, so a TCP port can
-    //  be opened again at once. A //c's port loops back when the new device
-    //  is empty or cannot be opened; a card's connector is then empty. A
-    //  card's connector also takes a loopback plug and the two file
-    //  attachments, whose file is `path`.
-    //  The ImageWriter II is attached to one connector at a time, so it
-    //  fails with ERROR_BUSY on a port while another connector has it.
-    //  Called on the CPU thread.
-    void     SetSerialPort      (int port, Acia6551 * acia, bool onCard = false);
-    HRESULT  ConnectSerialPort  (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log,
-                                 const std::string & path = std::string());
-
-    //  The text a card reports for a connector ConnectSerialPort could not
-    //  attach `device` to.
-    static std::string  DescribeAttachmentFailure (const std::string & device, const std::string & path);
-
-    //  The serial port whose connector listens on `tcpPort`, 0 for none, and
-    //  whether a port is a Super Serial Card's. Called on the CPU thread.
-    int   GetSerialPortOnTcp (uint16_t tcpPort) const;
-    bool  IsSerialPortOnCard (int port) const;
-
-    //  The parallel card in each slot, and the ImageWriter II attached to the
-    //  card in `slot` or taken off it while the machine runs. Attaching fails
-    //  with ERROR_BUSY while another connector has the printer. Called on the
-    //  CPU thread.
-    void     SetParallelCard        (int slot, class PrinterCard * card);
-    HRESULT  ConnectParallelPrinter (int slot, bool attached);
-    HRESULT  AttachSerialStream     (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
+    //  The serial and parallel connectors; see MachineConnectors.
+    void     SetSerialPort          (int port, Acia6551 * acia, bool onCard = false)          { m_connectors.SetSerialPort (port, acia, onCard); }
+    HRESULT  ConnectSerialPort      (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log,
+                                     const std::string & path = std::string())              { return m_connectors.ConnectSerialPort (port, device, factory, log, path); }
+    int      GetSerialPortOnTcp     (uint16_t tcpPort) const                                  { return m_connectors.GetSerialPortOnTcp (tcpPort); }
+    bool     IsSerialPortOnCard     (int port) const                                          { return m_connectors.IsSerialPortOnCard (port); }
+    void     SetParallelCard        (int slot, class PrinterCard * card)                      { m_connectors.SetParallelCard (slot, card); }
+    HRESULT  ConnectParallelPrinter (int slot, bool attached)                                 { return m_connectors.ConnectParallelPrinter (slot, attached); }
+    HRESULT  AttachSerialStream     (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr)
+                                                                                              { return m_connectors.AttachSerialStream (port, std::move (stream), outBridge); }
     void     DetachSerialPorts      ();
+    void     SetRunningRegistry     (class RunningCassoRegistry * registry)                   { m_connectors.SetRunningRegistry (registry); }
+    void     WithdrawSerialPorts    ()                                                        { m_connectors.WithdrawSerialPorts(); }
 
-    //  Where a file for each port connected to TCP is written for Casso Explorer:
-    //  written when the port connects, deleted when it is connected
-    //  elsewhere or detached. With null, no file is written.
-    void  SetRunningRegistry  (class RunningCassoRegistry * registry) { m_runningRegistry = registry; }
-    void  WithdrawSerialPorts ();
+    static std::string  DescribeAttachmentFailure (const std::string & device, const std::string & path) { return MachineConnectors::DescribeAttachmentFailure (device, path); }
 
     CharacterRomData  &  GetCharacterRom () noexcept { return *m_charRom; }
     DiskImageStore    &  GetDiskStore    () noexcept { return *m_diskStore; }
@@ -423,46 +400,46 @@ public:
     //  machine must already be built with the same devices and the same disks
     //  mounted; a failed load leaves it unusable. Call both on the thread
     //  that runs the machine.
-    HRESULT   SaveState      (StateWriter & writer) const;
-    HRESULT   LoadState      (StateReader & reader);
+    HRESULT   SaveState      (StateWriter & writer) const { return m_stateStream.SaveState (writer); }
+    HRESULT   LoadState      (StateReader & reader)       { return m_stateStream.LoadState (reader); }
 
     //  The same load for a state read back from a file, in a session that
     //  never held the saved disks: the caller has mounted them, and each bay
     //  that held a disk at the save must hold one now, and each empty bay
     //  must be empty.
-    HRESULT   LoadStateOverMountedMedia (StateReader & reader);
+    HRESULT   LoadStateOverMountedMedia (StateReader & reader) { return m_stateStream.LoadStateOverMountedMedia (reader); }
 
     //  The disk each drive bay holds, slot-major, as a snapshot records it,
     //  zero for an empty bay.
-    using MediaIds = std::array<uint64_t, DiskImageStore::kSlotCount * DiskImageStore::kDriveCount>;
+    using MediaIds = MachineStateStream::MediaIds;
 
     //  The media a saved state's bays held, from its header alone, so a
     //  second machine can check whether the disks it mounted are the ones the
     //  state was saved with before it loads it over them.
-    static HRESULT  ReadSavedMedia (const std::vector<Byte> & state, MediaIds & outIds);
+    static HRESULT  ReadSavedMedia (const std::vector<Byte> & state, MediaIds & outIds) { return MachineStateStream::ReadSavedMedia (state, outIds); }
 
     //  Enough of a state to draw its screen, into a machine built from the
     //  same configuration that holds no disks: the disks the state holds, and
     //  any part this machine has no counterpart for, are passed over. The
     //  machine and ROM set must still match. The machine is for drawing only
     //  afterwards; running it is undefined.
-    HRESULT   LoadStateForPicture       (StateReader & reader);
+    HRESULT   LoadStateForPicture       (StateReader & reader) { return m_stateStream.LoadStateForPicture (reader); }
 
     //  Debug builds only: asserts that every run a sharing save kept by
     //  reference still holds the bytes of the buffer it stands for, which
     //  catches a RAM write no page marking saw and a track change no
     //  generation saw. Call it right after the save.
-    void      CheckSharedSave (const StateWriter & writer) const;
+    void      CheckSharedSave (const StateWriter & writer) const { MachineStateStream::CheckSharedSave (writer); }
 
     //  A hash of every ROM image the machine was built with. It is kept until a
     //  ROM image is patched or replaced, and GetRomIdentityHashCount says how
     //  many times it was worked out.
-    uint64_t  GetRomIdentity          () const;
-    uint64_t  GetRomIdentityHashCount () const noexcept { return m_romIdentityHashes; }
+    uint64_t  GetRomIdentity          () const override;
+    uint64_t  GetRomIdentityHashCount () const noexcept { return m_romIdentity.GetHashCount(); }
 
-    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('M', 'A', 'C', 'H');
-    static constexpr uint16_t  kStateVersion       = 3;
-    static constexpr uint16_t  kOldestStateVersion = 3;   // a state before version 3 has no hardware identity, so it isn't known to match
+    static constexpr uint32_t  kStateTag           = MachineStateStream::kStateTag;
+    static constexpr uint16_t  kStateVersion       = MachineStateStream::kStateVersion;
+    static constexpr uint16_t  kOldestStateVersion = MachineStateStream::kOldestStateVersion;
     //  Points the slot 6 controller's drive at the image the disk store has
     //  in that bay, or at the controller's own empty disk when the bay is
     //  empty. The store's default bay-change sink; a shell that installs its
@@ -543,35 +520,17 @@ private:
     //  The cards with separate processors catch up every 16,384 cycles.
     static constexpr int  kCatchUpShift       = 14;
 
-    void                          GetStateParts       (std::vector<IMachineState *> & outParts);
-    void                          GetHostInputParts   (std::vector<IMachineState *> & outParts);
-    void                          WriteStateHeader    (StateWriter & writer, size_t partCount) const;
-    HRESULT                       LoadStateSeating    (StateReader & reader, bool isOverMounted);
-    HRESULT                       CheckStateHeader    (StateReader & reader, bool isOverMounted, uint32_t & outParts);
-    HRESULT                       ReadPictureHeader   (StateReader & reader, uint32_t & outParts) const;
-    static HRESULT                GetPartTag          (const IMachineState & part, uint32_t & outTag);
-    bool                          CanSeatMedia        (const MediaIds & mediaIds) const;
-    bool                          AreBaysAsSaved      (const MediaIds & mediaIds) const;
-    HRESULT                       SeatMedia           (const MediaIds & mediaIds);
-    void                          BindDiskDrives      ();
-    void                          OnMediaChanged      ();
+    //  IMachineStateParts: what the state stream reads from the machine.
+    void                          GetStateParts       (std::vector<IMachineState *> & outParts) override;
+    Prng                        * GetStatePrng        () const override { return m_prng.get(); }
+    void                          BindDiskDrives      () override;
 
-    static uint64_t  HashBytes (uint64_t hash, const Byte * data, size_t size);
-    static uint64_t  HashBytes (uint64_t hash, const std::vector<Byte> & bytes);
+    void                          GetHostInputParts   (std::vector<IMachineState *> & outParts);
+    void                          OnMediaChanged      ();
 
     //  Power-on bytes the fill must not decide: the power-up byte and the
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();
-
-    //  Puts `endpoint` on the port in place of whatever was there, closing
-    //  the old bridge's stream. `bridge` is the endpoint when it is one.
-    void  InstallSerialEndpoint (int port, std::unique_ptr<IAciaEndpoint> endpoint, AciaBridgeEndpoint * bridge);
-
-    //  The two kinds of device ConnectSerialPort opens: the ImageWriter II,
-    //  and a stream to a TCP or COM port.
-    HRESULT  AttachSerialPrinter (int port);
-    HRESULT  AttachCardEndpoint  (int port, const std::string & device, const std::string & path);
-    HRESULT  OpenSerialStream    (int port, const struct SerialPortDevice & device, class IByteStreamFactory * factory, class SerialTrafficLog * log);
 
     // 4K of page tables; on the heap, see m_diskStore.
     std::unique_ptr<MemoryBus>  m_memoryBus;
@@ -595,33 +554,15 @@ private:
 
     const std::atomic<bool>  * m_stopFlag = nullptr;
 
-    mutable uint64_t  m_romIdentity           = 0;
-    mutable uint64_t  m_romIdentityGeneration = 0;
-    mutable uint64_t  m_romIdentityHashes     = 0;      // times GetRomIdentity hashed the ROMs
+    MachineRomIdentity  m_romIdentity;
 
-    // The part list a save or load fills; kept so it keeps its capacity.
-    mutable std::vector<IMachineState *>  m_stateParts;
+    // The part list SaveHostInputState and LoadHostInputState fill, a member
+    // so that its capacity is reused.
+    mutable std::vector<IMachineState *>  m_hostInputParts;
 
     std::vector<std::unique_ptr<MemoryDevice>>   m_ownedDevices;
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;
     std::vector<std::unique_ptr<VideoOutput>>    m_videoModes;
-
-    static constexpr int                 s_kSerialPortCount = 7;
-    std::array<Acia6551 *, s_kSerialPortCount + 1>                        m_serialPorts     = {};
-    std::array<std::unique_ptr<IAciaEndpoint>, s_kSerialPortCount + 1>   m_serialEndpoints;
-    std::array<AciaBridgeEndpoint *, s_kSerialPortCount + 1>              m_serialBridges   = {};
-    std::array<bool, s_kSerialPortCount + 1>                              m_serialOnCard    = {};
-    std::array<uint16_t, s_kSerialPortCount + 1>                          m_serialTcpPorts  = {};   // each connector's TCP port, 0 for none
-
-    //  The serial port the ImageWriter II is attached to, or 0, and its
-    //  endpoint, ticked with the bridges.
-    int                                  m_printerPort     = 0;
-    AciaPrinterEndpoint                * m_printerEndpoint = nullptr;
-
-    //  The parallel cards by slot, and the slot whose card has the printer,
-    //  or 0.
-    std::array<class PrinterCard *, s_kSerialPortCount + 1>               m_parallelCards   = {};
-    int                                  m_printerSlot     = 0;
 
     // 4K of glyphs; on the heap, see m_diskStore.
     std::unique_ptr<CharacterRomData>  m_charRom;
@@ -674,5 +615,8 @@ private:
     HostInputGate     m_hostInputGate;
     ICommEventSink  * m_commSink      = nullptr;   // the debugger's serial and network logs, attached again after a machine switch
 
-    class RunningCassoRegistry  * m_runningRegistry = nullptr;
+    //  After m_refs, m_printerRing and m_config, which it refers to, and
+    //  after m_diskStore and m_currentMachineName.
+    MachineConnectors   m_connectors;
+    MachineStateStream  m_stateStream;
 };

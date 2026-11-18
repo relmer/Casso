@@ -1514,8 +1514,11 @@
     <ClCompile Include="Shell\MachineBuilder.cpp" />
     <ClCompile Include="Shell\MachineHost.cpp" />
     <ClCompile Include="Shell\MachineStateFile.cpp" />
+    <ClCompile Include="Shell\MachineConnectors.cpp" />
     <ClCompile Include="Shell\MachineHardwareIdentity.cpp" />
     <ClCompile Include="Shell\MachineReplayMedia.cpp" />
+    <ClCompile Include="Shell\MachineRomIdentity.cpp" />
+    <ClCompile Include="Shell\MachineStateStream.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
@@ -2844,8 +2847,11 @@
     <ClInclude Include="Shell\MachineBuilder.h" />
     <ClInclude Include="Shell\MachineHost.h" />
     <ClInclude Include="Shell\MachineStateFile.h" />
+    <ClInclude Include="Shell\MachineConnectors.h" />
     <ClInclude Include="Shell\MachineHardwareIdentity.h" />
     <ClInclude Include="Shell\MachineReplayMedia.h" />
+    <ClInclude Include="Shell\MachineRomIdentity.h" />
+    <ClInclude Include="Shell\MachineStateStream.h" />
     <ClInclude Include="Shell\MachineRefs.h" />
     <ClInclude Include="Shell\MachineManager.h" />
     <ClInclude Include="Shell\ModernPrintDialog.h" />
