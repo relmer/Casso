@@ -134,8 +134,10 @@ comparisons.
 
 **Decision**: `Apple3` implements `IMachine` directly, as a new root beside
 the Apple ][ chain, in `CassoEmuCore/Machines/Apple3/`. `Apple3Plus` derives
-from `Apple3` and replaces the keyboard layout, the memory options and the
-interlace capability. Both are added to `MachineDefinitions` with resource
+from `Apple3` and replaces the memory options and the interlace capability.
+The Plus keyboard has the Apple ///'s keys and codes (Apple /// Plus Owner's
+Guide, chapter 2 and appendix D), so the Plus uses the Apple ///'s layout.
+The Plus has 256K (Apple /// Plus Data Sheet). Both are added to `MachineDefinitions` with resource
 directories `Resources/Machines/Apple3` and `Resources/Machines/Apple3Plus`.
 
 **Rationale**: `IMachine.h` already cites a second family as the reason

@@ -16,3 +16,4 @@ IDR_MACHINE_APPLE2C          RCDATA "..\\..\\Resources\\Machines\\Apple2c\\Apple
 IDR_MACHINE_APPLE2C_PLUS     RCDATA "..\\..\\Resources\\Machines\\Apple2cPlus\\Apple2cPlus.json"
 IDR_MACHINE_APPLE2E_ENHANCED RCDATA "..\\..\\Resources\\Machines\\Apple2eEnhanced\\Apple2eEnhanced.json"
 IDR_MACHINE_APPLE3           RCDATA "..\\..\\Resources\\Machines\\Apple3\\Apple3.json"
+IDR_MACHINE_APPLE3_PLUS      RCDATA "..\\..\\Resources\\Machines\\Apple3Plus\\Apple3Plus.json"

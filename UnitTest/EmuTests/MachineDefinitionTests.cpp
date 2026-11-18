@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "EmbeddedMachineConfigs.h"
 #include "Machines/MachineDefinitions.h"
 #include "Machines/Apple2/Apple2/Apple2.h"
 #include "Machines/Apple2/Apple2Plus/Apple2Plus.h"
@@ -40,8 +41,8 @@ public:
     {
         std::vector<std::string>  ids = MachineDefinitions::GetKnownIds();
 
-        Assert::AreEqual (size_t (7), ids.size(),
-                          L"seven machines ship, so seven definitions exist");
+        Assert::AreEqual (std::size (s_kEmbeddedConfigs), ids.size(),
+                          L"each shipped machine file has a definition");
 
         for (const std::string & id : ids)
         {

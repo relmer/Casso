@@ -11,7 +11,7 @@ Types and state the feature adds. Addresses and bits are in
 |---|---|---|
 | Id | `Apple3` | `Apple3Plus` |
 | CPU | 6502 | 6502 |
-| Keyboard layout | `Apple3` | `Apple3Plus` |
+| Keyboard layout | `Apple3` | `Apple3` (the same keys and codes) |
 | Memory options | 128K, 256K | 256K |
 | Slot count | 4 | 4 |
 | Built-in drive | yes, plus 0 to 3 external | the same |

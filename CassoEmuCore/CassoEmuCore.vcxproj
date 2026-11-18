@@ -3194,6 +3194,7 @@
     <ClInclude Include="Machines\Apple3\Apple3DiskController.h" />
     <ClInclude Include="Machines\Apple3\Apple3Video.h" />
     <ClInclude Include="Machines\Apple3\Apple3.h" />
+    <ClInclude Include="Machines\Apple3\Apple3Plus.h" />
     <ClInclude Include="Machines\Apple3\Apple3Palette.h" />
     <ClInclude Include="Machines\Apple3\Apple3VideoOutput.h" />
     <ClInclude Include="Machines\Apple3\Apple3System.h" />

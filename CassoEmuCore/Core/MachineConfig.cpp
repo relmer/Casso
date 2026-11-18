@@ -1662,7 +1662,7 @@ HRESULT MachineConfigLoader::LoadBankedMachine (
         isKnown  = isKnown || option == memory;
     }
 
-    CBRF (isKnown, outError = format ("Invalid memory: '{}' (the options are {})", memory, options));
+    CBRF (isKnown, outError = format ("Invalid memory: '{}' ({} {})", memory, definition.memoryOptions.size() == 1 ? "the option is" : "the options are", options));
 
     std::from_chars (memory.data(), memory.data() + memory.size(), memoryK);
     outConfig.memoryK = memoryK;

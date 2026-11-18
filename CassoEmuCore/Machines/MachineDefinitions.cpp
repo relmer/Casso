@@ -10,6 +10,7 @@
 #include "Machines/MachineDefinition.h"
 #include "Machines/Apple2/Apple2cPlus/Apple2cPlus.h"
 #include "Machines/Apple3/Apple3.h"
+#include "Machines/Apple3/Apple3Plus.h"
 
 
 //
@@ -26,6 +27,7 @@ static const Apple2c          s_kApple2c;
 static const Apple2eEnhanced  s_kApple2eEnhanced;
 static const Apple2cPlus      s_kApple2cPlus;
 static const Apple3           s_kApple3;
+static const Apple3Plus       s_kApple3Plus;
 
 static const IMachine * const  s_kpAllMachines[] =
 {
@@ -35,7 +37,8 @@ static const IMachine * const  s_kpAllMachines[] =
     &s_kApple2c,
     &s_kApple2eEnhanced,
     &s_kApple2cPlus,
-    &s_kApple3
+    &s_kApple3,
+    &s_kApple3Plus
 };
 
 

@@ -1,0 +1,37 @@
+// DO NOT EDIT. This file is a Casso embedded default and will be
+// overwritten on launch when an out-of-date stamp is detected.
+// To customize, copy it to Machines/<Name>/<Name>.json (any name
+// other than the embedded defaults) and edit that copy.
+{
+    "$cassoMachineVersion": 1,
+
+    "monitor": "AppleMonitorIII",
+
+    "name": "Apple /// Plus",
+    "releaseYear": 1983,
+
+    // Ticks of the 2 MHz clock: 130 per line, one of them stretched by two
+    // master clock periods, so a line is 912 periods of 14.31818 MHz.
+    "timing": {
+        "videoStandard": "ntsc",
+        "clockSpeed": 2040968,
+        "cyclesPerScanline": 130
+    },
+    "systemRom": {
+        "address": "0xF000",
+        "file": "Apple3.rom"
+    },
+
+    // The Plus has 256K.
+    "memory": "256K",
+
+    // External Disk /// drives on the drive port, 0 to 3.
+    "externalDrives": 1,
+
+    // Slots 1 to 4 are empty. A card is listed as { "slot": n, "device": "..." }.
+    "ports": [
+        { "name": "serial",    "device": "" },
+        { "name": "joystickA", "device": "" },
+        { "name": "joystickB", "device": "" }
+    ]
+}
