@@ -293,6 +293,8 @@
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyGutter.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CodeViewFind.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyViews.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\DisassemblySourceText.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\DisassemblySymbols.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyViewPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\DisassemblyBranchArrows.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\FindWidgets.cpp" />
@@ -1965,6 +1967,8 @@
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyGutter.h" />
     <ClInclude Include="Ui\Debugger\Panes\CodeViewFind.h" />
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyViews.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DisassemblySourceText.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DisassemblySymbols.h" />
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyViewPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\DisassemblyBranchArrows.h" />
     <ClInclude Include="Ui\Debugger\Panes\FindWidgets.h" />

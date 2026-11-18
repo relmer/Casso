@@ -126,9 +126,9 @@ namespace DisassemblyViewingTests
 
 
 
-            Assert::IsTrue   (DisassemblyGroup::TryGetIoRegisterTip (registers, 0xC0A9, text));
+            Assert::IsTrue   (DisassemblySymbols::TryGetIoRegisterTip (registers, 0xC0A9, text));
             Assert::AreEqual (std::wstring (L"$C0A9\nSuper Serial Card, slot 2: 6551 status register"), text);
-            Assert::IsFalse  (DisassemblyGroup::TryGetIoRegisterTip (registers, 0xC0A8, text));
+            Assert::IsFalse  (DisassemblySymbols::TryGetIoRegisterTip (registers, 0xC0A8, text));
         }
 
 

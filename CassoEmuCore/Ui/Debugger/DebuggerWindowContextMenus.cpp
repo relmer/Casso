@@ -429,7 +429,7 @@ bool DebuggerWindow::TryGetDefinitionAt (POINT clientPx, Word & address) const
         return false;
     }
 
-    if (!m_code->TryGetSymbolAt (clientPx, name, address))
+    if (!m_code->GetSymbols().TryGetSymbolAt (clientPx, name, address))
     {
         for (int slot = 0; slot < SourceDocuments::kMaxDocuments && found == nullptr; slot++)
         {
