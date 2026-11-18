@@ -670,16 +670,16 @@ void UniDisk35Drive::MapPages()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UniDisk35Drive::SaveState (StateWriter & writer) const
+HRESULT UniDisk35Drive::SaveState (StateWriter & writer, uint64_t hostNowNs) const
 {
     HRESULT  hr = S_OK;
 
 
 
-    hr = m_cpu.SaveState (writer);
+    hr = m_cpu.SaveState (writer, hostNowNs / kNsPerCycle);
     CHR (hr);
 
-    m_iwm.SaveState (writer);
+    m_iwm.SaveState (writer, GetNowNs());
 
     hr = m_mechanism.SaveState (writer);
     CHR (hr);
@@ -699,7 +699,7 @@ HRESULT UniDisk35Drive::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_latch1);
     writer.WriteBool   (m_latch2);
     writer.WriteBool   (m_resetHeld);
-    writer.WriteUInt64 (m_idleAt);
+    writer.WriteUInt64 (m_cpu.GetCycles() - m_idleAt);
 
 Error:
     return hr;
@@ -715,16 +715,17 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UniDisk35Drive::LoadState (StateReader & reader)
+HRESULT UniDisk35Drive::LoadState (StateReader & reader, uint64_t hostNowNs)
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr        = S_OK;
+    uint64_t  idleAtAgo = 0;
 
 
 
-    hr = m_cpu.LoadState (reader);
+    hr = m_cpu.LoadState (reader, hostNowNs / kNsPerCycle);
     CHR (hr);
 
-    hr = m_iwm.LoadState (reader);
+    hr = m_iwm.LoadState (reader, GetNowNs());
     CHR (hr);
 
     hr = m_mechanism.LoadState (reader);
@@ -748,7 +749,9 @@ HRESULT UniDisk35Drive::LoadState (StateReader & reader)
     reader.ReadBool   (m_latch1);
     reader.ReadBool   (m_latch2);
     reader.ReadBool   (m_resetHeld);
-    reader.ReadUInt64 (m_idleAt);
+    reader.ReadUInt64 (idleAtAgo);
+
+    m_idleAt = m_cpu.GetCycles() - idleAtAgo;
 
     hr = reader.GetResult();
 

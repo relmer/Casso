@@ -67,7 +67,7 @@ public:
     HRESULT  SetFirmware (std::vector<Byte> firmware);
     bool     HasFirmware () const { return !m_rom.empty(); }
 
-    void  SetHostClock (const uint64_t * cycles, uint32_t clockHz) { m_port.SetHostClock (cycles, clockHz); }
+    void  SetHostClock (const uint64_t * cycles, const uint64_t * stateCycles, uint32_t clockHz) { m_port.SetHostClock (cycles, stateCycles, clockHz); }
     void  AddDrive     (std::unique_ptr<UniDisk35Drive> drive) { m_port.AddDrive (std::move (drive)); }
 
     //  Runs the drives up to the Apple's time, so their firmware's timers run
@@ -87,8 +87,9 @@ public:
     HRESULT  LoadState      (StateReader & reader) override;
     void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('L', 'I', 'R', 'N');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('L', 'I', 'R', 'N');
+    static constexpr uint16_t  kStateVersion       = 2;
+    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
 
 private:
     static constexpr Word  kSlotIoBase   = 0xC080;

@@ -61,8 +61,9 @@ public:
     HRESULT  LoadState      (StateReader & reader) override;
     void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', '2', 'S', 'P');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('C', '2', 'S', 'P');
+    static constexpr uint16_t  kStateVersion       = 2;
+    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
 
 private:
     bool  IsPorts (const Iwm::SwitchState & after) const;

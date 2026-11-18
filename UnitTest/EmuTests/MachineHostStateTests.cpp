@@ -4,8 +4,12 @@
 #include "HResultAssert.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/RomDevice.h"
+#include "FakeDiskFileIo.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
 
@@ -80,6 +84,51 @@ public:
         machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         CheckRunRepeats (machine, L"Apple2e with a disk");
+    }
+
+
+    //  The storage cards' saved stamps are measured from the Apple's cycle
+    //  count, so a run from a loaded state repeats only if the load puts
+    //  each card's clock back where it was.
+    TEST_METHOD (RunningFromALoadedStateRepeatsTheRunWithEveryStorageCard)
+    {
+        FakeDiskFileIo                       io;
+        std::vector<TestMachine::BlockCard>  cards;
+        std::vector<Byte>                    floppy (Gcr35Track::kBlocksTwoSides * Gcr35Track::kDataBytes, 0);
+        std::wstring                         error;
+        size_t                               i = 0;
+
+
+
+        for (i = 0; i < floppy.size(); i++)
+        {
+            floppy[i] = static_cast<Byte> (i * s_kPatternStep);
+        }
+
+        io.files["unidisk.po"]  = floppy;
+        io.stamps["unidisk.po"] = FileStamp { floppy.size(), 1 };
+        io.files["apple35.po"]  = floppy;
+        io.stamps["apple35.po"] = FileStamp { floppy.size(), 1 };
+
+        cards.push_back ({ 7, kpszAppleScsiCardDevice, std::vector<PortConfig> (AppleScsiCard::kTargets) });
+        cards.push_back ({ 5, kpszLironCardDevice,     std::vector<PortConfig> (1) });
+        cards.push_back ({ 4, kpszApple35CardDevice,   std::vector<PortConfig> (1) });
+        cards.push_back ({ 2, kpszProFileCardDevice,   std::vector<PortConfig> (1) });
+
+        cards[1].ports[0].device = kpszUniDisk35Device;
+        cards[2].ports[0].device = kpszApple35DriveDevice;
+        cards[3].ports[0].device = kpszProFile5Device;
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, cards, io);
+
+        machine.PowerCycle();
+
+        AssertSucceeded (machine.GetStorage().InsertFloppy35 (5, 0, "unidisk.po", error), L"the UniDisk 3.5's disk");
+        AssertSucceeded (machine.GetStorage().InsertFloppy35 (4, 0, "apple35.po", error), L"the 3.5 drive's disk");
+
+        machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
+
+        CheckRunRepeats (machine, L"every storage card");
     }
 
 

@@ -1,7 +1,10 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/Iwm.h"
+#include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -548,6 +551,56 @@ public:
         Assert::AreEqual ((Byte) 0, iwm.Access (kParamRead, false, 0, 0));
         Assert::IsTrue   (iwm.TryPeekAccess (kParamRead, peeked));
         Assert::AreEqual ((Byte) 17, peeked, L"the read moved it");
+    }
+
+
+    //  An idle IWM's last time is saved against its owner's time, so it
+    //  saves the same bytes after that time moves on, and the same bytes
+    //  again after a load at another time.
+    TEST_METHOD (SaveState_IsTheSameWhileIdle)
+    {
+        constexpr uint64_t  kFirstNs  = 1'000;
+        constexpr uint64_t  kSecondNs = 250'000;
+        constexpr uint64_t  kLoadNs   = 9'000'000;
+
+        Iwm                iwm;
+        Iwm                loaded;
+        std::vector<Byte>  first;
+        std::vector<Byte>  second;
+
+
+
+        iwm.AdvanceTo (kFirstNs);
+        first = SaveAt (iwm, kFirstNs);
+
+        iwm.AdvanceTo (kSecondNs);
+        second = SaveAt (iwm, kSecondNs);
+
+        Assert::IsTrue (first == second, L"the same bytes later");
+
+        AssertSucceeded (LoadAt (loaded, second, kLoadNs));
+        Assert::IsTrue  (SaveAt (loaded, kLoadNs) == first, L"the same bytes after a load");
+    }
+
+
+    static std::vector<Byte> SaveAt (const Iwm & iwm, uint64_t nowNs)
+    {
+        StateWriter  writer;
+
+
+
+        iwm.SaveState (writer, nowNs);
+        return writer.GetBytes();
+    }
+
+
+    static HRESULT LoadAt (Iwm & iwm, const std::vector<Byte> & bytes, uint64_t nowNs)
+    {
+        StateReader  reader (bytes);
+
+
+
+        return iwm.LoadState (reader, nowNs);
     }
 
 };

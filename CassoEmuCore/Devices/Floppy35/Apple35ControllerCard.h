@@ -71,8 +71,10 @@ public:
     HRESULT  SetFirmware (std::vector<Byte> firmware);
     bool     HasFirmware () const { return m_memory.HasFirmware(); }
 
-    //  The Apple's cycle count and clock rate, which the card's CPU follows.
-    void  SetHostClock (const uint64_t * cycles, uint32_t clockHz);
+    //  The Apple's cycle count and clock rate, which the card's CPU follows,
+    //  and its cycle count as a saved state has it, which the saved stamps
+    //  are measured from.
+    void  SetHostClock (const uint64_t * cycles, const uint64_t * stateCycles, uint32_t clockHz);
 
     //  Runs the card's CPU up to the Apple's clock.
     void  CatchUp (CatchUpKind kind = CatchUpKind::Access) override;
@@ -88,8 +90,9 @@ public:
     HRESULT  LoadState      (StateReader & reader) override;
     void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
-    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('3', '5', 'C', 'C');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('3', '5', 'C', 'C');
+    static constexpr uint16_t  kStateVersion       = 2;
+    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
     Byte                 GetBank       () const { return m_bank; }
 
 private:
@@ -110,17 +113,18 @@ private:
     uint64_t  SkipIdleLoop    (uint64_t cyclesLeft);
     bool      IsIdleLoopInRom ();
 
-    int                  m_slot       = 0;
-    Word                 m_ioStart    = 0;
-    Word                 m_ioEnd      = 0;
+    int                  m_slot        = 0;
+    Word                 m_ioStart     = 0;
+    Word                 m_ioEnd       = 0;
     MemoryBus          & m_bus;
     SlotRomPage          m_slotPage;
     Apple35CardMemory    m_memory;
     DeviceCpu            m_cpu;
-    const uint64_t     * m_hostCycles = nullptr;
-    uint32_t             m_hostHz     = 0;
-    uint64_t             m_hostSynced = 0;
-    uint64_t             m_cardTarget = 0;
-    Byte                 m_bank       = 0;
-    bool                 m_selected   = false;
+    const uint64_t     * m_hostCycles  = nullptr;
+    const uint64_t     * m_stateCycles = nullptr;
+    uint32_t             m_hostHz      = 0;
+    uint64_t             m_hostSynced  = 0;
+    uint64_t             m_cardTarget  = 0;
+    Byte                 m_bank        = 0;
+    bool                 m_selected    = false;
 };

@@ -115,9 +115,12 @@ public:
 
     //  The chip's registers, latches, timers and the SWIM's parameter RAM,
     //  written into and read from the owner's state section. The drives are
-    //  the owner's.
-    void     SaveState (StateWriter & writer) const;
-    HRESULT  LoadState (StateReader & reader);
+    //  the owner's. The time the chip's cells last moved to is saved as its
+    //  distance behind nowNs, the owner's time, so an IWM caught up to an
+    //  idle owner saves the same bytes each frame; the load takes the same
+    //  time back.
+    void     SaveState (StateWriter & writer, uint64_t nowNs) const;
+    HRESULT  LoadState (StateReader & reader, uint64_t nowNs);
 
 private:
     static constexpr uint64_t  kMotorOffNs    = 1'000'000'000;

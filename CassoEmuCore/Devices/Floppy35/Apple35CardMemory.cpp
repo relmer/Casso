@@ -197,7 +197,7 @@ HRESULT Apple35CardMemory::SaveState (StateWriter & writer) const
     writer.WriteUInt32 (static_cast<uint32_t> (m_ram.size()));
     writer.WriteBytes  (m_ram.data(), m_ram.size());
 
-    m_iwm.SaveState (writer);
+    m_iwm.SaveState (writer, GetNowNs());
 
     for (const std::unique_ptr<Sony35Drive> & drive : m_drives)
     {
@@ -246,7 +246,7 @@ HRESULT Apple35CardMemory::LoadState (StateReader & reader)
     CBREx (isSameSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     reader.ReadBytes (m_ram.data(), m_ram.size());
 
-    hr = m_iwm.LoadState (reader);
+    hr = m_iwm.LoadState (reader, GetNowNs());
     CHR (hr);
 
     for (std::unique_ptr<Sony35Drive> & drive : m_drives)
