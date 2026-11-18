@@ -241,7 +241,7 @@
     <ClCompile Include="Widgets\DxuiTextSearch.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewFind.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewPainter.cpp" />
-    <ClCompile Include="Widgets\DxuiTextViewMetrics.cpp" />
+    <ClCompile Include="Widgets\DxuiTextLayout.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewHitTest.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewInput.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewSelection.cpp" />
@@ -443,13 +443,12 @@
     <ClInclude Include="Widgets\DxuiTextSearch.h" />
     <ClInclude Include="Widgets\DxuiTextViewFind.h" />
     <ClInclude Include="Widgets\DxuiTextViewPainter.h" />
-    <ClInclude Include="Widgets\DxuiTextViewMetrics.h" />
+    <ClInclude Include="Widgets\DxuiTextLayout.h" />
     <ClInclude Include="Widgets\DxuiTextViewHitTest.h" />
     <ClInclude Include="Widgets\DxuiTextViewInput.h" />
     <ClInclude Include="Widgets\DxuiTextViewSelection.h" />
     <ClInclude Include="Widgets\IDxuiTextSelectionHost.h" />
     <ClInclude Include="Widgets\IDxuiTextInputHost.h" />
-    <ClInclude Include="Widgets\IDxuiTextMetricsHost.h" />
     <ClInclude Include="Widgets\IDxuiTextFindHost.h" />
     <ClInclude Include="Widgets\IDxuiTextLayoutSource.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />

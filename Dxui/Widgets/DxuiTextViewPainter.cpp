@@ -3,7 +3,7 @@
 #include "DxuiTextViewPainter.h"
 #include "DxuiTextRowLayout.h"
 #include "DxuiTextSearch.h"
-#include "DxuiTextView.h"
+#include "DxuiTextLayout.h"
 #include "DxuiTextViewFind.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiIconImage.h"
@@ -153,7 +153,7 @@ void DxuiTextViewPainter::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer &
     if (line.first && row.warning)
     {
         hr = text.DrawString (s_kpszMdl2WarningSolid,
-                              (float) left, (float) y, (float) (DxuiTextView::kWarningCells * m_look.cellAdvance), (float) m_look.cellHeightPx,
+                              (float) left, (float) y, (float) (DxuiTextLayout::kWarningCells * m_look.cellAdvance), (float) m_look.cellHeightPx,
                               theme.WarningAccent(),
                               (float) m_look.cellHeightPx * 0.8f,
                               m_look.iconFace,

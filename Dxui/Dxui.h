@@ -185,6 +185,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiInPlaceTip.h"
 #include "Widgets/DxuiSelectableText.h"
 #include "Widgets/DxuiSuggestionList.h"
+#include "Widgets/DxuiTextLayout.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbarEditBox.h"
 #include "Widgets/DxuiScrollbar.h"

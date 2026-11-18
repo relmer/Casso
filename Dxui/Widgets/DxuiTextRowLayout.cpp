@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiTextRowLayout::GetPictureScale (const DxuiTextView::Picture & picture, float widthPx, float pxPerDip)
+float DxuiTextRowLayout::GetPictureScale (const DxuiTextPicture & picture, float widthPx, float pxPerDip)
 {
     float  scale = pxPerDip;
 
@@ -36,7 +36,7 @@ float DxuiTextRowLayout::GetPictureScale (const DxuiTextView::Picture & picture,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiTextRowLayout::GetPictureLines (const DxuiTextView::Picture & picture, float widthPx, float pxPerDip, int lineHeightPx)
+int DxuiTextRowLayout::GetPictureLines (const DxuiTextPicture & picture, float widthPx, float pxPerDip, int lineHeightPx)
 {
     float  height = (float) picture.height * GetPictureScale (picture, widthPx, pxPerDip);
 
@@ -55,7 +55,7 @@ int DxuiTextRowLayout::GetPictureLines (const DxuiTextView::Picture & picture, f
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextRowLayout::PaintPicture (IDxuiTextRenderer & text, const DxuiTextView::Picture & picture, float left, float top, float widthPx, float pxPerDip)
+void DxuiTextRowLayout::PaintPicture (IDxuiTextRenderer & text, const DxuiTextPicture & picture, float left, float top, float widthPx, float pxPerDip)
 {
     HRESULT  hr    = S_OK;
     float    scale = GetPictureScale (picture, widthPx, pxPerDip);
@@ -79,7 +79,7 @@ void DxuiTextRowLayout::PaintPicture (IDxuiTextRenderer & text, const DxuiTextVi
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiTextRowLayout::GetWrapIndent (const DxuiTextView::Row & row, int avail)
+int DxuiTextRowLayout::GetWrapIndent (const DxuiTextRow & row, int avail)
 {
     return (row.wrapIndent > 0 && row.wrapIndent * 2 <= avail) ? row.wrapIndent : 0;
 }
