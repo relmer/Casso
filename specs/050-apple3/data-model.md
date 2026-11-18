@@ -32,10 +32,10 @@ schema are in `contracts/machine-config.md`.
 | State | Type | Notes |
 |---|---|---|
 | System bank RAM | 32K bytes | pages `$00-$1F` and `$A0-$FF` |
-| Bank RAM | 32K bytes per bank | 3 banks for 128K, 7 for 256K (to verify) |
+| Bank RAM | 32K bytes per bank | banks 0 to 2 for 128K, 0 to 6 for 256K |
 | RAM under the VIAs | 32 bytes | visible through extension byte `$8F` |
 | Environment | byte | from the D VIA's port A |
-| Bank | 4 bits | from the E VIA's port A |
+| Bank | 3 bits | from the E VIA's port A, bits 0 to 2 |
 | Zero page | byte | from the D VIA's port B |
 | Apple II lockout | bool | set by the emulation disk; cleared by power-off |
 | ROM | 4K | user-supplied |
@@ -76,7 +76,7 @@ registered with the bus for history's page diffs.
 | `Mm58167` | counters, latches, interrupt status and control, the offset from host time |
 | `Acia6551` | existing |
 | `Apple3AnalogInputs` | selected channel, conversion timer, button levels |
-| `Apple3Slots` | selected slot for the shared ROM space, each slot's card |
+| `Apple3Slots` | selected slot for the shared ROM space, each slot's card (empty until the ProFile interface card), each slot's interrupt and NMI request |
 
 Each implements `IMachineState` and `IDiagnosticsProvider`.
 
@@ -86,6 +86,7 @@ Each implements `IMachineState` and `IDiagnosticsProvider`.
 |---|---|
 | Tick | one period of the 2 MHz clock; the unit of history's cycle numbers on this machine |
 | CPU cycle cost | 1 tick, or 2 ticks at 1 MHz or while slowed |
+| Refresh states | calibrated positions within a line (hardware map, open rows) |
 
 ## Debugger
 

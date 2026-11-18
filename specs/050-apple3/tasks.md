@@ -22,8 +22,8 @@ runs once, in the last phase. New UI strings come from
 ## Phase 1: Setup
 
 - [x] T001 Collect the Apple documents listed in research.md R1 into `%USERPROFILE%\Downloads\Casso\apple3\docs` and list each file with its source URL in `specs/050-apple3/research.md` under R1
-- [ ] T002 (done for every row with a **Checked** entry; the "Open rows" table remains) Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, settle rows the documents do not cover by consulting an existing emulator under the limits in research.md R1, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
-- [ ] T003 Update `specs/050-apple3/spec.md`, `data-model.md` and `research.md` wherever T002 changed a fact a requirement or decision depended on, and list the changes for the owner
+- [x] T002 (the refresh states moved to T018a; `ENSEL` and `ENSIO` are accepted and ignored) Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, settle rows the documents do not cover by consulting an existing emulator under the limits in research.md R1, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
+- [x] T003 Update `specs/050-apple3/spec.md`, `data-model.md` and `research.md` wherever T002 changed a fact a requirement or decision depended on, and list the changes for the owner
 - [ ] T004 [P] Add `Apple3.rom` (each accepted revision with size and CRC) to the ROM catalog and to `scripts/FetchRoms.ps1 -Fixtures`
 - [ ] T005 [P] Add the Business BASIC, System Utilities, Confidence Test and Apple II Emulation disks to `scripts/FetchStockDisks.ps1` and to `.gitignore`'s existing fetched-disk entries under `Disks/Apple/`
 - [ ] T006 [P] Create `CassoEmuCore/Machines/Apple3/`, `UnitTest/Apple3Tests/` and their filter entries in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`
@@ -39,20 +39,23 @@ machine definition and the debugger's address type.
 ### Tests
 
 - [ ] T008 [P] Write mapping tests for every environment register value, each bank and each zero page value, including the alternate stack and write protection, in `UnitTest/Apple3Tests/Apple3MmuTests.cpp`
-- [ ] T009 [P] Write extended addressing tests (extension byte off, `$80-$8E`, `$8F`, bank pair boundary, absent bank, zero page outside `$18-$1F`) in `UnitTest/Apple3Tests/Apple3ExtendedAddressingTests.cpp`
+- [ ] T009 [P] Write extended addressing tests, each for the `(zp),Y` and the `(zp,X)` form (extension byte off, `$80-$8E`, `$8F`, bank pair boundary, absent bank, zero page outside `$18-$1F`, a pointer at `$0000-$00FF` going to the current zero page) in `UnitTest/Apple3Tests/Apple3ExtendedAddressingTests.cpp`
 - [ ] T010 [P] Write VIA wiring tests (register writes change the mapping; input lines set interrupt flags) in `UnitTest/Apple3Tests/Apple3SystemViasTests.cpp`
-- [ ] T011 [P] Write tick tests (cycle cost at 2 MHz, at 1 MHz and while slowed; device time across a speed switch inside a frame) in `UnitTest/Apple3Tests/Apple3TimeBaseTests.cpp`
+- [ ] T010a [P] Write slot tests with every slot empty (`$C090-$C0CF` and `$C100-$C4FF` read the floating bus value the Apple II machines use; `$C020` deselects the `$C800` space; slot interrupt requests appear at E VIA port A bits 4 and 5, `$C064` and `$C065` bit 7 and D VIA CA1) in `UnitTest/Apple3Tests/Apple3SlotsTests.cpp`
+- [ ] T011 [P] Write tick tests (cycle cost at 2 MHz, at 1 MHz and while slowed by each term of the 1 MHz rule; device time across a speed switch inside a frame; 130 ticks per line) in `UnitTest/Apple3Tests/Apple3TimeBaseTests.cpp`
 - [ ] T012 [P] Write `DebugAddress` tests (equality, conversion from `Word`, text form parse and print per `contracts/debugger-addresses.md`, error cases) in `UnitTest/DebuggerTests/DebugAddressTests.cpp`
 - [ ] T013 [P] Write machine definition tests (both machines load; `characterRom`, bad `memory`, bad `externalDrives` and unsupported slot devices fail with the listed messages) in `UnitTest/Apple3Tests/Apple3MachineConfigTests.cpp`
 
 ### Implementation
 
-- [ ] T014 Add the extended zero-page indirect Y and zero-page X indirect modes to `CassoCore/GlobalAddressingModes.h` and their fetch cases to `CassoCore/Cpu.cpp`, and implement `Cpu6502Apple3` (derived from `MemoryBusCpu`; the affected opcodes' table entries changed to the new mode; the mapping restored after each instruction in `Step`) in `CassoEmuCore/Machines/Apple3/Cpu6502Apple3.h` and `.cpp`, created by `CassoEmuCore/Core/CpuFactory.cpp`
+- [ ] T014 Add the extended `(zp),Y` and `(zp,X)` modes to `CassoCore/GlobalAddressingModes.h` and their fetch cases to `CassoCore/Cpu.cpp`, and implement `Cpu6502Apple3` (derived from `MemoryBusCpu`; the affected opcodes' table entries changed to the new mode; the mapping restored after each instruction in `Step`) in `CassoEmuCore/Machines/Apple3/Cpu6502Apple3.h` and `.cpp`, created by `CassoEmuCore/Core/CpuFactory.cpp`
 - [ ] T015 Run Dormann and full-depth Harte against `Cpu6502Apple3` with extended addressing inactive and against the existing cores (`scripts/RunDormannTest.ps1`, `scripts/RunHarteTests.ps1 -SkipGenerate`), and the per-instruction timing comparison from `docs/testing.md` for the existing cores before and after T014; store the results in `specs/050-apple3/research.md` under R4
 - [ ] T016 Implement `Apple3Mmu` (RAM for 128K and 256K, the three registers, page table mapping through `MemoryBus::SetReadPage` and `SetWritePage`, ROM, I/O, write protection, zero page and stack pages, `IMachineState`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.h` and `.cpp`
 - [ ] T017 Implement extended access resolution in `Apple3Mmu` (extension byte lookup, the one-page remap from the bank pair for the rest of the instruction, the `$8F` case with the RAM under the VIAs, the restore, and the resolved `DebugAddress`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
-- [ ] T018 Implement the tick time base (cycle cost by environment bit 7 and the documented slowing; device clocks derived from ticks) in `CassoEmuCore/Machines/Apple3/Apple3TimeBase.h` and `.cpp`, wired through `ICycleSink`
+- [ ] T018 Implement the tick time base (cycle cost by environment bit 7 and the 1 MHz rule of `contracts/hardware-map.md`; the beam position in states and lines; device clocks derived from ticks) in `CassoEmuCore/Machines/Apple3/Apple3TimeBase.h` and `.cpp`, wired through `ICycleSink`
+- [ ] T018a Calibrate the refresh states: spread them evenly through each line and choose their count so a loop of RAM accesses averages 1.8 MHz with the screen off and 1.4 MHz with it on, each within 0.05 MHz (SC-005); add the check to `UnitTest/Apple3Tests/Apple3TimeBaseTests.cpp`, and write the count and the measured averages in the open row of `specs/050-apple3/contracts/hardware-map.md`
 - [ ] T019 Implement `Apple3SystemVias` (two `Via6522` at `$FFD0-$FFEF`, output change detection, calls into `Apple3Mmu`, input line setters, interrupt wiring) in `CassoEmuCore/Machines/Apple3/Apple3SystemVias.h` and `.cpp`
+- [ ] T019a Implement `Apple3Slots` with four empty slots (slot I/O and memory spaces, the `$C800` space selection and its deselect at `$C020`, each slot's interrupt and NMI request wired to the VIAs and the switch register, `IMachineState`) in `CassoEmuCore/Machines/Apple3/Apple3Slots.h` and `.cpp`
 - [ ] T020 Add `GetBuiltInDriveCount` and `HasBankedMemory` to `CassoEmuCore/Machines/IMachine.h` with Apple ][ defaults, and implement `Apple3` in `CassoEmuCore/Machines/Apple3/Apple3.h`
 - [ ] T021 Register `Apple3` in `CassoEmuCore/Machines/MachineDefinitions.cpp` and add `Resources/Machines/Apple3/Apple3.json` per `contracts/machine-config.md`, with the new keys parsed and validated in `CassoEmuCore/Core/MachineConfig.h` and its loader, and the version step in `CassoEmuCore/Core/MachineConfigUpgrade.cpp`
 - [ ] T022 Factor an `Apple3MachineBuilder` class out of the build path (`CassoEmuCore/Shell/Apple3MachineBuilder.h` and `.cpp`), called from `CassoEmuCore/Shell/MachineBuilder.cpp` for the Apple /// family: create the MMU, VIAs, `Cpu6502Apple3` and the bus wiring
@@ -75,7 +78,7 @@ the screen text.
 ### Tests
 
 - [ ] T025 [P] [US1] Write character set tests (loading through the documented mechanism changes glyphs; nothing else does; power-on contents) in `UnitTest/Apple3Tests/Apple3CharacterSetTests.cpp`
-- [ ] T026 [P] [US1] Write text mode decoding tests for 40-column, 40-column color and 80-column, normal and inverse, in `UnitTest/Apple3Tests/Apple3TextModeTests.cpp`
+- [ ] T026 [P] [US1] Write text mode decoding tests for 40-column, 40-column color and 80-column: normal, inverse, and flashing in the 40-column black and white mode, in `UnitTest/Apple3Tests/Apple3TextModeTests.cpp`
 - [ ] T027 [P] [US1] Write keyboard tests (code and flags for every key of the Apple /// layout, strobe, repeat, interrupt) in `UnitTest/Apple3Tests/Apple3KeyboardTests.cpp`
 - [ ] T028 [P] [US1] Write disk controller tests for the built-in drive (select, motor, read latch, write) in `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp`
 - [ ] T029 [US1] Write scenario tests (no-disk screen with an empty drive; Business BASIC prompt on 128K and 256K; `PRINT 6*7` prints 42; a missing disk or ROM fails the test) in `ScenarioTests/Apple3SosTests.cpp`
@@ -112,9 +115,9 @@ it back with Casso's disk tools.
 
 - [ ] T041 [US2] Add the external drives and the Apple /// drive selection to `CassoEmuCore/Machines/Apple3/Apple3DiskController.cpp`, with the count from `externalDrives`
 - [ ] T042 [US2] Change each two-drive assumption listed by T034 (event drive field, `DebugDiskState`, audio sources, mount and eject paths) in `CassoEmuCore/Machines/Apple2/Common/` and `CassoEmuCore/Debugger/`, with the Apple II behavior the same
-- [ ] T043 [P] [US2] Add Drive 3 and Drive 4 to the disk menus, drop targets, drive widgets and `--disk3`, `--disk4` (errors on an Apple II machine) in `CassoEmuCore/Shell/` and `CassoEmuCore/Cli/`
+- [ ] T043 [P] [US2] Add Drive 3 and Drive 4 to the disk menus, drop targets, drive widgets and `--disk3`, `--disk4` (errors on an Apple II machine; both in `--help`) in `CassoEmuCore/Shell/` and `CassoEmuCore/Cli/`
 - [ ] T044 [P] [US2] Give each of the four drives the Disk II drive sounds through `Disk2AudioSource` in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
-- [ ] T045 [US2] Make the boot disk picker work for the built-in drive (FR-017)
+- [ ] T045 [US2] Make the boot disk picker work for the built-in drive (FR-017), with SOS disks offered from `CassoEmuCore/Machines/Apple2/Common/StockBootDisks.h` and the picker in `CassoEmuCore/Ui/Dialogs/`
 
 **Checkpoint**: four drives work under SOS.
 
@@ -151,11 +154,11 @@ it back with Casso's disk tools.
 
 **Independent Test**: set each option, restart, check SOS's report.
 
-- [ ] T055 [US6] Get the owner's approval of the machine list, settings, menu and message strings in `specs/050-apple3/contracts/ui-strings.md` and mark each approved
+- [ ] T055 [US6] Get the owner's approval of the machine list, settings (the ProFile placement options included), menu and message strings in `specs/050-apple3/contracts/ui-strings.md` and mark each approved
 - [ ] T056 [P] [US6] Write settings model tests (options offered per machine; Apple II-only options absent; values saved and applied on restart) in `UnitTest/UiTests/Apple3SettingsTests.cpp`
 - [ ] T057 [US6] Add the Apple /// options (memory, external drives, slots, serial port, joystick ports) to the machine settings page in `CassoEmuCore/Ui/Settings/`
 - [ ] T058 [US6] Audit every feature that depends on the machine type (menus, command line, debug channel, MCP adapter, screenshot capture, disk tools, game controllers, drive audio, cassette, printer, update check) and make each work or be disabled with "Not available on the Apple ///" (FR-035); list the audit in `specs/050-apple3/validation/feature-audit.md`
-- [ ] T059 [P] [US6] Add `--machine Apple3` handling and drag-and-drop mounting to the built-in drive in `CassoEmuCore/Cli/` and `CassoEmuCore/Shell/`
+- [ ] T059 [P] [US6] Add `--machine Apple3` and `--machine Apple3Plus` handling (both in `--help`) and drag-and-drop mounting to the built-in drive in `CassoEmuCore/Cli/` and `CassoEmuCore/Shell/`
 - [ ] T060 [P] [US6] Extend the flat themes' drive and status widgets to four drives (FR-067) in `CassoEmuCore/Ui/Chrome/`
 
 ---
@@ -176,6 +179,8 @@ debugger tests pass with their expectations as they were.
 - [ ] T062 [P] [US7] Write command tests for the text form in each of the four modes (accept, print, the "illegal address" errors) in `UnitTest/DebuggerTests/BankAddressCommandTests.cpp`
 - [ ] T063 [P] [US7] Write disassembly tests for the extended access annotation and for SOS calls in `UnitTest/DebuggerTests/Apple3DisassemblyTests.cpp`
 - [ ] T064 [P] [US7] Write stack tests (stack pane, call stack, step over and step out across a zero page change and the alternate stack bit) in `UnitTest/DebuggerTests/Apple3StackTests.cpp`
+- [ ] T064a [P] [US7] Write tests for the trace record's banks, numbered banks in the heat map and profiler, the bank, environment and zero page change breakpoints, and a project round trip with an older project loading as current view (T067, T068, T073, T076) in `UnitTest/DebuggerTests/Apple3DebuggerStateTests.cpp`
+- [ ] T064b [P] [US7] Write tests for binding a debug file's addresses to the bank a program loaded in (T077) in `UnitTest/DebuggerTests/BankSourceBindingTests.cpp`
 
 ### Implementation
 
@@ -192,7 +197,7 @@ debugger tests pass with their expectations as they were.
 - [ ] T075 [P] [US7] Write `SosCallNames` and `Apple3Symbols` (I/O addresses, VIA registers, documented ROM entry points) from the Apple documents in `CassoEmuCore/Machines/Apple3/`
 - [ ] T076 [US7] Store and load `DebugAddress` in debugger projects, with older projects loading as current view (FR-047), in `CassoEmuCore/Debugger/Project/`
 - [ ] T077 [US7] Bind a debug file's addresses to the bank a program loaded in for source-level debugging (FR-048) in `CassoEmuCore/Debugger/Source/`
-- [ ] T078 [US7] Get the owner's approval of the debugger strings in `specs/050-apple3/contracts/ui-strings.md`
+- [ ] T078 [US7] Get the owner's approval of the debugger strings and the device panel titles in `specs/050-apple3/contracts/ui-strings.md`
 
 **Checkpoint**: the P1 stories are complete.
 
@@ -211,8 +216,8 @@ reads the clock and both joystick ports.
 - [ ] T082 [P] [US4] Implement `Mm58167` in `CassoEmuCore/Devices/Mm58167.h` and `.cpp` and wire its address lines and interrupt through `Apple3SystemVias`
 - [ ] T083 [P] [US4] Implement `Apple3Sound` (speaker through `AppleSpeaker`, beeper, DAC, mixing) and its audio source in `CassoEmuCore/Machines/Apple3/Apple3Sound.h` and `.cpp`
 - [ ] T084 [P] [US4] Implement `Apple3AnalogInputs` over 034's controller assignments in `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.h` and `.cpp`
-- [ ] T085 [US4] Complete the keyboard: PC key mappings for every Apple /// key in the settings key list, repeat rates, pasted text (FR-025), and Control with Reset obeying the environment register's reset bit
-- [ ] T086 [US4] Run the Confidence Test disk in the scenario suite (SC-002) in `ScenarioTests/Apple3SosTests.cpp`
+- [ ] T085 [US4] Complete the keyboard: PC key mappings for every Apple /// key in the settings key list, repeat rates, pasted text (FR-025), and Control with Reset obeying the environment register's reset bit, in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.cpp` and `CassoEmuCore/Ui/Settings/`
+- [ ] T086 [US4] Run the Confidence Test disk in the scenario suite (SC-002) in `ScenarioTests/Apple3SosTests.cpp`, after T089, since the test includes the serial port
 - [ ] T087 [US4] Write a timing test program and check SC-005 at 2 MHz and 1 MHz in `UnitTest/Apple3Tests/Apple3TimingTests.cpp`
 
 ---
@@ -221,7 +226,7 @@ reads the clock and both joystick ports.
 
 - [ ] T088 [P] [US5] Write a loopback test through `.RS232` at each baud rate in `ScenarioTests/Apple3SosTests.cpp` and a wiring test in `UnitTest/Apple3Tests/Apple3SerialTests.cpp`
 - [ ] T089 [US5] Create the `Acia6551` at its documented address with its interrupt wired, and attach it through the `serial` port configuration, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
-- [ ] T090 [US5] Offer every attachment the Super Serial Card offers for the built-in port in settings, and label its traffic "Built-in" in the serial log (FR-053)
+- [ ] T090 [US5] Offer every attachment the Super Serial Card offers for the built-in port in settings, and label its traffic "Built-in" in the serial log (FR-053), in `CassoEmuCore/Ui/Settings/` and `CassoEmuCore/Debugger/Events/`
 
 ---
 
@@ -236,8 +241,8 @@ reads the clock and both joystick ports.
 - [ ] T095 [P] [US8] Implement `DacMeterView` (meter and waveform) in `CassoEmuCore/Ui/Debugger/Panes/DacMeterView.h` and `.cpp`
 - [ ] T096 [US8] Add banks, I/O and write-protected RAM to `CassoEmuCore/Ui/Debugger/Panes/MemoryMapBar.cpp` and its legend (FR-042)
 - [ ] T097 [US8] Add the new graphic kinds to `CassoEmuCore/Ui/Debugger/Panes/DiagnosticsPane.h` and `.cpp`
-- [ ] T098 [US8] Extend the disk event log, the drive filter, the disk head graphic and disk breakpoints to four drives (FR-051, FR-055)
-- [ ] T099 [P] [US8] Add the Apple /// keyboard and joystick reads to the input log (FR-052) and the Apple /// function labels to the I/O log (FR-054)
+- [ ] T098 [US8] Extend the disk event log, the drive filter, the disk head graphic and disk breakpoints to four drives (FR-051, FR-055) in `CassoEmuCore/Debugger/Events/` and `CassoEmuCore/Ui/Debugger/Panes/`
+- [ ] T099 [P] [US8] Add the Apple /// keyboard and joystick reads to the input log (FR-052) and the Apple /// function labels to the I/O log (FR-054) in `CassoEmuCore/Debugger/Events/`
 - [ ] T100 [US8] Measure that every panel updates within one frame (SC-008)
 
 ---
@@ -247,8 +252,8 @@ reads the clock and both joystick ports.
 - [ ] T101 [P] [US9] Write save and load round-trip tests for every new device and the MMU in `UnitTest/Apple3Tests/Apple3StateTests.cpp`
 - [ ] T102 [US9] Write a history test: store a SOS boot, seek to 100 random cycles, compare the full state hash with the live run at each (SC-009), in `ScenarioTests/Apple3HistoryTests.cpp`
 - [ ] T103 [US9] Register every bank with history's page diff and keyframes, and add every new device to the machine state list, in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
-- [ ] T104 [US9] Route the clock chip's host time and the analog inputs through `InputJournal` (FR-057)
-- [ ] T105 [US9] Rebuild the stack and call stack panes for the stack in use after a seek, and report banks in the rebuilt trace, heat map and event logs
+- [ ] T104 [US9] Route the clock chip's host time and the analog inputs through `InputJournal` (FR-057) in `CassoEmuCore/Devices/Mm58167.cpp` and `CassoEmuCore/Machines/Apple3/Apple3AnalogInputs.cpp`
+- [ ] T105 [US9] Rebuild the stack and call stack panes for the stack in use after a seek, and report banks in the rebuilt trace, heat map and event logs, in `CassoEmuCore/Debugger/CallStack.cpp` and `CassoEmuCore/Debugger/Reverse/`
 
 ---
 
@@ -257,13 +262,14 @@ reads the clock and both joystick ports.
 **Goal**: measured models and the stacked arrangement. Independent of
 Phases 3 to 11; can start after T001.
 
-- [ ] T106 [US10] Find a square-on side photograph of the Apple ///, replace each estimate in `contracts/desk-models.md` with a value measured by script from the photographs listed there, and fill the remaining dimension tables of `specs/050-apple3/contracts/desk-models.md` from the Service Reference Manual and Owner's Guides; where a dimension is in no Apple document, measure it from photographs as a fraction of a documented one and mark it `measured`; tell the owner which dimensions are measured
+- [ ] T106 [US10] Find a square-on side photograph of the Apple ///, replace each estimate in `contracts/desk-models.md` with a value measured by script from the photographs listed there (the Monitor ///'s foot positions included, for the fit rule), and fill the remaining dimension tables of `specs/050-apple3/contracts/desk-models.md` from the Service Reference Manual and Owner's Guides; where a dimension is in no Apple document, measure it from photographs as a fraction of a documented one and mark it `measured`; tell the owner which dimensions are measured
 - [ ] T107 [P] [US10] Write `scripts/modelgen/cad_apple3.py` (body ending at the front of the upper body, drive bay with door, latch and lamp in the existing palette colors, back panel with every connector at its position, badge variants) and `Resources/Models/Apple3/README.md` with sources
 - [ ] T108 [P] [US10] Write `scripts/modelgen/cad_monitor3.py` (case, spherical-sag glass, anti-glare mesh, controls, lamp, brand stamp) and `Resources/Models/Monitor3/README.md`
 - [ ] T109 [P] [US10] Write `scripts/modelgen/cad_disk3.py` and `Resources/Models/Disk3/README.md`
 - [ ] T110 [US10] Render a preview of each model with `scripts/modelgen/preview.py`, check each mesh for bad fillets, and send the previews to the owner before wiring
 - [ ] T111 [US10] Copy the generated meshes to `Resources/Models/`, add them to the `BakedMesh` list in `Casso/Casso.vcxproj` and the `RCDATA` lines in `Casso/Casso.rc`, and update `scripts/modelgen/README.md`
 - [ ] T112 [P] [US10] Write layout tests for the stack and fit rules of `contracts/desk-models.md` (each arrangement; containment by the camera; side row clear of the stack) in `UnitTest/UiTests/DeskSceneStackTests.cpp`
+- [ ] T112a [P] [US10] Write hit test tests for the built-in drive's and the Disk ///'s door, lamp, drop and eject (T115) in `UnitTest/UiTests/DeskSceneApple3DriveTests.cpp`
 - [ ] T113 [US10] Add `Apple3Body`, `Monitor3` and `Disk3` to `DeskDeviceKind` and the model loader in `CassoEmuCore/Ui/Scene/DeskSceneModel.h` and `.cpp`
 - [ ] T114 [US10] Add the stack to `CassoEmuCore/Ui/Scene/DeskSceneLayout.h` and `.cpp`: body, optional ProFile, monitor, with the side row for other drives
 - [ ] T115 [US10] Give the built-in drive and the Disk /// the lamp, door, drop and eject interactions (FR-062, FR-063) in `CassoEmuCore/Ui/Scene/DeskSceneHitTester.cpp` and the scene's drive state
@@ -276,7 +282,7 @@ Phases 3 to 11; can start after T001.
 
 - [ ] T118 [P] [US13] Write Plus tests (256K only; every Plus key's code; interlace decoding) in `UnitTest/Apple3Tests/Apple3PlusTests.cpp`
 - [ ] T119 [US13] Implement `Apple3Plus` in `CassoEmuCore/Machines/Apple3/Apple3Plus.h`, register it, and add `Resources/Machines/Apple3Plus/Apple3Plus.json`
-- [ ] T120 [P] [US13] Add the `Apple3Plus` keyboard layout and its PC key mappings
+- [ ] T120 [P] [US13] Add the `Apple3Plus` keyboard layout and its PC key mappings in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.cpp`
 - [ ] T121 [US13] Implement text interlace (560 by 384) in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`, turned on by a case switch on the Plus through the existing case switch mechanism (`IMachine::HasCaseSwitches`) and its setting
 - [ ] T122 [US13] Use the Plus badge variant of the body model for the Plus (FR-073) and add a Plus boot to `ScenarioTests/Apple3SosTests.cpp`
 
@@ -288,11 +294,11 @@ Depends on Phase 7.
 
 - [ ] T123 [US14] Find the interpreter's pointers from Apple's Business BASIC source listing in the docs folder, and match each release on the fetched disks to it by signature and by observing it in Casso's debugger; write the releases, signatures and pointers in `specs/050-apple3/research.md` under R19
 - [ ] T124 [US14] Factor the interface the BASIC panes and `BasicStopMonitor` use out of `ApplesoftProgram` in `CassoEmuCore/Debugger/Basic/`, if they use the class directly, with the Applesoft tests passing as they were
-- [ ] T125 [P] [US14] Write Business BASIC tests (listing as `LIST` prints it, every variable type including long integers, arrays, GOSUB and FOR frames, an unknown release reported) from captured memory images in `UnitTest/DebuggerTests/BusinessBasicProgramTests.cpp`
+- [ ] T125 [P] [US14] Write Business BASIC tests (listing as `LIST` prints it, every variable type including long integers, arrays, GOSUB and FOR frames, an unknown release reported; statement and line stepping, line and variable breakpoints and the error stop through `BasicStopMonitor`) from memory images the test builds: program lines, variable and array tables and stack frames written at the release's pointers, never an image of the interpreter, which is Apple's software. In `UnitTest/DebuggerTests/BusinessBasicProgramTests.cpp`
 - [ ] T126 [US14] Implement `BusinessBasicProgram` (token table from the Reference Manual, release identification, lines, variables, arrays, frames) in `CassoEmuCore/Debugger/Basic/BusinessBasicProgram.h` and `.cpp`
 - [ ] T127 [US14] Add Business BASIC statement and line stepping, line and variable breakpoints and the error stop to `CassoEmuCore/Debugger/Basic/BasicStopMonitor.cpp`
-- [ ] T128 [US14] Select the BASIC dialect by machine and interpreter in the BASIC panes, the commands of every mode and the debug channel (FR-076)
-- [ ] T129 [US14] Add a scenario test: type the ten-line program of the story's Independent Test, break on line 40, check variables and stack, step a statement
+- [ ] T128 [US14] Select the BASIC dialect by machine and interpreter in the BASIC panes, the commands of every mode and the debug channel (FR-076), in `CassoEmuCore/Debugger/Basic/`, `CassoEmuCore/Debugger/Channel/` and `CassoEmuCore/Ui/Debugger/Panes/`
+- [ ] T129 [US14] Add a scenario test in `ScenarioTests/Apple3SosTests.cpp`: the release on each fetched Business BASIC disk is identified; type the ten-line program of the story's Independent Test, break on line 40, check variables and stack, step a statement
 
 ---
 
@@ -301,8 +307,8 @@ Depends on Phase 7.
 - [ ] T130 [P] [US12] Write lockout tests (set by the documented write; register writes ignored afterward; survives reset; cleared by power-off; the Apple II mapping) in `UnitTest/Apple3Tests/Apple3EmulationModeTests.cpp`
 - [ ] T131 [US12] Implement the lockout and the Apple II mapping in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
 - [ ] T132 [US12] Select the Apple II text, lo-res and hi-res classes in emulation mode, with the text mode reading glyphs from `Apple3CharacterSet`, in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
-- [ ] T133 [US12] Produce Apple II keyboard codes, speaker, paddle and disk behavior at their Apple II addresses in emulation mode (FR-031b)
-- [ ] T134 [US12] Make the debugger follow the mode: machine info, symbols, memory map, the lockout row, and history storing the lockout (FR-031d)
+- [ ] T133 [US12] Produce Apple II keyboard codes, speaker, paddle and disk behavior at their Apple II addresses in emulation mode (FR-031b), in `CassoEmuCore/Machines/Apple3/`
+- [ ] T134 [US12] Make the debugger follow the mode: machine info, symbols, memory map, the lockout row, and history storing the lockout (FR-031d), in `CassoEmuCore/Debugger/` and `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
 - [ ] T135 [US12] Add a scenario test: boot the Apple II Emulation disk, start emulation, boot the DOS 3.3 System Master, draw in lo-res and hi-res, compare frames with the ][+ machine
 
 ---
@@ -313,7 +319,7 @@ Blocked until a merge from `035-debugger` includes 048.
 
 - [ ] T136 [US11] Merge `035-debugger` once it contains 048; confirm `ProFileDrive`, `ProFileCard` and the ProFile models are present
 - [ ] T137 [P] [US11] Write tests for the ProFile interface card in an Apple /// slot (handshake, read, write, both sizes) in `UnitTest/Apple3Tests/Apple3ProFileTests.cpp`
-- [ ] T138 [US11] Implement `Apple3Slots` card support and the Apple /// ProFile interface card over 048's `ProFileDrive` in `CassoEmuCore/Machines/Apple3/`
+- [ ] T138 [US11] Add card support to `Apple3Slots` (from T019a) and implement the Apple /// ProFile interface card over 048's `ProFileDrive` in `CassoEmuCore/Machines/Apple3/`
 - [ ] T139 [US11] Offer the card in slot settings, attach it by default in slot 4 in both machine files, and add the ProFile placement setting (on the computer, to the side, hidden)
 - [ ] T140 [US11] Place 048's ProFile models in the stack, check the fit rules against the body's measured top (FR-065), and model the card's connector in its slot opening (FR-060)
 - [ ] T141 [US11] Add a scenario test: boot SOS with `.PROFILE`, format, copy files, read them back from the image, for 5 MB and 10 MB
@@ -323,7 +329,7 @@ Blocked until a merge from `035-debugger` includes 048.
 ## Phase 17: Polish and merge
 
 - [ ] T142 Run the quickstart's in-app checks with the owner's go-ahead for anything on screen, and fix what they find
-- [ ] T143 Confirm Apple II emulation speed is within measurement noise of the speed before the feature (SC-011) and store the numbers in `specs/050-apple3/validation/performance.md`
+- [ ] T143 Confirm each Apple II machine's unlimited-speed throughput, the best of five runs, is within 1% of the same measurement before the feature (SC-011) and store the numbers in `specs/050-apple3/validation/performance.md`
 - [ ] T144 [P] Document the Apple /// in `docs/` (machine, settings, debugger addresses) and update the agent doc for `CassoCli --attach` with the address text form
 - [ ] T145 Write the `CHANGELOG.md` and `README.md` entries last and get the owner's approval of the text
 - [ ] T146 Merge `035-debugger`, run `scripts/CheckStyle.ps1 -Mode Tree`, then `scripts/RunMergeGate.ps1`, Dormann and full-depth Harte
@@ -345,6 +351,11 @@ Blocked until a merge from `035-debugger` includes 048.
 - Phase 14 depends on Phases 3 and 7.
 - Phase 16 depends on the 048 merge and on Phase 12 for the fit check.
 - Phase 17 is last.
+- T086 runs after T089: the Confidence Test checks the serial port.
+- T101 depends on Phase 9 for the 6551's state in the machine.
+- T113 to T116 depend on T007 and T051; T122 depends on Phase 12.
+- T134 depends on Phases 7 and 11.
+- T018a depends on T018; T019a depends on T019.
 
 ### Within a story
 

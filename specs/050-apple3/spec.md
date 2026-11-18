@@ -74,7 +74,7 @@ documents.
 - Q: Can the user choose color or a monochrome style on the Monitor ///? → A: Yes, as on the other monitors. Green is the default (FR-021).
 - Q: Is memory beyond 256K offered? → A: No. The Apple /// has 128K or 256K and the Apple /// Plus has 256K.
 - Q: Is the Silentype printer in scope? → A: No.
-- Q: Is the Apple /// CPU a new CPU or a change to the existing 6502? → A: A variant of the existing NMOS 6502, as the 65C02 is: one added addressing mode that only the Apple /// variant executes (FR-007).
+- Q: Is the Apple /// CPU a new CPU or a change to the existing 6502? → A: A variant of the existing NMOS 6502, as the 65C02 is: two added addressing modes, the extended forms of `(zp),Y` and `(zp,X)`, that only the Apple /// variant executes (FR-007).
 - Q: Can existing Apple /// emulators be consulted? → A: Yes, to confirm an assumption or settle a point Apple's documents do not cover. Facts only, no code copied.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -538,7 +538,7 @@ and check that the mark moves.
 - An extended address that crosses the end of a bank: the access continues in
   the next bank, per the SOS Reference Manual.
 - A bank number beyond the installed memory (128K against 256K): reads and
-  writes follow the Service Reference Manual's description of absent memory.
+  writes follow the absent bank row of `contracts/hardware-map.md`.
 - The 1 MHz setting changed in the middle of a disk access or a serial byte:
   disk and serial timing follow real time, not CPU instruction counts.
 - Text on the screen before any character set is loaded: drawn from the
@@ -593,9 +593,11 @@ and check that the mark moves.
 - **FR-008**: Zero page and stack accesses MUST go to the pages the zero page
   register and the environment register select.
 - **FR-009**: The CPU MUST run at the documented 2 MHz and 1 MHz rates,
-  including the documented slowing during the active part of the video frame
-  and during I/O accesses, so that software timing loops, the DAC and the
-  disk routines run at the real machine's speed.
+  including the documented slowing: a cycle runs at 1 MHz when it accesses
+  the VIAs, the 6551 or the clock chip, and when it accesses RAM during the
+  displayed part of the frame or during RAM refresh (`contracts/hardware-map.md`,
+  the 1 MHz rule). Software timing loops, the DAC and the disk routines then
+  run at the real machine's speed.
 - **FR-010**: The 6502 behavior the Apple II machines use MUST NOT change:
   the Dormann and Harte suites MUST pass at full depth with the extended
   addressing code present.
@@ -639,9 +641,9 @@ and check that the mark moves.
 - **FR-019**: Text MUST be drawn from the character set RAM. The RAM MUST be
   loaded only through the documented loading mechanism, and no built-in font
   MUST be substituted for it.
-- **FR-020**: Normal and inverse text, flashing text in the Apple II
-  40-column mode, the smooth scroll feature, the video enable bit and every
-  other documented video control MUST work.
+- **FR-020**: Normal and inverse text, flashing text in the 40-column black
+  and white mode, the smooth scroll feature, the video enable bit and every
+  other control in the video rows of `contracts/hardware-map.md` MUST work.
 - **FR-021**: The Monitor /// MUST offer the color, green, amber and white
   styles the other monitors offer, with green as its default. In a
   monochrome style the 16 colors MUST be drawn as the gray levels the black
@@ -738,7 +740,9 @@ and check that the mark moves.
 **Debugger: addresses and banks**
 
 - **FR-036**: The debugger MUST accept and print a bank-qualified address,
-  written `b:nnnn` as Apple's manuals write it (`b/nnnn` in the Apple II Monitor and GSSquared modes, where `addr:` is the deposit command), wherever it accepts or prints an address: commands
+  written `b:nnnn` as Apple's manuals write it, or `b/nnnn` wherever `:`
+  already has a meaning (the full list is in `contracts/debugger-addresses.md`),
+  wherever it accepts or prints an address: commands
   in every mode, the Go to boxes, breakpoints, watches, bookmarks, symbols,
   data blocks, the trace, the call stack, the heat map and the event logs. An
   address outside the banked region is printed without a bank.
@@ -820,8 +824,9 @@ and check that the mark moves.
 
 - **FR-058**: The skeuomorphic theme MUST have a 3D model of the Apple ///'s
   main body with the built-in drive in its bay, built to the dimensions in
-  Apple's technical documents. The model MUST end at the front of the upper
-  body; the sloped keyboard section MUST NOT be modeled.
+  Apple's documents and, where they state none, to dimensions measured from
+  photographs scaled by a documented dimension. The model MUST end at the
+  front of the upper body; the sloped keyboard section MUST NOT be modeled.
 - **FR-059**: The back panel MUST be modeled with every connector and opening
   of the real one, each at its measured position and with its real form: the
   power switch and power inlet, the black and white video jack, the color
@@ -898,8 +903,11 @@ and check that the mark moves.
 - **SC-004**: For each of the seven video modes, Casso's frame and MAME's
   frame of the same disk at the same moment match on every pixel by color
   index.
-- **SC-005**: A timing test program measures the same duration, within 1%, as
-  the documented cycle counts predict, at 2 MHz and at 1 MHz.
+- **SC-005**: A timing test program measures, for code whose cycles are
+  documented (ROM and I/O accesses, and RAM accesses outside the display and
+  refresh), the duration the cycle counts predict within 1%, at 2 MHz and at
+  1 MHz. A loop of RAM accesses averages 1.4 MHz with the display on and
+  1.8 MHz with it off, each within 0.05 MHz, the precision of Apple's figures.
 - **SC-006**: A DAC tone at a known frequency is measured within 1% of that
   frequency in Casso's audio output.
 - **SC-007**: A bank-qualified breakpoint stops only in its bank across 1,000
@@ -908,11 +916,13 @@ and check that the mark moves.
   device's state changing, as 035's SC-015 requires.
 - **SC-009**: A seek to any of 100 random cycles of a stored SOS boot
   produces a machine state identical to the live run at that cycle.
-- **SC-010**: Each 3D model's overall dimensions are within 1 mm of the
-  source documents, and each back panel connector is within 1 mm of its
-  measured position.
-- **SC-011**: The Apple II machines are not slowed: their emulation speed
-  with this feature merged is within measurement noise of the speed before.
+- **SC-010**: Each 3D model dimension that Apple's documents state is within
+  1 mm of it. Each dimension measured from photographs, the back panel
+  positions included, is within the tolerance the model's README lists for
+  it.
+- **SC-011**: The Apple II machines are not slowed: the unlimited-speed
+  throughput of each Apple II machine, the best of five runs, is within 1%
+  of the same measurement before this feature.
 - **SC-012**: The Dormann and full-depth Harte suites pass.
 
 ## Assumptions
@@ -945,8 +955,9 @@ and check that the mark moves.
   launched on screen.
 - Frame comparison with MAME is by color index before any CRT effect, since
   the two programs' palettes and filters differ.
-- The model sources are Apple's technical documents for dimensions and
-  connector positions, with photographs for details those documents omit.
+- The model sources are Apple's documents for the dimensions they state, and
+  photographs scaled by a documented dimension for the rest: the rear
+  height, the back panel positions, the body's depth and the Disk ///.
 - Out of scope: the Silentype printer, third-party memory beyond 256K,
   Pascal source-level debugging, a SOS file browser in Casso Explorer beyond what
   048 provides, and cards other than the ProFile interface card.

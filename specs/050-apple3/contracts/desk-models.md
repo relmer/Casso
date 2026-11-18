@@ -60,8 +60,8 @@ its source supports.
 | Text interlace switch (Plus) | left side, about halfway back, just above the bottom of the cover | POG p. 16 |
 
 **The stated height and the photograph differ.** Apple's 4.8 inches is not
-the height of the rear body: the photograph, scaled by the ProFile, puts
-the top of the fins about 150 mm above the desk, and the patent's front view
+the height of the rear body: the photographs, scaled by the ProFile and by the body's width, put
+the top of the fins about 148 mm above the desk, and the patent's front view
 has the same proportion (0.35 of the width). The 4.8 inches may be measured
 at another point of the case. The model uses the photograph. A square-on
 side photograph has not been found yet. It is the source for the body's
@@ -81,6 +81,8 @@ marked O and I (TCD `fig07`, `fig08`; POG Figure 2-1).
 
 Horizontal positions are of each item's center, from the left edge of the
 case as seen from the rear. Every position is an estimate: the first figure
+is from WMC "Apple III+ back.jpg" and the second from TCD `fig06`. The two
+differ by up to 9 mm, which is the uncertainty until a script measures them.
 
 | Item | Form | Center from left (WMC / TCD) | Source of the form |
 |---|---|---|---|
@@ -132,6 +134,11 @@ source for this model.
 
 ## Disk /// (`Disk3`, `cad_disk3.py`)
 
+The Disk /// (A3M0004) is the external drive, a separate unit on a cable.
+Up to three daisy-chain from the FLOPPY DISKS connector as `.D2` to `.D4`.
+The drive built into the chassis is the same mechanism and is part of the
+body model, not this one.
+
 | Dimension | Value | Source |
 |---|---|---|
 | Width, height, depth | about 6 by 4 by 9 in (152 by 102 by 229 mm) | a Computer History Museum catalog entry for an external Apple /// drive; not an Apple document, and to be confirmed |
@@ -148,7 +155,10 @@ its 25-pin connector, power inlet and switch, is in TCD `fig06`.
 
 - The ProFile's footprint is inside the body's top, centered in X, with its
   back flush with the back of the fins, as in TCD `fig06`.
-- The monitor's base footprint is inside the top of whatever it rests on.
+- The monitor's feet are inside the top of whatever it rests on. The
+  monitor is deeper than the ProFile and the modeled body, so its case may
+  overhang the item below; the feet's positions are measured from MPAT's
+  bottom view and the WMC photographs.
 - Each item's bottom is at the top surface height of the item below. No gap
   and no intersection.
 - Side-row devices do not overlap the stack's bounding box.

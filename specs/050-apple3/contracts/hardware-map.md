@@ -41,8 +41,9 @@ p. 17).
 | Bits | Function | Checked |
 |---|---|---|
 | 0-2 (3) | bank select, outputs (DDRA is `$0F`); the bank at `$2000-$9FFF` | SVC 3.14-3.15; SOS; DDW p. 18 |
-| 4, 5 | slot interrupt request lines, inputs | SVC 3.14-3.15 (figure and text differ on which slots) |
-| 6 | `AII SW`, input | SVC 3.14; its meaning is missing from the text (see Open rows) |
+| 3 | not connected | schematic sheet 8 |
+| 4, 5 | slot interrupt request lines, inputs: bit 4 is slot 4, bit 5 is slot 3 | SVC 3.14 figure; schematic sheet 8 |
+| 6 | `AII SW`: the Apple II lockout (see "Settled from an existing emulator") | SVC 3.14; schematic sheet 8 |
 | 7 | the IRQ line, wrapped around for diagnostics | SVC 3.16 |
 
 ## Zero page register, `$FFD0` (D VIA port B)
@@ -97,7 +98,7 @@ p. 17).
 |---|---|---|
 | Port A | bank register (above) | SVC 3.14 |
 | Port B bits 0-5 | sound register: the 6-bit DAC, outputs (DDRB `$3F`) | SVC 3.14, 3.16; SOS |
-| Port B bit 6 | I/O count line from the slots | SVC 3.17 |
+| Port B bit 6 | `BL`, the blanking signal | schematic sheet 8 (SVC 3.17 has an "I/O count" line, which the sheet does not) |
 | Port B bit 7 | monitors the NMI line from the slots (`IONMI`) | SVC 3.17, 2.29 |
 | CA1 | clock chip interrupt, negative edge | SVC 3.16 |
 | CA2 | keyboard interrupt, negative edge; IFR bit 0 | SVC 3.16 |
@@ -231,7 +232,8 @@ least 500 microseconds, starts the ramp and times it until `$C066` goes low
 | A 50 or 60 Hz switch exists on the vertical counter | SVC 5.8 |
 | Nominal 2 MHz; 1.4 MHz average with the display on, 1.8 MHz with it off | SRM 2.2.2; SPEC; POG appendix D |
 | The clock drops to 1 MHz for the VIAs, the ACIA and the clock chip (`FSPACE`), and from the display signal | SVC 5.8 (gearshift PROM inputs) |
-| The exact rule for each of those inputs | |
+| The exact rule: the 1 MHz rule under "Settled from the PROM equations and the schematics". Which states are refresh states is the one open row | SVC 17.14 |
+| A line is 130 ticks of the 2 MHz clock, one of them stretched by two master clock periods: 912 master clock periods per line, an average tick rate of 2,040,968 Hz | SVC 5.1, 5.5 |
 
 ## Sound
 
@@ -311,5 +313,5 @@ schematic sheets (drawing 050-0039-H, in `docs\schematics`).
 
 | Item | What is missing |
 |---|---|
-| Refresh cycles | Schematic sheet 10 has `DSPLY` as the OR of two signals: the unblanked part of the display (blanking gated by the screen bit, `SCRN`) and `RFSH`, the RAM refresh signal from the video scan decode ROM. The unblanked part is 40 of 65 states on 192 of 262 lines, 45 percent of the time. Apple's averages (1.8 MHz with the screen off, 1.4 MHz with it on) imply refresh takes about 20 percent of the time with the screen off. Which states are refresh states is in the decode ROM, whose contents are not listed; they are set by a timing test against the two averages |
+| Refresh cycles | Schematic sheet 10 has `DSPLY` as the OR of two signals: the unblanked part of the display (blanking gated by the screen bit, `SCRN`) and `RFSH`, the RAM refresh signal from the video scan decode ROM. The unblanked part is 40 of 65 states on 192 of 262 lines, 45 percent of the time. Apple's averages (1.8 MHz with the screen off, 1.4 MHz with it on) imply refresh takes about 20 percent of the time with the screen off. Which states are refresh states is in the decode ROM, whose contents are not listed. Until a source is found, they are set by calibration (tasks.md T018a): the refresh states are spread evenly through each line, and their count is chosen so a loop of RAM accesses averages 1.8 MHz with the screen off and 1.4 MHz with it on |
 | `ENSEL`, `ENSIO` | Their effect on the port A serial lines. Used only by the Silentype, which is out of scope; the switches are accepted and do nothing |

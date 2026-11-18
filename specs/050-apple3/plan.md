@@ -59,7 +59,7 @@ dialect in the debugger, three new 3D models and a new desk arrangement
 | I. Code Quality | Pass | New code follows `.github/copilot-instructions.md`: EHM, formatting, verb-first function names, no anonymous namespaces |
 | II. Testing Discipline | Pass | Each device is unit-tested with synthetic inputs; SOS boots are scenario tests; a test that cannot find its disk or ROM fails |
 | III. User Experience Consistency | Pass | The Apple /// uses the existing machine list, settings pages, drive widgets and debugger panes; new strings are in `contracts/ui-strings.md` for approval |
-| IV. Performance Requirements | Pass | The Apple II CPU cores get no new member and no new test; the new addressing mode is a case only `Cpu6502Apple3` executes (research R4) |
+| IV. Performance Requirements | Pass | The Apple II CPU cores get no new member and no new test; the two new addressing modes are cases only `Cpu6502Apple3` executes (research R4) |
 | V. Simplicity & Maintainability | Pass, see Complexity Tracking | The debugger address migration is large and is justified below |
 | VI. Thin Executable, Testable Core | Pass | Everything is in `CassoEmuCore` and `CassoCore`; `Casso` gets resource lines for the new models and machine files only |
 
@@ -90,14 +90,14 @@ specs/050-apple3/
 
 ```text
 CassoCore/
-├── GlobalAddressingModes.h, Cpu.cpp    one new addressing mode and its fetch case
+├── GlobalAddressingModes.h, Cpu.cpp    two new addressing modes and their fetch cases
 └── Disassembler.h, .cpp                machine helper: resolved access, inline calls
 
 CassoEmuCore/
 ├── Machines/Apple3/                    new
 │   ├── Apple3.h, Apple3Plus.h          IMachine
 │   ├── Apple3Mmu                       banks, registers, extended addressing, lockout
-│   ├── Cpu6502Apple3                   the NMOS 6502 with the extended indirect mode
+│   ├── Cpu6502Apple3                   the NMOS 6502 with the extended indirect modes
 │   ├── Apple3SystemVias                two Via6522 and their wiring
 │   ├── Apple3Keyboard, Apple3Sound, Apple3AnalogInputs, Apple3Slots
 │   ├── Apple3DiskController            four drives over the Disk II engine
@@ -180,8 +180,8 @@ checked.
 
 | Risk | Handling |
 |---|---|
-| The hardware map is from secondary sources and memory | Stage 1 gates every device on a checked row |
-| Model dimensions are missing from Apple's documents | Measured from photographs and listed as measured in each README; SC-010 then applies to the documented dimensions only, and the spec is updated to match if it happens |
+| A hardware fact is wrong or missing | Every row of the hardware map is checked against Apple's documents, the PROM equations or the schematics; each device is built only from checked rows. The refresh states are the one open timing row, set by calibration against Apple's averages (SC-005) |
+| Model dimensions are missing from Apple's documents | Measured from photographs scaled by a documented dimension, each listed in the model's README with its tolerance (SC-010) |
 | The debugger address migration touches several hundred sites | Implicit conversion from `Word`, staged, with the Apple II tests as the check at each step |
 | Renames on master arrive in this branch through 035 | Merge from `035-debugger` early and often, per `CLAUDE.md` |
 | Business BASIC internals are undocumented | Worked out by observing the interpreter in Casso; each release identified by signature; unknown releases reported |

@@ -11,8 +11,8 @@
     "releaseYear": 1980,
     "timing": {
         "videoStandard": "ntsc",
-        "clockSpeed": 2040968,          // ticks per second; from the documents
-        "cyclesPerScanline": 130        // ticks; from the documents
+        "clockSpeed": 2040968,          // average ticks per second
+        "cyclesPerScanline": 130        // ticks per line
     },
     "systemRom": {
         "address": "0xF000",
@@ -45,7 +45,9 @@
   supported devices listed. The first release supports `""` and `"profile"`.
 - `"profile"` in a slot before 048 is merged into the branch fails the
   same way; the default file lists slot 4 as empty until then.
-- The timing numbers above are placeholders until the documents are read.
+- The timing numbers are from the hardware map's timing rows: 130 ticks per
+  line, one stretched by two master clock periods, so 912 periods of
+  14.31818 MHz per line (SVC 5.1, 5.5).
 - `$cassoMachineVersion` is raised once for the new keys; the Apple II files
   are upgraded by `MachineConfigUpgrade` with no change in meaning.
 
