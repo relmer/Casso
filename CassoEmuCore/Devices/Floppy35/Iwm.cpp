@@ -828,7 +828,8 @@ HRESULT Iwm::LoadState (StateReader & reader)
     hr = reader.GetResult();
     CHR (hr);
 
-    CBREx (driveSelect < kDrives && paramIndex < kParamBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    //  A byte shifting out has at most 8 bits left.
+    CBREx (driveSelect < kDrives && paramIndex < kParamBytes && writeBits <= 8, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_driveSelect = static_cast<int> (driveSelect);
     m_writeBits   = static_cast<int> (writeBits);

@@ -1360,6 +1360,7 @@
     <ClCompile Include="UiTests\NetworkPageTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceEventRingTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockSourceTests.cpp" />
     <ClCompile Include="BlockDeviceTests\DriveRuleMountAgreementTests.cpp" />
     <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
     <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
@@ -1371,6 +1372,7 @@
     <ClCompile Include="Floppy35Tests\Floppy35AttachTests.cpp" />
     <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
     <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Sony35DiskTests.cpp" />
     <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
     <ClCompile Include="Floppy35Tests\Apple35ControllerCardTests.cpp" />
     <ClCompile Include="Floppy35Tests\SmartPortBusTests.cpp" />

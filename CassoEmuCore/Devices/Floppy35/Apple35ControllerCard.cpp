@@ -619,6 +619,12 @@ HRESULT Apple35ControllerCard::LoadState (StateReader & reader)
     reader.ReadByte   (m_bank);
     reader.ReadBool   (m_selected);
 
+    hr = reader.GetResult();
+    CHR (hr);
+
+    //  A bank above $F would put the RAM window past the end of RAM.
+    CBREx ((m_bank & ~s_kBankMask) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     hr = reader.EndSection();
 
 Error:

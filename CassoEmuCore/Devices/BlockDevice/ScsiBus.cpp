@@ -623,7 +623,7 @@ HRESULT ScsiBus::LoadState (StateReader & reader)
 
     isOnBus = selected == UINT32_MAX || (selected < m_targets.size() && m_targets[selected] != nullptr);
     CBREx (isOnBus, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    isInTransfer = phase <= static_cast<Byte> (ScsiPhase::MessageIn) && index <= m_buffer.size();
+    isInTransfer = phase <= static_cast<Byte> (ScsiPhase::MessageIn) && index <= m_buffer.size() && expected <= kMostBytes;
     CBREx (isInTransfer, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     m_selected = (selected == UINT32_MAX) ? nullptr : m_targets[selected];

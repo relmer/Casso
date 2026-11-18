@@ -7,9 +7,9 @@ class StateWriter;
 
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
 #include "Devices/BlockDevice/IReplayMedia.h"
-#include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
+#include "Devices/Floppy35/ISony35Disk.h"
 
 class IDiskFileIo;
 
@@ -64,11 +64,11 @@ public:
     HRESULT  Eject  ();
     HRESULT  Flush  ();
 
-    bool  HasDisk          () const { return m_media.IsAttached() || m_woz != nullptr; }
-    bool  IsWriteProtected () const { return (m_woz != nullptr) ? m_wozProtected : m_media.IsWriteProtected(); }
-    bool  IsWoz            () const { return m_woz != nullptr; }
+    bool  HasDisk          () const { return m_disk != nullptr; }
+    bool  IsWriteProtected () const { return m_disk != nullptr && m_disk->IsWriteProtected(); }
+    bool  IsWoz            () const { return m_disk != nullptr && m_disk->IsWoz(); }
 
-    const std::string &  GetImagePath () const { return IsWoz() ? m_wozPath : m_media.GetPath(); }
+    const std::string &  GetImagePath () const;
     int                  GetSides     () const { return m_sides; }
 
     // IDiskDriveBus: the phases are CA0, CA1, CA2 and LSTRB; time passing,
@@ -96,8 +96,6 @@ public:
     int   GetTrack   () const { return m_track; }
     int   GetSide    () const { return m_sel ? 1 : 0; }
 
-    BlockDeviceMedia  & GetMedia () { return m_media; }
-
     //  The mechanism, the tracks written since the disk last flushed, and
     //  the disk, written into and read from the owner's state section. A
     //  state saved with another disk in the drive, or with none, doesn't
@@ -120,12 +118,9 @@ private:
     void                 RunCommand   (int command);
     std::vector<Byte>  & GetTrackBits ();
     void                 Emit         (Floppy35Op op);
-    HRESULT              InsertWoz    (IDiskFileIo * fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError);
-    HRESULT              FlushBlocks  ();
-    HRESULT              FlushWoz     ();
 
     int                                         m_driveIndex = 0;
-    BlockDeviceMedia                            m_media;
+    std::unique_ptr<ISony35Disk>                m_disk;
     IFloppy35EventSink                        * m_sink       = nullptr;
     int                                         m_sides      = kSides;
     bool                                        m_ca0        = false;
@@ -145,9 +140,4 @@ private:
     size_t                                      m_position   = 0;
     std::map<int, std::vector<Byte>>            m_tracks;
     std::set<int>                               m_dirty;
-    std::unique_ptr<DiskImage>                  m_woz;
-    std::shared_ptr<const std::vector<Byte>>    m_wozBytes;
-    IDiskFileIo                               * m_wozIo        = nullptr;
-    std::string                                 m_wozPath;
-    bool                                        m_wozProtected = false;
 };

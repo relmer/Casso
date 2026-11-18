@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/BlockDevice/IBlockSource.h"
 #include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/Disk/IDiskImage.h"
 
@@ -65,11 +66,11 @@ public:
     //  the file changed on the host since it was attached or last flushed.
     HRESULT  Flush   ();
 
-    bool                       IsAttached        () const { return m_file != nullptr || m_isWoz || m_isReplayCopy; }
+    bool                       IsAttached        () const { return m_source != nullptr; }
     uint32_t                   GetBlockCount     () const { return m_blockCount; }
     bool                       IsWriteProtected  () const { return m_protect.Any(); }
     const WriteProtectInfo   & GetWriteProtect   () const { return m_protect; }
-    bool                       HasPendingWrites  () const { return m_hasPendingWrites; }
+    bool                       HasPendingWrites  () const;
     const std::string        & GetPath           () const { return m_path; }
     bool                       HasChangedOnHost  ();
 
@@ -106,22 +107,13 @@ private:
     //  The blocks of a WOZ 2 3.5-inch image in `bytes`.
     HRESULT  DecodeWoz (const std::vector<Byte> & bytes, std::vector<Byte> & outBlocks, std::wstring & outError);
 
-    std::unique_ptr<BlockImageFile>   m_file;
+    //  The file or the blocks in memory; null with no media.
+    std::unique_ptr<IBlockSource>     m_source;
     std::string                       m_path;
     std::string                       m_pathKey;
-    uint32_t                          m_blockCount       = 0;
+    uint32_t                          m_blockCount = 0;
     WriteProtectInfo                  m_protect;
-    bool                              m_hasPendingWrites = false;
-    bool                              m_isWoz            = false;
-    std::vector<Byte>                 m_wozBlocks;
 
-    //  Each block written since the media was attached: its content now, and
-    //  its content before the first write.
-    std::map<uint32_t, std::shared_ptr<const std::vector<Byte>>>  m_written;
-    std::map<uint32_t, std::vector<Byte>>                         m_original;
-
-    //  The blocks as they were when the media was attached: a replay copy's
-    //  blocks, or the ones a copy of this media is made from.
-    std::shared_ptr<const std::vector<Byte>>                      m_attachedBlocks;
-    bool                                                          m_isReplayCopy = false;
+    //  Each block written since the media was attached, as it is now.
+    IBlockSource::WrittenBlocks       m_written;
 };

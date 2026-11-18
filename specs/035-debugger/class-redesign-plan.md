@@ -468,6 +468,25 @@ validated on load, and pointers encoded as IDs (`Apple2cPlusDiskPort::PortDrive`
 driven ID). The byte layout is fixed by rule 6 from `4b20fcd8c` on; a layout
 change found necessary here requires the owner's decision and a version bump.
 
+**7b, as built.** `BlockDeviceMedia` has the path, the one-drive-per-path rule, the write
+protection, the overlay of written blocks and its state, and an `IBlockSource`
+for every other block. There are two sources, not three: `FileBlockSource` (the
+image file, the content of each block before its first write, the pending
+writes and the flush) and `MemoryBlockSource` (shared blocks, which a write
+doesn't change). A decoded WOZ image and a replay copy are both blocks in
+memory. `Sony35Drive` has an `ISony35Disk`, either `Sony35BlockDisk` (GCR
+tracks encoded from a `BlockDeviceMedia` and decoded back on Flush) or
+`Sony35WozDisk` (the WOZ tracks); with no disk the drive saves an empty block
+media's state, so the bytes match. `Sony35Drive::GetMedia` had no caller and
+is removed. Direct tests: `BlockSourceTests` and `Sony35DiskTests`.
+
+**7e, as built.** Three loads were missing checks. A state is now bad data when
+`ScsiBus`'s transfer length is above its buffer limit, `Iwm`'s write bit count
+is above 8, or `Apple35ControllerCard`'s bank is above $F, which would put the RAM window past
+the end of RAM. No layout changed. `Apple2cPlusDiskPort::m_floppies` is now
+worked out again at each access, so it is a cache; it stays in the state, since
+rule 6 fixes the layout.
+
 **Tests.** The peek tests from T1532 (`IwmTests`, `Ncr5380Tests`, `ProFileTests`,
 `AppleScsiCardTests`, `Apple35ControllerCardTests`, `SmartPortBusTests`,
 `IoPeekTests`) and its mutation checks are the net for 7a. `BlockDeviceMediaTests`

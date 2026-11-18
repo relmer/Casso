@@ -1634,6 +1634,8 @@
     </ClCompile>
     <ClCompile Include="Devices\BlockDevice\BlockDeviceCatalog.cpp" />
     <ClCompile Include="Devices\BlockDevice\BlockDeviceMedia.cpp" />
+    <ClCompile Include="Devices\BlockDevice\FileBlockSource.cpp" />
+    <ClCompile Include="Devices\BlockDevice\MemoryBlockSource.cpp" />
     <ClCompile Include="Devices\BlockDevice\ScsiBus.cpp" />
     <ClCompile Include="Devices\BlockDevice\Ncr5380.cpp" />
     <ClCompile Include="Devices\BlockDevice\ScsiHardDisk.cpp" />
@@ -1644,6 +1646,8 @@
     <ClCompile Include="Devices\BlockDevice\ProFileCard.cpp" />
     <ClCompile Include="Devices\Floppy35\Gcr35Track.cpp" />
     <ClCompile Include="Devices\Floppy35\Sony35Drive.cpp" />
+    <ClCompile Include="Devices\Floppy35\Sony35BlockDisk.cpp" />
+    <ClCompile Include="Devices\Floppy35\Sony35WozDisk.cpp" />
     <ClCompile Include="Devices\Floppy35\Iwm.cpp" />
     <ClCompile Include="Devices\Floppy35\DeviceCpu.cpp" />
     <ClCompile Include="Devices\Floppy35\Apple35CardMemory.cpp" />
@@ -3010,6 +3014,9 @@
     <ClInclude Include="Devices\Floppy35\IFloppy35EventSink.h" />
     <ClInclude Include="Devices\Floppy35\Floppy35EventRing.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceMedia.h" />
+    <ClInclude Include="Devices\BlockDevice\FileBlockSource.h" />
+    <ClInclude Include="Devices\BlockDevice\IBlockSource.h" />
+    <ClInclude Include="Devices\BlockDevice\MemoryBlockSource.h" />
     <ClInclude Include="Devices\BlockDevice\IReplayMedia.h" />
     <ClInclude Include="Devices\BlockDevice\IScsiTarget.h" />
     <ClInclude Include="Devices\BlockDevice\ScsiBus.h" />
@@ -3023,6 +3030,9 @@
     <ClInclude Include="Devices\BlockDevice\ProFileCard.h" />
     <ClInclude Include="Devices\Floppy35\Gcr35Track.h" />
     <ClInclude Include="Devices\Floppy35\Sony35Drive.h" />
+    <ClInclude Include="Devices\Floppy35\ISony35Disk.h" />
+    <ClInclude Include="Devices\Floppy35\Sony35BlockDisk.h" />
+    <ClInclude Include="Devices\Floppy35\Sony35WozDisk.h" />
     <ClInclude Include="Devices\Floppy35\IDiskDriveBus.h" />
     <ClInclude Include="Devices\Floppy35\ICatchUpDevice.h" />
     <ClInclude Include="Devices\Floppy35\Iwm.h" />

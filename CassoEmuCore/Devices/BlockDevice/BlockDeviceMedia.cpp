@@ -3,6 +3,8 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/BlockDevice/FileBlockSource.h"
+#include "Devices/BlockDevice/MemoryBlockSource.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -148,12 +150,10 @@ HRESULT BlockDeviceMedia::Attach (
 
         m_protect           = hostProtect;
         m_protect.imageFlag = true;
-        m_isWoz             = true;
-        m_wozBlocks         = std::move (wozBlocks);
+        m_source            = std::make_unique<MemoryBlockSource> (std::make_shared<const std::vector<Byte>> (std::move (wozBlocks)));
         m_path              = path;
         m_pathKey           = key;
         m_blockCount        = blockCount;
-        m_hasPendingWrites  = false;
 
         BAIL_OUT_IF (true, S_OK);
     }
@@ -187,11 +187,10 @@ HRESULT BlockDeviceMedia::Attach (
 
     m_protect           = hostProtect;
     m_protect.imageFlag = IsLockedTwoImg (*file);
-    m_file              = std::move (file);
+    m_source            = std::make_unique<FileBlockSource> (std::move (file));
     m_path              = path;
     m_pathKey           = key;
     m_blockCount        = blockCount;
-    m_hasPendingWrites  = false;
 
 Error:
     if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED))
@@ -304,18 +303,12 @@ Error:
         released = ChangeClaim (m_pathKey, false);
         IGNORE_RETURN_VALUE (released, false);
 
-        m_file.reset();
-        m_wozBlocks.clear();
-        m_isWoz = false;
+        m_source.reset();
         m_path.clear();
         m_pathKey.clear();
-        m_blockCount       = 0;
-        m_protect          = {};
-        m_hasPendingWrites = false;
+        m_blockCount = 0;
+        m_protect    = {};
         m_written.clear();
-        m_original.clear();
-        m_attachedBlocks.reset();
-        m_isReplayCopy = false;
     }
 
     return hr;
@@ -329,6 +322,8 @@ Error:
 //
 //  ReadBlock
 //
+//  A written block from the overlay, any other from the source.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlockDeviceMedia::ReadBlock (uint32_t block, std::span<Byte> outBytes)
@@ -336,6 +331,7 @@ HRESULT BlockDeviceMedia::ReadBlock (uint32_t block, std::span<Byte> outBytes)
     HRESULT  hr       = S_OK;
     size_t   length   = outBytes.size();
     bool     attached = IsAttached();
+    auto     written  = m_written.end();
 
 
 
@@ -343,29 +339,15 @@ HRESULT BlockDeviceMedia::ReadBlock (uint32_t block, std::span<Byte> outBytes)
     CBREx  (attached,              HRESULT_FROM_WIN32 (ERROR_NOT_READY));
     CBREx  (block < m_blockCount,  HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
 
-    if (m_isWoz)
+    written = m_written.find (block);
+
+    if (written != m_written.end())
     {
-        std::copy_n (m_wozBlocks.begin() + (ptrdiff_t) ((size_t) block * kBlockBytes), kBlockBytes, outBytes.begin());
+        std::copy_n (written->second->begin(), kBlockBytes, outBytes.begin());
         BAIL_OUT_IF (true, S_OK);
     }
 
-    if (m_isReplayCopy)
-    {
-        auto  written = m_written.find (block);
-
-        if (written != m_written.end())
-        {
-            std::copy_n (written->second->begin(), kBlockBytes, outBytes.begin());
-        }
-        else
-        {
-            std::copy_n (m_attachedBlocks->begin() + (ptrdiff_t) ((size_t) block * kBlockBytes), kBlockBytes, outBytes.begin());
-        }
-
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    hr = m_file->GetStore().ReadBlocks (block, 1, outBytes);
+    hr = m_source->ReadBlock (block, outBytes);
     CHR (hr);
 
 Error:
@@ -396,29 +378,10 @@ HRESULT BlockDeviceMedia::WriteBlock (uint32_t block, std::span<const Byte> byte
     CBREx  (block < m_blockCount,        HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
     CBREx  (!isProtected,                HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
 
-    if (m_isReplayCopy)
-    {
-        m_written[block] = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    //  A block's content before its first write, for a state loaded from
-    //  before that write.
-    if (!m_original.contains (block))
-    {
-        std::vector<Byte>  before (kBlockBytes);
-
-        hr = m_file->GetStore().ReadBlocks (block, 1, before);
-        CHR (hr);
-
-        m_original[block] = std::move (before);
-    }
-
-    hr = m_file->GetStore().WriteBlocks (block, bytes);
+    hr = m_source->WriteBlock (block, bytes);
     CHR (hr);
 
-    m_written[block]   = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
-    m_hasPendingWrites = true;
+    m_written[block] = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
 
 Error:
     return hr;
@@ -436,23 +399,7 @@ Error:
 
 HRESULT BlockDeviceMedia::Flush()
 {
-    HRESULT  hr          = S_OK;
-    bool     isUnchanged = false;
-
-
-
-    BAIL_OUT_IF (m_file == nullptr || !m_hasPendingWrites, S_OK);
-
-    isUnchanged = m_file->IsFileUnchanged();
-    CBREx (isUnchanged, HRESULT_FROM_WIN32 (ERROR_FILE_INVALID));
-
-    hr = m_file->Commit();
-    CHR (hr);
-
-    m_hasPendingWrites = false;
-
-Error:
-    return hr;
+    return (m_source != nullptr) ? m_source->Flush() : S_OK;
 }
 
 
@@ -467,7 +414,22 @@ Error:
 
 bool BlockDeviceMedia::HasChangedOnHost()
 {
-    return m_file != nullptr && !m_file->IsFileUnchanged();
+    return m_source != nullptr && m_source->HasChangedOnHost();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasPendingWrites
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockDeviceMedia::HasPendingWrites() const
+{
+    return m_source != nullptr && m_source->HasPendingWrites();
 }
 
 
@@ -689,29 +651,13 @@ HRESULT BlockDeviceMedia::LoadState (StateReader & reader)
         written[block] = std::make_shared<const std::vector<Byte>> (std::move (content));
     }
 
-    if (m_isReplayCopy)
+    if (m_source != nullptr)
     {
-        m_written = std::move (written);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    for (const auto & [changed, original] : m_original)
-    {
-        if (!written.contains (changed))
-        {
-            hr = m_file->GetStore().WriteBlocks (changed, original);
-            CHR (hr);
-        }
-    }
-
-    for (const auto & [saved, bytes] : written)
-    {
-        hr = m_file->GetStore().WriteBlocks (saved, *bytes);
+        hr = m_source->RestoreWritten (written);
         CHR (hr);
     }
 
-    m_hasPendingWrites = m_hasPendingWrites || !m_original.empty() || !written.empty();
-    m_written          = std::move (written);
+    m_written = std::move (written);
 
 Error:
     return hr;
@@ -725,16 +671,14 @@ Error:
 //
 //  BlockDeviceMedia::CopyForReplay
 //
-//  The blocks now with each written block's content before its first write
-//  put back, which is the content when the media was attached. An empty
-//  drive's copy has no content.
+//  The blocks as they were when the media was attached. An empty drive's
+//  copy has no content.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlockDeviceMedia::CopyForReplay (ReplayBlockMedia & outCopy)
 {
-    HRESULT            hr = S_OK;
-    std::vector<Byte>  blocks;
+    HRESULT  hr = S_OK;
 
 
 
@@ -742,28 +686,11 @@ HRESULT BlockDeviceMedia::CopyForReplay (ReplayBlockMedia & outCopy)
 
     BAIL_OUT_IF (!IsAttached(), S_OK);
 
-    if (m_attachedBlocks == nullptr && m_isWoz)
-    {
-        m_attachedBlocks = std::make_shared<const std::vector<Byte>> (m_wozBlocks);
-    }
-    else if (m_attachedBlocks == nullptr)
-    {
-        blocks.assign ((size_t) m_blockCount * kBlockBytes, 0);
-
-        hr = m_file->GetStore().ReadBlocks (0, m_blockCount, blocks);
-        CHR (hr);
-
-        for (const auto & [block, original] : m_original)
-        {
-            std::copy (original.begin(), original.end(), blocks.begin() + (ptrdiff_t) ((size_t) block * kBlockBytes));
-        }
-
-        m_attachedBlocks = std::make_shared<const std::vector<Byte>> (std::move (blocks));
-    }
+    hr = m_source->GetAttachedBlocks (outCopy.content);
+    CHR (hr);
 
     outCopy.path    = m_path;
     outCopy.protect = m_protect;
-    outCopy.content = m_attachedBlocks;
 
 Error:
     return hr;
@@ -798,11 +725,10 @@ HRESULT BlockDeviceMedia::MountReplayCopy (const ReplayBlockMedia & copy)
     isWhole = size > 0 && size % kBlockBytes == 0;
     CBRAEx (isWhole, E_INVALIDARG);
 
-    m_attachedBlocks = copy.content;
-    m_isReplayCopy   = true;
-    m_path           = copy.path;
-    m_blockCount     = (uint32_t) (size / kBlockBytes);
-    m_protect        = copy.protect;
+    m_source     = std::make_unique<MemoryBlockSource> (copy.content);
+    m_path       = copy.path;
+    m_blockCount = (uint32_t) (size / kBlockBytes);
+    m_protect    = copy.protect;
 
 Error:
     return hr;
