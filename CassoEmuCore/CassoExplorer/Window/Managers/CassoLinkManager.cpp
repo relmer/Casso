@@ -1053,6 +1053,32 @@ bool CassoLinkManager::IsSerialConnection (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::CanMakeSosDisk
+//
+//  The SOS disk's program uses the Apple ///'s serial port through .RS232:
+//  a serial cable, or a Wi-Fi modem connection, which accepts MAME's serial
+//  socket too. The program doesn't dial, so the user dials a real modem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::CanMakeSosDisk (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.app.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && (settings.transport == LinkTransport::Serial || settings.transport == LinkTransport::WifiModem);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::CanBootstrapConnection
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1134,6 +1160,11 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         if (IsSerialConnection (name))
         {
             m_context.menus.AddMenuCommand (items, L"Make CassoLink &ProDOS disk...", [this, name]() { m_context.linkDrives.SaveLinkProDosDisk (name); });
+        }
+
+        if (CanMakeSosDisk (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Make CassoLink S&OS disk...", [this, name]() { m_context.linkDrives.SaveLinkSosDisk (name); });
         }
 
         if (saved)

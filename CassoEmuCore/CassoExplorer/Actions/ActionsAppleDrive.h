@@ -111,6 +111,10 @@ public:
     //  disk at usersDisk, for the link's speed.
     ActionsTypes::Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings);
 
+    //  The CassoLink SOS disk (CassoLinkSosDisk), from the user's SOS disk at
+    //  usersDisk, for the link's speed.
+    ActionsTypes::Outcome  SaveLinkSosDisk    (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings);
+
     ActionsTypes::Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand);
 
     std::wstring  DescribeAppleDrive () const;

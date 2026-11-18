@@ -1286,6 +1286,11 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     //  The SOS build is SOS.INTERP on the CassoLink SOS disk, with no shim
     //  to load another, so a disk from another version of Casso is made
     //  again.
+    if (!intact && m_programChip == LinkChip::Sos && m_adtProServer.m_activity)
+    {
+        m_adtProServer.m_activity ("The CassoLink SOS disk doesn't match this version of Casso. Make the disk again from the connection's menu.");
+    }
+
     CBREx (intact || m_programChip != LinkChip::Sos, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
 
     if (intact)
