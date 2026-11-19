@@ -846,8 +846,10 @@ fcdec:  dec nscnt
 ; ---------------------------------------------------------------------------
 
 ; lninit: the MMU reset, frames sent with their pages released, the
-; individual address set, and the receiver and transmitter on, the frames
-; sent padded and the frames received without their CRC.
+; individual address set, and the receiver and transmitter on, with the
+; frames sent padded. A frame received keeps its CRC, if it has one: MAME's
+; LAN91C96 receives frames with no CRC, and STRIP_CRC would cut their last
+; 4 bytes. The IP and UDP lengths, not the frame's, set a datagram's end.
 lninit: ldx nsx
         lda #2
         sta LNBANK,x
@@ -875,8 +877,8 @@ lninit: ldx nsx
         sta $C080,x
         lda #$00
         sta $C081,x
-        sta $C084,x             ; bank 0's RCR: RXEN and STRIP_CRC
-        lda #$03
+        sta $C084,x             ; bank 0's RCR: RXEN
+        lda #$01
         sta $C085,x
         lda #2
         sta LNBANK,x

@@ -92,13 +92,12 @@ HRESULT Win32UdpStream::Write (const Byte * data, size_t count)
 {
     HRESULT  hr      = S_OK;
     SOCKET   sending = INVALID_SOCKET;
-    size_t   sent    = 0;
-    size_t   chunk   = 0;
     int      result  = 0;
 
 
 
     CBRAEx (data != nullptr || count == 0, E_INVALIDARG);
+    CBRAEx (count <= kDatagramMax, E_INVALIDARG);
 
     {
         std::lock_guard<std::mutex>  guard (m_lock);
@@ -108,19 +107,8 @@ HRESULT Win32UdpStream::Write (const Byte * data, size_t count)
         sending = m_socket;
     }
 
-    while (sent < count)
-    {
-        if (sent > 0)
-        {
-            Sleep (s_kPaceMs);
-        }
-
-        chunk  = std::min (count - sent, kDatagramMax);
-        result = ::send (sending, (const char *) data + sent, (int) chunk, 0);
-        CWR (result == (int) chunk);
-
-        sent += chunk;
-    }
+    result = ::send (sending, (const char *) data, (int) count, 0);
+    CWR (result == (int) count);
 
 Error:
     return hr;

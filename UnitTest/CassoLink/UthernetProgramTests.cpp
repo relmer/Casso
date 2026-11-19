@@ -52,7 +52,7 @@ public:
     static constexpr int       kRowCard     = 1;
     static constexpr int       kRowAddress  = 2;
     static constexpr int       kRowNetwork  = 4;
-    static constexpr Word      kSaltAt      = 0x5000;   // memory the universal disk salts its MAC address with
+    static constexpr Word      kSaltAt      = 0x6000;   // memory the universal disk salts its MAC address with
 
     //  The PC's end of a connection the card accepted: what the test writes
     //  is the card's inbound data, and what the card sends is read. A read

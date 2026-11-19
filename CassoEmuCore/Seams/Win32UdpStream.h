@@ -14,11 +14,10 @@
 //
 //  IByteStream over UDP datagrams to one address and port: an original
 //  Uthernet's or a LANceGS's network shim, which has no TCP. Each write is
-//  sent as datagrams of at most kDatagramMax bytes, a few milliseconds
-//  apart, so the card's receive memory doesn't overflow while the Apple
-//  copies one out. Each datagram received from that address and port is
-//  appended to the bytes Read takes, in order; one lost on the network is
-//  a run of lost bytes, as on a serial line.
+//  one datagram of at most kDatagramMax bytes, the most the shim takes
+//  (LINKMAX in NetStack.s). Each datagram received from that address and
+//  port is appended to the bytes Read takes, in order; one lost on the
+//  network is a run of lost bytes, as on a serial line.
 //
 //  Open sends an empty datagram, and the shim sends to its source address
 //  and port from then on.
@@ -43,8 +42,6 @@ public:
 private:
     HRESULT  StartWinsock ();
     void     RunReceiver  (SOCKET receiving);
-
-    static constexpr DWORD   s_kPaceMs       = 4;
 
     //  SIO_UDP_CONNRESET, from mstcpip.h.
     static constexpr DWORD   s_kUdpConnReset = _WSAIOW (IOC_VENDOR, 12);
