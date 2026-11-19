@@ -878,8 +878,11 @@ public:
         std::vector<CassoExplorerBrowser::SearchMatch>  matches;
 
 
-        host.Seed ("Disks/Merlin-proProdos2.33-a.dsk", L"C:\\Disks\\merlin.dsk");
-        Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\merlin.dsk", root, kind).Succeeded());
+        //  The scratch ProDOS image's SUBDIR, with a file in it.
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\search.po");
+        host.SeedBytes ({ 'h', 'i', '\n' }, L"C:\\In\\inner.txt");
+        Assert::IsTrue (host.browser.GetOperations().Put ("C:\\Disks\\search.po", "C:\\In\\inner.txt", "SUBDIR/INNER", "T", false, 0, DiskOperations::Encoding::Text).Succeeded());
+        Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\search.po", root, kind).Succeeded());
 
         for (const FileEntry & entry : root.entries)
         {
@@ -887,7 +890,7 @@ public:
         }
 
         Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
-        Assert::IsTrue  (host.browser.GetOperations().List ("C:\\Disks\\merlin.dsk", directory, inner, kind).Succeeded());
+        Assert::IsTrue  (host.browser.GetOperations().List ("C:\\Disks\\search.po", directory, inner, kind).Succeeded());
 
         for (const FileEntry & entry : inner.entries)
         {
@@ -896,9 +899,9 @@ public:
 
         Assert::IsNotNull (file);
 
-        match.id             = L"C:\\Disks\\merlin.dsk\\" + AppleFileName::ToDisplay (directory) + L"\\" + AppleFileName::ToDisplay (file->name);
+        match.id             = L"C:\\Disks\\search.po\\" + AppleFileName::ToDisplay (directory) + L"\\" + AppleFileName::ToDisplay (file->name);
         match.name           = AppleFileName::ToDisplay (file->name);
-        match.imagePath      = L"C:\\Disks\\merlin.dsk";
+        match.imagePath      = L"C:\\Disks\\search.po";
         match.catalogIndex   = file->catalogIndex;
         match.imageDirectory = directory;
         shell.shellItems.push_back (match);
