@@ -1146,8 +1146,8 @@ pjmp:   jmp $C000
 pentry: .byte 0, 0, 0, 0         ; the init, read, write and status offsets
 pnib:   .byte 0                 ; pread: the high nibble
 
-; A IIgs's port, through its 8530. Slot 1's printer port is channel B and
-; slot 2's modem port channel A. A read of a channel's command register reads
+; A IIgs's port, through its 8530. Slot 1's printer port is channel A and
+; slot 2's modem port channel B. A read of a channel's command register reads
 ; register 0 and selects it again; a write selects the register the next
 ; access of it reads or writes. Reads are indexed by the channel. Writes are
 ; absolute, set for the port, as an indexed store reads its address first,
@@ -1198,11 +1198,11 @@ swd:    sta SCCBDATA
 ; by 16 after that, or straight from RTxC by 32 for 115,200 baud and by 16
 ; for 230,400. A 6551 control byte of rate 1, 50 baud, indicates 230,400.
 sccspd: pha
-        ldx #0
+        ldx #1
         lda slotx
         cmp #$20
         bne sschan
-        inx
+        dex
 sschan: stx schan
         txa
         clc
@@ -1273,10 +1273,10 @@ srates: .byte $00, $FF, $01, $FE, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
 ; Each register and its value, for 115,200 baud and then for the others: the
 ; clock mode, the generator off or the time constant and the generator on,
 ; the clocks' source, no interrupts, and the receiver and transmitter on.
-sregs:  .byte 4, $84, 14, $00, 11, $00, 1, $00, 3, $C1, 5, $EA
+sregs:  .byte 4, $84, 14, $00, 11, $80, 1, $00, 3, $C1, 5, $EA
 s16:    .byte 4, $44, 12
 s16tc:  .byte 0
-        .byte 13, $00, 14, $01, 11, $50, 1, $00, 3, $C1, 5, $EA
+        .byte 13, $00, 14, $01, 11, $D0, 1, $00, 3, $C1, 5, $EA
 send:
 schan:  .byte 0                 ; the port's channel: 0 for B, 1 for A
 stend:  .byte 0                 ; sccspd: the end of the registers written
