@@ -306,12 +306,6 @@ protected:
 
     virtual std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial);
 
-    //  The step filters after Debug > Step filters..., none when canceled;
-    //  a test overrides it.
-    virtual std::optional<std::vector<std::wstring>>  RunStepFiltersDialog (const std::vector<std::wstring> & filters,
-                                                                            std::function<bool (const std::wstring &, std::wstring &)> check);
-    void                       EditStepFilters        ();
-
     //  Whether a frame repaints the window: when it took an update, or while
     //  something moves, a caret's blink among them.
     static bool                IsFramePaintDue        (bool hasUpdate, bool isAnimating);

@@ -244,7 +244,7 @@ namespace DebuggerViewCascadeTests
             CascadeWindow              window   (theme, host);
             std::vector<std::wstring>  expected =
             {
-                L"Disassembly", L"Source files", L"Call stack", L"Breakpoints", L"Bookmarks", L"User symbols", L"Machine symbols",
+                L"Disassembly", L"Source files", L"Call stack", L"Breakpoints", L"Bookmarks", L"User symbols", L"Machine symbols", L"Step filters",
                 L"-",
                 L"Registers", L"Stack", L"Watches", L"Memory", L"Data ranges", L"Heat map", L"Heat map ranges",
                 L"-",

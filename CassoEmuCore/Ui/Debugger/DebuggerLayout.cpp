@@ -144,7 +144,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
-                                       kVideoLog, kSoundLog, kSerialLog, kNetworkLog, kBasicProgram, kSymbols, kMachineSymbols, kBookmarks, kProfiler, kDataBlocks };
+                                       kVideoLog, kSoundLog, kSerialLog, kNetworkLog, kBasicProgram, kSymbols, kMachineSymbols, kBookmarks, kStepFilters, kProfiler, kDataBlocks };
 
 
 
@@ -370,7 +370,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kConsole;
     }
 
-    if ((pane == kSymbols || pane == kMachineSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
+    if ((pane == kSymbols || pane == kMachineSymbols || pane == kBookmarks || pane == kStepFilters || pane == kDataBlocks) && layout.Contains (kBreakpoints))
     {
         return kBreakpoints;
     }
@@ -405,7 +405,7 @@ bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
 
 std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 {
-    return { kSymbols, kMachineSymbols, kBookmarks, kProfiler, kDataBlocks };
+    return { kSymbols, kMachineSymbols, kBookmarks, kStepFilters, kProfiler, kDataBlocks };
 }
 
 
@@ -432,6 +432,7 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         { kBookmarks,      92 },
         { kSymbols,        93 },
         { kMachineSymbols, 94 },
+        { kStepFilters,    95 },
         { kRegisters,     100 },
         { kStack,         101 },
         { kWatches,       102 },
@@ -738,13 +739,14 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kNetworkLog, kConsole);
 
     //  The BASIC program is a tab of the disassembly, the profiler of the
-    //  console, and both symbols panes, the bookmarks and the data ranges
-    //  of the breakpoints.
+    //  console, and both symbols panes, the bookmarks, the step filters and
+    //  the data ranges of the breakpoints.
     layout.Add (kBasicProgram,   kCode);
     layout.Add (kProfiler,       kConsole);
     layout.Add (kSymbols,        kBreakpoints);
     layout.Add (kMachineSymbols, kBreakpoints);
     layout.Add (kBookmarks,      kBreakpoints);
+    layout.Add (kStepFilters,    kBreakpoints);
     layout.Add (kDataBlocks,     kBreakpoints);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)

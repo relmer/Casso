@@ -641,7 +641,7 @@ void DebuggerWindow::ShowSkipNotice (const std::string & routine)
     }
 
     text = std::format (L"A step into {0} now steps over it.\n\nTo step into it again, click the checked Never step into this routine on its menu, "
-                        L"remove it in Debug > Step filters..., or type SKIP - {0}.", TextEncoding::NarrowToWide (routine));
+                        L"delete it in the Step filters pane, or type SKIP - {0}.", TextEncoding::NarrowToWide (routine));
 
     (void) ShowCheckMessageBox (GetRoutingHwnd(), text, L"Step filter", MB_OK | MB_ICONINFORMATION, L"Don't show this message again", isOff);
 
