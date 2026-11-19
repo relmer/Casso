@@ -34,15 +34,32 @@ bool MemoryAddressEntry::IsInside (const RECT & rc, int x, int y)
 //  MemoryAddressEntry::GetWidthPx
 //
 //  The same width in both forms: a combo box has no icon to collapse to.
+//  Wide enough for the box's hint, in italics, beside the arrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int MemoryAddressEntry::GetWidthPx (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const
 {
-    (void) labeled;
-    (void) text;
+    float    w         = 0.0f;
+    float    h         = 0.0f;
+    HRESULT  hrMeasure = E_FAIL;
+    int      fitPx     = 0;
 
-    return scaler.ToPx (kWidthDip);
+
+
+    (void) labeled;
+
+    if (text != nullptr && m_box != nullptr && !m_box->GetPlaceholder().empty())
+    {
+        hrMeasure = text->MeasureString (m_box->GetPlaceholder().c_str(), scaler.ToPxf (m_box->GetFontDip()), m_box->GetFace(), w, h);
+    }
+
+    if (SUCCEEDED (hrMeasure))
+    {
+        fitPx = (int) std::ceil (w) + scaler.ToPx (DxuiTextInput::kPadLeftDip * 2 + kArrowDip + kHintSlackDip);
+    }
+
+    return (std::max) (scaler.ToPx (kWidthDip), fitPx);
 }
 
 
