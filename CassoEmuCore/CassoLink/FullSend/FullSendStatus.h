@@ -243,6 +243,9 @@ public:
     //  was written with.
     bool  HasBoot        (const std::string & file) const;
 
+    //  Waits up to `ms` for the file's boot result; whether it has arrived.
+    bool  WaitForBoot    (const std::string & file, DWORD ms) const;
+
     FullSendSnapshot  GetSnapshot () const;
 
 private:
@@ -261,6 +264,7 @@ private:
     void                  NoteIdle      ();
 
     mutable std::mutex                                m_lock;
+    mutable std::condition_variable                   m_bootArrived;
     SecondsFn                                         m_seconds;
     TimeFn                                            m_time;
     FullSendSnapshot                                  m_snapshot;

@@ -41,4 +41,24 @@ public:
     //  measured against: GetTickCount64 for a real port or socket, and the
     //  pair's virtual time for an in-process pair a test runs on it.
     virtual uint64_t GetTickMs        () { return GetTickCount64(); }
+
+    //  A pause in what is sent, as between a bootstrap's characters and
+    //  lines. A sleep is as coarse as the system timer, about 15 ms, so a
+    //  shorter pause spins. A virtual-time pair moves its time instead.
+    virtual void     Pause            (uint64_t microseconds)
+    {
+        static constexpr uint64_t  kSleepUs = 15'000;
+
+        auto  until = std::chrono::steady_clock::now() + std::chrono::microseconds (microseconds);
+
+        if (microseconds >= kSleepUs)
+        {
+            std::this_thread::sleep_until (until);
+        }
+
+        while (std::chrono::steady_clock::now() < until)
+        {
+            YieldProcessor();
+        }
+    }
 };

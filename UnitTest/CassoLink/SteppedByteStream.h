@@ -34,6 +34,7 @@ public:
     size_t   GetReadableCount () override                               { return m_end->GetReadableCount(); }
     bool     IsClosed         () const override                         { return m_end->IsClosed(); }
     void     Close            () override                               { m_end->Close(); }
+    void     Pause            (uint64_t microseconds) override          { m_end->Pause (microseconds); }
 
     //  The machine's time, from the cycles it has run through this stream.
     uint64_t GetTickMs        () override                               { return (uint64_t) ((double) m_total / CassoLinkHost::kCpuCyclesPerMs); }
