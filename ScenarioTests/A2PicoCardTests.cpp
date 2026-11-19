@@ -7,6 +7,7 @@
 #include "UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -42,7 +43,7 @@ public:
 
         void Seed (const std::vector<Byte> & bytes, const std::wstring & path)
         {
-            std::string  narrow (path.begin(), path.end());
+            std::string  narrow = TextEncoding::WideToUtf8 (path);
 
 
 
@@ -55,7 +56,7 @@ public:
         //  card's folder listing finds it too.
         void List (const std::wstring & path)
         {
-            std::string  narrow (path.begin(), path.end());
+            std::string  narrow = TextEncoding::WideToUtf8 (path);
 
 
 
