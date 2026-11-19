@@ -1,8 +1,8 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
-#include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
+#include "ScratchImages.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
@@ -49,7 +49,7 @@ public:
 
         Host()
         {
-            SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+            SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\dos33.dsk");
 
             browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
             browser.GetTreeModel().SetDrives ({});
@@ -77,14 +77,6 @@ public:
             io.stamps[Narrow (path)] = FileStamp { bytes.size(), 100 };
         }
 
-        void SeedFixture (const char * fixture, const std::wstring & path)
-        {
-            FixtureProvider    fixtures;
-            std::vector<Byte>  bytes;
-
-            AssertSucceeded (fixtures.OpenFixture (fixture, bytes));
-            SeedBytes (bytes, path);
-        }
 
         void OpenImage()
         {
@@ -123,6 +115,14 @@ public:
     static std::vector<Byte> Bytes (const char * text)
     {
         return std::vector<Byte> (text, text + strlen (text));
+    }
+
+
+
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) ScratchImages::GetDos33 (false);
+        (void) ScratchImages::GetProDos (false);
     }
 
 
@@ -472,8 +472,8 @@ public:
 
 
 
-        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\second.dsk");
-        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\third.dsk");
+        host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
+        host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\third.dsk");
         host.OpenImage();
         host.browser.GoUp();
 
@@ -500,7 +500,7 @@ public:
 
 
 
-        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\second.dsk");
+        host.SeedBytes (ScratchImages::GetDos33 (false), L"C:\\Disks\\second.dsk");
         host.SeedBytes   (Bytes ("hello"), L"C:\\Disks\\readme.txt");
         host.OpenImage();
         host.browser.GoUp();
@@ -884,7 +884,7 @@ public:
 
         broken[0] = 0x66;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
         host.SeedBytes   (broken, L"C:\\In\\BAD#088066");
         host.SeedBytes   (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
 
@@ -1093,9 +1093,9 @@ public:
     }
 
 
-    //  HELLO, INTPROG and ODD as a recording that opens as a folder of the
-    //  same programs and binary, with NOTES left out and the sidecar beside
-    //  it. The recording is Ogg Vorbis by its extension.
+    //  HELLO, INTPROG and a one-byte binary as a recording that opens as a
+    //  folder of the same programs and binary, with NOTES left out and the
+    //  sidecar beside it. The recording is a WAV file by its extension.
     TEST_METHOD (MakeTapeRecording_WritesTheProgramsAsTapeAudio)
     {
         Host                           host;
@@ -1106,23 +1106,26 @@ public:
 
 
 
+        host.SeedBytes ({ 0x60 }, L"C:\\In\\one.bin");
+        Assert::IsTrue (host.browser.GetOperations().Put ("C:\\Disks\\dos33.dsk", "C:\\In\\one.bin", "ONE", "B", true, 0x0300, DiskOperations::Encoding::Verbatim).Succeeded());
+
         host.OpenImage();
-        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"NOTES"), host.Find (L"INTPROG"), host.Find (L"ODD") });
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"NOTES"), host.Find (L"INTPROG"), host.Find (L"ONE") });
         host.browser.GetSelectedEntries (entries);
 
         Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertToTapeAudio));
 
-        outcome = host.actions.MakeTapeRecording (L"C:\\Disks\\programs.ogg");
+        outcome = host.actions.MakeTapeRecording (L"C:\\Disks\\programs.wav");
 
         Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
         Assert::AreEqual (3, outcome.written);
         Assert::IsTrue   (outcome.message.find (L"NOTES isn't a BASIC program or a binary") != std::wstring::npos, outcome.message.c_str());
-        Assert::IsTrue   (OggVorbisCodec::IsOgg (host.io.files["C:\\Disks\\programs.ogg"]));
+        Assert::IsFalse  (OggVorbisCodec::IsOgg (host.io.files["C:\\Disks\\programs.wav"]));
 
         sidecar.assign (host.io.files["C:\\Disks\\programs.tape.txt"].begin(), host.io.files["C:\\Disks\\programs.tape.txt"].end());
         Assert::IsTrue (sidecar.starts_with ("00:00.5  HELLO  Applesoft"), TextEncoding::NarrowToWide (sidecar).c_str());
 
-        TapeRecordingVolume  tape (host.io.files["C:\\Disks\\programs.ogg"]);
+        TapeRecordingVolume  tape (host.io.files["C:\\Disks\\programs.wav"]);
 
         AssertSucceeded  (tape.Enumerate (listing));
         Assert::AreEqual ((size_t) 3, listing.entries.size());
@@ -1142,6 +1145,7 @@ public:
             Assert::IsTrue  (fromTape.bytes == original.bytes, TextEncoding::NarrowToWide (entries[entry].name).c_str());
         }
 
+        Assert::IsTrue (ActionsTape::GetFormat (L"x.OGG") == TapeRecordingFormat::Ogg);
         Assert::IsTrue (ActionsTape::GetFormat (L"x.MP3") == TapeRecordingFormat::Mp3);
         Assert::IsTrue (ActionsTape::GetFormat (L"x.aiff") == TapeRecordingFormat::Wav);
     }
@@ -1177,7 +1181,7 @@ public:
         std::wstring  folder;
         size_t        inside = 0;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
         host.SeedBytes (Bytes ("inner text\n"), L"C:\\In\\inner.txt");
         Assert::IsTrue (host.browser.GetOperations().Put ("C:\\Disks\\prodos.po", "C:\\In\\inner.txt", "SUBDIR/INNER", "T", false, 0, DiskOperations::Encoding::Text).Succeeded());
 
@@ -1266,7 +1270,7 @@ public:
         std::vector<CassoExplorerActions::Verb>  verbs;
         std::vector<DxuiTreeNode>                roots;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
         host.SeedBytes   (Bytes ("10 PRINT \"SUB\"\n20 END\n"), L"C:\\In\\subprog.bas");
 
         host.browser.GetTreeRoots (roots);
@@ -1340,7 +1344,7 @@ public:
         Host                           host;
         CassoExplorerActions::Outcome  outcome;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
         host.SeedBytes   (Bytes ("10 PRINT \"IN\"\n20 END\n"), L"C:\\In\\Games\\inner.bas");
 
         outcome = host.actions.PutInto (L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "", { L"C:\\In\\Games" });
@@ -1371,7 +1375,7 @@ public:
         VolumeListing                  listing;
         VolumeKind                     kind = VolumeKind::Unknown;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
         host.SeedBytes   (Bytes ("10 PRINT \"IN\"\n20 END\n"), L"C:\\In\\Games\\inner.bas");
 
         outcome = host.actions.PutInto (L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "", { L"C:\\In\\Games" });
@@ -1393,7 +1397,7 @@ public:
         VolumeKind                     kind    = VolumeKind::Unknown;
         FilePayload                    payload;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
 
         //  An Applesoft program from DOS 3.3 lands as a ProDOS BAS file.
         outcome = host.actions.CopyEntriesInto ("C:\\Disks\\dos33.dsk", VolumeKind::Dos33, { "HELLO" },
@@ -1429,7 +1433,7 @@ public:
         FilePayload                    locked;
         FilePayload                    copied;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
 
         locked.bytes        = { 1, 2, 3 };
         locked.type         = 0x04;
@@ -1468,7 +1472,7 @@ public:
         VolumeListing                  listing;
         VolumeKind                     kind    = VolumeKind::Unknown;
 
-        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\prodos.po");
         Assert::IsTrue (host.browser.GetOperations().Mkdir ("C:\\Disks\\prodos.po", "OUTER").Succeeded());
         Assert::IsTrue (host.browser.GetOperations().Mkdir ("C:\\Disks\\prodos.po", "OUTER/INNER").Succeeded());
 

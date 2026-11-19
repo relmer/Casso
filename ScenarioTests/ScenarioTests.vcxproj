@@ -171,6 +171,7 @@
     <ClCompile Include="BlockCountTests.cpp" />
     <ClCompile Include="ImageClassifierScenarioTests.cpp" />
     <ClCompile Include="BlockModeTests.cpp" />
+    <ClCompile Include="InspectorPerformanceTests.cpp" />
     <ClCompile Include="GutenbergTests.cpp" />
     <ClCompile Include="TapeRecordingTests.cpp" />
     <ClCompile Include="GameDataTests.cpp" />

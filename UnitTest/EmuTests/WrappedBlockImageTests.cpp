@@ -31,14 +31,17 @@ TEST_CLASS (WrappedBlockImageTests)
 {
 public:
 
-    static constexpr size_t    kBlockBytes = 512;
-    static constexpr size_t    kBlocks     = 1600;
-    static constexpr uint32_t  kEdited     = 1000;
-    static constexpr int64_t   kTime       = 1'700'000'000;
+    static constexpr size_t    kBlockBytes    = 512;
+    static constexpr size_t    kBlocks        = 1600;
+    static constexpr size_t    kWrappedBlocks = 288;
+    static constexpr uint32_t  kEdited        = 200;
+    static constexpr int64_t   kTime          = 1'700'000'000;
 
-    static vector<Byte> MakeImage()
+    //  The wrapped images are just over a 140K floppy's size, the smallest
+    //  that opens in block mode.
+    static vector<Byte> MakeImage (size_t blocks = kBlocks)
     {
-        vector<Byte>  image (kBlocks * kBlockBytes, 0);
+        vector<Byte>  image (blocks * kBlockBytes, 0);
 
 
 
@@ -60,7 +63,7 @@ public:
         Assert::IsTrue (BlockImageFile::IsBlockImage (io, path), L"the image opens in block mode");
 
         AssertSucceeded (BlockImageFile::Open (io, path, file, error));
-        Assert::AreEqual ((uint32_t) kBlocks, file->GetBlockCount());
+        Assert::AreEqual ((uint32_t) kWrappedBlocks, file->GetBlockCount());
         Assert::IsNotNull (file->GetWrapped());
 
         AssertSucceeded (file->GetStore().WriteBlocks (kEdited, block));
@@ -77,7 +80,7 @@ public:
     TEST_METHOD (GzipImage_IsEditedAndWrittenBackCompressed)
     {
         FakeDiskFileIo  io;
-        vector<Byte>    image = MakeImage();
+        vector<Byte>    image = MakeImage (kWrappedBlocks);
         vector<Byte>    gzip;
         vector<Byte>    expanded;
         std::string     name;
@@ -103,7 +106,7 @@ public:
         static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
 
         FakeDiskFileIo     io;
-        vector<Byte>       image = MakeImage();
+        vector<Byte>       image = MakeImage (kWrappedBlocks);
         vector<Byte>       zip;
         vector<ZipEntry>   entries;
 

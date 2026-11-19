@@ -50,6 +50,44 @@ public:
 
 
 
+    //  The analysis is built once for the class. Each test copies it.
+    static const DiskAnalysis & GetDsk()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            AnalyzeDsk (s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
+    //  The DOS 3.3 volume with files, analyzed once for the class.
+    static const DiskAnalysis & GetDos33()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            FileMapTestImages::Analyze (FileMapTestImages::MakeDos33(), false, s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
     static std::wstring GetLine (const std::wstring & text, int line)
     {
         size_t  start = 0;
@@ -86,6 +124,14 @@ public:
 
 
 
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) GetDsk();
+        (void) GetDos33();
+    }
+
+
+
     TEST_METHOD (ThePlatterTipDescribesWhatIsUnderThePointer)
     {
         DiskAnalysis           analysis;
@@ -96,7 +142,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track = analysis.tracks[analysis.entries[68].slot].get();
         turn  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[track->fields[track->sectors[3].dataField].bodyNibble + 20].startCell);
@@ -126,7 +172,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         query.text = L"D5 AA 96";
         marks.Build (InspectorSearch::Find (analysis, 68, query), nullptr, query.text);
         context.analysis  = &analysis;
@@ -160,7 +206,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track = analysis.tracks[analysis.entries[68].slot].get();
         tip   = InspectorTip::BuildPlatterTip (context, 68, GetDataTurn (*track, 3, 20), kOneCell, false);
@@ -188,7 +234,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track = analysis.tracks[analysis.entries[68].slot].get();
 
@@ -219,7 +265,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track  = analysis.tracks[analysis.entries[68].slot].get();
         nibble = track->fields[track->sectors[3].dataField].bodyNibble + 20;
@@ -248,7 +294,7 @@ public:
 
 
 
-        FileMapTestImages::Analyze (image, false, analysis);
+        analysis = GetDos33();
         maps = FileMapBuilder::Build (analysis);
         Assert::AreEqual (static_cast<size_t> (1), maps.size());
 
@@ -297,7 +343,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         track = analysis.tracks[analysis.entries[68].slot].get();
 
         for (size_t s = 0; s < track->sectors.size(); s++)
@@ -368,7 +414,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
 
         model.SetDisk (1);
         model.SetAnalysis (&analysis);
@@ -431,7 +477,7 @@ public:
 
 
 
-        FileMapTestImages::Analyze (image, false, analysis);
+        analysis = GetDos33();
         maps = FileMapBuilder::Build (analysis);
         cell = maps[0].GetCellOf (17, 0, half);
         qt   = 17 * DiskImage::kQuarterTracksPerWholeTrack;

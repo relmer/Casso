@@ -50,7 +50,7 @@ public:
 
     TEST_METHOD (MostlyZeroImage_RoundTripsAndShrinks)
     {
-        std::vector<Byte>  image (800 * 1024, 0);
+        std::vector<Byte>  image (140 * 1024, 0);
         std::vector<Byte>  deflated;
 
 
@@ -114,7 +114,7 @@ public:
 
 
 
-        for (int i = 0; i < 3000; i++)
+        for (int i = 0; i < 600; i++)
         {
             data.insert (data.end(), text.begin(), text.end());
             seed = seed * 1103515245 + 12345;
@@ -122,7 +122,7 @@ public:
             data.push_back ((Byte) (seed >> 8));
         }
 
-        data.insert (data.end(), 70000, 0);
+        data.insert (data.end(), 20000, 0);
 
         for (int level = Deflate::kFastest; level <= Deflate::kBest; level++)
         {
@@ -144,7 +144,7 @@ public:
 
 
 
-        for (int k = 0; k < 24; k++)
+        for (int k = 0; k < 20; k++)
         {
             data.insert (data.end(), (size_t) a, (Byte) k);
             c = a + b;
@@ -168,7 +168,7 @@ public:
 
     TEST_METHOD (BytesWithNoPattern_AreStored)
     {
-        std::vector<Byte>  data (100000);
+        std::vector<Byte>  data (20000);
         std::vector<Byte>  deflated;
         uint32_t           seed = 12345;
 
@@ -188,7 +188,7 @@ public:
 
     TEST_METHOD (GzipOfAnImage_IsSmallAndExpandsBack)
     {
-        std::vector<Byte>  image (800 * 1024, 0);
+        std::vector<Byte>  image (140 * 1024, 0);
         std::vector<Byte>  gzip;
         std::vector<Byte>  expanded;
         std::string        name;

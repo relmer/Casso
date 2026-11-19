@@ -52,18 +52,27 @@ public:
     static constexpr uint32_t  kBitmapAt     = 0x27;
     static constexpr uint32_t  kBitsPerBlock = 4096;
     static constexpr uint32_t  kFarBlock     = 9000;
+    static constexpr size_t    kSmallBlocks  = 288;
     static constexpr uint32_t  kFileCountAt  = 0x25;
     static constexpr uint32_t  kKeyPointer   = 0x11;
     static constexpr int64_t   kTime         = 1'700'000'000;
 
-    //  BIG with SEED, GAMES/HELLO and GAMES/OTHER.
-    static vector<Byte> MakeVolume()
+    //  BIG with SEED, GAMES/HELLO and GAMES/OTHER. The volume of kBlocks is
+    //  built once for the class, and each test gets a copy.
+    static vector<Byte> MakeVolume (size_t blocks = kBlocks)
     {
-        vector<Byte>  buffer (kBlocks * kBlockBytes, 0);
+        static vector<Byte>  s_volume;
+
+        vector<Byte>  buffer (blocks * kBlockBytes, 0);
         vector<Byte>  next;
         FilePayload   payload;
 
 
+
+        if (blocks == kBlocks && !s_volume.empty())
+        {
+            return s_volume;
+        }
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "BIG"));
 
@@ -84,7 +93,19 @@ public:
         payload.bytes.assign (100, 0x42);
         AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("GAMES/OTHER"), payload, next));
 
+        if (blocks == kBlocks)
+        {
+            s_volume = next;
+        }
+
         return next;
+    }
+
+
+
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) MakeVolume();
     }
 
 
@@ -645,9 +666,9 @@ public:
 
 
     //  A block of SEED marked free and a block in no file marked used.
-    static vector<Byte> MakeDamagedVolume (uint32_t & outSeedBlock)
+    static vector<Byte> MakeDamagedVolume (uint32_t & outSeedBlock, size_t blocks = kBlocks, uint32_t farBlock = kFarBlock)
     {
-        vector<Byte>  buffer = MakeVolume();
+        vector<Byte>  buffer = MakeVolume (blocks);
         BlockMap      map    = BuildMap (buffer);
 
 
@@ -655,7 +676,7 @@ public:
         outSeedBlock = map.GetBlocksOf (FindEntry (map, L"SEED"))[0];
 
         SetFree (buffer, outSeedBlock, true);
-        SetFree (buffer, kFarBlock, false);
+        SetFree (buffer, farBlock, false);
 
         return buffer;
     }
@@ -722,7 +743,9 @@ public:
 
 
 
-        GzipFile::Build (MakeDamagedVolume (seed), "Big.po", gzip);
+        //  A volume just over a 140K floppy's size, the smallest volume
+        //  the block map is built for. The bitmap's length doesn't matter here.
+        GzipFile::Build (MakeDamagedVolume (seed, kSmallBlocks, kSmallBlocks - 10), "Big.po", gzip);
 
         io.files["C:\\Disks\\Big.po.gz"]  = gzip;
         io.stamps["C:\\Disks\\Big.po.gz"] = { gzip.size(), kTime };
