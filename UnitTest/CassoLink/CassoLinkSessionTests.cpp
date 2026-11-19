@@ -130,11 +130,25 @@ public:
             changed.notify_all();
         }
 
-        bool  WaitForState (LinkState state, DWORD timeoutMs = 10000)
+        //  The number of states so far, for a wait on a state the
+        //  session may pass through before the waiting thread runs again, as on
+        //  virtual time.
+        size_t  Mark()
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            return states.size();
+        }
+
+        //  The state is the current one, or the session passes through it
+        //  after `from`, a Mark, or after the wait starts.
+        bool  WaitForState (LinkState state, DWORD timeoutMs = 10000, size_t from = SIZE_MAX)
         {
             std::unique_lock<std::mutex>  guard (lock);
 
-            return changed.wait_for (guard, std::chrono::milliseconds (timeoutMs), [&] () { return !states.empty() && states.back() == state; });
+            from = (from != SIZE_MAX) ? from : states.empty() ? 0 : states.size() - 1;
+
+            return changed.wait_for (guard, std::chrono::milliseconds (timeoutMs), [&] () { return std::find (states.begin() + (ptrdiff_t) (std::min) (from, states.size()), states.end(), state) != states.end(); });
         }
 
         bool  WaitForDone (const std::shared_ptr<LinkOperation> & operation, DWORD timeoutMs = 20000)
@@ -933,8 +947,10 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
+        size_t  mark = rig.sink.Mark();
+
         rig.apple.Detach();
-        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected));
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 10000, mark));
 
         auto  list = rig.Finish (rig.session->Enumerate (1, FilePath()));
 
@@ -949,15 +965,19 @@ public:
     {
         Rig  rig;
 
+        rig.factory.isRealTime = true;   // DSR is toggled in real time
         rig.factory.peerReady = 1;
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
+        //  DSR is on for a while before it goes off, so the session reads it on.
         std::this_thread::sleep_for (std::chrono::milliseconds (500));
 
         //  An Apple reset turns its DTR off at once.
+        size_t  mark = rig.sink.Mark();
+
         rig.factory.peerReady = 0;
-        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 2000), L"well before the silence counts");
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Disconnected, 2000, mark), L"well before the silence counts");
     }
 
 
@@ -967,6 +987,7 @@ public:
     {
         Rig  rig;
 
+        rig.factory.isRealTime = true;   // DSR is toggled in real time
         rig.factory.peerReady = 1;
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));

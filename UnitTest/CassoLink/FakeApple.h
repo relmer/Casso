@@ -129,11 +129,16 @@ public:
         Detach();
     }
 
-    //  Serves a new connection's Apple end.
+    //  Serves a new connection's Apple end. The session's thread attaches as
+    //  it opens a line while a test's thread may detach, so both are under
+    //  one lock.
     void  Attach (std::shared_ptr<InProcessByteStream> end)
     {
+        std::lock_guard<std::recursive_mutex>  guard (m_attachLock);
+
         Detach();
 
+        end->SetOneThread (false);
         m_end    = end;
         m_thread = std::jthread ([this, end] (std::stop_token stop) { Serve (stop, *end); });
     }
@@ -141,6 +146,8 @@ public:
     //  Drops the line, as a cable pulled.
     void  Detach()
     {
+        std::lock_guard<std::recursive_mutex>  guard (m_attachLock);
+
         if (m_end)
         {
             m_end->Close();
@@ -185,13 +192,13 @@ private:
     //  False on a timeout or a closed line.
     static bool  Receive (std::stop_token stop, Line & line, CassoLinkPacket & outPacket, DWORD timeoutMs)
     {
-        Byte    chunk[4096];
-        size_t  got      = 0;
-        size_t  consumed = 0;
-        bool    complete = false;
-        auto    until    = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+        Byte      chunk[4096];
+        size_t    got         = 0;
+        size_t    consumed    = 0;
+        bool      complete    = false;
+        uint64_t  until       = line.stream.GetTickMs() + timeoutMs;
 
-        while (!stop.stop_requested() && std::chrono::steady_clock::now() < until)
+        while (!stop.stop_requested() && line.stream.GetTickMs() < until)
         {
             if (!line.buffer.empty())
             {
@@ -411,7 +418,7 @@ private:
             {
                 case CassoLinkCodec::kIdle:
                     shimIdles += (version == 0) ? 1 : 0;
-                    std::this_thread::sleep_for (std::chrono::milliseconds (2));
+                    line.stream.Advance (2);
                     break;
 
                 case CassoLinkCodec::kLoadProgram:
@@ -448,7 +455,7 @@ private:
                 case CassoLinkCodec::kTimeDrive:
                     for (Byte pass = 0; pass < packet.payload.at (2) && !stop.stop_requested(); pass++)
                     {
-                        std::this_thread::sleep_for (std::chrono::milliseconds (revolutionMs));
+                        line.stream.Advance (revolutionMs);
                         Send (line, std::vector<Byte> { CassoLinkCodec::kTimeMark });
                     }
 
@@ -691,7 +698,7 @@ private:
             }
 
             SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyNone });
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+            line.stream.Advance (5);
         }
     }
 
@@ -818,7 +825,7 @@ private:
                 continue;
             }
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (sectorDelayMs.load()));
+            std::this_thread::sleep_for (std::chrono::milliseconds (sectorDelayMs.load()));   // real, so a test can act during a read
 
             {
                 std::lock_guard<std::mutex>  guard (lock);
@@ -941,6 +948,7 @@ private:
 
     std::shared_ptr<InProcessByteStream>  m_end;
     std::jthread                          m_thread;
+    std::recursive_mutex                  m_attachLock;
     std::vector<Byte>                     m_module;
     Byte                                  m_moduleId      = 0;
     Byte                                  m_moduleVersion = 0;
@@ -965,6 +973,26 @@ class FakeAppleFactory : public IByteStreamFactory
 {
 public:
     explicit FakeAppleFactory (FakeApple & apple) : m_apple (apple) {}
+
+    //  Real-time lines, for a test whose timing is in real milliseconds, as
+    //  DSR glitches from another thread are. Set before the first line opens.
+    bool  isRealTime = false;
+
+    //  The lines' shared virtual time.
+    uint64_t  GetTickMs () override { return isRealTime ? GetTickCount64() : m_clock->nowMs.load(); }
+
+    //  A wait with no line open costs nothing: the time moves on at once.
+    void  WaitIdle (std::condition_variable_any & condition, std::unique_lock<std::mutex> & lock, std::stop_token stop, DWORD ms, const std::function<bool ()> & isReady) override
+    {
+        if (isRealTime)
+        {
+            IByteStreamFactory::WaitIdle (condition, lock, stop, ms, isReady);
+        }
+        else if (!stop.stop_requested() && !isReady())
+        {
+            m_clock->nowMs += ms;
+        }
+    }
 
     std::atomic<int>  connections { 0 };
 
@@ -1034,14 +1062,16 @@ public:
             comOverlapped = comOverlapped || !end->IsClosed();
         }
 
-        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        DWORD  replies  = (m_apple.speedSet && appleBaudAfterSpeed != 0) ? appleBaudAfterSpeed : appleBaud;
+        bool   answered = found->second == Port::Apple && (replies == 0 || replies == settings.baud);
+
+        //  A line with no Apple has no reader at its far end.
+        CreateLine (pcEnd, appleEnd, !answered);
         comOpened.push_back (port);
         comBauds.push_back (settings.baud);
         m_ends.push_back (pcEnd);
 
-        DWORD  replies = (m_apple.speedSet && appleBaudAfterSpeed != 0) ? appleBaudAfterSpeed : appleBaud;
-
-        if (found->second == Port::Apple && (replies == 0 || replies == settings.baud))
+        if (answered)
         {
             m_apple.Attach (appleEnd);
         }
@@ -1063,7 +1093,7 @@ public:
         std::shared_ptr<InProcessByteStream>  pcEnd;
         std::shared_ptr<InProcessByteStream>  appleEnd;
 
-        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        CreateLine (pcEnd, appleEnd, true);
         listened.push_back (transport);
         m_ends.push_back (pcEnd);
         m_silent.push_back (appleEnd);
@@ -1077,7 +1107,7 @@ public:
         std::shared_ptr<InProcessByteStream>  pcEnd;
         std::shared_ptr<InProcessByteStream>  appleEnd;
 
-        InProcessByteStream::CreatePair (pcEnd, appleEnd);
+        CreateLine (pcEnd, appleEnd, !answer);
         connections++;
 
         if (answer)
@@ -1091,6 +1121,18 @@ public:
     }
 
 private:
+    void  CreateLine (std::shared_ptr<InProcessByteStream> & outPcEnd, std::shared_ptr<InProcessByteStream> & outAppleEnd, bool isUnanswered)
+    {
+        if (isRealTime)
+        {
+            InProcessByteStream::CreatePair (outPcEnd, outAppleEnd);
+        }
+        else
+        {
+            InProcessByteStream::CreateVirtualPair (outPcEnd, outAppleEnd, isUnanswered, m_clock);
+        }
+    }
+
     //  An owned handle on a shared in-process end.
     class SharedStream : public IByteStream
     {
@@ -1103,6 +1145,7 @@ private:
         bool     IsClosed         () const override                                                     { return m_end->IsClosed(); }
         void     Close            () override                                                           { m_end->Close(); }
         bool     TryGetPeerReady  (bool & outReady) override                                            { outReady = m_peerReady == 1 && m_lagReads <= 0; m_lagReads--; return m_peerReady >= 0; }
+        uint64_t GetTickMs        () override                                                           { return m_end->GetTickMs(); }
 
     private:
         std::shared_ptr<InProcessByteStream>  m_end;
@@ -1111,6 +1154,7 @@ private:
     };
 
     FakeApple                                          & m_apple;
+    std::shared_ptr<InProcessByteStream::VirtualClock>   m_clock = std::make_shared<InProcessByteStream::VirtualClock>();
     std::shared_ptr<InProcessByteStream>                 m_unanswered;
     std::vector<std::shared_ptr<InProcessByteStream>>    m_ends;
     std::vector<std::shared_ptr<InProcessByteStream>>    m_silent;

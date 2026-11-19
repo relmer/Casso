@@ -1247,6 +1247,8 @@ void BlockInspectorWindow::Repair()
     RepairPlan              full   = m_model.PlanRepair (volume, {});
     RepairDialog            dialog;
     fs::path                target;
+    fs::path                host;
+    std::wstring            rest;
     uint64_t                bytes  = 0;
     std::wstring            why;
     std::wstring            label;
@@ -1295,25 +1297,30 @@ void BlockInspectorWindow::Repair()
     }
     else
     {
-        bytes  = fs::file_size (m_path, error);
-        target = TextEncoding::Utf8ToWide (RepairCopy::GetCopyPath (*m_fileIo, TextEncoding::WideToUtf8 (m_path)));
+        bytes  = fs::file_size (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (m_path))), error);
+        target = TextEncoding::Utf8ToWide (RepairCopy::GetHostCopyPath (*m_fileIo, TextEncoding::WideToUtf8 (m_path)));
+        host   = TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (target.wstring())));
 
-        if (IsOnRemovableDrive (target))
+        if (IsOnRemovableDrive (host))
         {
             why = name + L" is on a removable drive, which can be slow or short of space. Choose where to save the repaired copy.";
         }
-        else if (!HasRoomFor (target.parent_path(), bytes))
+        else if (!HasRoomFor (host.parent_path(), bytes))
         {
             why = L"The drive with " + name + L" doesn't have room for the repaired copy. Choose where to save it.";
         }
     }
 
-    if ((isCard || !why.empty()) && !PickRepairTarget (why, bytes, target))
+    //  For an image in a ZIP, the user chooses where the copy of the ZIP goes.
+    host = isCard ? target : host;
+    rest = target.wstring().substr (host.wstring().size());
+
+    if ((isCard || !why.empty()) && !PickRepairTarget (why, bytes, host))
     {
         return;
     }
 
-    QueueRepairCopy (volume, dialog.GetPlan(), isCard, target);
+    QueueRepairCopy (volume, dialog.GetPlan(), isCard, host.wstring() + rest);
 }
 
 
@@ -1408,9 +1415,11 @@ void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan,
     m_panel->QueueJob ({ L"Writing the repaired copy", false,
                          [result, model, fileIo, image, target, volume, plan, isCard] (BlockJobProgress & progress)
                          {
-                             std::string  path = TextEncoding::WideToUtf8 (target.wstring());
+                             std::string   path       = TextEncoding::WideToUtf8 (target.wstring());
+                             std::wstring  targetHost = TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (path));
 
-                             if (!isCard && !CopyFileW (image.c_str(), target.c_str(), FALSE))
+                             //  An image in a container is copied with its host file.
+                             if (!isCard && !CopyFileW (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (image.wstring()))).c_str(), targetHost.c_str(), FALSE))
                              {
                                  result->hr      = HRESULT_FROM_WIN32 (GetLastError());
                                  result->message = L"The image can't be copied.";
@@ -1420,9 +1429,9 @@ void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan,
                                  result->hr = model->WriteRepairTo (*fileIo, path, volume, plan, isCard, result->message, &progress);
                              }
 
-                             if (FAILED (result->hr) && fileIo->Exists (path))
+                             if (FAILED (result->hr) && fileIo->Exists (TextEncoding::WideToUtf8 (targetHost)))
                              {
-                                 (void) fileIo->Remove (path);
+                                 (void) fileIo->Remove (TextEncoding::WideToUtf8 (targetHost));
                              }
                          },
                          [this, result, target] ()

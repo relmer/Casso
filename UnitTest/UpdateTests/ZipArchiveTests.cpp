@@ -139,6 +139,29 @@ public:
 
 
 
+    TEST_METHOD (Replace_KeepsEachEntrysMethod)
+    {
+        constexpr size_t  kMethodOffset = 8;
+
+        TestZipBuilder     builder;
+        std::vector<Byte>  zeros (5000, 0);
+        std::vector<Byte>  stored;
+        std::vector<Byte>  deflated;
+
+
+
+        builder.Add ("disk.po", std::string (300, '\x5A'));
+
+        AssertSucceeded (ZipArchive::Replace (builder.Build(), "disk.po", zeros, stored));
+        AssertSucceeded (ZipArchive::Replace (s_kDeflatedZip, "docs/notes.txt", zeros, deflated));
+
+        Assert::AreEqual ((Byte) 0, stored[kMethodOffset],   L"a stored entry is stored again");
+        Assert::AreEqual ((Byte) 8, deflated[kMethodOffset], L"a deflated entry is deflated again");
+        Assert::IsTrue   (deflated.size() < 200);
+    }
+
+
+
     TEST_METHOD (Empty_ArchiveHasNoEntries)
     {
         TestZipBuilder          builder;

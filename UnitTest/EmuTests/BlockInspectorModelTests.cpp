@@ -116,10 +116,12 @@ public:
         Seed (io, "big.po",    vector<Byte> (k800KBlocks * kBlockBytes));
         Seed (io, "small.po",  vector<Byte> (280 * kBlockBytes));
         Seed (io, "big.dsk",   vector<Byte> (k800KBlocks * kBlockBytes));
+        Seed (io, "small.dsk", vector<Byte> (280 * kBlockBytes));
 
         Assert::IsTrue  (BlockImageFile::IsBlockImage (io, "big.po"));
         Assert::IsFalse (BlockImageFile::IsBlockImage (io, "small.po"));
-        Assert::IsFalse (BlockImageFile::IsBlockImage (io, "big.dsk"));
+        Assert::IsTrue  (BlockImageFile::IsBlockImage (io, "big.dsk"), L"an 800K .dsk is a 3.5-inch disk");
+        Assert::IsFalse (BlockImageFile::IsBlockImage (io, "small.dsk"));
     }
 
 

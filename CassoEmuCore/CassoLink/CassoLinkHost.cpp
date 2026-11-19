@@ -21,6 +21,7 @@ CassoLinkHost::CassoLinkHost (std::shared_ptr<IByteStream> stream, ICassoLinkFol
     m_folder (folder),
     m_clock  (std::move (clock))
 {
+    m_lastHeardMs = m_stream->GetTickMs();
 }
 
 
@@ -55,7 +56,7 @@ HRESULT CassoLinkHost::Fill (size_t count, DWORD timeoutMs, bool & outFilled)
         CBREx (!closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
         BAIL_OUT_IF (got == 0, S_OK);
 
-        m_lastHeardMs = GetTickCount64();
+        m_lastHeardMs = m_stream->GetTickMs();
         TakeReceived (std::span<const Byte> (chunk, got));
     }
 
@@ -111,7 +112,7 @@ Error:
 
 DWORD CassoLinkHost::GetSilenceMs() const
 {
-    return (DWORD) std::min<uint64_t> (GetTickCount64() - m_lastHeardMs, MAXDWORD);
+    return (DWORD) std::min<uint64_t> (m_stream->GetTickMs() - m_lastHeardMs, MAXDWORD);
 }
 
 
@@ -150,7 +151,7 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
     size_t     consumed = 0;
     bool       complete = false;
     bool       filled   = false;
-    ULONGLONG  deadline = GetTickCount64() + timeoutMs;
+    ULONGLONG  deadline = m_stream->GetTickMs() + timeoutMs;
     ULONGLONG  now      = 0;
 
 
@@ -163,13 +164,13 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         if (complete)
         {
-            m_lastPacketMs = GetTickCount64();
+            m_lastPacketMs = m_stream->GetTickMs();
             TraceReceived (outPacket);
         }
 
         BAIL_OUT_IF (complete, S_OK);
 
-        now = GetTickCount64();
+        now = m_stream->GetTickMs();
 
         hr = Fill (m_adtProServer.m_buffer.size() + 1, now < deadline ? (DWORD) (deadline - now) : 0, filled);
         CHR (hr);
@@ -197,7 +198,7 @@ HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 
 
 
-    m_lastPacketMs = GetTickCount64();
+    m_lastPacketMs = m_stream->GetTickMs();
 
     if (m_textForm)
     {
@@ -1344,7 +1345,7 @@ HRESULT CassoLinkHost::AwaitReady()
     //  as the client's chip doesn't take a byte while it sends. They are
     //  dropped, and the next one, just sent, is waited for. A read's Status
     //  counts, so the Ready right after it is used.
-    if (!current && m_lastPacketMs != 0 && GetTickCount64() - m_lastPacketMs > kStaleReadyMs)
+    if (!current && m_lastPacketMs != 0 && m_stream->GetTickMs() - m_lastPacketMs > kStaleReadyMs)
     {
         hr = DiscardReceived();
         CHR (hr);

@@ -74,7 +74,7 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
         //  A file the loader refused says why, as the list does; one that
         //  loaded holds no file system this browser reads.
         inOutNode.loadError = loaded ? GetLeaf (path) + L" " + kNoFilesystemText
-                                     : BreakAfterFirstSentence (GetLeaf (path) + L" " + TextEncoding::NarrowToWide (diagnosis.Describe()) + L".");
+                                     : BreakAfterFirstSentence (diagnosis.FormatSentence (GetLeaf (path)) + L".");
         inOutNode.broken         = !loaded;
         m_children[inOutNode.id] = children;
 

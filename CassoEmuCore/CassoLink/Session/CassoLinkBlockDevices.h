@@ -83,6 +83,8 @@ private:
 
     struct Unit
     {
+        ~Unit();
+
         CassoLinkBlockDevice                 device;
         std::unique_ptr<LinkStore>           store;
         std::unique_ptr<CachingBlockStore>   cache;

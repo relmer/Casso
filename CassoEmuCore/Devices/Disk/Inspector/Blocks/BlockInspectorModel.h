@@ -147,12 +147,13 @@ public:
     //  partitions. Each has its first block in the image, its count of
     //  blocks and its map. FindVolume is -1 for a block in no volume of
     //  blocks.
-    int               GetVolumeCount () const           { return (int) m_volumes.size(); }
-    uint32_t          GetVolumeFirst (int volume) const { return m_volumes[volume]->first; }
-    uint32_t          GetVolumeSize  (int volume) const { return m_volumes[volume]->count; }
-    bool              IsSectorVolume (int volume) const { return m_volumes[volume]->isSectors; }
-    const BlockMap  & GetVolumeMap   (int volume) const { return m_volumes[volume]->map; }
-    int               FindVolume     (uint32_t block) const;
+    int               GetVolumeCount     () const           { return (int) m_volumes.size(); }
+    uint32_t          GetVolumeFirst     (int volume) const { return m_volumes[volume]->first; }
+    uint32_t          GetVolumeSize      (int volume) const { return m_volumes[volume]->count; }
+    bool              IsSectorVolume     (int volume) const { return m_volumes[volume]->isSectors; }
+    int               GetSectorsPerTrack (int volume) const { return m_volumes[volume]->sectorsPerTrack; }
+    const BlockMap  & GetVolumeMap       (int volume) const { return m_volumes[volume]->map; }
+    int               FindVolume         (uint32_t block) const;
 
     //  The map of the volume a block is in, with the block's number in it.
     const BlockMap *  FindMap (uint32_t block, uint32_t & outInner) const;
@@ -253,22 +254,25 @@ private:
         BlockEditBuffer            edits;
     };
 
-    HRESULT  WriteBlocks        (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress);
-    HRESULT  ReadSectors        (const Volume & volume, vector<Byte> & outSectors) const;
-    HRESULT  WriteSectorRepair  (IDiskFileIo & fileIo, const std::string & path, const Volume & volume, const RepairPlan & plan, bool isVolumeOnly, std::wstring & outError);
-    uint32_t GetSectorOffset    (const Volume & volume, uint32_t unit) const;
-    HRESULT  IsStoredAs         (const std::map<uint32_t, Block> & blocks, bool & outIsSame);
-    HRESULT  BuildVolumes       ();
-    void     AddVolume          (uint32_t first, uint32_t count, const std::wstring & label);
-    void     AddSectorVolume    (const Partition & partition);
-    void     AddPartitionMap    ();
-    void     AddPartitions      ();
-    void     FindPlaces         (uint32_t block, vector<Place> & outPlaces) const;
-    uint32_t GetUnitBlock       (const Volume & volume, uint32_t unit) const;
-    void     AnnotateSector     (const Place & place, const Block & bytes, vector<BlockField> & ioFields) const;
-    bool     IsMapBlock         (uint32_t block, bool & outIsDescriptor) const;
-    HRESULT  ComputeDifferences (BlockJobProgress * progress);
-    void     ClearCache         ();
+    HRESULT  WriteBlocks         (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress);
+    HRESULT  ReadSectors         (const Volume & volume, vector<Byte> & outSectors) const;
+    HRESULT  WriteSectorRepair   (IDiskFileIo & fileIo, const std::string & path, const Volume & volume, const RepairPlan & plan, bool isVolumeOnly, std::wstring & outError);
+    uint32_t GetSectorOffset     (const Volume & volume, uint32_t unit) const;
+    HRESULT  IsStoredAs          (const std::map<uint32_t, Block> & blocks, bool & outIsSame);
+    HRESULT  BuildVolumes        ();
+    void     AddVolume           (uint32_t first, uint32_t count, const std::wstring & label);
+    void     AddSectorVolume     (const Partition & partition);
+    void     AddPartitionMap     ();
+    void     AddPartitions       ();
+    void     AddContainingVolume ();
+    void     AddNestedPartitions (size_t container);
+    void     ClaimPartition      (BlockMap & map, uint32_t first, const BlockBand & band);
+    void     FindPlaces          (uint32_t block, vector<Place> & outPlaces) const;
+    uint32_t GetUnitBlock        (const Volume & volume, uint32_t unit) const;
+    void     AnnotateSector      (const Place & place, const Block & bytes, vector<BlockField> & ioFields) const;
+    bool     IsMapBlock          (uint32_t block, bool & outIsDescriptor) const;
+    HRESULT  ComputeDifferences  (BlockJobProgress * progress);
+    void     ClearCache          ();
 
     std::unique_ptr<BlockImageFile>  m_file;
     vector<std::unique_ptr<Volume>>  m_volumes;
