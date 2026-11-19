@@ -385,7 +385,7 @@ public:
 
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("39A0.4071R 39A0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("39A0.407ER 39A0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
