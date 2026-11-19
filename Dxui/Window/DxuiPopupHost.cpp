@@ -2381,12 +2381,16 @@ void DxuiPopupHost::ApplyReveal (float t)
     //  window stays cloaked until the next tick, by when they have landed.
     if (!m_revealUpward && m_comp)
     {
+        //  The window is uncloaked once the commit that starts the slide has
+        //  completed. A timer tick can come first, and uncloaking on it drew
+        //  the menu fully open for a frame. A commit that never reports is
+        //  given up on a quarter of the way in.
         if (t <= 0.0f)
         {
             StartCompositorSlide (fullW, fullH);
             SetSlideCloaked (true);
         }
-        else
+        else if (m_slideLanded == nullptr || m_slideLanded->load() || t >= kSlideUncloakLimit)
         {
             SetSlideCloaked (false);
         }
@@ -2480,6 +2484,8 @@ void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
 
     (void) fullW;
 
+    m_slideLanded = nullptr;
+
     SetWindowPos (m_hwnd, nullptr,
                   m_windowRectScreenPx.left,
                   m_windowRectScreenPx.top,
@@ -2510,6 +2516,14 @@ void DxuiPopupHost::StartCompositorSlide (int fullW, int fullH)
         clip.TopInset (margin + distance);
         clip.StartAnimation (L"TopInset", clipTop);
         m_comp->slide.StartAnimation (L"Offset.Y", offset);
+
+        {
+            std::shared_ptr<std::atomic<bool>>                        landed = std::make_shared<std::atomic<bool>> (false);
+            winrt::Windows::UI::Composition::CompositionCommitBatch   batch  = compositor.GetCommitBatch (winrt::Windows::UI::Composition::CompositionBatchTypes::Animation);
+
+            m_slideLanded = landed;
+            batch.Completed ([landed] (auto &&, auto &&) { landed->store (true); });
+        }
     }
     catch (...)
     {

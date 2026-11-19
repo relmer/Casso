@@ -456,8 +456,9 @@ public:
 private:
     //  The open animation's frames, on a timer of the popup's window, so the
     //  reveal finishes whether or not the owner's frame loop runs.
-    static constexpr UINT_PTR  kRevealTimerId = 1;
-    static constexpr UINT      kRevealTickMs  = 16;
+    static constexpr UINT_PTR  kRevealTimerId     = 1;
+    static constexpr UINT      kRevealTickMs      = 16;
+    static constexpr float     kSlideUncloakLimit = 0.25f;
 
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
@@ -542,22 +543,23 @@ private:
     //  anchor, renders it, and moves its window there.
     HRESULT  PlaceAndRender    (RECT anchorRectScreen);
 
-    ShowParams  m_params;
-    bool        m_open               = false;
-    int         m_resultCode         = 0;
-    RECT        m_placedRectScreenPx = {};
-    bool        m_revealing          = false;
-    bool        m_revealFade         = false;
-    bool        m_revealOut          = false;
-    bool        m_revealUpward       = false;
-    bool        m_slideCloaked       = false;   // hidden from DWM until the slide's first frame has landed
-    int         m_revealDurationMs   = 0;
-    int64_t     m_revealStartMs      = 0;
-    float       m_revealAlpha        = 1.0f;
-    RECT        m_windowRectScreenPx = {};
-    int         m_shadowMarginPx     = 0;
-    bool        m_tracedPaint        = false;   // one paint line per show
-    UINT        m_dpi                = 0;
+    ShowParams                          m_params;
+    bool                                m_open               = false;
+    int                                 m_resultCode         = 0;
+    RECT                                m_placedRectScreenPx = {};
+    bool                                m_revealing          = false;
+    bool                                m_revealFade         = false;
+    bool                                m_revealOut          = false;
+    bool                                m_revealUpward       = false;
+    bool                                m_slideCloaked       = false;   // hidden from DWM until the slide's first frame has landed
+    std::shared_ptr<std::atomic<bool>>  m_slideLanded;   // set when the commit that starts the slide completes
+    int                                 m_revealDurationMs   = 0;
+    int64_t                             m_revealStartMs      = 0;
+    float                               m_revealAlpha        = 1.0f;
+    RECT                                m_windowRectScreenPx = {};
+    int                                 m_shadowMarginPx     = 0;
+    bool                                m_tracedPaint        = false;   // one paint line per show
+    UINT                                m_dpi                = 0;
 
     DxuiPopupHost                         * m_parent            = nullptr;
     DxuiPopupHost                         * m_activeChild       = nullptr;
