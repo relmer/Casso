@@ -288,7 +288,10 @@ protected:
 //  An original Uthernet's CS8900A in its 8-bit I/O mode: the PacketPage
 //  pointer and data, the receive and transmit data port, TxCMD and
 //  TxLength. A frame's status and length words are read high byte first,
-//  and its data low byte first, word by word.
+//  and its data low byte first, word by word. SetAsAppleWin adds AppleWin's
+//  two differences from the datasheet: the pointer's bits 14 to 12 read as
+//  written rather than as 011, and each byte read of RxEvent skips the frame
+//  being read and takes the next.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,6 +299,8 @@ class FakeCs8900a : public FakeNetworkCard
 {
 public:
     using FakeNetworkCard::FakeNetworkCard;
+
+    void  SetAsAppleWin() { m_fixedBits = 0; m_skipOnEvent = true; }
 
     Byte  Read (Word address) override
     {
@@ -309,7 +314,7 @@ public:
             case 0x0:
             case 0x1:  value = ReadFrameByte (offset);                                         break;
             case 0xA:  value = (Byte) m_pointer;                                                break;
-            case 0xB:  value = (Byte) (((m_pointer >> 8) & 0x8F) | 0x30);                       break;
+            case 0xB:  value = (Byte) (((m_pointer >> 8) & 0x8F) | m_fixedBits);                break;
             case 0xC:  value = (Byte) ReadPacketPage();                                         break;
             case 0xD:  value = (Byte) (ReadPacketPage() >> 8);                                  break;
             default:   break;
@@ -353,7 +358,7 @@ private:
             case 0x0000:  value = 0x630E;                                                       break;
             case 0x0136:  value = 0x0080 | 0x0036;                                              break;
             case 0x0138:  value = 0x0100 | 0x0018;                                              break;
-            case 0x0124:  value = (Word) (0x0004 | (HasFrame() ? 0x0100 : 0));                  break;
+            case 0x0124:  value = (Word) (0x0004 | (TakeFrame() ? 0x0100 : 0));                 break;
             default:      break;
         }
 
@@ -380,6 +385,18 @@ private:
         {
             m_rx.clear();
         }
+    }
+
+    //  A read of RxEvent: with m_skipOnEvent, the frame being read is
+    //  dropped first.
+    bool  TakeFrame()
+    {
+        if (m_skipOnEvent)
+        {
+            m_rx.clear();
+        }
+
+        return HasFrame();
     }
 
     bool  HasFrame()
@@ -441,15 +458,17 @@ private:
 
     static Byte  AtOr0 (const std::vector<Byte> & bytes, size_t at) { return at < bytes.size() ? bytes[at] : 0; }
 
-    Word               m_pointer  = 0;
-    Byte               m_low      = 0;
-    Word               m_rxCtl    = 0;
-    Word               m_lineCtl  = 0;
-    Word               m_txLength = 0;
+    Word               m_pointer     = 0;
+    Byte               m_fixedBits   = 0x30;
+    bool               m_skipOnEvent = false;
+    Byte               m_low         = 0;
+    Word               m_rxCtl       = 0;
+    Word               m_lineCtl     = 0;
+    Word               m_txLength    = 0;
     std::vector<Byte>  m_tx;
     std::vector<Byte>  m_rx;
-    int                m_rxWord   = 0;
-    int                m_halves   = 0;
+    int                m_rxWord      = 0;
+    int                m_halves      = 0;
 };
 
 

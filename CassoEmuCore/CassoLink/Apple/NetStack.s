@@ -703,11 +703,15 @@ csset:  sta csval
         jmp cswrite
 
 ; csrx: nsrx for the CS8900A. A frame longer than 1,518 bytes or shorter
-; than 14 is skipped.
-csrx:   lda #$24                ; RxEvent's RxOK
-        ldy #$01
-        jsr csread
-        tya
+; than 14 is skipped. RxEvent is read once, its high byte alone, for RxOK:
+; a read of RxEvent before a frame is read whole skips the frame, and
+; AppleWin's CS8900A counts each byte read as a read of RxEvent.
+csrx:   ldx nsx
+        lda #$24
+        sta CSPPTR,x
+        lda #$01
+        sta CSPPTR+1,x
+        lda CSPDATA+1,x
         and #$01
         bne csrxok
         sec

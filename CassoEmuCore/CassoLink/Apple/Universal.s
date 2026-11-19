@@ -411,9 +411,11 @@ ngzp:   lda ZPCOPY,x
 
 ; isnet: the carry set for a LAN91C96 in scslot, by its bank select
 ; register's high byte, $33, with A 2; or for a CS8900A, by its product ID
-; at PacketPage 0, $630E, with A 1. The PacketPage pointer is written only
-; once its bits 14 to 12 read as 011, so a 6551 there, whose command and
-; control registers are at the same offsets, is left as it was.
+; at PacketPage 0, $630E, with A 1. After a reset the PacketPage pointer is
+; at 0, read as $3000 on a CS8900A and as $0000 in AppleWin, so the ID is
+; read first with nothing written. Otherwise the pointer is written only once
+; its bits 14 to 12 read as 011, so a 6551 there, whose command and control
+; registers are at the same offsets, is left as it was.
 isnet:  lda scslot
         asl a
         asl a
@@ -425,7 +427,13 @@ isnet:  lda scslot
         bne incs
         lda #2
         rts
-incs:   lda $C08B,y
+incs:   lda $C08C,y
+        cmp #$0E
+        bne inptr
+        lda $C08D,y
+        cmp #$63
+        beq incsok
+inptr:  lda $C08B,y
         and #$70
         cmp #$30
         bne innone
@@ -438,7 +446,7 @@ incs:   lda $C08B,y
         lda $C08D,y
         cmp #$63
         bne innone
-        lda #1
+incsok: lda #1
         sec
         rts
 innone: clc
