@@ -575,6 +575,16 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // card itself. With a shadow margin the window's corners are transparent
     // surround, and DWM's corner clip would cut the shadow off there.
     DxuiDwm::ApplyRoundedCorners (m_hwnd, m_shadowMarginPx == 0 && !m_params.squareCorners);
+
+    // DWM's fade on ShowWindow and SW_HIDE is off, since the popup animates
+    // itself. DWM's fade drew the menu's last picture, fully open, over the
+    // first frames of the slide.
+    {
+        BOOL     isDisabled = TRUE;
+        HRESULT  hrDwm      = DwmSetWindowAttribute (m_hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &isDisabled, sizeof (isDisabled));
+
+        IGNORE_RETURN_VALUE (hrDwm, S_OK);
+    }
     ApplyAcrylic();
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
