@@ -100,7 +100,7 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::move (watches));
     m_panes.push_back (std::move (stack));
     m_panes.push_back (std::move (bps));
-    m_panes.push_back (std::make_unique<CallStackController> (parts));
+    m_panes.push_back (std::make_unique<CallStackController> (parts, *m_memoryGroup));
     m_panes.push_back (std::move (trace));
     m_panes.push_back (std::move (basic));
 

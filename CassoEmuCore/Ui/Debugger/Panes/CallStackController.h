@@ -4,6 +4,7 @@
 
 class CallStackPane;
 class DebuggerPaneFrame;
+class MemoryWindowGroup;
 
 
 
@@ -23,7 +24,7 @@ class DebuggerPaneFrame;
 class CallStackController : public IDebuggerPane
 {
 public:
-    explicit CallStackController (const DebuggerPaneParts & parts);
+    CallStackController (const DebuggerPaneParts & parts, MemoryWindowGroup & memory);
     ~CallStackController() override;
 
     DxuiListView                   * GetList         () const { return m_list; }
@@ -47,6 +48,8 @@ public:
     bool                           AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
+    static constexpr Word  kStackPage = 0x0100;
+
     DxuiWindow                          & m_paneWindow;
     IPaneReplies                        & m_paneReplies;
     IPaneRouting                        & m_paneRouting;
@@ -54,6 +57,7 @@ private:
     IPaneCommands                       & m_paneCommands;
     const LatestSnapshot                & m_latest;
     const DebuggerPaneLook              & m_look;
+    MemoryWindowGroup                   & m_memory;
     DxuiListView                        * m_list          = nullptr;
     DxuiButton                          * m_button        = nullptr;
     std::unique_ptr<CallStackPane>        m_model;

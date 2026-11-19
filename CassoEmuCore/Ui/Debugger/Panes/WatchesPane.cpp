@@ -1242,7 +1242,7 @@ bool WatchesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused)
 //
 //  The row map indicates what the row is: the pane mixes headings, automatic
 //  watches and the user's own, so a row number is not an index into any one
-//  of them.
+//  of them. Below the rows, the menu has the rows that act on the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1258,8 +1258,16 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         return false;
     }
 
-    if (snapshot == nullptr || row < 0 || row >= (int) m_rows.size())
+    if (snapshot == nullptr)
     {
+        return true;
+    }
+
+    //  Below the rows, or on the add row, the pane's rows alone.
+    if (row < 0 || row >= (int) m_rows.size())
+    {
+        items.push_back ({ L"Add pointer watch...", [this] { AddZeroPagePointer(); } });
+        AddUndoItems (items);
         return true;
     }
 

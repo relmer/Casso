@@ -274,6 +274,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
         made.isDim          = !frame.isVerified;
         made.address        = frame.callSite;
         made.routineAddress = frame.target;
+        made.stackLevel     = frame.stackLevel;
         made.routineSymbol  = frame.symbol;
 
         if (!frame.symbol.empty())

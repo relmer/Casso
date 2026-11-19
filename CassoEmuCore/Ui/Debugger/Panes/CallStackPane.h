@@ -55,6 +55,7 @@ public:
         Word                 address   = 0;
         std::optional<Word>  basicLine;
         std::optional<Word>  routineAddress;
+        std::optional<Byte>  stackLevel;   // the stack pointer before the call pushed its return address
         std::string          routineSymbol;
 
         //  An unverified frame's: why the call may already be over.

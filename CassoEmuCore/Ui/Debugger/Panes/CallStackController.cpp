@@ -7,6 +7,7 @@
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 
 
 
@@ -18,14 +19,15 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CallStackController::CallStackController (const DebuggerPaneParts & parts) :
+CallStackController::CallStackController (const DebuggerPaneParts & parts, MemoryWindowGroup & memory) :
     m_paneWindow (parts.window),
     m_paneReplies (parts.replies),
     m_paneRouting (parts.routing),
     m_paneNavigator (parts.navigator),
     m_paneCommands (parts.commands),
     m_latest (parts.latest),
-    m_look (parts.look)
+    m_look (parts.look),
+    m_memory (memory)
 {
 }
 
@@ -188,6 +190,15 @@ bool CallStackController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     {
         items.push_back ({ L"Show call site", [this, at = frame.address] { m_paneNavigator.GoToCode (at); } });
         PaneMenuRows::AddBookmark (m_latest, m_paneCommands, frame.address, items);
+    }
+
+    //  The return address the call pushed: its low byte, at the stack
+    //  pointer before the call less one, then its high byte.
+    if (frame.stackLevel.has_value())
+    {
+        Word  low = (Word) (kStackPage + (Byte) (*frame.stackLevel - 1));
+
+        m_memory.AddShowInItems (L"return address", std::format ("{:04X}", low), items);
     }
 
     if (frame.routineAddress.has_value())
