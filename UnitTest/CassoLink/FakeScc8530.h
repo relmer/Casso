@@ -33,7 +33,8 @@
 //
 //  The line has a rate, SetLineBaud: a byte is sent or received only when
 //  the channel's rate is the line's, its transmitter or receiver is on, and
-//  it has 8 bits. A byte sent or received otherwise is counted as garbled.
+//  it has 8 bits. With kAnyBaud, the line follows the channel, which needs
+//  a clock. A byte sent or received otherwise is counted as garbled.
 //  A channel attached to a byte stream sends to it and receives from it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +50,7 @@ public:
     static constexpr uint32_t  kClock         = 3'686'400;
     static constexpr int       kA             = 0;
     static constexpr int       kB             = 1;
+    static constexpr uint32_t  kAnyBaud       = 0;
 
     Word  GetStart () const override { return kSpeedRegister; }
     Word  GetEnd   () const override { return kAData; }
@@ -148,7 +150,11 @@ private:
 
     bool  IsOnLine (int channel) const
     {
-        return m_lineBaud != 0 && GetBaud (channel) == m_lineBaud;
+        uint32_t  baud = GetBaud (channel);
+
+
+
+        return baud != 0 && (m_lineBaud == kAnyBaud || baud == m_lineBaud);
     }
 
     void  Pump (int channel)
