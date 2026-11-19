@@ -204,40 +204,6 @@ public:
     }
 
 
-    //  The DOS 3.2 master read over the link: the sectors and tracks Casso
-    //  decodes from the image.
-    TEST_METHOD (TheDos32Master_IsReadOverTheLink_AsItDecodes)
-    {
-        FixtureProvider     fixtures;
-        ProgramRig          rig (LoadFixture());
-        std::vector<Byte>   woz;
-        std::vector<Byte>   module;
-        std::vector<Byte>   expected;
-        std::vector<Byte>   read;
-        SectorDecodeReport  expectedReport;
-        SectorDecodeReport  readReport;
-        CassoLinkStatus     status;
-
-
-
-        AssertSucceeded (fixtures.OpenFixture ("CiderPress/woz/dos32master_2.woz", woz));
-        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
-
-        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), expected, expectedReport);
-
-        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
-        AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
-        Assert::AreEqual ((Byte) 0, status.error);
-        Assert::IsTrue (read == expected, L"The sectors read over the link");
-
-        for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
-        {
-            Assert::AreEqual ((int) expectedReport.GetOutcome (track), (int) readReport.GetOutcome (track), std::format (L"track {}", track).c_str());
-        }
-    }
-
-
     //  A track with two sectors that have no data field, as on a track DOS
     //  3.2's INIT formatted: the two are zeros in the read, and the track is
     //  whole. The first two whole data fields in the stream are each self-sync

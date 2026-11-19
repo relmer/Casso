@@ -176,11 +176,12 @@ public:
     //  end; a Ready within the notice time isn't.
     TEST_METHOD (ALongWaitForReady_IsReportedToTheWaitObserver)
     {
-        Client             client;
-        std::vector<bool>  events;
-        std::mutex         lock;
+        Client                   client;
+        std::vector<bool>        events;
+        std::mutex               lock;
+        std::condition_variable  changed;
 
-        client.host->SetWaitObserver ([&] (bool waiting) { std::lock_guard guard (lock); events.push_back (waiting); }, 100);
+        client.host->SetWaitObserver ([&] (bool waiting) { std::lock_guard guard (lock); events.push_back (waiting); changed.notify_all(); }, 100);
 
         client.SendReady (LinkProgram::kProgramVersion);
         Assert::AreEqual (S_OK, client.host->SendLabel ("QUICK"));
@@ -188,7 +189,14 @@ public:
 
         auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (400));
+        //  The Ready is sent once the wait is reported, rather than after a
+        //  fixed time, which a loaded machine can overrun.
+        {
+            std::unique_lock  guard (lock);
+
+            Assert::IsTrue (changed.wait_for (guard, std::chrono::seconds (10), [&] () { return !events.empty(); }), L"the wait is reported");
+        }
+
         client.SendReady (LinkProgram::kProgramVersion);
 
         Assert::AreEqual (S_OK, sending.get());

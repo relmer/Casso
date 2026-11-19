@@ -46,8 +46,8 @@ public:
     static constexpr double  kCycleLimitUs  = 1500.0;
 
     //  The half cycles of a burst of `bytes`, at most kMaxBurst of them,
-    //  appended to inOutHalvesUs.
-    static void  AppendBurst (std::span<const Byte> bytes, std::vector<double> & inOutHalvesUs);
+    //  appended to inOutHalvesUs, with toneHalves half cycles of tone.
+    static void  AppendBurst (std::span<const Byte> bytes, std::vector<double> & inOutHalvesUs, int toneHalves = kToneHalves);
 
     //  Half cycles as a square wave of alternating sign at `sampleRate`, each
     //  sample the wave's mean over its interval, so an edge between two

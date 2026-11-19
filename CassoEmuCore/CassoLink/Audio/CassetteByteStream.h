@@ -31,6 +31,11 @@ public:
     static constexpr DWORD   kStepMs     = 20;
     static constexpr double  kBurstGapMs = 300.0;
 
+    //  The tone ahead of each burst after a write's first: long enough to
+    //  outlast the Apple's storing of a full burst, about 0.4 s, before it
+    //  listens for the next.
+    static constexpr int     kNextToneHalves = 600;
+
     explicit CassetteByteStream (std::shared_ptr<ICassetteAudio> audio);
 
     HRESULT  Write            (const Byte * data, size_t count) override;

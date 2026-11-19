@@ -8,6 +8,7 @@
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Layout/DriveLabel.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
@@ -590,6 +591,20 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 
 DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
+    int     delta = GET_WHEEL_DELTA_WPARAM (wParam);
+    POINT   onBar = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    bool    pinch = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
+
+
+
+    // Ctrl+wheel over the drive bar zooms the bar, in any theme, ahead of
+    // the scene, which would otherwise take it as a zoom of the desk.
+    if (pinch && !horizontal && delta != 0 && !m_input->GetMouseInput().IsPaddleCaptured() && m_hwnd != nullptr &&
+        ScreenToClient (m_hwnd, &onBar) && m_chrome->ZoomDriveBar (onBar, (float) delta / (float) WHEEL_DELTA))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
     if (m_input->GetMouseInput().IsPaddleCaptured())
     {
         return DxuiMessageResult::NotHandled;
@@ -1033,6 +1048,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
         if (device >= 0)
         {
+            m_chrome->MarkDriveBarRecent (POINT { x, y });
             ShowStorageContextMenu (device, x, y);
             result = DxuiMessageResult::Handled;
         }

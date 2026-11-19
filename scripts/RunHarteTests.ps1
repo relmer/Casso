@@ -5,7 +5,7 @@
 .DESCRIPTION
     1. Runs GenerateHarteTests.py to download JSON and produce binary test files
     2. Builds the UnitTest project
-    3. Runs the Harte tests via vstest
+    3. Runs only the Harte tests, so the HarteVectorDepth line (FULL or REDUCED) is visible
 
 .PARAMETER Opcode
     Optional: single opcode (hex) to generate and test, e.g. "A9"
@@ -49,7 +49,8 @@ $repoRoot  = Split-Path -Parent $scriptDir
 if (-not $SkipGenerate) {
     Write-Host "=== Generating Harte test data ===" -ForegroundColor Cyan
 
-    $genArgs = @("$scriptDir\GenerateHarteTests.py", "--cpu", $Cpu)
+    $cacheDir = Join-Path $env:LOCALAPPDATA "Casso\HarteTests\$Cpu"
+    $genArgs  = @("$scriptDir\GenerateHarteTests.py", "--cpu", $Cpu, "--output-dir", $cacheDir)
 
     if ($Opcode) {
         $genArgs += @("--opcode", $Opcode)
@@ -82,7 +83,7 @@ if ($LASTEXITCODE -ne 0) {
 # Step 3: Run tests
 Write-Host "`n=== Running Harte tests ===" -ForegroundColor Cyan
 & pwsh -NoProfile -ExecutionPolicy Bypass -File "$scriptDir\RunTests.ps1" `
-    -Configuration $Configuration -Platform $Platform
+    -Configuration $Configuration -Platform $Platform -Filter Harte
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Tests failed"

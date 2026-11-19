@@ -191,6 +191,7 @@
     <ClCompile Include="Update\UpdateRuntime.cpp" />
     <ClCompile Include="Update\Win32UpdateHost.cpp" />
     <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
+    <ClCompile Include="Update\ModuleInstallEnvironment.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
     <ClCompile Include="Update\LocalFeedHttpClient.cpp" />
     <ClCompile Include="Update\PendingUpdateModel.cpp" />
@@ -200,8 +201,10 @@
     <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\JsonWriter.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
+    <ClCompile Include="Core\MachineConfigSource.cpp" />
     <ClCompile Include="Core\MachineConfigUpgrade.cpp" />
     <ClCompile Include="Core\MachineScanner.cpp" />
+    <ClCompile Include="Core\DataFolderResolver.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Debugger\CapturedDebugTarget.cpp" />
@@ -656,6 +659,7 @@
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteByteStream.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteCodec.cpp" />
+    <ClCompile Include="CassoLink\Audio\DiskAudioRecording.cpp" />
     <ClCompile Include="CassoLink\Audio\WasapiCassetteAudio.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
@@ -859,6 +863,7 @@
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\PickerShellRoots.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerScope.cpp" />
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
@@ -1815,6 +1820,7 @@
     <ClInclude Include="Update\UpdateResult.h" />
     <ClInclude Include="Update\IUpdateHost.h" />
     <ClInclude Include="Update\IUpdateResultPoster.h" />
+    <ClInclude Include="Update\ModuleInstallEnvironment.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
     <ClInclude Include="Update\LocalFeedHttpClient.h" />
     <ClInclude Include="Update\PendingUpdateModel.h" />
@@ -2189,8 +2195,10 @@
     <ClInclude Include="Core\IFloatingBusSource.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
+    <ClInclude Include="Core\MachineConfigSource.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
     <ClInclude Include="Core\MachineScanner.h" />
+    <ClInclude Include="Core\DataFolderResolver.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\DeviceDisplayNames.h" />
@@ -2426,6 +2434,7 @@
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
     <ClInclude Include="CassoExplorer\Picker\ExplorerPickerHost.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerShellRoots.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerScope.h" />
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
@@ -2731,6 +2740,7 @@
     <ClInclude Include="CassoLink\LinkAnnouncement.h" />
     <ClInclude Include="CassoLink\Audio\CassetteByteStream.h" />
     <ClInclude Include="CassoLink\Audio\CassetteCodec.h" />
+    <ClInclude Include="CassoLink\Audio\DiskAudioRecording.h" />
     <ClInclude Include="CassoLink\Audio\ICassetteAudio.h" />
     <ClInclude Include="CassoLink\Audio\WasapiCassetteAudio.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />

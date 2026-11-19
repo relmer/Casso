@@ -114,6 +114,28 @@ public:
     std::vector<std::string>          logs;
     std::mutex                        lock;
 
+    //  The host's last packet can be read here after its operation is done,
+    //  so a test waits for the label rather than reading the list at once.
+    bool  WaitForLabel (const std::string & text, DWORD timeoutMs = 10000)
+    {
+        auto  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+        auto  isSent   = [this, &text] () { std::lock_guard<std::mutex>  guard (lock); return std::find (labels.begin(), labels.end(), text) != labels.end(); };
+        bool  found    = isSent();
+
+
+
+        while (!found && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            found = isSent();
+        }
+
+        return found;
+    }
+
+
+
+
     ~FakeApple()
     {
         Detach();

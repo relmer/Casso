@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassetteCodec::AppendBurst (std::span<const Byte> bytes, std::vector<double> & inOutHalvesUs)
+void CassetteCodec::AppendBurst (std::span<const Byte> bytes, std::vector<double> & inOutHalvesUs, int toneHalves)
 {
     constexpr int      kBitsPerByte = 8;
     constexpr Byte     kHighBit     = 0x80;
@@ -23,7 +23,7 @@ void CassetteCodec::AppendBurst (std::span<const Byte> bytes, std::vector<double
 
     framed.insert (framed.end(), bytes.begin(), bytes.begin() + (ptrdiff_t) count);
 
-    inOutHalvesUs.insert (inOutHalvesUs.end(), (size_t) kToneHalves, kToneHalfUs);
+    inOutHalvesUs.insert (inOutHalvesUs.end(), (size_t) std::max (toneHalves, kToneMinimum), kToneHalfUs);
     inOutHalvesUs.push_back (kZeroHalfUs);
     inOutHalvesUs.push_back (kZeroHalfUs);
 

@@ -27,7 +27,21 @@ def read_branding():
     return rows, stripes
 
 
-def badge(model, x0, z0, height, y = -0.3, prefix = "badge"):
+def badge_ink(height):
+    # The inked area of a badge `height` mm tall, as (x offset, z offset,
+    # width, height) from the corner badge() places, for centering it.
+    rows, _ = read_branding()
+    cell    = height / len(rows)
+    nonzero = [i for i, r in enumerate(rows) if r]
+    cols    = [c for r in rows for c in range(64) if (r >> c) & 1]
+
+    return (min(cols) * cell, (len(rows) - nonzero[-1] - 1) * cell,
+            (max(cols) + 1 - min(cols)) * cell, (nonzero[-1] - nonzero[0] + 1) * cell)
+
+
+def badge(model, x0, z0, height, y = -0.3, prefix = "badge", color = None, place = None):
+    # `color` makes the badge one color instead of stripes; `place` maps each
+    # stripe's compound before it's added, for a badge on the back.
     rows, stripes = read_branding()
     cell          = height / len(rows)
     nonzero       = [i for i, r in enumerate(rows) if r]
@@ -60,4 +74,9 @@ def badge(model, x0, z0, height, y = -0.3, prefix = "badge"):
             col = run
 
     for stripe, solids in sorted(by_stripe.items()):
-        model.add(f"{prefix}{stripe}", cq.Compound.makeCompound(solids), stripes[stripe])
+        part = cq.Compound.makeCompound(solids)
+
+        if place is not None:
+            part = place(part)
+
+        model.add(f"{prefix}{stripe}", part, color if color is not None else stripes[stripe])

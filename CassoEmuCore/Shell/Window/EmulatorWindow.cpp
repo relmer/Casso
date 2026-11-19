@@ -419,14 +419,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the host owns the caption strip itself.
     m_chrome->AdoptMenuBar (m_host->GetRoot());
 
-    m_chrome->AdoptDriveBar (m_host->GetRoot());
-    m_chrome->HideDriveBar();
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_chrome->GetFrameRateReadout().AdoptFrameRateReadout (m_host->GetRoot());
     m_scene->AdoptOverlays (m_host->GetRoot());
     m_chrome->AdoptToolbar (m_host->GetRoot());
+
+    // The drive bar is behind the Disk II widgets, which are placed on its
+    // fan's panel. Both go after the //c's switch strip, so an open stack
+    // of drives is drawn over the strip. The bar's zoom readout is drawn
+    // over the bar.
+    m_chrome->AdoptDriveBar (m_host->GetRoot());
+    m_chrome->HideDriveBar();
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
+    m_chrome->AdoptDriveBarZoomReadout (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     m_host->GetRoot().Adopt (m_serialCard->GetBanner());
     m_host->GetRoot().Adopt (m_networkCard->GetBanner());
@@ -527,8 +533,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
-            case IDM_VIEW_FLOPPIES_ON_DESK:   return m_scene->IsClassOnDesk (DeskDriveClass::Floppy);
-            case IDM_VIEW_HARD_DISKS_ON_DESK: return m_scene->IsClassOnDesk (DeskDriveClass::HardDisk);
             case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
@@ -611,6 +615,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
 
+            // A place row is for a class the machine has drives of.
+            case IDM_VIEW_FLOPPIES_ON_DESK:   visible = m_scene->HasDriveClass (DeskDriveClass::Floppy);                            break;
+            case IDM_VIEW_HARD_DISKS_ON_DESK: visible = m_scene->HasDriveClass (DeskDriveClass::HardDisk);                          break;
+
             // The //c Plus's port drives are plugged in from the plug-in rows.
             // Each row is visible only while the port has room for its kind.
             case IDM_STORAGE_DRIVE2:          visible = !portChain;                                                                 break;
@@ -663,6 +671,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 return m_tapeDeck->IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
                                                          : std::wstring (L"Attach ca&ssette recorder");
+            }
+
+            case IDM_VIEW_FLOPPIES_ON_DESK:
+            {
+                return EmulatorCommands::GetDrivePlaceLabel (false, m_scene->IsClassOnDesk (DeskDriveClass::Floppy));
+            }
+
+            case IDM_VIEW_HARD_DISKS_ON_DESK:
+            {
+                return EmulatorCommands::GetDrivePlaceLabel (true, m_scene->IsClassOnDesk (DeskDriveClass::HardDisk));
             }
 
             case IDM_DISK_WP1:
@@ -977,6 +995,10 @@ int EmulatorShell::RunMessageLoop()
     // is treated as a real, user-initiated swap and fires the
     // drive-audio door-close (FR-013).
     m_disks->GetManager()->SetColdBootMountWindow (false);
+
+    // The shell's roots are read now, so the first drive picker opens
+    // without waiting on the shell for them.
+    m_drivePickers->ReadShellRootsAhead();
 
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())

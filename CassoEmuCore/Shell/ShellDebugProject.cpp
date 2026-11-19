@@ -68,7 +68,7 @@ void ShellDebugProject::Close()
 //  ShellDebugProject::OpenStore
 //
 //  CPU thread, as the debug channel opens. The store's folder is
-//  %LOCALAPPDATA%\Casso\DebugProjects, made if it is not there. A debugger
+//  DebugProjects in the data folder, made if it is not there. A debugger
 //  attached without the channel, as a test attaches one, has no projects
 //  unless a test calls SetProjectStore.
 //
@@ -77,7 +77,7 @@ void ShellDebugProject::Close()
 void ShellDebugProject::OpenStore()
 {
     constexpr const wchar_t  * kpszFolder = L"DebugProjects";
-    fs::path                   folder     = PathResolver::GetLocalAppDataDir (L"Casso");
+    fs::path                   folder     = PathResolver::GetDataFolder();
     std::error_code            error;
 
 

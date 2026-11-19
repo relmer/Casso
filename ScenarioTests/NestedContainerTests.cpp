@@ -1,8 +1,8 @@
 #include "Pch.h"
-#include "../EhmTestHelper.h"
-#include "../EmuTests/FakeDiskFileIo.h"
-#include "../EmuTests/FixtureProvider.h"
-#include "../UiTests/InMemoryFileSystem.h"
+#include "EhmTestHelper.h"
+#include "FakeDiskFileIo.h"
+#include "FixtureProvider.h"
+#include "UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
@@ -19,7 +19,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  NestedContainerTests
 //
 //  A file on a disk image that is itself an archive or an image, opened in
-//  place in the browser through a container path.
+//  place in the browser through a container path. A scenario test, as it
+//  reads one of CiderPress II's samples, which aren't committed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

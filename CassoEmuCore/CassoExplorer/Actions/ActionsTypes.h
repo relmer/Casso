@@ -79,8 +79,10 @@ struct ActionsTypes
         MakeShrinkItDisk,
         Test,
 
-        //  The selected BASIC programs and binaries as a tape recording.
+        //  The selected BASIC programs and binaries as a tape recording, and
+        //  the selected image's disk as the cassette link's audio.
         ConvertToTapeAudio,
+        ConvertToDiskAudio,
 
         //  The selected image set as a drive in an A2Pico card's A2retroNET.txt.
         AddToA2retroNet,

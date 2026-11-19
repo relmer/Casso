@@ -872,7 +872,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         double  place = bootSoundPlace;
 
         root.HasNumber ("bootSoundPlace", place);
-        bootSoundPlace = (place >= kBootSoundPc && place <= kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
+        bootSoundPlace = (place >= (double) kBootSoundPc && place <= (double) kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
     }
 
 

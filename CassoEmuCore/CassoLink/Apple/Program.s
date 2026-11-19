@@ -2298,7 +2298,9 @@ chwait: dex
         rts
 
 ; crecv: a burst into RXBUF, rxptr at its start and rxn its count, waiting
-; A seconds for its tone. The carry is set on a timeout or a damaged burst.
+; A seconds for its tone. Once 16 halves of tone are counted, the wait lasts to
+; the burst's end, so a tone longer than the wait isn't cut off. The carry is
+; set on a timeout or a damaged burst.
 crecv:  tax
         lda #0
         sta climit
@@ -2329,7 +2331,10 @@ crhunt: ldx #3
         inc tmo+1
         bne crclock
         inc tmo+2
-crclock: lda tmo+2              ; tmo+1 and tmo+2 against the limit
+crclock: lda ctones             ; no timeout once a tone is under way
+        cmp #16
+        bcs crlive
+        lda tmo+2              ; tmo+1 and tmo+2 against the limit
         cmp climit+1
         bcc crlive
         bne crtime

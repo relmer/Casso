@@ -4,7 +4,10 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
+#include "CassoLink/Audio/DiskAudioRecording.h"
 #include "Devices/Tape/MfTapeAudioEncoder.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Tape/TapeRecordingVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 
@@ -210,6 +213,92 @@ ActionsTypes::Outcome ActionsTape::MakeRecording (const std::wstring & target)
     }
 
     outcome.written = (int) files.size();
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsTape::CanMakeDiskRecording
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsTape::CanMakeDiskRecording (const std::wstring & imagePath)
+{
+    static constexpr const wchar_t *  s_kExtensions[] = { L".dsk", L".do", L".po", L".d13", L".nib", L".woz" };
+    std::wstring                      extension       = std::filesystem::path (imagePath).extension().wstring();
+
+
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
+
+    return std::any_of (std::begin (s_kExtensions), std::end (s_kExtensions), [&extension] (const wchar_t * known) { return extension == known; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsTape::MakeDiskRecording
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsTape::MakeDiskRecording (const std::wstring & imagePath, const std::wstring & target, std::string & outCommand, double & outSeconds)
+{
+    static constexpr uint32_t  kSampleRate = 44100;
+    ActionsTypes::Outcome      outcome;
+    IDiskFileIo              & io          = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string                path        = TextEncoding::WideToNarrow (imagePath);
+    std::vector<Byte>          bytes;
+    std::vector<Byte>          sectors;
+    SectorDecodeReport         report;
+    TapeAudio                  audio;
+    MfTapeAudioEncoder         encoder;
+    std::string                error;
+    HRESULT                    hr          = io.ReadAllBytes (path, bytes);
+
+
+
+    outSeconds = 0.0;
+
+    if (SUCCEEDED (hr))
+    {
+        hr = VolumeImage::Load (bytes, path, sectors, report);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        audio.sampleRate = kSampleRate;
+        hr               = DiskAudioRecording::Build (sectors, kSampleRate, audio.samples, outCommand);
+    }
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"{} isn't a 140K 5.25-inch disk image, so no recording was made.", CassoExplorerActions::GetLeafName (imagePath)));
+        return outcome;
+    }
+
+    hr = TapeRecordingWriter::Encode (audio, GetFormat (target), encoder, bytes, error);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (target), bytes);
+    }
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, CassoExplorerActions::GetLeafName (target) + L" could not be written.");
+        return outcome;
+    }
+
+    outSeconds      = (double) audio.samples.size() / kSampleRate;
+    outcome.written = 1;
 
     return outcome;
 }
