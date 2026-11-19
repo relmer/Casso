@@ -1061,21 +1061,46 @@ std::string LinkProgram::GetChipLines (LinkChip chip)
 //  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
+//  Each text assembled is cached, so a program loaded again, or built again
+//  for its symbols, isn't assembled again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults, std::unordered_map<std::string, Word> * outSymbols)
 {
-    HRESULT          hr        = S_OK;
-    static const Cpu s_cpu;
-    Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine  = GetChipLines (chip);
+    static const Cpu                                        s_cpu;
+    static std::mutex                                       s_cacheLock;
+    static std::unordered_map<std::string, AssemblyResult>  s_cache;
+    HRESULT                                                 hr          = S_OK;
+    std::string                                             chipLine    = GetChipLines (chip);
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
     std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
+    std::string      text      = prefix + source;
     int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');
-    AssemblyResult   result    = assembler.Assemble (prefix + source);
+    AssemblyResult   result;
     bool             placed    = false;
+    bool             isCached  = false;
 
 
+
+    {
+        std::lock_guard<std::mutex>  guard (s_cacheLock);
+        auto                         found = s_cache.find (text);
+
+        isCached = found != s_cache.end();
+        result   = isCached ? found->second : AssemblyResult();
+    }
+
+    if (!isCached)
+    {
+        Assembler  assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
+
+        result = assembler.Assemble (text);
+
+        std::lock_guard<std::mutex>  guard (s_cacheLock);
+
+        s_cache.emplace (text, result);
+    }
 
     outBytes.clear();
     outErrors.clear();

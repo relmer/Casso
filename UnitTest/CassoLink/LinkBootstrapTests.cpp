@@ -142,7 +142,7 @@ public:
         size_t                                got   = 0;
         int                                   calls = 0;
 
-        InProcessByteStream::CreatePair (pc, apple);
+        InProcessByteStream::CreateVirtualPair (pc, apple);
 
         AssertSucceeded (LinkBootstrap::Send (*pc, lines, 0));
         AssertSucceeded (apple->Read (buffer, sizeof (buffer), 100, got));

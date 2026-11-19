@@ -34,9 +34,9 @@ public:
         std::unique_ptr<CassoLinkHost>        host;
         std::vector<Byte>                     buffer;
 
-        Client()
+        explicit Client (bool isOneThread = false)
         {
-            InProcessByteStream::CreatePair (hostEnd, clientEnd);
+            InProcessByteStream::CreateVirtualPair (hostEnd, clientEnd, isOneThread);
 
             host = std::make_unique<CassoLinkHost> (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
             host->SetOperationTimeout (5000);
@@ -80,11 +80,11 @@ public:
 
         bool  Fill (size_t count)
         {
-            Byte    chunk[4096];
-            size_t  got   = 0;
-            auto    until = std::chrono::steady_clock::now() + std::chrono::seconds (5);
+            Byte      chunk[4096];
+            size_t    got         = 0;
+            uint64_t  until       = clientEnd->GetTickMs() + 5000;
 
-            while (buffer.size() < count && std::chrono::steady_clock::now() < until)
+            while (buffer.size() < count && clientEnd->GetTickMs() < until && !clientEnd->IsClosed())
             {
                 Assert::AreEqual (S_OK, clientEnd->Read (chunk, sizeof (chunk), 50, got));
                 buffer.insert (buffer.end(), chunk, chunk + got);
@@ -124,9 +124,26 @@ public:
             }
         }
 
+        //  The result of a host call on another thread. While it runs, the
+        //  time moves forward a second whenever the host waits on the line,
+        //  so a call that ends on a timeout ends at once.
+        HRESULT  Finish (std::future<HRESULT> & call)
+        {
+            while (call.wait_for (std::chrono::milliseconds (0)) != std::future_status::ready)
+            {
+                if (clientEnd->IsFarBlocked())
+                {
+                    clientEnd->Advance (1000);
+                }
+
+                std::this_thread::yield();
+            }
+
+            return call.get();
+        }
+
         bool  IsQuiet()
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (200));
             return buffer.empty() && clientEnd->GetReadableCount() == 0;
         }
     };
@@ -188,7 +205,7 @@ public:
 
         auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (400));
+        client.clientEnd->AdvanceWhenBlocked (400);
         client.SendReady (LinkProgram::kProgramVersion);
 
         Assert::AreEqual (S_OK, sending.get());
@@ -332,7 +349,7 @@ public:
         wire[wire.size() - 3] ^= 0xFF;
         client.Send (wire);
 
-        HRESULT  hr = reading.get();
+        HRESULT  hr = client.Finish (reading);
 
         Assert::IsTrue (FAILED (hr));
     }

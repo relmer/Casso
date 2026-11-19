@@ -426,7 +426,7 @@ public:
         machine.PowerCycle();
         machine.RunCycles (20000);
 
-        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
         Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd, &bridge));
         Assert::IsNotNull (bridge);
 
@@ -470,7 +470,7 @@ public:
         machine.PowerCycle();
         machine.RunCycles (20000);
 
-        InProcessByteStream::CreatePair (firstMachineEnd, firstPcEnd);
+        InProcessByteStream::CreateVirtualPair (firstMachineEnd, firstPcEnd);
         Assert::AreEqual (S_OK, machine.AttachSerialStream (2, firstMachineEnd));
 
         Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", nullptr, nullptr));
@@ -483,7 +483,7 @@ public:
         Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"an empty device loops back");
         Assert::AreEqual<Byte> (0x3C, machine.GetMemoryBus().ReadByte (data));
 
-        InProcessByteStream::CreatePair (secondMachineEnd, secondPcEnd);
+        InProcessByteStream::CreateVirtualPair (secondMachineEnd, secondPcEnd);
         Assert::AreEqual (S_OK, machine.AttachSerialStream (2, secondMachineEnd));
 
         machine.GetMemoryBus().WriteByte (data, 0x7E);
@@ -530,7 +530,7 @@ public:
                 std::shared_ptr<InProcessByteStream>  machineEnd;
                 std::shared_ptr<InProcessByteStream>  pcEnd;
 
-                InProcessByteStream::CreatePair (machineEnd, pcEnd);
+                InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
                 ends.push_back (pcEnd);
                 outStream = std::make_unique<Handle> (machineEnd);
                 return S_OK;

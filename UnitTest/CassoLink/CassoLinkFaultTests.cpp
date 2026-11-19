@@ -80,7 +80,7 @@ public:
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, dos));
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, prodos));
 
-            InProcessByteStream::CreatePair (machineEnd, hostEnd);
+            InProcessByteStream::CreateVirtualPair (machineEnd, hostEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, hostEnd);

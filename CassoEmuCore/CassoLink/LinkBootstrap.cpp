@@ -111,11 +111,11 @@ HRESULT LinkBootstrap::SendShim (IByteStream & stream, const std::vector<Byte> &
     Byte     got      = 0;
     size_t   read     = 0;
     bool     ready    = false;
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kLoaderReadyWaitMs);
+    uint64_t deadline = stream.GetTickMs() + kLoaderReadyWaitMs;
 
 
 
-    while (!ready && std::chrono::steady_clock::now() < deadline)
+    while (!ready && stream.GetTickMs() < deadline)
     {
         hr = stream.Read (&got, 1, 100, read);
         CHR (hr);

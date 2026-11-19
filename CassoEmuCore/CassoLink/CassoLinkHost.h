@@ -570,7 +570,7 @@ private:
     bool                            m_fullSendRequest = false;
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
-    std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
+    std::atomic<uint64_t>           m_lastHeardMs     { 0 };
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;

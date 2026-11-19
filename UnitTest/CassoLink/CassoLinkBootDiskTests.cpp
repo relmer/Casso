@@ -67,7 +67,7 @@ public:
             GuestSession::Mount (machine, boot);
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, std::vector<Byte> (bytes.begin(), bytes.end())));
 
-            InProcessByteStream::CreatePair (machineEnd, pcEnd);
+            InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
             AssertSucceeded (machine.AttachSerialStream (port, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, pcEnd);

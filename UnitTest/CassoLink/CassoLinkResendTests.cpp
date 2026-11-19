@@ -38,7 +38,7 @@ public:
 
         Apple()
         {
-            InProcessByteStream::CreatePair (hostEnd, appleEnd);
+            InProcessByteStream::CreateVirtualPair (hostEnd, appleEnd);
 
             host = std::make_unique<CassoLinkHost> (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
             host->SetOperationTimeout (5000);
