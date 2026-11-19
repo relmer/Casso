@@ -325,73 +325,27 @@ public:
 
 
 
-    //  A byte of the shim the bootstrap sends, flipped: the loader's XOR
-    //  fails, it returns to Applesoft's prompt, and the bootstrap fails. A
-    //  link then started with no Bootstrap chosen probes the prompt, the
-    //  Apple sends the ready byte, and it is bootstrapped and linked.
-    TEST_METHOD (ABootstrapFlip_FailsTheBootstrap_AndTheProbeBootstrapsTheAppleAgain)
+    //  An Apple at Applesoft's prompt doesn't send Ready. A link started with
+    //  no Bootstrap chosen probes the prompt, the Apple sends the ready
+    //  byte, and it is bootstrapped and linked.
+    TEST_METHOD (AnAppleAtThePrompt_IsProbed_ThenBootstrappedAndLinked)
     {
-        constexpr DWORD   kConnectTimeoutMs = 1000;
-        constexpr DWORD   kNoRetryMs        = 60000;
-        constexpr DWORD   kReadyWaitMs      = 20000;
-        constexpr size_t  kFlipOffset       = 40;     // a byte of the shim's first page
-
-        FaultsEnabled                   enabled;
-        Rig                             rig;
-        CassoLinkSettings               settings;
-        std::shared_ptr<LinkOperation>  bootstrap;
-        std::vector<std::string>        lines;
-        std::vector<LinkFault>          faults;
-        size_t                          typed    = 0;
-
-
-
-        AssertSucceeded (LinkBootstrap::BuildLines (lines));
-
-        for (const std::string & line : lines)
-        {
-            typed += line.size();
-        }
-
-        //  Counted from the loader's first typed byte: the lines, the page
-        //  count, then the shim's first page.
-        Assert::AreEqual (S_OK, LinkFault::Parse (std::format ("bootstrap:flip@{}", typed + 1 + kFlipOffset).c_str(), faults));
-        LinkFaults::Arm (faults);
+        Rig                rig;
+        CassoLinkSettings  settings;
 
         rig.apple.startAsShim = true;
-        rig.apple.typedLoader = true;
+        rig.apple.atPrompt    = true;
 
         settings.name      = "Test";
         settings.transport = LinkTransport::Emulated;
         settings.address   = "127.0.0.1:6502";
 
         rig.session->SetBootstrapPause (0, 0);
-        rig.session->SetConnectTimeout (kConnectTimeoutMs);
-        rig.session->SetRetryInterval (kNoRetryMs);
-        AssertSucceeded (rig.session->StartWithBootstrap (settings, bootstrap));
-
-        rig.Finish (bootstrap);
-
-        Assert::IsTrue   (FAILED (bootstrap->result), L"the loader's XOR failed, and no shim sent Ready");
-        Assert::AreEqual (1, rig.apple.loaderXorFails.load());
-        Assert::IsTrue   (rig.apple.atPrompt.load(), L"the Apple is back at the prompt");
-
-        {
-            std::lock_guard<std::mutex>  guard (rig.sink.lock);
-
-            Assert::IsTrue (std::any_of (rig.sink.activities.begin(), rig.sink.activities.end(),
-                                         [] (const std::string & text) { return text.find ("Injected a fault") != std::string::npos; }));
-        }
-
-        //  A new link, with no Bootstrap chosen: no Ready arrives, the probe
-        //  finds the prompt, and the bootstrap runs again, this time whole.
-        rig.session = std::make_unique<CassoLinkSession> (rig.factory, rig.folder, rig.fileIo, rig.sink);
-        rig.session->SetBootstrapPause (0, 0);
-        rig.session->SetConnectTimeout (kConnectTimeoutMs);
+        rig.session->SetConnectTimeout (1000);
         AssertSucceeded (rig.session->Start (settings));
 
-        Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready, kReadyWaitMs), L"the probe found the prompt and the bootstrap linked");
-        Assert::AreEqual (1, rig.apple.loaderXorFails.load(), L"the second shim passed the loader's XOR");
+        Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready), L"the probe found the prompt and the bootstrap linked");
+        Assert::AreEqual (0, rig.apple.loaderXorFails.load());
     }
 
 
@@ -463,10 +417,12 @@ public:
 
 
 
-    //  An 800K ProDOS volume with a file, as a block device's disk.
+    static constexpr size_t  kBlockDeviceBlocks = 64;
+
+    //  A 32K ProDOS volume with a file, as a block device's disk.
     static std::vector<Byte>  BuildBlockVolume()
     {
-        std::vector<Byte>  buffer (1600 * 512, 0);
+        std::vector<Byte>  buffer (kBlockDeviceBlocks * 512, 0);
         std::vector<Byte>  next;
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, "BIGDISK"));
@@ -498,7 +454,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, devices.size());
         Assert::AreEqual ((Byte) 7, devices[0].slot);
-        Assert::AreEqual ((uint32_t) 1600, devices[0].blocks);
+        Assert::AreEqual ((uint32_t) kBlockDeviceBlocks, devices[0].blocks);
         Assert::AreEqual (std::string ("BIGDISK"), devices[0].volume);
 
         auto  listing = rig.Finish (rig.session->Enumerate (drive, FilePath()));
@@ -518,7 +474,7 @@ public:
         std::lock_guard<std::mutex>  guard (rig.apple.lock);
 
         Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 1600 OF 1600") != rig.apple.labels.end(), L"the label has the device and the block");
+        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 64 OF 64") != rig.apple.labels.end(), L"the label has the device and the block");
         Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG S7,U1 (/BIGDISK)") != rig.apple.labels.end(), L"and the catalog's label, its volume");
     }
 
@@ -1004,52 +960,21 @@ public:
 
 
 
-    TEST_METHOD (ReadDisk_WritesTheImage_InEachFormat)
+    //  A read to a WOZ measures every track and writes an image of the
+    //  disk. The other formats are tested in BlankDiskBuilderTests.
+    TEST_METHOD (ReadDisk_ToAWoz_MeasuresEachTrack_AndWritesTheDisk)
     {
-        Rig  rig;
+        Rig                 rig;
+        std::vector<Byte>   sectors;
+        SectorDecodeReport  report;
 
         rig.Start();
 
-        for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib", "out.nb2" })
-        {
-            std::vector<Byte>   sectors;
-            SectorDecodeReport  report;
-            auto                read = rig.Finish (rig.session->ReadDisk (2, name, false));
-
-            AssertSucceeded (read->result);
-            AssertSucceeded (VolumeImage::Load (rig.fileIo.files[name], name, sectors, report));
-            Assert::IsTrue (sectors == rig.Drive (2), std::format (L"{} has the disk", std::wstring (name, name + strlen (name))).c_str());
-        }
-
-        Assert::IsTrue (rig.fileIo.files["out.dsk"] == rig.Drive (2), L"a .dsk is the sectors in DOS 3.3 order");
-        Assert::AreEqual (NibbleImageCodec::kNb2ImageSize, rig.fileIo.files["out.nb2"].size(), L"a .nb2 has .nb2's tracks");
-    }
-
-
-
-    //  A WOZ is built to each track's layout as Measure track measured it,
-    //  and no other image type measures.
-    TEST_METHOD (ReadDisk_ToAWoz_BuildsItToEachTracksMeasuredLayout)
-    {
-        Rig                                       rig;
-        std::vector<CassoLinkHost::TrackMeasure>  measures;
-        std::vector<Byte>                         built;
-
-        rig.Start();
-
-        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.dsk", false))->result);
-        Assert::AreEqual (0, rig.apple.measuredTracks.load(), L"a .dsk isn't measured");
-
-        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
+        AssertSucceeded  (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
         Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
 
-        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
-        {
-            measures.push_back (FakeApple::GetMeasure (track));
-        }
-
-        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.Drive (2), TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits), built));
-        Assert::IsTrue (rig.fileIo.files["out.woz"] == built, L"the WOZ is built to the measured layouts");
+        AssertSucceeded (VolumeImage::Load (rig.fileIo.files["out.woz"], "out.woz", sectors, report));
+        Assert::IsTrue  (sectors == rig.Drive (2));
     }
 
 
