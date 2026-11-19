@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "FileTypes/OmfFile.h"
+#include "Core/TextEncoding.h"
 #include "FileTypes/AppleWorks.h"
+#include "FileTypes/Disassembler65816.h"
 #include "FileTypes/TextCharset.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -374,10 +376,39 @@ void OmfFile::AppendHex (std::span<const Byte> bytes, const std::wstring & inden
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OmfFile::AppendCode
+//
+//  Each CONST or LCONST record is disassembled separately, so an
+//  instruction whose operand is an expression record is cut short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OmfFile::AppendCode (std::span<const Byte> bytes, uint32_t address, const std::wstring & indent, std::vector<std::wstring> & outLines)
+{
+    std::vector<DisassembledLine>  lines;
+
+
+
+    Disassembler65816::Disassemble (bytes, (Word) address, true, true, lines);
+
+    for (const DisassembledLine & line : lines)
+    {
+        outLines.push_back (indent + TextEncoding::NarrowToWide (Disassembler::FormatLine (line)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OmfFile::DecodeRecords
 //
 //  A GLOBAL, LOCAL, EQU or GEQU record's length is a byte in version 1 and
 //  a word after. An opcode not in the appendix ends the segment's listing.
+//  A byte's address is the segment's origin plus the bytes of the CONST,
+//  LCONST, DS and expression records ahead of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -387,9 +418,11 @@ void OmfFile::DecodeRecords (const Header & header, std::span<const Byte> segmen
 
 
 
-    Reader  reader;
-    size_t  numberLen = header.numberLen;
-    size_t  lengthLen = (header.version == 1) ? 1 : 2;
+    Reader    reader;
+    size_t    numberLen = header.numberLen;
+    size_t    lengthLen = (header.version == 1) ? 1 : 2;
+    bool      code      = (header.kind & 0x1F) == 0;
+    uint32_t  address   = header.org;
 
 
 
@@ -414,8 +447,18 @@ void OmfFile::DecodeRecords (const Header & header, std::span<const Byte> segmen
             size_t  count = std::min<size_t> (op, segment.size() - reader.at);
 
             outLines.push_back (std::format (L"  CONST {} bytes", count));
-            AppendHex (segment.subspan (reader.at, count), kIndent, outLines);
+
+            if (code)
+            {
+                AppendCode (segment.subspan (reader.at, count), address, kIndent, outLines);
+            }
+            else
+            {
+                AppendHex (segment.subspan (reader.at, count), kIndent, outLines);
+            }
+
             reader.at += count;
+            address   += (uint32_t) count;
             continue;
         }
 
@@ -486,7 +529,8 @@ void OmfFile::DecodeRecords (const Header & header, std::span<const Byte> segmen
                 const wchar_t *  name  = (op == 0xEB) ? L"EXPR" : (op == 0xEC) ? L"ZEXPR" : (op == 0xED) ? L"BEXPR" : L"LEXPR";
                 Byte             count = reader.ReadByte();
 
-                line = std::format (L"  {} {} bytes: {}", name, count, ReadExpression (reader));
+                line     = std::format (L"  {} {} bytes: {}", name, count, ReadExpression (reader));
+                address += count;
                 break;
             }
 
@@ -495,19 +539,37 @@ void OmfFile::DecodeRecords (const Header & header, std::span<const Byte> segmen
                 Byte      count  = reader.ReadByte();
                 uint32_t  offset = reader.ReadNumber (numberLen);
 
-                line = std::format (L"  RELEXPR {} bytes, from ${:X}: {}", count, offset, ReadExpression (reader));
+                line     = std::format (L"  RELEXPR {} bytes, from ${:X}: {}", count, offset, ReadExpression (reader));
+                address += count;
                 break;
             }
 
-            case 0xF1: line = std::format (L"  DS {} bytes", reader.ReadNumber (numberLen)); break;
+            case 0xF1:
+            {
+                uint32_t  count = reader.ReadNumber (numberLen);
+
+                line     = std::format (L"  DS {} bytes", count);
+                address += count;
+                break;
+            }
 
             case 0xF2:
             {
                 size_t  count = std::min<size_t> (reader.ReadNumber (numberLen), segment.size() - std::min (reader.at, segment.size()));
 
                 outLines.push_back (std::format (L"  LCONST {} bytes", count));
-                AppendHex (segment.subspan (reader.at, count), kIndent, outLines);
+
+                if (code)
+                {
+                    AppendCode (segment.subspan (reader.at, count), address, kIndent, outLines);
+                }
+                else
+                {
+                    AppendHex (segment.subspan (reader.at, count), kIndent, outLines);
+                }
+
                 reader.at += count;
+                address   += (uint32_t) count;
                 continue;
             }
 

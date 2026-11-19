@@ -804,11 +804,13 @@ ActionsTypes::Outcome ActionsAppleDrive::ApplyPropertiesOnAppleDrive (std::vecto
 //  ActionsAppleDrive::ConvertOnAppleDrive
 //
 //  The file is read over the link, and the converted file written once the
-//  read is done; the new file's name is not one already in the list.
+//  read is done; the new file's name is not one already in the list, nor one
+//  in `made`, which has the files converted before it in the same selection,
+//  not yet written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::ConvertOnAppleDrive (const FileEntry & entry, BasicConversion::Kind kind, std::string & outNewName)
+ActionsTypes::Outcome ActionsAppleDrive::ConvertOnAppleDrive (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName)
 {
     ActionsTypes::Outcome      outcome;
     std::string                link;
@@ -831,6 +833,8 @@ ActionsTypes::Outcome ActionsAppleDrive::ConvertOnAppleDrive (const FileEntry & 
     {
         taken.push_back (TextEncoding::WideToNarrow (row.name));
     }
+
+    taken.insert (taken.end(), made.begin(), made.end());
 
     outNewName = BasicConversion::MakeName (entry.name, volume, kind, taken);
 

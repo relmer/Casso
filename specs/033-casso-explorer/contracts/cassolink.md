@@ -321,6 +321,40 @@ The serial and W5100 builds, as each is loaded:
 | $9000–$957F | the encoding tables and Krunch's copy of the history |
 | $9600–$BFFF | not used, so DOS is intact at exit |
 
+The network build, for an original Uthernet's CS8900A or a LANceGS's
+LAN91C96, has the same layout below $9600, and above it:
+
+| Range | Contents |
+|---|---|
+| $9600–$9BFF | the frame received |
+| $9C00–$A1FF | the frame to send; a datagram's payload is at $9C2A, at most 1,024 bytes |
+| $B000–$BFFF | the network shim, with its stack: header first, then the shim, then NetStack.s |
+
+DOS is gone at exit, so the program puts back the zero page and reset
+vector, points DOS's warm start at $03D0 and Control-Reset at Applesoft's
+warm start, $E003, and goes there.
+
+The network shim's header is the W5100 shim's, at $B000, with the
+address, subnet mask, gateway, MAC address and UDP port in the dial
+command's place, and after the slot:
+
+| Address | Contents |
+|---|---|
+| $B039 | the chip: 1 for a CS8900A, 2 for a LAN91C96 |
+| $B03A | `jmp`: the X (low) and Y (high) bytes at $9C2A sent as a datagram to the PC |
+| $B03D | `jmp`: a datagram of the link within A seconds, its payload at $962A, the carry clear; A of 0 checks once |
+| $B040 | `jmp`: the card set up, and for 0.0.0.0 an address by DHCP, 4 attempts of about 2 seconds; the carry set with none |
+| $B044 | the payload's length, low byte first |
+| $B047 | nonzero once the card is set up |
+| $B048 | `jmp`: the announcement broadcast |
+
+The link's datagrams go to the address, port and MAC address of the last
+datagram to the header's port, the first of which is empty, from Casso
+Explorer. Each payload is the link's bytes as a serial line has them. The
+stack replies to ARP requests for its address and doesn't send any, so a
+datagram to a PC behind a router goes to the router's MAC address. Frames that are
+fragments, have IP options, or are longer than 1,518 bytes are dropped.
+
 The shim's first start runs its startup part, which saves the zero page and
 reset vector, finds and sets up the interface, and dials a modem, then
 marks the header's byte at $3A47. A start from Load program sets the
@@ -330,9 +364,9 @@ interface to the starting speed again and goes on to Ready.
 
 Casso Explorer's boot disk works on every interface, as ADTPro's does. It
 loads a first stage at $2000, with the 6551 shim and its startup part at
-$2C00 and the W5100 shim at $4400, both built for $3A00, and the stage's copy
-of the zero page at $3600. The host writes both shims'
-headers as for their own disks.
+$2E00 and the W5100 shim at $4400, both built for $3A00, the network shim at
+$4A00, built for $B000, and the stage's copy of the zero page at $3800. The
+host writes the shims' headers as for each shim's disk.
 
 The stage finds:
 
@@ -344,9 +378,20 @@ The stage finds:
   SERIAL PORT 1 or SERIAL PORT 2;
 - up to two cards with the same bytes and no 6551, waited on through their
   Pascal firmware;
+- an original Uthernet or a LANceGS in any other slot but a Disk II's, the
+  first found: a LAN91C96 by its bank select register's high byte at $C08F
+  plus 16 times the slot reading $33, or a CS8900A by its PacketPage
+  pointer's bits 14 to 12 at $C08B plus 16 times the slot reading 011, and
+  then its product ID at PacketPage 0, $630E, so a 6551 is never written to;
 - an Uthernet II in any other slot but a Disk II's, by its mode register
   at $C084 plus 16 times the slot reading with bits 6, 5 and 2 clear, and
   then the W5100 taking two address pointer values and returning them.
+
+For an original Uthernet or a LANceGS, the stage copies the network shim
+to $B000 with the card's slot and chip, and calls it at $B040. A card with
+no address is not waited on. The stage waits on the card through $B03D,
+broadcasts its announcement through $B048 with the W5100's, and starts
+the shim at $B000 for a datagram from the PC.
 
 The header's MAC address has the sum of RNDL and RNDH ($4E, $4F) and a
 16-bit sum of $4000-$BFFF added into its last three bytes before the
@@ -364,14 +409,16 @@ port 6510 from port 6511 about every two seconds:
 | Bytes | Field |
 |---|---|
 | 9 | `CASSOLINK` in ASCII |
-| 1 | version, 1 |
-| 4 | the W5100's address |
-| 2 | its TCP port, high byte first |
+| 1 | version: 1 for the W5100's TCP, 2 for the network shim's UDP |
+| 4 | the card's address |
+| 2 | its port, high byte first |
 | 6 | its MAC address |
 
 The screen: the title, `WAITING FOR THE PC ON:`, then a row for each
 interface: `SERIAL PORT <n>, <speed>` on a //c, `SSC, SLOT <n>, <speed>` for
-a card, and `UTHERNET II, SLOT <n>, <address>:<port>` for the Uthernet II.
+a card, `UTHERNET II, SLOT <n>, <address>:<port>` for the Uthernet II, and
+`UTHERNET, SLOT <n>, <address>:<port>` or `LANCEGS, SLOT <n>,
+<address>:<port>` for the network card.
 
 The stage waits on all of them. A $C1 byte, an envelope's start, on a 6551,
 or a connection to the W5100 chooses that interface: the stage copies the
@@ -385,7 +432,8 @@ the modem dials it.
 
 Casso Explorer listens on UDP port 6510 on every interface, with the port
 bound for reuse, and lists the Apple of each announcement, by its MAC
-address, as an Uthernet II link at the announcement's address. An
+address, as an Uthernet II link or, for version 2, an Uthernet or LANceGS
+link over UDP, at the announcement's address. An
 announcement from this PC is Casso's emulated card, whose listening socket
 is on 127.0.0.1, and is listed at 127.0.0.1.
 

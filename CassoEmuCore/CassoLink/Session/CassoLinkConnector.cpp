@@ -79,7 +79,7 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     std::vector<Byte>                          transfer;
     std::vector<std::wstring>                  ports;
     bool                                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
-    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
+    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp;
     LinkFault                                  fault;
     std::unique_ptr<FaultInjectingByteStream>  faulty;
     IByteStream                              * target  = nullptr;
@@ -349,8 +349,10 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
-    //  An Uthernet II and the cassette ports have no speed to set.
-    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Cassette)
+    //  An Uthernet II, the network cards and the cassette ports have no
+    //  speed to set.
+    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp
+        && m_session.m_settings.transport != LinkTransport::Cassette)
     {
         LinkProgram::GetSpeedControl (linkBaud, control);
 
@@ -791,6 +793,10 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
 
             hr = m_session.m_factory.ListenTcp (port, m_session.m_settings.transport, stream);
         }
+        else if (m_session.m_settings.transport == LinkTransport::Udp)
+        {
+            hr = m_session.m_factory.OpenUdp (host, port, stream);
+        }
         else
         {
             hr = m_session.m_factory.ConnectTcp (host, port, stop, stream);
@@ -888,8 +894,16 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
 
 HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs, bool & outReady)
 {
-    HRESULT  hr       = S_OK;
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    static constexpr int  kPromptRepeats  = 4;
+    static constexpr auto kPromptInterval = std::chrono::seconds (1);
+
+
+
+    HRESULT  hr          = S_OK;
+    auto     deadline    = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    auto     prompted    = std::chrono::steady_clock::time_point();
+    int      repeatsLeft = 0;
+    bool     waiting     = false;
 
 
 
@@ -898,16 +912,33 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
 
     while (!outReady && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
     {
+        waiting = !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient();
+
         //  An Apple that sent its Ready before the line was open is waiting
         //  for a reply, and is prompted for another, once for each line
         //  opened. A prompt is an envelope, which ADTPro's client, idle on
         //  the same line, would read as the start of its next reply.
-        if (!m_prompted && !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient())
+        //
+        //  The prompt is sent again each second, a few times, until a Ready
+        //  arrives: the first step of a universal disk written before it
+        //  took any byte as the PC could miss the Idle's start byte at
+        //  115,200 baud, and wait on.
+        if (!m_prompted && waiting)
         {
             hr = m_session.m_host->PromptReady();
             CHR (hr);
 
-            m_prompted = true;
+            m_prompted  = true;
+            prompted    = std::chrono::steady_clock::now();
+            repeatsLeft = kPromptRepeats;
+        }
+        else if (repeatsLeft > 0 && waiting && std::chrono::steady_clock::now() - prompted >= kPromptInterval)
+        {
+            hr = m_session.m_host->PromptReady();
+            CHR (hr);
+
+            prompted = std::chrono::steady_clock::now();
+            repeatsLeft--;
         }
 
         hr = m_session.m_host->ServeOne (CassoLinkSession::kIdlePollMs);

@@ -986,6 +986,106 @@ public:
         Assert::IsTrue (usual >= kSectors, L"Every data field begins D5 AA AD");
     }
 
+    //  A revolution that starts at an address field, the first after the first
+    //  read's start, followed by a gap that the other reads have a byte longer,
+    //  as reads of a write splice can:
+    //  each read is aligned from its copy of that address field, not a byte
+    //  past it, so every address field is in the result and no byte is weak.
+    TEST_METHOD (AReadWithALongerGapAfterTheFirstField_IsAlignedFromIt)
+    {
+        static constexpr int     kSectors   = 16;
+        static constexpr int     kTrack     = 1;
+        static constexpr size_t  kSyncs     = 8;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr Byte    kVolume    = 254;
+        static constexpr size_t  kBefore    = 100;
+        static constexpr size_t  kStarts[]  = { 0, 1000, 3000 };
+
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        framed;
+        std::set<int>                            addressed;
+
+
+
+        positions[0].position = kTrack * 4;
+
+        for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
+        {
+            std::vector<Byte>  revolution;
+            std::vector<Byte>  bytes;
+            uint32_t           seed = 1357;
+
+            auto  oddEven = [&revolution] (Byte value)
+            {
+                revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+                revolution.push_back ((Byte) (value | 0xAA));
+            };
+
+            for (int number = 0; number < kSectors; number++)
+            {
+                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  nibbles;
+
+                revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+                oddEven (kVolume);
+                oddEven (kTrack);
+                oddEven ((Byte) number);
+                oddEven ((Byte) (kVolume ^ kTrack ^ number));
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+
+                //  Sector 0's gap begins with two bytes in the first read, and
+                //  in each of the others with six, each set different, in
+                //  place of those two and three sync bytes.
+                if (number == 0)
+                {
+                    revolution.insert (revolution.end(), read == 0 ? std::initializer_list<Byte> { 0xD7, 0xF3 } :
+                                                         read == 1 ? std::initializer_list<Byte> { 0x9B, 0xC9, 0xBF, 0xCF, 0xF3, 0xFC } :
+                                                                     std::initializer_list<Byte> { 0xAB, 0xF9, 0xBF, 0xCF, 0xF3, 0xFC });
+                }
+
+                revolution.insert (revolution.end(), number == 0 && read > 0 ? kSyncs - 3 : kSyncs, 0xFF);
+                revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
+
+                for (Byte & value : data)
+                {
+                    seed  = seed * 1103515245u + 12345u;
+                    value = (Byte) (seed >> 16);
+                }
+
+                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+                revolution.insert (revolution.end(), kSyncs, 0xFF);
+            }
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                bytes.push_back (revolution[(kStarts[read] + revolution.size() - kBefore + at) % revolution.size()]);
+            }
+
+            positions[0].reads.push_back (bytes);
+            positions[0].delays.push_back (CassoLinkCapture::kWholeDelays[read]);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, kTrack * 4, "2026-11-18T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        FrameTrack (image, image.ResolveQuarterTrack (kTrack * 4), framed);
+
+        for (size_t at = 0; at + 9 < framed.size(); at++)
+        {
+            if (framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0x96)
+            {
+                addressed.insert (((framed[at + 7] << 1) | 1) & framed[at + 8]);
+            }
+        }
+
+        Assert::AreEqual ((size_t) kSectors, addressed.size(), L"Every sector's address field");
+        Assert::IsTrue (result.weak.empty(), L"No weak bytes");
+    }
+
     //  A write-protected disk's capture is a write-protected WOZ, as a
     //  program that writes to the disk it runs from takes another path when the write
     //  fails; an unprotected disk's isn't; and the reads file has it.

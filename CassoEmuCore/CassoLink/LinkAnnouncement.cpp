@@ -17,13 +17,15 @@ bool LinkAnnouncement::Parse (std::span<const Byte> datagram, LinkAnnouncement &
     static constexpr std::string_view  s_kTag = "CASSOLINK";
     bool                               valid  = datagram.size() >= kLength
                                              && std::equal (s_kTag.begin(), s_kTag.end(), datagram.begin())
-                                             && datagram[s_kTag.size()] == kVersion;
+                                             && (datagram[s_kTag.size()] == kVersion || datagram[s_kTag.size()] == kVersionUdp);
     size_t                             at     = s_kTag.size() + 1;
 
 
 
     if (valid)
     {
+        outAnnouncement.udp = datagram[s_kTag.size()] == kVersionUdp;
+
         std::copy_n (datagram.begin() + (ptrdiff_t) at, 4, outAnnouncement.address.begin());
         at += 4;
 

@@ -35,6 +35,7 @@ public:
         { L"TCP",                          LinkTransport::Tcp          },
         { L"Wi-Fi modem",                  LinkTransport::WifiModem    },
         { L"Uthernet II",                  LinkTransport::Uthernet     },
+        { L"Uthernet or LANceGS",          LinkTransport::Udp          },
         { L"ADTPro-compatible server",     LinkTransport::AdtProServer },
         { L"Cassette ports (audio)",       LinkTransport::Cassette     },
     };

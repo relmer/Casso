@@ -5,6 +5,7 @@
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32ComPort.h"
 #include "Seams/Win32TcpStream.h"
+#include "Seams/Win32UdpStream.h"
 
 
 
@@ -148,6 +149,32 @@ HRESULT Win32ByteStreamFactory::ConnectTcp (const std::string & host, uint16_t p
 
 
     hr = stream->Connect (host, port, stop);
+    CHR (hr);
+
+    outStream = std::move (stream);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ByteStreamFactory::OpenUdp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ByteStreamFactory::OpenUdp (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream)
+{
+    HRESULT                          hr     = S_OK;
+    std::unique_ptr<Win32UdpStream>  stream = std::make_unique<Win32UdpStream>();
+
+
+
+    hr = stream->Open (host, port);
     CHR (hr);
 
     outStream = std::move (stream);

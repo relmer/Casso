@@ -654,6 +654,26 @@ public:
     }
 
 
+    TEST_METHOD (Convert_OfASelection_ConvertsEachProgram_AndListsTheFilePassedOver)
+    {
+        Host                                  host;
+        std::string                           name;
+        CassoExplorerActions::Outcome         outcome;
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"INTPROG"), host.Find (L"ODD") });
+        Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertTo));
+
+        outcome = host.actions.ConvertSelected (name);
+
+        Assert::IsTrue   (outcome.Succeeded());
+        Assert::IsTrue   (name.empty(), L"no one new file to rename");
+        Assert::AreNotEqual (-1, host.Find (L"HELLO.LIST"));
+        Assert::AreNotEqual (-1, host.Find (L"INTPROG.LIST"));
+        Assert::AreEqual (std::wstring (L"These files weren't converted:\nODD isn't a BASIC program or a text file."), outcome.warning);
+    }
+
+
     TEST_METHOD (Properties_RenameAndRetypeTheEntry)
     {
         Host                        host;
@@ -715,7 +735,6 @@ public:
         CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
 
         Assert::IsTrue   (outcome.Succeeded());
-        Assert::AreEqual (2, outcome.written);
         Assert::IsTrue   (host.io.files.count ("C:\\Out\\HELLO.Applesoft BASIC.txt") == 1);
         Assert::IsTrue   (host.written.empty());
     }

@@ -57,17 +57,35 @@
 ; than one segment per byte. Back from the program's Load program with the
 ; PC connected, the connection stays open. When the PC disconnects, the shim
 ; listens again until the PC connects.
+;
+; The network build, for an original Uthernet's CS8900A or a LANceGS's
+; LAN91C96, is at $B000, with NetStack.s assembled after it: neither chip
+; has a network stack, and the stack is too large for $3A00. It has the
+; W5100 build's header, drawing and loading, and its bytes go as UDP
+; datagrams. The byte at $B039 is the chip. The program calls the stack
+; through the jumps at $B03A and $B03D, and the universal boot disk through
+; those at $B03D, $B040 and $B048. The PC is the sender of the first
+; datagram to the port; the announcement is broadcast until one comes.
 
         ifndef SHIMVER
 SHIMVER = 1
         endif
 
-; Ready's shim version: a W5100 build sets bit 7, so the host sends the
-; program built for the chip whatever the link it connected through.
+        ifdef NETWORK
+W5100 = 1
+        endif
+
+; Ready's shim version: a W5100 build sets bit 7 and the network build bits 7
+; and 6, so the host sends the program built for the chip whatever the link
+; it connected through.
+        ifdef NETWORK
+READYVER = SHIMVER + $C0
+        else
         ifdef W5100
 READYVER = SHIMVER + $80
         else
 READYVER = SHIMVER
+        endif
         endif
 
 ACIADATA = $C088                ; the 6551, + slot * 16
@@ -146,8 +164,15 @@ txn      = $1F                  ; bytes put since the last SEND
 savx     = $20                  ; getbto and putb: X and Y as they came
 savy     = $21
         endif
+        ifdef NETWORK
+ntxn     = $1D                  ; and $1E: bytes put and not yet sent
+        endif
 
+        ifdef NETWORK
+        .org $B000
+        else
         .org $3A00
+        endif
 
         sei
         ifndef W5100
@@ -166,9 +191,22 @@ hstat:  jmp pstat                ; $3A3A: its status entry, with the request in 
 hread:  jmp pread                ; $3A3D: its read entry,
 hwrite: jmp pwrite               ; $3A40: and its write entry, X and Y changed
         else
+        ifdef NETWORK
+netchip: .byte 0                 ; $B039: 1 for a CS8900A, 2 for a LAN91C96
+        jmp nsend                ; $B03A: X and Y bytes at TXDATA sent as a datagram
+        jmp nrecv                ; $B03D: a datagram within A seconds, at RXDATA
+        jmp nsboot               ; $B040: the card set up, and an address for 0.0.0.0
+        else
         .ds 10                   ; $3A39: the 6551 build's firmware entries
         endif
+        endif
         .byte 0                  ; $3A43: a IIgs's speed register as found, plus 1
+        ifdef NETWORK
+rxlen:  .word 0                  ; $B044: the length of the datagram nrecv received
+        .byte 0
+booted: .byte 0                  ; $B047: nonzero once the card is set up
+        jmp announce             ; $B048: the announcement broadcast
+        endif
         ifndef W5100
         jmp sccspd               ; $3A44: a IIgs's port set to the speed in A
 booted: .byte 0                  ; $3A47: nonzero once the startup part has run
@@ -179,6 +217,37 @@ booted: .byte 0                  ; $3A47: nonzero once the startup part has run
 ; vector, for the program to put back when CassoLink ends. A bootstrap or a
 ; boot disk has zpsaved at 0; the program's Load program, back to the shim,
 ; finds it set and saves nothing.
+        ifdef NETWORK
+; The first start sets up the card, and takes an address from a DHCP server
+; for an address of 0.0.0.0. Back from the program's Load program, the card
+; and the PC are known already.
+start:  pha                     ; the control byte, not used
+        cld
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta ntxn
+        sta ntxn+1
+        lda #<TXDATA
+        sta pbst+1
+        lda #>TXDATA
+        sta pbst+2
+        lda slot
+        asl a
+        asl a
+        asl a
+        asl a
+        sta slotx
+        pla
+        jsr home
+        lda booted
+        bne ready
+        jsr zpkeep
+        ldx #msgdhcp-msgs
+        jsr drawstate
+nsfirst: jsr nsboot
+        bcs nsfirst
+        else
 start:  pha                     ; the control byte, not used
         cld
         jsr zpkeep
@@ -191,6 +260,7 @@ start:  pha                     ; the control byte, not used
         pla
         jsr home
         jsr wzstart
+        endif
         else
 ; The first start runs the startup part, after the resident code, which the
 ; program's tables are built over: it saves the machine's state, finds the
@@ -241,7 +311,11 @@ wdport: lda #$BA                ; a colon
         sta ROW2,y
         iny
         jsr putport
+        ifdef NETWORK
+        jsr nswait
+        else
         jsr wzwait
+        endif
         else
         ldx #4                  ; a card run through its firmware, by name alone,
         bit pascal              ; and a IIgs's port as SERIAL PORT 2
@@ -574,6 +648,86 @@ getb:   jsr getbto
         rts
 
         ifdef W5100
+        ifdef NETWORK
+; getbto: getb with a time limit of about a second; the bytes put are sent
+; first. The carry is set when no byte comes. X and Y are saved and restored.
+getbto: stx savx
+        sty savy
+gtnext: lda rxn
+        ora rxn+1
+        bne gtread
+        jsr flush
+        lda #1
+        jsr nrecv
+        bcs gtnone
+        lda rxlen
+        sta rxn
+        lda rxlen+1
+        sta rxn+1
+        lda #<RXDATA
+        sta gtld+1
+        lda #>RXDATA
+        sta gtld+2
+        jmp gtnext              ; a datagram with no payload is passed over
+gtnone: ldx savx
+        ldy savy
+        sec
+        rts
+gtread:
+gtld:   lda RXDATA
+        inc gtld+1
+        bne gtcount
+        inc gtld+2
+gtcount: pha
+        lda rxn
+        bne gtdec
+        dec rxn+1
+gtdec:  dec rxn
+        pla
+        ldx savx
+        ldy savy
+        clc
+        rts
+
+; putb: A after the bytes put, sent with the next wait for a byte, or once
+; LINKMAX bytes are waiting. X and Y are saved and restored.
+putb:   stx savx
+        sty savy
+pbst:   sta TXDATA
+        inc pbst+1
+        bne pbcount
+        inc pbst+2
+pbcount: inc ntxn
+        bne pbfull
+        inc ntxn+1
+pbfull: lda ntxn+1
+        cmp #>LINKMAX
+        bcc pbdone
+        jsr flush
+pbdone: ldx savx
+        ldy savy
+        rts
+
+; flush: the bytes put, sent to the PC as a datagram.
+flush:  lda ntxn
+        ora ntxn+1
+        beq fldone
+        ldx ntxn
+        ldy ntxn+1
+        jsr nsend
+        lda #0
+        sta ntxn
+        sta ntxn+1
+        lda #<TXDATA
+        sta pbst+1
+        lda #>TXDATA
+        sta pbst+2
+fldone: rts
+
+; rxdone: no bytes are returned to the chip, as each datagram is read from
+; RXDATA.
+rxdone: rts
+        else
 ; getbto: getb with a time limit of about a second, 16,384 polls of the
 ; chip; the bytes put are sent first. The carry is set when no byte comes.
 ; With the PC gone, the shim waits for it again. X and Y are saved and
@@ -824,6 +978,8 @@ wzptr:  ldx slotx
 wzput:  sta WZDATA
         rts
 
+        endif
+
 ; putport: the header's port in decimal, without leading zeros, on the
 ; state row from Y.
 putport: lda dialtxt+18
@@ -990,8 +1146,8 @@ pjmp:   jmp $C000
 pentry: .byte 0, 0, 0, 0         ; the init, read, write and status offsets
 pnib:   .byte 0                 ; pread: the high nibble
 
-; A IIgs's port, through its 8530. Slot 1's printer port is channel B and
-; slot 2's modem port channel A. A read of a channel's command register reads
+; A IIgs's port, through its 8530. Slot 1's printer port is channel A and
+; slot 2's modem port channel B. A read of a channel's command register reads
 ; register 0 and selects it again; a write selects the register the next
 ; access of it reads or writes. Reads are indexed by the channel. Writes are
 ; absolute, set for the port, as an indexed store reads its address first,
@@ -1042,11 +1198,11 @@ swd:    sta SCCBDATA
 ; by 16 after that, or straight from RTxC by 32 for 115,200 baud and by 16
 ; for 230,400. A 6551 control byte of rate 1, 50 baud, indicates 230,400.
 sccspd: pha
-        ldx #0
+        ldx #1
         lda slotx
         cmp #$20
         bne sschan
-        inx
+        dex
 sschan: stx schan
         txa
         clc
@@ -1117,10 +1273,10 @@ srates: .byte $00, $FF, $01, $FE, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
 ; Each register and its value, for 115,200 baud and then for the others: the
 ; clock mode, the generator off or the time constant and the generator on,
 ; the clocks' source, no interrupts, and the receiver and transmitter on.
-sregs:  .byte 4, $84, 14, $00, 11, $00, 1, $00, 3, $C1, 5, $EA
+sregs:  .byte 4, $84, 14, $00, 11, $80, 1, $00, 3, $C1, 5, $EA
 s16:    .byte 4, $44, 12
 s16tc:  .byte 0
-        .byte 13, $00, 14, $01, 11, $50, 1, $00, 3, $C1, 5, $EA
+        .byte 13, $00, 14, $01, 11, $D0, 1, $00, 3, $C1, 5, $EA
 send:
 schan:  .byte 0                 ; the port's channel: 0 for B, 1 for A
 stend:  .byte 0                 ; sccspd: the end of the registers written
@@ -1128,12 +1284,17 @@ ssx:    .byte 0                 ; sccspd: the register's offset
         endif
 
 
-title:  .text "CASSOLINK"
+title:  .text "CASSOLINK LOADER V1."  ; the loader's version, 1 and the shim's
+        .byte $30 + SHIMVER / 10, $30 + SHIMVER - SHIMVER / 10 * 10
         .byte 0
 msgs:
         ifdef W5100
 msgwait: .text "WAITING FOR PC AT "      ; and the address and port, to 39 columns
         .byte 0
+        ifdef NETWORK
+msgdhcp: .text "GETTING AN ADDRESS"
+        .byte 0
+        endif
         else
 msgwait: .text "WAITING FOR THE PC ON:"
         .byte 0

@@ -223,6 +223,7 @@ void ExplorerWindowParts::Configure()
     context.browser.SetShellIcons (services.shellIcons.get());
     context.browser.SetShellVerbs (services.shellVerbs.get());
     context.browser.SetPreviewMonitor (preview.GetPicture().GetMonitor(), context.prefs.previewCustomArgb);
+    context.browser.SetDefaultDecodeOptions (context.prefs.copyOptions);
     explorerOptions = FolderOptions::ReadFromShell();
     context.browser.SetFolderOptions (explorerOptions);
     treePane.ApplyNavPaneOptions();

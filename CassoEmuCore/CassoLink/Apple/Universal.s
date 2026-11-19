@@ -1,12 +1,20 @@
 ; Casso's CassoLink: the universal boot disk's first stage.
 ;
-; Loaded at $2000 with both shims after it: the 6551 shim, with its startup
-; part, at $2C00 and the W5100 shim at $4400, each built for $3A00 and with its header written by
-; the host. The stage finds every interface the machine
-; has: a //c's ports 1 and 2; a Super Serial Card in any slot, by its
-; firmware's Pascal 1.1 signature and a 6551; and an Uthernet II in any other
-; slot but a Disk II's, by its W5100 taking and returning its address
-; pointer.
+; Loaded at $2000 with the shims after it: the 6551 shim, with its startup
+; part, at $2E00 and the W5100 shim at $4400, each built for $3A00, and the
+; network shim at $4A00, built for $B000, each with its header written by
+; the host. The stage finds every interface the machine has: a //c's ports
+; 1 and 2; a Super Serial Card in any slot, by its firmware's Pascal 1.1
+; signature and a 6551; an original Uthernet or a LANceGS in any other slot
+; but a Disk II's, by its CS8900A's product ID or its LAN91C96's bank select
+; register; and an Uthernet II in any other, by its W5100 taking and
+; returning its address pointer.
+;
+; The network shim is copied to $B000 for the first CS8900A or LAN91C96
+; found, which it sets up, with an address from DHCP for an address of
+; 0.0.0.0; a card with no address is not waited on. The stage waits on the
+; card through the shim, and broadcasts its announcement with the W5100's.
+; A datagram from the PC starts the shim, which goes on with that PC.
 ;
 ; Each 6551 is set to the shim's speed. The W5100 is given an address by
 ; DHCP, or the header's when no DHCP reply comes, listens on the header's
@@ -35,11 +43,17 @@
 ;
 ; NMOS 6502 code throughout.
 
-ACIMG    = $2C00                ; the 6551 shim, as built for SHIM
+ACIMG    = $2E00                ; the 6551 shim, as built for SHIM
 W5IMG    = $4400                ; the W5100 shim, as built for SHIM
+NETIMG   = $4A00                ; the network shim, as built for NSHIM
 SHIM     = $3A00
+NSHIM    = $B000
+NSCHIP   = NSHIM + $39          ; the network shim's chip,
+NSRECV   = NSHIM + $3D          ; its wait for a datagram,
+NSBOOT   = NSHIM + $40          ; its setup of the card,
+NSANN    = NSHIM + $48          ; and its announcement
 ZPSAVE   = $3900                ; the shim's copy of the machine's zero page
-ZPCOPY   = $3600                ; the stage's, until a shim is chosen
+ZPCOPY   = $3800                ; the stage's, until a shim is chosen
 
 HCTL     = $02                  ; a shim's header: the 6551 control byte,
 HSPEED   = $06                  ; the speed's text, six characters,
@@ -134,14 +148,17 @@ svzp:   lda $00,x
 svrst:  lda $03F2,x
         sta ACIMG+HRESET,x
         sta W5IMG+HRESET,x
+        sta NETIMG+HRESET,x
         dex
         bpl svrst
         lda #1
         sta ACIMG+HZPSAVED
         sta W5IMG+HZPSAVED
+        sta NETIMG+HZPSAVED
         lda #0
         sta nacia
         sta w5slot
+        sta netslot
         sta annlo               ; the first announcement after the full wait
         sta annhi
         jsr home
@@ -190,7 +207,15 @@ scfw:   ldx pasn                ; the first two run through their firmware
         jmp scnext
 scnot:  jsr isdisk
         bcs scnext
-        lda w5slot
+        lda netslot
+        bne scw5
+        jsr isnet
+        bcc scw5
+        sta NETIMG+$39
+        lda scslot
+        sta netslot
+        jmp scnext
+scw5:   lda w5slot
         bne scnext
         jsr isw5100
         bcc scnext
@@ -205,6 +230,7 @@ scnext: inc scslot
 found:  lda nacia
         ora w5slot
         ora pasn
+        ora netslot
         bne foundany
         ldx #msgnone-msgs
         jsr drawstate
@@ -271,6 +297,7 @@ shnext: ldx sel
         bne shacia
 
 shw5:   jsr pasrow
+        jsr netshow
         lda w5slot
         bne w5show
         jmp wait
@@ -290,34 +317,148 @@ w5show: lda nacia
         ldy column
         ldx #msgat-msgs
         jsr puttext
+        lda #>W5IMG
+        jsr putaddr
+        jmp wait
+
+; putaddr: the address and port in the header on page A, as 10.0.0.2:6502,
+; on the row from Y, and the rest of the row blank.
+putaddr: sta paip+2
+        sta putport+2
+        sta pphigh+2
         ldx #0
-w5ip:   lda W5IMG+NADDR,x
+paip:   lda W5IMG+NADDR,x
         stx sel
         jsr putdec
         ldx sel
         inx
         cpx #4
-        beq w5port
+        beq paport
         lda #$AE                ; a period
         sta (rowlo),y
         iny
-        bne w5ip
-w5port: lda #$BA                ; a colon
+        bne paip
+paport: lda #$BA                ; a colon
         sta (rowlo),y
         iny
         jsr putport
         lda #$A0                ; the rest of the row, blank
-w5blank: cpy #40
-        beq wait
+pablank: cpy #40
+        beq padone
         sta (rowlo),y
         iny
-        bne w5blank
+        bne pablank
+padone: rts
 
-; wait: until an envelope's start byte arrives on a 6551, or the PC connects
-; to the W5100. A W5100 socket that stops listening listens again, with the
-; next announcement rather than on every pass: a 6551 holds one byte, and a
-; listen that fails each time, as one does on a port the PC has taken, made
-; the pass too slow to catch the start byte at 115,200 baud.
+; netshow: the network shim copied to $B000 for the card found, which it
+; sets up, and the card's row, below the W5100's: UTHERNET or LANCEGS, its
+; slot, and its address and port. A card with no address is not waited on.
+netshow: lda netslot
+        bne nsshow
+        rts
+nsshow: sta NETIMG+HSLOT
+        ldx #0
+nscopy:
+nssrc:  lda NETIMG,x
+nsdst:  sta NSHIM,x
+        inx
+        bne nscopy
+        inc nssrc+2
+        inc nsdst+2
+        lda nsdst+2
+        cmp #>(NSHIM+$1000)
+        bne nscopy
+        lda nacia
+        ldx w5slot
+        beq nsrow
+        clc
+        adc #1
+nsrow:  sta nsrowi
+        jsr rowat
+        ldx #msguth-msgs
+        lda NSCHIP
+        cmp #2
+        bne nsname
+        ldx #msglan-msgs
+nsname: ldy #0
+        jsr puttext
+        lda netslot
+        jsr putdec
+        sty column
+        ldx #msgdhcp-msgs
+        jsr puttext
+        jsr NSBOOT
+        bcc nsaddr
+        lda #0
+        sta netslot
+        rts
+nsaddr: lda nsrowi
+        jsr rowat
+        ldy column
+        ldx #msgat-msgs
+        jsr puttext
+        lda #>NSHIM
+        jmp putaddr
+
+; netgo: the network shim, at $B000 and set up, given the zero page and
+; started. The PC is the sender of the datagram that came.
+netgo:  ldx #0
+ngzp:   lda ZPCOPY,x
+        sta ZPSAVE,x
+        inx
+        bne ngzp
+        jmp NSHIM
+
+; isnet: the carry set for a LAN91C96 in scslot, by its bank select
+; register's high byte, $33, with A 2; or for a CS8900A, by its product ID
+; at PacketPage 0, $630E, with A 1. After a reset the PacketPage pointer is
+; at 0, read as $3000 on a CS8900A and as $0000 in AppleWin, so the ID is
+; read first with nothing written. Otherwise the pointer is written only once
+; its bits 14 to 12 read as 011, so a 6551 there, whose command and control
+; registers are at the same offsets, is left as it was.
+isnet:  lda scslot
+        asl a
+        asl a
+        asl a
+        asl a
+        tay
+        lda $C08F,y
+        cmp #$33
+        bne incs
+        lda #2
+        rts
+incs:   lda $C08C,y
+        cmp #$0E
+        bne inptr
+        lda $C08D,y
+        cmp #$63
+        beq incsok
+inptr:  lda $C08B,y
+        and #$70
+        cmp #$30
+        bne innone
+        lda #0
+        sta $C08A,y
+        sta $C08B,y
+        lda $C08C,y
+        cmp #$0E
+        bne innone
+        lda $C08D,y
+        cmp #$63
+        bne innone
+incsok: lda #1
+        sec
+        rts
+innone: clc
+        rts
+
+; wait: until a byte arrives on a 6551, or the PC connects to the W5100. Any
+; byte on a 6551 is the PC there: a pass of this loop is longer than a byte
+; at 115,200 baud, so the envelope's start byte can be overwritten by the
+; next before it is read, and the shim sends Ready when it starts. A
+; W5100 socket that stops listening listens again, with the next
+; announcement rather than on every pass: a listen that fails each time, as
+; one does on a port the PC has taken, made the pass slower.
 wait:   ldx #0
 wtacia: cpx nacia
         beq wtpas
@@ -332,9 +473,7 @@ wtacia: cpx nacia
         lda ACIASTAT,y
         and #RDRF
         beq wtnext
-        lda ACIADATA,y
-        cmp #$C1
-        bne wtnext
+        lda ACIADATA,y          ; read, so the 6551 takes the next byte
         stx sel
         jmp acgo
 wtscc:  and #$01                ; a IIgs's port, by its channel
@@ -366,8 +505,14 @@ wtpnext: cpx pasn
 wtpskip: ldx pidx
         inx
         bne wtpnext
-wtw5:   lda w5slot
-        beq towait
+wtw5:   lda netslot             ; the network card, through its shim
+        beq wtw5b
+        lda #0
+        jsr NSRECV
+        bcs wtw5b
+        jmp netgo
+wtw5b:  lda w5slot
+        beq w5idle
         lda #$04
         sta skpage
         ldy #SKSR
@@ -384,9 +529,13 @@ w5idle: inc annlo
         bne towait
         lda #0
         sta annhi
+        lda w5slot
+        beq annet
         jsr w5again
         jsr announce
-        jmp wait
+annet:  lda netslot
+        beq towait
+        jsr NSANN
 towait: jmp wait                ; out of a branch's range
 
 ; w5again: socket 0 listening again if it has stopped.
@@ -489,8 +638,8 @@ acctl:  sta ACIACTL,y
 
 ; addscc: a IIgs's port in slot A, 1 or 2, listed, and its 8530 set to the
 ; shim's speed as the shim sets it: 8 data bits, 1 stop bit, no parity, DTR
-; and RTS on and no interrupts. Slot 1's printer port is channel B and slot
-; 2's modem port channel A. The 8530 is clocked by a 3.6864 MHz crystal at
+; and RTS on and no interrupts. Slot 1's printer port is channel A and slot
+; 2's modem port channel B. The 8530 is clocked by a 3.6864 MHz crystal at
 ; RTxC: the baud rate generator divides it by twice the time constant plus
 ; 2, and the channel by 16 after that, or straight from RTxC by 32 for
 ; 115,200 baud and by 16 for 230,400, which a 6551 control byte of rate 1,
@@ -502,6 +651,7 @@ addscc: ldx nacia
         cmp #2
         lda #$80
         adc #0
+        eor #$01               ; slot 1 channel A, slot 2 channel B
         sta acscc,x
         inc nacia
         and #$01
@@ -1392,9 +1542,9 @@ pdtab:  .byte 1, 10, 100
 
 ; putport: the W5100's port in decimal, without leading zeros, on the row
 ; from Y.
-putport: lda W5IMG+NPORT
+putport: lda W5IMG+NPORT        ; putaddr sets the page
         sta tmohi
-        lda W5IMG+NPORT+1
+pphigh: lda W5IMG+NPORT+1
         sta tmolo
         lda #0
         sta lead
@@ -1449,7 +1599,8 @@ anntag: .text "CASSOLINK"
 annend:
 
 msgs:
-title:  .text "CASSOLINK"
+title:  .text "CASSOLINK LOADER V1."  ; the loader's version, 1 and the shim's
+        .byte $30 + SHIMVER / 10, $30 + SHIMVER - SHIMVER / 10 * 10
         .byte 0
 msgwait: .text "WAITING FOR THE PC ON:"
         .byte 0
@@ -1463,12 +1614,18 @@ msgpas: .text "PASCAL FIRMWARE CARD, SLOT "
         .byte 0
 msgw5:  .text "UTHERNET II, SLOT "
         .byte 0
+msguth: .text "UTHERNET, SLOT "
+        .byte 0
+msglan: .text "LANCEGS, SLOT "
+        .byte 0
 msgat:  .text ", "
         .byte 0
 msgdhcp: .text ", GETTING AN ADDRESS"
         .byte 0
 
 u115200: .text "115200"   ; a 6551's speed for 230,400 baud
+netslot: .byte 0                ; the network card's slot, or 0
+nsrowi: .byte 0                 ; and its row
 acslots: .ds 8                  ; each 6551's slot, or a //c's or a IIgs's port
 acscc:  .ds 8                   ; 0 for a 6551, or $80 plus a IIgs port's channel
 ; Each 6551 rate's time constant: $FF for 115,200 baud and $FE for 230,400,

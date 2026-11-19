@@ -6,102 +6,101 @@
 
 
 
-static constexpr char      s_kAreaName[]        = "PASCAL.AREA";
-static constexpr size_t    s_kAreaNameLen       = sizeof (s_kAreaName) - 1;
-static constexpr Byte      s_kStoragePascalArea = 0x04;
-static constexpr uint32_t  s_kMaxProDosBlocks   = 65535;
-
-//  A ProDOS directory block and its entries.
-static constexpr uint32_t  s_kRootBlock         = 2;
-static constexpr size_t    s_kOffNextBlock      = 0x02;
-static constexpr size_t    s_kOffFirstEntry     = 0x04;
-static constexpr size_t    s_kEntryBytes        = 0x27;
-static constexpr int       s_kEntriesPerBlock   = 13;
-static constexpr size_t    s_kEntOffKeyPointer  = 0x11;
-static constexpr size_t    s_kEntOffBlocksUsed  = 0x13;
-
-//  The area's map: a count of volumes, a signature, an entry of a first
-//  block and a length for each volume, and a description for each.
-static constexpr uint32_t  s_kMapBlocks         = 2;
-static constexpr size_t    s_kOffVolumeCount    = 0x02;
-static constexpr size_t    s_kOffSignature      = 0x04;
-static constexpr Byte      s_kSignature[]       = { 0x03, 'P', 'P', 'M' };
-static constexpr int       s_kMaxVolumes        = 31;
-static constexpr size_t    s_kInfoBytes         = 8;
-static constexpr size_t    s_kInfoOffLength     = 2;
-static constexpr size_t    s_kOffDescriptions   = 0x100;
-static constexpr size_t    s_kDescriptionBytes  = 16;
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PpmLayout::TryDetect
+//  PpmLayout::IsAreaEntry
 //
-//  Entry 0 of the map is the area. An entry that ends past the volume, has a
-//  description longer than its field, or begins before the end of the one
-//  ahead of it is left out.
+//  A root directory entry of storage type $4 and the name PASCAL.AREA.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PpmLayout::TryDetect (IBlockStore & store, std::vector<Partition> & outPartitions)
+bool PpmLayout::IsAreaEntry (const std::vector<Byte> & block, size_t entry)
 {
-    HRESULT            hr           = S_OK;
-    std::vector<Byte>  map;
-    std::vector<Byte>  sectors;
-    uint32_t           areaBlock    = 0;
-    uint32_t           areaBlocks   = 0;
-    uint32_t           volumeBlocks = 0;
-    uint32_t           priorEnd     = 0;
-    int                count        = 0;
-    int                i            = 0;
-    bool               found        = false;
+    static constexpr std::string_view  kName        = "PASCAL.AREA";
+    static constexpr Byte              kPascalArea  = 0x04;
 
 
 
-    outPartitions.clear();
+    Byte              typeLength = block[entry];
+    std::string_view  name ((const char *) block.data() + entry + 1, typeLength & 0x0F);
 
-    hr = FindArea (store, areaBlock, areaBlocks, volumeBlocks);
+
+
+    return (typeLength >> 4) == kPascalArea && name == kName;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PpmLayout::FindRegion
+//
+//  The PASCAL.AREA entry of the root directory of the ProDOS volume at
+//  block 0, its region the key pointer and the blocks used. The count is 0
+//  without that entry, or when the region isn't inside the volume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PpmLayout::FindRegion (IBlockStore & store, Region & outRegion)
+{
+    static constexpr size_t  kEntryBytes     = 0x27;
+    static constexpr size_t  kEntriesAt      = 0x04;
+    static constexpr int     kEntriesInBlock = 13;
+    static constexpr size_t  kNextBlock      = 0x02;
+    static constexpr size_t  kKeyPointer     = 0x11;
+    static constexpr size_t  kBlocksUsed     = 0x13;
+
+
+
+    HRESULT            hr     = S_OK;
+    uint32_t           total  = store.GetBlockCount();
+    uint32_t           next   = kRootBlock;
+    uint32_t           read   = 0;
+    VolumeKind         kind   = VolumeKind::Unknown;
+    bool               isHfs  = false;
+    bool               inside = false;
+    size_t             entry  = 0;
+    std::vector<Byte>  block;
+
+
+
+    outRegion = Region();
+
+    BAIL_OUT_IF (total > kMaxProDosBlocks, S_OK);
+
+    hr = PartitionLayout::ProbeBlockVolume (store, 0, total, kind, isHfs, outRegion.volumeBlocks);
     CHR (hr);
 
-    BAIL_OUT_IF (areaBlocks == 0, S_OK);
+    BAIL_OUT_IF (kind != VolumeKind::ProDos, S_OK);
 
-    hr = PartitionLayout::ReadBlocks (store, areaBlock, s_kMapBlocks, map);
-    CHR (hr);
-
-    found = std::equal (std::begin (s_kSignature), std::end (s_kSignature), map.begin() + s_kOffSignature);
-    count = PartitionLayout::ReadWord (map, s_kOffVolumeCount);
-
-    BAIL_OUT_IF (!found || count == 0 || count > s_kMaxVolumes, S_OK);
-
-    for (i = 1; i <= count; i++)
+    //  The directory's blocks, each read once at most.
+    while (next != 0 && next < total && read < total && outRegion.count == 0)
     {
-        uint32_t   start       = PartitionLayout::ReadWord (map, (size_t) i * s_kInfoBytes);
-        uint32_t   length      = PartitionLayout::ReadWord (map, (size_t) i * s_kInfoBytes + s_kInfoOffLength);
-        size_t     description = s_kOffDescriptions + (size_t) i * s_kDescriptionBytes;
-        size_t     textLength  = map[description];
-        Partition  volume;
-
-        if (start + length > volumeBlocks || textLength >= s_kDescriptionBytes || start < priorEnd)
-        {
-            continue;
-        }
-
-        volume.index      = (int) outPartitions.size() + 1;
-        volume.firstBlock = start;
-        volume.blockCount = length;
-        volume.layout     = PartitionLayoutKind::Ppm;
-        volume.name.assign (map.begin() + (ptrdiff_t) description + 1, map.begin() + (ptrdiff_t) (description + 1 + textLength));
-
-        hr = PartitionLayout::ReadPartition (store, volume, sectors);
+        hr = PartitionLayout::ReadBlocks (store, next, 1, block);
         CHR (hr);
 
-        volume.volumeKind = VolumeImage::DetectFilesystem (sectors);
-        priorEnd          = start + length;
+        for (int i = 0; i < kEntriesInBlock && outRegion.count == 0; i++)
+        {
+            entry = kEntriesAt + (size_t) i * kEntryBytes;
 
-        outPartitions.push_back (std::move (volume));
+            if (IsAreaEntry (block, entry))
+            {
+                outRegion.first = PartitionLayout::ReadWord (block, entry + kKeyPointer);
+                outRegion.count = PartitionLayout::ReadWord (block, entry + kBlocksUsed);
+            }
+        }
+
+        next = PartitionLayout::ReadWord (block, kNextBlock);
+        read++;
+    }
+
+    inside = outRegion.first != 0 && outRegion.count >= kMapBlocks && outRegion.first + outRegion.count <= outRegion.volumeBlocks;
+
+    if (!inside)
+    {
+        outRegion.count = 0;
     }
 
 Error:
@@ -114,72 +113,116 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PpmLayout::FindArea
+//  PpmLayout::ListVolumes
 //
-//  The blocks of PASCAL.AREA, from its entry in the volume directory of a
-//  ProDOS volume. `outBlockCount` is zero when the store isn't a ProDOS
-//  volume or has no such file.
+//  Volumes 1 to the map's count, each with its description. A volume that
+//  ends past the ProDOS volume, has a description of 16 bytes or more, or
+//  starts before the one listed before it ends is left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PpmLayout::FindArea (IBlockStore & store, uint32_t & outFirstBlock, uint32_t & outBlockCount, uint32_t & outVolumeBlocks)
+HRESULT PpmLayout::ListVolumes (IBlockStore & store, const Region & region, const std::vector<Byte> & map, std::vector<Partition> & outPartitions)
 {
-    HRESULT            hr      = S_OK;
-    std::vector<Byte>  block;
-    uint32_t           total   = store.GetBlockCount();
-    uint32_t           next    = s_kRootBlock;
-    uint32_t           visited = 0;
-    uint32_t           first   = 0;
-    uint32_t           count   = 0;
-    VolumeKind         kind    = VolumeKind::Unknown;
-    bool               isHfs   = false;
-    bool               found   = false;
-    int                slot    = 0;
+    static constexpr size_t  kInfoBytes        = 8;
+    static constexpr size_t  kDescriptionsAt   = 0x100;
+    static constexpr size_t  kDescriptionBytes = 16;
+    static constexpr size_t  kVolumeCount      = 0x02;
 
 
 
-    outFirstBlock   = 0;
-    outBlockCount   = 0;
-    outVolumeBlocks = 0;
+    HRESULT            hr     = S_OK;
+    int                count  = PartitionLayout::ReadWord (map, kVolumeCount);
+    uint32_t           ended  = 0;
+    uint32_t           first  = 0;
+    uint32_t           length = 0;
+    size_t             text   = 0;
+    size_t             size   = 0;
+    bool               listed = false;
+    std::vector<Byte>  sectors;
 
-    BAIL_OUT_IF (total > s_kMaxProDosBlocks, S_OK);
 
-    hr = PartitionLayout::ProbeBlockVolume (store, 0, total, kind, isHfs, outVolumeBlocks);
-    CHR (hr);
 
-    BAIL_OUT_IF (kind != VolumeKind::ProDos, S_OK);
-
-    //  The bound on blocks visited ends a chain that loops.
-    while (!found && next != 0 && next < total && visited < total)
+    for (int volume = 1; volume <= count; volume++)
     {
-        hr = PartitionLayout::ReadBlocks (store, next, 1, block);
-        CHR (hr);
+        Partition  partition;
 
-        for (slot = 0; slot < s_kEntriesPerBlock && !found; slot++)
+
+
+        first  = PartitionLayout::ReadWord (map, (size_t) volume * kInfoBytes);
+        length = PartitionLayout::ReadWord (map, (size_t) volume * kInfoBytes + 2);
+        text   = kDescriptionsAt + (size_t) volume * kDescriptionBytes;
+        size   = map[text];
+        listed = first >= ended && first + length <= region.volumeBlocks && size < kDescriptionBytes;
+
+        if (!listed)
         {
-            size_t  entry      = s_kOffFirstEntry + (size_t) slot * s_kEntryBytes;
-            Byte    typeLength = block[entry];
-
-            found = (typeLength >> 4) == s_kStoragePascalArea
-                 && (size_t) (typeLength & 0x0F) == s_kAreaNameLen
-                 && std::equal (s_kAreaName, s_kAreaName + s_kAreaNameLen, block.begin() + (ptrdiff_t) entry + 1);
-
-            if (found)
-            {
-                first = PartitionLayout::ReadWord (block, entry + s_kEntOffKeyPointer);
-                count = PartitionLayout::ReadWord (block, entry + s_kEntOffBlocksUsed);
-            }
+            continue;
         }
 
-        next = PartitionLayout::ReadWord (block, s_kOffNextBlock);
-        visited++;
+        partition.index      = (int) outPartitions.size() + 1;
+        partition.firstBlock = first;
+        partition.blockCount = length;
+        partition.layout     = PartitionLayoutKind::Ppm;
+        partition.name.assign ((const char *) map.data() + text + 1, size);
+
+        hr = PartitionLayout::ReadPartition (store, partition, sectors);
+        CHR (hr);
+
+        partition.volumeKind = VolumeImage::DetectFilesystem (sectors);
+        ended                = first + length;
+
+        outPartitions.push_back (std::move (partition));
     }
 
-    if (found && first != 0 && count >= s_kMapBlocks && first + count <= outVolumeBlocks)
-    {
-        outFirstBlock = first;
-        outBlockCount = count;
-    }
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PpmLayout::TryDetect
+//
+//  The region's map must have the signature and a volume count of 1 to 31.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PpmLayout::TryDetect (IBlockStore & store, std::vector<Partition> & outPartitions)
+{
+    static constexpr Byte    kSignature[]  = { 0x03, 'P', 'P', 'M' };
+    static constexpr size_t  kSignatureAt  = 0x04;
+    static constexpr size_t  kVolumeCount  = 0x02;
+
+
+
+    HRESULT            hr     = S_OK;
+    Region             region;
+    std::vector<Byte>  map;
+    bool               marked = false;
+    int                count  = 0;
+
+
+
+    outPartitions.clear();
+
+    hr = FindRegion (store, region);
+    CHR (hr);
+
+    BAIL_OUT_IF (region.count == 0, S_OK);
+
+    hr = PartitionLayout::ReadBlocks (store, region.first, kMapBlocks, map);
+    CHR (hr);
+
+    marked = std::equal (std::begin (kSignature), std::end (kSignature), map.begin() + kSignatureAt);
+    count   = PartitionLayout::ReadWord (map, kVolumeCount);
+
+    BAIL_OUT_IF (!marked || count < 1 || count > kMaxVolumes, S_OK);
+
+    hr = ListVolumes (store, region, map, outPartitions);
+    CHR (hr);
 
 Error:
     return hr;

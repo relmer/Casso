@@ -248,6 +248,7 @@
     <ClCompile Include="Seams\InProcessByteStream.cpp" />
     <ClCompile Include="Seams\ByteStreamSettings.cpp" />
     <ClCompile Include="Seams\Win32TcpStream.cpp" />
+    <ClCompile Include="Seams\Win32UdpStream.cpp" />
     <ClCompile Include="Seams\RawDevice\RawDeviceClient.cpp" />
     <ClCompile Include="Seams\RawDevice\RawDeviceProtocol.cpp" />
     <ClCompile Include="Seams\RawDevice\Fat32Format.cpp" />
@@ -271,6 +272,7 @@
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostBlocks.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostModules.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostProgram.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTextForm.cpp" />
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
@@ -288,6 +290,8 @@
     <ClCompile Include="CassoLink\Session\CassoLinkBlockDevices.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkCaptureAlign.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkCaptureNoise.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
@@ -521,6 +525,9 @@
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
+    <ClCompile Include="CassoExplorer\Model\BasicListingOutput.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CopyOptionRows.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerCopyOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesDialog.cpp" />
     <ClCompile Include="CassoExplorer\WozPropertiesDialog.cpp" />
@@ -621,6 +628,10 @@
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
+    <ClCompile Include="FileTypes\CodeListing.cpp" />
+    <ClCompile Include="FileTypes\Disassembler65816.cpp" />
+    <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
+    <ClCompile Include="FileTypes\ScreenPicture.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes3200.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ZipAppleDouble.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerDiskFileIo.cpp" />
@@ -1677,6 +1688,9 @@
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
+    <ClInclude Include="CassoExplorer\Model\BasicListingOutput.h" />
+    <ClInclude Include="CassoExplorer\Model\CopyOptionRows.h" />
+    <ClInclude Include="CassoExplorer\CassoExplorerCopyOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />
     <ClInclude Include="CassoExplorer\AppleFilePropertiesDialog.h" />
     <ClInclude Include="CassoExplorer\WozPropertiesDialog.h" />
@@ -1787,6 +1801,10 @@
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />
+    <ClInclude Include="FileTypes\CodeListing.h" />
+    <ClInclude Include="FileTypes\Disassembler65816.h" />
+    <ClInclude Include="FileTypes\MacPaintPicture.h" />
+    <ClInclude Include="FileTypes\ScreenPicture.h" />
     <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerDiskFileIo.h" />
     <ClInclude Include="Devices\Disk\Archives\Bzip2Decoder.h" />
@@ -1909,6 +1927,7 @@
     <ClInclude Include="Seams\InProcessByteStream.h" />
     <ClInclude Include="Seams\ByteStreamSettings.h" />
     <ClInclude Include="Seams\Win32TcpStream.h" />
+    <ClInclude Include="Seams\Win32UdpStream.h" />
     <ClInclude Include="Seams\ILinkAnnouncements.h" />
     <ClInclude Include="Seams\RawDevice\IRawDevice.h" />
     <ClInclude Include="Seams\RawDevice\RawDeviceClient.h" />
@@ -2396,6 +2415,7 @@
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
+    <None Include="CassoLink\Apple\NetStack.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
     <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />

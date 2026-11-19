@@ -849,6 +849,56 @@ MAME 0.289's `apple3`, headless, with the CassoLink SOS disk made from Apple's S
 
 Before this, a 140K block device's catalog was empty: the volume layer read its 280 blocks, which arrive in block order, as a DOS-order buffer. The SOS program's CRC in its Ready differed from the host's at first, since the CRC loop changes the operand of one of its instructions; a disk with that build would have failed to connect as another version. Apple's System Utilities disk has no .RS232 in its SOS.DRIVER, so on a disk made from it the Apple /// displays a message and the link doesn't connect.
 
+## The Uthernet and the LANceGS (T602, SC-059)
+
+### The Uthernet in AppleWin, 2026-11-18
+
+AppleWin's Linux build, `sa2` from github.com/audetto/AppleWin as of
+2026-11-08, in a copy of the owner's WSL Ubuntu that was removed afterward.
+Its Uthernet runs over libslirp, so no packet capture driver was installed.
+The Apple got its address from slirp's DHCP server, and UDP 6502 was
+forwarded to it. A test on Windows sent the link's packets to the copy's
+address, loaded the program, and read track 0 of drive 1; the first sector
+matched the disk image. Two patches to `sa2`, made only in the copy, let it
+run under WSL: a swap interval failure was made a warning, and the text
+screen and a few memory areas were written to files.
+
+Found and fixed:
+
+1. The universal disk took the card for an Uthernet II. AppleWin's CS8900A
+   starts its PacketPage pointer at 0 and reads it back as written, without
+   the 011 in bits 14 to 12 that the card check waited for before writing
+   the pointer. The product ID is now read first with nothing written.
+2. The Load program packet was dropped when page 0 came right behind it.
+   Each byte read of RxEvent skips the frame being read in AppleWin's
+   CS8900A, so the two-byte read took both frames. RxEvent's high byte alone
+   is now read.
+
+`AnUthernetAsAppleWinHasIt_ReadsADiskOverUdp` runs the link against a fake
+CS8900A with both of AppleWin's behaviors, and failed before each fix.
+
+### The LANceGS in MAME, 2026-11-19
+
+MAME 0.285's enhanced //e with a LANceGS in slot 3, built from source with
+the SMC91C96's logging, in the WSL instance `Ubuntu-CassoEmu`. On Linux,
+MAME's card uses a TAP device, so no packet capture driver was installed. A
+relay on the TAP device padded each frame to the Apple to 60 bytes and added
+a CRC, as a real wire does: MAME's SMC91C96 drops frames shorter than 64
+bytes, and frames from a TAP device have no CRC. dnsmasq assigned the
+Apple 10.0.3.2, and UDP 6502 on the instance's address was forwarded to it. A test
+on Windows loaded the program and read track 0 of drive 1, and all 16
+sectors matched the disk image.
+
+Found and fixed: the shim turned on the SMC91C96's CRC strip, which removed
+the last 4 bytes of each frame MAME received from the TAP device. The DHCP
+acknowledgment was dropped as a result. The strip is off now, since the IP
+and UDP lengths mark a datagram's end. `ALanceGs_TakesItsAddressFromDhcp`
+runs DHCP against a fake SMC91C96.
+
+The source build reads its settings from `./cfg`, not `~/.mame/cfg`, so it
+was started with `-cfg_directory`. Without it, MAME didn't open the TAP
+device, and each transmit wrote nothing.
+
 ## A2Pico cards (Story 41, SC-070)
 
 The owner has no A2Pico, so the card is checked against the A2retroNET

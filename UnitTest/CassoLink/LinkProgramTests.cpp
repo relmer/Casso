@@ -268,8 +268,13 @@ public:
         Assert::IsTrue (LinkAnnouncement::Parse (datagram, announcement));
         Assert::AreEqual (std::string ("192.168.1.77:6502"), announcement.GetAddressText());
         Assert::IsTrue (announcement.mac == std::array<Byte, 6> { 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 });
+        Assert::IsFalse (announcement.udp, L"version 1 is TCP");
 
-        datagram[9] = 2;
+        datagram[9] = LinkAnnouncement::kVersionUdp;
+        Assert::IsTrue (LinkAnnouncement::Parse (datagram, announcement), L"the network shim's version");
+        Assert::IsTrue (announcement.udp, L"version 2 is UDP");
+
+        datagram[9] = 3;
         Assert::IsFalse (LinkAnnouncement::Parse (datagram, announcement), L"another version");
 
         datagram[9] = 1;
@@ -306,9 +311,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 104;
-        static constexpr uint64_t  s_kAciaHash      = 0x2D4A8FDD739AD56E;
-        static constexpr uint64_t  s_kW5100Hash     = 0x28370183098D6DAB;
+        static constexpr Word      s_kHashedVersion = 105;
+        static constexpr uint64_t  s_kAciaHash      = 0xB2905DF753CC45C2;
+        static constexpr uint64_t  s_kW5100Hash     = 0x0E1BDB6E21FD4993;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

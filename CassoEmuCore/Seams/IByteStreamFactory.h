@@ -42,6 +42,18 @@ public:
         return ConnectTcp (host, port, outStream);
     }
 
+    //  UDP datagrams to an original Uthernet's or a LANceGS's network shim
+    //  at the address and port. A factory with no network doesn't override
+    //  it.
+    virtual HRESULT  OpenUdp      (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream)
+    {
+        (void) host;
+        (void) port;
+        (void) outStream;
+
+        return E_NOTIMPL;
+    }
+
     //  The cassette link on this PC's sound devices, an output to the Apple's
     //  cassette input and an input from its cassette output, each an endpoint
     //  id or empty for the default. A factory with no sound devices doesn't

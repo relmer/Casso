@@ -11,11 +11,13 @@
 //  LinkChip
 //
 //  What the Apple side talks to the PC through: a 6551, the //c's or a Super
-//  Serial Card's; an Uthernet II's W5100; the cassette ports of a ][+ or
-//  //e; or an Apple ///'s serial port, through SOS's .RS232 driver. Each has
-//  a build of the program, and the 6551 and W5100 also have builds of the
-//  shim. The cassette build is loaded from tape by the monitor, with no
-//  shim, and the SOS build is SOS.INTERP on the CassoLink SOS disk.
+//  Serial Card's; an Uthernet II's W5100; an original Uthernet's CS8900A or
+//  a LANceGS's LAN91C96, through the network shim's UDP; the cassette ports
+//  of a ][+ or //e; or an Apple ///'s serial port, through SOS's .RS232
+//  driver. Each has a build of the program, and the 6551, the W5100 and the
+//  network also have builds of the shim. The cassette build is loaded from
+//  tape by the monitor, with no shim, and the SOS build is SOS.INTERP on the
+//  CassoLink SOS disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +27,7 @@ enum class LinkChip
     W5100,
     Cassette,
     Sos,
+    Network,
 };
 
 
@@ -50,6 +53,10 @@ struct LinkNetworkConfig
     std::array<Byte, 4>  gateway = {};
     std::array<Byte, 6>  mac     = { 0x02, 'C', 'A', 'S', 'S', 0x01 };
     uint16_t             port    = 6502;
+
+    //  The network shim's chip, LinkProgram::kNetChipCs8900a or
+    //  kNetChipLan91c96, or 0 for a universal boot disk to find.
+    Byte                 netChip = 0;
 };
 
 
@@ -96,8 +103,8 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 104;
-    static constexpr Byte    kShimVersion       = 11;
+    static constexpr Word    kProgramVersion    = 105;
+    static constexpr Byte    kShimVersion       = 12;
     static constexpr Word    kShimAddress       = 0x3A00;
 
     //  A IIgs's ports alone run at kIIgsBaud; on any other interface the
@@ -106,6 +113,7 @@ public:
     static constexpr DWORD   kFallbackBaud      = 115200;
     static constexpr Word    kZeroPageSave      = 0x3900;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
+    static constexpr Word    kUpdateImage       = 0x0900;
     static constexpr size_t  kShimLimit         = 0xA00;   // $3A00-$43FF, the shim and its startup part
     static constexpr Word    kShimResidentEnd   = 0x4000;  // the program's tables, over the startup part
 
@@ -135,6 +143,7 @@ public:
     //  Ready's shim version byte.
     static constexpr Byte    kW5100ReadyFlag    = 0x80;
     static constexpr Byte    kCassetteReadyFlag = 0x40;
+    static constexpr Byte    kNetworkReadyFlags = 0xC0;
     static constexpr Byte    kSosReadyFlag      = 0x20;
 
     //  The SOS build: its code from kSosAddress, then the 6551 control byte
@@ -153,12 +162,22 @@ public:
     //  machine's interfaces and waits for the PC on all of them, then each
     //  shim as built for its own address, which the stage copies there.
     static constexpr Word    kUniversalAddress  = 0x2000;
-    static constexpr size_t  kUniversalLimit    = 0xC00;
-    static constexpr Word    kUniversalAcia     = 0x2C00;
+    static constexpr size_t  kUniversalLimit    = 0xE00;
+    static constexpr Word    kUniversalAcia     = 0x2E00;
     static constexpr Word    kUniversalW5100    = 0x4400;
+    static constexpr Word    kUniversalNetwork  = 0x4A00;
 
     //  The UDP port a universal disk's W5100 broadcasts its announcements to.
     static constexpr uint16_t  kAnnouncePort  = 6510;
+
+    //  The network shim, with its stack, from kNetShimAddress below its frames'
+    //  end at $C000. The byte at kNetChipOffset is the chip:
+    //  kNetChipCs8900a or kNetChipLan91c96.
+    static constexpr Word    kNetShimAddress    = 0xB000;
+    static constexpr size_t  kNetShimLimit      = 0x1000;
+    static constexpr size_t  kNetChipOffset     = 0x39;
+    static constexpr Byte    kNetChipCs8900a    = 1;
+    static constexpr Byte    kNetChipLan91c96   = 2;
 
     //  The slot finder, which runs ahead of a 6551 shim typed in or read from
     //  tape, in the page the shim's copy of the zero page later fills.
@@ -217,6 +236,11 @@ public:
     //  The shim, starting at the given speed. A boot disk and an emulated
     //  link use the link's speed; the typed bootstrap uses its own.
     static HRESULT      BuildShim        (const LinkShimOptions & options, std::vector<Byte> & outShim);
+
+    //  The program an older 6551 shim is sent in place of the program: the
+    //  current shim, given the old one's settings and started over it. The
+    //  updater is at kProgramAddress and the shim's image at kUpdateImage.
+    static HRESULT      BuildShimUpdate  (std::vector<Byte> & outBytes);
     static HRESULT      BuildShim        (DWORD baud, std::vector<Byte> & outShim, const std::string & dial = std::string());
 
     //  A boot disk, as a .dsk's bytes, whose boot sector loads the shim at its
@@ -245,6 +269,7 @@ public:
 
     static std::string  GetShimSource                 ();
     static std::string  GetProgramSource              ();
+    static std::string  GetNetStackSource             ();
     static std::string  GetUniversalSource            ();
     static std::string  GetSlotFinderSource           ();
     static std::string  GetCaptureModuleSource        ();
