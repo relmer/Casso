@@ -885,7 +885,9 @@ void DisassemblyGroup::SetRowTips (
 //  The selection is an instruction, not a row: new rows move it to the row
 //  with its address, or clear it when none has it, so F9 and run to cursor
 //  act on what the user selected. With nothing selected, the PC's row is
-//  scrolled into view.
+//  scrolled into view when the PC moves. Scrolling it in on every build
+//  stopped a scroll up once the PC's row was at the bottom of a list taller
+//  than the pane, as source rows make it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -912,9 +914,10 @@ void DisassemblyGroup::KeepSelection (int view, const RowContext & context)
         }
     }
 
-    if (context.current >= 0 && context.list->GetSelectedRow() < 0)
+    if (context.current >= 0 && context.list->GetSelectedRow() < 0 && context.snapshot != nullptr && m_scrolledToPc[(size_t) view] != context.snapshot->pc)
     {
         context.list->EnsureVisible (context.current);
+        m_scrolledToPc[(size_t) view] = context.snapshot->pc;
     }
 }
 

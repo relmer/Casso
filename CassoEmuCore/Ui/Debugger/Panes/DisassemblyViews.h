@@ -196,6 +196,7 @@ private:
     std::array<int, DebuggerViewState::kMaxCodeViews>                      m_linesSentTo      = {};
     std::array<int, DebuggerViewState::kMaxCodeViews>                      m_shownSentTo      = {};
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_selected;
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_scrolledToPc;   // the PC each view last scrolled its row into view for
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_findSelect;
     std::array<std::optional<bool>, DebuggerViewState::kMaxCodeViews>      m_edgeAfterScroll;   // true for the top row
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>      m_edgeScrolledFrom;   // the first line when the key scrolled
