@@ -87,8 +87,9 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetDockToMenu (const std::ws
 //
 //  Dock returns a floating or hidden pane to its place. Dock in tab group
 //  tabs a tool window in with the documents. Auto hide pins the pane to the
-//  edge its pin would. Move to new window floats the pane; All to new
-//  window floats its whole group in one window, and the group's selected tab
+//  edge its pin would. Move to new window floats the pane, from a tab or from
+//  the title bar of a pane alone in its group; All to new window floats its
+//  whole group in one window, and the group's selected tab
 //  is selected in the window. Close is the application's.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,7 +138,9 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstr
                        !documents.empty() && !site.isFloatingSite });
     items.push_back ({ kAutoHideLabel, autoHide.action, autoHide.action != nullptr });
 
-    if (fromTab)
+    //  The title bar of a pane alone in its group has Move to new window in
+    //  place of All to new window, which would float the pane alone.
+    if (fromTab || mine.size() <= 1)
     {
         items.push_back ({ L"Move to new window", floatPane, canFloat });
     }
@@ -146,7 +149,7 @@ std::vector<DxuiDockMenus::MenuItem> DxuiDockMenus::GetPaneMenu (const std::wstr
     {
         items.push_back ({ L"All to new window", [this, mine, active] { m_ops.FloatGroup (mine, active); return true; }, canFloat });
     }
-    else
+    else if (fromTab || mine.size() > 1)
     {
         items.push_back ({ L"All to new window", floatPane, canFloat && mine.size() == 1 });
     }

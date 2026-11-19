@@ -111,12 +111,31 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (ATitleBarMenuLeavesOutMoveToNewWindow)
         {
             Rig                    rig;
-            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"console", false);
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"stack", false);
 
 
 
             Assert::IsNull    (Find (items, L"Move to new window"));
             Assert::IsNotNull (Find (items, L"All to new window"));
+        }
+
+
+        //  The title bar of a pane alone in its group, as the console is, has
+        //  Move to new window, which floats it, in place of All to new window.
+        TEST_METHOD (ALonePanesTitleBarMenuMovesItToANewWindow)
+        {
+            Rig                    rig;
+            std::vector<MenuItem>  items = rig.site.GetPaneMenu (L"console", false);
+            const MenuItem       * item  = Find (items, L"Move to new window");
+
+
+
+            RequireItem       (item);
+            Assert::IsTrue    (item->enabled);
+            Assert::IsNull    (Find (items, L"All to new window"));
+
+            Assert::IsTrue    (item->action());
+            Assert::AreEqual  (std::wstring (L"console"), rig.floated);
         }
 
 
@@ -189,7 +208,7 @@ namespace DxuiDockSitePaneMenuTests
         TEST_METHOD (AllToNewWindowFloatsALonePane)
         {
             Rig                    rig;
-            std::vector<MenuItem>  lone   = rig.site.GetPaneMenu (L"console", false);
+            std::vector<MenuItem>  lone   = rig.site.GetPaneMenu (L"console", true);
             std::vector<MenuItem>  tabbed = rig.site.GetPaneMenu (L"stack", false);
             const MenuItem       * item   = Find (lone, L"All to new window");
 
