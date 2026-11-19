@@ -418,6 +418,42 @@ Error:
 
 HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk)
 {
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  payload;
+    std::string        refusal;
+    DirectBootSpec     spec;
+
+
+
+    hr = BuildUniversalPayload (options, payload);
+    CHR (hr);
+
+    spec.loadAddress  = kUniversalAddress;
+    spec.entryAddress = kUniversalAddress;
+
+    hr = DirectBootBuilder::Build (payload, spec, outDisk, refusal);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildUniversalPayload
+//
+//  The stage at kUniversalAddress, then the 6551, W5100 and network shims at
+//  kUniversalAcia, kUniversalW5100 and kUniversalNetwork, as the boot disk
+//  loads them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildUniversalPayload (const LinkShimOptions & options, std::vector<Byte> & outPayload)
+{
     HRESULT            hr      = S_OK;
     LinkShimOptions    acia    = options;
     LinkShimOptions    w5100   = options;
@@ -425,8 +461,6 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     std::vector<Byte>  payload;
     std::vector<Byte>  shim;
     std::string        errors;
-    std::string        refusal;
-    DirectBootSpec     spec;
 
 
 
@@ -463,11 +497,7 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     payload.insert (payload.end(), shim.begin(), shim.end());
     payload.resize (kUniversalNetwork - kUniversalAddress + kNetShimLimit, 0);
 
-    spec.loadAddress  = kUniversalAddress;
-    spec.entryAddress = kUniversalAddress;
-
-    hr = DirectBootBuilder::Build (payload, spec, outDisk, refusal);
-    CHR (hr);
+    outPayload = std::move (payload);
 
 Error:
     return hr;

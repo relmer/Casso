@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -773,5 +774,86 @@ public:
         {
             Assert::AreEqual (containers[i] == DiskFormat::Woz, BlankDiskBuilder::CanHoldFlux (containers[i]));
         }
+    }
+
+
+
+
+    //  A DOS 3.3 disk with a distinct byte in every sector past the catalog,
+    //  so a sector read back from the wrong place differs.
+    static vector<Byte> MakePatternedDisk()
+    {
+        vector<Byte>  disk   = MakeDos33Buffer();
+        size_t        offset = 0;
+
+        for (offset = 18 * 16 * 256; offset < disk.size(); offset++)
+        {
+            disk[offset] = (Byte) ((offset * 7 + offset / 256) & 0xFF);
+        }
+
+        return disk;
+    }
+
+
+
+
+    TEST_METHOD (WrapInContainer_EachFormat_LoadsBackTheSectors)
+    {
+        vector<Byte>  disk = MakePatternedDisk();
+
+        struct Case
+        {
+            DiskFormat    format;
+            const char *  path;
+            size_t        trackSize;
+            size_t        imageSize;
+        };
+
+        const Case  cases[] =
+        {
+            { DiskFormat::Dsk, "out.dsk", 0,                               NibblizationLayer::kImageByteSize },
+            { DiskFormat::Do,  "out.do",  0,                               NibblizationLayer::kImageByteSize },
+            { DiskFormat::Po,  "out.po",  0,                               NibblizationLayer::kImageByteSize },
+            { DiskFormat::Nib, "out.nib", NibbleImageCodec::kNibTrackSize, NibbleImageCodec::kNibImageSize   },
+            { DiskFormat::Nib, "out.nb2", NibbleImageCodec::kNb2TrackSize, NibbleImageCodec::kNb2ImageSize   },
+            { DiskFormat::Woz, "out.woz", 0,                               0                                 },
+        };
+
+        for (const Case & c : cases)
+        {
+            vector<Byte>        bytes;
+            vector<Byte>        sectors;
+            SectorDecodeReport  report;
+            std::wstring        label (c.path, c.path + strlen (c.path));
+
+            AssertSucceeded (BlankDiskBuilder::WrapInContainer (c.format, c.trackSize, false, 0, disk, bytes));
+            AssertSucceeded (VolumeImage::Load (bytes, c.path, sectors, report));
+
+            Assert::IsTrue (sectors == disk, (label + L" loads back the disk").c_str());
+
+            if (c.imageSize != 0)
+            {
+                Assert::AreEqual (c.imageSize, bytes.size(), (label + L" is its format's size").c_str());
+            }
+        }
+    }
+
+
+
+
+    TEST_METHOD (WrapInContainer_DskAndDo_AreTheSectorsInDosOrder_AndPoIsReordered)
+    {
+        vector<Byte>  disk = MakePatternedDisk();
+        vector<Byte>  dsk;
+        vector<Byte>  doImage;
+        vector<Byte>  po;
+
+        AssertSucceeded (BlankDiskBuilder::WrapInContainer (DiskFormat::Dsk, 0, false, 0, disk, dsk));
+        AssertSucceeded (BlankDiskBuilder::WrapInContainer (DiskFormat::Do,  0, false, 0, disk, doImage));
+        AssertSucceeded (BlankDiskBuilder::WrapInContainer (DiskFormat::Po,  0, false, 0, disk, po));
+
+        Assert::IsTrue  (dsk == disk);
+        Assert::IsTrue  (doImage == disk);
+        Assert::IsFalse (po == disk, L"a .po is in ProDOS order");
     }
 };

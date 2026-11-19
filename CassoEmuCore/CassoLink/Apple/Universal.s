@@ -1633,10 +1633,10 @@ acscc:  .ds 8                   ; 0 for a 6551, or $80 plus a IIgs port's channe
 urates: .byte $00, $FF, $01, $FE, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
 ; Each 8530 register and its value, for 115,200 baud and then for the
 ; others, as the shim sets them.
-uregs:  .byte 4, $84, 14, $00, 11, $00, 1, $00, 3, $C1, 5, $EA
+uregs:  .byte 4, $84, 14, $00, 11, $80, 1, $00, 3, $C1, 5, $EA
 u16:    .byte 4, $44, 12
 u16tc:  .byte 0
-        .byte 13, $00, 14, $01, 11, $50, 1, $00, 3, $C1, 5, $EA
+        .byte 13, $00, 14, $01, 11, $D0, 1, $00, 3, $C1, 5, $EA
 uend:
 uregend: .byte 0                ; addscc: the end of the registers written
 uregx:  .byte 0                 ; addscc: the register's offset

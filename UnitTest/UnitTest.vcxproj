@@ -464,6 +464,8 @@
     <ClCompile Include="CassoLink\CassoLinkHostTests.cpp" />
     <ClCompile Include="CassoLink\ByteStreamSettingsTests.cpp" />
     <ClCompile Include="CassoLink\LinkProgramTests.cpp" />
+    <ClCompile Include="CassoLink\ShimSccTests.cpp" />
+    <ClCompile Include="CassoLink\UniversalSccTests.cpp" />
     <ClCompile Include="CassoLink\UthernetLinkTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkClientTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkResendTests.cpp" />
@@ -495,6 +497,8 @@
     <ClCompile Include="CassoLink\CassoLinkSectorTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSessionTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearchTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkDiskTransferTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkConnectorTests.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistryTests.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrapTests.cpp" />
     <ClCompile Include="CassoLink\DiskDriverTimingTests.cpp" />
@@ -988,6 +992,8 @@
     <ClInclude Include="CassoLink\ScriptedCassetteAudio.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
     <ClInclude Include="CassoLink\FakeNetworkCards.h" />
+    <ClInclude Include="CassoLink\FakeScc8530.h" />
+    <ClInclude Include="CassoLink\IigsTestCpu.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
     <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />
