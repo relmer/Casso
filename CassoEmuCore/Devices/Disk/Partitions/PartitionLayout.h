@@ -18,6 +18,7 @@
 enum class PartitionLayoutKind
 {
     None,
+    Apm,
     Cffa,
     FocusDrive,
     MicroDrive,

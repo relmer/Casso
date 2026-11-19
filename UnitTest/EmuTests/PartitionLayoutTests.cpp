@@ -113,6 +113,67 @@ public:
     }
 
 
+    //  An Apple Partition Map's entry, big-endian, in block `block`.
+    static void WriteApmEntry (vector<Byte> & bytes, uint32_t block, uint32_t mapBlocks, uint32_t first, uint32_t count, const char * name, const char * type)
+    {
+        size_t  at = (size_t) block * kBlock;
+
+        bytes[at]     = 'P';
+        bytes[at + 1] = 'M';
+
+        for (int i = 0; i < 4; i++)
+        {
+            bytes[at + 4 + i]  = (Byte) (mapBlocks >> (24 - 8 * i));
+            bytes[at + 8 + i]  = (Byte) (first     >> (24 - 8 * i));
+            bytes[at + 12 + i] = (Byte) (count     >> (24 - 8 * i));
+        }
+
+        WriteText (bytes, at + 16, name);
+        WriteText (bytes, at + 48, type);
+    }
+
+
+
+    //  A driver descriptor of 512-byte blocks, then the Apple_partition_map
+    //  entry, a ProDOS partition and free space.
+    static vector<Byte> MakeApmDisk()
+    {
+        vector<Byte>  bytes ((size_t) 600 * kBlock, 0);
+
+        bytes[0] = 'E';
+        bytes[1] = 'R';
+        bytes[2] = 0x02;
+
+        WriteApmEntry (bytes, 1, 3, 1,   3,   "Apple", "Apple_partition_map");
+        WriteApmEntry (bytes, 2, 3, 8,   400, "PRO",   "Apple_PRODOS");
+        WriteApmEntry (bytes, 3, 3, 408, 192, "Extra", "Apple_Free");
+        Place (bytes, 8, MakeProDos (400));
+
+        return bytes;
+    }
+
+
+
+    //  The Apple_partition_map entry and free space aren't partitions. The
+    //  ProDOS partition is, and it has the entry's name.
+    TEST_METHOD (Apm_ListsEachDataPartition_WithItsName)
+    {
+        MemoryBlockStore     store (MakeApmDisk());
+        vector<Partition>    partitions;
+        PartitionLayoutKind  kind = PartitionLayoutKind::None;
+
+        AssertSucceeded (PartitionLayout::Detect (store, kind, partitions));
+
+        Assert::IsTrue   (kind == PartitionLayoutKind::Apm);
+        Assert::AreEqual ((size_t) 1, partitions.size());
+        Assert::AreEqual ((uint32_t) 8,   partitions[0].firstBlock);
+        Assert::AreEqual ((uint32_t) 400, partitions[0].blockCount);
+        Assert::AreEqual (std::string ("PRO"), partitions[0].name);
+        Assert::IsTrue   (partitions[0].volumeKind == VolumeKind::ProDos);
+        Assert::AreEqual (std::string ("APM"), std::string (PartitionLayout::GetLayoutName (kind)));
+    }
+
+
     //  A map of two partitions in the first chunk and one in the second. The
     //  last begins inside the store and ends past it.
     TEST_METHOD (MicroDrive_MapOfBothChunks_ListsEveryPartition_AndClipsTheLast)
