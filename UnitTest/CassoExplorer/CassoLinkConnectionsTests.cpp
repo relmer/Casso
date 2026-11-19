@@ -314,7 +314,15 @@ public:
 
         do
         {
-            rig.links->ProbeDrives();
+            entries = rig.links->BuildTreeEntries();
+            std::this_thread::yield();
+        }
+        while (!entries[0].replying && std::chrono::steady_clock::now() < until);
+
+        rig.links->ProbeDrives();
+
+        do
+        {
             entries = rig.links->BuildTreeEntries();
             std::this_thread::yield();
         }
