@@ -877,10 +877,6 @@ Found and fixed:
 `AnUthernetAsAppleWinHasIt_ReadsADiskOverUdp` runs the link against a fake
 CS8900A with both of AppleWin's behaviors, and failed before each fix.
 
-Not checked: the 4 ms between the datagrams of a large write. A read sends
-only small datagrams to the Apple, and the program's pages each wait for an
-ACK.
-
 ### The LANceGS
 
 Not run. The owner has no card, and MAME's LANceGS exchanges frames only
