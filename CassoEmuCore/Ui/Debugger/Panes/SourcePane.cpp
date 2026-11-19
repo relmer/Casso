@@ -821,6 +821,32 @@ std::optional<Word> SourcePane::GetAddressAt (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::GetAddressAtOrBelow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> SourcePane::GetAddressAtOrBelow (POINT atDip) const
+{
+    std::optional<int>  line = GetLineAt (atDip);
+    auto                map  = (m_state.has_value()) ? m_state->lineAddresses : nullptr;
+    auto                next = (map != nullptr && line.has_value()) ? map->lower_bound ({ m_fileId, *line }) : decltype (map->end())();
+
+
+
+    if (!line.has_value() || map == nullptr || next == map->end() || next->first.first != m_fileId)
+    {
+        return std::nullopt;
+    }
+
+    return next->second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::GetFocusAddress
 //
 ////////////////////////////////////////////////////////////////////////////////

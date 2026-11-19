@@ -13,6 +13,7 @@
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/PaneMenuRows.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/SourceMacroPlaces.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -303,9 +304,10 @@ bool SourceDocumentPane::TryGetHeatTip (POINT clientPx, DxuiTip & tip) const
 //
 //  SourceDocumentPane::AddContentMenuItems
 //
-//  Copy, with text selected; and on a line with code, Go to disassembly,
-//  which brings the line's address to the middle of the disassembly, then
-//  the line's breakpoint rows, as the disassembly's row menu has them.
+//  Copy, with text selected; Go to disassembly, which brings the address of
+//  the line, or of the next line with code, to the middle of the disassembly,
+//  and Add bookmark there; then the line's breakpoint rows, as the
+//  disassembly's row menu has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,11 +329,12 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
         items.push_back ({ L"Copy", [this] { m_view->CopySelection(); } });
     }
 
-    address = m_model->GetAddressAt (clientPx);
+    address = m_model->GetAddressAtOrBelow (clientPx);
 
     if (address.has_value())
     {
         items.push_back ({ L"Go to disassembly", [this, at = *address] { m_paneNavigator.GoToCode (at); } });
+        PaneMenuRows::AddBookmark (m_latest, m_paneCommands, *address, items);
     }
 
     if (!m_model->TryGetLineBreakpoint (clientPx, line, breakpoint))
@@ -564,6 +567,7 @@ void SourceDocumentGroup::Apply()
         m_macroLevel = SourceMacroPlaces::GetMacroLevel (*source, m_macroLevel);
 
         Restore  (snapshot);
+        ShowLoad (snapshot);
         FollowPc (snapshot);
     }
 
@@ -600,6 +604,51 @@ void SourceDocumentGroup::Apply()
 
         m_pendingLoose.clear();
         ShowDropped (pending);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::ShowLoad
+//
+//  A debug file the user loads opens the PC's file, or its first file while
+//  the PC is in none of them, and brings it to the front. Later stops bring
+//  the PC's file forward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::ShowLoad (const DebuggerViewSnapshot & snapshot)
+{
+    const DebuggerViewSnapshot::SourceState & source = *snapshot.source;
+    int                                       fileId = source.fileId;
+    int                                       slot   = -1;
+
+
+
+    if (!m_isShowingLoad || source.files.empty())
+    {
+        return;
+    }
+
+    m_isShowingLoad = false;
+    m_hasFollowedPc = true;
+
+    if (fileId < 0)
+    {
+        fileId = source.files.front().id;
+    }
+
+    Open (fileId, 0, false);
+
+    slot = m_files.Find (fileId);
+
+    if (slot >= 0)
+    {
+        Activate (slot);
     }
 }
 
@@ -1360,11 +1409,27 @@ void SourceDocumentGroup::OpenSymbolFile (const std::wstring & thenShow)
 
     BAIL_OUT_IF (!picked, S_OK);
 
+    ShowNextLoad();
     m_paneCommands.RunAction (SymbolActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), m_latest.GetMode()));
     m_pendingLoose = thenShow;
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::ShowNextLoad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::ShowNextLoad()
+{
+    m_isShowingLoad = true;
 }
 
 

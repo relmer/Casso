@@ -285,6 +285,7 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
         if (opening == DroppedFiles::Opening::Symbols)
         {
+            m_sources->ShowNextLoad();
             RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (path), GetMode()));
             continue;
         }

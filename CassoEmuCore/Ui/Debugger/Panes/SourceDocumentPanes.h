@@ -169,6 +169,10 @@ public:
     //  it once it loads.
     void                             OpenSymbolFile  (const std::wstring & thenShow = std::wstring());
 
+    //  A debug file the user loads: its document opens and comes to the front
+    //  as soon as it loads, running or paused.
+    void                             ShowNextLoad    ();
+
     //  A source file the user opens; a file with no debug file record; a
     //  dropped source matched against the loaded debug file; and a loose
     //  document's Load symbols button.
@@ -188,6 +192,7 @@ private:
     static constexpr int  kFirstLooseFileId = 1 << 20;
 
     void                             FollowPc       (const DebuggerViewSnapshot & snapshot);
+    void                             ShowLoad       (const DebuggerViewSnapshot & snapshot);
     void                             Restore        (const DebuggerViewSnapshot & snapshot);
     int                              GetSlotAt      (POINT atDip) const;
     void                             HoverGutters   (POINT atDip, int dragSlot);
@@ -216,6 +221,7 @@ private:
     std::map<int, std::wstring>            m_looseFiles;
     int                                    m_nextLooseId   = kFirstLooseFileId;
     std::wstring                           m_pendingLoose;
+    bool                                   m_isShowingLoad = false;   // the next debug file to load opens its document
     uint64_t                               m_clickMs       = 0;
     POINT                                  m_clickAt       = {};
 };

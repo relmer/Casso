@@ -315,7 +315,8 @@ void DebuggerWindow::HoldCodeView (int view)
 //  DebuggerWindow::AddGoToDefinition
 //
 //  Insert Go to definition first on the menu when the point is over a
-//  symbol in a code view or a source document, or over a macro's name in a
+//  symbol in a code view or a source document, followed by Go to definition
+//  in disassembly for the symbol's address; or over a macro's name in a
 //  source document.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,6 +331,7 @@ void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<st
 
     if (TryGetDefinitionAt (clientPx, address))
     {
+        items.insert (items.begin(), { L"Go to definition in disassembly", [this, address] { ShowCode (address); } });
         items.insert (items.begin(), { L"Go to definition", [this, address] { GoToDefinition (address); } });
     }
     else if (TryGetMacroDefinitionAt (clientPx, fileId, line))
