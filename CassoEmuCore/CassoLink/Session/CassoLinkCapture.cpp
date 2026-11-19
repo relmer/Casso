@@ -792,7 +792,7 @@ bool CassoLinkCapture::IsTimed (const Position & position)
 //  for a whole track other than a standard one whose zero bits are then
 //  timed (IsTimed): with fewer reads, a timing can fit every read and be
 //  wrong. A position between tracks isn't read the second time, as the reads
-//  of one with no sync bytes can't be told from a neighbor's by their bytes,
+//  of one with no sync bytes match a neighbor's bytes,
 //  and most such positions read a neighbor or nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
