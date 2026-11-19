@@ -795,13 +795,6 @@ public:
     // forwards to the one live shell. Public because GuiMain installs it.
     static void  NotifyUser (const wchar_t * message);
 
-private:
-
-    // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
-    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
-    // or -1 on close-gesture.
-    int     ShowModalDialog      (const DialogDefinition & def);
-
     // Holds a report raised before there is a window to show it in. Public
     // and static because wCassoMain installs the sink before the shell exists.
     static void  QueueNotification (const std::wstring & message);
