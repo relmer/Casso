@@ -877,11 +877,27 @@ Found and fixed:
 `AnUthernetAsAppleWinHasIt_ReadsADiskOverUdp` runs the link against a fake
 CS8900A with both of AppleWin's behaviors, and failed before each fix.
 
-### The LANceGS
+### The LANceGS in MAME, 2026-11-19
 
-Not run. The owner has no card, and MAME's LANceGS exchanges frames only
-through a packet capture driver, which the owner chose on 2026-11-18 not to
-install.
+MAME 0.285's enhanced //e with a LANceGS in slot 3, built from source with
+the SMC91C96's logging, in the WSL instance `Ubuntu-CassoEmu`. On Linux,
+MAME's card uses a TAP device, so no packet capture driver was installed. A
+relay on the TAP device padded each frame to the Apple to 60 bytes and added
+a CRC, as a real wire does: MAME's SMC91C96 drops frames shorter than 64
+bytes, and frames from a TAP device have no CRC. dnsmasq assigned the
+Apple 10.0.3.2, and UDP 6502 on the instance's address was forwarded to it. A test
+on Windows loaded the program and read track 0 of drive 1, and all 16
+sectors matched the disk image.
+
+Found and fixed: the shim turned on the SMC91C96's CRC strip, which removed
+the last 4 bytes of each frame MAME received from the TAP device. The DHCP
+acknowledgment was dropped as a result. The strip is off now, since the IP
+and UDP lengths mark a datagram's end. `ALanceGs_TakesItsAddressFromDhcp`
+runs DHCP against a fake SMC91C96.
+
+The source build reads its settings from `./cfg`, not `~/.mame/cfg`, so it
+was started with `-cfg_directory`. Without it, MAME didn't open the TAP
+device, and each transmit wrote nothing.
 
 ## A2Pico cards (Story 41, SC-070)
 

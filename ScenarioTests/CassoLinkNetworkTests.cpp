@@ -214,7 +214,17 @@ public:
     //  announcement has it.
     TEST_METHOD (AnUthernet_TakesItsAddressFromDhcp)
     {
-        Rig               rig (Chip::Cs8900a, true);
+        TakesItsAddressFromDhcp (Chip::Cs8900a);
+    }
+
+    TEST_METHOD (ALanceGs_TakesItsAddressFromDhcp)
+    {
+        TakesItsAddressFromDhcp (Chip::Lan91c96);
+    }
+
+    static void  TakesItsAddressFromDhcp (Chip chip)
+    {
+        Rig               rig (chip, true);
         LinkAnnouncement  announced;
 
 
