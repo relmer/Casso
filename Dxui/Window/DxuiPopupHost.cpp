@@ -585,6 +585,20 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // flickering through the old one's rows on the way from one title to the
     // next. The HWND and swap chain are live from CreateHwndAndComposition;
     // visibility was never what they needed.
+    //
+    // A slide down starts from its first frame in the same commit. Without
+    // this, the pooled window's visual is fully open, where the last slide
+    // ended, and the commit that moves it to the start can land after
+    // ShowWindow.
+    if (m_params.revealMs > 0 && !m_params.revealFade && m_comp && placedRect.top >= m_params.anchorRectScreen.top)
+    {
+        float        distance = (float) (placedRect.bottom - placedRect.top) * kSlideFraction;
+        D2D1_RECT_F  clip     = { 0.0f, (float) m_shadowMarginPx + distance,
+                                  (float) (windowRect.right - windowRect.left), (float) (windowRect.bottom - windowRect.top) };
+
+        SetSlide (-distance, &clip);
+    }
+
     RenderNow();
 
     // SHOWN FROM THE MESSAGE LOOP, after the composition has committed the
