@@ -1311,8 +1311,7 @@ void BlockInspectorWindow::Repair()
         }
     }
 
-    //  The user chooses the file the copy goes in: for an image in a ZIP, the
-    //  copy of the ZIP.
+    //  For an image in a ZIP, the user chooses where the copy of the ZIP goes.
     host = isCard ? target : host;
     rest = target.wstring().substr (host.wstring().size());
 
@@ -1417,12 +1416,10 @@ void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan,
                          [result, model, fileIo, image, target, volume, plan, isCard] (BlockJobProgress & progress)
                          {
                              std::string   path       = TextEncoding::WideToUtf8 (target.wstring());
-                             std::wstring  imageHost  = TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (image.wstring())));
                              std::wstring  targetHost = TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (path));
 
-                             //  An image in a container is copied with its host file, and the
-                             //  commit to the copy writes the containers again around it.
-                             if (!isCard && !CopyFileW (imageHost.c_str(), targetHost.c_str(), FALSE))
+                             //  An image in a container is copied with its host file.
+                             if (!isCard && !CopyFileW (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (image.wstring()))).c_str(), targetHost.c_str(), FALSE))
                              {
                                  result->hr      = HRESULT_FROM_WIN32 (GetLastError());
                                  result->message = L"The image can't be copied.";
