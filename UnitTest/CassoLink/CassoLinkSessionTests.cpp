@@ -81,7 +81,6 @@ public:
 
             boots.emplace_back ([this, file] ()
             {
-                Sleep (150);
                 session->NoteBoot (file, bootResult, file + " was booted.");
             });
 

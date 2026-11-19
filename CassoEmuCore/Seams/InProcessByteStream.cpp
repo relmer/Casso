@@ -338,7 +338,26 @@ bool InProcessByteStream::IsFarBlocked()
 
 
 
-    return m_channel->blocked[1 - m_side];
+    return m_channel->blocked[1 - m_side] && m_channel->queues[1 - m_side].empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InProcessByteStream::IsFarDrained
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InProcessByteStream::IsFarDrained()
+{
+    std::lock_guard<std::mutex>  guard (m_channel->lock);
+
+
+
+    return m_channel->queues[1 - m_side].empty();
 }
 
 

@@ -97,7 +97,7 @@ public:
                     return;
                 }
 
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
             while (std::chrono::steady_clock::now() < until);
 
@@ -125,7 +125,7 @@ public:
 
             while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
             {
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
 
             messages = links->RunCompletions();
@@ -250,7 +250,7 @@ public:
 
         while (rig.apple.catalogReads == reads && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
             AssertSucceeded (rig.browser->Refresh());
         }
 
@@ -643,7 +643,7 @@ public:
 
             while (!rig.links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
             {
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
         }
 
@@ -704,7 +704,7 @@ public:
         {
             refreshed = rig.browser->Refresh();
             IGNORE_RETURN_VALUE (refreshed, S_OK);
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
         while (rig.browser->GetListError() == CassoExplorerBrowser::s_kWorkingText && std::chrono::steady_clock::now() < until);
 

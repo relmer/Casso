@@ -66,8 +66,12 @@ public:
     //  forward, as when a test pauses while the far end waits.
     void      AdvanceWhenBlocked (uint64_t ms);
 
-    //  Whether a reader is blocked at the far end.
+    //  Whether a reader is blocked at the far end with nothing to read, so it
+    //  has taken every byte written to it.
     bool      IsFarBlocked     ();
+
+    //  Whether the far end has read every byte written to it.
+    bool      IsFarDrained     ();
 
     //  Whether one thread uses both ends of a virtual-time pair, as when a
     //  line with no Apple at first gets one later.
