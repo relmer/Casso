@@ -435,9 +435,9 @@ public:
         payload.push_back ((Byte) (crc & 0xFF));
         payload.push_back ((Byte) (crc >> 8));
 
-        io.files["C:\Disks\Drive1.po"]  = std::vector<Byte> (280 * 512, 0);
-        io.stamps["C:\Disks\Drive1.po"] = FileStamp { 280 * 512, 1 };
-        drives.SetImage (1, "C:\Disks\Drive1.po");
+        io.files["C:\\Disks\\Drive1.po"]  = std::vector<Byte> (280 * 512, 0);
+        io.stamps["C:\\Disks\\Drive1.po"] = FileStamp { 280 * 512, 1 };
+        drives.SetImage (1, "C:\\Disks\\Drive1.po");
 
         Session  session (folder);
 
@@ -448,7 +448,7 @@ public:
         reply = session.Receive (7);
         Assert::AreEqual ((size_t) 7, reply.size(), L"the write has a reply");
         Assert::AreEqual (CassoLinkVirtualDrives::kNoError, reply[5]);
-        Assert::IsTrue (std::equal (data.begin(), data.end(), io.files["C:\Disks\Drive1.po"].begin() + 7 * 512), L"the block is in the image");
+        Assert::IsTrue (std::equal (data.begin(), data.end(), io.files["C:\\Disks\\Drive1.po"].begin() + 7 * 512), L"the block is in the image");
 
         wire.clear();
         AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, std::vector<Byte> { 1, CassoLinkCodec::kVirtualRead, 0x07, 0x00 }, wire));
