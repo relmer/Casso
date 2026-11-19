@@ -1243,7 +1243,7 @@ void BlockInspectorWindow::Repair()
 {
     int                     volume = GetRepairVolume();
     bool                    isCard = IsOnCard();
-    std::wstring            name   = RepairDialog::FormatName (GetFileName());
+    std::wstring            name   = RepairDialog::FormatName (GetHostFileName());
     RepairPlan              full   = m_model.PlanRepair (volume, {});
     RepairDialog            dialog;
     fs::path                target;
@@ -1266,7 +1266,7 @@ void BlockInspectorWindow::Repair()
         return;
     }
 
-    intro = isCard ? FormatCardIntro (GetFileName()) : RepairDialog::FormatIntro (GetFileName());
+    intro = isCard ? FormatCardIntro (GetFileName()) : RepairDialog::FormatIntro (GetHostFileName());
     lines = kRepairIntroLines;
 
     if (full.before == FileSystemVerdict::Suspect)
@@ -1436,7 +1436,7 @@ void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan,
                          },
                          [this, result, target] ()
                          {
-                             m_editNote = SUCCEEDED (result->hr) ? L"Repaired copy written: " + target.filename().wstring()
+                             m_editNote = SUCCEEDED (result->hr) ? L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (target.wstring())))).filename().wstring()
                                                                  : L"Repair failed: " + (result->message.empty() ? std::wstring (L"The repaired copy can't be written.") : result->message);
                              m_panel->Refresh();
                          } });
