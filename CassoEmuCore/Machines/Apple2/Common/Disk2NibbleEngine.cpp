@@ -365,7 +365,7 @@ uint8_t Disk2NibbleEngine::StepFluxPulse()
     }
     else if (m_lssClock == kLssReadClock && m_fluxNow - m_fluxLastPulse > kWeakWindowUnits)
     {
-        pulse = NextWeakBit();
+        pulse = NextFakeBit();
     }
 
     if (pulse != 0)
@@ -497,7 +497,7 @@ void Disk2NibbleEngine::Reset()
     m_readNibbles    = 0;
     m_writeNibbles   = 0;
     m_headWindow     = 0;
-    m_weakRngState   = 0xDEADBEEFu;
+    m_fakeBitState   = kFakeBitSeed;
 
     ResolveSlot();
     PlaceHead (0);
@@ -864,26 +864,13 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 //
 //  ApplyHeadWindow
 //
-//  MC3470 read-amplifier model, ported from AppleWin's DataLatchReadWOZ
-//  (Disk.cpp). Maintains a sliding 4-bit window of the most-recent bits
-//  read off the surface. Two effects:
-//
-//    1. One-bit pipeline delay. When the window has at least one 1-bit,
-//       the amplifier outputs the bit read on the PREVIOUS call (window
-//       bit 1, not the just-shifted-in bit 0). This is hardware behavior
-//       -- the amp needs a cell of integration time.
-//
-//    2. Weak bits / floating output. When all four window bits are zero
-//       (an unformatted region or intentional weak-bit gap), the amplifier
-//       has no signal to lock to and floats. AppleWin models this as a
-//       ~30% chance of a 1-bit per cell. WOZ-2.0 protection schemes
-//       (Karateka RWTS18, Lode Runner, etc.) key off this randomness to
-//       detect copies that trimmed the floating region to a deterministic
-//       value during duplication. The WOZ spec calls this "Freaking Out
-//       Like a MC3470".
-//
-//  RNG is a per-engine LCG (not the global rand() AppleWin uses) so that
-//  tests remain deterministic per engine instance.
+//  The MC3470 read amplifier, from the WOZ 2 reference's section "Freaking
+//  Out Like a MC3470". Each bit cell is shifted into a 4-bit
+//  window. The bit passed on is the window's bit 1, one cell late, which
+//  is the amplifier's latency. With all four cells empty of flux the
+//  amplifier has no signal and turns up its gain until noise reads as
+//  transitions, so the bit passed on is a fake one. Copy protection that
+//  reads an unformatted stretch twice checks that it differs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -893,22 +880,9 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 
 
 
-    uint8_t   outBit = 0;
+    m_headWindow = (uint8_t) (((m_headWindow << 1) | (inBit & 1)) & kWindowMask);
 
-
-
-    m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & kWindowMask);
-
-    if ((m_headWindow & kWindowMask) != 0)
-    {
-        outBit = static_cast<uint8_t> ((m_headWindow >> 1) & 1);
-    }
-    else
-    {
-        outBit = NextWeakBit();
-    }
-
-    return outBit;
+    return (m_headWindow != 0) ? (uint8_t) ((m_headWindow >> 1) & 1) : NextFakeBit();
 }
 
 
@@ -917,27 +891,21 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NextWeakBit
+//  NextFakeBit
 //
-//  Per-engine deterministic LCG (Numerical Recipes constants). Returns
-//  a 1-bit with ~30% probability -- the WOZ-2.0 reference value for
-//  MC3470 floating-output behavior.
+//  A 1 about 30% of the time, the share in the WOZ 2 reference. Each
+//  drive steps a xorshift generator from a fixed seed, so a run reads the
+//  same fake bits each time, and two reads of one stretch differ.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t Disk2NibbleEngine::NextWeakBit()
+uint8_t Disk2NibbleEngine::NextFakeBit()
 {
-    static constexpr uint32_t   kLcgMultiplier = 1664525u;
-    static constexpr uint32_t   kLcgIncrement  = 1013904223u;
-    // 0x4CCCCCCC = floor (0.3 * 2^32). Compare m_weakRngState (unsigned
-    // 32-bit) against this for a ~30% probability of returning 1.
-    static constexpr uint32_t   kWeakThreshold = 0x4CCCCCCCu;
+    m_fakeBitState ^= m_fakeBitState << 13;
+    m_fakeBitState ^= m_fakeBitState >> 17;
+    m_fakeBitState ^= m_fakeBitState << 5;
 
-
-
-    m_weakRngState = m_weakRngState * kLcgMultiplier + kLcgIncrement;
-
-    return (m_weakRngState < kWeakThreshold) ? 1 : 0;
+    return (m_fakeBitState % 10 < 3) ? 1 : 0;
 }
 
 
