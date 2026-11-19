@@ -1115,6 +1115,8 @@ public:
 
         Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertToTapeAudio));
 
+        //  Leaders just long enough for the scanner, so the audio is short.
+        host.actions.SetTapeTiming ({ 0.5, 0.25 });
         outcome = host.actions.MakeTapeRecording (L"C:\\Disks\\programs.wav");
 
         Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());

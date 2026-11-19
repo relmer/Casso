@@ -107,9 +107,9 @@ void TapeRecordingWriter::AddSilence (Synth & synth, double seconds)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeRecordingWriter::AddRecord (Synth & synth, std::span<const Byte> bytes)
+void TapeRecordingWriter::AddRecord (Synth & synth, std::span<const Byte> bytes, double leaderSeconds)
 {
-    long               halves   = std::lround (kLeaderSeconds * kMicrosecondsPerSecond / kLeaderHalfUs);
+    long               halves   = std::lround (leaderSeconds * kMicrosecondsPerSecond / kLeaderHalfUs);
     Byte               checksum = kChecksumSeed;
     std::vector<Byte>  written (bytes.begin(), bytes.end());
 
@@ -194,7 +194,7 @@ std::string TapeRecordingWriter::Describe (const TapeRecordingFile & file, doubl
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, TapeAudio & outAudio, std::string & outSidecar)
+void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, TapeAudio & outAudio, std::string & outSidecar, const TapeRecordingTiming & timing)
 {
     Synth  synth;
 
@@ -210,7 +210,7 @@ void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, 
 
         if (i > 0)
         {
-            AddSilence (synth, kGapSeconds);
+            AddSilence (synth, timing.gapSeconds);
         }
 
         outSidecar += Describe (files[i], synth.clock / (double) kSampleRate);
@@ -219,7 +219,7 @@ void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, 
 
         for (const std::vector<Byte> & record : records)
         {
-            AddRecord (synth, record);
+            AddRecord (synth, record, timing.leaderSeconds);
         }
     }
 

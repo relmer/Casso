@@ -45,6 +45,7 @@ public:
     CassoExplorerActions (CassoExplorerBrowser & browser, IFileSystem & fs);
 
     void  SetOnImageWritten (WrittenFn fn) { m_onWritten = std::move (fn); }
+    void  SetTapeTiming     (const TapeRecordingTiming & timing) { m_tapes.SetTiming (timing); }
 
     //  The verbs the list's context menu offers for the current selection.
     std::vector<Verb>  GetListVerbs() const;
