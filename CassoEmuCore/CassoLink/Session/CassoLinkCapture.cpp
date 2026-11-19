@@ -789,8 +789,11 @@ bool CassoLinkCapture::IsTimed (const Position & position)
 //  CassoLinkCapture::ReadUnsure
 //
 //  s_kTimingReads more reads of an unsure position, and s_kTimingReads more
-//  for a track other than a standard one whose zero bits are then timed
-//  (IsTimed): with fewer reads, a timing can fit every read and be wrong.
+//  for a whole track other than a standard one whose zero bits are then
+//  timed (IsTimed): with fewer reads, a timing can fit every read and be
+//  wrong. A position between tracks isn't read the second time, as the reads
+//  of one with no sync bytes can't be told from a neighbor's by their bytes,
+//  and most such positions read a neighbor or nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -806,7 +809,7 @@ HRESULT CassoLinkCapture::ReadUnsure (Run & run, bool isStandard, Position & ioP
     hr = ReadMore (run, s_kTimingReads, ioPosition);
     CHR (hr);
 
-    hr = Analyze (run, [&] () { timed = !isStandard && IsTimed (ioPosition); });
+    hr = Analyze (run, [&] () { timed = !isStandard && ioPosition.position % 4 == 0 && IsTimed (ioPosition); });
     CHR (hr);
 
     if (timed)
