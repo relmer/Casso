@@ -894,8 +894,16 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
 
 HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs, bool & outReady)
 {
-    HRESULT  hr       = S_OK;
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    static constexpr int  kPromptRepeats  = 4;
+    static constexpr auto kPromptInterval = std::chrono::seconds (1);
+
+
+
+    HRESULT  hr          = S_OK;
+    auto     deadline    = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    auto     prompted    = std::chrono::steady_clock::time_point();
+    int      repeatsLeft = 0;
+    bool     waiting     = false;
 
 
 
@@ -904,16 +912,33 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
 
     while (!outReady && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
     {
+        waiting = !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient();
+
         //  An Apple that sent its Ready before the line was open is waiting
         //  for a reply, and is prompted for another, once for each line
         //  opened. A prompt is an envelope, which ADTPro's client, idle on
         //  the same line, would read as the start of its next reply.
-        if (!m_prompted && !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient())
+        //
+        //  The prompt is sent again each second, a few times, until a Ready
+        //  arrives: the first step of a universal disk written before it
+        //  took any byte as the PC could miss the Idle's start byte at
+        //  115,200 baud, and wait on.
+        if (!m_prompted && waiting)
         {
             hr = m_session.m_host->PromptReady();
             CHR (hr);
 
-            m_prompted = true;
+            m_prompted  = true;
+            prompted    = std::chrono::steady_clock::now();
+            repeatsLeft = kPromptRepeats;
+        }
+        else if (repeatsLeft > 0 && waiting && std::chrono::steady_clock::now() - prompted >= kPromptInterval)
+        {
+            hr = m_session.m_host->PromptReady();
+            CHR (hr);
+
+            prompted = std::chrono::steady_clock::now();
+            repeatsLeft--;
         }
 
         hr = m_session.m_host->ServeOne (CassoLinkSession::kIdlePollMs);

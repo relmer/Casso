@@ -189,6 +189,41 @@ public:
     }
 
 
+    //  A universal disk written before its first step took any byte as the
+    //  PC can miss the start byte of an Idle on a //c's port 1, so the
+    //  connection sends Idle again each second until the shim's Ready comes.
+    TEST_METHOD (AnOlderUniversalDisk_OnPort1_LinksAfterRepeatedIdles)
+    {
+        static constexpr uint64_t  kSecondCycles = 1'020'484;
+
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  bytes;
+        const Byte            sector[] = { 0 };
+        std::vector<Byte>     data;
+        CassoLinkStatus       status;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/universal-stage-before-port1-fix.dsk", bytes));
+
+        Rig  rig (std::vector<Byte> (bytes.begin(), bytes.end()), 1);
+
+        rig.Boot();
+        AssertRowStarts (rig, 4, "SERIAL PORT 1");
+
+        rig.host = std::make_unique<CassoLinkHost> (rig.stream, rig.folder, [] () { return std::array<Byte, 4> {}; });
+
+        for (int prompt = 0; prompt < 5 && rig.machine.GetCpu()->GetPC() < LinkProgram::kShimAddress; prompt++)
+        {
+            AssertSucceeded (rig.host->PromptReady());
+            rig.machine.RunCycles (kSecondCycles);
+        }
+
+        AssertSucceeded (rig.host->ReadSectors (2, kTrack, sector, data, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"drive 2's catalog");
+    }
+
+
     //  The link disk for a Wi-Fi modem sends its dial command and draws the
     //  target while it waits; after CONNECT, the link is over the modem.
     TEST_METHOD (AWifiModemLinkDisk_DialsThePc_AndConnects)
