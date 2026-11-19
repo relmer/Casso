@@ -250,6 +250,8 @@ private:
     static bool         IsMarkedOften  (int set, int read, double base);
     static bool         IsQuiet        (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks);
     static bool         MakeStream     (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant = false);
+    static bool         BuildStream    (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant);
+    static uint64_t     HashReads      (const Position & position, bool tolerant);
     static int          FindWholeTrack (const std::map<int, Stream> & streams, int position);
     static bool         IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
     static size_t       FindDataField  (std::span<const Byte> bytes, size_t at);
@@ -403,4 +405,20 @@ private:
     static constexpr size_t  s_kWozCrcOffset     = 8;
     static constexpr size_t  s_kInfoSynchronized = 23;
     static constexpr size_t  s_kInfoProtected    = 22;
+
+    //  The streams made from each position's reads, by HashReads, so the
+    //  passes over a capture make each once (MakeStream). The analysis runs
+    //  on another thread than the reads, so the map is locked; it is emptied
+    //  when it has s_kMadeStreams.
+    struct MadeStream
+    {
+        bool    made     = false;
+        bool    unstable = false;
+        Stream  stream;
+    };
+
+    static constexpr size_t  s_kMadeStreams = 64;
+
+    static inline std::mutex                                s_madeLock;
+    static inline std::unordered_map<uint64_t, MadeStream>  s_made;
 };

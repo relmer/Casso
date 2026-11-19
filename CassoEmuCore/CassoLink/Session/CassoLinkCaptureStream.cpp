@@ -12,13 +12,112 @@
 //
 //  CassoLinkCapture::MakeStream
 //
+//  The position's stream (BuildStream), made once for each set of reads:
+//  whether to read a track again, the next track's marker and the WOZ all
+//  come from the stream of the same reads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant)
+{
+    uint64_t    key  = HashReads (position, tolerant);
+    MadeStream  made;
+    bool        have = false;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (s_madeLock);
+        auto                         found = s_made.find (key);
+
+        if (found != s_made.end())
+        {
+            made = found->second;
+            have = true;
+        }
+    }
+
+    if (!have)
+    {
+        made.made = BuildStream (position, made.stream, made.unstable, tolerant);
+
+        std::lock_guard<std::mutex>  lock (s_madeLock);
+
+        if (s_made.size() >= s_kMadeStreams)
+        {
+            s_made.clear();
+        }
+
+        s_made[key] = made;
+    }
+
+    outStream   = std::move (made.stream);
+    outUnstable = made.unstable;
+
+    return made.made;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::HashReads
+//
+//  A 64-bit FNV-1a hash of a position's number, its reads and their delays,
+//  and the tolerant flag: what a stream is made from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t CassoLinkCapture::HashReads (const Position & position, bool tolerant)
+{
+    uint64_t  hash = s_kFnvBasis;
+
+
+
+    auto  mix = [&hash] (uint64_t value)
+    {
+        hash = (hash ^ value) * s_kFnvPrime;
+    };
+
+    mix ((uint64_t) position.position);
+    mix (tolerant ? 1 : 0);
+    mix (position.reads.size());
+
+    for (const std::vector<Byte> & read : position.reads)
+    {
+        mix (read.size());
+
+        for (Byte value : read)
+        {
+            mix (value);
+        }
+    }
+
+    for (Byte delay : position.delays)
+    {
+        mix (delay);
+    }
+
+    return hash;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::BuildStream
+//
 //  The first read's revolution; each byte weak where a later read of the
 //  same length differs, and a sync byte where every revolution of every
 //  read marks it; and the bits. False when the first read doesn't repeat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant)
+bool CassoLinkCapture::BuildStream (const Position & position, Stream & outStream, bool & outUnstable, bool tolerant)
 {
     Marks  marks;
 
@@ -886,10 +985,14 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
     const int              width  = 2 * band + 1;
     size_t                 n      = revolution.size();
     size_t                 m      = std::min (n + s_kBand, read.size() - from);
-    std::vector<int>       cost  ((n + 1) * (size_t) width, INT_MAX / 2);
-    std::vector<Byte>      step  ((n + 1) * (size_t) width, 0);
+    std::vector<int>       costs  (2 * (size_t) width, INT_MAX / 2);   // the row before and this row, each offset by the band
+    std::vector<Byte>      steps  ((n + 1) * (size_t) width, 0);
     std::vector<size_t>    marked;
-    auto                   cell   = [width, band] (size_t i, int j) { return i * (size_t) width + (size_t) (j - (int) i + band); };
+    const Byte           * mine   = revolution.data();
+    const Byte           * theirs = read.data() + from;
+    Byte                 * step   = steps.data();
+    int                  * before = costs.data();
+    int                  * now    = before + width;
     int                    bestJ  = -1;
     int                    best   = INT_MAX;
     size_t                 i      = n;
@@ -901,49 +1004,63 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
     outStretch.assign (n, false);
     outDiffer = 0;
 
+    //  The table is indexed by offset, a column's place in its row's band: the
+    //  diagonal cell is at the same offset in the row before, the cell above
+    //  one further, and the cell to the left one back in the same row. Raw
+    //  pointers mean the inner loop doesn't call a function in a Debug build.
     for (int column = 0; column <= band && column <= (int) m; column++)
     {
-        cost[cell (0, column)] = column;
-        step[cell (0, column)] = s_kStepMore;
+        before[column + band] = column;
+        step[column + band]   = s_kStepMore;
     }
 
     for (size_t row = 1; row <= n; row++)
     {
-        for (int column = std::max (0, (int) row - band); column <= std::min ((int) m, (int) row + band); column++)
+        int     first   = (int) row - band > 0 ? (int) row - band : 0;
+        int     last    = (int) row + band < (int) m ? (int) row + band : (int) m;
+        Byte    value   = (Byte) (mine[row - 1] | 0x80);
+        Byte  * stepRow = step + row * (size_t) width;
+
+        std::fill (now, now + width, INT_MAX / 2);
+
+        for (int column = first; column <= last; column++)
         {
-            int   here = INT_MAX / 2;
-            Byte  how  = 0;
+            int   offset = column - (int) row + band;
+            int   here   = INT_MAX / 2;
+            Byte  how    = 0;
 
             if (column > 0)
             {
-                bool  same = (revolution[row - 1] | 0x80) == (read[from + (size_t) column - 1] | 0x80);
-
-                here = cost[cell (row - 1, column - 1)] + (same ? 0 : 1);
+                here = before[offset] + (value == (Byte) (theirs[column - 1] | 0x80) ? 0 : 1);
                 how  = s_kStepPair;
             }
 
-            if (column - (int) row + 1 <= band && cost[cell (row - 1, column)] + 1 < here)
+            if (offset + 1 < width && before[offset + 1] + 1 < here)
             {
-                here = cost[cell (row - 1, column)] + 1;
+                here = before[offset + 1] + 1;
                 how  = s_kStepFewer;
             }
 
-            if (column > 0 && column - 1 - (int) row >= -band && cost[cell (row, column - 1)] + 1 < here)
+            if (column > 0 && offset > 0 && now[offset - 1] + 1 < here)
             {
-                here = cost[cell (row, column - 1)] + 1;
+                here = now[offset - 1] + 1;
                 how  = s_kStepMore;
             }
 
-            cost[cell (row, column)] = here;
-            step[cell (row, column)] = how;
+            now[offset]     = here;
+            stepRow[offset] = how;
         }
+
+        std::swap (before, now);
     }
 
     for (int column = std::max (0, (int) n - band); column <= std::min ((int) m, (int) n + band); column++)
     {
-        if (cost[cell (n, column)] < best)
+        int  offset = column - (int) n + band;
+
+        if (before[offset] < best)
         {
-            best  = cost[cell (n, column)];
+            best  = before[offset];
             bestJ = column;
         }
     }
@@ -957,7 +1074,7 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
 
     for (j = bestJ; i > 0; )
     {
-        Byte  how = step[cell (i, j)];
+        Byte  how = step[i * (size_t) width + (size_t) (j - (int) i + band)];
 
         if (how == s_kStepPair)
         {
