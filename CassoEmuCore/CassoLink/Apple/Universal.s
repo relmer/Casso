@@ -638,8 +638,8 @@ acctl:  sta ACIACTL,y
 
 ; addscc: a IIgs's port in slot A, 1 or 2, listed, and its 8530 set to the
 ; shim's speed as the shim sets it: 8 data bits, 1 stop bit, no parity, DTR
-; and RTS on and no interrupts. Slot 1's printer port is channel B and slot
-; 2's modem port channel A. The 8530 is clocked by a 3.6864 MHz crystal at
+; and RTS on and no interrupts. Slot 1's printer port is channel A and slot
+; 2's modem port channel B. The 8530 is clocked by a 3.6864 MHz crystal at
 ; RTxC: the baud rate generator divides it by twice the time constant plus
 ; 2, and the channel by 16 after that, or straight from RTxC by 32 for
 ; 115,200 baud and by 16 for 230,400, which a 6551 control byte of rate 1,
@@ -651,6 +651,7 @@ addscc: ldx nacia
         cmp #2
         lda #$80
         adc #0
+        eor #$01               ; slot 1 channel A, slot 2 channel B
         sta acscc,x
         inc nacia
         and #$01
