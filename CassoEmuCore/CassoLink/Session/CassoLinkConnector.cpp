@@ -438,6 +438,25 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnector::IsProbed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnector::IsProbed (LinkTransport transport, bool adtPro, bool stopRequested)
+{
+    bool  typable = transport == LinkTransport::Serial || transport == LinkTransport::Emulated;
+
+
+
+    return typable && !adtPro && !stopRequested;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnector::ConnectOrBootstrap
 //
 //  A serial or emulated line with no Apple answering is probed for one
@@ -452,12 +471,11 @@ HRESULT CassoLinkConnector::ConnectOrBootstrap (std::stop_token stop)
     HRESULT  probed   = S_OK;
     HRESULT  reopened = S_OK;
     bool     waiting  = false;
-    bool     typable  = (m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::Emulated) && !m_adtPro;
 
 
 
     hr = Connect (stop);
-    BAIL_OUT_IF (SUCCEEDED (hr) || !typable || stop.stop_requested(), hr);
+    BAIL_OUT_IF (SUCCEEDED (hr) || !IsProbed (m_session.m_settings.transport, m_adtPro, stop.stop_requested()), hr);
 
     probed = ProbeForPrompt (stop, waiting);
 

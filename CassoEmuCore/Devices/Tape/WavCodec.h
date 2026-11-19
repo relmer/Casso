@@ -60,7 +60,7 @@ private:
     static HRESULT   ReadFormat    (std::span<const Byte> body, Format & format, std::string & error);
     static HRESULT   CheckFormat   (const Format & format, std::string & error);
     static void      ReadSamples   (std::span<const Byte> data, const Format & format, TapeAudio & audio);
-    static float     ReadSample    (std::span<const Byte> data, size_t at, const Format & format);
+    static float     ReadSample    (const Byte * at, const Format & format);
     static uint32_t  ReadLittle32  (std::span<const Byte> bytes, size_t at);
     static Word      ReadLittle16  (std::span<const Byte> bytes, size_t at);
     static void      WriteLittle32 (std::vector<Byte> & bytes, uint32_t value);

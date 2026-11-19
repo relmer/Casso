@@ -338,7 +338,26 @@ bool InProcessByteStream::IsFarBlocked()
 
 
 
-    return m_channel->blocked[1 - m_side];
+    return m_channel->blocked[1 - m_side] && m_channel->queues[1 - m_side].empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InProcessByteStream::IsFarDrained
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InProcessByteStream::IsFarDrained()
+{
+    std::lock_guard<std::mutex>  guard (m_channel->lock);
+
+
+
+    return m_channel->queues[1 - m_side].empty();
 }
 
 
@@ -360,4 +379,28 @@ void InProcessByteStream::SetOneThread (bool isOneThread)
     }
 
     m_channel->arrived.notify_all();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InProcessByteStream::Pause
+//
+//  On virtual time, the time moves forward by the pause, rounded up to a
+//  millisecond.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InProcessByteStream::Pause (uint64_t microseconds)
+{
+    if (!m_channel->isVirtual)
+    {
+        IByteStream::Pause (microseconds);
+        return;
+    }
+
+    Advance ((microseconds + 999) / 1000);
 }

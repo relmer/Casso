@@ -4,6 +4,8 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "CassoExplorer/InspectorWindowSet.h"
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
@@ -54,6 +56,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     std::vector<Verb>          verbs;
     std::vector<FileEntry>     entries;
     std::vector<std::wstring>  imagePaths;
+    std::wstring               wrapped;
     size_t                     selected    = m_browser.GetSelectedRows().size();
     Location                   location    = m_browser.GetLocation();
     bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
@@ -139,7 +142,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         //  On the list's background, Inspect opens the image whose contents
         //  are listed, at any depth (FR-073).
-        if (entries.empty() && InspectorWindowSet::CanInspect (location.path))
+        if ((entries.empty() && InspectorWindowSet::CanInspect (location.path)) || TryGetWrappedImage (wrapped))
         {
             verbs.push_back (Verb::InspectDiskImage);
         }
@@ -257,6 +260,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (selected == 1 && row.isArchive)
         {
             verbs.push_back (Verb::ExtractAll);
+        }
+
+        if (selected == 1 && row.isArchive && TryGetWrappedImage (wrapped))
+        {
+            verbs.push_back (Verb::InspectDiskImage);
         }
         else if (selected > 1)
         {
@@ -399,6 +407,7 @@ bool CassoExplorerActions::CanInspectSelected() const
 bool CassoExplorerActions::CanInspect() const
 {
     std::wstring  partition;
+    std::wstring  wrapped;
 
 
 
@@ -407,12 +416,81 @@ bool CassoExplorerActions::CanInspect() const
         return m_partitions.TryGetTarget (partition) && InspectorWindowSet::CanInspect (partition);
     }
 
+    if (TryGetWrappedImage (wrapped))
+    {
+        return true;
+    }
+
     if (m_browser.IsImageLocation())
     {
         return InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
     }
 
     return !m_browser.IsAppleDriveLocation() && m_browser.AreSelectedRowsImages() && CanInspectSelected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::TryGetWrappedImage
+//
+//  The image in a .gz has the .gz's path. An image in a ZIP has the ZIP's
+//  path, a bar and its path in the ZIP. Only a file with a block image's
+//  extension is opened to look.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::TryGetWrappedImage (std::wstring & outPath) const
+{
+    Location                   location = m_browser.GetLocation();
+    std::vector<std::wstring>  paths;
+    std::wstring               archive  = m_browser.GetExtractTarget();
+    std::wstring               lower    = archive;
+    std::wstring               inner;
+    std::wstring               candidate;
+    const std::vector<int>   & selected = m_browser.GetSelectedRows();
+
+
+
+    outPath.clear();
+    std::transform (lower.begin(), lower.end(), lower.begin(), [] (wchar_t c) { return static_cast<wchar_t> (towlower (c)); });
+
+    if (location.kind == Location::Kind::HostFolder)
+    {
+        m_browser.GetSelectedHostPaths (paths);
+
+        if (paths.size() == 1 && WrappedImageFileIo::IsWrapped (TextEncoding::WideToUtf8 (paths[0])))
+        {
+            candidate = paths[0];
+        }
+    }
+    else if (location.kind == Location::Kind::ShellFolder && lower.ends_with (L".gz") && selected.size() <= 1)
+    {
+        candidate = archive;
+    }
+    else if (location.kind == Location::Kind::ShellFolder && lower.ends_with (L".zip") && selected.size() == 1)
+    {
+        const CatalogRow &  row = m_browser.GetRows()[(size_t) selected[0]];
+
+        inner = location.path.size() > archive.size() + 1 ? location.path.substr (archive.size() + 1) + L"/" : std::wstring();
+        inner += row.name;
+        std::replace (inner.begin(), inner.end(), L'\\', L'/');
+
+        if (!row.isDirectory && BlockImageFile::IsBlockExtension (TextEncoding::WideToUtf8 (row.name)))
+        {
+            candidate = archive + L"|" + inner;
+        }
+    }
+
+    if (!candidate.empty() && InspectorWindowSet::CanInspect (candidate))
+    {
+        outPath = candidate;
+    }
+
+    return !outPath.empty();
 }
 
 

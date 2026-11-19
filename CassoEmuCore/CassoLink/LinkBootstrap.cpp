@@ -163,10 +163,10 @@ HRESULT LinkBootstrap::Send (IByteStream & stream, const std::vector<std::string
             hr = stream.Write (reinterpret_cast<const Byte *> (line.data() + at), 1);
             CHR (hr);
 
-            WaitMicroseconds (charPauseUs);
+            stream.Pause (charPauseUs);
         }
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (pauseMs));
+        stream.Pause ((uint64_t) pauseMs * 1000);
     }
 
 Error:

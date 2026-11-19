@@ -34,6 +34,7 @@ struct BlockBand
     std::wstring  label;
     bool          isMap    = false;
     int           volume   = -1;
+    bool          isNested = false;    // a volume inside another partition, such as DOS Master's
 
     bool  Contains (uint32_t block) const { return block >= first && block - first < count; }
 };

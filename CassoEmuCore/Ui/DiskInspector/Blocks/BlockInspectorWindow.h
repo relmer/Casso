@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32ShellIcons.h"
@@ -141,6 +143,10 @@ private:
     void                                  CloseWindow         ();
     void                                  ShowMessage         (const std::wstring & text);
     std::wstring                          GetFileName         () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
+
+    //  The name of the file a repaired copy is of: for an image in a ZIP,
+    //  the ZIP's.
+    std::wstring                          GetHostFileName     () const { return IsOnCard() ? GetFileName() : fs::path (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (m_path)))).filename().wstring(); }
     bool                                  IsOnCard            () const;
 
     //  m_worker follows m_model, so it is destroyed first and its thread

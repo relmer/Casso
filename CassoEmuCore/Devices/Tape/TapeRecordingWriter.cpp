@@ -59,8 +59,10 @@ void TapeRecordingWriter::GetRecords (const TapeRecordingFile & file, std::vecto
 
 void TapeRecordingWriter::AddHalf (Synth & synth, double us)
 {
-    double  end  = synth.clock + us * (double) kSampleRate / kMicrosecondsPerSecond;
-    size_t  last = (size_t) std::ceil (end);
+    double   end    = synth.clock + us * (double) kSampleRate / kMicrosecondsPerSecond;
+    size_t   last   = (size_t) std::ceil (end);
+    size_t   first  = (size_t) std::floor (synth.clock);
+    float  * sample = nullptr;
 
 
 
@@ -69,12 +71,16 @@ void TapeRecordingWriter::AddHalf (Synth & synth, double us)
         synth.samples.resize (last, 0.0f);
     }
 
-    for (size_t k = (size_t) std::floor (synth.clock); k < last; k++)
-    {
-        double  from = std::max ((double) k, synth.clock);
-        double  to   = std::min ((double) k + 1.0, end);
+    //  A pointer walk: the samples are written for every half-cycle, and a
+    //  checked subscript costs most of a Debug build's time here.
+    sample = synth.samples.data() + first;
 
-        synth.samples[k] += (float) (to - from) * synth.level;
+    for (size_t k = first; k < last; k++, sample++)
+    {
+        double  from = (double) k > synth.clock ? (double) k : synth.clock;
+        double  to   = (double) k + 1.0 < end ? (double) k + 1.0 : end;
+
+        *sample += (float) (to - from) * synth.level;
     }
 
     synth.clock = end;
@@ -107,9 +113,9 @@ void TapeRecordingWriter::AddSilence (Synth & synth, double seconds)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeRecordingWriter::AddRecord (Synth & synth, std::span<const Byte> bytes)
+void TapeRecordingWriter::AddRecord (Synth & synth, std::span<const Byte> bytes, double leaderSeconds)
 {
-    long               halves   = std::lround (kLeaderSeconds * kMicrosecondsPerSecond / kLeaderHalfUs);
+    long               halves   = std::lround (leaderSeconds * kMicrosecondsPerSecond / kLeaderHalfUs);
     Byte               checksum = kChecksumSeed;
     std::vector<Byte>  written (bytes.begin(), bytes.end());
 
@@ -194,7 +200,7 @@ std::string TapeRecordingWriter::Describe (const TapeRecordingFile & file, doubl
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, TapeAudio & outAudio, std::string & outSidecar)
+void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, TapeAudio & outAudio, std::string & outSidecar, const TapeRecordingTiming & timing)
 {
     Synth  synth;
 
@@ -210,7 +216,7 @@ void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, 
 
         if (i > 0)
         {
-            AddSilence (synth, kGapSeconds);
+            AddSilence (synth, timing.gapSeconds);
         }
 
         outSidecar += Describe (files[i], synth.clock / (double) kSampleRate);
@@ -219,7 +225,7 @@ void TapeRecordingWriter::Render (const std::vector<TapeRecordingFile> & files, 
 
         for (const std::vector<Byte> & record : records)
         {
-            AddRecord (synth, record);
+            AddRecord (synth, record, timing.leaderSeconds);
         }
     }
 
