@@ -1348,10 +1348,10 @@ bool DxuiTooltip::MeasureBoxPx (
     widthPx  = std::ceil (textWPx) + margins.left + margins.right;
     heightPx = std::ceil (textHPx) + margins.top  + margins.bottom;
 
-    if (body.HasGradient())
+    if (body.HasBars())
     {
-        widthPx   = std::max (widthPx, body.GetGradientWidthPx() + margins.left + margins.right);
-        heightPx += body.GetGradientExtraPx();
+        widthPx   = std::max (widthPx, body.GetBarsWidthPx (measure) + margins.left + margins.right);
+        heightPx += body.GetBarsHeightPx();
     }
 
     if (body.HasFrame())
@@ -1745,10 +1745,10 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         body.DrawFrame (painter, text, width, height);
     }
 
-    if (body.HasGradient())
+    if (body.HasBars())
     {
-        body.DrawGradient (painter, margins.left, width - margins.left - margins.right, height - margins.bottom);
-        height -= body.GetGradientExtraPx();
+        body.DrawBars (painter, text, margins.left, width - margins.left - margins.right, height - margins.bottom);
+        height -= body.GetBarsHeightPx();
     }
 
     if (body.IsTableTip())

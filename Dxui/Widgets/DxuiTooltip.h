@@ -153,11 +153,11 @@ public:
     //  How wide a line's scale is drawn, which a color key's scales match.
     static constexpr float  kLineScaleWidthDip = DxuiTooltipBody::kLineScaleWidthDip;
 
-    //  A color scale drawn under the text, its stops spread evenly from left
-    //  to right, with an arrow under it at `mark`, from 0 at the left to 1 at
-    //  the right; a mark outside that range has no arrow. No stops, no scale.
-    //  Set before the request it goes with, as the line colors are.
-    void  SetGradient     (std::vector<uint32_t> stops, float mark) { m_look.gradient = std::move (stops); m_look.gradientMark = mark; }
+    //  The color scales drawn under the text, one a row, each with its label
+    //  at the left and its stops spread evenly from left to right, an arrow
+    //  under it at its mark and the mark's percentage on it (DxuiTipBar).
+    //  Set before the request they go with, as the line colors are.
+    void  SetBars         (std::vector<DxuiTipBar> bars)            { m_look.bars = std::move (bars); }
 
     //  The scale's color at a fraction of its width, 0 to 1.
     static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at) { return DxuiTooltipBody::GetGradientColor (stops, at); }

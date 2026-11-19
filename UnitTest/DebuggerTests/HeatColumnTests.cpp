@@ -318,7 +318,9 @@ namespace DebuggerTests
             Assert::AreEqual (kRunTop, cell.background, L"the hottest run color");
             Assert::IsTrue   (cell.text.empty(), L"one fill, no blocks");
             Assert::IsTrue   (cell.tip.find (L"12 times") != std::wstring::npos, cell.tip.c_str());
-            Assert::AreEqual (1.0f, cell.tipGradientMark, L"the mark at the top of the scale");
+            Assert::AreEqual ((size_t) 1, cell.tipBars.size(), L"one scale, for runs");
+            Assert::AreEqual (std::wstring (L"Run"), cell.tipBars[0].label);
+            Assert::AreEqual (1.0f, cell.tipBars[0].mark, L"the mark at the top of the scale");
 
             levels.statement[0x0805]      = 0;
             levels.statementCount[0x0805] = 0;
@@ -376,8 +378,8 @@ namespace DebuggerTests
 
 
 
-        //  A heat cell's tip lists each byte's counts, then what its color
-        //  means, with the scale drawn under it and a mark at the cell's level.
+        //  A heat cell's tip lists each byte's counts, then a labeled scale
+        //  for each kind of access with heat, a mark at its hottest level.
         TEST_METHOD (AHeatCellsTipHasEachBytesCountsAndItsScale)
         {
             DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
@@ -392,24 +394,28 @@ namespace DebuggerTests
             levels.execute[0x0300]      = 255;
             levels.executeCount[0x0300] = 12345;
             levels.readCount[0x0301]    = 7;
+            levels.read[0x0301]         = 51;
 
             tip = HeatStrip::GetTip (levels, 0x0300, 2, false);
 
-            Assert::IsTrue   (tip.text.starts_with (L"Byte\tRun\tRead\tWritten\n$0300\t12,345\t0\t0\n$0301\t0\t7\t0\n\n"), tip.text.c_str());
-            Assert::IsTrue   (tip.text.find (HeatStrip::GetScaleName (HeatStrip::Kind::Run)) != std::wstring::npos);
-            Assert::AreEqual (1.0f, tip.mark);
-            Assert::AreEqual ((size_t) 3, tip.gradient.size());
-            Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[0], tip.gradient[0]);
+            Assert::AreEqual (std::wstring (L"Byte\tRun\tRead\tWritten\n$0300\t12,345\t0\t0\n$0301\t0\t7\t0"), tip.text);
+            Assert::AreEqual ((size_t) 2, tip.bars.size(), L"run and read, with no write");
+            Assert::AreEqual (std::wstring (L"Run"), tip.bars[0].label);
+            Assert::AreEqual (1.0f, tip.bars[0].mark);
+            Assert::AreEqual ((size_t) 3, tip.bars[0].stops.size());
+            Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[0], tip.bars[0].stops[0]);
+            Assert::AreEqual (std::wstring (L"Read"), tip.bars[1].label);
+            Assert::AreEqual (0.2f, tip.bars[1].mark);
 
             cell = HeatStrip::GetCell (levels, 0x0300, 2, MakePalette(), false);
             Assert::AreEqual (tip.text, cell.tip, L"a list cell has the same tip");
-            Assert::AreEqual (tip.mark, cell.tipGradientMark);
+            Assert::IsTrue   (tip.bars == cell.tipBars);
 
             tip = HeatStrip::GetTip (levels, 0x0300, HeatStrip::kMaxTipBytes + 1, false);
             Assert::IsTrue   (tip.text.find (L"$0300-$0308\t12,345\t7\t0") != std::wstring::npos, L"a long line has the sums");
 
             tip = HeatStrip::GetTip (levels, 0x0400, 1, false);
-            Assert::IsTrue   (tip.gradient.empty(), L"an untouched byte has no scale");
+            Assert::IsTrue   (tip.bars.empty(), L"an untouched byte has no scale");
             Assert::IsTrue   (HeatStrip::GetTip (MakeLevels(), 0x0300, 1, false).text.empty(), L"no counts, no tip");
         }
 

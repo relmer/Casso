@@ -1441,9 +1441,8 @@ bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 
             if (!heat.text.empty())
             {
-                tip.text        += L"\n\n" + heat.text;
-                tip.gradient     = std::move (heat.gradient);
-                tip.gradientMark = heat.mark;
+                tip.text += L"\n\n" + heat.text;
+                tip.bars  = std::move (heat.bars);
             }
 
             tip.placement   = DxuiTip::Placement::FollowPointer;

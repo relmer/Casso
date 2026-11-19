@@ -191,12 +191,11 @@ bool HeatMapView::IsPressed() const
 
 bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const
 {
-    std::vector<uint32_t>  gradient;
-    float                  mark = -1.0f;
+    std::vector<DxuiTipBar>  bars;
 
 
 
-    return TryGetTipAt (point, anchor, text, swatches, gradient, mark);
+    return TryGetTipAt (point, anchor, text, swatches, bars);
 }
 
 
@@ -207,13 +206,13 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
 //
 //  HeatMapView::TryGetTipAt
 //
-//  With the cell's scale and its level on it, as a code view's heat tip
-//  draws them.
+//  With a scale for each kind of access the cell had, and its level on it,
+//  as a code view's heat tip draws them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches,
-                               std::vector<uint32_t> & gradient, float & mark) const
+                               std::vector<DxuiTipBar> & bars) const
 {
     std::optional<HeatMapBands::Place>  pick;
     TipLead                             lead;
@@ -253,15 +252,7 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
     swatches.assign (contents.empty() ? 1 : 2, 0);
     swatches.back() = lead.argb | 0xFF000000u;
 
-    gradient.clear();
-    mark = -1.0f;
-
-    if (!m_cells.TryGetCellScale (m_bands.GetAddressOf (*pick), gradient, mark))
-    {
-        gradient.clear();
-        mark = -1.0f;
-    }
-
+    bars = m_cells.GetCellBars (m_bands.GetAddressOf (*pick));
     return true;
 }
 

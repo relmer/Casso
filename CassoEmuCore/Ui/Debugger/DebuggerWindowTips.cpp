@@ -742,13 +742,12 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 
     (void) list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, colorTip);
 
-    tip              = DxuiTip();
-    tip.anchor       = anchor;
-    tip.text         = ColorLegend::JoinLines ({ text, colorTip.text });
-    tip.isMonospace  = true;
-    tip.gradient     = std::move (colorTip.gradient);
-    tip.gradientMark = colorTip.gradientMark;
-    tip.lineScales   = std::move (colorTip.lineScales);
+    tip             = DxuiTip();
+    tip.anchor      = anchor;
+    tip.text        = ColorLegend::JoinLines ({ text, colorTip.text });
+    tip.isMonospace = true;
+    tip.bars        = std::move (colorTip.bars);
+    tip.lineScales  = std::move (colorTip.lineScales);
     return true;
 }
 

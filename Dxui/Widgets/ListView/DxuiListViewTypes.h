@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/DxuiTextElide.h"
+#include "Core/DxuiTip.h"
 
 struct DxuiIconImage;
 
@@ -175,11 +176,10 @@ struct DxuiListViewTypes
         //  means. The list keeps it with the cell and never draws it.
         std::wstring       tip;
 
-        //  A color scale for the tip to draw under its text, and where on it
-        //  the cell's color is (DxuiTooltip::SetGradient); none for a tip of
+        //  The color scales for the tip to draw under its text, and where on
+        //  each the cell's color is (DxuiTooltip::SetBars); none for a tip of
         //  text alone.
-        std::vector<uint32_t>  tipGradient;
-        float                  tipGradientMark = -1.0f;
+        std::vector<DxuiTipBar>  tipBars;
 
         //  How a cell too wide for its column is cut; None takes the column's.
         DxuiElide          elide     = DxuiElide::None;

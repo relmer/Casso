@@ -72,7 +72,8 @@ int DxuiListTips::HitTestColumn (int xPx) const
 //
 //  Over the header, the heading's tip at the pointer. Over a cell, the cell's
 //  tip, under the tip of the range the pointer is over, anchored on the
-//  cell's text.
+//  cell's text; or, in a list set to SetCutTextTips, the whole text of a
+//  cell cut short with no tip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +85,7 @@ bool DxuiListTips::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
     int                                           column   = HitTestColumn (pointPx.x);
     int                                           row      = -1;
     const std::wstring                          * rangeTip = nullptr;
+    bool                                          isCut    = false;
 
 
 
@@ -122,7 +124,9 @@ bool DxuiListTips::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
     cell     = &(*cells)[(size_t) column];
     rangeTip = cell->rangeTips.empty() ? nullptr : DxuiListFind::FindRangeTip (*cell, m_list.m_textSelect.HitTestCharInCell (row, (size_t) column, pointPx.x));
 
-    if (cell->tip.empty() && rangeTip == nullptr)
+    isCut = m_list.m_isCutTextTipped && cell->tip.empty() && rangeTip == nullptr && !cell->text.empty() && m_list.m_rows.IsCellClipped (row, (size_t) column);
+
+    if (cell->tip.empty() && rangeTip == nullptr && !isCut)
     {
         return false;
     }
@@ -132,11 +136,12 @@ bool DxuiListTips::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
         tip.anchor = pointer;
     }
 
-    tip.text         = (rangeTip == nullptr) ? cell->tip
+    tip.text         = isCut                 ? cell->text
+                     : (rangeTip == nullptr) ? cell->tip
                      : cell->tip.empty()     ? *rangeTip
                      :                         *rangeTip + L"\n\n" + cell->tip;
-    tip.gradient     = cell->tipGradient;
-    tip.gradientMark = cell->tipGradientMark;
+    tip.bars         = cell->tipBars;
+    tip.isColorKey   = !isCut;
 
     return true;
 }

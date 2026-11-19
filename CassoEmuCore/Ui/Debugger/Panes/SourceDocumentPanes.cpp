@@ -289,10 +289,9 @@ bool SourceDocumentPane::TryGetHeatTip (POINT clientPx, DxuiTip & tip) const
         return false;
     }
 
-    tip.placement    = DxuiTip::Placement::AtPointer;
-    tip.text         = std::move (heat.text);
-    tip.gradient     = std::move (heat.gradient);
-    tip.gradientMark = heat.mark;
+    tip.placement = DxuiTip::Placement::AtPointer;
+    tip.text      = std::move (heat.text);
+    tip.bars      = std::move (heat.bars);
     return true;
 }
 

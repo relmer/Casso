@@ -699,6 +699,10 @@ public:
     //  for tips whose characters line up in columns, such as a hex dump.
     void                            SetMonospaceTips  (bool mono) { m_isMonospaceTips = mono; }
 
+    //  Whether a cell cut short by its column, with no cell tip, has its whole
+    //  text as its tip.
+    void                            SetCutTextTips    (bool isOn) { m_isCutTextTipped = isOn; }
+
     //  Find, over the text of the visible columns of every row: each match is
     //  drawn on the match fill, the selected one on the current fill, and the
     //  selected match's row is selected.
@@ -888,6 +892,7 @@ private:
     bool   m_textViewSurface    = false;
     float  m_glyphCenterDip     = 0.0f;
     bool   m_isMonospaceTips    = false;
+    bool   m_isCutTextTipped    = false;
     bool   m_kbMoveNotify       = false;
     int    m_highlightRow       = -1;
     size_t m_highlightColumn    = 0;

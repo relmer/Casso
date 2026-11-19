@@ -777,6 +777,47 @@ bool HeatMapCells::TryGetCellScale (Word address, std::vector<uint32_t> & gradie
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapCells::GetCellBars
+//
+//  A tip's scales for a cell: one for each of run, read and write that has
+//  heat, each with its level; for a cell with none of them, its color's
+//  scale alone (TryGetCellScale).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTipBar> HeatMapCells::GetCellBars (Word address) const
+{
+    constexpr size_t         kCount   = (size_t) kAddressCount;
+    Byte                     execute  = (m_execute.size() == kCount) ? m_execute[address] : (Byte) 0;
+    Byte                     read     = (m_read.size()    == kCount) ? m_read[address]    : (Byte) 0;
+    Byte                     write    = (m_write.size()   == kCount) ? m_write[address]   : (Byte) 0;
+    std::vector<DxuiTipBar>  bars;
+    DxuiTipBar               only;
+
+
+
+    for (const auto & [kind, level] : { std::pair { HeatStrip::Kind::Run, execute }, std::pair { HeatStrip::Kind::Read, read }, std::pair { HeatStrip::Kind::Write, write } })
+    {
+        if (level != 0)
+        {
+            bars.push_back (HeatStrip::GetBar (kind, level));
+        }
+    }
+
+    if (bars.empty() && TryGetCellScale (address, only.stops, only.mark))
+    {
+        bars.push_back (std::move (only));
+    }
+
+    return bars;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapCells::GetScaleStops
 //
 //  A kind's scale as the cells draw it: the heat column's stops for code,

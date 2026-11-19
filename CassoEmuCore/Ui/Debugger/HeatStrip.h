@@ -50,14 +50,20 @@ public:
     };
 
     //  A heat cell's tip: each byte's counts of runs, reads and writes, or for
-    //  a run longer than kMaxTipBytes the sums over all of them, then what the
-    //  cell's color means; and the cell's scale with the mark at its level.
+    //  a run longer than kMaxTipBytes the sums over all of them; and a scale
+    //  for each kind of access the bytes had, labeled, with the mark at the
+    //  hottest byte's level for that kind.
     struct Tip
     {
-        std::wstring           text;
-        std::vector<uint32_t>  gradient;
-        float                  mark = -1.0f;
+        std::wstring             text;
+        std::vector<DxuiTipBar>  bars;
     };
+
+    //  A kind's scale for a tip, labeled, with its mark at a level.
+    static DxuiTipBar  GetBar (Kind kind, Byte level);
+
+    //  A scale's label, as "Run".
+    static std::wstring  GetBarLabel (Kind kind);
 
     //  A scale's colors at level 1, the middle and level 255. The run scale is
     //  a soft yellow through orange to a strong red, read blue through sky to

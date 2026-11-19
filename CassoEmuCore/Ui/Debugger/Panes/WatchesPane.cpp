@@ -186,7 +186,7 @@ DxuiListView * WatchesPane::CreateList()
 {
     m_grid = m_paneWindow.CreateChild<DxuiEditableGrid>();
     m_grid->SetRowsMovable (false);
-
+    m_grid->SetCutTextTips (true);
 
     return m_grid;
 }

@@ -1040,7 +1040,7 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
         return false;
     }
 
-    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text, tip.lineSwatches, tip.gradient, tip.gradientMark))
+    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text, tip.lineSwatches, tip.bars))
     {
         return false;
     }

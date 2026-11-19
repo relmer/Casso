@@ -8,6 +8,30 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTipBar
+//
+//  A scale drawn under a tip's text: its label at the left, its colors from
+//  end to end, and a mark at a place along it, from 0 to 1, with its
+//  percentage written on the scale; a mark outside 0 to 1 isn't drawn.
+//  A tip's scales start at the same place, past the widest label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiTipBar
+{
+    std::wstring           label;
+    std::vector<uint32_t>  stops;
+    float                  mark  = -1.0f;
+
+    bool  operator== (const DxuiTipBar & other) const = default;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTip
 //
 //  The tip a control has under a point, and how it opens and closes. The
@@ -70,12 +94,11 @@ struct DxuiTip
     bool                                isPending    = false;
 
     //  DxuiTooltip::SetLineColors, SetLineSwatches, SetLineScales and
-    //  SetGradient; empty for none.
+    //  SetBars; empty for none.
     std::vector<uint32_t>               lineColors;
     std::vector<uint32_t>               lineSwatches;
     std::vector<std::vector<uint32_t>>  lineScales;
-    std::vector<uint32_t>               gradient;
-    float                               gradientMark = -1.0f;
+    std::vector<DxuiTipBar>             bars;
 
     //  DxuiTooltip::SetFrame and SetCornerTag; empty for none.
     std::wstring                        frameLabel;
