@@ -257,6 +257,9 @@ public:
     static HRESULT      AssembleUniversal      (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk);
 
+    //  The disk's payload, as it is loaded from kUniversalAddress.
+    static HRESULT      BuildUniversalPayload  (const LinkShimOptions & options, std::vector<Byte> & outPayload);
+
     //  What a bootstrap loads, typed in or from tape, and where it starts:
     //  for a 6551, the slot finder at kSlotFinderAddress, zeros to the shim,
     //  then the shim, so the shim takes its slot from the Apple; for a
