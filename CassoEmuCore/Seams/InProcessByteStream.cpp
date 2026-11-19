@@ -361,3 +361,27 @@ void InProcessByteStream::SetOneThread (bool isOneThread)
 
     m_channel->arrived.notify_all();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InProcessByteStream::Pause
+//
+//  On virtual time, the time moves forward by the pause, rounded up to a
+//  millisecond.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InProcessByteStream::Pause (uint64_t microseconds)
+{
+    if (!m_channel->isVirtual)
+    {
+        IByteStream::Pause (microseconds);
+        return;
+    }
+
+    Advance ((microseconds + 999) / 1000);
+}

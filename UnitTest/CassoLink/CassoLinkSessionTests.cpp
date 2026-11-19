@@ -916,18 +916,14 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        rig.apple.sectorDelayMs = 30;
+        rig.apple.holdAt = 3;
 
         auto  read = rig.session->ReadFile (1, FilePath::Parse ("HELLO"));
         auto  list = rig.session->Enumerate (2, FilePath());
 
-        while (rig.apple.sectorsRead < 3)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
-        }
-
+        rig.apple.WaitHeld();
         rig.session->Cancel();
-        rig.apple.sectorDelayMs = 0;
+        rig.apple.Release();
 
         rig.Finish (read);
         rig.Finish (list);
@@ -965,13 +961,15 @@ public:
     {
         Rig  rig;
 
-        rig.factory.isRealTime = true;   // DSR is toggled in real time
         rig.factory.peerReady = 1;
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        //  DSR is on for a while before it goes off, so the session reads it on.
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        //  DSR is read on before it goes off.
+        for (int reads = rig.factory.peerReads + 2; rig.factory.peerReads < reads; )
+        {
+            std::this_thread::yield();
+        }
 
         //  An Apple reset turns its DTR off at once.
         size_t  mark = rig.sink.Mark();
@@ -987,26 +985,22 @@ public:
     {
         Rig  rig;
 
-        rig.factory.isRealTime = true;   // DSR is toggled in real time
-        rig.factory.peerReady = 1;
+        //  DSR glitches, as a USB serial adapter on a //c cable reports them:
+        //  off for one read in every few.
+        rig.factory.peerReady       = 1;
+        rig.factory.peerGlitchEvery = 3;
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        //  DSR glitches, as a USB serial adapter on a //c cable reports them.
-        {
-            std::jthread  glitches ([&rig] (std::stop_token stop)
-            {
-                while (!stop.stop_requested())
-                {
-                    rig.factory.peerReady = 0;
-                    std::this_thread::sleep_for (std::chrono::milliseconds (1));
-                    rig.factory.peerReady = 1;
-                    std::this_thread::sleep_for (std::chrono::milliseconds (15));
-                }
-            });
+        size_t  mark  = rig.sink.Mark();
+        int     reads = rig.factory.peerReads + 200;
 
-            Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 2000), L"a DSR glitch is not the Apple gone");
+        while (rig.factory.peerReads < reads)
+        {
+            std::this_thread::yield();
         }
+
+        Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 0, mark), L"a DSR glitch is not the Apple gone");
     }
 
 
@@ -1628,19 +1622,16 @@ public:
         //  Space begins the session.
         Rig  rig;
 
-        rig.apple.sectorDelayMs = 1;
+        rig.apple.holdAt = 100;
         rig.Start();
 
         rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
 
         auto  send = rig.session->FullSend ("C:\\Box", "", "");
 
-        for (int tries = 0; tries < 2000 && rig.apple.sectorsRead < 100; tries++)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
-        }
-
+        rig.apple.WaitHeld();
         rig.apple.quitPending = true;
+        rig.apple.Release();
         rig.Finish (send);
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
@@ -1658,16 +1649,13 @@ public:
         rig.Start();
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
 
-        rig.apple.sectorDelayMs = 2;
+        rig.apple.holdAt = 40;
 
         auto  read = rig.session->ReadDisk (1, "canceled.dsk", false);
 
-        while (rig.apple.sectorsRead < 40)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (5));
-        }
-
+        rig.apple.WaitHeld();
         rig.session->Cancel();
+        rig.apple.Release();
         rig.Finish (read);
 
         Assert::IsTrue (read->state == LinkOperationState::Canceled);

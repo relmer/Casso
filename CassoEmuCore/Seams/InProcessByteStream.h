@@ -56,6 +56,7 @@ public:
     bool      IsClosed         () const override;
     void      Close            () override;
     uint64_t  GetTickMs        () override;
+    void      Pause            (uint64_t microseconds) override;
 
     //  Moves a virtual-time pair's time forward, as when a test acts after a
     //  pause. On a real-time pair it waits that long.

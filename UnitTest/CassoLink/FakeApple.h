@@ -55,7 +55,7 @@ public:
     //  As a boot disk still starting when the host prompts: that many of the
     //  first prompts are lost, and it stays silent through them.
     std::atomic<int>                  promptsMissed  { 0 };
-    std::atomic<int>                  sectorDelayMs  { 0 };
+    std::atomic<int>                  holdAt         { -1 };   // with this many sectors read, reads stop until Release
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
     std::atomic<int>                  quietReads     { 0 };   // read requests marked as checks the PC reports itself
@@ -141,6 +141,27 @@ public:
         end->SetOneThread (false);
         m_end    = end;
         m_thread = std::jthread ([this, end] (std::stop_token stop) { Serve (stop, *end); });
+    }
+
+    //  Waits until reads stop at holdAt sectors, so a test can act during a
+    //  read.
+    void  WaitHeld()
+    {
+        std::unique_lock<std::mutex>  guard (m_holdLock);
+
+        m_holdChanged.wait_for (guard, std::chrono::seconds (10), [this] () { return m_held; });
+    }
+
+    //  Lets the reads that stopped at holdAt go on.
+    void  Release()
+    {
+        {
+            std::lock_guard<std::mutex>  guard (m_holdLock);
+
+            holdAt = -1;
+        }
+
+        m_holdChanged.notify_all();
     }
 
     //  Drops the line, as a cable pulled.
@@ -825,7 +846,15 @@ private:
                 continue;
             }
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (sectorDelayMs.load()));   // real, so a test can act during a read
+            if (holdAt >= 0 && sectorsRead >= holdAt)
+            {
+                std::unique_lock<std::mutex>  guard (m_holdLock);
+
+                m_held = true;
+                m_holdChanged.notify_all();
+                m_holdChanged.wait (guard, [this, &stop] () { return holdAt < 0 || stop.stop_requested(); });
+                m_held = false;
+            }
 
             {
                 std::lock_guard<std::mutex>  guard (lock);
@@ -949,6 +978,9 @@ private:
     std::shared_ptr<InProcessByteStream>  m_end;
     std::jthread                          m_thread;
     std::recursive_mutex                  m_attachLock;
+    std::mutex                            m_holdLock;
+    std::condition_variable_any           m_holdChanged;
+    bool                                  m_held          = false;
     std::vector<Byte>                     m_module;
     Byte                                  m_moduleId      = 0;
     Byte                                  m_moduleVersion = 0;
@@ -974,21 +1006,13 @@ class FakeAppleFactory : public IByteStreamFactory
 public:
     explicit FakeAppleFactory (FakeApple & apple) : m_apple (apple) {}
 
-    //  Real-time lines, for a test whose timing is in real milliseconds, as
-    //  DSR glitches from another thread are. Set before the first line opens.
-    bool  isRealTime = false;
-
     //  The lines' shared virtual time.
-    uint64_t  GetTickMs () override { return isRealTime ? GetTickCount64() : m_clock->nowMs.load(); }
+    uint64_t  GetTickMs () override { return m_clock->nowMs; }
 
     //  A wait with no line open costs nothing: the time moves on at once.
-    void  WaitIdle (std::condition_variable_any & condition, std::unique_lock<std::mutex> & lock, std::stop_token stop, DWORD ms, const std::function<bool ()> & isReady) override
+    void  WaitIdle (std::condition_variable_any &, std::unique_lock<std::mutex> &, std::stop_token stop, DWORD ms, const std::function<bool ()> & isReady) override
     {
-        if (isRealTime)
-        {
-            IByteStreamFactory::WaitIdle (condition, lock, stop, ms, isReady);
-        }
-        else if (!stop.stop_requested() && !isReady())
+        if (!stop.stop_requested() && !isReady())
         {
             m_clock->nowMs += ms;
         }
@@ -1023,6 +1047,12 @@ public:
     //  How many reads of DSR on a line just opened report it off, as a USB
     //  serial adapter does until its driver polls the line.
     int                           peerLagReads  = 0;
+
+    //  The reads of DSR so far, and, when nonzero, every this many reads
+    //  report it off for that one read, as the glitches a USB serial adapter
+    //  reports.
+    std::atomic<int>  peerReads       { 0 };
+    int               peerGlitchEvery = 0;
 
     bool  ArePortsClosed() const
     {
@@ -1080,7 +1110,7 @@ public:
             m_silent.push_back (appleEnd);
         }
 
-        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);
         return S_OK;
     }
 
@@ -1098,7 +1128,7 @@ public:
         m_ends.push_back (pcEnd);
         m_silent.push_back (appleEnd);
 
-        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        outStream = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);
         return S_OK;
     }
 
@@ -1116,41 +1146,46 @@ public:
         }
 
         m_unanswered = appleEnd;
-        outStream    = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads);
+        outStream    = std::make_unique<SharedStream> (pcEnd, peerReady, peerLagReads, peerReads, peerGlitchEvery);
         return S_OK;
     }
 
 private:
     void  CreateLine (std::shared_ptr<InProcessByteStream> & outPcEnd, std::shared_ptr<InProcessByteStream> & outAppleEnd, bool isUnanswered)
     {
-        if (isRealTime)
-        {
-            InProcessByteStream::CreatePair (outPcEnd, outAppleEnd);
-        }
-        else
-        {
-            InProcessByteStream::CreateVirtualPair (outPcEnd, outAppleEnd, isUnanswered, m_clock);
-        }
+        InProcessByteStream::CreateVirtualPair (outPcEnd, outAppleEnd, isUnanswered, m_clock);
     }
 
     //  An owned handle on a shared in-process end.
     class SharedStream : public IByteStream
     {
     public:
-        SharedStream (std::shared_ptr<InProcessByteStream> end, const std::atomic<int> & peerReady, int lagReads) : m_end (std::move (end)), m_peerReady (peerReady), m_lagReads (lagReads) {}
+        SharedStream (std::shared_ptr<InProcessByteStream> end, const std::atomic<int> & peerReady, int lagReads, std::atomic<int> & reads, const int & glitchEvery) : m_end (std::move (end)), m_peerReady (peerReady), m_lagReads (lagReads), m_reads (reads), m_glitchEvery (glitchEvery) {}
 
         HRESULT  Write            (const Byte * data, size_t count) override                          { return m_end->Write (data, count); }
         HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return m_end->Read (buffer, capacity, timeoutMs, outRead); }
         size_t   GetReadableCount () override                                                           { return m_end->GetReadableCount(); }
         bool     IsClosed         () const override                                                     { return m_end->IsClosed(); }
         void     Close            () override                                                           { m_end->Close(); }
-        bool     TryGetPeerReady  (bool & outReady) override                                            { outReady = m_peerReady == 1 && m_lagReads <= 0; m_lagReads--; return m_peerReady >= 0; }
+        bool     TryGetPeerReady  (bool & outReady) override
+        {
+            int  read     = ++m_reads;
+            bool glitched = m_glitchEvery > 0 && read % m_glitchEvery == 0;
+
+            outReady = m_peerReady == 1 && m_lagReads <= 0 && !glitched;
+            m_lagReads--;
+            return m_peerReady >= 0;
+        }
+
         uint64_t GetTickMs        () override                                                           { return m_end->GetTickMs(); }
+        void     Pause            (uint64_t microseconds) override                                      { m_end->Pause (microseconds); }
 
     private:
         std::shared_ptr<InProcessByteStream>  m_end;
         const std::atomic<int>              & m_peerReady;
         int                                   m_lagReads = 0;
+        std::atomic<int>                    & m_reads;
+        const int                           & m_glitchEvery;
     };
 
     FakeApple                                          & m_apple;
