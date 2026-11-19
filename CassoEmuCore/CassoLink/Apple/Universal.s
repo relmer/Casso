@@ -1590,7 +1590,8 @@ anntag: .text "CASSOLINK"
 annend:
 
 msgs:
-title:  .text "CASSOLINK"
+title:  .text "CASSOLINK LOADER V1."  ; the loader's version, 1 and the shim's
+        .byte $30 + SHIMVER / 10, $30 + SHIMVER - SHIMVER / 10 * 10
         .byte 0
 msgwait: .text "WAITING FOR THE PC ON:"
         .byte 0

@@ -1284,7 +1284,8 @@ ssx:    .byte 0                 ; sccspd: the register's offset
         endif
 
 
-title:  .text "CASSOLINK"
+title:  .text "CASSOLINK LOADER V1."  ; the loader's version, 1 and the shim's
+        .byte $30 + SHIMVER / 10, $30 + SHIMVER - SHIMVER / 10 * 10
         .byte 0
 msgs:
         ifdef W5100

@@ -156,6 +156,7 @@ public:
         Rig  rig (boot, 1);
 
         rig.Boot();
+        AssertRowStarts (rig, 0, std::format ("CASSOLINK LOADER V1.{:02}", LinkProgram::kShimVersion));
         AssertRowStarts (rig, 2, "WAITING FOR THE PC ON:");
         AssertRowStarts (rig, 4, "SERIAL PORT 1, 115200");
         AssertRowStarts (rig, 5, "SERIAL PORT 2, 115200");
