@@ -7,10 +7,10 @@
 #include "Devices/Disk/CachingBlockStore.h"
 #include "Devices/Disk/DosOrderBlockStore.h"
 #include "Devices/Disk/IBlockStore.h"
+#include "Machines/Apple2/Common/IVolume.h"
 
 class BlockBuffer;
 class CassoLinkSession;
-class IVolume;
 struct LinkOperation;
 enum class VolumeKind;
 
