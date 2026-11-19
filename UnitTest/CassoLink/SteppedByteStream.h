@@ -35,6 +35,9 @@ public:
     bool     IsClosed         () const override                         { return m_end->IsClosed(); }
     void     Close            () override                               { m_end->Close(); }
 
+    //  The machine's time, from the cycles it has run through this stream.
+    uint64_t GetTickMs        () override                               { return (uint64_t) ((double) m_total / CassoLinkHost::kCpuCyclesPerMs); }
+
     //  The line closed once the machine has run `cycles` through this
     //  stream, as when the PC's end goes away at that point.
     void      CloseAfter (uint64_t cycles) { m_closeAfter = cycles; }

@@ -33,6 +33,7 @@ public:
     bool     IsClosed         () const override                                                           { return m_inner.IsClosed(); }
     void     Close            () override                                                                 { m_inner.Close(); }
     bool     TryGetPeerReady  (bool & outReady) override                                                  { return m_inner.TryGetPeerReady (outReady); }
+    uint64_t GetTickMs        () override                                                                 { return m_inner.GetTickMs(); }
 
     //  The bytes written to `inner`, with `fault` applied: the write shared by
     //  this stream and the link's host.

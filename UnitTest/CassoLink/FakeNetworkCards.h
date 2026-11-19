@@ -38,7 +38,7 @@ public:
     FakeNetworkPeer (std::array<Byte, 6> appleMac, uint16_t applePort)
         : m_appleMac (appleMac), m_applePort (applePort)
     {
-        InProcessByteStream::CreatePair (m_machineEnd, m_pcEnd);
+        InProcessByteStream::CreateVirtualPair (m_machineEnd, m_pcEnd);
     }
 
     std::shared_ptr<InProcessByteStream>  GetPcEnd () const { return m_pcEnd; }

@@ -36,4 +36,9 @@ public:
     //  a null modem cable connects to the Apple's DTR; false when the stream
     //  has no such line.
     virtual bool     TryGetPeerReady  (bool & outReady) { outReady = false; return false; }
+
+    //  The time on the link, in milliseconds, which every timeout on it is
+    //  measured against: GetTickCount64 for a real port or socket, and the
+    //  pair's virtual time for an in-process pair a test runs on it.
+    virtual uint64_t GetTickMs        () { return GetTickCount64(); }
 };

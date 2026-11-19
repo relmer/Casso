@@ -107,7 +107,32 @@ struct HarteTestFile
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile);
+HRESULT LoadHarteTestFile   (const std::string & path, HarteTestFile & outFile);
+HRESULT ParseHarteTestBytes (std::span<const Byte> bytes, HarteTestFile & outFile);
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindHarteSubset
+//
+//  The vectors compiled into the test DLL for one opcode, in the same packed
+//  form as a vector file; empty for an opcode with none. Generated into
+//  UnitTest/HarteVectorSubset/ by scripts/EmbedHarteVectors.py.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct HarteSubsetEntry
+{
+    const char  * cpu;
+    Byte          opcode;
+    const Byte  * bytes;
+    size_t        size;
+};
+
+std::span<const Byte> FindHarteSubset (const char * cpuType, Byte opcode);
 
 
 
@@ -117,8 +142,9 @@ HRESULT LoadHarteTestFile (const std::string & path, HarteTestFile & outFile);
 //
 //  GetHarteTestDataDir
 //
-//  Returns the path to the test data directory for the given CPU type
-//  (e.g., "6502"), resolved relative to the UnitTest source directory.
+//  Returns the directory of the given CPU type's vector files (e.g., "6502")
+//  in CASSO_HARTE_DIR, for a full run; empty when it isn't set, and the
+//  opcode tests then run the subset compiled into the DLL.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,6 +3,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
+#include "Seams/IByteStream.h"
 
 
 
@@ -233,11 +234,11 @@ HRESULT CassoLinkHost::AwaitQuietReady()
     CassoLinkPacket  packet;
     bool             ready  = false;
     bool             quiet  = false;
-    ULONGLONG        until  = GetTickCount64() + kQuietWaitMs;
+    ULONGLONG        until  = m_stream->GetTickMs() + kQuietWaitMs;
 
 
 
-    while (!quiet && GetTickCount64() < until)
+    while (!quiet && m_stream->GetTickMs() < until)
     {
         hr = ReadPacket (ready ? kQuietMs : kQuietWaitMs, packet);
 
