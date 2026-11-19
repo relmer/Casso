@@ -794,7 +794,10 @@ bool CassoLinkCapture::IsUnique (std::span<const Byte> read, size_t start, size_
 //  is passed over. Places within s_kWindowDrift of one already found are
 //  the same place. A place found by a later window is off by the bytes that
 //  the stretches between read otherwise, so each is moved to where the
-//  revolution's first bytes match best, within s_kWindowDrift.
+//  revolution's first bytes match exactly for longest, then with the fewest
+//  of its first kAlignBytes differing, within s_kWindowDrift: a stretch
+//  read a byte longer within those bytes would otherwise move the place a
+//  byte past the revolution's start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -829,15 +832,25 @@ std::vector<size_t> CassoLinkCapture::FindAnchors (std::span<const Byte> revolut
 
     for (size_t & anchor : anchors)
     {
-        size_t  best   = anchor;
-        size_t  fewest = SIZE_MAX;
+        size_t  best    = anchor;
+        size_t  longest = 0;
+        size_t  fewest  = SIZE_MAX;
 
         for (size_t place = anchor > s_kWindowDrift ? anchor - s_kWindowDrift : 0; place <= anchor + s_kWindowDrift && place + revolution.size() + s_kBand <= read.size(); place++)
         {
             size_t  count = CountDiffer (revolution, 0, read, place, kAlignBytes);
+            size_t  same  = 0;
+            bool    wins  = false;
 
-            best   = count < fewest ? place : best;
-            fewest = std::min (fewest, count);
+            while (same < kAlignBytes && (revolution[same] | 0x80) == (read[place + same] | 0x80))
+            {
+                same++;
+            }
+
+            wins    = same > longest || (same == longest && count < fewest);
+            best    = wins ? place : best;
+            longest = wins ? same  : longest;
+            fewest  = wins ? count : fewest;
         }
 
         anchor = best;
