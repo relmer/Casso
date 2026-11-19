@@ -1153,8 +1153,8 @@ void DxuiTooltip::ShowPopup()
 //  AssertPopupShown
 //
 //  Debug builds only. Asserts that a balloon just opened or moved is on
-//  screen: visible, not fading out, and above its owner window in the
-//  z-order. A test-mode popup has no window and is not checked.
+//  screen: visible or about to be shown from the message loop, not fading
+//  out, and above its owner window in the z-order. A test-mode popup has no window and is not checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1171,8 +1171,9 @@ void DxuiTooltip::AssertPopupShown() const
 
     BAIL_OUT_IF (hwnd == nullptr || owner == nullptr, S_OK);
 
-    isUp = IsWindowVisible (hwnd) != FALSE && !m_activePopup->IsFadingOut();
+    isUp = (IsWindowVisible (hwnd) != FALSE || m_activePopup->IsShowPending()) && !m_activePopup->IsFadingOut();
     CBRA (isUp);
+    BAIL_OUT_IF (m_activePopup->IsShowPending(), S_OK);
 
     //  The owner comes after the balloon in the z-order.
     while (next != nullptr && next != owner)

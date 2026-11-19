@@ -594,6 +594,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // opened. The serial tells a message for this show from one posted for
     // an earlier show of the same pooled window.
     m_showSerial++;
+    m_isShowPending = true;
     PostMessageW (m_hwnd, s_kShowMessage, (WPARAM) m_showSerial, 0);
 
 Error:
@@ -694,6 +695,7 @@ void DxuiPopupHost::Close (int resultCode)
         }
 
         SetSlideCloaked (false);
+        m_isShowPending = false;
         ShowWindow (m_hwnd, SW_HIDE);
 
         //  A submenu took the mouse from the menu it opened from; closing hands
@@ -1617,6 +1619,8 @@ Error:
 
 void DxuiPopupHost::ShowDrawn()
 {
+    m_isShowPending = false;
+
     // Arm the open animation and put the window into its FIRST frame before
     // it is ever shown. Starting the reveal after ShowWindow let the popup
     // appear full size for one frame and then jump back to the start of the

@@ -327,6 +327,7 @@ public:
     //  True from BeginFadeOut until the popup opens again: it is fading out, or
     //  open at zero opacity.
     bool     IsFadingOut   () const { return m_revealOut; }
+    bool     IsShowPending () const { return m_isShowPending; }   // shown from the message loop once its first frame is committed
 
     //
     //  Measure the natural extent of `text` (in DIPs) through the
@@ -516,7 +517,8 @@ private:
     //  the .cpp so no consumer needs the WinRT headers.
     struct                        Composition;
     std::unique_ptr<Composition>  m_comp;
-    uint32_t                      m_showSerial = 0;
+    uint32_t                      m_showSerial    = 0;
+    bool                          m_isShowPending = false;
 
     // Per-popup render facades bound to the popup's own back buffer. The
     // surface composites with premultiplied alpha; RenderNow clears
