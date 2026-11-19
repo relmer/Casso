@@ -437,6 +437,19 @@ public:
             }
 
             Assert::IsTrue (dos >= 3, std::format (L"{}: {} DOS volumes", name, dos).c_str());
+
+            //  The bands drawn above the map don't overlap: a volume inside a
+            //  partition isn't drawn over it.
+            for (const BlockBand & a : model.GetBands())
+            {
+                for (const BlockBand & b : model.GetBands())
+                {
+                    bool  isDrawn   = !a.isNested && !b.isNested && &a != &b;
+                    bool  isOverlap = a.first < b.first + b.count && b.first < a.first + a.count;
+
+                    Assert::IsFalse (isDrawn && isOverlap, std::format (L"{}: {} overlaps {}", name, a.label, b.label).c_str());
+                }
+            }
         }
     }
 

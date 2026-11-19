@@ -550,9 +550,10 @@ void BlockInspectorModel::AddNestedPartitions (size_t container)
         partition.firstBlock += first;
 
         band       = BlockBand();
-        band.first = partition.firstBlock;
-        band.count = partition.blockCount;
-        band.label = TextEncoding::NarrowToWide (std::string (PartitionLayout::GetLayoutName (kind)) + " " + PartitionAccess::GetLabel (entry, false));
+        band.first    = partition.firstBlock;
+        band.count    = partition.blockCount;
+        band.label    = TextEncoding::NarrowToWide (std::string (PartitionLayout::GetLayoutName (kind)) + " " + PartitionAccess::GetLabel (entry, false));
+        band.isNested = true;
 
         m_bands.push_back (band);
         ClaimPartition (m_volumes[container]->map, first, band);
