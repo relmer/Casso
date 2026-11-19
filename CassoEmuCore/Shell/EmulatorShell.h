@@ -786,13 +786,6 @@ public:
 
     void  SetKeyOwnerFn (KeyOwnerFn fn)  { m_keyOwnerFn = std::move (fn); }
 
-private:
-
-    // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
-    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
-    // or -1 on close-gesture.
-    int     ShowModalDialog      (const DialogDefinition & def);
-
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
@@ -805,6 +798,13 @@ private:
     // Holds a report raised before there is a window to show it in. Public
     // and static because wCassoMain installs the sink before the shell exists.
     static void  QueueNotification (const std::wstring & message);
+
+private:
+
+    // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
+    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
+    // or -1 on close-gesture.
+    int     ShowModalDialog      (const DialogDefinition & def);
 
     // Shows one notification, marshaling as needed. Callable from any
     // thread: a flush that fails on the CPU thread reports through here.
