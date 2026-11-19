@@ -437,26 +437,37 @@ public:
     }
 
 
-    //  A read that waits on a marker the track doesn't have ends with the
-    //  Status's not-found error, and a read after it, with no marker, works.
+    //  A read of track 1 that waits on a marker passing on track 0 first. The
+    //  disk is volume 254, so the address field of track 0, sector 0 with
+    //  volume 254 passes and the read works. The same field with volume 17
+    //  isn't on the disk, so that read ends with the Status's not-found
+    //  error, and a read after it, with no marker, works.
     TEST_METHOD (AMarkerThatDoesntPass_FailsTheRead_AndTheNextReadWorks)
     {
+        static constexpr Byte  kRead    = 4;    // track 1
+        static constexpr Byte  kWatched = 0;    // track 0
+
         ProgramRig         rig (MakeDisk());
         std::vector<Byte>  module;
         std::vector<Byte>  bytes;
         CassoLinkStatus    status;
         CaptureTiming      timing;
-        const Byte         marker[] = { 0xD5, 0xAA, 0x96, 0xAA, 0xBB, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xBB };   // volume 17's track 0, sector 0
+        const Byte         onDisk[] = { 0xD5, 0xAA, 0x96, 0xFF, 0xFE, 0xAA, 0xAA, 0xAA, 0xAA, 0xFF, 0xFE };   // volume 254
+        const Byte         absent[] = { 0xD5, 0xAA, 0x96, 0xAA, 0xBB, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xBB };   // volume 17
 
 
 
         AssertSucceeded (LinkProgram::BuildCaptureModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 4, 0, 0, 100, 0, marker, bytes, status, timing));
-        Assert::AreEqual (CassoLinkHost::kErrorNotFound, status.error, L"The marker didn't pass");
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, kRead, 0, 0, 100, kWatched, onDisk, bytes, status, timing));
+        Assert::AreEqual ((Byte) 0, status.error, L"The marker on the disk passed");
 
         AssertSucceeded (rig.host->EnsureModule (module));
-        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 4, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, kRead, 0, 0, 100, kWatched, absent, bytes, status, timing));
+        Assert::AreEqual (CassoLinkHost::kErrorNotFound, status.error, L"The marker not on the disk didn't pass");
+
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, kRead, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
         Assert::AreEqual ((Byte) 0, status.error);
         Assert::IsFalse (bytes.empty());
     }
