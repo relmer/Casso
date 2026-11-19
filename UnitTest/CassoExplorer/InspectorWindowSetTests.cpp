@@ -455,7 +455,10 @@ public:
 
     TEST_METHOD (OnlyTheFormatsTheInspectorReadsCanBeInspected)
     {
-        for (const wchar_t * path : { L"a.dsk", L"a.DO", L"a.po", L"a.nib", L"a.nb2", L"a.woz", L"a.2mg", L"a.hdv", L"a.dc42", L"a.image" })
+        //  A track image in a gzip file or a ZIP is accepted by its name, and
+        //  the file isn't opened.
+        for (const wchar_t * path : { L"a.dsk", L"a.DO", L"a.po", L"a.nib", L"a.nb2", L"a.woz", L"a.2mg", L"a.hdv", L"a.dc42", L"a.image",
+                                      L"a.dsk.gz", L"a.WOZ.gz", L"set.zip|disks/a.do" })
         {
             Assert::IsTrue (InspectorWindowSet::CanInspect (path), path);
         }
