@@ -7,10 +7,10 @@
 #include "Devices/Disk/CachingBlockStore.h"
 #include "Devices/Disk/DosOrderBlockStore.h"
 #include "Devices/Disk/IBlockStore.h"
-#include "Machines/Apple2/Common/IVolume.h"
 
 class BlockBuffer;
 class CassoLinkSession;
+class IVolume;
 struct LinkOperation;
 enum class VolumeKind;
 
@@ -83,6 +83,8 @@ private:
 
     struct Unit
     {
+        ~Unit();
+
         CassoLinkBlockDevice                 device;
         std::unique_ptr<LinkStore>           store;
         std::unique_ptr<CachingBlockStore>   cache;
