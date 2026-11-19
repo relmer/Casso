@@ -176,6 +176,10 @@ public:
     }
 
 
+    //  The captures run in Release only. Unoptimized, they take most of an
+    //  hour, and the capture code is the same in both builds.
+#ifdef NDEBUG
+
     TEST_METHOD (Dos32Master_IsCapturedTrackForTrack)
     {
         std::vector<int>  differ = CaptureAndCompare ("CiderPress/woz/dos32master_2.woz");
@@ -352,4 +356,6 @@ public:
             AssertCapturedAndBoots (L"LodeRunner.woz", seed);
         }
     }
+
+#endif
 };
