@@ -203,6 +203,7 @@
     <ClCompile Include="NestedContainerTests.cpp" />
     <ClCompile Include="StockDiskBootTests.cpp" />
     <ClCompile Include="CassoLinkVirtualDriveTests.cpp" />
+    <ClCompile Include="CaptureProgramScenarioTests.cpp" />
     <ClCompile Include="CassoLinkCaptureTests.cpp" />
     <ClCompile Include="CassoLinkHardwareTests.cpp" />
     <ClCompile Include="VisiCalcTests.cpp" />
