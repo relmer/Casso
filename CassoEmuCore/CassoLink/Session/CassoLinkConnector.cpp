@@ -252,7 +252,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     ComSettings         search;
     DWORD               opened   = 0;
     size_t              next     = 0;
-    auto                deadline = std::chrono::steady_clock::time_point();
+    uint64_t            deadline = 0;
     Byte                control  = 0;
     Byte                driveMap = 0;
     bool                ready    = false;
@@ -316,12 +316,12 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     //  starts at either, and sends its Ready about once a second, is read
     //  within a slice or two rather than after half the attempt. Once a shim
     //  is read the line stays at its speed, as the program loads at it.
-    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (m_connectTimeoutMs);
+    deadline = m_session.m_factory.GetTickMs() + m_connectTimeoutMs;
 
-    while (!ready && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    while (!ready && !stop.stop_requested() && m_session.m_factory.GetTickMs() < deadline)
     {
         DWORD  speed   = speeds[next % speeds.size()];
-        DWORD  left    = (DWORD) std::chrono::duration_cast<std::chrono::milliseconds> (deadline - std::chrono::steady_clock::now()).count();
+        DWORD  left    = (DWORD) (deadline - (std::min) (deadline, m_session.m_factory.GetTickMs()));
         DWORD  sliceMs = (speeds.size() > 1) ? (std::min) ({ kSpeedSliceMs, m_connectTimeoutMs / (DWORD) speeds.size(), left }) : left;
 
 
@@ -507,7 +507,7 @@ HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWait
     std::vector<std::string>   lines;
     Byte                       got[64]  = {};
     size_t                     read     = 0;
-    auto                       deadline = std::chrono::steady_clock::time_point();
+    uint64_t                   deadline = 0;
 
 
 
@@ -532,9 +532,9 @@ HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWait
                               [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
     CHR (hr);
 
-    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kPromptProbeWaitMs);
+    deadline = m_stream->GetTickMs() + kPromptProbeWaitMs;
 
-    while (!outWaiting && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    while (!outWaiting && !stop.stop_requested() && m_stream->GetTickMs() < deadline)
     {
         hr = m_stream->Read (got, sizeof (got), 100, read);
         CHR (hr);
@@ -603,20 +603,20 @@ bool CassoLinkConnector::IsLineOpen() const
 
 void CassoLinkConnector::ServeUntilRetry (std::stop_token stop)
 {
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (m_retryMs);
+    uint64_t deadline = m_session.m_factory.GetTickMs() + m_retryMs;
     bool     queued   = false;
     bool     ready    = false;
     HRESULT  hr       = S_OK;
 
 
 
-    while (!stop.stop_requested() && !queued && !ready && std::chrono::steady_clock::now() < deadline)
+    while (!stop.stop_requested() && !queued && !ready && m_session.m_factory.GetTickMs() < deadline)
     {
         if (!m_session.m_host)
         {
             std::unique_lock<std::mutex>  lock (m_lock);
 
-            m_wake.wait_until (lock, stop, deadline, [this] () { return !m_queue.empty(); });
+            m_session.m_factory.WaitIdle (m_wake, lock, stop, m_retryMs, [this] () { return !m_queue.empty(); });
             break;
         }
 
@@ -686,7 +686,7 @@ void CassoLinkConnector::ServeAdtPro (std::stop_token stop)
                 {
                     std::unique_lock<std::mutex>  lock (m_lock);
 
-                    m_wake.wait_for (lock, stop, std::chrono::milliseconds (m_retryMs), [] () { return false; });
+                    m_session.m_factory.WaitIdle (m_wake, lock, stop, m_retryMs, [] () { return false; });
                 }
 
                 continue;
@@ -894,14 +894,14 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
 
 HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs, bool & outReady)
 {
-    static constexpr int  kPromptRepeats  = 4;
-    static constexpr auto kPromptInterval = std::chrono::seconds (1);
+    static constexpr int       kPromptRepeats    = 4;
+    static constexpr uint64_t  kPromptIntervalMs = 1000;
 
 
 
     HRESULT  hr          = S_OK;
-    auto     deadline    = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
-    auto     prompted    = std::chrono::steady_clock::time_point();
+    uint64_t deadline    = m_session.m_factory.GetTickMs() + timeoutMs;
+    uint64_t prompted    = 0;
     int      repeatsLeft = 0;
     bool     waiting     = false;
 
@@ -910,7 +910,7 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
     outReady = false;
     m_session.SetState (LinkState::WaitingForReady);
 
-    while (!outReady && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    while (!outReady && !stop.stop_requested() && m_session.m_factory.GetTickMs() < deadline)
     {
         waiting = !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient();
 
@@ -929,15 +929,15 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
             CHR (hr);
 
             m_prompted  = true;
-            prompted    = std::chrono::steady_clock::now();
+            prompted    = m_session.m_factory.GetTickMs();
             repeatsLeft = kPromptRepeats;
         }
-        else if (repeatsLeft > 0 && waiting && std::chrono::steady_clock::now() - prompted >= kPromptInterval)
+        else if (repeatsLeft > 0 && waiting && m_session.m_factory.GetTickMs() - prompted >= kPromptIntervalMs)
         {
             hr = m_session.m_host->PromptReady();
             CHR (hr);
 
-            prompted = std::chrono::steady_clock::now();
+            prompted = m_session.m_factory.GetTickMs();
             repeatsLeft--;
         }
 
@@ -949,7 +949,7 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
         if (m_session.m_host->HasAdtProClient())
         {
             m_adtPro = true;
-            deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+            deadline = m_session.m_factory.GetTickMs() + timeoutMs;
         }
 
         if (m_session.m_host->HasClient())
@@ -989,7 +989,7 @@ bool CassoLinkConnector::IsPeerGone()
 {
     bool      ready = false;
     bool      known = m_stream && m_stream->TryGetPeerReady (ready);
-    uint64_t  now   = GetTickCount64();
+    uint64_t  now   = m_session.m_factory.GetTickMs();
 
 
 

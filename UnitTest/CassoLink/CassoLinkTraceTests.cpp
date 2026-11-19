@@ -54,7 +54,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (hostEnd, clientEnd);
+        InProcessByteStream::CreateVirtualPair (hostEnd, clientEnd);
 
         CassoLinkHost  host (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
 

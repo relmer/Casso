@@ -124,7 +124,7 @@ public:
             machine.GetMemoryBus().RemoveDevice (disk);
             machine.GetMemoryBus().AddDevice (log.get());
 
-            InProcessByteStream::CreatePair (machineEnd, pcEnd);
+            InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
 
             host = std::make_unique<CassoLinkHost> (std::make_shared<SteppedByteStream> (machine, pcEnd), folder, [] () { return std::array<Byte, 4> {}; });

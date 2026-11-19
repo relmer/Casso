@@ -201,7 +201,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (writer, reader);
+        InProcessByteStream::CreateVirtualPair (writer, reader);
 
         {
             FaultInjectingByteStream  stream (*writer, ParseOne ("bootstrap:flip@2"), [&] (const std::string & text) { reports.push_back (text); });
@@ -330,7 +330,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (hostEnd, appleEnd);
+        InProcessByteStream::CreateVirtualPair (hostEnd, appleEnd);
 
         CassoLinkHost  host (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
 
@@ -386,7 +386,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (hostEnd, appleEnd);
+        InProcessByteStream::CreateVirtualPair (hostEnd, appleEnd);
 
         CassoLinkHost  host (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
 

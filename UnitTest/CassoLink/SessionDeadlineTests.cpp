@@ -134,7 +134,7 @@ public:
         machine.SetVideoTiming (std::make_unique<VideoTiming>());
         machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
 
-        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
         AssertSucceeded (machine.AttachSerialStream (2, machineEnd));
         GuestSession::Mount (machine, boot);
 

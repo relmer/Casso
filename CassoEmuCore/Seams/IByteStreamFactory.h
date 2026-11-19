@@ -66,4 +66,18 @@ public:
 
         return E_NOTIMPL;
     }
+
+    //  The time on the factory's links, in milliseconds, which a link's
+    //  deadlines are measured against while no stream is open: GetTickCount64
+    //  for real ports and sockets, and the shared virtual time for a test's
+    //  in-process pairs.
+    virtual uint64_t  GetTickMs () { return GetTickCount64(); }
+
+    //  A link's wait between attempts with no line open, up to `ms` or until
+    //  `isReady` returns true: a real wait on `condition`, or, on virtual time,
+    //  the time moved forward at once.
+    virtual void      WaitIdle  (std::condition_variable_any & condition, std::unique_lock<std::mutex> & lock, std::stop_token stop, DWORD ms, const std::function<bool ()> & isReady)
+    {
+        condition.wait_for (lock, stop, std::chrono::milliseconds (ms), isReady);
+    }
 };
