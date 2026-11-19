@@ -1,12 +1,15 @@
 #include "Pch.h"
 
 #include "Assembler.h"
+#include "Debugger/CallRecordKeeper.h"
 #include "Debugger/CallStack.h"
 #include "Debugger/DebugFileWriter.h"
 #include "Debugger/Handlers/CallStackHandlers.h"
 #include "EmuTests/FixtureProvider.h"
 #include "HandlerTestRig.h"
+#include "MockDebugTarget.h"
 #include "TestHelpers.h"
+#include "Ui/Debugger/Panes/CallStackPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -952,6 +955,70 @@ namespace DebuggerTests
                     Assert::AreEqual ((size_t) 3, Frames (Calls (rig)).size(), L"and recorded the three calls to it");
                 }
             }
+        }
+
+        //  A frame's call is in memory while the memory mapped at its call
+        //  site is what was mapped at the call and its JSR is there; a frame
+        //  recorded over other memory was switched out, and one whose JSR
+        //  changed was written over. A key for the memory is never 0.
+        TEST_METHOD (AFramesCallIsInMemoryOnlyWhileItsJsrIs)
+        {
+            MockDebugTarget  target;
+            CallStackFrame   frame;
+
+
+
+            target.memory[0x0300] = kJsr;
+            target.memory[0x0301] = 0x00;
+            target.memory[0x0302] = 0x09;
+
+            frame.callSite = 0x0300;
+            frame.target   = 0x0900;
+            frame.source   = CallRecordKeeper::GetSourceKey (target, 0x0300);
+
+            Assert::AreNotEqual ((uint16_t) 0, frame.source);
+            Assert::IsTrue (CallRecordKeeper::GetSiteState (target, frame) == CallSiteState::Present, L"the JSR is there");
+
+            frame.source = CallRecordKeeper::GetSourceKey (target, 0xF000);
+            Assert::IsTrue (CallRecordKeeper::GetSiteState (target, frame) == CallSiteState::SwitchedOut, L"recorded over ROM, RAM there now");
+
+            frame.source          = 0;
+            target.memory[0x0302] = 0x0A;
+            Assert::IsTrue (CallRecordKeeper::GetSiteState (target, frame) == CallSiteState::Overwritten, L"the JSR goes elsewhere now");
+
+            frame.kind = CallFrameKind::Irq;
+            Assert::IsTrue (CallRecordKeeper::GetSiteState (target, frame) == CallSiteState::Present, L"an interrupt has no instruction to check");
+        }
+
+
+        //  The pane's call site has its nearest symbol, and a frame whose call
+        //  is switched out is dimmed with a tip on why.
+        TEST_METHOD (TheCallSiteHasItsSymbolAndAStaleFrameIsDimmed)
+        {
+            CallStackData                    data;
+            CallStackRow                     row;
+            std::vector<CallStackPane::Row>  rows;
+
+
+
+            row.frame             = CallStackFrame();
+            row.frame->callSite   = 0x6048;
+            row.frame->target     = 0x60B6;
+            row.frame->siteSymbol = "main_loop+6";
+            data.rows.push_back (row);
+
+            row.frame->callSite   = 0xCFEE;
+            row.frame->siteSymbol.clear();
+            row.frame->site       = CallSiteState::SwitchedOut;
+            data.rows.push_back (row);
+
+            rows = CallStackPane::GetRows (data);
+
+            Assert::AreEqual (std::wstring (L"$6048 main_loop+6"), rows[0].site);
+            Assert::IsFalse  (rows[0].isDim);
+            Assert::AreEqual (std::wstring (L"$CFEE"), rows[1].site);
+            Assert::IsTrue   (rows[1].isDim, L"switched out");
+            Assert::IsTrue   (rows[1].tip.find (L"switched out") != std::wstring::npos, rows[1].tip.c_str());
         }
     };
 }

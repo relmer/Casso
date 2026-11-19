@@ -100,6 +100,10 @@ public:
     //  a write reaches a frame's return address.
     void    SetWriterLocator (std::function<Word ()> locate) { m_locateWriter = std::move (locate); }
 
+    //  A key for the memory mapped at an address now, stored with each call
+    //  made (CallStackFrame::source).
+    void    SetSourceLocator (std::function<uint16_t (Word)> locate) { m_locateSource = std::move (locate); }
+
     //  The machine's cycle count, which dates the start of the record and
     //  each call in it.
     void    SetClock      (std::function<uint64_t ()> clock) { m_clock = std::move (clock); }
@@ -200,6 +204,7 @@ private:
 
     CallStackPeek                  m_peek;
     std::function<Word ()>         m_locateWriter;
+    std::function<uint16_t (Word)> m_locateSource;
     std::function<uint64_t ()>     m_clock;
     bool                           m_active     = false;
     uint64_t                       m_startCycle = 0;

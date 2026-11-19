@@ -707,6 +707,7 @@ void CallStackRecorder::Push (CallFrameKind kind, const Pending & held, Word tar
     frame.provenance = CallProvenance::Recorded;
     frame.stackLevel = held.sp;
     frame.cycle      = held.cycle;
+    frame.source     = m_locateSource ? m_locateSource (held.pc) : (uint16_t) 0;
 
     m_frames.push_back (frame);
     m_lastReturn.reset();

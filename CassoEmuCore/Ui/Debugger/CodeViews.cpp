@@ -867,8 +867,9 @@ std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> CodeViews::Ma
 //
 //  CodeViews::GetKnownStarts
 //
-//  A call frame's call site is a start only where memory has a JSR there,
-//  so an interrupt's frame or a JSR overwritten since isn't one.
+//  A call frame's call site is a start only where its call is in memory and
+//  memory has a JSR there, so an interrupt's frame, a JSR overwritten since
+//  or one switched out isn't one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -881,7 +882,7 @@ std::vector<Word> CodeViews::GetKnownStarts (const CallStackData & calls, Word p
 
     for (const CallStackRow & row : calls.rows)
     {
-        bool  isJsr = row.frame.has_value() && row.frame->kind == CallFrameKind::Call && image.bytes[row.frame->callSite] == kJsr;
+        bool  isJsr = row.frame.has_value() && row.frame->kind == CallFrameKind::Call && row.frame->site == CallSiteState::Present && image.bytes[row.frame->callSite] == kJsr;
 
         if (isJsr && !std::ranges::contains (starts, row.frame->callSite))
         {

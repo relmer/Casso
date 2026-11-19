@@ -524,6 +524,17 @@ enum class CallBreakKind
     TrackingRestarted,
 };
 
+// Whether a frame's call is in memory now: the memory mapped at its call
+// site is what was mapped when the call was made, with its JSR there; the
+// memory was switched out, as $C800 firmware is when another card's ROM or
+// none is selected; or the bytes were written over.
+enum class CallSiteState
+{
+    Present,
+    SwitchedOut,
+    Overwritten,
+};
+
 // callSite is the JSR or BRK, or the interrupted instruction; target is the
 // routine entered or the handler the vector took. stackLevel is SP before
 // the push, which is what ends the frame (R-033). A frame below a break is
@@ -532,6 +543,10 @@ enum class CallBreakKind
 // hasRisen is set once the stack pointer goes above where the call left it,
 // as pulling the return address does; step back out passes over such a
 // frame. note is empty unless something about the frame is worth saying.
+// source is a key for the memory mapped at the call site when the call was
+// made (CallRecordKeeper::GetSourceKey), 0 where not known; site is whether
+// the call is in memory now, and siteSymbol the call site as the nearest
+// symbol and an offset, as main_loop+6.
 struct CallStackFrame
 {
     Word            callSite    = 0;
@@ -543,7 +558,10 @@ struct CallStackFrame
     bool            isVerified  = true;
     bool            isRewritten = false;
     bool            hasRisen    = false;    // the stack pointer has since been above where the call left it; recorded frames only
+    uint16_t        source      = 0;
+    CallSiteState   site        = CallSiteState::Present;
     std::string     symbol;
+    std::string     siteSymbol;
     std::string     note;
 };
 
