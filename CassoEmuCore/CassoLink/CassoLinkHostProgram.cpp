@@ -190,11 +190,69 @@ HRESULT CassoLinkHost::LoadImage (const std::vector<Byte> & image, bool restartO
 
     for (int start = 0; start == 0 || (restart && start <= kMaxResends); start++)
     {
+        if (restart)
+        {
+            hr = AwaitQuietReady();
+            CHR (hr);
+        }
+
         hr = LoadImageOnce (image, restartOnReady, restart);
         CHR (hr);
     }
 
     CBREx (!restart, HRESULT_FROM_WIN32 (ERROR_RETRY));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::AwaitQuietReady
+//
+//  Before a load is started again: the page sent the time before can
+//  be arriving, and an older shim reads its envelope, draws its screen
+//  again and sends another Ready. The load starts again after a Ready with
+//  nothing behind it for kQuietMs, when the shim waits for a packet, or
+//  after kQuietWaitMs with no Ready at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::AwaitQuietReady()
+{
+    static constexpr DWORD  kQuietMs     = 300;
+    static constexpr DWORD  kQuietWaitMs = 3000;
+
+
+
+    HRESULT          hr     = S_OK;
+    CassoLinkPacket  packet;
+    bool             ready  = false;
+    bool             quiet  = false;
+    ULONGLONG        until  = GetTickCount64() + kQuietWaitMs;
+
+
+
+    while (!quiet && GetTickCount64() < until)
+    {
+        hr = ReadPacket (ready ? kQuietMs : kQuietWaitMs, packet);
+
+        if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT))
+        {
+            hr    = S_OK;
+            quiet = true;
+            continue;
+        }
+
+        hr = (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)) ? S_OK : hr;
+        CHR (hr);
+
+        ready = ready || packet.command == CassoLinkCodec::kReady;
+    }
 
 Error:
     return hr;

@@ -105,15 +105,20 @@ Error:
 //
 //  LinkProgram::BuildShimUpdate
 //
-//  A boot disk works after the shim changes: an older shim loads
-//  this in place of the program, as it loads any program. The updater
-//  copies the old shim's settings into the current shim's image, which are
-//  the same bytes of the header in every version: the 6551 control byte at
-//  +$02, the speed's text and the dial command from +$06, the saved state,
-//  reset vector and slot to +$38, the firmware flag at +$39 and a IIgs's
-//  speed register at +$43. It then copies the image over the old shim and
-//  starts it. The saved state is copied too, so the new shim doesn't save
-//  the zero page again, and the host sends the program after its Ready.
+//  A boot disk works after the shim changes: an older shim loads this in
+//  place of the program, as it loads any program. The 6551 shim has been
+//  at $3D00 with the saved zero page at $3C00, at $3B00 with it at $3A00,
+//  and at $3A00 with it at $3900. The updater finds the old shim at one of
+//  those, by its first bytes (SEI, LDA #, JMP) and its saved-state flag.
+//  From it, the updater copies the 6551 control byte at +$02, and the
+//  speed's text, the dial command, the saved state, the reset vector and
+//  the slot from +$06 to +$38, which are the same in each. The firmware
+//  flag at +$39 is copied from the two later ones, and a IIgs's speed
+//  register at +$43 from the latest. The saved zero page is copied to
+//  $3900. The image is then copied over the old shim and started. The new
+//  shim finds its saved state set, so it doesn't save the zero page again.
+//  With no old shim found, the image starts with the settings it was built
+//  with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,23 +126,64 @@ HRESULT LinkProgram::BuildShimUpdate (std::vector<Byte> & outBytes)
 {
     static constexpr const char *  kSource =
         "SHIM     = $3A00\n"
+        "ZPNEW    = $3900\n"
         "IMAGE    = $0900\n"
+        "OLD      = $06\n"
         "        .org $0800\n"
         "        jmp entry\n"
         "        .word 0\n"
         "entry:  sei\n"
         "        cld\n"
-        "        lda SHIM+$02\n"
-        "        sta IMAGE+$02\n"
-        "        ldx #$06\n"
-        "keep:   lda SHIM,x\n"
-        "        sta IMAGE,x\n"
-        "        inx\n"
-        "        cpx #$3A\n"
-        "        bne keep\n"
-        "        lda SHIM+$43\n"
-        "        sta IMAGE+$43\n"
+        "        lda #0\n"
+        "        sta OLD\n"
         "        ldx #0\n"
+        "find:   lda bases,x\n"
+        "        beq start\n"
+        "        sta OLD+1\n"
+        "        ldy #0\n"
+        "        lda (OLD),y\n"
+        "        cmp #$78\n"
+        "        bne next\n"
+        "        iny\n"
+        "        lda (OLD),y\n"
+        "        cmp #$A9\n"
+        "        bne next\n"
+        "        ldy #3\n"
+        "        lda (OLD),y\n"
+        "        cmp #$4C\n"
+        "        beq found\n"
+        "next:   inx\n"
+        "        bne find\n"
+        "found:  ldy #$02\n"
+        "        lda (OLD),y\n"
+        "        sta IMAGE+$02\n"
+        "        ldy #$06\n"
+        "keep:   lda (OLD),y\n"
+        "        sta IMAGE,y\n"
+        "        iny\n"
+        "        cpy #$39\n"
+        "        bne keep\n"
+        "        lda OLD+1\n"
+        "        cmp #$3D\n"
+        "        beq zp\n"
+        "        lda (OLD),y\n"
+        "        sta IMAGE+$39\n"
+        "        lda OLD+1\n"
+        "        cmp #>SHIM\n"
+        "        bne zp\n"
+        "        ldy #$43\n"
+        "        lda (OLD),y\n"
+        "        sta IMAGE+$43\n"
+        "zp:     dec OLD+1\n"
+        "        lda OLD+1\n"
+        "        cmp #>ZPNEW\n"
+        "        beq start\n"
+        "        ldy #0\n"
+        "zpcopy: lda (OLD),y\n"
+        "        sta ZPNEW,y\n"
+        "        iny\n"
+        "        bne zpcopy\n"
+        "start:  ldx #0\n"
         "copy:   lda IMAGE,x\n"
         "        sta SHIM,x\n"
         "        lda IMAGE+$100,x\n"
@@ -160,7 +206,8 @@ HRESULT LinkProgram::BuildShimUpdate (std::vector<Byte> & outBytes)
         "        sta SHIM+$900,x\n"
         "        inx\n"
         "        bne copy\n"
-        "        jmp SHIM\n";
+        "        jmp SHIM\n"
+        "bases:  .byte $3A, $3B, $3D, 0\n";
 
 
 

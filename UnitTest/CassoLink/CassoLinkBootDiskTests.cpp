@@ -224,6 +224,70 @@ public:
     }
 
 
+    //  The updater run over a shim of each layout the 6551 shim has had: at
+    //  $3D00 with the zero page at $3C00, at $3B00 with it at $3A00, and at
+    //  $3A00 with it at $3900. Each old shim's speed, slot and saved zero
+    //  page are copied to the current shim, which then runs.
+    TEST_METHOD (TheShimUpdate_FindsEachOlderLayout)
+    {
+        static constexpr Word  kBases[] = { 0x3D00, 0x3B00, 0x3A00 };
+
+        std::vector<Byte>  update;
+
+
+
+        AssertSucceeded (LinkProgram::BuildShimUpdate (update));
+
+        for (Word base : kBases)
+        {
+            TestMachine       machine { "Apple2c" };
+            EmuCpu          * cpu     = machine.GetCpu();
+            std::wstring      where   = std::format (L"the shim at ${:04X}", base);
+
+
+
+            for (Word at = 0x3900; at < 0x4400; at++)
+            {
+                cpu->WriteByte (at, 0);
+            }
+
+            for (int i = 0; i < 256; i++)
+            {
+                cpu->WriteByte ((Word) (base - 0x100 + i), (Byte) (i ^ 0x5A));
+            }
+
+            cpu->WriteByte (base,        0x78);
+            cpu->WriteByte (base + 1,    0xA9);
+            cpu->WriteByte (base + 2,    0x1F);
+            cpu->WriteByte (base + 3,    0x4C);
+
+            for (int i = 0; i < 6; i++)
+            {
+                cpu->WriteByte ((Word) (base + 6 + i), (Byte) "19200 "[i]);
+            }
+
+            cpu->WriteByte (base + 0x34, 1);
+            cpu->WriteByte (base + 0x38, 2);
+
+            for (size_t i = 0; i < update.size(); i++)
+            {
+                cpu->WriteByte ((Word) (LinkProgram::kProgramAddress + i), update[i]);
+            }
+
+            cpu->SetPC (LinkProgram::kProgramAddress);
+
+            machine.RunCycles (60'000);
+
+            Assert::AreEqual<Byte> (0x1F, cpu->ReadByte (0x3A02), where.c_str());
+            Assert::AreEqual<Byte> ((Byte) '1', cpu->ReadByte (0x3A06), where.c_str());
+            Assert::AreEqual<Byte> (0, cpu->ReadByte (0x3A0C), (where + L": no dial command").c_str());
+            Assert::AreEqual<Byte> (2, cpu->ReadByte (0x3A38), where.c_str());
+            Assert::AreEqual<Byte> ((Byte) (7 ^ 0x5A), cpu->ReadByte (0x3907), (where + L": the saved zero page").c_str());
+            Assert::IsTrue (cpu->GetPC() >= LinkProgram::kShimAddress && cpu->GetPC() < 0x4400, (where + L": the current shim runs").c_str());
+        }
+    }
+
+
     //  The link disk for a Wi-Fi modem sends its dial command and draws the
     //  target while it waits; after CONNECT, the link is over the modem.
     TEST_METHOD (AWifiModemLinkDisk_DialsThePc_AndConnects)
