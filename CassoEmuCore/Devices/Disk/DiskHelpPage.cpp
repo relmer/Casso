@@ -324,10 +324,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         " then writes a repaired copy to <copy>, or beside <image> with \" (repaired)\" before its extension. The bitmap is set"
         " from the files, the catalog's links and counts are corrected, and a DOS 3.3 VTOC header is restored to DOS's values."
         " <image> isn't changed. A copy-protected disk, a volume with a file whose chain can't be followed, or a disk with no"
-        " standard file system can't be repaired, and the command exits with 1. On an 800K disk, a hard disk or a card image,"
-        " every ProDOS, SOS, Apple Pascal, HFS and DOS 3.3 volume on it is repaired, all into one copy. Blocks not in any file"
-        " stay marked as used, since a nested volume or a larger DOS can be in them. An image in a gzip file or a ZIP is copied"
-        " with its container, compressed again.",
+        " standard file system can't be repaired, and the command exits with 1. 800K disks, hard disks, and card images can"
+        " contain other volumes. These contained volumes are also repaired within the repaired copy of their parent image."
+        " Blocks that aren't in any file stay marked as used, since a contained volume can be in them. An image in a gzip file"
+        " or a ZIP is repaired in a copy of that file, compressed the same way as the original.",
         "CassoCli disk repair Capture.dsk"
     },
 
