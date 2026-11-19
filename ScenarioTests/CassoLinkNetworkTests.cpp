@@ -158,13 +158,20 @@ public:
 
     //  The universal disk finds the card, the shim sets it up for the
     //  header's address and broadcasts it, and the program reads a track.
-    static void  ReadsADisk (Chip chip, const char * name)
+    //  With asAppleWin, the fake CS8900A has AppleWin's differences from the
+    //  datasheet (FakeCs8900a::SetAsAppleWin).
+    static void  ReadsADisk (Chip chip, const char * name, bool asAppleWin = false)
     {
         Rig                rig (chip, false);
         LinkAnnouncement   announced;
         std::string        screen;
 
 
+
+        if (asAppleWin)
+        {
+            static_cast<FakeCs8900a *> (rig.card.get())->SetAsAppleWin();
+        }
 
         rig.peer.SetHold (true);
         rig.machine.RunCycles (kBootCycles);
@@ -192,6 +199,15 @@ public:
     TEST_METHOD (ALanceGs_ReadsADiskOverUdp)
     {
         ReadsADisk (Chip::Lan91c96, "LANCEGS");
+    }
+
+
+    //  On AppleWin's CS8900A, the universal disk took the card for an
+    //  Uthernet II, and the Load program packet was dropped when a page came
+    //  right behind it.
+    TEST_METHOD (AnUthernetAsAppleWinHasIt_ReadsADiskOverUdp)
+    {
+        ReadsADisk (Chip::Cs8900a, "UTHERNET", true);
     }
 
     //  With no address in the header, the shim takes one from DHCP, and the
