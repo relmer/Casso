@@ -83,7 +83,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> CodeViews::BuildCode (DebugSession &
     //  As many lines as the pane has room for, stopping at $FFFF rather than
     //  wrapping below the start.
     (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view, !snapshot.isPaused), std::nullopt, v.lines, code,
-                                               snapshot.isPaused ? std::optional<Word> (snapshot.pc) : std::nullopt);
+                                               snapshot.isPaused ? std::optional<Word> (snapshot.pc) : std::nullopt, v.navigatedTo);
 
     v.shown.clear();
 
@@ -665,6 +665,18 @@ void CodeViews::RefreshLineList (DebugSession & session, bool isPaused, const Ca
     inputs.starts = GetKnownStarts (calls, pc, *image);
     inputs.labels = GetCodeLabels (session);
     inputs.pc     = pc;
+
+    //  An address a view was sent to starts a line, so it has its row even
+    //  inside an instruction decoded from the bytes before it.
+    for (int view = 0; view < kMaxCodeViews; view++)
+    {
+        const std::optional<Word> & navigatedTo = m_code[(size_t) view].navigatedTo;
+
+        if (IsCodeViewOpen (view) && navigatedTo.has_value() && !std::ranges::contains (inputs.starts, *navigatedTo))
+        {
+            inputs.starts.push_back (*navigatedTo);
+        }
+    }
 
     for (Word start : inputs.starts)
     {

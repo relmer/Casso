@@ -52,7 +52,8 @@ bool DataDirectiveHandlers::TryExecute (DebugSession & session, const DebugComma
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc)
+Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std::optional<Word> last, int count, DisassemblyData & data, std::optional<Word> pc,
+                                        std::optional<Word> start)
 {
     IDebugTarget  & target      = session.GetTarget();
     Disassembler    disassembler (target.GetInstructionSet());
@@ -89,7 +90,7 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
 
             for (uint32_t inside = 1; inside < line.instruction.bytes.size() && cutAt == 0 && address + inside <= 0xFFFF; inside++)
             {
-                bool  isPc    = pc.has_value() && *pc == address + inside;
+                bool  isPc    = (pc.has_value() && *pc == address + inside) || (start.has_value() && *start == address + inside);
                 bool  isLabel = !(pc.has_value() && *pc == address) &&
                                 (IsCodeLabel (session, (Word) (address + inside)) || session.IsBranchTarget ((Word) (address + inside)));
 
