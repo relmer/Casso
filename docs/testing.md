@@ -22,6 +22,33 @@ destructor's did-an-assert-fire check compiled out in Release, so those tests
 still execute the code under test but verify nothing about the assert; they
 would pass with the guard deleted. Run Debug before merging.
 
+## Where a build keeps its data
+
+A build that is not an official release stores every file it reads and writes in
+a separate data folder, so a test launch doesn't touch the settings of an
+installed copy.
+
+| Build | Data folder |
+|---|---|
+| Any build, with `CASSO_PROFILE_DIR` set | that folder |
+| A signed release, or an MSIX | `%LOCALAPPDATA%\Casso` |
+| Any other build, inside a checkout | `CassoData\` at the repo root |
+| Any other build, with no repo above it | `CassoData\` beside the binary |
+
+The repo root is the nearest folder above the binary that has a `.git` entry,
+which is a file in a worktree. Debug and Release builds of one checkout share
+its `CassoData\`, and `.gitignore` lists it.
+
+A launch of a developer build doesn't change `%LOCALAPPDATA%\Casso`, so a test
+session has no backup and restore of `UserPrefs.json` to do. A new checkout or
+worktree starts from defaults. `scripts/FetchRoms.ps1` puts the ROMs in its
+`CassoData\`, and `scripts/FetchStockDisks.ps1` reads the disk cache from
+there. The unit and scenario suites run inside the test host, so they resolve
+the folder from the test assembly in the checkout's output folder, the same
+`CassoData\` the build under test uses. The Harte vectors stay in
+`%LOCALAPPDATA%\Casso\HarteTests`, since no build reads them at run time and
+every checkout shares them.
+
 ## What the suite is made of
 
 | Layer | What it proves |

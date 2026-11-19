@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/PathResolver.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "../EhmTestHelper.h"
@@ -53,8 +54,9 @@ std::vector<Byte> GuestSession::ReadFileOrEmpty (const std::filesystem::path & f
 //  GuestSession::FindStockImage
 //
 //  The two places a stock image can be, tried in order: `repoPath` under the
-//  working directory and each of its parents, then the emulator's download
-//  cache under `cacheName`. READ-ONLY: nothing here downloads, copies, or
+//  working directory and each of its parents, then the `Disks` folder of the
+//  data folder, where a build from this checkout saves a download, under
+//  `cacheName`. READ-ONLY: nothing here downloads, copies, or
 //  creates anything, so a run leaves no trace of having looked.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,23 +65,13 @@ std::vector<Byte> GuestSession::FindStockImage (
     const char     * repoPath,
     const wchar_t  * cacheName)
 {
-    std::vector<Byte>      bytes     = FindInRepo (repoPath);
-    wchar_t              * cacheRoot = nullptr;
-    size_t                 len       = 0;
-    bool                   hasCache  = false;
+    std::vector<Byte>  bytes = FindInRepo (repoPath);
 
 
 
     if (bytes.empty())
     {
-        hasCache = _wdupenv_s (&cacheRoot, &len, L"LOCALAPPDATA") == 0 && cacheRoot != nullptr;
-    }
-
-    if (hasCache)
-    {
-        bytes = ReadFileOrEmpty (std::filesystem::path (cacheRoot) /
-                                 L"Casso" / L"Disks" / cacheName);
-        free (cacheRoot);
+        bytes = ReadFileOrEmpty (PathResolver::GetDataFolder() / L"Disks" / cacheName);
     }
 
     return bytes;
@@ -201,14 +193,13 @@ std::vector<Byte> GuestSession::RequireDos33Master()
 
 
     Assert::IsFalse (bytes.empty(),
-        L"the stock DOS 3.3 master is REQUIRED by this gate and was not found, either as "
-        L"Disks/Apple/dos33-master.dsk in a parent of the working directory or as "
-        L"%LOCALAPPDATA%\\Casso\\Disks\\DOS 3.3 System Master.dsk. To get it, pick the "
-        L"DOS 3.3 row in Casso's Boot Disk or Insert Disk picker once, which downloads it "
-        L"into that cache, or place a copy at the repo path, which is gitignored. This "
-        L"case fails rather than skipping: a guest-visible gate that never started a "
-        L"guest has checked nothing, and a skip is indistinguishable in the output from "
-        L"a case that ran");
+        std::format (L"the stock DOS 3.3 master is REQUIRED by this gate and was not found, either as "
+                     L"Disks/Apple/dos33-master.dsk in a parent of the working directory or as "
+                     L"{}\\Disks\\DOS 3.3 System Master.dsk. To get it, run scripts/FetchStockDisks.ps1, "
+                     L"which RunTests.ps1 -Scenario also runs. This "
+                     L"case fails rather than skipping: a guest-visible gate that never started a "
+                     L"guest has checked nothing, and a skip is indistinguishable in the output from "
+                     L"a case that ran", PathResolver::GetDataFolder().wstring()).c_str());
 
     Assert::AreEqual (kImageBytes, bytes.size(),
         L"and it must be a whole 5.25-inch sector image");
@@ -233,14 +224,13 @@ std::vector<Byte> GuestSession::RequireProDosUsersDisk()
 
 
     Assert::IsFalse (bytes.empty(),
-        L"the stock ProDOS Users Disk is REQUIRED by this gate and was not found, either "
-        L"as Disks/Apple/prodos-users.dsk in a parent of the working directory or as "
-        L"%LOCALAPPDATA%\\Casso\\Disks\\ProDOS Users Disk.dsk. To get it, pick the ProDOS "
-        L"row in Casso's Boot Disk or Insert Disk picker once, which downloads it into "
-        L"that cache, or place a copy at the repo path, which is gitignored. This case "
-        L"fails rather than skipping: a guest-visible gate that never started a guest has "
-        L"checked nothing, and a skip is indistinguishable in the output from a case that "
-        L"ran");
+        std::format (L"the stock ProDOS Users Disk is REQUIRED by this gate and was not found, either "
+                     L"as Disks/Apple/prodos-users.dsk in a parent of the working directory or as "
+                     L"{}\\Disks\\ProDOS Users Disk.dsk. To get it, run scripts/FetchStockDisks.ps1, "
+                     L"which RunTests.ps1 -Scenario also runs. This case "
+                     L"fails rather than skipping: a guest-visible gate that never started a guest has "
+                     L"checked nothing, and a skip is indistinguishable in the output from a case that "
+                     L"ran", PathResolver::GetDataFolder().wstring()).c_str());
 
     Assert::AreEqual (kImageBytes, bytes.size(),
         L"and it must be a whole 5.25-inch sector image");
@@ -390,10 +380,11 @@ std::vector<Byte> GuestSession::RequireSosUtilitiesDisk()
 
 
     Assert::IsFalse (bytes.empty(),
-        L"the Apple /// System Utilities disk is REQUIRED by this gate and was not found, "
-        L"either as Disks/Apple/sos-utilities.dsk in a parent of the working directory or "
-        L"as %LOCALAPPDATA%\\Casso\\Disks\\Apple III System Utilities.dsk. To get it, run "
-        L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
+        std::format (L"the Apple /// System Utilities disk is REQUIRED by this gate and was not found, "
+                     L"either as Disks/Apple/sos-utilities.dsk in a parent of the working directory or "
+                     L"as {}\\Disks\\Apple III System Utilities.dsk. To get it, run "
+                     L"scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs",
+                     PathResolver::GetDataFolder().wstring()).c_str());
 
     Assert::AreEqual (kImageBytes, bytes.size(),
         L"and it must be a whole 5.25-inch sector image");

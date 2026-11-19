@@ -452,3 +452,6 @@ UnitTest/Fixtures/CiderPress/
 
 # Sample disks from the Asimov Apple II archive, fetched by scripts/FetchAsimovSamples.ps1.
 UnitTest/Fixtures/Asimov/
+
+# Per-checkout data folder for developer builds: prefs, ROMs, machine configs, disks.
+CassoData/

@@ -4,6 +4,7 @@
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "Core/MachineConfig.h"
+#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
@@ -23,8 +24,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  read from the port.
 //
 //  The firmware is the 2 KB image Casso downloads into
-//  %LOCALAPPDATA%\Casso\Devices\SuperSerialCard\SSC.rom. It is not committed,
-//  so these cases fail without it, as the stock-disk cases do without theirs.
+//  <data folder>\Devices\SuperSerialCard\SSC.rom, which scripts/FetchRoms.ps1
+//  also fetches. It is not committed, so these cases fail without it, as the
+//  stock-disk cases do without theirs.
 //
 //  The firmware, the switches and the connector all come from the slot entry,
 //  so MachineBuilder loads and attaches them as it does for Casso itself.
@@ -440,21 +442,16 @@ private:
 
     static std::filesystem::path RequireFirmwarePath()
     {
-        char *                 root = nullptr;
-        size_t                 len  = 0;
-        std::filesystem::path  path;
+        std::filesystem::path  folder  = PathResolver::GetDataFolder();
+        std::filesystem::path  path    = folder / L"Devices" / L"SuperSerialCard" / L"SSC.rom";
         std::error_code        ec;
+        std::wstring           message = std::format (
+            L"Apple's Super Serial Card firmware is REQUIRED by these cases and was not found in the "
+            L"data folder {}. To get it, run scripts/FetchRoms.ps1", folder.wstring());
 
-        if (_dupenv_s (&root, &len, "LOCALAPPDATA") == 0 && root != nullptr)
-        {
-            path = std::filesystem::path (root) / "Casso" / "Devices" / "SuperSerialCard" / "SSC.rom";
-            free (root);
-        }
 
-        Assert::AreEqual<uintmax_t> (2048, std::filesystem::file_size (path, ec),
-            L"Apple's Super Serial Card firmware is REQUIRED by these cases and was not "
-            L"found at %LOCALAPPDATA%\\Casso\\Devices\\SuperSerialCard\\SSC.rom. To get it, "
-            L"turn the card on under Settings > Machine and accept the download");
+
+        Assert::AreEqual<uintmax_t> (2048, std::filesystem::file_size (path, ec), message.c_str());
 
         return path;
     }

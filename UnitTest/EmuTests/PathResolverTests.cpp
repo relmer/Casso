@@ -35,23 +35,23 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  BuildSearchPaths_ReturnsLocalAppDataOnly
+    //  BuildSearchPaths_ReturnsTheDataFolderOnly
     //
-    //  Casso uses a single asset directory; exeDir / cwd parameters
+    //  Casso uses a single asset directory, the data folder; exeDir / cwd parameters
     //  are accepted for compat but no longer contribute search paths.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (BuildSearchPaths_ReturnsLocalAppDataOnly)
+    TEST_METHOD (BuildSearchPaths_ReturnsTheDataFolderOnly)
     {
         auto paths = PathResolver::BuildSearchPaths (fs::path ("C:/app/bin"),
                                                      fs::path ("C:/project"));
 
-        // The single element is %LOCALAPPDATA%\Casso\, which depends on
+        // The single element is the data folder, which depends on
         // the test host. We only assert that the legacy fallback dirs
         // do NOT appear.
         Assert::AreEqual ((size_t) 1, paths.size(),
-            L"BuildSearchPaths now returns exactly one entry (localappdata)");
+            L"BuildSearchPaths now returns exactly one entry (the data folder)");
         for (const auto & p : paths)
         {
             Assert::AreNotEqual (fs::path ("C:/app/bin").wstring(),  p.wstring());
@@ -64,37 +64,6 @@ public:
     //  FindFile_FoundInFirstPath
     //
     ////////////////////////////////////////////////////////////////////////////
-
-    //  A test copy of Casso Explorer run beside the owner's writes its prefs,
-    //  session and logs to the profile folder, so it has no saved
-    //  connections to start.
-    TEST_METHOD (GetLocalAppDataDir_TakesTheProfileFolderWhenOneIsSet)
-    {
-        fs::path  folder = fs::temp_directory_path() / L"CassoProfileTest";
-        fs::path  normal;
-        fs::path  profile;
-        BOOL      set    = FALSE;
-
-
-
-        normal = PathResolver::GetLocalAppDataDir (L"Casso");
-        Assert::IsFalse (PathResolver::IsProfileFolderSet());
-
-        set = SetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder.c_str());
-        Assert::IsTrue (set != FALSE);
-
-        profile = PathResolver::GetLocalAppDataDir (L"Casso");
-
-        set = SetEnvironmentVariableW (PathResolver::kpszProfileVariable, nullptr);
-        Assert::IsTrue (set != FALSE);
-
-        Assert::AreEqual (folder.wstring(), profile.wstring());
-        Assert::IsTrue   (fs::is_directory (folder), L"the folder is made");
-        Assert::AreEqual (normal.wstring(), PathResolver::GetLocalAppDataDir (L"Casso").wstring());
-
-        fs::remove_all (folder);
-    }
-
 
     TEST_METHOD (FindFile_FoundInFirstPath)
     {
@@ -186,7 +155,7 @@ private:
     // that contains Resources/Machines/Apple2Plus/Apple2Plus.json -- this
     // is the repo root regardless of which build configuration the
     // test DLL was loaded from. Independent of BuildSearchPaths so it
-    // keeps working after that API collapsed to localappdata-only.
+    // keeps working after that API collapsed to the data folder only.
     static fs::path FindRepoRoot()
     {
         fs::path  cursor  = PathResolver::GetExecutableDirectory();

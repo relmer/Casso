@@ -219,8 +219,8 @@ jobs:
     env:
       # Lifted into `env` so the signing steps can gate on it: `secrets` is not
       # available in an `if`, `env` is. Empty means this repo has not been given
-      # the signing secrets yet, and the release goes out UNSIGNED rather than
-      # turning every master push red.
+      # the signing secrets yet, and the "Fail an unsigned release" step stops
+      # the job, so no unsigned release is published.
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       WINGET_PAT:      ${{ secrets.WINGET_PAT }}
 
