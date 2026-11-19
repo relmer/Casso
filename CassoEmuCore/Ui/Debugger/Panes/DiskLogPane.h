@@ -124,6 +124,7 @@ protected:
     void                   MakeCells      (const Row & row, Cells & out) const override;
     size_t                 GetLabelColumn () const override { return kEvent; }
     size_t                 GetTextColumn  () const override { return kDetail; }
+    std::wstring           GetMissingText () const override { return L"Not in the log: the PC and routine, the motor, the stepper phases, read or write mode, and the data latch."; }
 
 private:
     static std::wstring  ListRejected    (const std::wstring & text, const TrackSectorPredicate & predicate);
