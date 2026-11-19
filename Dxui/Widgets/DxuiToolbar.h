@@ -5,6 +5,7 @@
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiSlide.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Render/DxuiTextRenderer.h"
 #include "Core/DxuiEvents.h"
 
 
@@ -597,8 +598,10 @@ private:
     void          GrowToFill           (int clientWidthPx);
 
     std::function<void (POINT)>  m_onDropDownClickOutside;
-    void          WireDropDown         ();
-    void          ForwardToFlyout      (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
+    void  WireDropDown          ();
+    void  PinPickerTypography   ();
+    void  UnpinPickerTypography ();
+    void  ForwardToFlyout       (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, bool & handled);
 
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintEntryIcon (const Slot & slot, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink, uint32_t accent);
@@ -616,6 +619,11 @@ private:
     static inline std::vector<DxuiToolbar *>  s_toolbars;
     int                                       m_openPicker = -1;
     bool                                      m_flat       = false;
+
+    //  A copy of the typography a picker's menu opened with, so a preview
+    //  that changes the face doesn't change the menu's text.
+    DxuiTextRenderer::Typography              m_pickerTypography;
+    bool                                      m_isPickerTypographyPinned = false;
 
     //  WinUI's TextFillColorSecondary alphas, on dark ink and on light.
     static constexpr uint32_t  kPressedInkAlphaDark  = 0xC5000000u;

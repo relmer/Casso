@@ -408,7 +408,13 @@ void DxuiToolbar::WireDropDown()
 
             if (it->second.preview)
             {
+                PinPickerTypography();
                 it->second.preview (index);
+
+                if (m_dropdown.GetPopupHost() != nullptr)
+                {
+                    m_dropdown.GetPopupHost()->MarkPopupsDirty();
+                }
             }
         }
     });
@@ -427,6 +433,7 @@ void DxuiToolbar::WireDropDown()
             }
         }
 
+        UnpinPickerTypography();
         m_openPicker = -1;
     });
 
@@ -446,9 +453,57 @@ void DxuiToolbar::WireDropDown()
 
         if (!committed)
         {
+            UnpinPickerTypography();
             m_openPicker = -1;
         }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::PinPickerTypography
+//
+//  On a picker's first preview, its open menu is drawn in a copy of the
+//  typography it opened with, so a theme preview that changes the face
+//  doesn't refit the menu's rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::PinPickerTypography()
+{
+    if (m_isPickerTypographyPinned || m_dropdown.GetPopupHost() == nullptr)
+    {
+        return;
+    }
+
+    m_pickerTypography         = DxuiTextRenderer::GetDefaultTypography();
+    m_isPickerTypographyPinned = true;
+
+    m_dropdown.GetPopupHost()->PinPopupTypography (&m_pickerTypography);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::UnpinPickerTypography
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::UnpinPickerTypography()
+{
+    if (m_isPickerTypographyPinned && m_dropdown.GetPopupHost() != nullptr)
+    {
+        m_dropdown.GetPopupHost()->PinPopupTypography (nullptr);
+    }
+
+    m_isPickerTypographyPinned = false;
 }
 
 
