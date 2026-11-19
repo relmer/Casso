@@ -786,21 +786,21 @@ public:
 
     void  SetKeyOwnerFn (KeyOwnerFn fn)  { m_keyOwnerFn = std::move (fn); }
 
-private:
-
-    // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
-    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
-    // or -1 on close-gesture.
-    int     ShowModalDialog      (const DialogDefinition & def);
-
     // The EHM user-notification sink, installed with SetNotifyFunction so
     // every CHRN / CBRN in the tree reports through Casso's own themed
     // dialog. Nothing had ever installed one, so they all fell through to
     // EhmNotifyUser's built-in path and became raw Win32 message boxes.
     //
     // Static because SetNotifyFunction takes a plain function pointer; it
-    // forwards to the one live shell.
+    // forwards to the one live shell. Public because GuiMain installs it.
     static void  NotifyUser (const wchar_t * message);
+
+private:
+
+    // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
+    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
+    // or -1 on close-gesture.
+    int     ShowModalDialog      (const DialogDefinition & def);
 
     // Holds a report raised before there is a window to show it in. Public
     // and static because wCassoMain installs the sink before the shell exists.
