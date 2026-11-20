@@ -74,6 +74,8 @@ bdrv     = $5F                  ; a ProDOS drive being listed
 bcnt     = $60                  ; and $61, $62: a unit's blocks
 bkind    = $63                  ; and its kind
 blen     = $64                  ; and $65: a reply's length, or a block's CRC
+bxor     = $66                  ; the EOR of a block's bytes, for the packet's check
+btmp     = $67                  ; sendblk: the CRC's low byte between a round's two bytes
 
 ; ---------------------------------------------------------------------------
 ; List block devices
@@ -450,8 +452,68 @@ rrbad:  lda #p_ERRVERIFY
         sec
         rts
 
-; sendblk: Block data with bblk and BLKBUF's 512 bytes and their CRC.
-sendblk: ldx #0
+; sendblk: Block data with bblk and BLKBUF's 512 bytes and their CRC. The CRC
+; is found two bytes a round, by the tables inline, and the bytes' EOR in a
+; second pass four bytes a round; the block is then put whole by putblk.
+sendblk: lda #0
+        sta p_crclo
+        sta p_crchi
+        ldy #0
+sblo:   lda BLKBUF,y
+        eor p_crchi
+        tax
+        lda p_CRCLO,x
+        sta btmp
+        lda p_crclo
+        eor p_CRCHI,x
+        eor BLKBUF+1,y
+        tax
+        lda btmp
+        eor p_CRCHI,x
+        sta p_crchi
+        lda p_CRCLO,x
+        sta p_crclo
+        iny
+        iny
+        bne sblo
+sbhi:   lda BLKBUF+256,y
+        eor p_crchi
+        tax
+        lda p_CRCLO,x
+        sta btmp
+        lda p_crclo
+        eor p_CRCHI,x
+        eor BLKBUF+257,y
+        tax
+        lda btmp
+        eor p_CRCHI,x
+        sta p_crchi
+        lda p_CRCLO,x
+        sta p_crclo
+        iny
+        iny
+        bne sbhi
+        lda #0
+sbxlo:  eor BLKBUF,y
+        eor BLKBUF+1,y
+        eor BLKBUF+2,y
+        eor BLKBUF+3,y
+        iny
+        iny
+        iny
+        iny
+        bne sbxlo
+sbxhi:  eor BLKBUF+256,y
+        eor BLKBUF+257,y
+        eor BLKBUF+258,y
+        eor BLKBUF+259,y
+        iny
+        iny
+        iny
+        iny
+        bne sbxhi
+        sta bxor
+        ldx #0
 sbhdr:  lda blkhdr,x
         jsr p_putb
         inx
@@ -459,27 +521,17 @@ sbhdr:  lda blkhdr,x
         bne sbhdr
         lda #0
         sta p_peor
-        sta p_crclo
-        sta p_crchi
         lda bblk
         jsr p_putpe
         lda bblk+1
         jsr p_putpe
         lda bblk+2
         jsr p_putpe
-        ldy #0
-sblo:   lda BLKBUF,y
-        jsr p_crcupd
-        lda BLKBUF,y
-        jsr p_putpe
-        iny
-        bne sblo
-sbhi:   lda BLKBUF+256,y
-        jsr p_crcupd
-        lda BLKBUF+256,y
-        jsr p_putpe
-        iny
-        bne sbhi
+        lda p_peor
+        eor bxor
+        sta p_peor
+        lda #>BLKBUF
+        jsr p_putblk
         lda p_crclo
         jsr p_putpe
         lda p_crchi
@@ -698,16 +750,34 @@ fwdone: sta fwres
         ldy fwy
         rts
 
-; zpsave and zprest: the zero page into ZPBUF and back.
+; zpsave and zprest: the zero page into ZPBUF and back, four bytes a round.
 zpsave: ldx #0
 zsloop: lda $00,x
         sta ZPBUF,x
+        lda $01,x
+        sta ZPBUF+1,x
+        lda $02,x
+        sta ZPBUF+2,x
+        lda $03,x
+        sta ZPBUF+3,x
+        inx
+        inx
+        inx
         inx
         bne zsloop
         rts
 zprest: ldx #0
 zrloop: lda ZPBUF,x
         sta $00,x
+        lda ZPBUF+1,x
+        sta $01,x
+        lda ZPBUF+2,x
+        sta $02,x
+        lda ZPBUF+3,x
+        sta $03,x
+        inx
+        inx
+        inx
         inx
         bne zrloop
         rts

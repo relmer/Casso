@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EhmTestHelper.h"
+#include "EmulatorLink.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
 #include "TestMachine.h"
@@ -225,6 +226,125 @@ public:
         Assert::AreEqual ((Byte) 0, status.error, TextEncoding::NarrowToWide (CassoLinkHost::DescribeBlockError (status.error, kFirst + status.done)).c_str());
         Assert::AreEqual (kCount, status.done);
         Assert::IsTrue   (std::equal (data.begin(), data.end(), disk.begin() + (ptrdiff_t) (kFirst * kBlock)) && data.size() == kCount * kBlock, L"The blocks are the disk's");
+    }
+
+
+
+    //  Where the Apple's cycles go while it reads blocks, by routine, for
+    //  work on the read's speed. It measures rather than checks, so it runs
+    //  only with CASSO_PROFILE_BLOCKS set. The profile is written to the
+    //  test's output and to CassoBlockProfile.txt in the temporary folder.
+    TEST_METHOD (BlockReads_AreProfiled)
+    {
+        static constexpr Byte      kRun   = 32;
+        static constexpr uint32_t  kRuns  = 4;
+        static constexpr size_t    kShown = 30;
+
+        std::vector<Byte>                              disk;
+        std::unique_ptr<Rig>                           rig;
+        CassoLinkBlockDevice                           device;
+        std::unordered_map<Word, uint64_t>             profile;
+        std::unordered_map<std::string, Word>          programSymbols;
+        std::unordered_map<std::string, Word>          moduleSymbols;
+        std::map<Word, std::string>                    names;
+        std::map<std::string, uint64_t>                byRoutine;
+        std::vector<std::pair<uint64_t, std::string>>  ranked;
+        uint64_t                                       total          = 0;
+        uint32_t                                       blocks         = kRun * kRuns;
+        std::string                                    report;
+
+
+
+        if (EmulatorLink::GetSetting ("CASSO_PROFILE_BLOCKS").empty())
+        {
+            Logger::WriteMessage ("NOT RUN: set CASSO_PROFILE_BLOCKS to profile block reads\n");
+            return;
+        }
+
+        disk   = MakeDisk();
+        rig    = std::make_unique<Rig> (disk);
+        device = rig->ListOne();
+
+        AssertSucceeded (LinkProgram::GetProgramSymbols (LinkChip::Acia, programSymbols));
+        AssertSucceeded (LinkProgram::GetBlockModuleSymbols (LinkChip::Acia, moduleSymbols));
+
+        for (const auto & [name, address] : programSymbols)
+        {
+            if (address >= LinkProgram::kProgramAddress && address < LinkProgram::kZeroPageSave)
+            {
+                names[address] = name;
+            }
+        }
+
+        for (const auto & [name, address] : moduleSymbols)
+        {
+            if (!name.starts_with ("p_") && address >= LinkProgram::kModuleAddress && address < LinkProgram::kModuleAddress + LinkProgram::kModuleLimit)
+            {
+                names[address] = "module " + name;
+            }
+        }
+
+        rig->stream->SetProfile (&profile);
+
+        for (uint32_t run = 0; run < kRuns; run++)
+        {
+            std::vector<Byte>  data;
+            CassoLinkStatus    status;
+
+            AssertSucceeded (rig->host->ReadBlocks (device, run * kRun, kRun, false, data, status));
+            Assert::AreEqual (kRun, status.done);
+        }
+
+        rig->stream->SetProfile (nullptr);
+
+        for (const auto & [pc, cycles] : profile)
+        {
+            std::string  routine;
+            bool         named = (pc >= LinkProgram::kProgramAddress && pc < LinkProgram::kZeroPageSave)
+                              || (pc >= LinkProgram::kModuleAddress && pc < LinkProgram::kModuleAddress + LinkProgram::kModuleLimit);
+            auto         at    = names.upper_bound (pc);
+
+            if (named && at != names.begin())
+            {
+                routine = std::prev (at)->second;
+            }
+            else if (pc >= LinkProgram::kShimAddress && pc < LinkProgram::kShimAddress + LinkProgram::kShimLimit)
+            {
+                routine = "shim";
+            }
+            else if (pc >= 0xC100 && pc < 0xD000)
+            {
+                routine = "slot firmware";
+            }
+            else if (pc >= 0xD000)
+            {
+                routine = "ROM";
+            }
+            else
+            {
+                routine = std::format ("page ${:02X}", pc >> 8);
+            }
+
+            byRoutine[routine] += cycles;
+            total              += cycles;
+        }
+
+        for (const auto & [routine, cycles] : byRoutine)
+        {
+            ranked.emplace_back (cycles, routine);
+        }
+
+        std::sort (ranked.rbegin(), ranked.rend());
+
+        report = std::format ("{} blocks, {} cycles, {} cycles a block\n", blocks, total, total / blocks);
+
+        for (size_t i = 0; i < ranked.size() && i < kShown; i++)
+        {
+            report += std::format ("{:>9} a block  {:5.1f}%  {}\n", ranked[i].first / blocks, 100.0 * (double) ranked[i].first / (double) total, ranked[i].second);
+        }
+
+        Logger::WriteMessage (report.c_str());
+        std::ofstream (std::filesystem::temp_directory_path() / "CassoBlockProfile.txt") << report;
     }
 
 

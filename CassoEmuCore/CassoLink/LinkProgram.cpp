@@ -1169,7 +1169,8 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::AssembleModule (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults)
+HRESULT LinkProgram::AssembleModule (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults,
+                                     std::unordered_map<std::string, Word> * outSymbols)
 {
     HRESULT                                 hr      = S_OK;
     std::vector<Byte>                       program;
@@ -1205,7 +1206,7 @@ HRESULT LinkProgram::AssembleModule (const std::string & source, std::vector<Byt
         imports += std::format ("p_{} = ${:04X}\n", name, symbols[name]);
     }
 
-    hr = Assemble (imports + source, kModuleAddress, chip, outBytes, outErrors, faults);
+    hr = Assemble (imports + source, kModuleAddress, chip, outBytes, outErrors, faults, outSymbols);
     CHR (hr);
 
     fits  = outBytes.size() > kModuleCrcStart && outBytes.size() <= kModuleLimit;
@@ -1221,4 +1222,49 @@ HRESULT LinkProgram::AssembleModule (const std::string & source, std::vector<Byt
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetProgramSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::GetProgramSymbols (LinkChip chip, std::unordered_map<std::string, Word> & outSymbols)
+{
+    std::vector<Byte>  bytes;
+    std::string        errors;
+
+
+
+    outSymbols.clear();
+    return Assemble (GetProgramSource(), kProgramAddress, chip, bytes, errors, false, &outSymbols);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetBlockModuleSymbols
+//
+//  The module's source has each program symbol with p_ ahead of it, so the
+//  symbols include those too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::GetBlockModuleSymbols (LinkChip chip, std::unordered_map<std::string, Word> & outSymbols)
+{
+    std::vector<Byte>  bytes;
+    std::string        errors;
+
+
+
+    outSymbols.clear();
+    return AssembleModule (GetBlockModuleSource(), bytes, errors, chip, false, &outSymbols);
 }

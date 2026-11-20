@@ -103,7 +103,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 105;
+    static constexpr Word    kProgramVersion    = 106;
     static constexpr Byte    kShimVersion       = 12;
     static constexpr Word    kShimAddress       = 0x3A00;
 
@@ -200,7 +200,13 @@ public:
     //  the program's routines and uses its zero page by name. It must start
     //  at kModuleAddress with the header in Program.s's notes, whose CRC is
     //  filled in here, and end below kModuleAddress + kModuleLimit.
-    static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false,
+                                          std::unordered_map<std::string, Word> * outSymbols = nullptr);
+
+    //  The program's and the block module's symbols, built for `chip`, for a
+    //  profile of where the Apple's cycles go.
+    static HRESULT      GetProgramSymbols     (LinkChip chip, std::unordered_map<std::string, Word> & outSymbols);
+    static HRESULT      GetBlockModuleSymbols (LinkChip chip, std::unordered_map<std::string, Word> & outSymbols);
 
     //  The capture, block and 13-sector modules, for the program built for
     //  `chip`.
