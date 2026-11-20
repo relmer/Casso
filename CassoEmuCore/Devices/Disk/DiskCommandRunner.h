@@ -9,6 +9,7 @@
 #include "DiskCommandResult.h"
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
+#include "DiskSectorCommands.h"
 #include "Devices/Disk/BlockImage.h"
 #include "IDiskCommandContext.h"
 #include "IDiskFileIo.h"
@@ -157,27 +158,7 @@ public:
                            size_t                     nibbleTrackSize,
                            DiskCommandResult        & result);
 
-    //
-    //  Lays a file from the host into an image at a track and a DOS logical sector,
-    //  with no filesystem involved.
-    //
-    //  FOR THE DISKS THAT HAVE NO FILESYSTEM TO PUT A FILE INTO. A demo that
-    //  boots its own loader and reads fixed tracks is a real and common
-    //  layout, and `put` cannot express it: there is no catalog to make an
-    //  entry in and no allocator to ask for space. This writes exactly the
-    //  bytes given, exactly where it is told.
-    //
-    void  RunSectorRead  (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunSectorWrite (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunBlockRead   (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunBlockWrite  (const CommandLineOptions & options, DiskCommandResult & result);
 
-    //  The record a sector command's Nth position addresses, as a byte
-    //  offset into the DOS-ordered buffer. Positions advance linearly --
-    //  sector, then track -- and each maps through the stated numbering
-    //  independently.
-    static size_t  GetSectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
-                                          size_t                                     running);
 
     static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
 
@@ -531,6 +512,8 @@ private:
 
     //  The thumbnail cache, or empty for the one under local application data.
     std::filesystem::path  m_thumbnailFolder;
+
+    DiskSectorCommands  m_sectorCommands { *this };
 
     //  The command being run and the prefix it was typed with, recorded at the
     //  top of Run so a refusal deep inside can answer in the reader's own
