@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
 #include "Ui/DiskInspector/Blocks/BlockJobQueue.h"
@@ -52,16 +52,10 @@ class BlockInspectorPanel : public DxuiPanel, public IBlockView, public IBlockNa
 {
 public:
     static constexpr float  kPadDip       = 8.0f;
-    static constexpr float  kRowDip       = 28.0f;
-    static constexpr float  kLineDip      = 20.0f;
-    static constexpr float  kTitleDip     = 16.0f;
-    static constexpr float  kFontDip      = 12.0f;
     static constexpr float  kSplitterDip  = 6.0f;
     static constexpr float  kSearchDip    = 220.0f;
     static constexpr int    kMinHexBytes  = 8;       // the fewest bytes in a hex row when the fields are fitted
     static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
-    static constexpr float  kBarDip       = 240.0f;
-    static constexpr float  kButtonDip    = 110.0f;
     static constexpr int    kBytesPerRow  = 16;
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
@@ -111,7 +105,7 @@ public:
     void       SetEditing   (bool isEditing) override;
     bool       IsEditing    () const override { return m_isEditing; }
     void       SetEditState (const EditBarState & state) override;
-    EditBar  & GetEditBar   () const override { return *m_editBar; }
+    EditBar  & GetEditBar   () const override { return m_header.GetEditBar(); }
     void       Step         (int64_t delta) override;
     void       GoBack       () override;
     void       GoForward    () override;
@@ -159,8 +153,6 @@ private:
     void  FitHexRows (int widthPx);
     void  FitFields  ();
 
-    static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
-
     void  InitCorners       ();
     void  InitRightColumn   (const IDxuiTheme * theme, HWND hwnd);
     bool  IsBlockLevel      () const;
@@ -173,8 +165,6 @@ private:
     void  Present           ();
     void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
     void  LayoutMiddle      (const RECT & column, const DxuiDpiScaler & scaler);
-    void  PaintHeader       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintProgress     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  ApplyHighlight    ();
 
     BlockInspectorModel   * m_model           = nullptr;
@@ -189,25 +179,18 @@ private:
     DxuiIconButton        * m_zoomOut         = nullptr;
     DxuiIconButton        * m_zoomIn          = nullptr;
     BlockNavigator          m_nav;
-    DxuiButton            * m_copy            = nullptr;
-    DxuiIconButton        * m_previous        = nullptr;
-    DxuiIconButton        * m_next            = nullptr;
-    EditBar               * m_editBar         = nullptr;
-    DxuiButton            * m_cancel          = nullptr;
     BlockHexView          * m_hex             = nullptr;
     BlockFieldsView       * m_fields          = nullptr;
     BlockHexSource          m_source;
     BlockPanelSplitters     m_splitters;
     BlockJobQueue           m_jobs;
+    BlockHeaderView         m_header;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
     ActionFn                m_onQueued;
 
     ActionFn                m_onCopy;
     HintFn                  m_onHint;
-    std::wstring            m_title;
-    vector<BlockCapsule>    m_capsules;
-    std::wstring            m_fieldLine;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;
     DxuiInPlaceTip          m_fieldTip;
@@ -219,7 +202,4 @@ private:
     int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for
     int64_t                 m_shownBlock      = -1;
     int                     m_hexContentPx    = 0;   // the hex view's width for all its columns when the column was laid out
-    RECT                    m_titleRect       = {};
-    RECT                    m_fieldRect       = {};
-    RECT                    m_rowRect         = {};
 };

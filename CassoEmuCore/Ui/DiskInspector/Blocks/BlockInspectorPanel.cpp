@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
 #include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
@@ -26,8 +27,6 @@ static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kInsetDip       = 4;
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
 static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
-static constexpr LPCWSTR  s_kpszGlyphPrev   = L"\xE76B";
-static constexpr LPCWSTR  s_kpszGlyphNext   = L"\xE76C";
 static constexpr uint32_t s_kChangedColor   = 0xFFE0A030;
 static constexpr uint32_t s_kDiffersColor   = 0xFFF06060;
 static constexpr uint32_t s_kFieldColor     = 0xFF60B0F0;
@@ -151,13 +150,10 @@ void BlockInspectorPanel::InitCorners()
 
 void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 {
-    m_previous = CreateChild<DxuiIconButton>();
-    m_next     = CreateChild<DxuiIconButton>();
-    m_copy     = CreateChild<DxuiButton> (L"Copy block");
-    m_editBar  = CreateChild<EditBar>();
-    m_cancel   = CreateChild<DxuiButton> (L"Cancel");
-    m_hex      = CreateChild<BlockHexView>();
-    m_fields   = CreateChild<BlockFieldsView>();
+    m_header.Create (*this, [this] (int64_t delta) { Step (delta); }, [this] () { if (m_onCopy) { m_onCopy(); } }, [this] () { m_jobs.CancelJobs(); });
+
+    m_hex    = CreateChild<BlockHexView>();
+    m_fields = CreateChild<BlockFieldsView>();
 
     m_nav.Create         (*this, m_model, theme, hwnd, m_text);
     m_nav.SetOnPlace     ([this] () { OnLevelChanged(); });
@@ -191,19 +187,6 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
             m_onChanged();
         }
     });
-
-    m_previous->SetGlyph          (s_kpszGlyphPrev);
-    m_previous->SetAccessibleName (L"Previous block");
-    m_previous->SetOnClick        ([this] () { Step (-1); });
-    m_next->SetGlyph              (s_kpszGlyphNext);
-    m_next->SetAccessibleName     (L"Next block");
-    m_next->SetOnClick            ([this] () { Step (1); });
-
-    m_copy->SetOnClick   ([this] () { if (m_onCopy) { m_onCopy(); } });
-    m_cancel->SetOnClick ([this] () { m_jobs.CancelJobs(); });
-    m_editBar->SetUnit   (L"block", L"blocks");
-
-    m_cancel->SetVisible (false);
 
     m_hex->SetBytesPerRow  (kBytesPerRow);
     m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
@@ -395,14 +378,7 @@ void BlockInspectorPanel::SetEditing (bool isEditing)
 
 void BlockInspectorPanel::SetEditState (const EditBarState & state)
 {
-    int  width  = m_rowRect.right - m_rowRect.left;
-    int  before = width > 0 ? m_editBar->GetHeightPx (width, m_scaler) : 0;
-
-
-
-    m_editBar->SetState (state);
-
-    if (width > 0 && m_scaler.GetDpi() != 0 && !m_jobs.IsLongJob() && m_editBar->GetHeightPx (width, m_scaler) != before)
+    if (m_header.SetEditState (state, m_scaler) && !m_jobs.IsLongJob())
     {
         Layout (GetBounds(), m_scaler);
     }
@@ -768,10 +744,9 @@ void BlockInspectorPanel::UpdateBusy()
     isLong = m_jobs.IsLongJob();
 
     m_map->SetFrozen     (IsBusy());
-    m_cancel->SetVisible (isLong && m_jobs.CanCancel());
+    m_header.SetBusy     (isLong, m_jobs.CanCancel());
 
-    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_copy, (IDxuiControl *) m_editBar,
-                                    (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
+    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
         control->SetEnabled (!isLong);
     }
@@ -852,10 +827,8 @@ void BlockInspectorPanel::Present()
 
     ApplyHighlight();
     ShowBytes();
-    m_fieldLine = BlockHeaderText::BuildFieldLine (*m_model, m_model->GetBlock());
-
-    m_previous->SetEnabled (m_model->GetBlock() > 0);
-    m_next->SetEnabled     (m_model->GetBlock() + 1 < m_model->GetBlockCount());
+    m_header.SetFieldLine (BlockHeaderText::BuildFieldLine (*m_model, m_model->GetBlock()));
+    m_header.SetSteps     (m_model->GetBlock() > 0, m_model->GetBlock() + 1 < m_model->GetBlockCount());
     m_filesChip->SetOn   (m_isFilesOn);
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
@@ -898,8 +871,7 @@ void BlockInspectorPanel::ShowBytes()
 
 
 
-    m_title = L"Block " + NumberFormat::FormatInteger (block);
-    m_capsules = BlockHeaderText::BuildCapsules (*m_model, block);
+    m_header.ShowBlock (block, BlockHeaderText::BuildCapsules (*m_model, block));
 
     hr = m_model->ReadBlock (block, bytes);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1062,7 +1034,7 @@ std::wstring BlockInspectorPanel::GetSelectionLine() const
 void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     int   pad      = scaler.ToPx ((int) kPadDip);
-    int   row      = scaler.ToPx ((int) kRowDip);
+    int   row      = scaler.ToPx ((int) BlockHeaderView::kRowDip);
     int   toolbar  = std::max (m_tools != nullptr ? scaler.ToPx (m_tools->GetBandDp()) : 0, row + pad);
     int   splitter = scaler.ToPx ((int) kSplitterDip);
     int   search   = scaler.ToPx ((int) kSearchDip);
@@ -1174,16 +1146,11 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 
 void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.ToPx ((int) kPadDip);
-    int   row      = scaler.ToPx ((int) kRowDip);
-    int   line     = scaler.ToPx ((int) kLineDip);
-    int   button   = scaler.ToPx ((int) kButtonDip);
-    int   splitter = scaler.ToPx ((int) kSplitterDip);
-    int   listEnd  = m_splitters.PlaceListEnd (column);
-    int   y        = 0;
-    int   hexEnd   = 0;
-    int   barH     = m_jobs.IsLongJob() ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
-    bool  isRow    = barH > 0;
+    int  pad      = scaler.ToPx ((int) kPadDip);
+    int  splitter = scaler.ToPx ((int) kSplitterDip);
+    int  listEnd  = m_splitters.PlaceListEnd (column);
+    int  y        = 0;
+    int  hexEnd   = 0;
 
 
 
@@ -1193,30 +1160,11 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_nav.GetList().Layout ({ column.left, column.top, column.right, listEnd }, scaler);
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::List, { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter });
-    y = listEnd + pad / 2 + splitter + pad / 2;
 
-    for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy, (IDxuiControl *) m_hex, (IDxuiControl *) m_fields })
-    {
-        control->SetVisible (true);
-    }
+    m_hex->SetVisible    (true);
+    m_fields->SetVisible (true);
 
-    m_editBar->SetVisible (!m_jobs.IsLongJob() && barH > 0);
-
-    m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
-    m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
-    m_titleRect = { column.left + 2 * row + pad, y, column.right - button - pad, y + row };
-    m_copy->Layout ({ column.right - button, y, column.right, y + row }, scaler);
-    y += row + pad;
-
-    m_fieldRect = { column.left, y, column.right, y + line };
-    y += line + pad;
-
-    m_rowRect = { column.left, y, column.right, y + barH };
-
-    m_editBar->Layout ({ column.left, y, column.right, y + barH }, scaler);
-    m_cancel->Layout  ({ column.right - button, y, column.right, y + row }, scaler);
-    y = m_rowRect.bottom + (isRow ? pad : 0);
-
+    y      = m_header.Layout (column, listEnd + pad / 2 + splitter + pad / 2, m_jobs.IsLongJob(), scaler);
     hexEnd = m_splitters.PlaceHexEnd (column);
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::Hex, { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) });
@@ -1408,7 +1356,7 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     m_splitters.Paint (painter, theme);
 
     DxuiPanel::Paint (painter, text, theme);
-    PaintHeader (painter, text, theme);
+    m_header.Paint (painter, text, theme, m_scaler, m_jobs, m_model != nullptr && m_model->IsOpen());
 
     //  The hex view measures its text as it paints, so its rows are fitted
     //  again once their width is known.
@@ -1421,130 +1369,6 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             m_onChanged();
         }
     }
-
-    if (m_jobs.IsLongJob())
-    {
-        PaintProgress (painter, text, theme);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::PaintHeader
-//
-//  "Block 2" and its capsules after it, in the status band's chip style:
-//  Free or Used, the role, and the files. Capsules that don't fit are left
-//  out. Then the field line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    constexpr float     kChipPadDip    = 8.0f;
-    constexpr float     kChipHeightDip = 20.0f;
-    constexpr uint32_t  kBadColor      = 0xFFE03C3C;
-
-
-
-    float    font   = m_scaler.ToPxf (kFontDip);
-    float    title  = m_scaler.ToPxf (kTitleDip);
-    float    chipH  = m_scaler.ToPxf (kChipHeightDip);
-    float    chipP  = m_scaler.ToPxf (kChipPadDip);
-    float    gap    = m_scaler.ToPxf (kPadDip);
-    float    top    = (float) m_titleRect.top;
-    float    height = (float) (m_titleRect.bottom - m_titleRect.top);
-    float    chipY  = top + (height - chipH) / 2.0f;
-    float    x      = (float) m_titleRect.left;
-    float    w      = 0.0f;
-    float    h      = 0.0f;
-    HRESULT  hr     = S_OK;
-
-
-
-    if (m_model == nullptr || !m_model->IsOpen() || m_title.empty())
-    {
-        return;
-    }
-
-    hr = text.MeasureStringWeighted (m_title.c_str(), title, DxuiTheme::kBodyFace, DxuiFontWeight::SemiBold, w, h);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawString (m_title.c_str(), x, top, w + 1.0f, height, theme.Foreground(), title, DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    x += w + gap;
-
-    for (const BlockCapsule & capsule : m_capsules)
-    {
-        text.MeasureString (capsule.text.c_str(), font, DxuiTheme::kBodyFace, w, h);
-        w += 2 * chipP;
-
-        if (x + w > m_titleRect.right)
-        {
-            break;
-        }
-
-        painter.FillRoundedRect    (x, chipY, w, chipH, chipH / 2, theme.ButtonIdle());
-        painter.OutlineRoundedRect (x, chipY, w, chipH, chipH / 2, m_scaler.ToPxf (1.0f), capsule.isBad ? kBadColor : theme.ButtonBorder());
-
-        hr = text.DrawString (capsule.text.c_str(), x, chipY, w, chipH, capsule.isBad ? kBadColor : theme.Foreground(), font, DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        x += w + gap / 2;
-    }
-
-    hr = text.DrawString (m_fieldLine.c_str(), (float) m_fieldRect.left, (float) m_fieldRect.top, (float) (m_fieldRect.right - m_fieldRect.left),
-                          (float) (m_fieldRect.bottom - m_fieldRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::PaintProgress
-//
-//  A long job's bar and label in the row above the hex view. A job with no
-//  count yet has an empty bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    constexpr float  kBarHighDip = 8.0f;
-
-
-
-    float         left   = (float) m_rowRect.left;
-    float         top    = (float) m_rowRect.top;
-    float         height = (float) (m_rowRect.bottom - m_rowRect.top);
-    float         barW   = m_scaler.ToPxf (kBarDip);
-    float         barH   = m_scaler.ToPxf (kBarHighDip);
-    float         barTop = top + (height - barH) / 2.0f;
-    double        share  = m_jobs.GetShare();
-    std::wstring  label  = m_jobs.BuildProgressLabel();
-    float         textX  = left + barW + m_scaler.ToPxf (kPadDip);
-    float         textW  = (float) m_rowRect.right - textX - m_scaler.ToPxf (kButtonDip + kPadDip);
-    HRESULT       hr     = S_OK;
-
-
-
-    painter.FillRoundedRect    (left, barTop, barW, barH, barH / 2, theme.ButtonIdle());
-    painter.FillRoundedRect    (left, barTop, (float) (barW * share), barH, barH / 2, theme.Accent());
-    painter.OutlineRoundedRect (left, barTop, barW, barH, barH / 2, 1.0f, theme.ButtonBorder());
-
-    hr = text.DrawString (label.c_str(), textX, top, std::max (0.0f, textW), height, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -1563,7 +1387,7 @@ void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRender
 
 bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    RECT  cancel  = m_cancel->GetBounds();
+    RECT  cancel  = m_header.GetCancel().GetBounds();
     RECT  map     = m_map->GetBounds();
     RECT  bounds  = GetBounds();
     bool  isMoved = false;
@@ -1572,7 +1396,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
     if (IsBusy())
     {
-        return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
+        return m_header.GetCancel().IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
     }
 
     UpdateFieldTip (ev);
