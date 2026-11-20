@@ -76,7 +76,7 @@ std::array<std::pair<const char *, CassoExplorerPrefs::NavOption>, 5> CassoExplo
 bool CassoExplorerPrefs::IsKnownTheme (const std::string & theme)
 {
     return theme == kThemeLight || theme == kThemeDark || theme == kThemeFollowSystem
-        || theme == kThemeSkeuomorphic || theme == kThemeDarkModern || theme == kThemeRetroTerminal;
+        || theme == kThemeSkeuomorphic || theme == kThemeDarkModern || theme == kThemeRetroTerminal || theme == kThemePhosphor;
 }
 
 
@@ -121,7 +121,7 @@ bool CassoExplorerPrefs::IsMonitorName (const std::string & name)
 
 std::string CassoExplorerPrefs::MapCassoTheme (const std::string & activeTheme)
 {
-    if (activeTheme == kThemeSkeuomorphic || activeTheme == kThemeDarkModern || activeTheme == kThemeRetroTerminal)
+    if (activeTheme == kThemeSkeuomorphic || activeTheme == kThemeDarkModern || activeTheme == kThemeRetroTerminal || activeTheme == kThemePhosphor)
     {
         return activeTheme;
     }

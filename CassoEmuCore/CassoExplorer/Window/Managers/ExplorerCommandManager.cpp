@@ -547,6 +547,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kThemeSkeuomorphic: return m_context.prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
         case CassoExplorerCommands::kThemeDarkModern:   return m_context.prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
         case CassoExplorerCommands::kThemeRetroTerminal: return m_context.prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
+        case CassoExplorerCommands::kThemePhosphor:     return m_context.prefs.theme == CassoExplorerPrefs::kThemePhosphor;
         case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreview().charset == Charset::AppleText;
@@ -809,6 +810,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kThemeSkeuomorphic:  m_context.themes.Select (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
         case CassoExplorerCommands::kThemeDarkModern:    m_context.themes.Select (CassoExplorerPrefs::kThemeDarkModern);    break;
         case CassoExplorerCommands::kThemeRetroTerminal: m_context.themes.Select (CassoExplorerPrefs::kThemeRetroTerminal); break;
+        case CassoExplorerCommands::kThemePhosphor:      m_context.themes.Select (CassoExplorerPrefs::kThemePhosphor);      break;
         case CassoExplorerCommands::kPictureMonochrome:  m_context.preview.GetPicture().ShowForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       m_context.preview.GetPicture().ShowForm (true);                                break;
         case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;

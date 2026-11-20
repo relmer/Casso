@@ -326,6 +326,7 @@ public:
 
         Assert::AreEqual (std::string (CassoExplorerPrefs::kThemeSkeuomorphic),  CassoExplorerPrefs::MapCassoTheme ("Skeuomorphic"));
         Assert::AreEqual (std::string (CassoExplorerPrefs::kThemeRetroTerminal), CassoExplorerPrefs::MapCassoTheme ("RetroTerminal"));
+        Assert::AreEqual (std::string (CassoExplorerPrefs::kThemePhosphor),      CassoExplorerPrefs::MapCassoTheme ("Phosphor"));
         Assert::AreEqual (std::string (CassoExplorerPrefs::kThemeFollowSystem),  CassoExplorerPrefs::MapCassoTheme ("SomethingElse"));
         Assert::AreEqual (std::string (CassoExplorerPrefs::kThemeFollowSystem),  CassoExplorerPrefs::MapCassoTheme (""));
 

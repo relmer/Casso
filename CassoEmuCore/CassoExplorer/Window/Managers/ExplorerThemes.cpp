@@ -19,6 +19,7 @@ static constexpr const char *  s_kpszThemeRows[] =
 {
     CassoExplorerPrefs::kThemeSkeuomorphic,
     CassoExplorerPrefs::kThemeRetroTerminal,
+    CassoExplorerPrefs::kThemePhosphor,
     CassoExplorerPrefs::kThemeDarkModern,
     CassoExplorerPrefs::kThemeDark,
     CassoExplorerPrefs::kThemeLight,
@@ -251,5 +252,6 @@ bool ExplorerThemes::IsCassoThemeName (const std::string & name)
 {
     return name == CassoExplorerPrefs::kThemeSkeuomorphic
         || name == CassoExplorerPrefs::kThemeDarkModern
-        || name == CassoExplorerPrefs::kThemeRetroTerminal;
+        || name == CassoExplorerPrefs::kThemeRetroTerminal
+        || name == CassoExplorerPrefs::kThemePhosphor;
 }
