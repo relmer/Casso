@@ -55,11 +55,18 @@ public:
     //  loader goes in block 1 when block 0 has the Apple II loader, and in
     //  block 0 otherwise. Fails, changing nothing, when the user's disk
     //  doesn't start an Apple ///.
-    static HRESULT  InstallSos (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::string & outError);
+    static HRESULT  InstallSos       (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::string & outError);
+
+    //  As InstallSos, with SOS.KERNEL and SOS.DRIVER alone, for a disk whose
+    //  SOS.INTERP is written by its caller.
+    static HRESULT  InstallSosKernel (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::string & outError);
 
     static void  ReadBlock (const vector<Byte> & sectors, int block, std::array<Byte, kBlockBytes> & outBlock);
 
 private:
-    static void  WriteBlock (vector<Byte> & ioSectors, int block, const std::array<Byte, kBlockBytes> & bytes);
-    static bool  HasFile    (const vector<FileEntry> & root, const char * name);
+    static constexpr const char *  kpszSosKernelFiles[] = { "SOS.KERNEL", "SOS.DRIVER" };
+
+    static HRESULT  InstallSosFiles (vector<Byte> & ioSectors, const vector<Byte> & sosDisk, std::span<const char * const> files, std::string & outError);
+    static void     WriteBlock      (vector<Byte> & ioSectors, int block, const std::array<Byte, kBlockBytes> & bytes);
+    static bool     HasFile         (const vector<FileEntry> & root, const char * name);
 };

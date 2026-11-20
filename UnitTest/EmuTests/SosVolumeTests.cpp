@@ -3,6 +3,8 @@
 #include "FakeDiskFileIo.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoLink/CassoLinkSosDisk.h"
+#include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/FilePath.h"
@@ -24,7 +26,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  SOS volumes, which are ProDOS volumes as SOS writes them: a directory
 //  whose header has fewer than 13 entries a block is read and written within
 //  that count, which computers a volume starts, SOS installed from a user's
-//  SOS disk, and `disk create` for SOS and for both systems. The SOS disk is
+//  SOS disk, `disk create` for SOS and for both systems, and the CassoLink
+//  SOS disk. The SOS disk is
 //  synthetic: a loader block with the SOS loader's opening bytes, and the
 //  files SOS.KERNEL, SOS.DRIVER and SOS.INTERP.
 //
@@ -274,6 +277,52 @@ public:
 
         Assert::IsTrue (target == before);
         Assert::IsFalse (error.empty());
+    }
+
+
+    //  The CassoLink SOS disk starts an Apple ///, with the user's
+    //  SOS.KERNEL and SOS.DRIVER and the link's SOS.INTERP for its speed.
+    TEST_METHOD (CassoLinkSosDisk_HasTheUsersKernelAndTheLinksInterpreter)
+    {
+        vector<Byte>  image;
+        vector<Byte>  interpreter;
+        FilePayload   kernel;
+        FilePayload   copied;
+        FilePayload   interp;
+        std::string   error;
+        std::string   errors;
+        Byte          control = 0;
+
+
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (9600, control));
+        AssertSucceeded (LinkProgram::BuildSosInterpreter (control, interpreter, errors));
+        AssertSucceeded (CassoLinkSosDisk::Make (MakeSosDisk(), "sos.dsk", 9600, image, error));
+
+        AssertSucceeded (ProDosVolume (MakeSosDisk()).Read (FilePath::Parse ("SOS.KERNEL"), kernel));
+        AssertSucceeded (ProDosVolume (image).Read (FilePath::Parse ("SOS.KERNEL"), copied));
+        AssertSucceeded (ProDosVolume (image).Read (FilePath::Parse ("SOS.INTERP"), interp));
+
+        Assert::IsTrue (GetStartup (image).appleIII);
+        Assert::IsTrue (copied.bytes == kernel.bytes);
+        Assert::IsTrue (interp.bytes == interpreter, L"the link's interpreter, not the user's");
+        Assert::AreEqual<int> (CassoLinkSosDisk::kSosSystemType, interp.type);
+    }
+
+
+    TEST_METHOD (CassoLinkSosDisk_FailsWithoutAnSosDiskOrForTheExternalClock)
+    {
+        vector<Byte>  image;
+        std::string   error;
+
+
+
+        AssertFailed (CassoLinkSosDisk::Make (MakeVolume (13), "blank.dsk", 9600, image, error));
+        Assert::IsFalse (error.empty());
+        Assert::IsTrue (image.empty());
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), CassoLinkSosDisk::Make (MakeSosDisk(), "sos.dsk", 115200, image, error));
+        Assert::IsTrue (image.empty());
     }
 
 

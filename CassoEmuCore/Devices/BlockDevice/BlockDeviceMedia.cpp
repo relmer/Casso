@@ -241,7 +241,8 @@ HRESULT BlockDeviceMedia::DecodeWoz (const std::vector<Byte> & bytes, std::vecto
 
     if (!about.isWoz || about.diskType != WozLoader::kDiskType35)
     {
-        outError = L"The WOZ image isn't a 3.5-inch disk.";
+        outError = (about.isWoz && about.diskType == WozLoader::kDiskType525) ? L"Cannot mount a 5.25-inch image in a 3.5-inch drive."
+                                                                               : L"The WOZ image isn't a 3.5-inch disk.";
         CBREx (false, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT));
     }
 

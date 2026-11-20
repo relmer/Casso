@@ -15,8 +15,7 @@
 //  A ///SHH Systeme MicroDrive: a partition map in block 0, in two chunks of
 //  up to eight partitions each.
 //
-//  The map's fields are from CiderPress II's MicroDrive notes, under its
-//  Apache license.
+//  The map's fields are from CiderPress II's MicroDrive notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

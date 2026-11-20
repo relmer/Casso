@@ -154,8 +154,8 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
 
     if (entries != GetWord (&directory[s_kFileCount]))
     {
-        writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"Expected a directory file count of {1}, but found {0}",
-                                                                                                   GetWord (&directory[s_kFileCount]), entries));
+        writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"The directory's file count is {}, but it has {} file{}",
+                                                                                                   GetWord (&directory[s_kFileCount]), entries, entries == 1 ? L"" : L"s"));
         writer.AddCount ({ kFirstDirectoryBlock, s_kFileCount, GetWord (&directory[s_kFileCount]), entries, L"the directory's file count" });
     }
 

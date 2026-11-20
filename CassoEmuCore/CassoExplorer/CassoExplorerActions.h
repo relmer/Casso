@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CassoExplorer/Model/CopyOptionRows.h"
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsA2retroNet.h"
@@ -44,6 +45,7 @@ public:
     CassoExplorerActions (CassoExplorerBrowser & browser, IFileSystem & fs);
 
     void  SetOnImageWritten (WrittenFn fn) { m_onWritten = std::move (fn); }
+    void  SetTapeTiming     (const TapeRecordingTiming & timing) { m_tapes.SetTiming (timing); }
 
     //  The verbs the list's context menu offers for the current selection.
     std::vector<Verb>  GetListVerbs() const;
@@ -87,6 +89,11 @@ public:
     //  an image file beside the card image, and an image file written over it
     //  after the question DescribeReplace returns.
     bool     TryGetPartition          (std::wstring & outPartitionPath) const                                                          { return m_partitions.TryGetTarget (outPartitionPath); }
+
+    //  The selected image in a gzip file or a ZIP that the disk inspector's
+    //  block mode opens: a .gz in a folder, the image in a .gz whose contents
+    //  are listed, or an image in a ZIP.
+    bool     TryGetWrappedImage       (std::wstring & outPath) const;
     Outcome  CopyPartitionToImage     (const std::wstring & partitionPath, std::wstring & outPath, const std::wstring & target = {})   { return m_partitions.CopyToImage (partitionPath, outPath, target); }
     Outcome  ReplacePartition         (const std::wstring & partitionPath, const std::wstring & imagePath)                             { return m_partitions.Replace (partitionPath, imagePath); }
     Outcome  DescribePartitionReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion) { return m_partitions.DescribeReplace (partitionPath, imagePath, outQuestion); }
@@ -165,8 +172,11 @@ public:
     //  new name only when there is one entry.
     Outcome  ApplyProperties (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits);
 
-    //  The selected file converted, as BasicConversion converts it, into a
-    //  new file beside it; outNewName is the new file's name.
+    //  Each selected file converted, as BasicConversion converts it, into a
+    //  new file beside it. A file with no conversion is passed over. Those
+    //  passed over and those that fail are listed in the outcome's warning
+    //  when any file was converted, and in its message when none was.
+    //  outNewName is the new file's name when one file was converted.
     Outcome  ConvertSelected (std::string & outNewName);
 
     //  The access an entry has locked or unlocked: ProDOS's destroy, rename
@@ -263,6 +273,7 @@ public:
     //  PC before its first Ready.
     Outcome  SaveLinkDiskImage  (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
     Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
+    Outcome  SaveLinkSosDisk    (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkSosDisk (usersDisk, imagePath, settings); }
 
     //  The cassette bootstrap for a link as a WAV file on the PC, to send into
     //  a ][+ or //e's cassette input from another device, or to insert in
@@ -286,6 +297,9 @@ public:
     bool  CanChooseDriveFilesystem (const std::string & link, int drive) const { return m_appleDrive.CanChooseDriveFilesystem (link, drive); }
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
+
+    //  The rows Copy to folder with options has for the selected files.
+    void  FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows);
 
     static PutPlan       PlanPut         (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
     void                 GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome) { m_appleDrive.GetAppleSingle (image, entry, hostPath, inOutOutcome); }
@@ -342,6 +356,7 @@ private:
     static constexpr size_t  kMaxImageFacts = 256;
 
     std::vector<std::string>  GetEntryNames (const std::string & image, const std::string & directory) const;
+    Outcome                   ConvertOne    (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName);
     ImageFacts              & GetImageFacts (const std::wstring & image) const;
 
     void  FinishWrite (const std::wstring & imagePath);

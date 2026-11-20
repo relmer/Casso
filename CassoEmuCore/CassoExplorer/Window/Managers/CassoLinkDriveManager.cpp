@@ -770,3 +770,68 @@ void CassoLinkDriveManager::SaveLinkProDosDisk (const std::string & name)
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::SaveLinkSosDisk
+//
+//  The user's SOS disk is picked first, then where the new disk goes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDriveManager::SaveLinkSosDisk (const std::string & name)
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          users;
+    std::filesystem::path          picked;
+    bool                           chosen = false;
+    FileDialogSpec                 spec;
+    CassoLinkSettings              link;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    for (const CassoLinkSettings & settings : m_context.app.links->GetLinks())
+    {
+        if (settings.name == name)
+        {
+            link = settings;
+        }
+    }
+
+    spec.filters    = { FileDialogFilter { L"140K disk images (*.dsk, *.do, *.po)", L"*.dsk;*.do;*.po" },
+                        FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    spec.clientGuid = s_kLinkDiskPickerGuid;
+    spec.title      = L"Choose your SOS disk, with SOS.KERNEL and SOS.DRIVER";
+    spec.content    = FileDialogContent::Images;
+
+    hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, users, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    spec                  = FileDialogSpec();
+    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk)", L"*.dsk" } };
+    spec.clientGuid       = s_kLinkDiskPickerGuid;
+    spec.defaultFileName  = L"CassoLink SOS.dsk";
+    spec.defaultExtension = L"dsk";
+    spec.title            = L"Save CassoLink SOS disk";
+    spec.content          = FileDialogContent::Images;
+
+    hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, picked, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    outcome = m_context.actions.SaveLinkSosDisk (users.wstring(), picked.wstring(), link);
+
+    if (!outcome.Succeeded())
+    {
+        m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}

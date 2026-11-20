@@ -784,12 +784,17 @@ void ExplorerOpen::InspectSelected()
 {
     std::vector<std::wstring>  paths;
     std::wstring               partition;
+    std::wstring               wrapped;
 
 
 
     if (m_context.browser.IsPartitionListLocation() && m_context.actions.TryGetPartition (partition))
     {
         paths.push_back (partition);
+    }
+    else if (m_context.actions.TryGetWrappedImage (wrapped))
+    {
+        paths.push_back (wrapped);
     }
     else if (m_context.browser.IsImageLocation())
     {

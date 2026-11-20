@@ -47,7 +47,8 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
     outSource.catalogPath = context.browser.GetEntryPath (entries[0]);
     outSource.entry       = entries[0];
     outSource.kind        = context.browser.GetVolumeKind();
-    outSource.format      = CopyOutConversion::Find (context.browser.GetOperations(), outSource.image, outSource.catalogPath, outSource.entry, outSource.kind);
+    outSource.format      = CopyOutConversion::Find (context.browser.GetOperations(), outSource.image, outSource.catalogPath, outSource.entry, outSource.kind,
+                                                     context.browser.GetDecodeOptions (context.browser.GetLocation().path, outSource.catalogPath));
 
     return true;
 }

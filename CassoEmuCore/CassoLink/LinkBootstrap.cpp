@@ -111,11 +111,11 @@ HRESULT LinkBootstrap::SendShim (IByteStream & stream, const std::vector<Byte> &
     Byte     got      = 0;
     size_t   read     = 0;
     bool     ready    = false;
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kLoaderReadyWaitMs);
+    uint64_t deadline = stream.GetTickMs() + kLoaderReadyWaitMs;
 
 
 
-    while (!ready && std::chrono::steady_clock::now() < deadline)
+    while (!ready && stream.GetTickMs() < deadline)
     {
         hr = stream.Read (&got, 1, 100, read);
         CHR (hr);
@@ -163,10 +163,10 @@ HRESULT LinkBootstrap::Send (IByteStream & stream, const std::vector<std::string
             hr = stream.Write (reinterpret_cast<const Byte *> (line.data() + at), 1);
             CHR (hr);
 
-            WaitMicroseconds (charPauseUs);
+            stream.Pause (charPauseUs);
         }
 
-        std::this_thread::sleep_for (std::chrono::milliseconds (pauseMs));
+        stream.Pause ((uint64_t) pauseMs * 1000);
     }
 
 Error:

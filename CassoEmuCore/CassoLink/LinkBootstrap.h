@@ -19,7 +19,7 @@ class IByteStream;
 //  follows. The //c's firmware and the card's have the same commands. What
 //  arrives on the port is then typed: Ctrl-X, which cancels any partial line
 //  that stray bytes on the port put in the input buffer, CALL -151 for the
-//  monitor, the serial loader as monitor lines from $3A50, and 3A50G. The
+//  monitor, the serial loader as monitor lines from $3950, and 3950G. The
 //  loader takes the slot IN# set and sends kLoaderReady. The shim follows as
 //  raw bytes, and runs at the bootstrap speed and sends Ready.
 //

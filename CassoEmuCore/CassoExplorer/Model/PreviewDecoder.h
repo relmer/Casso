@@ -313,7 +313,22 @@ public:
     //  operating system's entry points, the NMOS undocumented opcodes, and on
     //  ProDOS its MLI calls. A relocatable file's code is read past its length,
     //  and its relocation dictionary is listed after it.
-    static void  RenderDisassembly (std::span<const Byte> bytes, Word origin, VolumeKind kind, bool relocatable, std::vector<std::wstring> & outLines);
+    //  `cpu` selects the instruction table. For the 65816, `longRegisters`
+    //  sets the register widths at the start, and `followFlags` makes them
+    //  follow REP and SEP.
+    static void  RenderDisassembly (std::span<const Byte>        bytes,
+                                    Word                         origin,
+                                    VolumeKind                   kind,
+                                    bool                         relocatable,
+                                    std::vector<std::wstring>  & outLines,
+                                    DisassemblyCpu               cpu           = DisassemblyCpu::Mos6502Undocumented,
+                                    bool                         longRegisters = true,
+                                    bool                         followFlags   = true);
+
+    //  Where a code file is run from: its load address, or the address
+    //  ProDOS or BASIC.SYSTEM loads a SYS or CMD file at, or a relocatable
+    //  file's aux type, which is the address its code was assembled at.
+    static Word  GetCodeOrigin (Byte type, VolumeKind kind, bool hasLoadAddress, Word loadAddress, bool hasAuxType, Word auxType);
 
     static const std::map<Word, std::string>  & GetSymbols  (VolumeKind kind);
     static const std::map<Byte, std::string>  & GetMliCalls ();
@@ -362,6 +377,7 @@ private:
 
     static void               SplitIntoLines (const std::string & text, std::vector<std::wstring> & outLines);
     static const Microcode  * GetNmosTable   ();
+    static const Microcode  * GetCmosTable   ();
 
     static std::map<Word, std::string>  ParseSymbols       (std::initializer_list<const char *> tables);
     static void                         AddRelocationLines (std::span<const Byte> trailer, Word origin, Word end, std::vector<DisassembledLine> & ioLines);

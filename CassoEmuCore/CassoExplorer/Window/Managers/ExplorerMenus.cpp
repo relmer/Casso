@@ -93,6 +93,7 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
     {
         case CassoExplorerActions::Verb::Open:           return L"&Open";
         case CassoExplorerActions::Verb::Get:            return L"&Copy to folder...";
+        case CassoExplorerActions::Verb::GetWithOptions: return L"Copy to folder with opt&ions...";
         case CassoExplorerActions::Verb::Put:            return L"&Put file...";
         case CassoExplorerActions::Verb::Delete:         return L"&Delete";
         case CassoExplorerActions::Verb::Rename:         return L"Re&name...";

@@ -1184,6 +1184,7 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
 //  TreeModel::GetBlockDeviceLabel
 //
 //  "Slot 5, Unit 1, 800K": the size in K below a megabyte, in MB from it.
+//  An Apple ///'s device is labeled with its SOS name: ".D1, 140K".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1195,6 +1196,11 @@ std::wstring TreeModel::GetBlockDeviceLabel (const LinkTreeEntry::Drive & drive)
                                                                            : std::format (L"{}K", drive.blocks / kBlocksPerK);
 
 
+
+    if (!drive.device.empty())
+    {
+        return std::format (L"{}, {}", drive.device, size);
+    }
 
     return std::format (L"Slot {}, Unit {}, {}", drive.slot, drive.unit, size);
 }

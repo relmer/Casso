@@ -6,83 +6,45 @@
 
 
 
-static constexpr uint32_t  s_kSliceBlocks = 65536;
-static constexpr uint32_t  s_kLargeBlocks = 2097152;
-static constexpr int       s_kSliceCount  = 4;
-static constexpr int       s_kMoreSlices  = 9;
-static constexpr int       s_kLargeCount  = 2;
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CffaLayout::TryDetect
+//  CffaLayout::Read
+//
+//  Up to `slotCount` slots from `first`, each clipped to the end of the
+//  store. A slot is recognized when its volume's block count fits in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CffaLayout::TryDetect (IBlockStore & store, std::vector<Partition> & outPartitions)
+HRESULT CffaLayout::Read (IBlockStore & store, uint32_t first, uint32_t slotBlocks, int slotCount, Reading & outReading)
 {
-    HRESULT                 hr              = S_OK;
-    uint32_t                total           = store.GetBlockCount();
-    uint32_t                next            = 0;
-    uint32_t                nextLarge       = 0;
-    uint32_t                nextSlice       = 0;
-    int                     recognized      = 0;
-    int                     recognizedLarge = 0;
-    int                     recognizedSlice = 0;
-    int                     index           = 0;
-    std::vector<Partition>  found;
-    std::vector<Partition>  large;
-    std::vector<Partition>  slices;
+    HRESULT     hr           = S_OK;
+    uint32_t    total        = store.GetBlockCount();
+    uint32_t    blocks       = 0;
+    uint32_t    volumeBlocks = 0;
+    VolumeKind  kind         = VolumeKind::Unknown;
+    bool        isHfs        = false;
+    bool        known        = false;
 
 
 
-    outPartitions.clear();
+    outReading.next = first;
 
-    //  A store of one slice or less is a plain volume.
-    BAIL_OUT_IF (total <= s_kSliceBlocks, S_OK);
-
-    hr = AppendSet (store, s_kSliceBlocks, s_kSliceCount, next, found, recognized);
-    CHR (hr);
-
-    BAIL_OUT_IF (recognized == 0, S_OK);
-
-    if (next < total)
+    for (int slot = 0; slot < slotCount && outReading.next < total; slot++)
     {
-        nextLarge = next;
-        nextSlice = next;
+        blocks = (std::min) (slotBlocks, total - outReading.next);
 
-        hr = AppendSet (store, s_kLargeBlocks, s_kLargeCount, nextLarge, large, recognizedLarge);
+        hr = PartitionLayout::ProbeBlockVolume (store, outReading.next, blocks, kind, isHfs, volumeBlocks);
         CHR (hr);
 
-        hr = AppendSet (store, s_kSliceBlocks, s_kMoreSlices, nextSlice, slices, recognizedSlice);
+        hr = PartitionLayout::AppendBlockPartition (store, PartitionLayoutKind::Cffa, outReading.next, blocks, std::string(), outReading.slots);
         CHR (hr);
 
-        if (recognizedSlice > recognizedLarge)
-        {
-            found.insert (found.end(), slices.begin(), slices.end());
-        }
-        else
-        {
-            found.insert (found.end(), large.begin(), large.end());
-        }
-    }
+        known = (kind != VolumeKind::Unknown || isHfs) && volumeBlocks <= blocks;
 
-    //  A slot with no volume after the last one that has one is the card's
-    //  unused space, not a partition. At least one slot has a volume.
-    while (found.size() > 1 && found.back().volumeKind != VolumeKind::ProDos && !found.back().isHfs)
-    {
-        found.pop_back();
+        outReading.recognized.push_back (known);
+        outReading.found += known ? 1 : 0;
+        outReading.next  += blocks;
     }
-
-    for (Partition & partition : found)
-    {
-        partition.index = ++index;
-    }
-
-    outPartitions = std::move (found);
 
 Error:
     return hr;
@@ -94,42 +56,62 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CffaLayout::AppendSet
+//  CffaLayout::TryDetect
 //
-//  Up to `sliceCount` volumes of `sliceBlocks` from `ioNextBlock` on. The last
-//  one is shorter when the store ends inside it.
+//  The first four slots, then the rest read as 1 GB volumes and as 32 MB
+//  slots. The reading with more recognized volumes is the layout, and the
+//  1 GB one on a tie. Slots after the last recognized one are dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CffaLayout::AppendSet (IBlockStore             & store,
-                               uint32_t                  sliceBlocks,
-                               int                       sliceCount,
-                               uint32_t                & ioNextBlock,
-                               std::vector<Partition>  & ioPartitions,
-                               int                     & outRecognized)
+HRESULT CffaLayout::TryDetect (IBlockStore & store, std::vector<Partition> & outPartitions)
 {
     HRESULT   hr    = S_OK;
     uint32_t  total = store.GetBlockCount();
-    int       i     = 0;
+    Reading   card;
+    Reading   wide;
+    Reading   slices;
+    Reading * rest  = nullptr;
+    size_t    keep  = 0;
 
 
 
-    outRecognized = 0;
+    outPartitions.clear();
 
-    for (i = 0; i < sliceCount && ioNextBlock < total; i++)
+    BAIL_OUT_IF (total <= kSlotBlocks, S_OK);
+
+    hr = Read (store, 0, kSlotBlocks, 4, card);
+    CHR (hr);
+
+    BAIL_OUT_IF (card.found == 0, S_OK);
+
+    if (card.next < total)
     {
-        uint32_t  blocks = std::min (sliceBlocks, total - ioNextBlock);
-
-        hr = PartitionLayout::AppendBlockPartition (store, PartitionLayoutKind::Cffa, ioNextBlock, blocks, "", ioPartitions);
+        hr = Read (store, card.next, kLargeBlocks, 2, wide);
         CHR (hr);
 
-        if (ioPartitions.back().volumeKind == VolumeKind::ProDos || ioPartitions.back().isHfs)
-        {
-            outRecognized++;
-        }
+        hr = Read (store, card.next, kSlotBlocks, 9, slices);
+        CHR (hr);
 
-        ioNextBlock += blocks;
+        rest = (slices.found > wide.found) ? &slices : &wide;
+
+        card.slots.insert      (card.slots.end(),      rest->slots.begin(),      rest->slots.end());
+        card.recognized.insert (card.recognized.end(), rest->recognized.begin(), rest->recognized.end());
     }
+
+    for (size_t i = 0; i < card.slots.size(); i++)
+    {
+        keep = card.recognized[i] ? i + 1 : keep;
+    }
+
+    card.slots.resize (keep);
+
+    for (size_t i = 0; i < card.slots.size(); i++)
+    {
+        card.slots[i].index = (int) i + 1;
+    }
+
+    outPartitions = std::move (card.slots);
 
 Error:
     return hr;

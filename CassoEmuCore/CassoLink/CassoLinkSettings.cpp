@@ -26,6 +26,7 @@ const char * CassoLinkSettings::GetTransportName (LinkTransport transport)
         case LinkTransport::Uthernet:     name = "Uthernet";     break;
         case LinkTransport::AdtProServer: name = "AdtProServer"; break;
         case LinkTransport::Cassette:     name = "Cassette";     break;
+        case LinkTransport::Udp:          name = "Udp";          break;
         default:                          name = "Serial";       break;
     }
 
@@ -48,7 +49,7 @@ bool CassoLinkSettings::TryParseTransport (const std::string & name, LinkTranspo
 
 
 
-    for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::WifiModem, LinkTransport::Emulated, LinkTransport::Uthernet, LinkTransport::AdtProServer, LinkTransport::Cassette })
+    for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::WifiModem, LinkTransport::Emulated, LinkTransport::Uthernet, LinkTransport::AdtProServer, LinkTransport::Cassette, LinkTransport::Udp })
     {
         if (!found && name == GetTransportName (transport))
         {
@@ -88,6 +89,8 @@ std::string CassoLinkSettings::MakeName (const CassoLinkSettings & settings)
         case LinkTransport::AdtProServer: name = settings.IsComPort() ? std::format ("ADTPro server on {}", settings.port)
                                                                       : std::format ("ADTPro server at {}", settings.address);          break;
         case LinkTransport::Cassette:     name = "Cassette ports (audio)";                                                               break;
+        case LinkTransport::Udp:          name = settings.address.empty() ? std::string ("Uthernet or LANceGS (any address)")
+                                                                          : std::format ("Uthernet or LANceGS at {}", settings.address); break;
         default:                          name = std::format ("TCP {}", settings.address);                                              break;
     }
 
@@ -121,7 +124,7 @@ bool CassoLinkSettings::IsComPort() const
 
 bool CassoLinkSettings::IsSearch() const
 {
-    return transport == LinkTransport::Uthernet && address.empty();
+    return (transport == LinkTransport::Uthernet || transport == LinkTransport::Udp) && address.empty();
 }
 
 
@@ -136,7 +139,7 @@ bool CassoLinkSettings::IsSearch() const
 
 bool CassoLinkSettings::CanBootstrap() const
 {
-    return transport != LinkTransport::Uthernet && transport != LinkTransport::AdtProServer;
+    return transport != LinkTransport::Uthernet && transport != LinkTransport::Udp && transport != LinkTransport::AdtProServer;
 }
 
 

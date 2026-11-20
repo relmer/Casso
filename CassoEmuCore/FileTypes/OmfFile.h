@@ -19,7 +19,9 @@
 //  kind byte; versions 2.0 and 2.1 count it in bytes and have a kind word,
 //  and 2.1 adds TEMPORG. A label is a Pascal string when
 //  the header's label length is 0, otherwise that many bytes; a number is
-//  the header's number length in bytes.
+//  the header's number length in bytes. The bytes of a code segment are
+//  listed as 65816 code, starting with 16-bit registers, as GS/OS starts a
+//  program; the bytes of any other segment are listed in hex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,4 +81,5 @@ private:
     static std::wstring  ReadExpression   (Reader & reader);
     static void          DecodeRecords    (const Header & header, std::span<const Byte> segment, std::vector<std::wstring> & outLines);
     static void          AppendHex        (std::span<const Byte> bytes, const std::wstring & indent, std::vector<std::wstring> & outLines);
+    static void          AppendCode       (std::span<const Byte> bytes, uint32_t address, const std::wstring & indent, std::vector<std::wstring> & outLines);
 };

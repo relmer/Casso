@@ -32,6 +32,10 @@ TEST_CLASS (TapeRecordingWriterTests)
 {
 public:
 
+    //  Leaders just long enough for the scanner, so the audio is short.
+    static constexpr TapeRecordingTiming  kShortTiming = { 0.5, 0.25 };
+
+
     static std::vector<Byte> MakeBytes (size_t count, Byte seed)
     {
         std::vector<Byte>  bytes (count);
@@ -127,7 +131,7 @@ public:
 
 
 
-        TapeRecordingWriter::Render (files, audio, sidecar);
+        TapeRecordingWriter::Render (files, audio, sidecar, kShortTiming);
 
         AssertSucceeded (TapeRecordingWriter::Encode (audio, format, encoder, bytes, error));
         AssertSucceeded (TapeImageLoader::Load (bytes, "recording", true, decoder, image, error));
@@ -179,7 +183,7 @@ public:
 
 
 
-        TapeRecordingWriter::Render (files, audio, sidecar);
+        TapeRecordingWriter::Render (files, audio, sidecar, kShortTiming);
 
         Assert::AreEqual (TapeRecordingWriter::kSampleRate, audio.sampleRate);
         CheckScansBack (audio, GetAllRecords (files), L"rendered");

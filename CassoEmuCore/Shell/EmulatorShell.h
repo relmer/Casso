@@ -792,7 +792,7 @@ public:
     // EhmNotifyUser's built-in path and became raw Win32 message boxes.
     //
     // Static because SetNotifyFunction takes a plain function pointer; it
-    // forwards to the one live shell.
+    // forwards to the one live shell. Public because GuiMain installs it.
     static void  NotifyUser (const wchar_t * message);
 
     // Holds a report raised before there is a window to show it in. Public

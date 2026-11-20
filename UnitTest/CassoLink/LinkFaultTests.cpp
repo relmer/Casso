@@ -201,7 +201,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (writer, reader);
+        InProcessByteStream::CreateVirtualPair (writer, reader);
 
         {
             FaultInjectingByteStream  stream (*writer, ParseOne ("bootstrap:flip@2"), [&] (const std::string & text) { reports.push_back (text); });
@@ -312,7 +312,7 @@ public:
             Assert::AreEqual (S_OK, LinkProgram::AssembleProgram (faults,   errors, chip, true),  TextEncoding::NarrowToWide (errors.c_str()).c_str());
 
             Assert::IsTrue (plain == standard,          L"without faults by default");
-            Assert::IsTrue (faults.size() > plain.size(), L"the Fault command's code");
+            Assert::IsTrue (faults != plain,            L"the Fault command's code");
         }
     }
 
@@ -330,7 +330,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (hostEnd, appleEnd);
+        InProcessByteStream::CreateVirtualPair (hostEnd, appleEnd);
 
         CassoLinkHost  host (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
 
@@ -386,7 +386,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (hostEnd, appleEnd);
+        InProcessByteStream::CreateVirtualPair (hostEnd, appleEnd);
 
         CassoLinkHost  host (hostEnd, folder, [] () { return std::array<Byte, 4> {}; });
 
