@@ -107,6 +107,19 @@ public:
     //  which was of the same disk.
     virtual HRESULT  CaptureRaw     (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
 
+    //  One raw read of a drive's track 0, for a drive whose track 0 has no
+    //  sectors: a revolution that repeats when a disk is in it, and empty
+    //  for an empty drive. outSame is set when it is the revolution
+    //  `previous` came from (CassoLinkCapture::ProbeRevolution).
+    virtual HRESULT  ProbeRaw       (int drive, const std::vector<Byte> & previous, std::vector<Byte> & outRevolution, bool & outSame)
+    {
+        UNREFERENCED_PARAMETER (drive);
+        UNREFERENCED_PARAMETER (previous);
+        outRevolution.clear();
+        outSame = false;
+        return S_OK;
+    }
+
     //  An image the session wrote, by its path, for the boot check. True
     //  when the image is booted, and AwaitBoot then returns once its result
     //  is in the session's status, or after a time limit.

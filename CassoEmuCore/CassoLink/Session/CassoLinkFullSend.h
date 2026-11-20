@@ -45,6 +45,7 @@ public:
     void         ToggleVerify     () override { m_verifying = !m_verifying; }
     bool         IsBootstrapped   () override;
     HRESULT      CaptureRaw       (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
+    HRESULT      ProbeRaw         (int drive, const std::vector<Byte> & previous, std::vector<Byte> & outRevolution, bool & outSame) override;
     bool         NoteImage        (const std::string & path) override;
     HRESULT      AwaitBoot        (const std::string & file) override;
     bool         HasBootTones     () override;

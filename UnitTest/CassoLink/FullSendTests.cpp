@@ -80,6 +80,8 @@ public:
         Image                                  rawReads;   // a raw capture's reads, empty when they aren't saved
         std::string                            rawMarks;   // what a raw capture marked
         std::vector<std::string>               noted;   // the path of each image written
+        std::array<Image, 2>                   rawTrack0;   // each drive's revolution for ProbeRaw
+        std::vector<int>                       probes;   // the drive of each ProbeRaw
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
         bool                                  bootTones      = false;
         std::array<bool, 2>                   writeProtected = { false, false };
@@ -200,6 +202,16 @@ public:
             outWoz   = rawWoz;
             outReads = rawReads;
             outMarks = rawMarks;
+            return S_OK;
+        }
+
+        //  A drive's raw track 0, a revolution that repeats, or empty for no
+        //  disk; the same revolution again is the same disk.
+        HRESULT  ProbeRaw (int drive, const Image & previous, Image & outRevolution, bool & outSame) override
+        {
+            probes.push_back (drive);
+            outRevolution = rawTrack0[(size_t) drive - 1];
+            outSame       = !previous.empty() && previous == outRevolution;
             return S_OK;
         }
 
@@ -655,6 +667,31 @@ public:
             Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size(), L"The disk is sent");
             Assert::AreEqual (0, rig.status.GetSnapshot().totals.blanks);
         }
+    }
+
+    //  A drive whose track 0 has no sectors is probed raw. One with a disk is
+    //  captured raw with no sector read, and left in its drive it's a repeat
+    //  on the next Space. An empty drive is probed and has nothing captured.
+    TEST_METHOD (Session_ADiskWithNoSectorsOnTrackZero_IsCapturedRaw_AndAnEmptyDriveIsNot)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]    = Other (1);
+        rig.link.blankTracks  = { 0 };
+        rig.link.rawTrack0[0] = Image (6000, 0x96);
+        rig.link.keys         = { FullSendKey::Space };
+
+        rig.link.rawTrack0[0][100] = 0xD5;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Drive 1's disk is captured once");
+        Assert::IsTrue (rig.link.diskReads.empty(), L"With no sector read");
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::AreEqual (std::string ("0001.woz"), session->GetManifest().GetRows()[0].file);
+        Assert::IsTrue (std::count (rig.link.probes.begin(), rig.link.probes.end(), 2) >= 1, L"The empty drive 2 is probed");
+        Assert::IsTrue (session->GetScreen().drives[1] == FullSendDriveState::Empty, L"And it's empty");
+        Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Repeat, L"Drive 1's disk is a repeat on the next Space");
     }
 
     //  A raw capture's reads, when the link returns them, are written beside

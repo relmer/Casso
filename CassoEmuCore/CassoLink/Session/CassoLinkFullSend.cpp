@@ -566,6 +566,40 @@ bool CassoLinkFullSend::IsBootstrapped()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkFullSend::ProbeRaw
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::ProbeRaw (int drive, const std::vector<Byte> & previous, std::vector<Byte> & outRevolution, bool & outSame)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  module;
+
+
+
+    outRevolution.clear();
+    outSame            = false;
+    m_operation->drive = drive;
+
+    hr = CheckStop();
+    CHR (hr);
+
+    hr = m_session.m_host->BuildCaptureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkCapture::ProbeRevolution (*m_session.m_host, (Byte) drive, module, previous, outRevolution, outSame);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkFullSend::CaptureRaw
 //
 //  The status bar has the capture's track, pass and time left, as for

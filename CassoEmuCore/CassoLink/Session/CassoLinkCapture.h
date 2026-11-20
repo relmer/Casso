@@ -146,6 +146,15 @@ public:
     //  checksum right.
     static bool     IsStandardTrack (const Position & position);
 
+    //  One read of track 0, for whether a drive whose track 0 has no sectors
+    //  has a disk: a revolution that repeats from a window of varied bytes
+    //  (FindReference), which an empty drive's noise doesn't. Empty when the
+    //  read doesn't repeat. outSame is set when the revolution aligns with
+    //  `previous`, one this returned before, but for one byte in
+    //  s_kProbeShare, as a weak or unformatted stretch reads differently
+    //  each time.
+    static HRESULT  ProbeRevolution (CassoLinkHost & host, Byte drive, std::span<const Byte> module, std::span<const Byte> previous, std::vector<Byte> & outRevolution, bool & outSame);
+
 private:
     struct Stream
     {
@@ -316,6 +325,7 @@ private:
     static constexpr size_t  s_kBand               = 24;
     static constexpr size_t  s_kAlignShare         = 12;
     static constexpr size_t  s_kSpliceBytes        = 16;
+    static constexpr size_t  s_kProbeShare         = 4;
     static constexpr int     s_kWeakReads          = 2;
     static constexpr size_t  s_kConsensusGap       = 4;
     static constexpr Byte    s_kStepPair           = 1;

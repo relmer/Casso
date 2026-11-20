@@ -66,6 +66,12 @@ HRESULT FullSendDriveCheck::Check (int drive, FullSendCheckedDisk & outDisk)
     hr = ReadFingerprint (drive, outDisk, stable);
     CHR (hr);
 
+    if (outDisk.noSectors)
+    {
+        hr = CheckRawOnly (drive, outDisk, known);
+        CHR (hr);
+    }
+
     if (stable)
     {
         folderLock.lock();
@@ -132,6 +138,8 @@ HRESULT FullSendDriveCheck::ReadFingerprint (int drive, FullSendCheckedDisk & ou
 
     hr = ReadStableTrack (drive, 0, outDisk, hasDisk, outStable);
     CHR (hr);
+
+    outDisk.noSectors = !hasDisk;
     BAIL_OUT_IF (!hasDisk || !outStable, S_OK);
 
     if (!FullSendDisk::IsCatalogOnTrackZero (outDisk.image))
@@ -197,6 +205,65 @@ HRESULT FullSendDriveCheck::ReadStableTrack (int drive, int track, FullSendCheck
     if (outStable && whole)
     {
         ioDisk.wholeTracks.push_back (track);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDriveCheck::CheckRawOnly
+//
+//  A drive whose track 0 has no sector that reads is empty, or has a disk
+//  whose tracks aren't standard sectors. A raw read of track 0 that repeats
+//  is a disk, sent as a raw capture. Its fingerprint is from that read, so
+//  the same disk read again in the drive is matched by its revolution: a
+//  repeat once its image is in the folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendDriveCheck::CheckRawOnly (int drive, FullSendCheckedDisk & ioDisk, bool & outKnown)
+{
+    HRESULT            hr     = S_OK;
+    DriveRecord      & record = GetRecord (drive);
+    std::vector<Byte>  revolution;
+    bool               same   = false;
+
+
+
+    outKnown = false;
+
+    hr = m_context.link.ProbeRaw (drive, record.rawRevolution, revolution, same);
+    CHR (hr);
+    BAIL_OUT_IF (revolution.empty(), S_OK);
+
+    ioDisk.isRawOnly = true;
+    same             = same && !record.rawPrint.empty();
+
+    if (same)
+    {
+        ioDisk.fingerprint = record.rawPrint;
+        outKnown           = m_context.folder.FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == record.rawPrint; }) != nullptr;
+    }
+    else
+    {
+        hr = FullSendDisk::ComputeHash (revolution, ioDisk.fingerprint);
+        CHR (hr);
+
+        record.rawRevolution = std::move (revolution);
+        record.rawPrint      = ioDisk.fingerprint;
+    }
+
+    ioDisk.check = outKnown ? FullSendDiskCheck::Repeat : FullSendDiskCheck::New;
+
+    if (!outKnown)
+    {
+        m_context.Report (std::format ("Track 0 of the disk in drive {} has no sectors that read, so the disk is captured in raw mode.", drive), drive);
     }
 
 Error:

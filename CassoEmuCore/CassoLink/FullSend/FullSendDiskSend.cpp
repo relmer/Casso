@@ -172,7 +172,8 @@ Error:
 //  FullSendDiskSend::Read
 //
 //  A raw retry follows a sector read of the same disk, so its capture begins
-//  at once, with that read's hash and counts.
+//  at once, with that read's hash and counts. So does a disk whose track 0
+//  has no sectors, as there are no sectors to read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,6 +194,12 @@ HRESULT FullSendDiskSend::Read (Sending & disk)
     if (disk.isRawRetry)
     {
         disk.first = *first;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (disk.checked->isRawOnly)
+    {
+        disk.same = true;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -357,8 +364,9 @@ Error:
 //  when the disk is assessed as protected: a damaged disk with no file
 //  system Casso recognizes is assessed alike, and a raw capture of it has
 //  more than its sector image. A disk read again in raw mode is captured
-//  whatever its signs. The capture draws on the Apple's screen, so the
-//  session's screen is drawn again after it.
+//  whatever its signs, as is one whose track 0 has no sectors. The capture
+//  draws on the Apple's screen, so the session's screen is drawn again
+//  after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -367,7 +375,8 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
     HRESULT          hr       = S_OK;
     FullSendImage  & image    = disk.image;
     ProtectionSigns  signs    = FullSendProtection::Find (image.sectors);
-    bool             rawAgain = disk.mode == FullSendSendMode::RawAgain;
+    bool             rawOnly  = disk.checked->isRawOnly;
+    bool             rawAgain = disk.mode == FullSendSendMode::RawAgain || rawOnly;
     bool             readSign = m_protection.readErrors && !image.unreadable.empty()
                              && std::string (FullSendDisk::AssessDamage (image.sectors, image.report.emptyTracks, (int) image.unreadable.size())) == FullSendManifest::kStatusProtected;
     std::string      reason;
@@ -377,9 +386,12 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
     disk.isLikely = readSign || m_protection.IsMet (signs);
     BAIL_OUT_IF (!rawAgain && (!disk.isLikely || !m_protection.captureRaw), S_OK);
 
-    //  A disk read again in raw mode whose damage is unclear has the reason
-    //  in the line that began the read.
-    if (disk.isLikely)
+    //  A disk read again in raw mode whose damage is unclear, or one whose
+    //  track 0 has no sectors, has the reason in the line that began the
+    //  read.
+    disk.isLikely = disk.isLikely || rawOnly;
+
+    if (disk.isLikely && !rawOnly)
     {
         reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", disk.drive)
                : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", disk.drive)
@@ -538,6 +550,11 @@ HRESULT FullSendDiskSend::Identify (Sending & disk)
     if (disk.isRawRetry)
     {
         hash = disk.first.hash;
+    }
+    else if (disk.checked->isRawOnly)
+    {
+        hr = FullSendDisk::ComputeHash (disk.image.raw, hash);
+        CHR (hr);
     }
     else
     {

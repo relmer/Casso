@@ -428,6 +428,59 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::ProbeRevolution
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCapture::ProbeRevolution (CassoLinkHost & host, Byte drive, std::span<const Byte> module, std::span<const Byte> previous, std::vector<Byte> & outRevolution, bool & outSame)
+{
+    HRESULT            hr      = S_OK;
+    Result             result;
+    ProgressFn         none;
+    Run                run     { host, drive, module, none, result };
+    std::vector<Byte>  bytes;
+    std::vector<Byte>  twice;
+    std::vector<int>   map;
+    std::vector<bool>  stretch;
+    size_t             start   = 0;
+    size_t             length  = 0;
+    size_t             differ  = 0;
+    bool               missed  = false;
+    bool               isFound = false;
+
+
+
+    outRevolution.clear();
+    outSame = false;
+
+    hr = ReadOnce (run, 0, 0, 1, 1, CassoLinkHost::kNoSync, {}, bytes, missed);
+    CHR (hr);
+
+    isFound = FindReference (bytes, start, length) && length != 0;
+    BAIL_OUT_IF (!isFound, S_OK);
+
+    outRevolution.assign (bytes.begin() + (ptrdiff_t) start, bytes.begin() + (ptrdiff_t) (start + length));
+
+    BAIL_OUT_IF (previous.size() < kAlignBytes || previous.size() > length + s_kBand || length > previous.size() + s_kBand, S_OK);
+
+    twice.assign (outRevolution.begin(), outRevolution.end());
+    twice.insert (twice.end(), outRevolution.begin(), outRevolution.end());
+
+    for (size_t from : FindAnchors (previous, twice))
+    {
+        outSame = outSame || (Align (previous, twice, from, map, differ, stretch) && differ * s_kProbeShare <= previous.size());
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ReadOnce
 //
 //  The module is loaded again before the read when a read of the drive
