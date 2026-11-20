@@ -585,6 +585,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
 
         IGNORE_RETURN_VALUE (hrDwm, S_OK);
     }
+
     ApplyAcrylic();
 
     // PAINT BEFORE SHOWING. These popups come from a pool and are handed
