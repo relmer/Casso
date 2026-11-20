@@ -1204,9 +1204,13 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
 
     for (const std::string & line : lines)
     {
+        //  A character with its high bit set is drawn in inverse.
         for (size_t i = 0; i < line.size() && i < CassoLinkCodec::kSessionRowLength; i++)
         {
-            prompt.push_back (ToAppleChar (line[i], false));
+            Byte  ch      = (Byte) line[i];
+            Byte  inverse = ch & 0x80;
+
+            prompt.push_back ((Byte) (ToAppleChar ((char) (ch & 0x7F), inverse != 0) | inverse));
         }
 
         prompt.push_back (0);

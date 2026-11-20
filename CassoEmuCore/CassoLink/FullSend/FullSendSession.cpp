@@ -234,6 +234,8 @@ std::string FullSendSession::GetPrefixLine() const
 //  once. At the start drive 1 is first. A drive whose disk was just sent is
 //  passed over, as its catalog track was read again a moment ago; one whose
 //  disk changed during the read is checked, so its new disk goes with no key.
+//  An image that didn't boot, and that another capture could help, pauses
+//  the session at once with the offer, before the other drive is read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,6 +245,15 @@ HRESULT FullSendSession::RunRound()
     FullSendCheckedDisk  disk;
 
 
+
+    m_context.boots.Apply();
+
+    if (m_context.boots.HasRetry())
+    {
+        hr = Pause();
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     for (int drive : GetOrder())
     {
@@ -375,7 +386,7 @@ HRESULT FullSendSession::CheckDrives (const std::string & retry, bool & outSent)
 
     outSent = false;
 
-    for (int drive : GetOrder())
+    for (int drive : GetOrder (retry.empty() ? 0 : m_context.boots.GetRetryDrive()))
     {
         hr = CheckDrive (drive, disk);
         CHR (hr);
@@ -470,7 +481,8 @@ HRESULT FullSendSession::SendAgain (int drive, const FullSendCheckedDisk & disk)
     bool                 protectedCopy = first != nullptr && first->status == FullSendManifest::kStatusProtected;
     bool                 unclearCopy   = first != nullptr && first->status == FullSendManifest::kStatusUnclear;
     bool                 rawAgain      = protectedCopy || unclearCopy;
-    bool                 verify        = !rawAgain && !wasVerify;
+    bool                 rawCopy       = first != nullptr && first->status == FullSendManifest::kStatusRawCapture;
+    bool                 verify        = !rawAgain && !rawCopy && !wasVerify;
 
 
 
@@ -479,6 +491,7 @@ HRESULT FullSendSession::SendAgain (int drive, const FullSendCheckedDisk & disk)
 
     m_context.Report (protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
                     : unclearCopy   ? std::format ("The image captured from the disk in drive {} did not boot, and its unreadable sectors may be copy protection. Capturing the disk again in raw mode.", drive)
+                    : rawCopy       ? std::format ("The raw capture of the disk in drive {} did not boot. Capturing it again, combined with the first capture's reads.", drive)
                                     : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive), drive);
 
     if (verify)
@@ -561,13 +574,18 @@ Error:
 //
 //  FullSendSession::GetOrder
 //
-//  The other drive first, and drive 1 at the start.
+//  The other drive first, and drive 1 at the start; with irst a drive,
+//  that drive first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::array<int, 2> FullSendSession::GetOrder() const
+std::array<int, 2> FullSendSession::GetOrder (int first) const
 {
-    return { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
+    int  lead = (first == 1 || first == 2) ? first : (m_lastRead == 1 ? 2 : 1);
+
+
+
+    return { lead, lead == 1 ? 2 : 1 };
 }
 
 
@@ -585,6 +603,21 @@ std::array<int, 2> FullSendSession::GetOrder() const
 std::vector<std::string> FullSendSession::GetPauseLines() const
 {
     std::vector<std::string>  lines = m_context.boots.GetLines();
+
+    //  The offer to capture a disk again is the only thing on the pause, its
+    //  first line in inverse, as it isn't the usual flow.
+    if (m_context.boots.HasRetry())
+    {
+        for (std::string & line : lines)
+        {
+            if (line.ends_with ("Capture it again"))
+            {
+                std::transform (line.begin(), line.end(), line.begin(), [] (char c) { return (char) (c | 0x80); });
+            }
+        }
+
+        return lines;
+    }
     std::vector<int>          sent;
     bool                      both  = m_check.IsRepeat (1) && m_check.IsRepeat (2);
     int                       drive = m_check.IsRepeat (1) ? 1 : 2;

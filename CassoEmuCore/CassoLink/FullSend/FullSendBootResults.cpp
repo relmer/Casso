@@ -61,7 +61,7 @@ void FullSendBootResults::Apply()
             {
                 m_stillFailed.push_back (image);
             }
-            else if (found == rows.end())
+            else if (found == rows.end() || !IsWorthRetrying (*found))
             {
                 m_failed.push_back (image);
             }
@@ -74,6 +74,7 @@ void FullSendBootResults::Apply()
 
                 m_retryImage = image;
                 m_retryPrint = found->fingerprint;
+                m_retryDrive = found->drive;
             }
         }
     }
@@ -117,6 +118,32 @@ std::vector<std::string> FullSendBootResults::GetLines() const
     }
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendBootResults::IsWorthRetrying
+//
+//  Whether another capture could make an image boot: a sector image, which
+//  is captured raw or read with verification the second time, or a raw
+//  capture with weak bits or reads that differ, which more reads can
+//  settle. A clean raw capture that doesn't boot fails the same way each
+//  time, so it isn't offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendBootResults::IsWorthRetrying (const FullSendRow & row)
+{
+    bool  isRaw     = row.status == FullSendManifest::kStatusRawCapture;
+    bool  isMarked  = row.marks.find ("weak") != std::string::npos || row.marks.find ("differs") != std::string::npos;
+
+
+
+    return !isRaw || isMarked;
 }
 
 

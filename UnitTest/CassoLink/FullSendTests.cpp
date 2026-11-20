@@ -671,6 +671,40 @@ public:
         Assert::IsFalse (has (rig.link.pauseLines[2]), L"And the one after it doesn't");
     }
 
+    //  Whether the lines have line, with a line in inverse read as its text.
+    static bool  HasLine (const std::vector<std::string> & lines, const std::string & line)
+    {
+        return std::any_of (lines.begin(), lines.end(), [&line] (const std::string & each)
+        {
+            std::string  text = each;
+
+            std::transform (text.begin(), text.end(), text.begin(), [] (char c) { return (char) (c & 0x7F); });
+            return text == line;
+        });
+    }
+
+    //  A clean raw capture that doesn't boot fails the same way each time, so
+    //  the pause lists it with no offer to capture it again.
+    TEST_METHOD (Session_ACleanRawCaptureThatDidNotBoot_HasNoOffer)
+    {
+        Rig  rig;
+
+
+
+        rig.link.drives[0]   = Other (1);
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+        rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 1, rig.link.captures.size(), L"Captured once");
+        Assert::IsTrue  (HasLine (rig.link.pauseLines[0], "0001 did not boot."));
+        Assert::IsFalse (HasLine (rig.link.pauseLines[0], "0001 did not boot. Capture it again"), L"No offer");
+    }
+
     //  Several images that did not boot before a pause are one line, the
     //  first four by number and a count of the rest, so the pause fits the
     //  Apple's rows.
@@ -757,6 +791,7 @@ public:
 
         rig.link.drives[0]  = Other (1);
         rig.link.present[1] = false;
+        rig.link.rawMarks   = "weak 3";
         rig.link.onAwait    = [&rig, &validating] (const std::string & file)
         {
             validating = rig.link.screens.back().drives[0] == FullSendDriveState::Validating
@@ -772,7 +807,7 @@ public:
                         L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
-        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 did not boot. Capture it again") != rig.link.pauseLines[0].end());
+        Assert::IsTrue (HasLine (rig.link.pauseLines[0], "0001 did not boot. Capture it again"));
     }
 
     //  Space with the disk that did not boot in its drive reads it again,
@@ -781,13 +816,14 @@ public:
     TEST_METHOD (Session_SpaceOnADiskThatDidNotBoot_ReadsItAgainOnce)
     {
         Rig   rig;
-        auto  has = [] (const std::vector<std::string> & lines, const char * line) { return std::find (lines.begin(), lines.end(), line) != lines.end(); };
+        auto  has = [] (const std::vector<std::string> & lines, const char * line) { return HasLine (lines, line); };
 
         rig.link.drives[0]   = Other (1);
         rig.link.badDisk     = rig.link.drives[0];
         rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
         rig.link.reportEmpty = 3;
         rig.link.present[1]  = false;
+        rig.link.rawMarks    = "weak 3";
         rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
         rig.link.keys        = { FullSendKey::Space, FullSendKey::Space };
 
@@ -842,6 +878,7 @@ public:
         rig.link.badSectors  = { { 20, 3 } };
         rig.link.reportEmpty = 3;
         rig.link.present[1]  = false;
+        rig.link.rawMarks    = "weak 3";
         rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
         rig.link.keys        = { FullSendKey::Space };
 

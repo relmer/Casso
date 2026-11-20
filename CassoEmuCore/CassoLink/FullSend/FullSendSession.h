@@ -85,7 +85,7 @@ private:
     HRESULT                   CheckDrive    (int drive, FullSendCheckedDisk & outDisk);
     HRESULT                   SendDisk      (int drive, const FullSendCheckedDisk & disk, FullSendSendMode mode);
     void                      End           (HRESULT hr);
-    std::array<int, 2>        GetOrder      () const;
+    std::array<int, 2>        GetOrder      (int first = 0) const;
     std::vector<std::string>  GetPauseLines () const;
     std::string               GetPrefixLine () const;
 

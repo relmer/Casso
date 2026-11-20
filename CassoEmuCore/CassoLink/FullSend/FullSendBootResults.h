@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 class FullSendManifest;
+struct FullSendRow;
 class FullSendStatus;
 
 
@@ -30,12 +31,15 @@ public:
     std::vector<std::string>          GetLines       () const;
     void                              ClearLines     ()                                { m_failed.clear(); m_stillFailed.clear(); m_retryImage.clear(); }
     std::string                       TakeRetryPrint ();
+    bool                              HasRetry       () const                          { return !m_retryImage.empty(); }
+    int                               GetRetryDrive  () const                          { return m_retryDrive; }
     void                              NoteRetried    (const std::string & fingerprint) { m_retried.insert (fingerprint); }
 
 private:
     static constexpr size_t  s_kListedImages = 4;    // the images a pause lists by number before "and N more"
 
-    static std::string  ListImages (const std::vector<std::string> & images);
+    static std::string  ListImages      (const std::vector<std::string> & images);
+    static bool         IsWorthRetrying (const FullSendRow & row);
 
     FullSendStatus            & m_status;
     FullSendManifest          & m_manifest;
@@ -45,5 +49,6 @@ private:
     std::vector<std::string>    m_stillFailed;  // and each image of a disk read again that did not boot either
     std::string                 m_retryImage;   // the image the next pause offers to read again
     std::string                 m_retryPrint;   // and its disk's fingerprint
+    int                         m_retryDrive = 0; // and the drive it was read from
     std::set<std::string>       m_retried;      // the fingerprint of each disk read again
 };
