@@ -997,7 +997,7 @@ bool BlockMapView::IsSameLabel (uint32_t a, uint32_t b) const
 //  BlockMapView::PaintLabelGaps
 //
 //  The gap below each cell is filled where the cell below has the same
-//  label and color, and the corner where four such cells meet, so a
+//  label and color, and the corner between four such cells, so a
 //  labeled run of rows is one area.
 //
 ////////////////////////////////////////////////////////////////////////////////
