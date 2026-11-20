@@ -895,6 +895,7 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
+    CheckDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 
     hr = m_deviceWatch.Start ([this]() { HandleDeviceChange(); });

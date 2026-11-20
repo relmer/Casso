@@ -121,6 +121,21 @@ public:
     }
 
 
+    TEST_METHOD (Open_ListsACardAlreadyInTheReader)
+    {
+        Rig               rig;
+        CountingCardHost  host;
+        PhysicalCards     cards (host);
+
+
+
+        rig.app.cards = &cards;
+        rig.Open();
+
+        Assert::IsTrue (host.volumeQueries > 0, L"a card in the reader when the window opens is listed");
+    }
+
+
     TEST_METHOD (Open_StartsTheFolderWatch)
     {
         Rig  rig;
