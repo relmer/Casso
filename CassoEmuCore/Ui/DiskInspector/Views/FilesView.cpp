@@ -311,18 +311,29 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     int                          copyLeft    = area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip);
     int                          verdict     = scaler.ToPx (s_kMapVerdictDip);
     int                          verdictLeft = copyLeft - margin - verdict;
+    int                          pickerRight = area.left + 2 * button + margin + label + picker;
     vector<DxuiTabStrip::Tab>    tabs;
 
 
 
     //  The step buttons, their label and the file picker, the volume tabs,
-    //  and "Copy map" at the right, on one row.
+    //  and "Copy map" at the right, on one row. The verdict is between them
+    //  only when it fits; otherwise it is hidden, the status bar's verdict
+    //  chip is the only one, and the volume tabs extend to Copy map.
+    m_isVerdictRoom = verdictLeft >= pickerRight + margin;
+
+    if (!m_isVerdictRoom)
+    {
+        verdictLeft = copyLeft;
+    }
+
     m_mapPrev->Layout      ({ area.left,          y, area.left + button,     y + row }, scaler);
     m_mapNext->Layout      ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
     m_mapStepLabel->Layout ({ area.left + 2 * button + margin, y, area.left + 2 * button + margin + label, y + row }, scaler);
-    m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, area.left + 2 * button + margin + label + picker, y + row }, scaler);
+    m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, pickerRight, y + row }, scaler);
     m_mapCopy->Layout      ({ copyLeft, y, area.right, y + row }, scaler);
     m_mapVerdict->Layout   ({ verdictLeft, y, verdictLeft + verdict, y + row }, scaler);
+    m_mapVerdict->SetVisible (m_isVerdictRoom && m_mapCopy->IsVisible() && map != nullptr && map->verdict != FileSystemVerdict::None);
 
     for (size_t v = 0; v < m_session.analysis.fileMaps.size() && m_session.analysis.fileMaps.size() > 1; v++)
     {
@@ -410,7 +421,7 @@ void FilesView::Show (bool isShown)
     m_mapNext->SetVisible    (isList);
     m_mapStepLabel->SetVisible (isList);
     m_mapCopy->SetVisible    (isList);
-    m_mapVerdict->SetVisible (isList && map->verdict != FileSystemVerdict::None);
+    m_mapVerdict->SetVisible (isList && m_isVerdictRoom && map->verdict != FileSystemVerdict::None);
     m_mapVerdict->SetEnabled (IsVerdictLinked());
     m_mapVolumes->SetVisible (isShown && m_session.analysis.fileMaps.size() > 1);
 }

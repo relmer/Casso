@@ -156,8 +156,9 @@ public:
     void  GetFolderChildren  (const Location & location, std::vector<BrowserModel::AddressSegment> & outChildren) { BrowserModel::GetFolderChildren (m_fs, location, outChildren); }
 
     //  The folder holding a host path, or empty at a drive root.
-    static std::wstring  GetParentFolder (const std::wstring & path);
-    static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);
+    static std::wstring  GetParentFolder   (const std::wstring & path);
+    static std::wstring  JoinPath          (const std::wstring & folder, const std::wstring & name);
+    static bool          IsPartitionVolume (const std::wstring & path);
 
     void  SortByColumn     (int column);
 
@@ -223,7 +224,9 @@ public:
     void  SetPreviewFormulas     (bool formulas)                { m_previewer.SetFormulas (formulas); }
     void  SetPreviewViewAs       (ViewChoice view)              { m_previewer.SetViewAs (view); }
 
-    DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const { return m_previewer.GetDecodeOptions (imagePath, entryPath); }
+    DecodeOptions          GetDecodeOptions        (const std::wstring & imagePath, const std::string & entryPath) const { return m_previewer.GetDecodeOptions (imagePath, entryPath); }
+    void                   SetDefaultDecodeOptions (const DecodeOptions & options)                                       { m_previewer.SetDefaultDecodeOptions (options); }
+    const DecodeOptions  & GetDefaultDecodeOptions () const                                                              { return m_previewer.GetDefaultDecodeOptions(); }
 
     const std::vector<CatalogRow>  & GetRows    () const { return m_rows;      }
     const PreviewContent           & GetPreview () const { return m_previewer.m_preview;   }

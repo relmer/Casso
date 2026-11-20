@@ -64,7 +64,7 @@ public:
             machine.GetCpu()->SetPC (0xE000);
             machine.RunCycles (2 * kClockHz);
 
-            InProcessByteStream::CreatePair (machineEnd, pcEnd);
+            InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
             Assert::AreEqual (S_OK, machine.AttachSerialStream (kPort, machineEnd));
 
             Type ("IN#2\r");

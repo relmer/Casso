@@ -849,6 +849,166 @@ MAME 0.289's `apple3`, headless, with the CassoLink SOS disk made from Apple's S
 
 Before this, a 140K block device's catalog was empty: the volume layer read its 280 blocks, which arrive in block order, as a DOS-order buffer. The SOS program's CRC in its Ready differed from the host's at first, since the CRC loop changes the operand of one of its instructions; a disk with that build would have failed to connect as another version. Apple's System Utilities disk has no .RS232 in its SOS.DRIVER, so on a disk made from it the Apple /// displays a message and the link doesn't connect.
 
+## Story 28's emulator targets (T602, SC-059)
+
+### The Uthernet in AppleWin, 2026-11-18
+
+AppleWin's Linux build, `sa2` from github.com/audetto/AppleWin as of
+2026-11-08, in a copy of the owner's WSL Ubuntu that was removed afterward.
+Its Uthernet runs over libslirp, so no packet capture driver was installed.
+The Apple got its address from slirp's DHCP server, and UDP 6502 was
+forwarded to it. A test on Windows sent the link's packets to the copy's
+address, loaded the program, and read track 0 of drive 1; the first sector
+matched the disk image. Two patches to `sa2`, made only in the copy, let it
+run under WSL: a swap interval failure was made a warning, and the text
+screen and a few memory areas were written to files.
+
+Found and fixed:
+
+1. The universal disk took the card for an Uthernet II. AppleWin's CS8900A
+   starts its PacketPage pointer at 0 and reads it back as written, without
+   the 011 in bits 14 to 12 that the card check waited for before writing
+   the pointer. The product ID is now read first with nothing written.
+2. The Load program packet was dropped when page 0 came right behind it.
+   Each byte read of RxEvent skips the frame being read in AppleWin's
+   CS8900A, so the two-byte read took both frames. RxEvent's high byte alone
+   is now read.
+
+`AnUthernetAsAppleWinHasIt_ReadsADiskOverUdp` runs the link against a fake
+CS8900A with both of AppleWin's behaviors, and failed before each fix.
+
+### The LANceGS in MAME, 2026-11-19
+
+MAME 0.285's enhanced //e with a LANceGS in slot 3, built from source with
+the SMC91C96's logging, in the WSL instance `Ubuntu-CassoEmu`. On Linux,
+MAME's card uses a TAP device, so no packet capture driver was installed. A
+relay on the TAP device padded each frame to the Apple to 60 bytes and added
+a CRC, as a real wire does: MAME's SMC91C96 drops frames shorter than 64
+bytes, and frames from a TAP device have no CRC. dnsmasq assigned the
+Apple 10.0.3.2, and UDP 6502 on the instance's address was forwarded to it. A test
+on Windows loaded the program and read track 0 of drive 1, and all 16
+sectors matched the disk image.
+
+Found and fixed: the shim turned on the SMC91C96's CRC strip, which removed
+the last 4 bytes of each frame MAME received from the TAP device. The DHCP
+acknowledgment was dropped as a result. The strip is off now, since the IP
+and UDP lengths mark a datagram's end. `ALanceGs_TakesItsAddressFromDhcp`
+runs DHCP against a fake SMC91C96.
+
+The source build reads its settings from `./cfg`, not `~/.mame/cfg`, so it
+was started with `-cfg_directory`. Without it, MAME didn't open the TAP
+device, and each transmit wrote nothing.
+
+### A IIgs's modem port in MAME and KEGS, 2026-11-19
+
+The universal disk in drive 1 and a ProDOS disk with one file in drive 2,
+with the modem port on a TCP socket to a Wi-Fi modem connection at 9,600
+baud. `CassoLinkIIgsTests::AnAppleIIgs_RunsStory14sOperations` ran with
+`CASSO_IIGS_EMULATOR` set to each emulator:
+
+- MAME 0.289's `apple2gs` on Windows, with its null modem.
+- KEGS 1.38, built from source in the WSL instance `Ubuntu-CassoEmu`. Its
+  modem port was set to connect to the Windows host, and it ran at 2.8 MHz.
+
+| Story 14 operation | MAME | KEGS |
+|---|---|---|
+| Connect | The root's model is Apple IIgs | The same |
+| Read a disk to an image | Drive 2's image is its disk | The same |
+| Browse | Drive 2's catalog has HELLO | The same |
+| Copy a file from the Apple | HELLO is the disk's, byte for byte | The same |
+| Copy a file to the Apple | A 3,000-byte file written and read back | The same |
+| Rename, make a folder, delete | The catalog has HELLO and the folder | The same |
+| Write an image to a disk | Failed: "sector not found" in the read-back check of a written track | An image written to drive 2 and read back is the same |
+
+MAME 0.285 on Linux failed the write the same way. In MAME's `apple2gs`,
+DOS 3.3's INIT formats a disk that Casso lists, and Casso's written track has
+good address fields when decoded. KEGS passes the write and its read-back,
+and so does an emulated //e in Casso. The test skips the write on MAME. A
+real IIgs hasn't been tested.
+
+Found and fixed:
+
+1. Nothing came over the modem port: the shim and the universal disk had the
+   8530's channels swapped. Port 1 is channel A and port 2 channel B.
+2. The universal disk set the 8530's clock without the crystal bit in
+   register 11. `UniversalSccTests` found it against a fake 8530.
+
+Four changes to KEGS, made only in that instance, let it run the link:
+
+- The ROM 03 image was dumped from MAME's memory at $FC0000 to $FFFFFF.
+  MAME's two ROM files joined end to end have no reset vector at the end.
+- With no disk in slot 7, KEGS boots slot 5 and skips slot 6.
+  Its fallback was changed to slot 6.
+- Unthrottled, KEGS ran at about 4,500 MHz, and the shim's waits, which are
+  counted in instructions, ran out. It ran at 2.8 MHz instead.
+- KEGS drops each $00 byte from a socket, which suits a terminal and breaks
+  a binary link: a page of the program arrived 15 bytes short. A raw
+  outgoing connection now passes them.
+
+### Every target through scripts/EmuTargets, 2026-11-19
+
+The targets are started by `scripts/EmuTargets/Mame.ps1` (MAME on Windows)
+and `scripts/EmuTargets/Wsl.ps1` (the WSL instance), and the tests start
+them the same way. `Wsl.ps1 -Setup` built KEGS, GSplus, MAME 0.285 and
+AppleWin in the instance from `scripts/EmuTargets/wsl/`, with the KEGS
+patches applied by `kegs-patch.py`; KEGS and GSplus take a ROM 03 image
+dumped from MAME's apple2gs by `DumpIIgsRom.lua`.
+
+| Target | Interface | Test | Result |
+|---|---|---|---|
+| MAME 0.289 `apple2gs` | Modem port | `CassoLinkIIgsTests`, `mame` | Passed, the whole-disk write skipped |
+| MAME 0.289 `apple2gs` | Super Serial Card in slot 7 | `CassoLinkIIgsTests`, `mame-ssc` | Passed, the whole-disk write skipped |
+| KEGS 1.38 | Modem port | `CassoLinkIIgsTests`, `kegs` | Passed, write included |
+| GSplus 1.38.0 | Modem port | `CassoLinkIIgsTests`, `gsplus` | Passed, write included |
+| MAME 0.285 `apple2ee` | LANceGS in slot 3, UDP | `CassoLinkEthernetTests`, `lancegs` | Passed, write included |
+| AppleWin `sa2` | Uthernet in slot 3, UDP | `CassoLinkEthernetTests`, `uthernet` | Passed, write included |
+
+Each test runs Story 14's operations: connect, read drive 2 to an image,
+browse, copy a file each way, rename, make a folder, delete, and write an
+image to drive 2 and read it back. The LANceGS's MAC address is the shim's
+02:43:41:53:53:01, set in MAME's `apple2ee.cfg`; the universal disk salts it
+for each Apple, as `TheUniversalDisk_TakesADhcpAddress_SaltsItsMac_AndAnnounces`
+tests.
+
+GSplus is KEGS 1.38 with an SDL3 front end, and its stock build has the same
+two faults as KEGS, so it takes the same patches.
+
+Found along the way:
+
+- A Super Serial Card with a dial command waits for a modem's reply line
+  before its Ready. MAME's card connects straight to Casso, so no reply
+  comes; the test boots the universal disk with no dial command, MAME's
+  socket listens, and a TCP connection is made to it.
+- A serial, TCP or UDP connection prompted five times in the first seconds
+  of an attempt and then waited for a Ready, so an Apple that booted the
+  universal disk later linked only on the next attempt, 25 seconds on. The
+  connection now prompts each second until a Ready arrives or the attempt
+  ends. `AnAppleThatBootsLate_IsPromptedUntilTheAttemptEnds` tests it, and
+  the Super Serial Card and network tests start the connection with the
+  emulator.
+- MAME doesn't start the Super Serial Card without its ROM, 341-0065-A, in
+  `roms\a2ssc`; `Mame.ps1` copies it from Casso's data folder.
+- GSplus running offscreen doesn't end on SIGTERM, so `run.sh stop` kills
+  what remains after a second.
+
+## Block devices in other emulators (T574, SC-054), 2026-11-20
+
+`CassoLinkBlockEmulatorTests` reads each volume an emulator mounted through
+the link, compares it with the image mounted, and puts a file on the 800K
+volume through the link, which the Apple then lists and reads back.
+
+| Target | Volumes | Result |
+|---|---|---|
+| MAME 0.289 `apple2cp`, the //c Plus, through `Mame.ps1 -Target IIcPlus` | 800K in the internal 3.5-inch drive | Passed in 19 minutes: the volume read through the link is the image mounted, and COPIED is listed and read back |
+| MAME's //c with ROM 4 and a UniDisk 3.5 | | Not possible: `apple2c4` and `apple2c0` have only 5.25-inch drives in MAME 0.289, and their ROM sets aren't installed |
+| AppleWin with a hard disk card, through `Wsl.ps1 -Target HardDisk` | 32 MB and 800K | Not run: the Linux build's Super Serial Card has no TCP serial, and the Windows build isn't installed |
+
+The //c Plus link runs at 9,600 baud, since MAME's null modem is set to it
+and its rate can't be changed from the command line, so the 800K volume takes
+about 18 minutes. The universal disk boots from the external 5.25-inch drive
+with the 800K volume in the internal drive, since a ProDOS volume with no
+PRODOS file is passed over.
+
 ## A2Pico cards (Story 41, SC-070)
 
 The owner has no A2Pico, so the card is checked against the A2retroNET
@@ -1007,7 +1167,7 @@ emulator targets are that session's.
 | Step | Result |
 |---|---|
 | 1. Each file system and layout | `PartitionTests`, `Dos32Tests`, `SosTests`, `RdosTests` and `LargeVolumeTests`, which change each writable one, run `cp2 test` and compare with CiderPress II's extraction; and the images of 7e |
-| 2. GS/OS on a changed HFS image | In part, 2026-11-13: MAME 0.289's apple2gs booted GS/OS 6.0.1 from a hard disk image on a CFFA2 card, with HFS.FST added by CiderPress II, and the Finder mounted an 800K HFS image Casso made, "Casso Walk". Its files weren't opened, as MAME took no typed keys on the IIgs. 2026-11-17, walked by the owner with the mouse: TeachTest opened in Teach, and Teach drew Walk Folder:Notes as boxes, because Casso wrote the PC text as high-bit text with $8D line ends. Fixed: text written to ProDOS and HFS is plain ASCII with $0D line ends. `hfs800-plain.po` has Notes written by the fix, for the next walk |
+| 2. GS/OS on a changed HFS image | Passed 2026-11-18, walked by the owner in GSplus 1.38.0: GS/OS 6.0.1 booted from a hard disk image with HFS.FST, and the Finder mounted `hfs800-plain.po`, an 800K HFS image Casso made. TeachTest opened in Teach, and Walk Folder:Notes opened through Teach's Open command, as the Finder doesn't open a text file in Teach. Notes read as Casso wrote it. The owner added a line to Notes, saved it and made a folder on the volume. Afterward `cp2 test` and `CassoCli disk test` found no problems, and Notes has both lines in plain ASCII with $0D line ends. Earlier walks: 2026-11-13 in MAME, the Finder mounted the image, but MAME took no typed keys. 2026-11-17, Teach drew Notes as boxes, because Casso wrote high-bit text with $8D line ends, fixed since |
 | 3. Gutenberg | Passed 2026-11-17 in `GutenbergTests::ADocumentCassoWrites_OpensAndSavesInGutenberg`: Gutenberg, Jr. on a //e in Casso formats a data disk, opens a document Casso copied to it, adds to it and saves it, and the disk passes Casso's check |
 | 4. A CF card | Passed 2026-11-14: a 2 GB CF card initialized with CFFA 2.0's layout, a 32 MB ProDOS image written to partition 1 and read back with the same SHA-256, after one administrator prompt (T620) |
 

@@ -38,6 +38,32 @@ public:
 
 
 
+    //  The analysis is built once for the class. Each test copies it.
+    static const DiskAnalysis & GetDsk()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            AnalyzeDsk (s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) GetDsk();
+    }
+
+
+
     TEST_METHOD (ATrackChosenOnItsOwnSelectsItsFirstSectorInPassingOrder)
     {
         DiskAnalysis        analysis;
@@ -45,7 +71,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.SelectQuarterTrack (4 * 17);
@@ -70,7 +96,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         slot                  = analysis.entries[0].slot;
         track                 = std::make_shared<TrackAnalysis> (*analysis.tracks[slot]);
         track->sectorsFound   = 0;
@@ -99,7 +125,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.SelectNibbles (0, 100, 1);
@@ -128,7 +154,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.SelectSector (0, 2);
@@ -156,7 +182,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.SelectQuarterTrack (0);
@@ -179,8 +205,15 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
-        AnalyzeDsk (again);
+        analysis = GetDsk();
+        again = GetDsk();
+
+        //  A new analysis object for each record, as a reanalysis makes.
+        for (std::shared_ptr<const TrackAnalysis> & track : again.tracks)
+        {
+            track = track ? std::make_shared<const TrackAnalysis> (*track) : track;
+        }
+
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.SelectSector (8, 9);
@@ -252,7 +285,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.ZoomAbout   (50.0, model.GetDiskPoint (0, 0.0));
@@ -328,7 +361,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk     (7);
         model.SetAnalysis (&analysis);
         model.ZoomAbout   (4.0, model.GetDiskPoint (68, 0.0));
@@ -374,7 +407,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk      (7);
         model.SetAnalysis  (&analysis);
         model.SelectSector (0, 0);
@@ -461,7 +494,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk      (7);
         model.SetAnalysis  (&analysis);
         model.SelectSector (0, 2);
@@ -495,7 +528,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         model.SetDisk      (7);
         model.SetAnalysis  (&analysis);
         model.SelectSector (0, 2);

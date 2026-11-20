@@ -1,26 +1,37 @@
 <#
 .SYNOPSIS
-    Generate Tom Harte SingleStepTests binary data and run the test suite.
+    Run the full Tom Harte SingleStepTests vector set against the CPU cores.
 
 .DESCRIPTION
-    1. Runs GenerateHarteTests.py to download JSON and produce binary test files
-    2. Builds the UnitTest project
-    3. Runs the Harte tests via vstest
+    A unit test run checks a small subset of the vectors, compiled into the
+    test DLL (scripts/EmbedHarteVectors.py). Run this script for the full set
+    after a change that could reasonably break it: the CPU cores, opcode
+    tables, addressing, flags, decimal mode, cycle counts, interrupts, or the
+    MMU and memory bus. See docs/testing.md.
+
+    1. Runs GenerateHarteTests.py to download the JSON and write the binary
+       vector files into -HarteDir, unless -SkipGenerate is given
+    2. Builds the solution
+    3. Runs only the Harte tests, with CASSO_HARTE_DIR set to -HarteDir
 
 .PARAMETER Opcode
     Optional: single opcode (hex) to generate and test, e.g. "A9"
 
 .PARAMETER MaxVectors
-    Optional: limit vectors per opcode for quick dev runs
+    Optional: limit vectors per opcode when generating
 
 .PARAMETER Cpu
-    CPU type folder name (default: "6502")
+    CPU type folder name to generate (default: "6502")
+
+.PARAMETER HarteDir
+    Where the full set is kept (default: %LOCALAPPDATA%\Casso\HarteTests),
+    shared by every checkout on the machine
 
 .PARAMETER SkipGenerate
-    Skip the generation step (use existing binary files)
+    Skip the generation step and use the vector files already in -HarteDir
 
 .PARAMETER Configuration
-    Build configuration (default: Debug)
+    Build configuration (default: Release)
 
 .PARAMETER Platform
     Build platform (default: x64)
@@ -33,8 +44,9 @@ param (
     [string] $Opcode,
     [int]    $MaxVectors = 0,
     [string] $Cpu = "6502",
+    [string] $HarteDir = (Join-Path $env:LOCALAPPDATA 'Casso\HarteTests'),
     [switch] $SkipGenerate,
-    [string] $Configuration = "Debug",
+    [string] $Configuration = "Release",
     [string] $Platform = "x64"
 )
 
@@ -42,14 +54,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot  = Split-Path -Parent $scriptDir
 
 
-# Step 1: Generate binary test data
+# Step 1: Generate the binary vector files
 if (-not $SkipGenerate) {
     Write-Host "=== Generating Harte test data ===" -ForegroundColor Cyan
 
-    $genArgs = @("$scriptDir\GenerateHarteTests.py", "--cpu", $Cpu)
+    $genArgs = @("$scriptDir\GenerateHarteTests.py", "--cpu", $Cpu, "--output-dir", (Join-Path $HarteDir $Cpu))
 
     if ($Opcode) {
         $genArgs += @("--opcode", $Opcode)
@@ -69,7 +80,7 @@ if (-not $SkipGenerate) {
 
 
 # Step 2: Build
-Write-Host "`n=== Building UnitTest ($Configuration|$Platform) ===" -ForegroundColor Cyan
+Write-Host "`n=== Building ($Configuration|$Platform) ===" -ForegroundColor Cyan
 & pwsh -NoProfile -ExecutionPolicy Bypass -File "$scriptDir\Build.ps1" `
     -Target Build -Configuration $Configuration -Platform $Platform
 
@@ -79,10 +90,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 
-# Step 3: Run tests
-Write-Host "`n=== Running Harte tests ===" -ForegroundColor Cyan
-& pwsh -NoProfile -ExecutionPolicy Bypass -File "$scriptDir\RunTests.ps1" `
-    -Configuration $Configuration -Platform $Platform
+# Step 3: Run the Harte tests against the full set
+Write-Host "`n=== Running Harte tests from $HarteDir ===" -ForegroundColor Cyan
+$env:CASSO_HARTE_DIR = $HarteDir
+
+try {
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File "$scriptDir\RunTests.ps1" `
+        -Configuration $Configuration -Platform $Platform -Filter Harte
+}
+finally {
+    Remove-Item Env:CASSO_HARTE_DIR -ErrorAction SilentlyContinue
+}
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Tests failed"

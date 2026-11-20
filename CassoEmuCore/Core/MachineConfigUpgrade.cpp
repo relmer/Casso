@@ -132,11 +132,14 @@ Error:
 //    newer stamp        skip -- never downgrade a user who is somehow ahead
 //    equal stamp AND    skip -- genuinely up to date
 //      matching content
-//    stamp <= 0, or     overwrite silently -- extracted by an older release
-//      an older stamp
 //    hash matches a     overwrite silently -- an untouched extract from some
 //      known prior          past version, just not this one
 //    anything else      back up, then replace
+//
+//  Everything below a matching stamp goes through the hash check: a missing
+//  stamp, a stamp of zero, a lower stamp and an equal stamp with different
+//  content. A lower stamp alone does not show the file is an untouched
+//  extract, since a user can edit a file and leave its stamp as it was.
 //
 //  An equal stamp with DIFFERENT content is the case worth understanding.
 //  Parallel feature branches can each ship a different config under the same
@@ -185,14 +188,9 @@ MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
             diskNormalizedHashHex == embeddedNormalizedHashHex),
           action = MachineConfigUpgradeAction::Skip);
 
-    // Stamped but stale: extracted by an older Casso release — safe
-    // to overwrite, no backup.
-    CBRF (diskVersion <= 0 || diskVersion == embeddedVersion,
-          action = MachineConfigUpgradeAction::OverwriteSilent);
-
-    // Unstamped or stamp-collided: hash-match against known historical
-    // defaults; any match means the file is an untouched extract and is
-    // safe to refresh.
+    // Unstamped, older or stamp-collided: hash-match against known
+    // historical defaults; any match means the file is an untouched
+    // extract and is safe to refresh.
     hasDiskHash = !diskNormalizedHashHex.empty();
     CBR (hasDiskHash);
 

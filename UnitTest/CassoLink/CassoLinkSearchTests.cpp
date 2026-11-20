@@ -30,8 +30,12 @@ public:
 
     using Port = FakeAppleFactory::Port;
 
-    static constexpr DWORD  kReplyMs   = 300;
-    static constexpr DWORD  kSpeeds[]  = { 9600, 115200 };
+    //  The time an Apple port has to reply. It is long enough for the fake
+    //  Apple's thread to answer on a loaded machine, and each silent port
+    //  takes this long at each speed.
+    static constexpr DWORD  kReplyMs     = 2000;
+    static constexpr DWORD  kNoReplyMs   = 300;
+    static constexpr DWORD  kSpeeds[]    = { 9600, 115200 };
 
     struct Sink : ICassoLinkSessionSink
     {
@@ -112,7 +116,7 @@ public:
 
         rig.factory.comPorts = { { L"COM1", Port::Silent }, { L"COM2", Port::Busy } };
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), CassoLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kReplyMs, port));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_FOUND), CassoLinkSearch::Find (rig.factory, ComSettings(), kSpeeds, kNoReplyMs, port));
         Assert::IsTrue   (port.empty());
         Assert::IsTrue   (rig.factory.ArePortsClosed());
     }
@@ -244,7 +248,13 @@ public:
         Assert::IsTrue   (rig.factory.comBauds == std::vector<DWORD> { 115200, 9600, 115200 }, L"silent at the link's speed, connected at the bootstrap speed, then opened again at the link's");
         Assert::AreEqual ((int) Byte (0x03), (int) rig.session->GetDriveMap(), L"the drives of the Ready before the port was opened again");
 
-        Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 1000), L"DSR off on the port just opened is not the Apple gone");
+        //  Many reads of DSR, well past the time DSR off counts as gone.
+        for (int reads = rig.factory.peerReads + 50; rig.factory.peerReads < reads; )
+        {
+            std::this_thread::yield();
+        }
+
+        Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 0), L"DSR off on the port just opened is not the Apple gone");
     }
 
 

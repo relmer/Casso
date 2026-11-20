@@ -171,6 +171,7 @@
     <ClCompile Include="BlockCountTests.cpp" />
     <ClCompile Include="ImageClassifierScenarioTests.cpp" />
     <ClCompile Include="BlockModeTests.cpp" />
+    <ClCompile Include="InspectorPerformanceTests.cpp" />
     <ClCompile Include="GutenbergTests.cpp" />
     <ClCompile Include="TapeRecordingTests.cpp" />
     <ClCompile Include="GameDataTests.cpp" />
@@ -197,11 +198,18 @@
     <ClCompile Include="CollectionScaleTests.cpp" />
     <ClCompile Include="CassoLinkBlockTests.cpp" />
     <ClCompile Include="CassoLinkAppleIIITests.cpp" />
+    <ClCompile Include="CassoLinkIIgsTests.cpp" />
+    <ClCompile Include="CassoLinkEthernetTests.cpp" />
+    <ClCompile Include="CassoLinkBlockEmulatorTests.cpp" />
+    <ClCompile Include="CassoLinkSosDiskTests.cpp" />
+    <ClCompile Include="CassoLinkSccTests.cpp" />
+    <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
     <ClCompile Include="CassoLinkCassetteTests.cpp" />
     <ClCompile Include="CassoLinkThirteenSectorTests.cpp" />
     <ClCompile Include="NestedContainerTests.cpp" />
     <ClCompile Include="StockDiskBootTests.cpp" />
     <ClCompile Include="CassoLinkVirtualDriveTests.cpp" />
+    <ClCompile Include="CaptureProgramScenarioTests.cpp" />
     <ClCompile Include="CassoLinkCaptureTests.cpp" />
     <ClCompile Include="CassoLinkHardwareTests.cpp" />
     <ClCompile Include="VisiCalcTests.cpp" />
@@ -215,6 +223,7 @@
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
     <ClCompile Include="CassoLinkDosProbeTests.cpp" />
+    <ClCompile Include="CassoLinkNetworkTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
     <ClCompile Include="TcpStreamTests.cpp" />
     <ClCompile Include="CassoLinkWin32SeamTests.cpp" />
@@ -248,6 +257,7 @@
     <ClCompile Include="MameComparisonTests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EmulatorLink.h" />
     <ClInclude Include="PacedRun.h" />
     <ClInclude Include="Pch.h" />
   </ItemGroup>

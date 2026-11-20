@@ -111,23 +111,23 @@ Error:
 //
 //  GzipFile::Build
 //
-//  The data in stored blocks of up to 65,535 bytes, each a header byte, its
-//  length and the length's complement.
+//  The extra flags indicate the level, as gzip writes them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GzipFile::Build (std::span<const Byte> data, const std::string & name, std::vector<Byte> & outBytes)
+void GzipFile::Build (std::span<const Byte> data, const std::string & name, std::vector<Byte> & outBytes, int level)
 {
     constexpr Byte  kOsUnknown = 0xFF;
 
 
 
-    size_t    at  = 0;
-    uint32_t  crc = ZipArchive::ComputeCrc32 (data);
+    uint32_t           crc   = ZipArchive::ComputeCrc32 (data);
+    Byte               extra = level >= Deflate::kBest ? kExtraBest : level <= Deflate::kFastest ? kExtraFast : 0;
+    std::vector<Byte>  deflated;
 
 
 
-    outBytes = { kId1, kId2, kDeflate, (Byte) (name.empty() ? 0 : kFlagName), 0, 0, 0, 0, 0, kOsUnknown };
+    outBytes = { kId1, kId2, kDeflate, (Byte) (name.empty() ? 0 : kFlagName), 0, 0, 0, 0, extra, kOsUnknown };
 
     if (!name.empty())
     {
@@ -135,21 +135,8 @@ void GzipFile::Build (std::span<const Byte> data, const std::string & name, std:
         outBytes.push_back (0);
     }
 
-    do
-    {
-        size_t  take = std::min (kMaxStored, data.size() - at);
-        bool    last = at + take == data.size();
-
-        outBytes.push_back (last ? 1 : 0);
-        outBytes.push_back ((Byte) (take & 0xFF));
-        outBytes.push_back ((Byte) (take >> 8));
-        outBytes.push_back ((Byte) (~take & 0xFF));
-        outBytes.push_back ((Byte) ((~take >> 8) & 0xFF));
-        outBytes.insert (outBytes.end(), data.begin() + (ptrdiff_t) at, data.begin() + (ptrdiff_t) (at + take));
-
-        at += take;
-    }
-    while (at < data.size());
+    Deflate::Compress (data, deflated, level);
+    outBytes.insert (outBytes.end(), deflated.begin(), deflated.end());
 
     for (int shift = 0; shift < 32; shift += 8)
     {
@@ -160,4 +147,23 @@ void GzipFile::Build (std::span<const Byte> data, const std::string & name, std:
     {
         outBytes.push_back ((Byte) ((uint32_t) data.size() >> shift));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GzipFile::GetLevel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int GzipFile::GetLevel (std::span<const Byte> bytes)
+{
+    Byte  extra = IsGzip (bytes) ? bytes[kExtraFlags] : 0;
+
+
+
+    return extra == kExtraBest ? Deflate::kBest : extra == kExtraFast ? Deflate::kFastest : Deflate::kDefault;
 }

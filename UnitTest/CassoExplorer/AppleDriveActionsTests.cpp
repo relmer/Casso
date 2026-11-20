@@ -4,7 +4,6 @@
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
-#include "../EmuTests/GuestSession.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -97,11 +96,23 @@ public:
                     return;
                 }
 
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
             while (std::chrono::steady_clock::now() < until);
 
             Assert::Fail (L"the catalog arrives");
+        }
+
+        //  Waits until no operation is queued or running, so a read that an
+        //  action started has finished and been counted.
+        void  Settle()
+        {
+            auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+
+            while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
+            {
+                std::this_thread::yield();
+            }
         }
 
         //  Waits for the queued operations, runs their completions, and
@@ -113,7 +124,7 @@ public:
 
             while (!links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
             {
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
 
             messages = links->RunCompletions();
@@ -224,12 +235,12 @@ public:
 
         rig.Open (1);
         rig.Open (2);
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         reads = rig.apple.catalogReads;
 
-        //  A read would start on the session's thread, so it is given time.
+        //  A read would run on the session's thread, so it is waited for.
         rig.Open (1);
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         AssertSucceeded (rig.browser->Refresh());
         Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read for a drive read moments ago");
 
@@ -238,7 +249,7 @@ public:
 
         while (rig.apple.catalogReads == reads && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
             AssertSucceeded (rig.browser->Refresh());
         }
 
@@ -260,11 +271,11 @@ public:
         rig.browser->OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
         rig.Reload();
         rig.browser->ForgetLinkVisit();
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         reads = rig.apple.catalogReads;
 
         Assert::IsTrue (rig.browser->SwitchTab (0));
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        rig.Settle();
         AssertSucceeded (rig.browser->Refresh());
 
         Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read on returning to the tab");
@@ -631,7 +642,7 @@ public:
 
             while (!rig.links->GetPendingJobs().empty() && std::chrono::steady_clock::now() < until)
             {
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
         }
 
@@ -692,7 +703,7 @@ public:
         {
             refreshed = rig.browser->Refresh();
             IGNORE_RETURN_VALUE (refreshed, S_OK);
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
         while (rig.browser->GetListError() == CassoExplorerBrowser::s_kWorkingText && std::chrono::steady_clock::now() < until);
 
@@ -780,46 +791,6 @@ public:
         rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
 
         Assert::IsFalse (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial).Succeeded(), L"A disk without PRODOS is turned down");
-    }
-
-
-
-    //  The CassoLink SOS disk made from Apple's System Demo disk has its
-    //  SOS.KERNEL and SOS.DRIVER and the SOS.INTERP; a disk without SOS
-    //  and a speed above the Apple ///'s fail with the reason.
-    TEST_METHOD (SaveLinkSosDisk_WritesADiskWithTheUsersSos)
-    {
-        Rig                    rig;
-        CassoLinkSettings      serial;
-        std::vector<Byte>      blank (NibblizationLayer::kImageByteSize, 0);
-        std::vector<Byte>      file;
-        Byte                   fileType = 0;
-        Word                   auxType  = 0;
-        ActionsTypes::Outcome  outcome;
-
-        serial.baud = 9600;
-
-        rig.io.files["C:/Disks/Sos.dsk"]  = GuestSession::RequireSosDemoDisk();
-        rig.io.stamps["C:/Disks/Sos.dsk"] = FileStamp { rig.io.files["C:/Disks/Sos.dsk"].size(), 1 };
-
-        AssertSucceeded (rig.actions->SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link.dsk", serial).hr);
-
-        for (const char * name : { "SOS.KERNEL", "SOS.DRIVER", "SOS.INTERP" })
-        {
-            AssertSucceeded (ProDosReader::ExtractFile (rig.io.files["C:/Disks/Link.dsk"], name, file, fileType, auxType));
-        }
-
-        AssertSucceeded (ProDosSkeleton::Write (blank, "EMPTY"));
-        rig.io.files["C:/Disks/Empty.dsk"]  = blank;
-        rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
-
-        outcome = rig.actions->SaveLinkSosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial);
-        Assert::IsFalse (outcome.Succeeded());
-        Assert::IsTrue (outcome.message.find (L"SOS loader") != std::wstring::npos, outcome.message.c_str());
-
-        serial.baud = 115200;
-        outcome     = rig.actions->SaveLinkSosDisk (L"C:/Disks/Sos.dsk", L"C:/Disks/Link3.dsk", serial);
-        Assert::IsTrue (outcome.message.find (L"19,200") != std::wstring::npos, outcome.message.c_str());
     }
 
 

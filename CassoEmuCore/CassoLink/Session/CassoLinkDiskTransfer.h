@@ -56,6 +56,12 @@ public:
     //  A Status error for sectors not read, rather than for the drive.
     static bool     IsDamaged   (Byte error);
 
+    //  Whether a read to an image of this format measures each track, and
+    //  the image built from the sectors read: a WOZ to the measured layouts,
+    //  any other format wrapped as its container.
+    static bool     IsMeasured  (DiskFormat format);
+    static HRESULT  BuildImage  (const std::string & imagePath, DiskFormat format, const std::vector<Byte> & sectors, const std::vector<CassoLinkHost::TrackMeasure> & measures, int bitsPerTurn, std::vector<Byte> & outBytes);
+
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
     HRESULT  CaptureWholeDisk   (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);

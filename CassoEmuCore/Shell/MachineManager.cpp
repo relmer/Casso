@@ -17,6 +17,7 @@
 #include "Config/MonitorCatalog.h"
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/CpuFactory.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -198,9 +199,6 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     std::vector<fs::path>  searchPaths;
     fs::path               configRelPath;
     fs::path               configPath;
-    std::ifstream          configFile;
-    bool                   configGood        = false;
-    std::stringstream      ss;
     std::string            jsonText;
     std::vector<fs::path>  romSearchPaths;
     std::string            error;
@@ -233,13 +231,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     CBRN (foundConfig,
           std::format (L"Machine config not found: {}", machineName).c_str());
 
-    configFile.open (configPath);
-    configGood = configFile.good();
-    CBRN (configGood,
-          std::format (L"Cannot open machine config:\n{}", configPath.wstring()).c_str());
-
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
+    hr = MachineConfigSource::ReadConfigText (GetModuleHandleW (nullptr), machineName, configPath, jsonText);
+    CHRN (hr, std::format (L"Cannot open machine config:\n{}", configPath.wstring()).c_str());
 
     hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
 

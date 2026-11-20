@@ -4,6 +4,8 @@
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
@@ -137,6 +139,147 @@ public:
         Assert::AreEqual (std::wstring (L"GAMES"), nodes[0].children[0].label);
         Assert::IsTrue (BlockBrowser::ParseId (nodes[0].children[0].id, place));
         Assert::IsTrue (place.kind == BlockPlace::Kind::Directory);
+    }
+
+
+    //  The labels of a tree's nodes, each indented by its depth, a line each.
+    static std::wstring DescribeTree (const vector<DxuiTreeNode> & nodes, int depth = 0)
+    {
+        std::wstring  text;
+
+
+
+        for (const DxuiTreeNode & node : nodes)
+        {
+            text += std::wstring ((size_t) depth * 2, L' ') + node.label + L"\n" + DescribeTree (node.children, depth + 1);
+        }
+
+        return text;
+    }
+
+
+
+    //  Two DOS Master volumes at the end of an 800K ProDOS volume are its
+    //  children in the tree, not its siblings, and no partition node is
+    //  between them.
+    TEST_METHOD (Tree_HasEachVolumeInsideTheVolumeItIsIn)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        BlockBrowser                     browser (&model);
+        vector<Byte>                     bytes    = vector<Byte> (k800KBlocks * kBlockBytes, 0);
+        Dos33Geometry                    geometry = Dos33Geometry::Make (35, 16);
+        vector<Byte>                     dos      (geometry.GetImageByteSize(), 0);
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        std::wstring                     tree;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (bytes, "OUTER"));
+        AssertSucceeded (Dos33Skeleton::Write (dos, 254, geometry));
+
+        for (uint32_t block = 1040; block < k800KBlocks; block++)
+        {
+            bytes[ProDosSkeleton::GetBitmapByteOffset (bytes, block)] &= (Byte) ~(0x80 >> (block & 7));
+        }
+
+        std::copy (dos.begin(), dos.end(), bytes.begin() + (ptrdiff_t) (1040 * kBlockBytes));
+        std::copy (dos.begin(), dos.end(), bytes.begin() + (ptrdiff_t) (1320 * kBlockBytes));
+
+        io.files["dm.po"]  = bytes;
+        io.stamps["dm.po"] = { bytes.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "dm.po", file, error));
+        AssertSucceeded (model.Open (std::move (file)));
+
+        tree = DescribeTree (browser.BuildTree (L"dm.po"));
+
+        Assert::AreEqual (std::wstring (L"dm.po\n  OUTER\n    DOS 3.3 volume 254\n    DOS 3.3 volume 254\n"), tree, tree.c_str());
+    }
+
+
+
+    //  A partition of an Apple Partition Map is a node with the map's name,
+    //  and the volume in it is its child.
+    TEST_METHOD (Tree_HasEachPartitionWithItsVolumeInside)
+    {
+        static constexpr uint32_t  kFirst = 8;
+        static constexpr uint32_t  kCount = 400;
+
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        BlockBrowser                     browser (&model);
+        vector<Byte>                     bytes   = vector<Byte> ((size_t) (kFirst + 2 * kCount) * kBlockBytes, 0);
+        vector<Byte>                     volume  = vector<Byte> (kCount * kBlockBytes, 0);
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        std::wstring                     tree;
+        BlockPlace                       place;
+        vector<BlockPlace>               targets;
+        BlockInspectorPanel              panel;
+        DxuiDarkTheme                    theme;
+        DxuiDpiScaler                    scaler;
+        MockDxuiTextRenderer             text;
+
+
+
+        auto  writeEntry = [&bytes] (uint32_t block, uint32_t first, const char * name, const char * type)
+        {
+            size_t  at = (size_t) block * kBlockBytes;
+
+            bytes[at]      = 'P';
+            bytes[at + 1]  = 'M';
+            bytes[at + 7]  = 3;
+            bytes[at + 10] = (Byte) (first >> 8);
+            bytes[at + 11] = (Byte) first;
+            bytes[at + 14] = (Byte) (kCount >> 8);
+            bytes[at + 15] = (Byte) kCount;
+            std::copy (name, name + strlen (name), bytes.begin() + (ptrdiff_t) (at + 16));
+            std::copy (type, type + strlen (type), bytes.begin() + (ptrdiff_t) (at + 48));
+        };
+
+        bytes[0] = 'E';
+        bytes[1] = 'R';
+        bytes[2] = 0x02;
+
+        writeEntry (1, 1, "Apple", "Apple_partition_map");
+        writeEntry (2, kFirst, "PART_A", "Apple_PRODOS");
+        writeEntry (3, kFirst + kCount, "PART_B", "Apple_PRODOS");
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "VOL.A"));
+        std::copy (volume.begin(), volume.end(), bytes.begin() + (ptrdiff_t) (kFirst * kBlockBytes));
+        AssertSucceeded (ProDosSkeleton::Write (volume, "VOL.B"));
+        std::copy (volume.begin(), volume.end(), bytes.begin() + (ptrdiff_t) ((kFirst + kCount) * kBlockBytes));
+
+        io.files["apm.hdv"]  = bytes;
+        io.stamps["apm.hdv"] = { bytes.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "apm.hdv", file, error));
+        AssertSucceeded (model.Open (std::move (file)));
+
+        tree = DescribeTree (browser.BuildTree (L"apm.hdv"));
+
+        Assert::AreEqual (std::wstring (L"apm.hdv\n  PART_A (Apple_PRODOS)\n    VOL.A\n  PART_B (Apple_PRODOS)\n    VOL.B\n"), tree, tree.c_str());
+
+        //  The address bar goes from the card through the partition.
+        Assert::IsTrue (BlockBrowser::ParseId (browser.BuildTree (L"apm.hdv")[0].children[0].children[0].id, place));
+        Assert::AreEqual ((size_t) 3, browser.BuildCrumbs (place, L"apm.hdv", targets).size());
+        Assert::IsTrue   (targets[1].kind == BlockPlace::Kind::Partition);
+        Assert::AreEqual ((size_t) 1, browser.BuildListing (targets[1]).groups[0].rows.size(), L"a partition lists its volume");
+
+        //  A partition or a volume chosen highlights its blocks on the map.
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1400, 800 }, scaler);
+
+        panel.GetNavigator().GoTo (targets[1]);
+        Assert::IsTrue  (model.IsHighlighted (kFirst), L"the partition's first block");
+        Assert::IsTrue  (model.IsHighlighted (kFirst + kCount - 1), L"and its last");
+        Assert::IsFalse (model.IsHighlighted (kFirst + kCount), L"not the next partition's");
+
+        panel.GetNavigator().GoTo (place);
+        Assert::IsTrue  (model.IsHighlighted (kFirst + 2), L"the volume's blocks");
+        Assert::IsFalse (model.IsHighlighted (1), L"not the partition map's");
     }
 
 

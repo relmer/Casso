@@ -655,6 +655,7 @@ HRESULT CassoLinkAdtProServer::ServeGet (const CassoLinkPacket & packet)
 
         hr = m_host.ReadPacket (m_operationTimeoutMs, reply);
         CBREx (hr != HRESULT_FROM_WIN32 (ERROR_TIMEOUT), hr);
+        CBREx (hr != HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE), hr);
 
         if (FAILED (hr) || reply.command != CassoLinkCodec::kAcknowledge || reply.payload.size() < 3)
         {

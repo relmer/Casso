@@ -29,7 +29,7 @@ public:
         Byte                                  received[8] = {};
         size_t                                got         = 0;
 
-        InProcessByteStream::CreatePair (first, second);
+        InProcessByteStream::CreateVirtualPair (first, second);
 
         Assert::AreEqual (S_OK, first->Write (sent, std::size (sent)));
         Assert::AreEqual<size_t> (std::size (sent), second->GetReadableCount());
@@ -49,7 +49,7 @@ public:
         Byte                                  received[2] = {};
         size_t                                got         = 0;
 
-        InProcessByteStream::CreatePair (first, second);
+        InProcessByteStream::CreateVirtualPair (first, second);
         Assert::AreEqual (S_OK, first->Write (sent, std::size (sent)));
 
         Assert::AreEqual (S_OK, second->Read (received, std::size (received), 0, got));
@@ -65,7 +65,7 @@ public:
         Byte                                  received[4] = {};
         size_t                                got         = 1;
 
-        InProcessByteStream::CreatePair (first, second);
+        InProcessByteStream::CreateVirtualPair (first, second);
 
         Assert::AreEqual (S_OK, second->Read (received, std::size (received), 0, got));
         Assert::AreEqual<size_t> (0, got);
@@ -81,7 +81,7 @@ public:
         const Byte                            value       = 0x42;
         std::thread                           writer;
 
-        InProcessByteStream::CreatePair (first, second);
+        InProcessByteStream::CreateVirtualPair (first, second);
 
         writer = std::thread ([first, value]()
         {
@@ -107,7 +107,7 @@ public:
         size_t                                got         = 0;
         HRESULT                               hr          = S_OK;
 
-        InProcessByteStream::CreatePair (first, second);
+        InProcessByteStream::CreateVirtualPair (first, second);
         Assert::AreEqual (S_OK, first->Write (&value, 1));
 
         first->Close();

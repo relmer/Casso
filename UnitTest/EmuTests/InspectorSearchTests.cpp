@@ -70,6 +70,25 @@ public:
 
 
 
+    //  The analysis is built once for the class. Each test copies it.
+    static const DiskAnalysis & GetDisk()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            AnalyzeDisk (s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
     static vector<SearchHit> FindOnTrack (const TrackAnalysis & track, SearchKind kind, const std::wstring & text, bool isAnyBit = false)
     {
         vector<SearchItem>  items;
@@ -88,6 +107,13 @@ public:
         }
 
         return hits;
+    }
+
+
+
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) GetDisk();
     }
 
 
@@ -188,7 +214,7 @@ public:
 
 
 
-        AnalyzeDisk (analysis);
+        analysis = GetDisk();
 
         kinds = InspectorGoTo::GetKinds (analysis);
         Assert::IsTrue (std::find (kinds.begin(), kinds.end(), GoToKind::ProDosBlock) != kinds.end());
@@ -205,7 +231,7 @@ public:
 
 
 
-        AnalyzeDisk (analysis);
+        analysis = GetDisk();
 
         Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::PhysicalSector));
         Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::DosOrderSector));
@@ -225,7 +251,7 @@ public:
 
 
 
-        AnalyzeDisk (analysis);
+        analysis = GetDisk();
 
         Assert::IsFalse (InspectorGoTo::Resolve (analysis, 0, GoToKind::NibbleOffset, L"FFFF", target, error));
         Assert::AreEqual (L"Enter a" + InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::NibbleOffset).substr (1) + L".", error);
@@ -255,7 +281,7 @@ public:
 
 
 
-        AnalyzeDisk (analysis);
+        analysis = GetDisk();
 
         Assert::IsTrue   (InspectorGoTo::Resolve (analysis, 68, GoToKind::DosOrderSector, L"F", target, error));
         Assert::AreEqual (68, target.quarterTrack);
@@ -275,7 +301,7 @@ public:
 
 
 
-        AnalyzeDisk (analysis);
+        analysis = GetDisk();
 
         Assert::IsTrue  (InspectorGoTo::Resolve (analysis, 0, GoToKind::Track, L"17.25", target, error));
         Assert::AreEqual (69, target.quarterTrack);

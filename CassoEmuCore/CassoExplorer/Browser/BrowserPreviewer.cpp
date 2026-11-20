@@ -11,6 +11,7 @@
 #include "Devices/Disk/DiskImageSession.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
@@ -258,7 +259,7 @@ void BrowserPreviewer::SetCharset (Charset charset)
 {
     if (!m_hexFormKey.empty())
     {
-        m_decodeOptions[m_hexFormKey].charset = charset;
+        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.charset = charset;
         UpdatePreview();
     }
 }
@@ -277,7 +278,7 @@ void BrowserPreviewer::SetRecordLength (size_t recordLength)
 {
     if (!m_hexFormKey.empty())
     {
-        m_decodeOptions[m_hexFormKey].recordLength = recordLength;
+        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.recordLength = recordLength;
         UpdatePreview();
     }
 }
@@ -296,7 +297,7 @@ void BrowserPreviewer::SetFormulas (bool formulas)
 {
     if (!m_hexFormKey.empty())
     {
-        m_decodeOptions[m_hexFormKey].formulas = formulas;
+        m_decodeOptions.try_emplace (m_hexFormKey, m_defaultOptions).first->second.formulas = formulas;
         UpdatePreview();
     }
 }
@@ -317,7 +318,31 @@ DecodeOptions BrowserPreviewer::GetDecodeOptions (const std::wstring & imagePath
 
 
 
-    return (found != m_decodeOptions.end()) ? found->second : DecodeOptions();
+    return (found != m_decodeOptions.end()) ? found->second : m_defaultOptions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetDefaultDecodeOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetDefaultDecodeOptions (const DecodeOptions & options)
+{
+    m_defaultOptions              = options;
+    m_defaultOptions.recordLength = 0;
+
+    for (auto & [key, fileOptions] : m_decodeOptions)
+    {
+        size_t  recordLength = fileOptions.recordLength;
+
+        fileOptions              = m_defaultOptions;
+        fileOptions.recordLength = recordLength;
+    }
 }
 
 
@@ -482,6 +507,11 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
     {
         result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
 
+        if (!result.Succeeded() && PreviewPartitions (imagePath))
+        {
+            return;
+        }
+
         if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
         {
             m_preview.kind = PreviewContent::Kind::Details;
@@ -501,6 +531,55 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
     AddWozDetails (imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::PreviewPartitions
+//
+//  An image of partitions previews as its partition map and a line for
+//  each partition: its label, and its volume and size. False for an image
+//  with no partitions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserPreviewer::PreviewPartitions (const std::wstring & imagePath)
+{
+    HRESULT                      hr            = S_OK;
+    std::string                  narrow        = TextEncoding::WideToNarrow (imagePath);
+    std::vector<Byte>            bytes;
+    std::vector<PartitionEntry>  entries;
+    PartitionLayoutKind          layout        = PartitionLayoutKind::None;
+    bool                         isPartitioned = false;
+
+
+
+    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+    CHR (hr);
+
+    hr = PartitionAccess::List (bytes, narrow, layout, entries);
+    CHR (hr);
+
+    isPartitioned = layout != PartitionLayoutKind::None && !entries.empty();
+    CBR (isPartitioned);
+
+    m_preview.details.clear();
+    m_preview.details.emplace_back (L"Partition map", TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (layout)));
+
+    for (const PartitionEntry & entry : entries)
+    {
+        m_preview.details.emplace_back (TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition)),
+                                        TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (entry) + ", " + PartitionAccess::FormatSize (entry.byteCount)));
+    }
+
+    m_preview.kind = PreviewContent::Kind::Details;
+
+Error:
+    return SUCCEEDED (hr);
 }
 
 
@@ -1156,7 +1235,7 @@ PicturePreview::Monitor BrowserPreviewer::ChooseMonitor (PicturePreview::Monitor
 
 
 
-    if (mode == PicturePreview::Mode::DoubleHiRes)
+    if (mode == PicturePreview::Mode::DoubleHiRes || mode == PicturePreview::Mode::DoubleHiResWindowed || mode == PicturePreview::Mode::DoubleHiResLatched)
     {
         monitor = PicturePreview::Monitor::Color;
     }
@@ -1180,8 +1259,7 @@ PicturePreview::Monitor BrowserPreviewer::ChooseMonitor (PicturePreview::Monitor
 
 bool BrowserPreviewer::CanTogglePictureColor() const
 {
-    return m_preview.kind == PreviewContent::Kind::Picture
-        && (m_preview.pictureChosen == PicturePreview::Mode::DoubleHiRes || m_preview.pictureChosen == PicturePreview::Mode::DoubleHiResMono);
+    return m_preview.kind == PreviewContent::Kind::Picture && PicturePreview::IsDoubleHiRes (m_preview.pictureChosen);
 }
 
 
@@ -1207,8 +1285,8 @@ bool BrowserPreviewer::TogglePictureColor()
         return false;
     }
 
-    m_preview.pictureMode = (m_preview.pictureMode == PicturePreview::Mode::DoubleHiRes) ? PicturePreview::Mode::DoubleHiResMono
-                                                                                         : PicturePreview::Mode::DoubleHiRes;
+    m_preview.pictureMode = (m_preview.pictureMode != PicturePreview::Mode::DoubleHiResMono) ? PicturePreview::Mode::DoubleHiResMono
+                                                                                             : PicturePreview::Mode::DoubleHiRes;
 
     hr = PicturePreview::Render (m_preview.pictureMode, m_preview.bytes, m_preview.origin, m_bus,
                                  m_preview.bgra, m_preview.width, m_preview.height, GetPictureMonitor(), m_customArgb);

@@ -68,6 +68,7 @@ public:
     std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
     void          AddWozDetails        (const std::wstring & imagePath);
     void          PreviewImageCatalog  (const std::wstring & imagePath);
+    bool          PreviewPartitions    (const std::wstring & imagePath);
 
     using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
 
@@ -90,6 +91,11 @@ public:
     //  The choices made for a file, by its image's path and its path in the
     //  image; the defaults for a file with none.
     DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const;
+
+    //  The options of a file whose preview hasn't set any. Setting them
+    //  sets each file's options too, all but its record length.
+    void                   SetDefaultDecodeOptions (const DecodeOptions & options);
+    const DecodeOptions &  GetDefaultDecodeOptions () const { return m_defaultOptions; }
 
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
 
@@ -145,4 +151,5 @@ private:
 
     //  The decode choices of each file one was made for, by file key.
     std::map<std::wstring, DecodeOptions>  m_decodeOptions;
+    DecodeOptions                          m_defaultOptions;
 };

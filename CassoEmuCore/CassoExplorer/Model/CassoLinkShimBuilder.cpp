@@ -56,9 +56,9 @@ LinkShimOptions CassoLinkShimBuilder::MakeShimOptions (const std::wstring & pcNa
     options.slot = (settings.transport == LinkTransport::Uthernet) ? kUthernetSlot : options.slot;
     options.dial = MakeDialCommand (pcName, settings);
 
-    BAIL_OUT_IF (settings.transport != LinkTransport::Uthernet, S_OK);
+    BAIL_OUT_IF (settings.transport != LinkTransport::Uthernet && settings.transport != LinkTransport::Udp, S_OK);
 
-    options.chip = LinkChip::W5100;
+    options.chip = (settings.transport == LinkTransport::Udp) ? LinkChip::Network : LinkChip::W5100;
 
     //  With no adapters listed, the defaults apply.
     hr = Win32NetworkAdapters::List (adapters);

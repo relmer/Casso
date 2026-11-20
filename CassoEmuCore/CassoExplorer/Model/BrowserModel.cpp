@@ -521,6 +521,7 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+        case Location::Kind::Partition:
             //  A card is one segment, which its partitions follow.
             if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), drive, partition) == PhysicalCards::PathKind::Card)
             {
@@ -533,8 +534,25 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
             if (slash != std::wstring::npos && PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (location.path.substr (slash + 1)), partition))
             {
+                std::wstring  label = root.getPartitionLabel ? root.getPartitionLabel (location.path) : std::wstring();
+
+                //  A partition in the tree has its node's label, and the
+                //  volume in it follows.
                 segments = GetAddressSegments (Location::MakeDiskImage (location.path.substr (0, slash)), root);
-                segments.push_back (AddressSegment { std::format (L"Partition {}", partition), Location::MakeDiskImage (location.path) });
+
+                if (label.empty())
+                {
+                    segments.push_back (AddressSegment { std::format (L"Partition {}", partition), Location::MakeDiskImage (location.path) });
+                    break;
+                }
+
+                segments.push_back (AddressSegment { label, Location::MakePartition (location.path) });
+
+                if (location.kind != Location::Kind::Partition)
+                {
+                    segments.push_back (AddressSegment { root.getVolumeLabel ? root.getVolumeLabel (location.path) : label, Location::MakeDiskImage (location.path) });
+                }
+
                 break;
             }
 

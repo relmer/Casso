@@ -42,6 +42,9 @@
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)SlotFinder.s">
       <Symbol>s_kSlotFinderSource</Symbol>
     </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)NetStack.s">
+      <Symbol>s_kNetStackSource</Symbol>
+    </CassoAppleSource>
   </ItemGroup>
 
   <ItemDefinitionGroup>

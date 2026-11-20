@@ -33,7 +33,8 @@ TEST_CLASS (InspectorTipTests)
 {
 public:
 
-    static constexpr double  kOneCell = 1e-6;
+    static constexpr double  kOneCell      = 1e-6;
+    static constexpr int     kEmptyRing    = DiskImage::kQuarterTrackCount - 1;   // empty on a .dsk, beyond the head's reach
 
 
 
@@ -46,6 +47,44 @@ public:
 
         AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 7, "test", 0, false), DecodeSettings::MakeStandard(), out);
+    }
+
+
+
+    //  The analysis is built once for the class. Each test copies it.
+    static const DiskAnalysis & GetDsk()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            AnalyzeDsk (s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
+    //  The DOS 3.3 volume with files, analyzed once for the class.
+    static const DiskAnalysis & GetDos33()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            FileMapTestImages::Analyze (FileMapTestImages::MakeDos33(), false, s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
     }
 
 
@@ -86,6 +125,14 @@ public:
 
 
 
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) GetDsk();
+        (void) GetDos33();
+    }
+
+
+
     TEST_METHOD (ThePlatterTipDescribesWhatIsUnderThePointer)
     {
         DiskAnalysis           analysis;
@@ -96,7 +143,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track = analysis.tracks[analysis.entries[68].slot].get();
         turn  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[track->fields[track->sectors[3].dataField].bodyNibble + 20].startCell);
@@ -108,8 +155,33 @@ public:
         tip = InspectorTip::BuildPlatterTip (context, 68, turn, kOneCell, true);
         Assert::IsTrue (tip.GetText().find (L"\nNibble $96 at offset $") != std::wstring::npos, tip.GetText().c_str());
 
-        tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
+        analysis.entries[kEmptyRing].isBeyondHeadReach = false;   // an empty ring within reach
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
         Assert::IsTrue (tip.GetText().ends_with (L"\nNothing recorded\nThe drive reads random bits here"), tip.GetText().c_str());
+    }
+
+
+
+    //  An empty ring beyond the head's reach has no random bits to read: its
+    //  tip has the line for a track outside the head's range, and its swatch
+    //  is the dimmed empty color the platter draws there.
+    TEST_METHOD (AnEmptyRingBeyondTheHeadsReach_IsMarkedAsBeyondIt)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewContext   context;
+        InspectorTip           tip;
+        uint32_t               dim = 0;
+
+
+
+        analysis = GetDsk();
+        context.analysis = &analysis;
+        dim = context.palette.colors.beyondReach;
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
+
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nTrack outside the range of Disk II's read/write head"), tip.GetText().c_str());
+        Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
+        Assert::AreEqual (DxuiColor::Mix (context.palette.colors.nothingRecorded, dim | 0xFF000000u, static_cast<float> (dim >> 24) / 255.0f), tip.GetSwatches()[0].argb);
     }
 
 
@@ -126,7 +198,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         query.text = L"D5 AA 96";
         marks.Build (InspectorSearch::Find (analysis, 68, query), nullptr, query.text);
         context.analysis  = &analysis;
@@ -160,7 +232,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track = analysis.tracks[analysis.entries[68].slot].get();
         tip   = InspectorTip::BuildPlatterTip (context, 68, GetDataTurn (*track, 3, 20), kOneCell, false);
@@ -169,7 +241,8 @@ public:
         Assert::AreEqual (std::wstring (L"Data field"), GetLine (tip.GetText(), tip.GetSwatches()[0].line));
         Assert::AreEqual (context.palette.GetKindColor (PlatterKind::DataField), tip.GetSwatches()[0].argb);
 
-        tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
+        analysis.entries[kEmptyRing].isBeyondHeadReach = false;   // an empty ring within reach
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
         Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
         Assert::AreEqual (std::wstring (L"Nothing recorded"), GetLine (tip.GetText(), tip.GetSwatches()[0].line));
         Assert::AreEqual (context.palette.colors.nothingRecorded, tip.GetSwatches()[0].argb);
@@ -188,7 +261,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track = analysis.tracks[analysis.entries[68].slot].get();
 
@@ -219,7 +292,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         context.analysis = &analysis;
         track  = analysis.tracks[analysis.entries[68].slot].get();
         nibble = track->fields[track->sectors[3].dataField].bodyNibble + 20;
@@ -248,7 +321,7 @@ public:
 
 
 
-        FileMapTestImages::Analyze (image, false, analysis);
+        analysis = GetDos33();
         maps = FileMapBuilder::Build (analysis);
         Assert::AreEqual (static_cast<size_t> (1), maps.size());
 
@@ -297,7 +370,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         track = analysis.tracks[analysis.entries[68].slot].get();
 
         for (size_t s = 0; s < track->sectors.size(); s++)
@@ -368,7 +441,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
 
         model.SetDisk (1);
         model.SetAnalysis (&analysis);
@@ -431,7 +504,7 @@ public:
 
 
 
-        FileMapTestImages::Analyze (image, false, analysis);
+        analysis = GetDos33();
         maps = FileMapBuilder::Build (analysis);
         cell = maps[0].GetCellOf (17, 0, half);
         qt   = 17 * DiskImage::kQuarterTracksPerWholeTrack;

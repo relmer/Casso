@@ -123,12 +123,13 @@ void BlockNavigator::Sync()
 
 
 
-    if (generation == m_generation || !m_model->IsOpen())
+    if ((generation == m_generation && !m_isIconsStale) || !m_model->IsOpen())
     {
         return;
     }
 
-    m_generation = generation;
+    m_generation   = generation;
+    m_isIconsStale = false;
 
     if (isFirst)
     {
@@ -261,20 +262,26 @@ bool BlockNavigator::GoForward()
 //
 //  The address bar and the tree follow the place, and at a place other
 //  than a block, the list is filled for it. A directory's blocks and every
-//  file's under it are highlighted, and a file's blocks.
+//  file's under it are highlighted, a file's blocks, a partition's blocks,
+//  and a volume's blocks when the image has partitions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockNavigator::Show()
 {
-    const BlockPlace  & place = m_browser.GetPlace();
+    const BlockPlace  & place     = m_browser.GetPlace();
+    BlockPlace          container = m_browser.GetContainer (place);
+    bool                isBand    = place.kind == BlockPlace::Kind::Partition && place.entry >= 0 && (size_t) place.entry < m_model->GetBands().size();
+    bool                isVolume  = place.kind == BlockPlace::Kind::Volume && place.volume >= 0 && place.volume < m_model->GetVolumeCount() && m_browser.HasCard();
 
 
 
     m_crumbs->SetSegments (m_browser.BuildCrumbs (place, GetCardLabel(), m_targets));
     m_crumbs->SetPath     (m_browser.FormatPath (place));
-    m_crumbs->SetLeadIcon (m_icons == nullptr ? nullptr : m_icons->GetForKind (m_browser.GetContainer (place).kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder : IShellIcons::Kind::DiskImage));
-    SelectTreeNode (m_browser.GetContainer (m_browser.GetPlace()));
+    m_crumbs->SetLeadIcon (m_icons == nullptr ? nullptr : m_icons->GetForKind (container.kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder
+                                                                             : container.kind == BlockPlace::Kind::Partition ? IShellIcons::Kind::Partition
+                                                                                                                             : IShellIcons::Kind::DiskImage));
+    SelectTreeNode (container);
 
     m_selected = -1;
     FillList();
@@ -301,6 +308,14 @@ void BlockNavigator::Show()
     {
         m_model->HighlightFiles (place.volume, BlockBrowser::GetDescendants (m_model->GetVolumeMap (place.volume), place.entry));
     }
+    else if (isBand)
+    {
+        m_model->HighlightBlocks (GetRun (m_model->GetBands()[(size_t) place.entry].first, m_model->GetBands()[(size_t) place.entry].count));
+    }
+    else if (isVolume)
+    {
+        m_model->HighlightBlocks (GetRun (m_model->GetVolumeFirst (place.volume), m_model->GetVolumeSize (place.volume)));
+    }
     else
     {
         m_model->ClearHighlight();
@@ -312,6 +327,32 @@ void BlockNavigator::Show()
     {
         m_onHighlight();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::GetRun
+//
+//  Each block of a run, in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<uint32_t> BlockNavigator::GetRun (uint32_t first, uint32_t count)
+{
+    vector<uint32_t>  blocks (count);
+
+
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        blocks[i] = first + i;
+    }
+
+    return blocks;
 }
 
 
@@ -346,9 +387,18 @@ void BlockNavigator::SelectTreeNode (const BlockPlace & container)
         }
     }
 
-    if (container.kind != BlockPlace::Kind::Card)
+    if (container.kind == BlockPlace::Kind::Partition)
+    {
+        chain.push_back (BlockBrowser::MakeId (container));
+    }
+    else if (container.kind != BlockPlace::Kind::Card)
     {
         chain.push_back (BlockBrowser::MakeId ({ BlockPlace::Kind::Volume, container.volume }));
+
+        for (const BlockPlace & ancestor : m_browser.GetAncestors (container.volume))
+        {
+            chain.push_back (BlockBrowser::MakeId (ancestor));
+        }
     }
 
     chain.push_back (BlockBrowser::MakeId ({ BlockPlace::Kind::Card }));
@@ -759,8 +809,9 @@ std::wstring BlockNavigator::GetCardLabel() const
 //
 //  BlockNavigator::SetTreeIcons
 //
-//  The card and each volume have the disk image's floppy, and each
-//  directory the folder, as in Casso Explorer's tree.
+//  The card and each volume have the disk image's floppy, each partition
+//  the partition's icon, and each directory the folder, as in Casso
+//  Explorer's tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -779,7 +830,9 @@ void BlockNavigator::SetTreeIcons (vector<DxuiTreeNode> & nodes)
     {
         if (BlockBrowser::ParseId (node.id, place))
         {
-            node.icon = m_icons->GetForKind (place.kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder : IShellIcons::Kind::DiskImage);
+            node.icon = m_icons->GetForKind (place.kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder
+                                           : place.kind == BlockPlace::Kind::Partition ? IShellIcons::Kind::Partition
+                                                                                       : IShellIcons::Kind::DiskImage);
         }
 
         SetTreeIcons (node.children);

@@ -490,7 +490,10 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
 
 LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
 {
-    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100 : (transport == LinkTransport::Cassette) ? LinkChip::Cassette : LinkChip::Acia;
+    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100
+         : (transport == LinkTransport::Udp)      ? LinkChip::Network
+         : (transport == LinkTransport::Cassette) ? LinkChip::Cassette
+                                                  : LinkChip::Acia;
 }
 
 

@@ -89,6 +89,9 @@ void ExplorerAddressBar::Configure()
         return isOpen ? PhysicalCards::FormatDrive (found) : std::format (L"Physical drive {}", drive);
     };
 
+    m_addressRoot.getPartitionLabel = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetPartitionLabel (path); };
+    m_addressRoot.getVolumeLabel    = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetVolumeLabel (path); };
+
     m_address->SetOnSegment ([this] (int index)
     {
         if (index >= 0 && index < (int) m_addressSegments.size())

@@ -16,6 +16,7 @@
 #include "ThirteenSector.s.h"
 #include "VirtualDrive.s.h"
 #include "SosInterp.s.h"
+#include "NetStack.s.h"
 
 
 
@@ -29,15 +30,33 @@
 
 HRESULT LinkProgram::AssembleShim (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip)
 {
-    HRESULT  hr   = S_OK;
-    bool     fits = false;
+    HRESULT                                hr       = S_OK;
+    std::unordered_map<std::string, Word>  symbols;
+    size_t                                 resident = 0;
+    bool                                   fits     = false;
 
 
 
-    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors);
-    CHR (hr);
+    //  The network build is the shim with the stack after it, at $B000,
+    //  below $C000.
+    if (chip == LinkChip::Network)
+    {
+        hr = Assemble (GetShimSource() + GetNetStackSource(), kNetShimAddress, chip, outBytes, outErrors);
+        CHR (hr);
 
-    fits = outBytes.size() <= kShimLimit;
+        fits = outBytes.size() <= kNetShimLimit;
+    }
+    else
+    {
+        hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors, false, &symbols);
+        CHR (hr);
+
+        //  The resident code ends where the startup part begins, or with the
+        //  shim for a build with no startup part.
+        resident = symbols.contains ("startup") ? (size_t) (symbols["startup"] - kShimAddress) : outBytes.size();
+        fits     = outBytes.size() <= kShimLimit && kShimAddress + resident <= kShimResidentEnd;
+    }
+
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -73,6 +92,144 @@ HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string 
     fits = sos ? kSosAddress + outBytes.size() < kSosBufferBase
                : kProgramAddress + outBytes.size() <= kZeroPageSave;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildShimUpdate
+//
+//  A boot disk works after the shim changes: an older shim loads this in
+//  place of the program, as it loads any program. The 6551 shim has been
+//  at $3D00 with the saved zero page at $3C00, at $3B00 with it at $3A00,
+//  and at $3A00 with it at $3900. The updater finds the old shim at one of
+//  those, by its first bytes (SEI, LDA #, JMP) and its saved-state flag.
+//  From it, the updater copies the 6551 control byte at +$02, and the
+//  speed's text, the dial command, the saved state, the reset vector and
+//  the slot from +$06 to +$38, which are the same in each. The firmware
+//  flag at +$39 is copied from the two later ones, and a IIgs's speed
+//  register at +$43 from the latest. The saved zero page is copied to
+//  $3900. The image is then copied over the old shim and started. The new
+//  shim finds its saved state set, so it doesn't save the zero page again.
+//  With no old shim found, the image starts with the settings it was built
+//  with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildShimUpdate (std::vector<Byte> & outBytes)
+{
+    static constexpr const char *  kSource =
+        "SHIM     = $3A00\n"
+        "ZPNEW    = $3900\n"
+        "IMAGE    = $0900\n"
+        "OLD      = $06\n"
+        "        .org $0800\n"
+        "        jmp entry\n"
+        "        .word 0\n"
+        "entry:  sei\n"
+        "        cld\n"
+        "        lda #0\n"
+        "        sta OLD\n"
+        "        ldx #0\n"
+        "find:   lda bases,x\n"
+        "        beq start\n"
+        "        sta OLD+1\n"
+        "        ldy #0\n"
+        "        lda (OLD),y\n"
+        "        cmp #$78\n"
+        "        bne next\n"
+        "        iny\n"
+        "        lda (OLD),y\n"
+        "        cmp #$A9\n"
+        "        bne next\n"
+        "        ldy #3\n"
+        "        lda (OLD),y\n"
+        "        cmp #$4C\n"
+        "        beq found\n"
+        "next:   inx\n"
+        "        bne find\n"
+        "found:  ldy #$02\n"
+        "        lda (OLD),y\n"
+        "        sta IMAGE+$02\n"
+        "        ldy #$06\n"
+        "keep:   lda (OLD),y\n"
+        "        sta IMAGE,y\n"
+        "        iny\n"
+        "        cpy #$39\n"
+        "        bne keep\n"
+        "        lda OLD+1\n"
+        "        cmp #$3D\n"
+        "        beq zp\n"
+        "        lda (OLD),y\n"
+        "        sta IMAGE+$39\n"
+        "        lda OLD+1\n"
+        "        cmp #>SHIM\n"
+        "        bne zp\n"
+        "        ldy #$43\n"
+        "        lda (OLD),y\n"
+        "        sta IMAGE+$43\n"
+        "zp:     dec OLD+1\n"
+        "        lda OLD+1\n"
+        "        cmp #>ZPNEW\n"
+        "        beq start\n"
+        "        ldy #0\n"
+        "zpcopy: lda (OLD),y\n"
+        "        sta ZPNEW,y\n"
+        "        iny\n"
+        "        bne zpcopy\n"
+        "start:  ldx #0\n"
+        "copy:   lda IMAGE,x\n"
+        "        sta SHIM,x\n"
+        "        lda IMAGE+$100,x\n"
+        "        sta SHIM+$100,x\n"
+        "        lda IMAGE+$200,x\n"
+        "        sta SHIM+$200,x\n"
+        "        lda IMAGE+$300,x\n"
+        "        sta SHIM+$300,x\n"
+        "        lda IMAGE+$400,x\n"
+        "        sta SHIM+$400,x\n"
+        "        lda IMAGE+$500,x\n"
+        "        sta SHIM+$500,x\n"
+        "        lda IMAGE+$600,x\n"
+        "        sta SHIM+$600,x\n"
+        "        lda IMAGE+$700,x\n"
+        "        sta SHIM+$700,x\n"
+        "        lda IMAGE+$800,x\n"
+        "        sta SHIM+$800,x\n"
+        "        lda IMAGE+$900,x\n"
+        "        sta SHIM+$900,x\n"
+        "        inx\n"
+        "        bne copy\n"
+        "        jmp SHIM\n"
+        "bases:  .byte $3A, $3B, $3D, 0\n";
+
+
+
+    HRESULT            hr     = S_OK;
+    std::vector<Byte>  shim;
+    std::string        errors;
+    LinkShimOptions    options;
+    bool               fits   = false;
+
+
+
+    hr = Assemble (kSource, kProgramAddress, LinkChip::Acia, outBytes, errors);
+    CHR (hr);
+
+    hr = BuildShim (options, shim);
+    CHR (hr);
+
+    fits = outBytes.size() <= (size_t) (kUpdateImage - kProgramAddress) && shim.size() <= kShimLimit;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_BUFFER_OVERFLOW));
+
+    outBytes.resize (kUpdateImage - kProgramAddress, 0);
+    outBytes.insert (outBytes.end(), shim.begin(), shim.end());
 
 Error:
     return hr;
@@ -128,6 +285,11 @@ HRESULT LinkProgram::BuildShim (const LinkShimOptions & options, std::vector<Byt
 
         outShim[kNetPortOffset]     = (Byte) (network.port >> 8);
         outShim[kNetPortOffset + 1] = (Byte) network.port;
+
+        if (options.chip == LinkChip::Network)
+        {
+            outShim[kNetChipOffset] = network.netChip;
+        }
     }
 
 Error:
@@ -256,14 +418,49 @@ Error:
 
 HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk)
 {
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  payload;
+    std::string        refusal;
+    DirectBootSpec     spec;
+
+
+
+    hr = BuildUniversalPayload (options, payload);
+    CHR (hr);
+
+    spec.loadAddress  = kUniversalAddress;
+    spec.entryAddress = kUniversalAddress;
+
+    hr = DirectBootBuilder::Build (payload, spec, outDisk, refusal);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildUniversalPayload
+//
+//  The stage at kUniversalAddress, then the 6551, W5100 and network shims at
+//  kUniversalAcia, kUniversalW5100 and kUniversalNetwork, as the boot disk
+//  loads them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildUniversalPayload (const LinkShimOptions & options, std::vector<Byte> & outPayload)
+{
     HRESULT            hr      = S_OK;
     LinkShimOptions    acia    = options;
     LinkShimOptions    w5100   = options;
+    LinkShimOptions    network = options;
     std::vector<Byte>  payload;
     std::vector<Byte>  shim;
     std::string        errors;
-    std::string        refusal;
-    DirectBootSpec     spec;
 
 
 
@@ -271,6 +468,11 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     acia.slot  = 2;
     w5100.chip = LinkChip::W5100;
     w5100.slot = 3;
+
+    //  The stage writes the network card's slot and chip when it finds one.
+    network.chip            = LinkChip::Network;
+    network.slot            = 1;
+    network.network.netChip = 0;
 
     hr = AssembleUniversal (payload, errors);
     CHR (hr);
@@ -287,13 +489,15 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     CHR (hr);
 
     payload.insert (payload.end(), shim.begin(), shim.end());
-    payload.resize (kUniversalW5100 - kUniversalAddress + kShimLimit, 0);
+    payload.resize (kUniversalNetwork - kUniversalAddress, 0);
 
-    spec.loadAddress  = kUniversalAddress;
-    spec.entryAddress = kUniversalAddress;
-
-    hr = DirectBootBuilder::Build (payload, spec, outDisk, refusal);
+    hr = BuildShim (network, shim);
     CHR (hr);
+
+    payload.insert (payload.end(), shim.begin(), shim.end());
+    payload.resize (kUniversalNetwork - kUniversalAddress + kNetShimLimit, 0);
+
+    outPayload = std::move (payload);
 
 Error:
     return hr;
@@ -312,6 +516,21 @@ Error:
 std::string LinkProgram::GetShimSource()
 {
     return std::string (reinterpret_cast<const char *> (s_kShimSource), sizeof (s_kShimSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetProgramSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetNetStackSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kNetStackSource), sizeof (s_kNetStackSource) - 1);
 }
 
 
@@ -774,7 +993,8 @@ Error:
 //
 //  LinkProgram::GetSpeedControl
 //
-//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c.
+//  Rate 0 is the 6551's 16x external clock, 115,200 baud on the //c. Rate 1,
+//  50 baud on a 6551, indicates 230,400 on a IIgs's port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -782,7 +1002,7 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 {
     static constexpr std::pair<DWORD, Byte>  s_kRates[] =
     {
-        { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
+        { 230400, 0x01 }, { 115200, 0x00 }, { 19200, 0x0F }, { 9600, 0x0E }, { 4800, 0x0C }, { 2400, 0x0A }, { 1200, 0x08 },
     };
     static constexpr Byte  kEightBitsOneStop = 0x10;
     bool                   found             = false;
@@ -848,6 +1068,7 @@ std::string LinkProgram::GetChipLines (LinkChip chip)
     {
         case LinkChip::W5100:     return "W5100 = 1\n";
         case LinkChip::Cassette:  return "CASSETTE = 1\n";
+        case LinkChip::Network:   return "NETWORK = 1\n";
         case LinkChip::Sos:       return std::format ("SOS = 1\nSOSFLAG = ${:02X}\nBLKMODID = {}\nBLKMODVER = {}\nSOSORG = ${:04X}\nBUFBASE = ${:04X}\n",
                                                       kSosReadyFlag, kBlockModuleId, kBlockModuleVersion, kSosAddress, kSosBufferBase);
         default:                  return "ACIA = 1\n";
@@ -870,21 +1091,46 @@ std::string LinkProgram::GetChipLines (LinkChip chip)
 //  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
+//  Each text assembled is cached, so a program loaded again, or built again
+//  for its symbols, isn't assembled again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults, std::unordered_map<std::string, Word> * outSymbols)
 {
-    HRESULT          hr        = S_OK;
-    static const Cpu s_cpu;
-    Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine  = GetChipLines (chip);
+    static const Cpu                                        s_cpu;
+    static std::mutex                                       s_cacheLock;
+    static std::unordered_map<std::string, AssemblyResult>  s_cache;
+    HRESULT                                                 hr          = S_OK;
+    std::string                                             chipLine    = GetChipLines (chip);
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
     std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
+    std::string      text      = prefix + source;
     int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');
-    AssemblyResult   result    = assembler.Assemble (prefix + source);
+    AssemblyResult   result;
     bool             placed    = false;
+    bool             isCached  = false;
 
 
+
+    {
+        std::lock_guard<std::mutex>  guard (s_cacheLock);
+        auto                         found = s_cache.find (text);
+
+        isCached = found != s_cache.end();
+        result   = isCached ? found->second : AssemblyResult();
+    }
+
+    if (!isCached)
+    {
+        Assembler  assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
+
+        result = assembler.Assemble (text);
+
+        std::lock_guard<std::mutex>  guard (s_cacheLock);
+
+        s_cache.emplace (text, result);
+    }
 
     outBytes.clear();
     outErrors.clear();

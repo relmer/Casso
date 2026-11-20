@@ -282,6 +282,29 @@ public:
     }
 
 
+
+    //  A sector of one value, as the program sends a disk's free space: its
+    //  track, sector and value alone.
+    TEST_METHOD (SectorBlankParsesToTheValueInEveryByte)
+    {
+        std::vector<Byte>  wire;
+        std::vector<Byte>  back (256);
+        CassoLinkPacket    packet;
+        size_t             consumed = 0;
+        Byte               track    = 0;
+        Byte               number   = 0;
+
+        AssertSucceeded (CassoLinkCodec::EncodeSectorBlank (17, 15, 0xE5, wire));
+        Assert::AreEqual<size_t> (5 + 3 + 1, wire.size(), L"the envelope, three bytes and the EOR");
+        Assert::AreEqual (S_OK, DecodeOne (wire, consumed, packet));
+        AssertSucceeded (CassoLinkCodec::ParseSectorData (packet, track, number, back));
+
+        Assert::AreEqual<Byte> (17, track);
+        Assert::AreEqual<Byte> (15, number);
+        Assert::IsTrue (back == std::vector<Byte> (256, 0xE5));
+    }
+
+
     //  Every byte value in every place, through the data field's nibbles and
     //  back, as Write sectors sends a sector.
     TEST_METHOD (SectorNibblesRoundTripAndCheckTheirCrc)

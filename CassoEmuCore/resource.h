@@ -201,6 +201,9 @@
 #define IDI_APPLESOFT_FILE                 109
 #define IDI_APPLE_MACHINE                  110
 #define IDI_APPLE_MACHINE_OFFLINE          111
+// A partition's icon in the trees and lists, for dark and light surfaces.
+#define IDI_PARTITION_DARK                 112
+#define IDI_PARTITION_LIGHT                113
 #define IDR_CASSO_EXPLORER_CASSOWARY_PNG   603
 
 // Embedded default machine configs (RCDATA) — extracted to disk on

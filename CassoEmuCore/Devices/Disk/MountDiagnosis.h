@@ -109,10 +109,16 @@ public:
     //  on its own sends the reader to look in both drives.
     int           occupiedDrive = -1;
 
-    bool    HasFailure () const { return failure != MountFailure::None; }
+    bool    HasFailure      () const { return failure != MountFailure::None; }
 
-    //  The reason as a clause about the file, ready to follow its name.
-    string  Describe   () const;
+    //  The reason as a clause about the file, ready to follow its name, or,
+    //  for an image of a disk the drive can't take, a whole sentence:
+    //  "Cannot mount a 3.5-inch image in a 5.25-inch drive".
+    string  Describe        () const;
+    bool    IsWholeSentence () const;
+
+    //  "<subject> <clause>", or the whole sentence alone, with no period.
+    std::wstring  FormatSentence (const std::wstring & subject) const;
 
     //  "143,360 bytes". Grouped by hand rather than through a locale, because
     //  a diagnostic that reads differently on a machine set to another region

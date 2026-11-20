@@ -115,6 +115,8 @@ public:
     //  Whether a file is in a format the inspector opens, by its extension
     //  (FR-003, FR-073), and whether it is one of the track inspector's
     //  formats, which have a platter thumbnail. Block images are the rest.
+    //  An image in a gzip file or a ZIP is read, and opens when block mode
+    //  takes it.
     static bool          CanInspect       (const std::wstring & path);
     static bool          HasTrackFormat   (const std::wstring & path);
 
@@ -162,5 +164,10 @@ private:
     DxuiTheme                         m_otherTheme;
     const DxuiTheme                 * m_theme       = &m_darkTheme;
 
+    static bool  IsWrappedBlockImage (const std::wstring & path);
+
     static std::map<UINT_PTR, InspectorWindowSet *>  s_timers;
+    static std::wstring                              s_wrappedPath;
+    static FileStamp                                 s_wrappedStamp;
+    static bool                                      s_isWrappedBlock;
 };

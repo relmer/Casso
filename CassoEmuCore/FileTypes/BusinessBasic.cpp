@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "FileTypes/BusinessBasic.h"
-#include "FileTypes/AppleWorks.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -28,35 +27,35 @@ bool BusinessBasic::Matches (const FileFacts & facts, std::span<const Byte> byte
 //
 //  BusinessBasic::GetKeyword
 //
-//  Tokens $80 to $FE; a gap in the table is not a keyword.
+//  A one-byte token's keyword, or null for a blank entry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const char * BusinessBasic::GetKeyword (Byte token)
 {
-    static constexpr const char *  kKeywords[0x7F] =
+    static constexpr const char *  s_kKeywords[128] =
     {
-        "END",     "FOR",     "NEXT",    "INPUT",   "OUTPUT",  "DIM",     "READ",    "WRITE",       // $80
-        "OPEN",    "CLOSE",   nullptr,   "TEXT",    nullptr,   "BYE",     nullptr,   nullptr,       // $88
-        nullptr,   nullptr,   nullptr,   "WINDOW",  "INVOKE",  "PERFORM", nullptr,   nullptr,       // $90
-        "FRE",     "HPOS",    "VPOS",    "ERRLIN",  "ERR",     "KBD",     "EOF",     "TIME$",       // $98
-        "DATE$",   "PREFIX$", "EXFN.",   "EXFN%.",  "OUTREC",  "INDENT",  nullptr,   nullptr,       // $A0
-        nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   "POP",     "HOME",    nullptr,       // $A8
-        "SUB$(",   "OFF",     "TRACE",   "NOTRACE", "NORMAL",  "INVERSE", "SCALE(",  "RESUME",      // $B0
-        nullptr,   "LET",     "GOTO",    "IF",      "RESTORE", "SWAP",    "GOSUB",   "RETURN",      // $B8
-        "REM",     "STOP",    "ON",      nullptr,   "LOAD",    "SAVE",    "DELETE",  "RUN",         // $C0
-        "RENAME",  "LOCK",    "UNLOCK",  "CREATE",  "EXEC",    "CHAIN",   nullptr,   nullptr,       // $C8
-        nullptr,   "CATALOG", nullptr,   nullptr,   "DATA",    "IMAGE",   "CAT",     "DEF",         // $D0
-        nullptr,   "PRINT",   "DEL",     "ELSE",    "CONT",    "LIST",    "CLEAR",   "GET",         // $D8
-        "NEW",     "TAB",     "TO",      "SPC(",    "USING",   "THEN",    nullptr,   "MOD",         // $E0
-        "STEP",    "AND",     "OR",      "EXTENSION", "DIV",   nullptr,   "FN",      "NOT",         // $E8
-        nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,       // $F0
-        nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,   nullptr,                  // $F8
+        "END", "FOR", "NEXT", "INPUT", "OUTPUT", "DIM", "READ", "WRITE",
+        "OPEN", "CLOSE", nullptr, "TEXT", nullptr, "BYE", nullptr, nullptr,
+        nullptr, nullptr, nullptr, "WINDOW", "INVOKE", "PERFORM", nullptr, nullptr,
+        "FRE", "HPOS", "VPOS", "ERRLIN", "ERR", "KBD", "EOF", "TIME$",
+        "DATE$", "PREFIX$", "EXFN.", "EXFN%.", "OUTREC", "INDENT", nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, "POP", "HOME", nullptr,
+        "SUB$(", "OFF", "TRACE", "NOTRACE", "NORMAL", "INVERSE", "SCALE(", "RESUME",
+        nullptr, "LET", "GOTO", "IF", "RESTORE", "SWAP", "GOSUB", "RETURN",
+        "REM", "STOP", "ON", nullptr, "LOAD", "SAVE", "DELETE", "RUN",
+        "RENAME", "LOCK", "UNLOCK", "CREATE", "EXEC", "CHAIN", nullptr, nullptr,
+        nullptr, "CATALOG", nullptr, nullptr, "DATA", "IMAGE", "CAT", "DEF",
+        nullptr, "PRINT", "DEL", "ELSE", "CONT", "LIST", "CLEAR", "GET",
+        "NEW", "TAB", "TO", "SPC(", "USING", "THEN", nullptr, "MOD",
+        "STEP", "AND", "OR", "EXTENSION", "DIV", nullptr, "FN", "NOT",
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
     };
 
 
 
-    return (token >= 0x80 && token < 0xFF) ? kKeywords[token - 0x80] : nullptr;
+    return (token >= 0x80) ? s_kKeywords[token - 0x80] : nullptr;
 }
 
 
@@ -67,38 +66,35 @@ const char * BusinessBasic::GetKeyword (Byte token)
 //
 //  BusinessBasic::GetExtended
 //
-//  The byte after $FF, its high bit masked off.
+//  The keyword of the byte after $FF, by its low 7 bits, or null.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const char * BusinessBasic::GetExtended (Byte token)
 {
-    static constexpr std::pair<Byte, const char *>  kExtendedWords[] =
+    static constexpr const char *  s_kKeywords[128] =
     {
-        { 0x00, "TAB(" },    { 0x01, "TO" },       { 0x02, "SPC(" },     { 0x03, "USING" },
-        { 0x04, "THEN" },    { 0x06, "MOD" },      { 0x07, "STEP" },     { 0x08, "AND" },
-        { 0x09, "OR" },      { 0x0A, "EXTENSION" },{ 0x0B, "DIV" },      { 0x0D, "FN" },
-        { 0x0E, "NOT" },     { 0x1C, "AS" },       { 0x1D, "SGN(" },     { 0x1E, "INT(" },
-        { 0x1F, "ABS(" },    { 0x21, "TYP(" },     { 0x22, "REC(" },     { 0x2D, "PDL(" },
-        { 0x2E, "BUTTON(" }, { 0x2F, "SQR(" },     { 0x30, "RND(" },     { 0x31, "LOG(" },
-        { 0x32, "EXP(" },    { 0x33, "COS(" },     { 0x34, "SIN(" },     { 0x35, "TAN(" },
-        { 0x36, "ATN(" },    { 0x43, "STR$(" },    { 0x44, "HEX$(" },    { 0x45, "CHR$(" },
-        { 0x46, "LEN(" },    { 0x47, "VAL(" },     { 0x48, "ASC(" },     { 0x49, "TEN(" },
-        { 0x4C, "CONV(" },   { 0x4D, "CONV&(" },   { 0x4E, "CONV$(" },   { 0x4F, "CONV%(" },
-        { 0x50, "LEFT$(" },  { 0x51, "RIGHT$(" },  { 0x52, "MID$(" },    { 0x53, "INSTR(" },
+        "TAB(", "TO", "SPC(", "USING", "THEN", nullptr, "MOD", "STEP",
+        "AND", "OR", "EXTENSION", "DIV", nullptr, "FN", "NOT", nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, "AS", "SGN(", "INT(", "ABS(",
+        nullptr, "TYP(", "REC(", nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, "PDL(", "BUTTON(", "SQR(",
+        "RND(", "LOG(", "EXP(", "COS(", "SIN(", "TAN(", "ATN(", nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, "STR$(", "HEX$(", "CHR$(", "LEN(", "VAL(",
+        "ASC(", "TEN(", nullptr, nullptr, "CONV(", "CONV&(", "CONV$(", "CONV%(",
+        "LEFT$(", "RIGHT$(", "MID$(", "INSTR(", nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
     };
 
 
 
-    for (const auto & [code, word] : kExtendedWords)
-    {
-        if (code == (token & 0x7F))
-        {
-            return word;
-        }
-    }
-
-    return nullptr;
+    return s_kKeywords[token & 0x7F];
 }
 
 
@@ -107,25 +103,16 @@ const char * BusinessBasic::GetExtended (Byte token)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BusinessBasic::AppendWord
+//  BusinessBasic::IsWordEnd
 //
-//  A keyword is set off by a space from the text before it, except at the
-//  start or after punctuation or an operator.
+//  Whether a space goes between this character and a keyword after it:
+//  after a letter, a digit, a quote or a variable's type mark.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BusinessBasic::AppendWord (std::string & ioLine, const char * keyword)
+bool BusinessBasic::IsWordEnd (char c)
 {
-    char  last = ioLine.empty() ? ' ' : ioLine.back();
-
-
-
-    if (strchr (" :(,;=+-*/<>^#", last) == nullptr)
-    {
-        ioLine += ' ';
-    }
-
-    ioLine += keyword;
+    return isalnum ((unsigned char) c) || c == '"' || c == '$' || c == '%' || c == '&' || c == '.' || c == ')';
 }
 
 
@@ -136,62 +123,72 @@ void BusinessBasic::AppendWord (std::string & ioLine, const char * keyword)
 //
 //  BusinessBasic::ListLine
 //
-//  A name, number, string or # after a keyword that ends in a letter is set
-//  off by a space. A quoted string, and the rest of the line after REM, are
-//  copied as they are. A token that isn't a keyword is written as its value
-//  in braces.
+//  A line's statements as text. A keyword has a space before it after a
+//  word and a space after it before a word, unless it ends in an open
+//  parenthesis. A REM's text and a string's are as stored. A token with a
+//  blank entry is its value in braces.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring BusinessBasic::ListLine (std::span<const Byte> content)
 {
-    std::string  line;
-    bool         quoted  = false;
-    bool         remark  = false;
-    bool         spaced  = false;
+    std::string   text;
+    const char  * keyword = nullptr;
+    bool          spaced  = false;
+    bool          quoted  = false;
+    bool          remark  = false;
+    Byte          value   = 0;
 
 
 
     for (size_t at = 0; at < content.size(); at++)
     {
-        Byte          b       = content[at];
-        const char *  keyword = nullptr;
+        value = content[at];
 
-        if (quoted || remark || b < 0x80)
+        if (remark || quoted || value < 0x80)
         {
-            if (spaced && !quoted && !remark && (isalnum (b) || b == '"' || b == '#' || b == '.'))
+            char  c = (char) value;
+
+            if (!remark && !quoted && spaced && c != ' ' && c != ':' && c != ',' && c != ';' && c != ')')
             {
-                line += ' ';
+                text.push_back (' ');
             }
 
-            spaced  = false;
-            quoted ^= (b == '"');
-            line   += (char) (b & 0x7F);
-            continue;
-        }
+            text.push_back ((c < 0x20 || c == 0x7F) ? '.' : c);
 
-        if (b == kExtended && at + 1 < content.size())
-        {
-            keyword = GetExtended (content[++at]);
-        }
-        else
-        {
-            keyword = GetKeyword (b);
-        }
-
-        if (keyword == nullptr)
-        {
-            line  += std::format ("{{${:02X}}}", b);
+            quoted = (c == '"' && !remark) ? !quoted : quoted;
             spaced = false;
             continue;
         }
 
-        AppendWord (line, keyword);
-        remark = b == kRem;
-        spaced = isalpha ((unsigned char) line.back()) != 0;
+        if (value == kExtended && at + 1 < content.size())
+        {
+            at++;
+            keyword = GetExtended (content[at]);
+        }
+        else
+        {
+            keyword = (value == kExtended) ? nullptr : GetKeyword (value);
+        }
+
+        if (!text.empty() && IsWordEnd (text.back()))
+        {
+            text.push_back (' ');
+        }
+
+        if (keyword == nullptr)
+        {
+            text += (value == kExtended && at < content.size()) ? std::format ("{{$FF ${:02X}}}", content[at]) : std::format ("{{${:02X}}}", value);
+            spaced = false;
+            continue;
+        }
+
+        text  += keyword;
+        spaced = keyword[strlen (keyword) - 1] != '(';
+        remark = value == kRem;
     }
 
-    return TextEncoding::NarrowToWide (line);
+    return TextEncoding::NarrowToWide (text);
 }
 
 
@@ -202,14 +199,19 @@ std::wstring BusinessBasic::ListLine (std::span<const Byte> content)
 //
 //  BusinessBasic::Decode
 //
-//  A line's length counts its length byte, its number and its $00.
+//  Lines from offset 2, each its number and its statements, to a line
+//  whose offset byte is 0. A line without its $00 ends the listing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BusinessBasic::Decode (std::span<const Byte> bytes, const FileFacts & facts, const DecodeOptions & options, DecodedFile & outFile, std::wstring & outError)
 {
-    size_t  at    = 2;
-    bool    ended = false;
+    HRESULT       hr     = S_OK;
+    size_t        at     = 2;
+    size_t        next   = 0;
+    size_t        end    = 0;
+    Word          number = 0;
+    std::wstring  line;
 
 
 
@@ -217,34 +219,40 @@ HRESULT BusinessBasic::Decode (std::span<const Byte> bytes, const FileFacts & fa
     UNREFERENCED_PARAMETER (options);
     UNREFERENCED_PARAMETER (outError);
 
-    while (at < bytes.size())
+    while (at < bytes.size() && bytes[at] != 0)
     {
-        size_t  length = bytes[at];
+        next = at + bytes[at];
 
-        if (length == 0)
+        if (at + 3 > bytes.size())
         {
-            ended = true;
+            outFile.notes.push_back (L"The file ends in the middle of a line number.");
             break;
         }
 
-        if (length < 4 || at + length > bytes.size())
+        number = (Word) (bytes[at + 1] | (bytes[at + 2] << 8));
+        end    = at + 3;
+
+        while (end < bytes.size() && bytes[end] != 0)
         {
+            end++;
+        }
+
+        if (end >= bytes.size())
+        {
+            outFile.notes.push_back (std::format (L"Line {} doesn't end before the end of the file.", number));
             break;
         }
 
-        {
-            std::wstring  text = ListLine (bytes.subspan (at + 3, length - 4));
+        line = ListLine (bytes.subspan (at + 3, end - (at + 3)));
+        outFile.lines.push_back (line.empty() ? std::to_wstring (number) : std::format (L"{} {}", number, line));
 
-            outFile.lines.push_back (std::to_wstring (AppleWorks::ReadWord (bytes, at + 1)) + (text.empty() ? L"" : L" " + text));
+        if (next != end + 1)
+        {
+            outFile.notes.push_back (std::format (L"Line {}'s length byte doesn't match where the line ends.", number));
         }
 
-        at += length;
+        at = end + 1;
     }
 
-    if (!ended)
-    {
-        outFile.notes.push_back (L"The program ends before its last line.");
-    }
-
-    return S_OK;
+    return hr;
 }

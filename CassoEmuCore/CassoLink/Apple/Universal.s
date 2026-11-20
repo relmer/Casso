@@ -1,11 +1,20 @@
 ; Casso's CassoLink: the universal boot disk's first stage.
 ;
-; Loaded at $2000 with both shims after it: the 6551 shim at $2C00 and the
-; W5100 shim at $3100, each built for $3B00 and with its header written by
-; the host. The stage finds every interface the machine
-; has: a //c's ports 1 and 2; a Super Serial Card in any slot, by its
-; firmware's identification bytes; and an Uthernet II in any other slot but
-; a Disk II's, by its W5100 taking and returning its address pointer.
+; Loaded at $2000 with the shims after it: the 6551 shim, with its startup
+; part, at $2E00 and the W5100 shim at $4400, each built for $3A00, and the
+; network shim at $4A00, built for $B000, each with its header written by
+; the host. The stage finds every interface the machine has: a //c's ports
+; 1 and 2; a Super Serial Card in any slot, by its firmware's Pascal 1.1
+; signature and a 6551; an original Uthernet or a LANceGS in any other slot
+; but a Disk II's, by its CS8900A's product ID or its LAN91C96's bank select
+; register; and an Uthernet II in any other, by its W5100 taking and
+; returning its address pointer.
+;
+; The network shim is copied to $B000 for the first CS8900A or LAN91C96
+; found, which it sets up, with an address from DHCP for an address of
+; 0.0.0.0; a card with no address is not waited on. The stage waits on the
+; card through the shim, and broadcasts its announcement with the W5100's.
+; A datagram from the PC starts the shim, which goes on with that PC.
 ;
 ; Each 6551 is set to the shim's speed. The W5100 is given an address by
 ; DHCP, or the header's when no DHCP reply comes, listens on the header's
@@ -22,18 +31,29 @@
 ; //c's port 2 or the card in the highest slot, since no connection from the
 ; PC is possible before the modem dials it.
 ;
-; A serial card with the Pascal 1.1 firmware signature and not the Super
-; Serial Card's ID byte is waited on too, the first one found, through its
-; firmware's status and read entries (R47). Its start byte starts the 6551
-; shim with its slot, and the shim runs it through its firmware.
+; A IIgs's modem and printer ports have the Super Serial Card's ID byte and
+; an 8530 rather than a 6551. Each is listed as SERIAL PORT 1 or SERIAL PORT
+; 2, set to the shim's speed and waited on as a 6551 is, and its start byte
+; starts the 6551 shim, which drives the 8530.
+;
+; A serial card with the Pascal 1.1 firmware signature and no 6551 is waited
+; on too, the first two found, through its firmware's status and read
+; entries. Its start byte starts the 6551 shim with its slot, and the shim
+; runs it through its firmware.
 ;
 ; NMOS 6502 code throughout.
 
-ACIMG    = $2C00                ; the 6551 shim, as built for SHIM
-W5IMG    = $3100                ; the W5100 shim, as built for SHIM
-SHIM     = $3B00
-ZPSAVE   = $3A00                ; the shim's copy of the machine's zero page
-ZPCOPY   = $3600                ; the stage's, until a shim is chosen
+ACIMG    = $2E00                ; the 6551 shim, as built for SHIM
+W5IMG    = $4400                ; the W5100 shim, as built for SHIM
+NETIMG   = $4A00                ; the network shim, as built for NSHIM
+SHIM     = $3A00
+NSHIM    = $B000
+NSCHIP   = NSHIM + $39          ; the network shim's chip,
+NSRECV   = NSHIM + $3D          ; its wait for a datagram,
+NSBOOT   = NSHIM + $40          ; its setup of the card,
+NSANN    = NSHIM + $48          ; and its announcement
+ZPSAVE   = $3900                ; the shim's copy of the machine's zero page
+ZPCOPY   = $3800                ; the stage's, until a shim is chosen
 
 HCTL     = $02                  ; a shim's header: the 6551 control byte,
 HSPEED   = $06                  ; the speed's text, six characters,
@@ -52,6 +72,8 @@ ACIASTAT = $C089
 ACIACMD  = $C08A
 ACIACTL  = $C08B
 RDRF     = $08
+SCCBCMD  = $C038                ; a IIgs's 8530: channel B's command register,
+SCCBDATA = $C03A                ; and data register; channel A's are one higher
 
 WZMR     = $C084                ; the W5100, + slot * 16
 WZHI     = $C085
@@ -126,14 +148,17 @@ svzp:   lda $00,x
 svrst:  lda $03F2,x
         sta ACIMG+HRESET,x
         sta W5IMG+HRESET,x
+        sta NETIMG+HRESET,x
         dex
         bpl svrst
         lda #1
         sta ACIMG+HZPSAVED
         sta W5IMG+HZPSAVED
+        sta NETIMG+HZPSAVED
         lda #0
         sta nacia
         sta w5slot
+        sta netslot
         sta annlo               ; the first announcement after the full wait
         sta annhi
         jsr home
@@ -150,9 +175,7 @@ svrst:  lda $03F2,x
 
 scan:   lda #1
         sta scslot
-scloop: jsr isssc
-        bcs scacia
-        jsr ispas
+scloop: jsr ispas
         bcc scnot
         lda scslot              ; a card with the Pascal firmware signature and
         asl a                   ; a 6551 is driven as the SSC is
@@ -162,18 +185,37 @@ scloop: jsr isssc
         tay
         jsr is6551
         bcc scpas
-scacia: lda scslot
+        lda scslot
         jsr addacia
         jmp scnext
-scpas:  lda passlot             ; the first card run through its firmware
-        bne scnext
+scpas:  ldy #$0C                ; a IIgs's port, with the SSC's ID byte
+        lda (ptr),y
+        cmp #$31
+        bne scfw
+        jsr isgs
+        bcs scfw
         lda scslot
-        sta passlot
+        jsr addscc
+        jmp scnext
+scfw:   ldx pasn                ; the first two run through their firmware
+        cpx #2
+        beq scnext
+        lda scslot
+        sta passlots,x
+        inc pasn
         jsr pasup
         jmp scnext
 scnot:  jsr isdisk
         bcs scnext
-        lda w5slot
+        lda netslot
+        bne scw5
+        jsr isnet
+        bcc scw5
+        sta NETIMG+$39
+        lda scslot
+        sta netslot
+        jmp scnext
+scw5:   lda w5slot
         bne scnext
         jsr isw5100
         bcc scnext
@@ -187,7 +229,8 @@ scnext: inc scslot
 
 found:  lda nacia
         ora w5slot
-        ora passlot
+        ora pasn
+        ora netslot
         bne foundany
         ldx #msgnone-msgs
         jsr drawstate
@@ -209,12 +252,15 @@ shacia: cpx nacia
         stx sel
         txa
         jsr rowat
-        ldx #msgslot-msgs       ; a card's slot, or on a //c, its port
+        ldx #msgslot-msgs       ; a card's slot, or on a //c or a IIgs, its port
         lda $FBB3
         eor #$06
         ora $FBC0
-        bne shname
-        ldx #msgport-msgs
+        beq shport
+        ldy sel
+        lda acscc,y
+        bpl shname
+shport: ldx #msgport-msgs
 shname: ldy #0
         jsr puttext
         ldx sel
@@ -222,7 +268,23 @@ shname: ldy #0
         jsr putdec
         ldx #msgat-msgs
         jsr puttext
+        ldx sel                 ; 230,400 baud runs at 115,200 on a 6551
+        lda acscc,x
+        bne shtext
+        lda ACIMG+HCTL
+        and #$0F
+        cmp #$01
+        bne shtext
         ldx #0
+shfast: lda u115200,x
+        ora #$80
+        sta (rowlo),y
+        iny
+        inx
+        cpx #6
+        bne shfast
+        beq shnext
+shtext: ldx #0
 shspd:  lda ACIMG+HSPEED,x
         ora #$80
         sta (rowlo),y
@@ -230,11 +292,12 @@ shspd:  lda ACIMG+HSPEED,x
         inx
         cpx #6
         bne shspd
-        ldx sel
+shnext: ldx sel
         inx
         bne shacia
 
 shw5:   jsr pasrow
+        jsr netshow
         lda w5slot
         bne w5show
         jmp wait
@@ -254,37 +317,153 @@ w5show: lda nacia
         ldy column
         ldx #msgat-msgs
         jsr puttext
+        lda #>W5IMG
+        jsr putaddr
+        jmp wait
+
+; putaddr: the address and port in the header on page A, as 10.0.0.2:6502,
+; on the row from Y, and the rest of the row blank.
+putaddr: sta paip+2
+        sta putport+2
+        sta pphigh+2
         ldx #0
-w5ip:   lda W5IMG+NADDR,x
+paip:   lda W5IMG+NADDR,x
         stx sel
         jsr putdec
         ldx sel
         inx
         cpx #4
-        beq w5port
+        beq paport
         lda #$AE                ; a period
         sta (rowlo),y
         iny
-        bne w5ip
-w5port: lda #$BA                ; a colon
+        bne paip
+paport: lda #$BA                ; a colon
         sta (rowlo),y
         iny
         jsr putport
         lda #$A0                ; the rest of the row, blank
-w5blank: cpy #40
-        beq wait
+pablank: cpy #40
+        beq padone
         sta (rowlo),y
         iny
-        bne w5blank
+        bne pablank
+padone: rts
 
-; wait: until an envelope's start byte arrives on a 6551, or the PC connects
-; to the W5100. A W5100 socket that stops listening listens again, with the
-; next announcement rather than on every pass: a 6551 holds one byte, and a
-; listen that fails each time, as one does on a port the PC has taken, made
-; the pass too slow to catch the start byte at 115,200 baud.
+; netshow: the network shim copied to $B000 for the card found, which it
+; sets up, and the card's row, below the W5100's: UTHERNET or LANCEGS, its
+; slot, and its address and port. A card with no address is not waited on.
+netshow: lda netslot
+        bne nsshow
+        rts
+nsshow: sta NETIMG+HSLOT
+        ldx #0
+nscopy:
+nssrc:  lda NETIMG,x
+nsdst:  sta NSHIM,x
+        inx
+        bne nscopy
+        inc nssrc+2
+        inc nsdst+2
+        lda nsdst+2
+        cmp #>(NSHIM+$1000)
+        bne nscopy
+        lda nacia
+        ldx w5slot
+        beq nsrow
+        clc
+        adc #1
+nsrow:  sta nsrowi
+        jsr rowat
+        ldx #msguth-msgs
+        lda NSCHIP
+        cmp #2
+        bne nsname
+        ldx #msglan-msgs
+nsname: ldy #0
+        jsr puttext
+        lda netslot
+        jsr putdec
+        sty column
+        ldx #msgdhcp-msgs
+        jsr puttext
+        jsr NSBOOT
+        bcc nsaddr
+        lda #0
+        sta netslot
+        rts
+nsaddr: lda nsrowi
+        jsr rowat
+        ldy column
+        ldx #msgat-msgs
+        jsr puttext
+        lda #>NSHIM
+        jmp putaddr
+
+; netgo: the network shim, at $B000 and set up, given the zero page and
+; started. The PC is the sender of the datagram that came.
+netgo:  ldx #0
+ngzp:   lda ZPCOPY,x
+        sta ZPSAVE,x
+        inx
+        bne ngzp
+        jmp NSHIM
+
+; isnet: the carry set for a LAN91C96 in scslot, by its bank select
+; register's high byte, $33, with A 2; or for a CS8900A, by its product ID
+; at PacketPage 0, $630E, with A 1. After a reset the PacketPage pointer is
+; at 0, read as $3000 on a CS8900A and as $0000 in AppleWin, so the ID is
+; read first with nothing written. Otherwise the pointer is written only once
+; its bits 14 to 12 read as 011, so a 6551 there, whose command and control
+; registers are at the same offsets, is left as it was.
+isnet:  lda scslot
+        asl a
+        asl a
+        asl a
+        asl a
+        tay
+        lda $C08F,y
+        cmp #$33
+        bne incs
+        lda #2
+        rts
+incs:   lda $C08C,y
+        cmp #$0E
+        bne inptr
+        lda $C08D,y
+        cmp #$63
+        beq incsok
+inptr:  lda $C08B,y
+        and #$70
+        cmp #$30
+        bne innone
+        lda #0
+        sta $C08A,y
+        sta $C08B,y
+        lda $C08C,y
+        cmp #$0E
+        bne innone
+        lda $C08D,y
+        cmp #$63
+        bne innone
+incsok: lda #1
+        sec
+        rts
+innone: clc
+        rts
+
+; wait: until a byte arrives on a 6551, or the PC connects to the W5100. Any
+; byte on a 6551 is the PC there: a pass of this loop is longer than a byte
+; at 115,200 baud, so the envelope's start byte can be overwritten by the
+; next before it is read, and the shim sends Ready when it starts. A
+; W5100 socket that stops listening listens again, with the next
+; announcement rather than on every pass: a listen that fails each time, as
+; one does on a port the PC has taken, made the pass slower.
 wait:   ldx #0
 wtacia: cpx nacia
         beq wtpas
+        lda acscc,x
+        bmi wtscc
         lda acslots,x
         asl a
         asl a
@@ -294,44 +473,70 @@ wtacia: cpx nacia
         lda ACIASTAT,y
         and #RDRF
         beq wtnext
-        lda ACIADATA,y
+        lda ACIADATA,y          ; read, so the 6551 takes the next byte
+        stx sel
+        jmp acgo
+wtscc:  and #$01                ; a IIgs's port, by its channel
+        tay
+        lda SCCBCMD,y
+        lsr a                   ; register 0, bit 0: a byte received
+        bcc wtnext
+        lda SCCBDATA,y
         cmp #$C1
         bne wtnext
         stx sel
         jmp acgo
 wtnext: inx
         bne wtacia
-wtpas:  lda passlot             ; the card run through its firmware
+wtpas:  ldx #0                  ; each card run through its firmware
+wtpnext: cpx pasn
         beq wtw5
+        stx pidx
         lda #1                  ; input ready
         jsr pstat
-        bcc wtw5
+        bcc wtpskip
         jsr pread
         and #$7F                ; a firmware's read can set bit 7 or clear it
         cmp #$41
-        bne wtw5
-        lda passlot
+        bne wtpskip
+        ldx pidx
+        lda passlots,x
         jmp acgoslot
-wtw5:   lda w5slot
-        beq wait
+wtpskip: ldx pidx
+        inx
+        bne wtpnext
+wtw5:   lda netslot             ; the network card, through its shim
+        beq wtw5b
+        lda #0
+        jsr NSRECV
+        bcs wtw5b
+        jmp netgo
+wtw5b:  lda w5slot
+        beq w5idle
         lda #$04
         sta skpage
         ldy #SKSR
         jsr wzsock
         jsr wzget
         cmp #STESTAB
-        beq w5go
-        inc annlo
-        bne wait
+        bne w5idle
+        jmp w5go
+w5idle: inc annlo
+        bne towait
         inc annhi
         lda annhi
         cmp #ANNWAIT
-        bne wait
+        bne towait
         lda #0
         sta annhi
+        lda w5slot
+        beq annet
         jsr w5again
         jsr announce
-        jmp wait
+annet:  lda netslot
+        beq towait
+        jsr NSANN
+towait: jmp wait                ; out of a branch's range
 
 ; w5again: socket 0 listening again if it has stopped.
 w5again: lda #$04
@@ -363,6 +568,16 @@ acgocopy: lda ZPCOPY,x
         sta SHIM+$300,x
         lda ACIMG+$400,x
         sta SHIM+$400,x
+        lda ACIMG+$500,x
+        sta SHIM+$500,x
+        lda ACIMG+$600,x
+        sta SHIM+$600,x
+        lda ACIMG+$700,x
+        sta SHIM+$700,x
+        lda ACIMG+$800,x
+        sta SHIM+$800,x
+        lda ACIMG+$900,x
+        sta SHIM+$900,x
         inx
         bne acgocopy
         jmp SHIM
@@ -385,6 +600,8 @@ w5gocopy: lda ZPCOPY,x
         sta SHIM+$300,x
         lda W5IMG+$400,x
         sta SHIM+$400,x
+        lda W5IMG+$500,x
+        sta SHIM+$500,x
         inx
         bne w5gocopy
         jmp SHIM
@@ -394,47 +611,115 @@ w5gocopy: lda ZPCOPY,x
 ; on. A byte already waiting in it is read and dropped.
 addacia: ldx nacia
         sta acslots,x
+        pha
+        lda #0
+        sta acscc,x
+        pla
         inc nacia
         asl a
         asl a
         asl a
         asl a
         tay
+        lda ACIMG+HCTL          ; rate 1, 230,400 baud on a IIgs's port, as
+        and #$0F                ; rate 0, 115,200 baud, the fastest a 6551 has
+        cmp #$01
+        bne acfull
         lda ACIMG+HCTL
-        sta ACIACTL,y
+        and #$F0
+        jmp acctl
+acfull: lda ACIMG+HCTL
+acctl:  sta ACIACTL,y
         lda #$0B
         sta ACIACMD,y
         lda ACIADATA,y
         rts
 
 
-; isssc, isdisk and isw5100: the carry set when scslot has a Super Serial
-; Card, a Disk II, or a W5100.
-isssc:  jsr romptr
-        ldy #$05
-        lda (ptr),y
-        cmp #$38
-        bne no
-        ldy #$07
-        lda (ptr),y
-        cmp #$18
-        bne no
-        ldy #$0B
-        lda (ptr),y
-        cmp #$01
-        bne no
-        ldy #$0C
-        lda (ptr),y
-        cmp #$31
-        bne no
+; addscc: a IIgs's port in slot A, 1 or 2, listed, and its 8530 set to the
+; shim's speed as the shim sets it: 8 data bits, 1 stop bit, no parity, DTR
+; and RTS on and no interrupts. Slot 1's printer port is channel A and slot
+; 2's modem port channel B. The 8530 is clocked by a 3.6864 MHz crystal at
+; RTxC: the baud rate generator divides it by twice the time constant plus
+; 2, and the channel by 16 after that, or straight from RTxC by 32 for
+; 115,200 baud and by 16 for 230,400, which a 6551 control byte of rate 1,
+; 50 baud, indicates. Writes are absolute, set for the port, as an indexed store
+; reads its address first, which changes the register selected or reads a
+; byte received.
+addscc: ldx nacia
+        sta acslots,x
+        cmp #2
+        lda #$80
+        adc #0
+        eor #$01               ; slot 1 channel A, slot 2 channel B
+        sta acscc,x
+        inc nacia
+        and #$01
+        tax
+        clc
+        adc #<SCCBCMD
+        sta uwr1+1
+        sta uwr2+1
+        lda SCCBCMD,x           ; register 0 selected
+        lda ACIMG+HCTL
+        and #$0F
+        ldx #12
+asfind: cmp urates,x
+        beq asfound
+        dex
+        dex
+        bpl asfind
+        rts
+asfound: lda urates+1,x
+        ldx #u16-uregs
+        ldy #uend-uregs
+        cmp #$FE                ; a time constant, for the generator
+        bcc astc
+        lsr a                   ; straight from RTxC: $FF by 32, $FE by 16
+        lda #$84
+        bcs asclock
+        lda #$44
+asclock: sta uregs+1
+        ldx #0
+        ldy #u16-uregs
+astc:   sta u16tc
+        sty uregend
+asreg:  stx uregx
+        lda uregs+1,x
+        pha
+        lda uregs,x
+        tax
+        pla
+uwr1:   stx SCCBCMD
+uwr2:   sta SCCBCMD
+        ldx uregx
+        inx
+        inx
+        cpx uregend
+        bne asreg
+        rts
+
+; isgs: the carry clear on a IIgs: an enhanced //e's identification bytes,
+; and an ID call at $FE1F that clears the carry, where a //e has an RTS.
+isgs:   lda $FBB3
+        cmp #$06
+        bne isno
+        lda $FBC0
+        cmp #$E0
+        bne isno
+        sec
+        jmp $FE1F
+isno:   sec
+        rts
+
 yes:    sec
         rts
 no:     clc
         rts
 
-; ispas: the carry set when scslot has a card with the Pascal 1.1 signature,
-; of a serial card's or a modem's class, and not the Super Serial Card's ID
-; byte.
+; ispas, isdisk and isw5100: the carry set when scslot has a card with the
+; Pascal 1.1 signature of a serial card's or a modem's class, a Disk II, or
+; a W5100.
 ispas:  jsr romptr
         ldy #$05
         lda (ptr),y
@@ -448,10 +733,8 @@ ispas:  jsr romptr
         lda (ptr),y
         cmp #$01
         bne no
-        ldy #$0C                ; a serial card's or a modem's class, but not
-        lda (ptr),y             ; the SSC's ID
-        cmp #$31
-        beq no
+        ldy #$0C                ; a serial card's or a modem's class
+        lda (ptr),y
         and #$F0
         cmp #$30
         beq yes
@@ -532,37 +815,48 @@ i51no:  pla
         clc
         rts
 
-; pasup: the entries of the card in scslot set from its offsets at $Cn0D to
-; $Cn10, and its init called.
-pasup:  jsr romptr
-        lda ptr+1
+; pasup: the entries of the card in scslot, the one at X of passlots, set
+; from its offsets at $Cn0D to $Cn10, and its init called.
+pasup:  stx pidx
+        jsr romptr
+        txa
+        asl a
+        asl a
+        tax
+        ldy #$0D
+pucopy: lda (ptr),y
+        sta pentries,x
+        iny
+        inx
+        cpy #$11
+        bne pucopy
+        ldx #0                  ; init
+        jmp pcall
+
+; pstat and pread: the firmware entry of the card at pidx, with A as it came,
+; X at $Cn and Y at $n0, as Pascal 1.1 calls take them; X and Y are changed.
+pstat:  ldx #3
+        bne pcall
+pread:  ldx #1
+pcall:  pha
+        stx pfn
+        lda pidx
+        asl a
+        asl a
+        ora pfn
+        tax
+        lda pentries,x
+        sta pjmp+1
+        ldx pidx
+        lda passlots,x
+        ora #$C0
         sta pcx+1
         sta pjmp+2
-        lda scslot
         asl a
         asl a
         asl a
         asl a
         sta pcy+1
-        ldx #0
-        ldy #$0D
-pucopy: lda (ptr),y
-        sta pentry,x
-        iny
-        inx
-        cpx #4
-        bne pucopy
-        ldx #0                  ; init
-        jmp pcall
-
-; pstat and pread: the card's firmware entry, with A as it came, X at $Cn
-; and Y at $n0, as Pascal 1.1 calls take them; X and Y are changed.
-pstat:  ldx #3
-        bne pcall
-pread:  ldx #1
-pcall:  pha
-        lda pentry,x
-        sta pjmp+1
         bit $CFFF               ; the $C800 space freed for the card's ROM: Apple's
         pla                     ; entries jump into it, and the //e's ROM is
                                 ; there after a read of $C3xx
@@ -570,17 +864,26 @@ pcx:    ldx #$C0
 pcy:    ldy #$00
 pjmp:   jmp $C000
 
-; pasrow: the card run through its firmware, when there is one, on the
-; screen's last row.
-pasrow: lda passlot
+; pasrow: each card run through its firmware on the screen's last rows.
+pasrow: ldx #0
+prnext: cpx pasn
         beq prdone
-        lda #7
+        stx pidx
+        lda #8
+        sec
+        sbc pasn
+        clc
+        adc pidx
         jsr rowat
         ldx #msgpas-msgs
         ldy #0
         jsr puttext
-        lda passlot
+        ldx pidx
+        lda passlots,x
         jsr putdec
+        ldx pidx
+        inx
+        bne prnext
 prdone: rts
 
 romptr: lda #0
@@ -1239,9 +1542,9 @@ pdtab:  .byte 1, 10, 100
 
 ; putport: the W5100's port in decimal, without leading zeros, on the row
 ; from Y.
-putport: lda W5IMG+NPORT
+putport: lda W5IMG+NPORT        ; putaddr sets the page
         sta tmohi
-        lda W5IMG+NPORT+1
+pphigh: lda W5IMG+NPORT+1
         sta tmolo
         lda #0
         sta lead
@@ -1296,7 +1599,8 @@ anntag: .text "CASSOLINK"
 annend:
 
 msgs:
-title:  .text "CASSOLINK"
+title:  .text "CASSOLINK LOADER V1."  ; the loader's version, 1 and the shim's
+        .byte $30 + SHIMVER / 10, $30 + SHIMVER - SHIMVER / 10 * 10
         .byte 0
 msgwait: .text "WAITING FOR THE PC ON:"
         .byte 0
@@ -1310,14 +1614,37 @@ msgpas: .text "PASCAL FIRMWARE CARD, SLOT "
         .byte 0
 msgw5:  .text "UTHERNET II, SLOT "
         .byte 0
+msguth: .text "UTHERNET, SLOT "
+        .byte 0
+msglan: .text "LANCEGS, SLOT "
+        .byte 0
 msgat:  .text ", "
         .byte 0
 msgdhcp: .text ", GETTING AN ADDRESS"
         .byte 0
 
-acslots: .ds 8                  ; each 6551's slot, or a //c's port
-passlot: .byte 0                ; the card run through its firmware's slot, or 0
-pentry: .byte 0, 0, 0, 0        ; its init, read, write and status offsets
+u115200: .text "115200"   ; a 6551's speed for 230,400 baud
+netslot: .byte 0                ; the network card's slot, or 0
+nsrowi: .byte 0                 ; and its row
+acslots: .ds 8                  ; each 6551's slot, or a //c's or a IIgs's port
+acscc:  .ds 8                   ; 0 for a 6551, or $80 plus a IIgs port's channel
+; Each 6551 rate's time constant: $FF for 115,200 baud and $FE for 230,400,
+; straight from RTxC.
+urates: .byte $00, $FF, $01, $FE, $0F, 4, $0E, 10, $0C, 22, $0A, 46, $08, 94
+; Each 8530 register and its value, for 115,200 baud and then for the
+; others, as the shim sets them.
+uregs:  .byte 4, $84, 14, $00, 11, $80, 1, $00, 3, $C1, 5, $EA
+u16:    .byte 4, $44, 12
+u16tc:  .byte 0
+        .byte 13, $00, 14, $01, 11, $D0, 1, $00, 3, $C1, 5, $EA
+uend:
+uregend: .byte 0                ; addscc: the end of the registers written
+uregx:  .byte 0                 ; addscc: the register's offset
+pasn:   .byte 0                 ; the cards run through their firmware
+passlots: .ds 2                 ; their slots
+pentries: .ds 8                 ; their init, read, write and status offsets
+pidx:   .byte 0                 ; the one a firmware call is for
+pfn:    .byte 0                 ; pcall: the entry, 0 to 3
 yip:    .ds 4                   ; the address offered
 smask:  .ds 4                   ; its mask
 sgw:    .ds 4                   ; its router

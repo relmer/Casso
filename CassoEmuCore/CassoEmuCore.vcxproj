@@ -176,6 +176,7 @@
     <ClCompile Include="Net\FirewallText.cpp" />
     <ClCompile Include="Net\WinHttpClient.cpp" />
     <ClCompile Include="Update\AuthenticodeVerifier.cpp" />
+    <ClCompile Include="Update\Deflate.cpp" />
     <ClCompile Include="Update\Inflate.cpp" />
     <ClCompile Include="Update\InstallTypeDetector.cpp" />
     <ClCompile Include="Update\MsixPackageDeployer.cpp" />
@@ -190,6 +191,7 @@
     <ClCompile Include="Update\UpdateRuntime.cpp" />
     <ClCompile Include="Update\Win32UpdateHost.cpp" />
     <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
+    <ClCompile Include="Update\ModuleInstallEnvironment.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
     <ClCompile Include="Update\LocalFeedHttpClient.cpp" />
     <ClCompile Include="Update\PendingUpdateModel.cpp" />
@@ -199,8 +201,10 @@
     <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\JsonWriter.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
+    <ClCompile Include="Core\MachineConfigSource.cpp" />
     <ClCompile Include="Core\MachineConfigUpgrade.cpp" />
     <ClCompile Include="Core\MachineScanner.cpp" />
+    <ClCompile Include="Core\DataFolderResolver.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
@@ -247,6 +251,7 @@
     <ClCompile Include="Seams\InProcessByteStream.cpp" />
     <ClCompile Include="Seams\ByteStreamSettings.cpp" />
     <ClCompile Include="Seams\Win32TcpStream.cpp" />
+    <ClCompile Include="Seams\Win32UdpStream.cpp" />
     <ClCompile Include="Seams\RawDevice\RawDeviceClient.cpp" />
     <ClCompile Include="Seams\RawDevice\RawDeviceProtocol.cpp" />
     <ClCompile Include="Seams\RawDevice\Fat32Format.cpp" />
@@ -270,6 +275,7 @@
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostBlocks.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostModules.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostProgram.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTextForm.cpp" />
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
@@ -287,6 +293,8 @@
     <ClCompile Include="CassoLink\Session\CassoLinkBlockDevices.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkCaptureAlign.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkCaptureNoise.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
@@ -315,9 +323,12 @@
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
+    <ClCompile Include="CassoLink\Audio\AdtProAudioByteStream.cpp" />
+    <ClCompile Include="CassoLink\Audio\AdtProAudioCodec.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteByteStream.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteCodec.cpp" />
     <ClCompile Include="CassoLink\Audio\DiskAudioRecording.cpp" />
+    <ClCompile Include="CassoLink\Audio\DualCassetteByteStream.cpp" />
     <ClCompile Include="CassoLink\Audio\WasapiCassetteAudio.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
@@ -351,10 +362,12 @@
     <ClCompile Include="Devices\Disk\ImageClassCache.cpp" />
     <ClCompile Include="Devices\Disk\DriveImageRule.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModelRepair.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorWorker.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockRepair.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BootLoaderId.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.cpp" />
@@ -515,6 +528,9 @@
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
+    <ClCompile Include="CassoExplorer\Model\BasicListingOutput.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CopyOptionRows.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerCopyOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesDialog.cpp" />
     <ClCompile Include="CassoExplorer\WozPropertiesDialog.cpp" />
@@ -587,6 +603,7 @@
     <ClCompile Include="Devices\Disk\Archives\SqueezeDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Archives\LzcDecoder.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerPath.cpp" />
+    <ClCompile Include="Devices\Disk\Archives\WrappedImageFileIo.cpp" />
     <ClCompile Include="FileTypes\TextCharset.cpp" />
     <ClCompile Include="FileTypes\RtfWriter.cpp" />
     <ClCompile Include="FileTypes\CsvWriter.cpp" />
@@ -614,6 +631,10 @@
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
+    <ClCompile Include="FileTypes\CodeListing.cpp" />
+    <ClCompile Include="FileTypes\Disassembler65816.cpp" />
+    <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
+    <ClCompile Include="FileTypes\ScreenPicture.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes3200.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ZipAppleDouble.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerDiskFileIo.cpp" />
@@ -944,6 +965,7 @@
     <ClCompile Include="Machines\Apple2\Common\HfsVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsWriter.cpp" />
     <ClCompile Include="Devices\Disk\BlockVolumeOpener.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\ApmLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CffaLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\FocusDriveLayout.cpp" />
@@ -1154,6 +1176,19 @@
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorState.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockFileSession.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockEditController.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockRepairController.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorTips.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockCommandSet.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockRepairTarget.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockPanelSplitters.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockJobQueue.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHeaderText.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHeaderView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexPane.cpp" />
+    <ClCompile Include="Seams\Win32DriveSpace.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockNavigator.cpp" />
@@ -1169,6 +1204,8 @@
     <ClCompile Include="Ui\DiskInspector\Components\EditingPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\FindPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\HostLink.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorCommandSet.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorWindowLayout.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorMenuBar.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorMenus.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
@@ -1208,6 +1245,9 @@
     <ClCompile Include="Ui\DiskInspector\Views\SectorsView.cpp" />
     <ClCompile Include="Ui\DiskInspector\SectorRowView.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripGeometry.cpp" />
+    <ClCompile Include="Ui\DiskInspector\StripHitTest.cpp" />
+    <ClCompile Include="Ui\DiskInspector\StripTrackPainter.cpp" />
+    <ClCompile Include="Ui\DiskInspector\StripOverlayPainter.cpp" />
     <ClCompile Include="Ui\DiskInspector\TrackHeaderView.cpp" />
     <ClCompile Include="Ui\DiskInspector\TrackStripView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
@@ -1406,6 +1446,7 @@
     <ClInclude Include="Net\WinHttpClient.h" />
     <ClInclude Include="Update\AuthenticodeVerifier.h" />
     <ClInclude Include="Update\IInstallEnvironment.h" />
+    <ClInclude Include="Update\Deflate.h" />
     <ClInclude Include="Update\Inflate.h" />
     <ClInclude Include="Update\InstallTypeDetector.h" />
     <ClInclude Include="Update\IPackageDeployer.h" />
@@ -1427,6 +1468,7 @@
     <ClInclude Include="Update\UpdateResult.h" />
     <ClInclude Include="Update\IUpdateHost.h" />
     <ClInclude Include="Update\IUpdateResultPoster.h" />
+    <ClInclude Include="Update\ModuleInstallEnvironment.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
     <ClInclude Include="Update\LocalFeedHttpClient.h" />
     <ClInclude Include="Update\PendingUpdateModel.h" />
@@ -1440,8 +1482,10 @@
     <ClInclude Include="Core\ICycleSink.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
+    <ClInclude Include="Core\MachineConfigSource.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
     <ClInclude Include="Core\MachineScanner.h" />
+    <ClInclude Include="Core\DataFolderResolver.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\DramPowerOnPattern.h" />
@@ -1493,6 +1537,7 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockRepair.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BootLoaderId.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.h" />
@@ -1669,6 +1714,9 @@
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
+    <ClInclude Include="CassoExplorer\Model\BasicListingOutput.h" />
+    <ClInclude Include="CassoExplorer\Model\CopyOptionRows.h" />
+    <ClInclude Include="CassoExplorer\CassoExplorerCopyOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />
     <ClInclude Include="CassoExplorer\AppleFilePropertiesDialog.h" />
     <ClInclude Include="CassoExplorer\WozPropertiesDialog.h" />
@@ -1750,6 +1798,7 @@
     <ClInclude Include="Devices\Disk\Archives\SqueezeDecoder.h" />
     <ClInclude Include="Devices\Disk\Archives\LzcDecoder.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerPath.h" />
+    <ClInclude Include="Devices\Disk\Archives\WrappedImageFileIo.h" />
     <ClInclude Include="FileTypes\DecodedFile.h" />
     <ClInclude Include="FileTypes\TextCharset.h" />
     <ClInclude Include="FileTypes\RtfWriter.h" />
@@ -1778,6 +1827,10 @@
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />
+    <ClInclude Include="FileTypes\CodeListing.h" />
+    <ClInclude Include="FileTypes\Disassembler65816.h" />
+    <ClInclude Include="FileTypes\MacPaintPicture.h" />
+    <ClInclude Include="FileTypes\ScreenPicture.h" />
     <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerDiskFileIo.h" />
     <ClInclude Include="Devices\Disk\Archives\Bzip2Decoder.h" />
@@ -1798,6 +1851,7 @@
     <ClInclude Include="Machines\Apple2\Common\HfsVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsWriter.h" />
     <ClInclude Include="Devices\Disk\BlockVolumeOpener.h" />
+    <ClInclude Include="Devices\Disk\Partitions\ApmLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\CffaLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\FocusDriveLayout.h" />
@@ -1900,6 +1954,7 @@
     <ClInclude Include="Seams\InProcessByteStream.h" />
     <ClInclude Include="Seams\ByteStreamSettings.h" />
     <ClInclude Include="Seams\Win32TcpStream.h" />
+    <ClInclude Include="Seams\Win32UdpStream.h" />
     <ClInclude Include="Seams\ILinkAnnouncements.h" />
     <ClInclude Include="Seams\RawDevice\IRawDevice.h" />
     <ClInclude Include="Seams\RawDevice\RawDeviceClient.h" />
@@ -1968,9 +2023,12 @@
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />
     <ClInclude Include="CassoLink\RunningCassoRegistry.h" />
     <ClInclude Include="CassoLink\LinkAnnouncement.h" />
+    <ClInclude Include="CassoLink\Audio\AdtProAudioByteStream.h" />
+    <ClInclude Include="CassoLink\Audio\AdtProAudioCodec.h" />
     <ClInclude Include="CassoLink\Audio\CassetteByteStream.h" />
     <ClInclude Include="CassoLink\Audio\CassetteCodec.h" />
     <ClInclude Include="CassoLink\Audio\DiskAudioRecording.h" />
+    <ClInclude Include="CassoLink\Audio\DualCassetteByteStream.h" />
     <ClInclude Include="CassoLink\Audio\ICassetteAudio.h" />
     <ClInclude Include="CassoLink\Audio\WasapiCassetteAudio.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />
@@ -2157,6 +2215,21 @@
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorInterfaces.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorState.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockFileSession.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockEditController.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockRepairController.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorTips.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockCommandSet.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockRepairTarget.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockPanelSplitters.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockJobQueue.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHeaderText.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHeaderView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexPane.h" />
+    <ClInclude Include="Seams\IDriveSpace.h" />
+    <ClInclude Include="Seams\Win32DriveSpace.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapGrid.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockNavigator.h" />
@@ -2172,6 +2245,9 @@
     <ClInclude Include="Ui\DiskInspector\Components\EditingPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\FindPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\HostLink.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorCommandSet.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorWindowLayout.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorCommandInterfaces.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorCommands.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMenuBar.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMenus.h" />
@@ -2218,6 +2294,10 @@
     <ClInclude Include="Ui\DiskInspector\Views\SectorsView.h" />
     <ClInclude Include="Ui\DiskInspector\SectorRowView.h" />
     <ClInclude Include="Ui\DiskInspector\StripGeometry.h" />
+    <ClInclude Include="Ui\DiskInspector\StripHitTest.h" />
+    <ClInclude Include="Ui\DiskInspector\StripPaintScene.h" />
+    <ClInclude Include="Ui\DiskInspector\StripTrackPainter.h" />
+    <ClInclude Include="Ui\DiskInspector\StripOverlayPainter.h" />
     <ClInclude Include="Ui\DiskInspector\TrackHeaderView.h" />
     <ClInclude Include="Ui\DiskInspector\TrackStripView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
@@ -2385,6 +2465,7 @@
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
+    <None Include="CassoLink\Apple\NetStack.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
     <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />

@@ -188,7 +188,7 @@ ActionsTypes::Outcome ActionsTape::MakeRecording (const std::wstring & target)
         return outcome;
     }
 
-    TapeRecordingWriter::Render (files, audio, sidecar);
+    TapeRecordingWriter::Render (files, audio, sidecar, m_timing);
 
     hr = TapeRecordingWriter::Encode (audio, GetFormat (target), encoder, bytes, error);
 

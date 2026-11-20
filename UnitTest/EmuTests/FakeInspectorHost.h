@@ -32,6 +32,8 @@ public:
     int                     shownFinding = -1;
     std::set<std::wstring>  repairChosen;
     std::wstring            statusNote;
+    double                  zoom         = 1.0;
+    int                     walkthroughs = 0;
 
     DxuiPanel          & GetControlParent    () override { return panel; }
     HWND                 GetOwnerHwnd        () const override { return nullptr; }
@@ -48,8 +50,8 @@ public:
     void                 StartDisk           (std::shared_ptr<const DiskCopy>, const std::wstring &) override {}
     HRESULT              ShowDrive           (int) override { return S_OK; }
     void                 TakeTracks          (const InspectorReply &) override {}
-    void                 SetWindowZoom       (double) override {}
-    void                 OpenWalkthrough     () override {}
+    void                 SetWindowZoom       (double newZoom) override { zoom = newZoom; }
+    void                 OpenWalkthrough     () override { walkthroughs++; }
     void                 OpenRepair          (const std::set<std::wstring> & chosen) override { repairs++; repairChosen = chosen; }
     void                 ShowFinding         (int finding) override { shownFinding = finding; }
 

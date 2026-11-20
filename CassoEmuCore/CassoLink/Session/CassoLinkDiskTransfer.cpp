@@ -203,6 +203,58 @@ std::string CassoLinkDiskTransfer::FormatDuration (double seconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkDiskTransfer::IsMeasured
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDiskTransfer::IsMeasured (DiskFormat format)
+{
+    return format == DiskFormat::Woz;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::BuildImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::BuildImage (
+    const std::string                               & imagePath,
+    DiskFormat                                        format,
+    const std::vector<Byte>                         & sectors,
+    const std::vector<CassoLinkHost::TrackMeasure>  & measures,
+    int                                               bitsPerTurn,
+    std::vector<Byte>                               & outBytes)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (IsMeasured (format))
+    {
+        hr = TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, bitsPerTurn), outBytes);
+        CHR (hr);
+    }
+    else
+    {
+        hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (imagePath), false, 0, sectors, outBytes);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkDiskTransfer::ReadWholeDisk
 //
 //  The image is written only once every track has been read, so a failed or
@@ -234,7 +286,7 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
     hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
     CHR (hr);
 
-    if (format == DiskFormat::Woz)
+    if (IsMeasured (format))
     {
         hr = TimeDriveForLayout (operation.drive, bitsPerTurn);
         CHR (hr);
@@ -245,7 +297,7 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
         m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
-        if (format == DiskFormat::Woz)
+        if (IsMeasured (format))
         {
             hr = MeasureTrack (operation.drive, track, measures);
             CHR (hr);
@@ -273,16 +325,8 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     CBREx (complete, HRESULT_FROM_WIN32 (ERROR_CRC));
 
-    if (format == DiskFormat::Woz)
-    {
-        hr = TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, bitsPerTurn), bytes);
-        CHR (hr);
-    }
-    else
-    {
-        hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (operation.imagePath), false, 0, sectors, bytes);
-        CHR (hr);
-    }
+    hr = BuildImage (operation.imagePath, format, sectors, measures, bitsPerTurn, bytes);
+    CHR (hr);
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);

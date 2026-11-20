@@ -3,6 +3,8 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
@@ -25,12 +27,6 @@ static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kInsetDip       = 4;
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
 static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
-static constexpr LPCWSTR  s_kpszGlyphPrev   = L"\xE76B";
-static constexpr LPCWSTR  s_kpszGlyphNext   = L"\xE76C";
-static constexpr uint32_t s_kChangedColor   = 0xFFE0A030;
-static constexpr uint32_t s_kDiffersColor   = 0xFFF06060;
-static constexpr uint32_t s_kFieldColor     = 0xFF60B0F0;
-static constexpr uint32_t s_kLinkColor      = 0xFF60D090;
 
 
 
@@ -61,10 +57,20 @@ BlockInspectorPanel::~BlockInspectorPanel() = default;
 void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text,
                                 const InspectorCommands * commands)
 {
-    m_model  = model;
-    m_worker = worker;
-    m_text   = text;
-    m_theme  = theme;
+    m_model = model;
+    m_text  = text;
+    m_theme = theme;
+
+    m_jobs.SetWorker   (worker);
+    m_jobs.SetOnQueued ([this] ()
+    {
+        UpdateBusy();
+
+        if (m_onQueued)
+        {
+            m_onQueued();
+        }
+    });
 
     if (commands != nullptr && commands->goTo != nullptr)
     {
@@ -89,7 +95,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     InitCorners();
     InitRightColumn (theme, hwnd);
 
-    m_hex->SetOwnerWindow (hwnd);
+    m_hexPane.GetHexView().SetOwnerWindow (hwnd);
     Refresh();
 }
 
@@ -140,13 +146,9 @@ void BlockInspectorPanel::InitCorners()
 
 void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 {
-    m_previous = CreateChild<DxuiIconButton>();
-    m_next     = CreateChild<DxuiIconButton>();
-    m_copy     = CreateChild<DxuiButton> (L"Copy block");
-    m_editBar  = CreateChild<EditBar>();
-    m_cancel   = CreateChild<DxuiButton> (L"Cancel");
-    m_hex      = CreateChild<BlockHexView>();
-    m_fields   = CreateChild<BlockFieldsView>();
+    m_header.Create (*this, [this] (int64_t delta) { Step (delta); }, [this] () { if (m_onCopy) { m_onCopy(); } }, [this] () { m_jobs.CancelJobs(); });
+
+    m_hexPane.Create (*this);
 
     m_nav.Create         (*this, m_model, theme, hwnd, m_text);
     m_nav.SetOnPlace     ([this] () { OnLevelChanged(); });
@@ -181,24 +183,12 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
-    m_previous->SetGlyph          (s_kpszGlyphPrev);
-    m_previous->SetAccessibleName (L"Previous block");
-    m_previous->SetOnClick        ([this] () { Step (-1); });
-    m_next->SetGlyph              (s_kpszGlyphNext);
-    m_next->SetAccessibleName     (L"Next block");
-    m_next->SetOnClick            ([this] () { Step (1); });
+    BlockHexView     & hex    = m_hexPane.GetHexView();
+    BlockFieldsView  & fields = m_hexPane.GetFields();
 
-    m_copy->SetOnClick   ([this] () { if (m_onCopy) { m_onCopy(); } });
-    m_cancel->SetOnClick ([this] () { if (m_worker != nullptr) { m_worker->Cancel(); } });
-    m_editBar->SetUnit   (L"block", L"blocks");
-
-    m_cancel->SetVisible (false);
-
-    m_hex->SetBytesPerRow  (kBytesPerRow);
-    m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_hex->SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
-    m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
-    m_hex->SetOnClick      ([this] (uint64_t offset)
+    hex.SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
+    hex.SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
+    hex.SetOnClick      ([this] (uint64_t offset)
     {
         if (!IsBusy() && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
         {
@@ -207,21 +197,11 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
-    m_hex->SetMarkColor ([] (uint8_t mark, uint32_t & outArgb)
-    {
-        outArgb = mark == BlockHexSource::kMarkChanged ? s_kChangedColor
-                : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor
-                : mark == BlockHexSource::kMarkField   ? s_kFieldColor
-                :                                        s_kLinkColor;
-
-        return mark != BlockHexSource::kMarkNone;
-    });
-
-    m_fields->SetOnHover ([this] (const BlockField * field)
+    fields.SetOnHover ([this] (const BlockField * field)
     {
         if (!IsBusy())
         {
-            MarkField (field);
+            m_hexPane.MarkField (*m_model, field);
 
             if (m_onChanged)
             {
@@ -230,7 +210,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
-    m_fields->SetOnFollow ([this] (const BlockField * field)
+    fields.SetOnFollow ([this] (const BlockField * field)
     {
         if (field != nullptr && field->link != BlockField::kNoLink && !IsBusy())
         {
@@ -342,7 +322,7 @@ void BlockInspectorPanel::OpenBlock (uint32_t block)
 
     if (m_onPressed)
     {
-        m_onPressed (m_hex);
+        m_onPressed (&m_hexPane.GetHexView());
     }
 }
 
@@ -365,7 +345,7 @@ void BlockInspectorPanel::SetEditing (bool isEditing)
 
     if (m_isEditing && m_onPressed)
     {
-        m_onPressed (m_hex);
+        m_onPressed (&m_hexPane.GetHexView());
     }
 }
 
@@ -384,14 +364,7 @@ void BlockInspectorPanel::SetEditing (bool isEditing)
 
 void BlockInspectorPanel::SetEditState (const EditBarState & state)
 {
-    int  width  = m_rowRect.right - m_rowRect.left;
-    int  before = width > 0 ? m_editBar->GetHeightPx (width, m_scaler) : 0;
-
-
-
-    m_editBar->SetState (state);
-
-    if (width > 0 && m_scaler.GetDpi() != 0 && !m_isLongJob && m_editBar->GetHeightPx (width, m_scaler) != before)
+    if (m_header.SetEditState (state, m_scaler) && !m_jobs.IsLongJob())
     {
         Layout (GetBounds(), m_scaler);
     }
@@ -718,45 +691,13 @@ void BlockInspectorPanel::Refresh()
 
     if (!m_model->IsLoaded (block))
     {
-        QueueJob ({ L"", false,
+        m_jobs.QueueJob ({ L"", false,
                     [model, block] (BlockJobProgress & progress) { (void) progress; model->LoadBlock (block); },
                     [this] () { Refresh(); } });
         return;
     }
 
     Present();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::QueueJob
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
-{
-    BlockJobProgress  progress;
-
-
-
-    if (m_worker == nullptr)
-    {
-        job.work (progress);
-        job.finish();
-        return;
-    }
-
-    m_worker->Queue (std::move (job));
-    UpdateBusy();
-
-    if (m_onQueued)
-    {
-        m_onQueued();
-    }
 }
 
 
@@ -775,33 +716,33 @@ void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
 
 void BlockInspectorPanel::UpdateBusy()
 {
-    bool  canCancel = false;
-    bool  wasLong   = m_isLongJob;
+    bool  wasLong = m_jobs.IsLongJob();
+    bool  isLong  = false;
 
 
 
-    if (m_worker == nullptr)
+    if (!m_jobs.HasWorker())
     {
         return;
     }
 
-    m_isLongJob = m_worker->TryGetLongJob (m_jobLabel, canCancel, m_jobDone, m_jobTotal);
+    m_jobs.Poll();
+    isLong = m_jobs.IsLongJob();
 
     m_map->SetFrozen     (IsBusy());
-    m_cancel->SetVisible (m_isLongJob && canCancel);
+    m_header.SetBusy     (isLong, m_jobs.CanCancel());
 
-    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_copy, (IDxuiControl *) m_editBar,
-                                    (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
+    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
-        control->SetEnabled (!m_isLongJob);
+        control->SetEnabled (!isLong);
     }
 
-    if (wasLong != m_isLongJob && m_scaler.GetDpi() != 0)
+    if (wasLong != isLong && m_scaler.GetDpi() != 0)
     {
         Layout (GetBounds(), m_scaler);
     }
 
-    if (m_onChanged && (m_isLongJob || wasLong))
+    if (m_onChanged && (isLong || wasLong))
     {
         m_onChanged();
     }
@@ -872,10 +813,8 @@ void BlockInspectorPanel::Present()
 
     ApplyHighlight();
     ShowBytes();
-    BuildFieldLine();
-
-    m_previous->SetEnabled (m_model->GetBlock() > 0);
-    m_next->SetEnabled     (m_model->GetBlock() + 1 < m_model->GetBlockCount());
+    m_header.SetFieldLine (BlockHeaderText::BuildFieldLine (*m_model, m_model->GetBlock()));
+    m_header.SetSteps     (m_model->GetBlock() > 0, m_model->GetBlock() + 1 < m_model->GetBlockCount());
     m_filesChip->SetOn   (m_isFilesOn);
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
@@ -899,222 +838,20 @@ void BlockInspectorPanel::Present()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::BuildCapsules
-//
-//  Free or Used, then the block's role for a block in use, drawn red for a
-//  damaged role, then each file the block is in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::BuildCapsules()
-{
-    uint32_t      block  = m_model->GetBlock();
-    SectorRole    role   = m_model->GetRole (block);
-    LPCWSTR       label  = m_model->GetMapLabel (block);
-    bool          isFree = role == SectorRole::Free && label == nullptr;
-    bool          isBad  = role == SectorRole::AllocatedUnowned || role == SectorRole::OwnedMarkedFree || role == SectorRole::CrossLinked;
-    std::wstring  owners = m_model->GetOwners (block);
-    size_t        start  = 0;
-    size_t        end    = 0;
-
-
-
-    m_capsules.clear();
-    m_capsules.push_back ({ isFree ? L"Free" : L"Used", false });
-
-    if (!isFree)
-    {
-        m_capsules.push_back ({ label != nullptr ? label : BlockMapGrid::GetRoleName (role), isBad });
-    }
-
-    while (start < owners.size())
-    {
-        end = owners.find (L'\n', start);
-        end = end == std::wstring::npos ? owners.size() : end;
-
-        m_capsules.push_back ({ owners.substr (start, end - start), false });
-        start = end + 1;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorPanel::ShowBytes
 //
-//  The block's bytes, or the header's, with their marks and fields. The hex
-//  view starts over at the top only when the block changes.
+//  The block's number, its capsules and its bytes. The fields list is
+//  fitted again for each new block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::ShowBytes()
 {
-    BlockInspectorModel::Block  bytes  = {};
-    BlockInspectorModel::Block  other  = {};
-    vector<BlockField>          fields;
-    uint32_t                    block  = m_model->GetBlock();
-    int64_t                     shown  = (int64_t) block;
-    HRESULT                     hr     = S_OK;
-    size_t                      i      = 0;
+    m_header.ShowBlock (m_model->GetBlock(), BlockHeaderText::BuildCapsules (*m_model, m_model->GetBlock()));
 
-
-
-    m_title = L"Block " + NumberFormat::FormatInteger (block);
-    BuildCapsules();
-
-    hr = m_model->ReadBlock (block, bytes);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    m_source.SetBytes (bytes);
-    m_model->GetFields (block, bytes, fields);
-    m_fields->SetHeading   (L"Fields in block " + NumberFormat::FormatInteger (block));
-    m_fields->SetEmptyText (L"There are no fields in this block.");
-
-    for (i = 0; i < bytes.size(); i++)
+    if (m_hexPane.ShowBytes (*m_model))
     {
-        if (m_model->GetEdits().IsChanged (block, (int) i))
-        {
-            m_source.SetMark (i, BlockHexSource::kMarkChanged);
-        }
-    }
-
-    if (m_model->IsDifferent (block))
-    {
-        hr = m_model->ReadOtherBlock (block, other);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        for (i = 0; i < bytes.size(); i++)
-        {
-            if (bytes[i] != other[i])
-            {
-                m_source.SetMark (i, BlockHexSource::kMarkDiffers);
-            }
-        }
-    }
-
-    for (const BlockField & field : fields)
-    {
-        if (field.link == BlockField::kNoLink)
-        {
-            continue;
-        }
-
-        for (i = field.offset; i < (size_t) field.offset + field.length; i++)
-        {
-            m_source.SetMark (i, BlockHexSource::kMarkLink);
-        }
-
-        if (field.pairOffset >= 0)
-        {
-            m_source.SetMark ((uint64_t) field.pairOffset, BlockHexSource::kMarkLink);
-        }
-    }
-
-    if (shown != m_shownBlock)
-    {
-        m_fields->SetFields (std::move (fields));
-        m_fieldTip.Hide();
-    }
-    else
-    {
-        m_fields->UpdateFields (std::move (fields));
-    }
-
-    if (shown != m_shownBlock)
-    {
-        m_shownBlock = shown;
-        m_hex->SetSource (&m_source);
-        m_hex->ResetNibble();
         FitFields();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::MarkField
-//
-//  The field under the pointer, marked over the link marks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::MarkField (const BlockField * field)
-{
-    uint32_t  i = 0;
-
-
-
-    ShowBytes();
-
-    if (field == nullptr)
-    {
-        return;
-    }
-
-    for (i = field->offset; i < field->offset + field->length; i++)
-    {
-        m_source.SetMark (i, BlockHexSource::kMarkField);
-    }
-
-    if (field->pairOffset >= 0)
-    {
-        m_source.SetMark ((uint64_t) field->pairOffset, BlockHexSource::kMarkField);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::BuildFieldLine
-//
-//  The field line: the block's Disk Copy tag bytes, and whether the block
-//  differs from the other image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::BuildFieldLine()
-{
-    uint32_t                    block  = m_model->GetBlock();
-    BlockInspectorModel::Tags   tags   = {};
-    size_t                      differ = m_model->IsComparing() ? m_model->CountDifferent() : 0;
-    std::wstring                other  = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
-    vector<std::wstring>        parts;
-    wchar_t                     hex[4] = {};
-    std::wstring                tagText;
-
-
-
-    if (m_model->TryGetTags (block, tags))
-    {
-        for (Byte tag : tags)
-        {
-            swprintf_s (hex, L" %02X", tag);
-            tagText += hex;
-        }
-
-        parts.push_back (L"Tag bytes:" + tagText);
-    }
-
-    if (m_model->IsComparing())
-    {
-        parts.push_back ((m_model->IsDifferent (block) ? L"Differs from " : L"Same as ") + other
-                         + (differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", NumberFormat::FormatInteger (differ))));
-    }
-
-    m_fieldLine.clear();
-
-    for (const std::wstring & part : parts)
-    {
-        m_fieldLine += (m_fieldLine.empty() ? L"" : L"    ") + part;
     }
 }
 
@@ -1126,60 +863,23 @@ void BlockInspectorPanel::BuildFieldLine()
 //
 //  BlockInspectorPanel::BuildBlockText
 //
-//  Sixteen bytes a line: the offset, the bytes in hex, and their text.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring BlockInspectorPanel::BuildBlockText() const
 {
-    constexpr Byte  kHighBit    = 0x80;
-    constexpr Byte  kFirstGlyph = 0x20;
-    constexpr Byte  kLastGlyph  = 0x7E;
-
-
-
     BlockInspectorModel::Block  bytes = {};
-    std::wstring                text;
-    size_t                      i     = 0;
-    size_t                      j     = 0;
-    Byte                        ch    = 0;
     HRESULT                     hr    = S_OK;
 
 
 
     if (m_model == nullptr || !m_model->IsOpen())
     {
-        return text;
+        return std::wstring();
     }
 
     hr = m_model->ReadBlock (m_model->GetBlock(), bytes);
 
-    if (FAILED (hr))
-    {
-        return text;
-    }
-
-    for (i = 0; i < bytes.size(); i += kBytesPerRow)
-    {
-        text += std::format (L"{:04X} ", i);
-
-        for (j = 0; j < (size_t) kBytesPerRow; j++)
-        {
-            text += std::format (L" {:02X}", bytes[i + j]);
-        }
-
-        text += L"  ";
-
-        for (j = 0; j < (size_t) kBytesPerRow; j++)
-        {
-            ch    = (Byte) (bytes[i + j] & ~kHighBit);
-            text += (ch >= kFirstGlyph && ch <= kLastGlyph) ? (wchar_t) ch : L'.';
-        }
-
-        text += L"\r\n";
-    }
-
-    return text;
+    return SUCCEEDED (hr) ? BlockHeaderText::BuildBlockText (bytes, BlockHexPane::kBytesPerRow) : std::wstring();
 }
 
 
@@ -1213,7 +913,7 @@ std::wstring BlockInspectorPanel::GetSelectionLine() const
 void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     int   pad      = scaler.ToPx ((int) kPadDip);
-    int   row      = scaler.ToPx ((int) kRowDip);
+    int   row      = scaler.ToPx ((int) BlockHeaderView::kRowDip);
     int   toolbar  = std::max (m_tools != nullptr ? scaler.ToPx (m_tools->GetBandDp()) : 0, row + pad);
     int   splitter = scaler.ToPx ((int) kSplitterDip);
     int   search   = scaler.ToPx ((int) kSearchDip);
@@ -1240,21 +940,17 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_nav.GetSearch().SetDpi (scaler.GetDpi());
     m_nav.GetSearch().Layout ({ boundsPx.right - 2 * pad - tools - search, barTop, boundsPx.right - 2 * pad - tools, barTop + row }, scaler);
 
-    m_treeShare      = std::clamp (m_treeShare, kMinTree, kMaxTree);
-    m_split          = std::clamp (m_split, std::max (kMinSplit, m_treeShare + kMinTree * 2), kMaxSplit);
-    treeX            = boundsPx.left + (int) (width * m_treeShare);
-    mapX             = boundsPx.left + (int) (width * m_split);
-    m_treeSplitterPx = { treeX, top, treeX + splitter, boundsPx.bottom };
-    m_splitterPx     = { mapX, top, mapX + splitter, boundsPx.bottom };
+    treeX = m_splitters.PlaceColumns (boundsPx, mapX);
+
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::Tree, { treeX, top, treeX + splitter, boundsPx.bottom });
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::Map,  { mapX, top, mapX + splitter, boundsPx.bottom });
 
     m_nav.GetTree().SetDpi (scaler.GetDpi());
     m_nav.GetTree().Layout ({ boundsPx.left + pad, top + pad, treeX, boundsPx.bottom - pad }, scaler);
     m_nav.GetList().SetDpi (scaler.GetDpi());
 
-    m_listShare = std::clamp (m_listShare, kMinList, kMaxList);
-
-    LayoutMiddle ({ m_treeSplitterPx.right + pad, top + pad, mapX - pad, boundsPx.bottom - pad }, scaler);
-    LayoutGrid   ({ m_splitterPx.right + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
+    LayoutMiddle ({ treeX + splitter + pad, top + pad, mapX - pad, boundsPx.bottom - pad }, scaler);
+    LayoutGrid   ({ mapX + splitter + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
 }
 
 
@@ -1329,16 +1025,11 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 
 void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.ToPx ((int) kPadDip);
-    int   row      = scaler.ToPx ((int) kRowDip);
-    int   line     = scaler.ToPx ((int) kLineDip);
-    int   button   = scaler.ToPx ((int) kButtonDip);
-    int   splitter = scaler.ToPx ((int) kSplitterDip);
-    int   listEnd  = column.top + (int) ((column.bottom - column.top) * m_listShare);
-    int   y        = 0;
-    int   hexEnd   = 0;
-    int   barH     = m_isLongJob ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
-    bool  isRow    = barH > 0;
+    int  pad      = scaler.ToPx ((int) kPadDip);
+    int  splitter = scaler.ToPx ((int) kSplitterDip);
+    int  listEnd  = m_splitters.PlaceListEnd (column);
+    int  y        = 0;
+    int  hexEnd   = 0;
 
 
 
@@ -1347,78 +1038,14 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_nav.GetList().SetVisible (true);
     m_nav.GetList().Layout ({ column.left, column.top, column.right, listEnd }, scaler);
 
-    m_listSplitterPx = { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter };
-    y                = m_listSplitterPx.bottom + pad / 2;
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::List, { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter });
 
-    for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy, (IDxuiControl *) m_hex, (IDxuiControl *) m_fields })
-    {
-        control->SetVisible (true);
-    }
+    y      = m_header.Layout (column, listEnd + pad / 2 + splitter + pad / 2, m_jobs.IsLongJob(), scaler);
+    hexEnd = m_splitters.PlaceHexEnd (column);
 
-    m_editBar->SetVisible (!m_isLongJob && barH > 0);
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::Hex, { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) });
 
-    m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
-    m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
-    m_titleRect = { column.left + 2 * row + pad, y, column.right - button - pad, y + row };
-    m_copy->Layout ({ column.right - button, y, column.right, y + row }, scaler);
-    y += row + pad;
-
-    m_fieldRect = { column.left, y, column.right, y + line };
-    y += line + pad;
-
-    m_rowRect = { column.left, y, column.right, y + barH };
-
-    m_editBar->Layout ({ column.left, y, column.right, y + barH }, scaler);
-    m_cancel->Layout  ({ column.right - button, y, column.right, y + row }, scaler);
-    y = m_rowRect.bottom + (isRow ? pad : 0);
-
-    m_hexShare = std::clamp (m_hexShare, kMinHex, kMaxHex);
-    hexEnd     = (int) column.left + (int) ((column.right - column.left) * m_hexShare);
-
-    m_hexSplitterPx = { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) };
-
-    m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
-    m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
-    FitHexRows (hexEnd - (int) column.left);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::UpdateFieldTip
-//
-//  As Casso Explorer's tree draws a name its pane cuts off: the field row
-//  under the pointer whole, laid over the row and on over the map, at
-//  once, with the pointer passing through to the row. A press, the wheel
-//  or leaving the row hides it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::UpdateFieldTip (const DxuiMouseEvent & ev)
-{
-    int   row = -1;
-    RECT  box = {};
-
-
-
-    if (ev.kind == DxuiMouseEventKind::Move && m_text != nullptr && m_theme != nullptr)
-    {
-        row = m_fields->FindRowAt (ev.positionDip);
-    }
-
-    if (row < 0 || !m_fields->GetClippedRowRect (row, *m_text, box))
-    {
-        m_fieldTip.Hide();
-        return;
-    }
-
-    m_fieldTip.Show (box, m_theme->BackgroundElevated() | 0xFF000000u, [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
-    {
-        m_fields->PaintRowTip (row, painter, text, *m_theme);
-    });
+    m_hexPane.Layout ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, { hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
 }
 
 
@@ -1431,7 +1058,7 @@ void BlockInspectorPanel::UpdateFieldTip (const DxuiMouseEvent & ev)
 //
 //  For each new block, the splitter is moved so the fields list is as wide
 //  as its rows, within the splitter's range, with room left in the hex view
-//  for at least kMinHexBytes in a row.
+//  for at least BlockHexPane::kMinHexBytes in a row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1440,7 +1067,6 @@ void BlockInspectorPanel::FitFields()
     RECT  list   = m_nav.GetList().GetBounds();
     int   width  = (int) (list.right - list.left);
     int   pad    = m_scaler.ToPx ((int) kPadDip);
-    int   bytes  = m_hex->GetBytesPerRow();
     int   hexMin = 0;
 
 
@@ -1450,48 +1076,10 @@ void BlockInspectorPanel::FitFields()
         return;
     }
 
-    m_hex->SetBytesPerRow (kMinHexBytes);
-    hexMin = m_hex->GetContentWidthPx() > 0 ? m_hex->GetContentWidthPx() + m_scaler.ToPx ((int) kHexScrollDip) : 0;
-    m_hex->SetBytesPerRow (bytes);
+    hexMin = m_hexPane.MeasureMinHexPx (m_scaler);
 
-    m_hexShare = std::clamp ((float) (width - pad - m_fields->MeasureWidthPx (*m_text)) / (float) width, std::max (kMinHex, (float) hexMin / (float) width), kMaxHex);
+    m_splitters.FitHex ((float) (width - pad - m_hexPane.GetFields().MeasureWidthPx (*m_text)) / (float) width, (float) hexMin / (float) width);
     Layout (GetBounds(), m_scaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::FitHexRows
-//
-//  The most bytes in a row, of 16, 8 and 4, whose columns fit the hex
-//  view's width, so no scroll bar across is drawn. Before the view has
-//  measured its text, the rows stay as they are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::FitHexRows (int widthPx)
-{
-    int  room  = widthPx - m_scaler.ToPx ((int) kHexScrollDip);
-    int  bytes = m_hex->GetBytesPerRow();
-
-
-
-    for (int count : { 16, 8, 4 })
-    {
-        m_hex->SetBytesPerRow (count);
-        bytes = count;
-
-        if (m_hex->GetContentWidthPx() == 0 || m_hex->GetContentWidthPx() <= room)
-        {
-            break;
-        }
-    }
-
-    m_hex->SetBytesPerRow (bytes);
-    m_hexContentPx = m_hex->GetContentWidthPx();
 }
 
 
@@ -1503,65 +1091,13 @@ void BlockInspectorPanel::FitHexRows (int widthPx)
 //  BlockInspectorPanel::GetHexTooltip
 //
 //  A byte's offset, then its field and the field's value, then what the
-//  byte's color marks: a link to another block, an edit not yet written,
-//  or a byte that differs from the other image.
+//  byte's color marks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
-    DxuiHexView::HitResult  hit   = m_hex->IsVisible() ? m_hex->HitTestPoint (pointPx) : DxuiHexView::HitResult();
-    uint8_t                 mark  = BlockHexSource::kMarkNone;
-    const BlockField      * field = nullptr;
-    std::wstring            note;
-    std::wstring            other;
-
-
-
-    if (!hit.hit || hit.offset >= m_source.GetByteCount())
-    {
-        return false;
-    }
-
-    m_source.ReadMarks (hit.offset, std::span<uint8_t> (&mark, 1));
-
-    //  A split pointer's high byte lies outside its field, at pairOffset.
-    for (const BlockField & candidate : m_fields->GetFields())
-    {
-        if (field == nullptr && (candidate.Contains ((uint32_t) hit.offset) || candidate.pairOffset == (int) hit.offset))
-        {
-            field = &candidate;
-        }
-    }
-
-    other   = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
-    outText = std::format (L"Byte ${:03X}", hit.offset);
-
-    if (field != nullptr)
-    {
-        outText += L"\n" + field->label + (field->value.empty() ? L"" : L": " + field->value);
-    }
-
-    note = mark == BlockHexSource::kMarkLink    ? (field != nullptr && field->link != BlockField::kNoLink ? L"Links to block " + NumberFormat::FormatInteger (field->link) + L". Click to open it." : L"Links to another block")
-         : mark == BlockHexSource::kMarkChanged ? L"Changed, not yet written"
-         : mark == BlockHexSource::kMarkDiffers ? L"Differs from " + other
-         : mark == BlockHexSource::kMarkField   ? L"In the field under the pointer in the field list"
-         :                                        L"";
-
-    if (!note.empty())
-    {
-        outText += L"\n" + note;
-        outSwatches = { { (int) std::count (outText.begin(), outText.end(), L'\n'),
-                          mark == BlockHexSource::kMarkLink ? s_kLinkColor : mark == BlockHexSource::kMarkChanged ? s_kChangedColor : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor : s_kFieldColor } };
-    }
-    else
-    {
-        outSwatches.clear();
-    }
-
-    outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
-
-    return true;
+    return m_hexPane.GetTooltip (pointPx, *m_model, outText, outAnchorPx, outSwatches);
 }
 
 
@@ -1576,154 +1112,18 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
 
 void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    painter.FillRect ((float) m_splitterPx.left, (float) m_splitterPx.top, (float) (m_splitterPx.right - m_splitterPx.left), (float) (m_splitterPx.bottom - m_splitterPx.top),
-                      m_isSplitting ? theme.Accent() : theme.Divider());
-    painter.FillRect ((float) m_treeSplitterPx.left, (float) m_treeSplitterPx.top, (float) (m_treeSplitterPx.right - m_treeSplitterPx.left),
-                      (float) (m_treeSplitterPx.bottom - m_treeSplitterPx.top), m_isTreeSplitting ? theme.Accent() : theme.Divider());
-    painter.FillRect ((float) m_listSplitterPx.left, (float) (m_listSplitterPx.top + m_listSplitterPx.bottom) / 2.0f, (float) (m_listSplitterPx.right - m_listSplitterPx.left),
-                      1.0f, m_isListSplitting ? theme.Accent() : theme.Divider());
-    painter.FillRect ((float) (m_hexSplitterPx.left + m_hexSplitterPx.right) / 2.0f, (float) m_hexSplitterPx.top, 1.0f, (float) (m_hexSplitterPx.bottom - m_hexSplitterPx.top),
-                      m_isHexSplitting ? theme.Accent() : theme.Divider());
+    m_splitters.Paint (painter, theme);
 
     DxuiPanel::Paint (painter, text, theme);
-    PaintHeader (painter, text, theme);
+    m_header.Paint (painter, text, theme, m_scaler, m_jobs, m_model != nullptr && m_model->IsOpen());
 
-    //  The hex view measures its text as it paints, so its rows are fitted
-    //  again once their width is known.
-    if (m_hex->GetContentWidthPx() != m_hexContentPx)
+    if (m_hexPane.RefitRows (m_scaler))
     {
-        FitHexRows ((int) (m_hex->GetBounds().right - m_hex->GetBounds().left));
-
         if (m_onChanged)
         {
             m_onChanged();
         }
     }
-
-    if (m_isLongJob)
-    {
-        PaintProgress (painter, text, theme);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::PaintHeader
-//
-//  "Block 2" and its capsules after it, in the status band's chip style:
-//  Free or Used, the role, and the files. Capsules that don't fit are left
-//  out. Then the field line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    constexpr float     kChipPadDip    = 8.0f;
-    constexpr float     kChipHeightDip = 20.0f;
-    constexpr uint32_t  kBadColor      = 0xFFE03C3C;
-
-
-
-    float    font   = m_scaler.ToPxf (kFontDip);
-    float    title  = m_scaler.ToPxf (kTitleDip);
-    float    chipH  = m_scaler.ToPxf (kChipHeightDip);
-    float    chipP  = m_scaler.ToPxf (kChipPadDip);
-    float    gap    = m_scaler.ToPxf (kPadDip);
-    float    top    = (float) m_titleRect.top;
-    float    height = (float) (m_titleRect.bottom - m_titleRect.top);
-    float    chipY  = top + (height - chipH) / 2.0f;
-    float    x      = (float) m_titleRect.left;
-    float    w      = 0.0f;
-    float    h      = 0.0f;
-    HRESULT  hr     = S_OK;
-
-
-
-    if (m_model == nullptr || !m_model->IsOpen() || m_title.empty())
-    {
-        return;
-    }
-
-    hr = text.MeasureStringWeighted (m_title.c_str(), title, DxuiTheme::kBodyFace, DxuiFontWeight::SemiBold, w, h);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawString (m_title.c_str(), x, top, w + 1.0f, height, theme.Foreground(), title, DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    x += w + gap;
-
-    for (const Capsule & capsule : m_capsules)
-    {
-        text.MeasureString (capsule.text.c_str(), font, DxuiTheme::kBodyFace, w, h);
-        w += 2 * chipP;
-
-        if (x + w > m_titleRect.right)
-        {
-            break;
-        }
-
-        painter.FillRoundedRect    (x, chipY, w, chipH, chipH / 2, theme.ButtonIdle());
-        painter.OutlineRoundedRect (x, chipY, w, chipH, chipH / 2, m_scaler.ToPxf (1.0f), capsule.isBad ? kBadColor : theme.ButtonBorder());
-
-        hr = text.DrawString (capsule.text.c_str(), x, chipY, w, chipH, capsule.isBad ? kBadColor : theme.Foreground(), font, DxuiTheme::kBodyFace,
-                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        x += w + gap / 2;
-    }
-
-    hr = text.DrawString (m_fieldLine.c_str(), (float) m_fieldRect.left, (float) m_fieldRect.top, (float) (m_fieldRect.right - m_fieldRect.left),
-                          (float) (m_fieldRect.bottom - m_fieldRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::PaintProgress
-//
-//  A long job's bar and label in the row above the hex view. A job with no
-//  count yet has an empty bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    constexpr float  kBarHighDip = 8.0f;
-    constexpr int    kPercent    = 100;
-
-
-
-    float         left   = (float) m_rowRect.left;
-    float         top    = (float) m_rowRect.top;
-    float         height = (float) (m_rowRect.bottom - m_rowRect.top);
-    float         barW   = m_scaler.ToPxf (kBarDip);
-    float         barH   = m_scaler.ToPxf (kBarHighDip);
-    float         barTop = top + (height - barH) / 2.0f;
-    double        share  = m_jobTotal > 0 ? std::min (1.0, (double) m_jobDone / (double) m_jobTotal) : 0.0;
-    std::wstring  label  = m_jobTotal > 0 ? std::format (L"{} ({}%)", m_jobLabel, (int) (share * kPercent)) : m_jobLabel;
-    float         textX  = left + barW + m_scaler.ToPxf (kPadDip);
-    float         textW  = (float) m_rowRect.right - textX - m_scaler.ToPxf (kButtonDip + kPadDip);
-    HRESULT       hr     = S_OK;
-
-
-
-    painter.FillRoundedRect    (left, barTop, barW, barH, barH / 2, theme.ButtonIdle());
-    painter.FillRoundedRect    (left, barTop, (float) (barW * share), barH, barH / 2, theme.Accent());
-    painter.OutlineRoundedRect (left, barTop, barW, barH, barH / 2, 1.0f, theme.ButtonBorder());
-
-    hr = text.DrawString (label.c_str(), textX, top, std::max (0.0f, textW), height, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -1742,57 +1142,24 @@ void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRender
 
 bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    RECT  cancel = m_cancel->GetBounds();
-    RECT  map    = m_map->GetBounds();
-    RECT  bounds = GetBounds();
+    RECT  cancel  = m_header.GetCancel().GetBounds();
+    RECT  map     = m_map->GetBounds();
+    RECT  bounds  = GetBounds();
+    bool  isMoved = false;
 
 
 
     if (IsBusy())
     {
-        return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
+        return m_header.GetCancel().IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
     }
 
-    UpdateFieldTip (ev);
+    m_hexPane.UpdateFieldTip (ev, m_text, m_theme);
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_treeSplitterPx, ev.positionDip))
+    if (m_splitters.OnMouse (ev, bounds, m_nav.GetList().GetBounds(), (int) bounds.bottom - m_scaler.ToPx ((int) kPadDip), isMoved))
     {
-        m_isTreeSplitting = true;
-        return true;
-    }
-
-    if (m_isTreeSplitting && ev.kind == DxuiMouseEventKind::Move && bounds.right > bounds.left)
-    {
-        m_treeShare = std::clamp ((float) (ev.positionDip.x - bounds.left) / (float) (bounds.right - bounds.left), kMinTree, kMaxTree);
-        Layout (bounds, m_scaler);
-
-        if (m_onChanged)
+        if (isMoved)
         {
-            m_onChanged();
-        }
-
-        return true;
-    }
-
-    if (m_isTreeSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isTreeSplitting = false;
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_hexSplitterPx, ev.positionDip))
-    {
-        m_isHexSplitting = true;
-        return true;
-    }
-
-    if (m_isHexSplitting && ev.kind == DxuiMouseEventKind::Move)
-    {
-        RECT  list = m_nav.GetList().GetBounds();
-
-        if (list.right > list.left)
-        {
-            m_hexShare = std::clamp ((float) (ev.positionDip.x - list.left) / (float) (list.right - list.left), kMinHex, kMaxHex);
             Layout (bounds, m_scaler);
 
             if (m_onChanged)
@@ -1801,68 +1168,6 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
             }
         }
 
-        return true;
-    }
-
-    if (m_isHexSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isHexSplitting = false;
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_listSplitterPx, ev.positionDip))
-    {
-        m_isListSplitting = true;
-        return true;
-    }
-
-    if (m_isListSplitting && ev.kind == DxuiMouseEventKind::Move)
-    {
-        RECT  list = m_nav.GetList().GetBounds();
-        int   foot = (int) bounds.bottom - m_scaler.ToPx ((int) kPadDip);
-
-        if (foot > list.top)
-        {
-            m_listShare = std::clamp ((float) (ev.positionDip.y - list.top) / (float) (foot - list.top), kMinList, kMaxList);
-            Layout (bounds, m_scaler);
-
-            if (m_onChanged)
-            {
-                m_onChanged();
-            }
-        }
-
-        return true;
-    }
-
-    if (m_isListSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isListSplitting = false;
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, ev.positionDip))
-    {
-        m_isSplitting = true;
-        return true;
-    }
-
-    if (m_isSplitting && ev.kind == DxuiMouseEventKind::Move && bounds.right > bounds.left)
-    {
-        m_split = std::clamp ((float) (ev.positionDip.x - bounds.left) / (float) (bounds.right - bounds.left), kMinSplit, kMaxSplit);
-        Layout (bounds, m_scaler);
-
-        if (m_onChanged)
-        {
-            m_onChanged();
-        }
-
-        return true;
-    }
-
-    if (m_isSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isSplitting = false;
         return true;
     }
 
@@ -1891,7 +1196,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     //  each get keys once clicked, until a click elsewhere.
     if (ev.kind == DxuiMouseEventKind::Down && m_onPressed)
     {
-        for (IDxuiControl * child : { (IDxuiControl *) m_hex, (IDxuiControl *) &m_nav.GetCrumbs(), (IDxuiControl *) &m_nav.GetSearch(),
+        for (IDxuiControl * child : { (IDxuiControl *) &m_hexPane.GetHexView(), (IDxuiControl *) &m_nav.GetCrumbs(), (IDxuiControl *) &m_nav.GetSearch(),
                                       (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) &m_nav.GetList() })
         {
             RECT  r = child->GetBounds();
@@ -1914,7 +1219,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl)
     {
-        for (IDxuiControl * child : { (IDxuiControl *) m_hex, (IDxuiControl *) m_fields, (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree() })
+        for (IDxuiControl * child : { (IDxuiControl *) &m_hexPane.GetHexView(), (IDxuiControl *) &m_hexPane.GetFields(), (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree() })
         {
             RECT  r = child->GetBounds();
 
@@ -1942,11 +1247,9 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR BlockInspectorPanel::GetCursorForPoint (POINT clientPx) const
 {
-    bool  isSplitter = PtInRect (&m_splitterPx, clientPx) || PtInRect (&m_treeSplitterPx, clientPx) || PtInRect (&m_hexSplitterPx, clientPx)
-                    || m_isSplitting || m_isTreeSplitting || m_isHexSplitting;
-    bool  isList     = PtInRect (&m_listSplitterPx, clientPx) || m_isListSplitting;
+    LPCWSTR  cursor = m_splitters.GetCursor (clientPx);
 
 
 
-    return isList ? IDC_SIZENS : isSplitter ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
+    return cursor != nullptr ? cursor : DxuiPanel::GetCursorForPoint (clientPx);
 }

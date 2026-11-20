@@ -447,7 +447,7 @@ HRESULT ContainerPath::ReplaceStep (const ContainerStep & step, const Level & pa
             break;
 
         case ContainerStep::Kind::Gzip:
-            GzipFile::Build (child.bytes, child.gzipName, outParent);
+            GzipFile::Build (child.bytes, child.gzipName, outParent, GzipFile::GetLevel (parent.bytes));
             break;
 
         case ContainerStep::Kind::ImageFile:

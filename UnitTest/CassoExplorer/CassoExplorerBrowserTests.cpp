@@ -8,6 +8,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
+#include "ScratchImages.h"
 #include "FakeRecycleBin.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -52,8 +53,8 @@ public:
 
         Host()
         {
-            Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
-            Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+            SeedBytes (ScratchImages::GetDos33 (true),  L"C:\\Disks\\dos33.dsk");
+            SeedBytes (ScratchImages::GetProDos (true), L"C:\\Disks\\prodos.po");
             AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\readme.txt", "hello"));
 
             browser.GetTreeModel().SetKnownFolders ({ kDisks });
@@ -65,9 +66,15 @@ public:
         {
             FixtureProvider    fixtures;
             std::vector<Byte>  bytes;
-            std::string        narrow;
 
             AssertSucceeded (fixtures.OpenFixture (fixture, bytes));
+            SeedBytes (bytes, path);
+        }
+
+        void SeedBytes (const std::vector<Byte> & bytes, const wchar_t * path)
+        {
+            std::string  narrow;
+
             AssertSucceeded (fs.WriteAllText (path, std::string (bytes.begin(), bytes.end())));
 
             for (const wchar_t * p = path; *p != L'\0'; p++)
@@ -406,15 +413,13 @@ public:
         CassoExplorerBrowser              browser { fs, nested };
         FakeRecycleBin                    shell;
         IShellItemVerbs::ShellFolderItem  inside;
-        FixtureProvider                   fixtures;
-        std::vector<Byte>                 image;
+        std::vector<Byte>                 image   = ScratchImages::GetDos33 (true);
         std::vector<Byte>                 zip;
         Location                          target;
         int                               row     = 0;
 
 
 
-        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", image));
         AssertSucceeded (ZipArchive::Replace (kEmptyZip, "disks/dos33.dsk", image, zip));
         AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\set.zip", std::string (zip.begin(), zip.end())));
         io.files["C:\\Disks\\set.zip"]  = zip;
@@ -847,7 +852,7 @@ public:
 
 
 
-        host.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\copy.po");
+        host.SeedBytes (ScratchImages::GetProDos (true), L"C:\\Disks\\copy.po");
 
         AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
         host.browser.SetShellVerbs (&shell);
@@ -873,8 +878,11 @@ public:
         std::vector<CassoExplorerBrowser::SearchMatch>  matches;
 
 
-        host.Seed ("Disks/Merlin-proProdos2.33-a.dsk", L"C:\\Disks\\merlin.dsk");
-        Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\merlin.dsk", root, kind).Succeeded());
+        //  The scratch ProDOS image's SUBDIR, with a file in it.
+        host.SeedBytes (ScratchImages::GetProDos (false), L"C:\\Disks\\search.po");
+        host.SeedBytes ({ 'h', 'i', '\n' }, L"C:\\In\\inner.txt");
+        Assert::IsTrue (host.browser.GetOperations().Put ("C:\\Disks\\search.po", "C:\\In\\inner.txt", "SUBDIR/INNER", "T", false, 0, DiskOperations::Encoding::Text).Succeeded());
+        Assert::IsTrue (host.browser.GetOperations().List ("C:\\Disks\\search.po", root, kind).Succeeded());
 
         for (const FileEntry & entry : root.entries)
         {
@@ -882,7 +890,7 @@ public:
         }
 
         Assert::IsFalse (directory.empty(), L"this disk must have a subdirectory");
-        Assert::IsTrue  (host.browser.GetOperations().List ("C:\\Disks\\merlin.dsk", directory, inner, kind).Succeeded());
+        Assert::IsTrue  (host.browser.GetOperations().List ("C:\\Disks\\search.po", directory, inner, kind).Succeeded());
 
         for (const FileEntry & entry : inner.entries)
         {
@@ -891,9 +899,9 @@ public:
 
         Assert::IsNotNull (file);
 
-        match.id             = L"C:\\Disks\\merlin.dsk\\" + AppleFileName::ToDisplay (directory) + L"\\" + AppleFileName::ToDisplay (file->name);
+        match.id             = L"C:\\Disks\\search.po\\" + AppleFileName::ToDisplay (directory) + L"\\" + AppleFileName::ToDisplay (file->name);
         match.name           = AppleFileName::ToDisplay (file->name);
-        match.imagePath      = L"C:\\Disks\\merlin.dsk";
+        match.imagePath      = L"C:\\Disks\\search.po";
         match.catalogIndex   = file->catalogIndex;
         match.imageDirectory = directory;
         shell.shellItems.push_back (match);

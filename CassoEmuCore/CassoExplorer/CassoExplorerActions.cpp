@@ -4,9 +4,13 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "CassoExplorer/InspectorWindowSet.h"
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
+#include "CassoExplorer/Model/BasicListingOutput.h"
+#include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
@@ -52,6 +56,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     std::vector<Verb>          verbs;
     std::vector<FileEntry>     entries;
     std::vector<std::wstring>  imagePaths;
+    std::wstring               wrapped;
     size_t                     selected    = m_browser.GetSelectedRows().size();
     Location                   location    = m_browser.GetLocation();
     bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
@@ -98,6 +103,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
+            verbs.push_back (Verb::GetWithOptions);
 
             //  The clipboard row's Copy, as for a real file: the entries go on
             //  as the files a paste would write.
@@ -136,7 +142,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         //  On the list's background, Inspect opens the image whose contents
         //  are listed, at any depth (FR-073).
-        if (entries.empty() && InspectorWindowSet::CanInspect (location.path))
+        if ((entries.empty() && InspectorWindowSet::CanInspect (location.path)) || TryGetWrappedImage (wrapped))
         {
             verbs.push_back (Verb::InspectDiskImage);
         }
@@ -254,6 +260,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (selected == 1 && row.isArchive)
         {
             verbs.push_back (Verb::ExtractAll);
+        }
+
+        if (selected == 1 && row.isArchive && TryGetWrappedImage (wrapped))
+        {
+            verbs.push_back (Verb::InspectDiskImage);
         }
         else if (selected > 1)
         {
@@ -396,12 +407,20 @@ bool CassoExplorerActions::CanInspectSelected() const
 bool CassoExplorerActions::CanInspect() const
 {
     std::wstring  partition;
+    std::wstring  wrapped;
 
 
 
+    //  With no partition selected, the partitioned image is the target.
     if (m_browser.IsPartitionListLocation())
     {
-        return m_partitions.TryGetTarget (partition) && InspectorWindowSet::CanInspect (partition);
+        return m_partitions.TryGetTarget (partition) ? InspectorWindowSet::CanInspect (partition)
+                                                     : m_browser.GetSelectedRows().empty() && InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
+    }
+
+    if (TryGetWrappedImage (wrapped))
+    {
+        return true;
     }
 
     if (m_browser.IsImageLocation())
@@ -410,6 +429,70 @@ bool CassoExplorerActions::CanInspect() const
     }
 
     return !m_browser.IsAppleDriveLocation() && m_browser.AreSelectedRowsImages() && CanInspectSelected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::TryGetWrappedImage
+//
+//  The image in a .gz has the .gz's path. An image in a ZIP has the ZIP's
+//  path, a bar and its path in the ZIP. Only a file with a disk image's
+//  extension is opened to look.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::TryGetWrappedImage (std::wstring & outPath) const
+{
+    Location                   location = m_browser.GetLocation();
+    std::vector<std::wstring>  paths;
+    std::wstring               archive  = m_browser.GetExtractTarget();
+    std::wstring               lower    = archive;
+    std::wstring               inner;
+    std::wstring               candidate;
+    const std::vector<int>   & selected = m_browser.GetSelectedRows();
+
+
+
+    outPath.clear();
+    std::transform (lower.begin(), lower.end(), lower.begin(), [] (wchar_t c) { return static_cast<wchar_t> (towlower (c)); });
+
+    if (location.kind == Location::Kind::HostFolder)
+    {
+        m_browser.GetSelectedHostPaths (paths);
+
+        if (paths.size() == 1 && WrappedImageFileIo::IsWrapped (TextEncoding::WideToUtf8 (paths[0])))
+        {
+            candidate = paths[0];
+        }
+    }
+    else if (location.kind == Location::Kind::ShellFolder && lower.ends_with (L".gz") && selected.size() <= 1)
+    {
+        candidate = archive;
+    }
+    else if (location.kind == Location::Kind::ShellFolder && lower.ends_with (L".zip") && selected.size() == 1)
+    {
+        const CatalogRow &  row = m_browser.GetRows()[(size_t) selected[0]];
+
+        inner = location.path.size() > archive.size() + 1 ? location.path.substr (archive.size() + 1) + L"/" : std::wstring();
+        inner += row.name;
+        std::replace (inner.begin(), inner.end(), L'\\', L'/');
+
+        if (!row.isDirectory && (BlockImageFile::IsBlockExtension (TextEncoding::WideToUtf8 (row.name)) || InspectorWindowSet::HasTrackFormat (row.name)))
+        {
+            candidate = archive + L"|" + inner;
+        }
+    }
+
+    if (!candidate.empty() && InspectorWindowSet::CanInspect (candidate))
+    {
+        outPath = candidate;
+    }
+
+    return !outPath.empty();
 }
 
 
@@ -1412,8 +1495,14 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     for (const FileEntry & entry : entries)
     {
         formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
-                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
+                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind,
+                                                                                                           m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry))));
         hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
+
+        if (converted)
+        {
+            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)));
+        }
     }
 
     count = m_copier.CountCollisions (hostFolder, hostNames);
@@ -1447,6 +1536,43 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::FindCopyOptionRows
+//
+//  Each selected file is read for its format. A folder doesn't add a row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows)
+{
+    std::vector<FileEntry>  entries;
+    std::string             image   = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    VolumeKind              kind    = m_browser.GetVolumeKind();
+    FileFormat              format  = FileFormat::None;
+
+
+
+    outRows.clear();
+    m_browser.GetSelectedEntries (entries);
+
+    for (const FileEntry & entry : entries)
+    {
+        if (entry.isDirectory)
+        {
+            continue;
+        }
+
+        format = CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind);
+
+        CopyOptionRows::Add (format, GetEncoding (entry, kind), PreviewDecoder::IsExecutableType (entry.type, kind), outRows);
+    }
 }
 
 
@@ -1918,8 +2044,8 @@ ActionsTypes::Outcome CassoExplorerActions::RenameSelected (const std::wstring &
 //  CassoExplorerActions::AddFileVerbs
 //
 //  Lock when an entry is unlocked, Unlock when one is locked, Convert to for
-//  one BASIC program or text file, and Convert to tape audio for BASIC
-//  programs and binaries on an image.
+//  a selection with a BASIC program or text file in it, and Convert to tape
+//  audio for BASIC programs and binaries on an image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1935,7 +2061,10 @@ void CassoExplorerActions::AddFileVerbs (const std::vector<FileEntry> & entries,
         inOutVerbs.push_back (Verb::Unlock);
     }
 
-    if (entries.size() == 1 && !entries[0].isDirectory && BasicConversion::GetKind (m_browser.GetVolumeKind(), entries[0].type) != BasicConversion::Kind::None)
+    if (std::any_of (entries.begin(), entries.end(), [this] (const FileEntry & entry)
+        {
+            return !entry.isDirectory && BasicConversion::GetKind (m_browser.GetVolumeKind(), entry.type) != BasicConversion::Kind::None;
+        }))
     {
         inOutVerbs.push_back (Verb::ConvertTo);
     }
@@ -2073,37 +2202,103 @@ ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (std::vector<FileEnt
 
 ActionsTypes::Outcome CassoExplorerActions::ConvertSelected (std::string & outNewName)
 {
-    Outcome                 outcome;
-    std::vector<FileEntry>  entries;
-    std::wstring            imagePath = m_browser.GetLocation().path;
-    std::string             image     = TextEncoding::WideToNarrow (imagePath);
-    std::string             directory = m_browser.GetLocation().innerPath;
-    VolumeKind              volume    = m_browser.GetVolumeKind();
-    BasicConversion::Kind   kind      = BasicConversion::Kind::None;
-    FilePayload             source;
-    FilePayload             converted;
-    std::wstring            error;
-    HRESULT                 hr        = S_OK;
+    Outcome                   outcome;
+    std::vector<FileEntry>    entries;
+    std::vector<std::string>  made;
+    std::wstring              report;
+    VolumeKind                volume    = m_browser.GetVolumeKind();
+    BasicConversion::Kind     kind      = BasicConversion::Kind::None;
+    std::string               name;
 
 
 
     outNewName.clear();
     m_browser.GetSelectedEntries (entries);
 
-    kind = (entries.size() == 1) ? BasicConversion::GetKind (volume, entries[0].type) : BasicConversion::Kind::None;
-
-    if (kind == BasicConversion::Kind::None)
+    for (const FileEntry & entry : entries)
     {
-        outcome.hr = E_INVALIDARG;
-        return outcome;
+        Outcome  one;
+
+        kind = entry.isDirectory ? BasicConversion::Kind::None : BasicConversion::GetKind (volume, entry.type);
+
+        if (kind == BasicConversion::Kind::None)
+        {
+            report += std::format (L"{}{} isn't a BASIC program or a text file.", report.empty() ? L"" : L"\n", TextEncoding::NarrowToWide (entry.name));
+            continue;
+        }
+
+        one = ConvertOne (entry, kind, made, name);
+
+        if (one.Succeeded())
+        {
+            made.push_back (name);
+            outcome.written += one.written;
+        }
+        else
+        {
+            report += std::format (L"{}{}", report.empty() ? L"" : L"\n", one.message.empty() ? std::format (L"{} wasn't converted.", TextEncoding::NarrowToWide (entry.name)) : one.message);
+            outcome.hr = one.hr;
+        }
     }
+
+    if (made.size() == 1)
+    {
+        outNewName = made.front();
+    }
+
+    if (!made.empty())
+    {
+        outcome.hr      = S_OK;
+        outcome.warning = report.empty() ? std::wstring() : L"These files weren't converted:\n" + report;
+    }
+    else
+    {
+        outcome.hr      = FAILED (outcome.hr) ? outcome.hr : E_INVALIDARG;
+        outcome.message = (entries.size() == 1) ? report : L"These files weren't converted:\n" + report;
+    }
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (m_browser.GetLocation().path);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ConvertOne
+//
+//  One file converted into a new file beside it, whose name is not one in
+//  the directory nor one in `made`. The image's write is finished by the
+//  caller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome CassoExplorerActions::ConvertOne (const FileEntry & entry, BasicConversion::Kind kind, const std::vector<std::string> & made, std::string & outNewName)
+{
+    Outcome                   outcome;
+    std::string               image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    std::string               directory = m_browser.GetLocation().innerPath;
+    VolumeKind                volume    = m_browser.GetVolumeKind();
+    std::vector<std::string>  taken;
+    FilePayload               source;
+    FilePayload               converted;
+    std::wstring              error;
+    HRESULT                   hr        = S_OK;
+
+
 
     if (m_browser.IsAppleDriveLocation())
     {
-        return m_appleDrive.ConvertOnAppleDrive (entries[0], kind, outNewName);
+        return m_appleDrive.ConvertOnAppleDrive (entry, kind, made, outNewName);
     }
 
-    Append (outcome, m_browser.GetOperations().Read (image, m_browser.GetEntryPath (entries[0]), source, entries[0].catalogIndex));
+    Append (outcome, m_browser.GetOperations().Read (image, m_browser.GetEntryPath (entry), source, entry.catalogIndex));
 
     if (!outcome.Succeeded())
     {
@@ -2114,18 +2309,16 @@ ActionsTypes::Outcome CassoExplorerActions::ConvertSelected (std::string & outNe
 
     if (FAILED (hr))
     {
-        ActionsCopy::AppendMessage (outcome, hr, std::format (L"{} wasn't converted. {}", TextEncoding::NarrowToWide (entries[0].name), error));
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"{} wasn't converted. {}", TextEncoding::NarrowToWide (entry.name), error));
         return outcome;
     }
 
-    outNewName = BasicConversion::MakeName (entries[0].name, volume, kind, GetEntryNames (image, directory));
+    taken = GetEntryNames (image, directory);
+    taken.insert (taken.end(), made.begin(), made.end());
+
+    outNewName = BasicConversion::MakeName (entry.name, volume, kind, taken);
 
     Append (outcome, m_browser.GetOperations().WritePayload (image, directory.empty() ? outNewName : directory + "/" + outNewName, converted));
-
-    if (outcome.written > 0)
-    {
-        FinishWrite (imagePath);
-    }
 
     return outcome;
 }

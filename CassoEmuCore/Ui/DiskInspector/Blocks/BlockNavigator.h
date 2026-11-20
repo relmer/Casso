@@ -56,6 +56,10 @@ public:
     //  or the tree and the list built again from the new maps.
     void  Sync ();
 
+    //  The tree is built again at the next Sync, as after an icon set's
+    //  change of surface.
+    void  InvalidateIcons () { m_isIconsStale = true; }
+
     void  GoTo         (const BlockPlace & place);
     void  ShowBlock    (uint32_t block);
     void  ReplaceBlock (uint32_t block);
@@ -89,21 +93,22 @@ public:
     const BlockListRow  * GetSelectedRow () const { return GetRow (m_selected); }
 
 private:
-    void          Show             ();
-    void          FillList         ();
-    void          SortRows         ();
-    void          SelectTreeNode   (const BlockPlace & container);
-    BlockPlace    GetRowContainer  (const BlockListRow & row) const;
-    bool          HasCardPlace     () const;
-    void          OnRowSelected    (int row);
-    void          OnRowActivated   (int row);
-    std::wstring  GetCardLabel     () const;
-    BlockPlace    GetListPlace     () const;
-    void          SetTreeIcons     (vector<DxuiTreeNode> & nodes);
-    void          SubmitPath       (const std::wstring & text);
-    void          ShowChildMenu    (int index, const RECT & anchor);
-    void          ShowOverflowMenu (const RECT & anchor);
-    void          AddMenuCommand   (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void ()> dispatch);
+    void                     Show             ();
+    void                     FillList         ();
+    void                     SortRows         ();
+    void                     SelectTreeNode   (const BlockPlace & container);
+    BlockPlace               GetRowContainer  (const BlockListRow & row) const;
+    bool                     HasCardPlace     () const;
+    void                     OnRowSelected    (int row);
+    void                     OnRowActivated   (int row);
+    std::wstring             GetCardLabel     () const;
+    BlockPlace               GetListPlace     () const;
+    void                     SetTreeIcons     (vector<DxuiTreeNode> & nodes);
+    static vector<uint32_t>  GetRun           (uint32_t first, uint32_t count);
+    void                     SubmitPath       (const std::wstring & text);
+    void                     ShowChildMenu    (int index, const RECT & anchor);
+    void                     ShowOverflowMenu (const RECT & anchor);
+    void                     AddMenuCommand   (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void ()> dispatch);
 
     std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const BlockListRow & row);
     const vector<DxuiListView::Cell>    & GetRowCells (int row);
@@ -132,4 +137,5 @@ private:
     int                                     m_sortColumn   = 0;
     bool                                    m_isDescending = false;
     bool                                    m_isFilling    = false;
+    bool                                    m_isIconsStale = false;
 };

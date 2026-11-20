@@ -207,20 +207,24 @@ bool TapeSignalDecoder::TryRescue (const TapeAudio & audio, double from, double 
 void TapeSignalDecoder::Compare (const std::vector<double> & filtered, uint32_t sampleRate, double ratio,
                                  double floor, TapeSignal & signal)
 {
-    double  releaseCoefficient = exp (-1.0 / (kReleaseSeconds * sampleRate));
-    double  envelope           = 0.0;
-    double  previous           = 0.0;
-    bool    hasLevel           = false;
-    bool    level              = false;
+    double          releaseCoefficient = exp (-1.0 / (kReleaseSeconds * sampleRate));
+    double          envelope           = 0.0;
+    double          previous           = 0.0;
+    bool            hasLevel           = false;
+    bool            level              = false;
+    const double  * in                 = filtered.data();
+    size_t          count              = filtered.size();
 
 
 
     signal.transitions.clear();
     signal.initialLevel = false;
 
-    for (size_t i = 0; i < filtered.size(); i++)
+    //  A pointer walk: a checked subscript per sample costs most of a Debug
+    //  build's time here.
+    for (size_t i = 0; i < count; i++, in++)
     {
-        double  sample    = filtered[i];
+        double  sample    = *in;
         double  threshold = 0.0;
         double  target    = 0.0;
         double  fraction  = 0.0;
@@ -308,29 +312,35 @@ double TapeSignalDecoder::ChatterShare (const TapeSignal & signal)
 
 void TapeSignalDecoder::Filter (const TapeAudio & audio, bool lowPass, std::vector<double> & filtered)
 {
-    double  dt          = 1.0 / audio.sampleRate;
-    double  highPassRc  = 1.0 / (2.0 * std::numbers::pi * kHighPassHz);
-    double  lowPassRc   = 1.0 / (2.0 * std::numbers::pi * kLowPassHz);
-    double  highAlpha   = highPassRc / (highPassRc + dt);
-    double  lowAlpha    = dt / (lowPassRc + dt);
-    bool    useLowPass  = lowPass && audio.sampleRate >= kMinLowPassRate;
-    double  priorInput  = audio.samples.front();
-    double  highOut     = 0.0;
-    double  lowOut      = 0.0;
+    double          dt          = 1.0 / audio.sampleRate;
+    double          highPassRc  = 1.0 / (2.0 * std::numbers::pi * kHighPassHz);
+    double          lowPassRc   = 1.0 / (2.0 * std::numbers::pi * kLowPassHz);
+    double          highAlpha   = highPassRc / (highPassRc + dt);
+    double          lowAlpha    = dt / (lowPassRc + dt);
+    bool            useLowPass  = lowPass && audio.sampleRate >= kMinLowPassRate;
+    double          priorInput  = audio.samples.front();
+    double          highOut     = 0.0;
+    double          lowOut      = 0.0;
+    const float   * in          = audio.samples.data();
+    const float   * inEnd       = in + audio.samples.size();
+    double        * out         = nullptr;
 
 
 
     filtered.resize (audio.samples.size());
+    out = filtered.data();
 
-    for (size_t i = 0; i < audio.samples.size(); i++)
+    //  A pointer walk: a checked subscript per sample costs most of a Debug
+    //  build's time here.
+    for (; in < inEnd; in++, out++)
     {
-        double  input = audio.samples[i];
+        double  input = *in;
 
 
 
-        highOut     = highAlpha * (highOut + input - priorInput);
-        priorInput  = input;
-        lowOut      = useLowPass ? lowOut + lowAlpha * (highOut - lowOut) : highOut;
-        filtered[i] = lowOut;
+        highOut    = highAlpha * (highOut + input - priorInput);
+        priorInput = input;
+        lowOut     = useLowPass ? lowOut + lowAlpha * (highOut - lowOut) : highOut;
+        *out       = lowOut;
     }
 }

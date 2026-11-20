@@ -33,7 +33,9 @@ TEST_CLASS (CassoLinkHostTests)
 {
 public:
 
-    //  The host on its own thread, serving until the test is done.
+    //  The host on a separate thread, serving until the test is done, over a
+    //  pair on virtual time: a wait for the host costs nothing once the host
+    //  is waiting too.
     struct Session
     {
         std::shared_ptr<InProcessByteStream>  hostEnd;
@@ -44,7 +46,7 @@ public:
 
         Session (ICassoLinkFolder & folder, CassoLinkHost::ClockFn clock = nullptr)
         {
-            InProcessByteStream::CreatePair (hostEnd, clientEnd);
+            InProcessByteStream::CreateVirtualPair (hostEnd, clientEnd);
 
             host   = std::make_unique<CassoLinkHost> (hostEnd, folder, clock ? clock : [] () { return std::array<Byte, 4> {}; });
             thread = std::jthread ([this] (std::stop_token stop)
@@ -65,6 +67,7 @@ public:
         ~Session()
         {
             thread.request_stop();
+            hostEnd->Close();
             thread.join();
         }
 
@@ -78,21 +81,23 @@ public:
             std::vector<Byte>  bytes;
             Byte               chunk[4096];
             size_t             got   = 0;
-            auto               until = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+            uint64_t           until = clientEnd->GetTickMs() + timeoutMs;
 
-            while (bytes.size() < count && std::chrono::steady_clock::now() < until)
+            while (bytes.size() < count && clientEnd->GetTickMs() < until && !clientEnd->IsClosed())
             {
-                Assert::AreEqual (S_OK, clientEnd->Read (chunk, std::min (sizeof (chunk), count - bytes.size()), 100, got));
+                Assert::AreEqual (S_OK, clientEnd->Read (chunk, std::min (sizeof (chunk), count - bytes.size()), (DWORD) (until - clientEnd->GetTickMs()), got));
                 bytes.insert (bytes.end(), chunk, chunk + got);
             }
 
             return bytes;
         }
 
-        //  Nothing more from the host within the wait.
+        //  Nothing more from the host within the wait, in virtual time.
         bool  IsQuiet (DWORD waitMs = 200)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (waitMs));
+            size_t  got = 0;
+
+            Assert::AreEqual (S_OK, clientEnd->Read (nullptr, 0, waitMs, got));
             return clientEnd->GetReadableCount() == 0;
         }
     };
@@ -435,9 +440,9 @@ public:
         payload.push_back ((Byte) (crc & 0xFF));
         payload.push_back ((Byte) (crc >> 8));
 
-        io.files["C:\Disks\Drive1.po"]  = std::vector<Byte> (280 * 512, 0);
-        io.stamps["C:\Disks\Drive1.po"] = FileStamp { 280 * 512, 1 };
-        drives.SetImage (1, "C:\Disks\Drive1.po");
+        io.files["C:\\Disks\\Drive1.po"]  = std::vector<Byte> (280 * 512, 0);
+        io.stamps["C:\\Disks\\Drive1.po"] = FileStamp { 280 * 512, 1 };
+        drives.SetImage (1, "C:\\Disks\\Drive1.po");
 
         Session  session (folder);
 
@@ -448,7 +453,7 @@ public:
         reply = session.Receive (7);
         Assert::AreEqual ((size_t) 7, reply.size(), L"the write has a reply");
         Assert::AreEqual (CassoLinkVirtualDrives::kNoError, reply[5]);
-        Assert::IsTrue (std::equal (data.begin(), data.end(), io.files["C:\Disks\Drive1.po"].begin() + 7 * 512), L"the block is in the image");
+        Assert::IsTrue (std::equal (data.begin(), data.end(), io.files["C:\\Disks\\Drive1.po"].begin() + 7 * 512), L"the block is in the image");
 
         wire.clear();
         AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, std::vector<Byte> { 1, CassoLinkCodec::kVirtualRead, 0x07, 0x00 }, wire));
@@ -992,8 +997,7 @@ public:
         AssertSucceeded (CassoLinkCodec::EncodeAcknowledge (CassoLinkCodec::kAck, 0, wire));
         session.Send (wire);
         Assert::IsTrue (session.Receive (first.size()) == first);
-
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        Assert::IsTrue (session.IsQuiet (500), L"the host waits through the pause");
 
         wire.clear();
         AssertSucceeded (CassoLinkCodec::EncodeAcknowledge (CassoLinkCodec::kAck, 2, wire));
@@ -1024,8 +1028,7 @@ public:
         AssertSucceeded (CassoLinkCodec::EncodeImageData (0, std::span<const Byte> (image).first (1024), wire));
         session.Send (wire);
         Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkCodec::kAck }));
-
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        Assert::IsTrue (session.IsQuiet (500), L"the host stops waiting for the stalled client");
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT), session.host->GetLastResult());
         Assert::AreEqual (0, folder.writes, L"a failed transfer writes nothing");

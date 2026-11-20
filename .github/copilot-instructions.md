@@ -22,6 +22,10 @@ New code goes in the **core libraries** (`CassoCore` / `CassoEmuCore`), NOT an e
 
 See the Constitution's Principle VI (Thin Executable, Testable Core) and Principle II (Testing Discipline).
 
+### Class Design
+
+A `.cpp` file stays under about 2,000 lines. Split a class that outgrows it into component classes that call each other through small scoped interfaces, not friends, and delete the old methods rather than forwarding them. The principles, examples and steps for a split are in `docs/class-design.md`; read it before designing a new class or splitting one.
+
 ## C++ Specific Guidelines
 
 ### Precompiled Headers
@@ -533,6 +537,35 @@ void Function2()
   pure/data-driven logic with mocks or synthetic inputs.
 - Temp files are acceptable only in integration tests, never in unit tests.
 - If code cannot be tested this way, it usually lives in the wrong project; see **Architecture: Thin Exe, Rich Testable Core** above; move the logic into a core lib rather than leaving it untested in the exe.
+- Fixture files count as file I/O. A unit test builds its input in memory
+  (for example `RepairFixtures::MakeDos33()`), never from a file on disk.
+
+### One Component per Unit Test (NON-NEGOTIABLE)
+
+A unit test exercises ONE component, with every collaborator replaced by a
+fake. Never string components together to get to the behavior under test.
+
+- **Wrong**: browse to a folder, list it, select a disk image, fill the
+  preview, wait for the analysis, then check the screen picture's size. That
+  chain is an end-to-end test, and a failure anywhere in it fails the test.
+- **Right**: a test of the thumbnail's layout given a picture and a width; a
+  test of the worker's build given bytes; a test that the preview manager
+  passes the selected path to the thumbnail. Each test has one subject.
+- Do not build a whole window, app or session (for example a rig of every
+  window part) to test one behavior. Construct the component alone with fakes.
+  If it can't be constructed alone, fix its dependencies with seams.
+- Threads are fine. Real system I/O is not, on any thread.
+- No real windows, shell calls, COM servers, helper processes, registry,
+  network or CassoLink connections, even behind a null `HWND`.
+- A test of the pieces together, or of a real file, is an
+  end-to-end test. Put it in ScenarioTests, not in `UnitTest`.
+- Large data-driven suites run a small subset compiled into the test DLL. The
+  Harte CPU vectors run 10 per opcode; run the full set with
+  `scripts/RunHarteTests.ps1` only after a change that could reasonably break
+  it: the CPU cores, opcode tables, flags, addressing, cycle counts,
+  interrupts, or the MMU and memory bus. See `docs/testing.md`.
+- A unit test runs in milliseconds. A slow unit test calls something real or
+  covers too much; find out which and fix it.
 
 ### Degraded Operation Must Be Observable
 
@@ -957,6 +990,12 @@ in conversation.
   fully drivable, because posted `WM_MOUSEMOVE` / `WM_LBUTTONDOWN` and
   `PrintWindow` capture need neither focus nor foreground. When the user
   asks to start Casso, launch it in the foreground as usual.
+- **A developer build stores its data in `CassoData\` at its repo root,**
+  not in `%LOCALAPPDATA%\Casso`. The owner's `UserPrefs.json` is
+  the same after a test launch, so there is no backup and restore step. A new worktree
+  starts from defaults and has no ROMs until `scripts/FetchRoms.ps1` runs in
+  it. `CASSO_PROFILE_DIR` sets the folder for any build. The rules are in
+  [docs/testing.md](../docs/testing.md).
 - **Every agent launch of Casso passes `--title <label>`, without exception.**
   Several sessions run at once, each in its own worktree, and every caption
   otherwise reads `Casso - Apple //e`: the user cannot tell which window

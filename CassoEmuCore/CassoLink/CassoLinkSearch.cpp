@@ -91,7 +91,7 @@ HRESULT CassoLinkSearch::Probe (IByteStream & stream, DWORD replyTimeoutMs, bool
     std::vector<Byte>  received;
     Byte               chunk[256];
     size_t             got      = 0;
-    auto               until    = std::chrono::steady_clock::now() + std::chrono::milliseconds (replyTimeoutMs);
+    uint64_t           until    = stream.GetTickMs() + replyTimeoutMs;
     CassoLinkPacket    packet;
 
 
@@ -104,9 +104,9 @@ HRESULT CassoLinkSearch::Probe (IByteStream & stream, DWORD replyTimeoutMs, bool
     hr = stream.Write (idle.data(), idle.size());
     CHR (hr);
 
-    while (!outReplied && std::chrono::steady_clock::now() < until)
+    while (!outReplied && stream.GetTickMs() < until)
     {
-        DWORD  left = (DWORD) std::chrono::duration_cast<std::chrono::milliseconds> (until - std::chrono::steady_clock::now()).count();
+        DWORD  left = (DWORD) (until - (std::min) (until, stream.GetTickMs()));
 
         hr = stream.Read (chunk, sizeof (chunk), left, got);
         CHR (hr);

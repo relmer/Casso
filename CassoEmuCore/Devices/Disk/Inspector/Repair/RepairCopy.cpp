@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
@@ -15,15 +16,17 @@
 //
 //  RepairCopy::GetCopyPath
 //
-//  "Name (repaired).dsk", then "Name (repaired 2).dsk" and up.
+//  "Name (repaired).dsk", then "Name (repaired 2).dsk" and up. A gzip
+//  file's two extensions stay together: "Name (repaired).po.gz".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string RepairCopy::GetCopyPath (IDiskFileIo & io, const std::string & imagePath)
 {
     fs::path     image  = fs::path (TextEncoding::Utf8ToWide (imagePath));
-    std::wstring stem   = image.stem().wstring();
-    std::wstring ext    = image.extension().wstring();
+    bool         isGzip = _wcsicmp (image.extension().c_str(), L".gz") == 0;
+    std::wstring stem   = isGzip ? image.stem().stem().wstring() : image.stem().wstring();
+    std::wstring ext    = isGzip ? image.stem().extension().wstring() + image.extension().wstring() : image.extension().wstring();
     std::string  path   = TextEncoding::WideToUtf8 ((image.parent_path() / (stem + L" (repaired)" + ext)).wstring());
     int          number = 2;
 
@@ -36,6 +39,40 @@ std::string RepairCopy::GetCopyPath (IDiskFileIo & io, const std::string & image
     }
 
     return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairCopy::GetHostCopyPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RepairCopy::GetHostCopyPath (IDiskFileIo & io, const std::string & imagePath)
+{
+    std::string  host = GetHostPath (imagePath);
+
+
+
+    return GetCopyPath (io, host) + imagePath.substr (host.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairCopy::GetHostPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RepairCopy::GetHostPath (const std::string & imagePath)
+{
+    return ContainerPath::IsNested (imagePath) ? ContainerPath::Parse (imagePath).GetHost() : imagePath;
 }
 
 

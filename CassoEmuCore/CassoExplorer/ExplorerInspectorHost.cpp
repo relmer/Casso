@@ -6,6 +6,7 @@
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/IIntentChannel.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Shell/DiskManager.h"
@@ -196,7 +197,7 @@ void ExplorerInspectorHost::Retarget (const std::wstring & path)
 bool ExplorerInspectorHost::IsFileCurrent()
 {
     FileStamp  observed;
-    HRESULT    hr = m_fileIo.Stat (m_utf8Path, observed);
+    HRESULT    hr = GetFileIo().Stat (m_utf8Path, observed);
 
 
 
@@ -274,7 +275,7 @@ InspectorSaveResult ExplorerInspectorHost::SaveDrive (int drive)
 {
     HRESULT              hr      = S_OK;
     InspectorSaveResult  save;
-    DiskImageSession     session (m_fileIo);
+    DiskImageSession     session (GetFileIo());
     DiskCommandResult    command;
     vector<Byte>         bytes;
     std::string          refusal;
@@ -307,7 +308,7 @@ InspectorSaveResult ExplorerInspectorHost::SaveDrive (int drive)
         CHR (hr);
     }
 
-    statHr                 = m_fileIo.Stat (m_utf8Path, written);
+    statHr                 = GetFileIo().Stat (m_utf8Path, written);
     m_opened.fileBytes     = bytes;
     m_opened.stampRecorded = SUCCEEDED (statHr);
     m_opened.stamp         = written;
@@ -365,6 +366,9 @@ void ExplorerInspectorHost::Load()
     HRESULT         statHr       = S_OK;
     MountDiagnosis  diagnosis;
     vector<Byte>    bytes;
+    std::string     imageName    = m_utf8Path;
+    std::wstring    wrapError;
+    bool            isGzip       = false;
 
 
 
@@ -379,13 +383,27 @@ void ExplorerInspectorHost::Load()
     m_identity.mediaId  = m_mediaId;
     m_identity.fileName = m_utf8Path;
 
-    hr = DiskImageStore::GetSourceFormatByExtension (m_utf8Path, format);
+    //  A gzip file's image has the format of the name without ".gz".
+    m_wrapped.reset();
+
+    if (WrappedImageFileIo::IsWrapped (m_utf8Path))
+    {
+        m_wrapped = std::make_unique<WrappedImageFileIo> (m_fileIo, m_utf8Path);
+
+        hr = m_wrapped->Load (wrapError);
+        CHRF (hr, m_openError = std::format (L"{} could not be read.", name));
+
+        isGzip    = m_utf8Path.size() > 3 && _stricmp (m_utf8Path.c_str() + m_utf8Path.size() - 3, ".gz") == 0;
+        imageName = isGzip ? m_utf8Path.substr (0, m_utf8Path.size() - 3) : m_utf8Path;
+    }
+
+    hr = DiskImageStore::GetSourceFormatByExtension (imageName, format);
     CHRF (hr, m_openError = std::format (L"{} is not a disk image Casso opens.", name));
 
-    hr = m_fileIo.ReadAllBytes (m_utf8Path, bytes);
+    hr = GetFileIo().ReadAllBytes (m_utf8Path, bytes);
     CHRF (hr, m_openError = std::format (L"{} could not be read.", name));
 
-    statHr                 = m_fileIo.Stat (m_utf8Path, m_opened.stamp);
+    statHr                 = GetFileIo().Stat (m_utf8Path, m_opened.stamp);
     m_opened.stampRecorded = SUCCEEDED (statHr);
     m_opened.fileBytes     = bytes;
 
@@ -394,17 +412,17 @@ void ExplorerInspectorHost::Load()
         m_firstBytes = std::make_shared<const vector<Byte>> (bytes);
     }
 
-    DiskManager::ProbeFileWritability (m_utf8Path, readOnly, noPermission);
+    DiskManager::ProbeFileWritability (RepairCopy::GetHostPath (m_utf8Path), readOnly, noPermission);
     m_identity.fileSize   = bytes.size();
     m_identity.isReadOnly = readOnly;
 
-    m_image->LoadFromBytes (format, bytes, m_utf8Path);
+    m_image->LoadFromBytes (format, bytes, imageName);
     m_image->SetFileWriteProtect (readOnly, noPermission);
 
     if (!m_image->IsLoaded())
     {
         diagnosis   = DiskImageStore::ClassifyLoadFailure (format, bytes);
-        m_openError = std::format (L"{} {}", name, TextEncoding::NarrowToWide (diagnosis.Describe()));
+        m_openError = diagnosis.FormatSentence (name);
     }
 
 Error:

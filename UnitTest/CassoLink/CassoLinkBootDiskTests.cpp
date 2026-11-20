@@ -67,7 +67,7 @@ public:
             GuestSession::Mount (machine, boot);
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, std::vector<Byte> (bytes.begin(), bytes.end())));
 
-            InProcessByteStream::CreatePair (machineEnd, pcEnd);
+            InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
             AssertSucceeded (machine.AttachSerialStream (port, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
@@ -156,6 +156,7 @@ public:
         Rig  rig (boot, 1);
 
         rig.Boot();
+        AssertRowStarts (rig, 0, std::format ("CASSOLINK LOADER V1.{:02}", LinkProgram::kShimVersion));
         AssertRowStarts (rig, 2, "WAITING FOR THE PC ON:");
         AssertRowStarts (rig, 4, "SERIAL PORT 1, 115200");
         AssertRowStarts (rig, 5, "SERIAL PORT 2, 115200");
@@ -164,6 +165,128 @@ public:
         Assert::AreEqual<Byte> (0x10, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is port 1's");
     }
 
+
+
+    //  A boot disk written before the shim changed, its shim version 11 at
+    //  19,200 baud: the host sends it the current shim, with the disk's
+    //  settings, and then the current program.
+    TEST_METHOD (AnOlderBootDisk_IsSentTheCurrentShim_AndLinks)
+    {
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  bytes;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/link-shim11-19200.dsk", bytes));
+
+        Rig  rig (std::vector<Byte> (bytes.begin(), bytes.end()), 2);
+
+        rig.Boot();
+        AssertRowStarts (rig, 2, "WAITING FOR THE PC ON:");
+
+        rig.Link (true);
+        AssertRowStarts (rig, 0, "CassoLink");
+        AssertRowStarts (rig, 1, "Serial port 2");
+    }
+
+
+    //  A universal disk written before its first step took any byte as the
+    //  PC can miss the start byte of an Idle on a //c's port 1, so the
+    //  connection sends Idle again each second until the shim's Ready comes.
+    TEST_METHOD (AnOlderUniversalDisk_OnPort1_LinksAfterRepeatedIdles)
+    {
+        static constexpr uint64_t  kSecondCycles = 1'020'484;
+
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  bytes;
+        const Byte            sector[] = { 0 };
+        std::vector<Byte>     data;
+        CassoLinkStatus       status;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/universal-stage-before-port1-fix.dsk", bytes));
+
+        Rig  rig (std::vector<Byte> (bytes.begin(), bytes.end()), 1);
+
+        rig.Boot();
+        AssertRowStarts (rig, 4, "SERIAL PORT 1");
+
+        rig.host = std::make_unique<CassoLinkHost> (rig.stream, rig.folder, [] () { return std::array<Byte, 4> {}; });
+
+        for (int prompt = 0; prompt < 5 && rig.machine.GetCpu()->GetPC() < LinkProgram::kShimAddress; prompt++)
+        {
+            AssertSucceeded (rig.host->PromptReady());
+            rig.machine.RunCycles (kSecondCycles);
+        }
+
+        AssertSucceeded (rig.host->ReadSectors (2, kTrack, sector, data, status));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"drive 2's catalog");
+    }
+
+
+    //  The updater run over a shim of each layout the 6551 shim has had: at
+    //  $3D00 with the zero page at $3C00, at $3B00 with it at $3A00, and at
+    //  $3A00 with it at $3900. Each old shim's speed, slot and saved zero
+    //  page are copied to the current shim, which then runs.
+    TEST_METHOD (TheShimUpdate_FindsEachOlderLayout)
+    {
+        static constexpr Word  kBases[] = { 0x3D00, 0x3B00, 0x3A00 };
+
+        std::vector<Byte>  update;
+
+
+
+        AssertSucceeded (LinkProgram::BuildShimUpdate (update));
+
+        for (Word base : kBases)
+        {
+            TestMachine       machine { "Apple2c" };
+            EmuCpu          * cpu     = machine.GetCpu();
+            std::wstring      where   = std::format (L"the shim at ${:04X}", base);
+
+
+
+            for (Word at = 0x3900; at < 0x4400; at++)
+            {
+                cpu->WriteByte (at, 0);
+            }
+
+            for (int i = 0; i < 256; i++)
+            {
+                cpu->WriteByte ((Word) (base - 0x100 + i), (Byte) (i ^ 0x5A));
+            }
+
+            cpu->WriteByte (base,        0x78);
+            cpu->WriteByte (base + 1,    0xA9);
+            cpu->WriteByte (base + 2,    0x1F);
+            cpu->WriteByte (base + 3,    0x4C);
+
+            for (int i = 0; i < 6; i++)
+            {
+                cpu->WriteByte ((Word) (base + 6 + i), (Byte) "19200 "[i]);
+            }
+
+            cpu->WriteByte (base + 0x34, 1);
+            cpu->WriteByte (base + 0x38, 2);
+
+            for (size_t i = 0; i < update.size(); i++)
+            {
+                cpu->WriteByte ((Word) (LinkProgram::kProgramAddress + i), update[i]);
+            }
+
+            cpu->SetPC (LinkProgram::kProgramAddress);
+
+            machine.RunCycles (60'000);
+
+            Assert::AreEqual<Byte> (0x1F, cpu->ReadByte (0x3A02), where.c_str());
+            Assert::AreEqual<Byte> ((Byte) '1', cpu->ReadByte (0x3A06), where.c_str());
+            Assert::AreEqual<Byte> (0, cpu->ReadByte (0x3A0C), (where + L": no dial command").c_str());
+            Assert::AreEqual<Byte> (2, cpu->ReadByte (0x3A38), where.c_str());
+            Assert::AreEqual<Byte> ((Byte) (7 ^ 0x5A), cpu->ReadByte (0x3907), (where + L": the saved zero page").c_str());
+            Assert::IsTrue (cpu->GetPC() >= LinkProgram::kShimAddress && cpu->GetPC() < 0x4400, (where + L": the current shim runs").c_str());
+        }
+    }
 
 
     //  The link disk for a Wi-Fi modem sends its dial command and draws the

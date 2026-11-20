@@ -42,6 +42,32 @@ public:
 
 
 
+    //  The analysis is built once for the class. Each test copies it.
+    static const DiskAnalysis & GetDsk()
+    {
+        static DiskAnalysis  s_analysis;
+        static bool          s_isBuilt  = false;
+
+
+
+        if (!s_isBuilt)
+        {
+            AnalyzeDsk (s_analysis);
+            s_isBuilt = true;
+        }
+
+        return s_analysis;
+    }
+
+
+
+    TEST_CLASS_INITIALIZE (BuildSharedInput)
+    {
+        (void) GetDsk();
+    }
+
+
+
     TEST_METHOD (ChipsShowTheSummaryAndHideZeroCounts)
     {
         DiskSummary          summary;
@@ -126,7 +152,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         track = analysis.tracks[analysis.entries[68].slot].get();
         line  = InspectorText::FormatTrackLine (track);
 
@@ -147,7 +173,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         track = analysis.tracks[analysis.entries[68].slot].get();
         tip   = InspectorText::FormatSectorTooltip (track->sectors[5], *track);
 
@@ -189,7 +215,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         track = analysis.tracks[analysis.entries[68].slot].get();
 
         Assert::AreEqual (std::wstring (L"Selected: track 17, sector $5"),                 InspectorText::FormatSelection (track, 68, 5, -1, 0, nullptr));
@@ -211,7 +237,7 @@ public:
 
 
 
-        AnalyzeDsk (analysis);
+        analysis = GetDsk();
         track  = analysis.tracks[analysis.entries[68].slot].get();
         header = InspectorText::BuildSectorHeader (track->sectors[1], *track);
 
