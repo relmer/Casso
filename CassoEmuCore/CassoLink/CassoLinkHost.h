@@ -384,6 +384,12 @@ public:
     HRESULT  LoadModule        (std::span<const Byte> module);
     HRESULT  EnsureModule      (std::span<const Byte> module);
 
+    //  After a request the client didn't take, or a damaged reply: the line's
+    //  errors are reported to the activity, and what the PC has received and
+    //  not read is dropped, so the next AwaitReady takes a fresh Ready and
+    //  both ends start again from a known state.
+    HRESULT  RecoverLine       ();
+
     //  A raw read of a quarter-track position by the capture module, which
     //  must be loaded: the bytes as the Apple stored them, a sync byte with
     //  its top bit clear. A packet that fails its CRC, arrives out of order
@@ -473,6 +479,7 @@ public:
 private:
     HRESULT  Fill            (size_t count, DWORD timeoutMs, bool & outFilled);
     HRESULT  DiscardReceived ();
+    HRESULT  LoadChunk       (const std::vector<Byte> & chunk);
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
     void     TraceReceived   (const CassoLinkPacket & packet);

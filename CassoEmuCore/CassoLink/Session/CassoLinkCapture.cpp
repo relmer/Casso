@@ -452,10 +452,16 @@ HRESULT CassoLinkCapture::ReadOnce (Run & run, int position, Byte delay, int rea
     //  so the last read draws it full.
     after = (Byte) std::max (run.percent, std::min (100, (run.done + 1) * 100 / std::max (run.planned, run.done + 1)));
 
-    //  A request the line drops is made again, with the module loaded again
-    //  when the program no longer has it.
+    //  A request the line drops is made again, after the line is recovered,
+    //  with the module loaded again when the program no longer has it.
     for (int attempt = 0; attempt < s_kReadAttempts; attempt++)
     {
+        if (attempt > 0)
+        {
+            hr = run.host.RecoverLine();
+            CHR (hr);
+        }
+
         hr = run.host.EnsureModule (run.module);
 
         if (SUCCEEDED (hr))

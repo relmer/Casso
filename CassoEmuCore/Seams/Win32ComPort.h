@@ -34,6 +34,7 @@ public:
     size_t   GetReadableCount () override;
     bool     IsClosed         () const override { return m_handle == INVALID_HANDLE_VALUE; }
     bool     TryGetPeerReady  (bool & outReady) override;
+    HRESULT  ResetLine        (std::string & outErrors) override;
     void     Close            () override;
 
 private:
@@ -50,4 +51,5 @@ private:
     HANDLE  m_handle      = INVALID_HANDLE_VALUE;
     DWORD   m_readTimeout = MAXDWORD;
     bool    m_handshake   = false;
+    DWORD   m_lineErrors  = 0;       // the CE_ flags ClearCommError reported since ResetLine
 };
