@@ -68,6 +68,7 @@ public:
     int   GetColumnDropPosition (int xPx) const;
     static constexpr float  s_kExplorerTitleBandDip = 27.33f;   // the titles and dividers, from the bar's top
     static constexpr float  s_kExplorerDividerAlpha = 0.32f;   // the dividers: the text color at this strength
+    static constexpr float  s_kSortGlyphCenterDip   = 2.0f;    // the sort chevron's center, from the bar's top, measured against File Explorer
     static constexpr int    s_kKbResizeStepDip      = 8;
 
     void    EndHeaderPress          (int lx, int ly);
