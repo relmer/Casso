@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/TrackColumn.h"
 #include "Ui/DiskInspector/PlatterView.h"
+#include "FakeDrivelessHost.h"
 #include "FakeInspectorHost.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -31,19 +32,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-
-//  A host with no drives, as Casso Explorer is.
-class FakeDrivelessHost : public IDiskInspectorHost
-{
-public:
-    uint64_t  PostInspectorRequest (const InspectorRequest &) override         { return 0; }
-    void      TakeInspectorReplies (vector<InspectorReply> & outReplies) override { outReplies.clear(); }
-    int       GetDriveCount        () const override                         { return 0; }
-    void      OnInspectorClosed    () override                               {}
-
-    std::shared_ptr<const DriveHeadState>  GetHeadState       (int) const override { return nullptr; }
-    void                                   SetHeadStateWanted (bool) override      {}
-};
 
 TEST_CLASS (InspectorComponentTests)
 {
