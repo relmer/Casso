@@ -3,6 +3,7 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
+#include "Core/TextEncoding.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -42,7 +43,7 @@ public:
 
         static std::string Narrow (const std::wstring & path)
         {
-            return std::string (path.begin(), path.end());
+            return TextEncoding::WideToUtf8 (path);
         }
 
         void SeedBytes (const std::vector<Byte> & bytes, const std::wstring & path)

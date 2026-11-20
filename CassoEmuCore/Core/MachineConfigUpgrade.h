@@ -23,7 +23,7 @@ enum class MachineConfigUpgradeAction
 {
     Skip,              // file is up to date or unreadable — leave alone
     Extract,           // file is missing — write the embedded default
-    OverwriteSilent,   // safe to replace (stale stamp or known prior hash)
+    OverwriteSilent,   // safe to replace (the content matches a known default)
     BackupAndReplace,  // presumed user-edited — rename aside, then write
 };
 

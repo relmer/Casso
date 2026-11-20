@@ -849,7 +849,7 @@ MAME 0.289's `apple3`, headless, with the CassoLink SOS disk made from Apple's S
 
 Before this, a 140K block device's catalog was empty: the volume layer read its 280 blocks, which arrive in block order, as a DOS-order buffer. The SOS program's CRC in its Ready differed from the host's at first, since the CRC loop changes the operand of one of its instructions; a disk with that build would have failed to connect as another version. Apple's System Utilities disk has no .RS232 in its SOS.DRIVER, so on a disk made from it the Apple /// displays a message and the link doesn't connect.
 
-## The Uthernet and the LANceGS (T602, SC-059)
+## Story 28's emulator targets (T602, SC-059)
 
 ### The Uthernet in AppleWin, 2026-11-18
 
@@ -898,6 +898,52 @@ runs DHCP against a fake SMC91C96.
 The source build reads its settings from `./cfg`, not `~/.mame/cfg`, so it
 was started with `-cfg_directory`. Without it, MAME didn't open the TAP
 device, and each transmit wrote nothing.
+
+### A IIgs's modem port in MAME and KEGS, 2026-11-19
+
+The universal disk in drive 1 and a ProDOS disk with one file in drive 2,
+with the modem port on a TCP socket to a Wi-Fi modem connection at 9,600
+baud. `CassoLinkIIgsTests::AnAppleIIgs_RunsStory14sOperations` ran with
+`CASSO_IIGS_EMULATOR` set to each emulator:
+
+- MAME 0.289's `apple2gs` on Windows, with its null modem.
+- KEGS 1.38, built from source in the WSL instance `Ubuntu-CassoEmu`. Its
+  modem port was set to connect to the Windows host, and it ran at 2.8 MHz.
+
+| Story 14 operation | MAME | KEGS |
+|---|---|---|
+| Connect | The root's model is Apple IIgs | The same |
+| Read a disk to an image | Drive 2's image is its disk | The same |
+| Browse | Drive 2's catalog has HELLO | The same |
+| Copy a file from the Apple | HELLO is the disk's, byte for byte | The same |
+| Copy a file to the Apple | A 3,000-byte file written and read back | The same |
+| Rename, make a folder, delete | The catalog has HELLO and the folder | The same |
+| Write an image to a disk | Failed: "sector not found" in the read-back check of a written track | An image written to drive 2 and read back is the same |
+
+MAME 0.285 on Linux failed the write the same way. In MAME's `apple2gs`,
+DOS 3.3's INIT formats a disk that Casso lists, and Casso's written track has
+good address fields when decoded. KEGS passes the write and its read-back,
+and so does an emulated //e in Casso. The test skips the write on MAME. A
+real IIgs hasn't been tested.
+
+Found and fixed:
+
+1. Nothing came over the modem port: the shim and the universal disk had the
+   8530's channels swapped. Port 1 is channel A and port 2 channel B.
+2. The universal disk set the 8530's clock without the crystal bit in
+   register 11. `UniversalSccTests` found it against a fake 8530.
+
+Four changes to KEGS, made only in that instance, let it run the link:
+
+- The ROM 03 image was dumped from MAME's memory at $FC0000 to $FFFFFF.
+  MAME's two ROM files joined end to end have no reset vector at the end.
+- With no disk in slot 7, KEGS boots slot 5 and skips slot 6.
+  Its fallback was changed to slot 6.
+- Unthrottled, KEGS ran at about 4,500 MHz, and the shim's waits, which are
+  counted in instructions, ran out. It ran at 2.8 MHz instead.
+- KEGS drops each $00 byte from a socket, which suits a terminal and breaks
+  a binary link: a page of the program arrived 15 bytes short. A raw
+  outgoing connection now passes them.
 
 ## A2Pico cards (Story 41, SC-070)
 

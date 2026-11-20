@@ -863,12 +863,12 @@ void Deflate::LimitLengths (std::span<const int> order, int maxBits, std::vector
 
 void Deflate::AssignCodes (Code & ioCode)
 {
-    uint32_t  lengthCounts[kMaxBits + 1] = {};
-    uint32_t  nextCode[kMaxBits + 1]     = {};
-    uint32_t  code                       = 0;
-    uint32_t  reversed                   = 0;
-    int       bits                       = 0;
-    int       i                          = 0;
+    std::array<uint32_t, kMaxBits + 1>  lengthCounts = {};
+    std::array<uint32_t, kMaxBits + 1>  nextCode     = {};
+    uint32_t                            code         = 0;
+    uint32_t                            reversed     = 0;
+    int                                 bits         = 0;
+    int                                 i            = 0;
 
 
 
@@ -891,9 +891,9 @@ void Deflate::AssignCodes (Code & ioCode)
     {
         bits = ioCode.lengths[symbol];
 
-        if (bits != 0)
+        if (bits != 0 && bits <= kMaxBits)
         {
-            code     = nextCode[bits]++;
+            code     = nextCode.at ((size_t) bits)++;
             reversed = 0;
 
             for (i = 0; i < bits; i++)

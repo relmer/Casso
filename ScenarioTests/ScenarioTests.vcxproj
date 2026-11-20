@@ -198,6 +198,8 @@
     <ClCompile Include="CollectionScaleTests.cpp" />
     <ClCompile Include="CassoLinkBlockTests.cpp" />
     <ClCompile Include="CassoLinkAppleIIITests.cpp" />
+    <ClCompile Include="CassoLinkIIgsTests.cpp" />
+    <ClCompile Include="CassoLinkSosDiskTests.cpp" />
     <ClCompile Include="CassoLinkSccTests.cpp" />
     <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
     <ClCompile Include="CassoLinkCassetteTests.cpp" />
@@ -253,6 +255,7 @@
     <ClCompile Include="MameComparisonTests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="EmulatorLink.h" />
     <ClInclude Include="PacedRun.h" />
     <ClInclude Include="Pch.h" />
   </ItemGroup>
