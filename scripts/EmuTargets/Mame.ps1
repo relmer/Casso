@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Starts or stops one of CassoLink's MAME targets on Windows: a IIgs on its
-    modem port, a IIgs with a Super Serial Card, or an Apple ///.
+    modem port, a IIgs with a Super Serial Card, a //c Plus, or an Apple ///.
 
 .DESCRIPTION
     MAME is the one in %LOCALAPPDATA%\Programs\MAME, with the ROM sets in its
@@ -15,6 +15,12 @@
                  TCP connection once the universal disk waits. The card's ROM,
                  341-0065-A, is copied to MAME's roms\a2ssc from Casso's data
                  folder if it isn't there; scripts\FetchRoms.ps1 fetches it.
+      IIcPlus    apple2cp, the modem port's socket listening as the IIgsSsc
+                 target's does. Disk 2 is in the internal 3.5-inch drive, as
+                 an 800K block device; the universal disk boots from the
+                 external 5.25-inch drive, since a ProDOS volume with no PRODOS
+                 file is passed over. MAME's //c with ROM 4 and the UniDisk
+                 3.5 //c have no 3.5-inch drive, so they aren't targets.
       AppleIII   apple3, the serial port connecting to a listening Wi-Fi modem
                  connection.
 
@@ -22,10 +28,11 @@
     for it. The process ID is written to %TEMP%\CassoEmuTargets, so -Stop ends
     the MAME this script started and no other.
 
-    CassoLinkIIgsTests starts and stops the IIgs targets through this script.
+    CassoLinkIIgsTests starts and stops the IIgs targets through this script,
+    and CassoLinkBlockEmulatorTests the //c Plus.
 
 .PARAMETER Target
-    IIgsModem, IIgsSsc or AppleIII.
+    IIgsModem, IIgsSsc, IIcPlus or AppleIII.
 
 .PARAMETER Disk1
     The disk image for drive 1.
@@ -49,7 +56,7 @@
 [CmdletBinding()]
 param (
     [Parameter (Mandatory)]
-    [ValidateSet ('IIgsModem', 'IIgsSsc', 'AppleIII')]
+    [ValidateSet ('IIgsModem', 'IIgsSsc', 'IIcPlus', 'AppleIII')]
     [string] $Target,
     [string] $Disk1,
     [string] $Disk2,
@@ -94,6 +101,7 @@ switch ($Target)
 {
     'IIgsModem' { $machine = @('apple2gs', '-modem', 'null_modem', '-bitb', "socket.127.0.0.1:$Port") }
     'IIgsSsc'   { $machine = @('apple2gs', '-sl7', 'ssc', '-sl7:ssc:rs232', 'null_modem', '-bitb', "socket.0.0.0.0:$Port") }
+    'IIcPlus'   { $machine = @('apple2cp', '-modem', 'null_modem', '-bitb', "socket.0.0.0.0:$Port") }
     'AppleIII'  { $machine = @('apple3', '-rs232', 'null_modem', '-bitb', "socket.127.0.0.1:$Port") }
 }
 
@@ -115,8 +123,9 @@ if ($Target -eq 'IIgsSsc')
     }
 }
 
-$arguments = $machine + @('-flop1', "`"$((Resolve-Path $Disk1).Path)`"", '-flop2', "`"$((Resolve-Path $Disk2).Path)`"",
-                          '-skip_gameinfo', '-seconds_to_run', '3600')
+$secondDrive = ($Target -eq 'IIcPlus') ? '-flop3' : '-flop2'
+$arguments   = $machine + @('-flop1', "`"$((Resolve-Path $Disk1).Path)`"", $secondDrive, "`"$((Resolve-Path $Disk2).Path)`"",
+                            '-skip_gameinfo', '-seconds_to_run', '3600')
 
 if ($Headless)
 {

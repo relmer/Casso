@@ -991,6 +991,24 @@ Found along the way:
 - GSplus running offscreen doesn't end on SIGTERM, so `run.sh stop` kills
   what remains after a second.
 
+## Block devices in other emulators (T574, SC-054), 2026-11-20
+
+`CassoLinkBlockEmulatorTests` reads each volume an emulator mounted through
+the link, compares it with the image mounted, and puts a file on the 800K
+volume through the link, which the Apple then lists and reads back.
+
+| Target | Volumes | Result |
+|---|---|---|
+| MAME 0.289 `apple2cp`, the //c Plus, through `Mame.ps1 -Target IIcPlus` | 800K in the internal 3.5-inch drive | Passed in 19 minutes: the volume read through the link is the image mounted, and COPIED is listed and read back |
+| MAME's //c with ROM 4 and a UniDisk 3.5 | | Not possible: `apple2c4` and `apple2c0` have only 5.25-inch drives in MAME 0.289, and their ROM sets aren't installed |
+| AppleWin with a hard disk card, through `Wsl.ps1 -Target HardDisk` | 32 MB and 800K | Not run: the Linux build's Super Serial Card has no TCP serial, and the Windows build isn't installed |
+
+The //c Plus link runs at 9,600 baud, since MAME's null modem is set to it
+and its rate can't be changed from the command line, so the 800K volume takes
+about 18 minutes. The universal disk boots from the external 5.25-inch drive
+with the 800K volume in the internal drive, since a ProDOS volume with no
+PRODOS file is passed over.
+
 ## A2Pico cards (Story 41, SC-070)
 
 The owner has no A2Pico, so the card is checked against the A2retroNET

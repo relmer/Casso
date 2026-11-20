@@ -200,6 +200,7 @@
     <ClCompile Include="CassoLinkAppleIIITests.cpp" />
     <ClCompile Include="CassoLinkIIgsTests.cpp" />
     <ClCompile Include="CassoLinkEthernetTests.cpp" />
+    <ClCompile Include="CassoLinkBlockEmulatorTests.cpp" />
     <ClCompile Include="CassoLinkSosDiskTests.cpp" />
     <ClCompile Include="CassoLinkSccTests.cpp" />
     <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
