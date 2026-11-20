@@ -437,8 +437,12 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
         ApplyReveal (0.0f);
     }
 
-    // Show without activating (WS_EX_NOACTIVATE) so the owner keeps
-    // keyboard focus / caption activation state.
+    // Raised to the top first: a popup taken again from the pool is where
+    // it was last in the z-order, under any window its owner opened since,
+    // such as a dialog the owner owns. Then shown without activating
+    // (WS_EX_NOACTIVATE) so the owner keeps keyboard focus / caption
+    // activation state.
+    SetWindowPos (m_hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     ShowWindow (m_hwnd, SW_SHOWNOACTIVATE);
 
     // Click-outside dismiss: capture so off-popup clicks route to
