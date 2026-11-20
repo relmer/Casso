@@ -144,9 +144,10 @@ bool InspectorWindowSet::CanInspect (const std::wstring & path)
 
     std::transform (extension.begin(), extension.end(), extension.begin(), [] (wchar_t c) { return static_cast<wchar_t> (towlower (c)); });
 
+    //  A gzip file's image has the format of the name without ".gz".
     if (WrappedImageFileIo::IsWrapped (TextEncoding::WideToUtf8 (path)))
     {
-        return IsWrappedBlockImage (path);
+        return HasTrackFormat (extension == L".gz" ? fs::path (path).replace_extension().wstring() : path) || IsWrappedBlockImage (path);
     }
 
     return HasTrackFormat (path) || std::any_of (s_kBlockExtensions.begin(), s_kBlockExtensions.end(), [&extension] (const wchar_t * known) { return extension == known; });

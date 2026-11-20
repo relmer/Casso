@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Partitions/PartitionLayout.h"
+#include "Devices/Disk/Partitions/ApmLayout.h"
 
 #include "Devices/Disk/Partitions/CffaLayout.h"
 #include "Devices/Disk/Partitions/DosMasterLayout.h"
@@ -30,6 +31,7 @@ HRESULT PartitionLayout::Detect (IBlockStore & store, PartitionLayoutKind & outK
 
     static constexpr Probe  kProbes[] =
     {
+        ApmLayout::TryDetect,
         MicroDriveLayout::TryDetect,
         FocusDriveLayout::TryDetect,
         PpmLayout::TryDetect,
@@ -191,6 +193,7 @@ const char * PartitionLayout::GetLayoutName (PartitionLayoutKind kind)
 {
     switch (kind)
     {
+        case PartitionLayoutKind::Apm:        return "APM";
         case PartitionLayoutKind::Cffa:       return "CFFA";
         case PartitionLayoutKind::FocusDrive: return "FocusDrive";
         case PartitionLayoutKind::MicroDrive: return "MicroDrive";

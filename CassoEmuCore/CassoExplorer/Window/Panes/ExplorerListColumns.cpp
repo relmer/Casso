@@ -211,7 +211,7 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
 {
     bool  catalog     = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
     bool  recycled    = column == (size_t) CatalogModel::Column::OriginalLocation || column == (size_t) CatalogModel::Column::DateDeleted;
-    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive;
+    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive || kind == Location::Kind::Partition;
     bool  inBin       = kind == Location::Kind::RecycleBin;
 
 

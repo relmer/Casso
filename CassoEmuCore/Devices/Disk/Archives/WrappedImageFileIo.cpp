@@ -15,8 +15,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 WrappedImageFileIo::WrappedImageFileIo (IDiskFileIo & host, const std::string & path) :
-    m_host (host),
-    m_path (ParseWrapped (path))
+    m_host      (host),
+    m_imagePath (path),
+    m_path      (ParseWrapped (path))
 {
 }
 

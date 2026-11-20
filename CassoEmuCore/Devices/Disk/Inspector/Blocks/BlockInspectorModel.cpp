@@ -439,7 +439,7 @@ void BlockInspectorModel::AddPartitions()
         band       = BlockBand();
         band.first = entry.partition.firstBlock;
         band.count = entry.partition.blockCount;
-        band.label = TextEncoding::NarrowToWide (std::string (PartitionLayout::GetLayoutName (kind)) + " " + PartitionAccess::GetLabel (entry, false));
+        band.label = TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
 
         m_bands.push_back (band);
 

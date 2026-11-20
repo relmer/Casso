@@ -411,9 +411,11 @@ bool CassoExplorerActions::CanInspect() const
 
 
 
+    //  With no partition selected, the partitioned image is the target.
     if (m_browser.IsPartitionListLocation())
     {
-        return m_partitions.TryGetTarget (partition) && InspectorWindowSet::CanInspect (partition);
+        return m_partitions.TryGetTarget (partition) ? InspectorWindowSet::CanInspect (partition)
+                                                     : m_browser.GetSelectedRows().empty() && InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
     }
 
     if (TryGetWrappedImage (wrapped))
@@ -438,7 +440,7 @@ bool CassoExplorerActions::CanInspect() const
 //  CassoExplorerActions::TryGetWrappedImage
 //
 //  The image in a .gz has the .gz's path. An image in a ZIP has the ZIP's
-//  path, a bar and its path in the ZIP. Only a file with a block image's
+//  path, a bar and its path in the ZIP. Only a file with a disk image's
 //  extension is opened to look.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,7 +481,7 @@ bool CassoExplorerActions::TryGetWrappedImage (std::wstring & outPath) const
         inner += row.name;
         std::replace (inner.begin(), inner.end(), L'\\', L'/');
 
-        if (!row.isDirectory && BlockImageFile::IsBlockExtension (TextEncoding::WideToUtf8 (row.name)))
+        if (!row.isDirectory && (BlockImageFile::IsBlockExtension (TextEncoding::WideToUtf8 (row.name)) || InspectorWindowSet::HasTrackFormat (row.name)))
         {
             candidate = archive + L"|" + inner;
         }

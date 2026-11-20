@@ -37,22 +37,11 @@ void BlockMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 //  BlockMapView::GetGridRect
 //
-//  Below the bands when there are any.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT BlockMapView::GetGridRect() const
 {
-    RECT  grid = GetBounds();
-
-
-
-    if (!m_bands.empty())
-    {
-        grid.top += (LONG) (m_scaler.ToPxf (kBandDip) + m_scaler.ToPxf (kBandGapDip));
-    }
-
-    return grid;
+    return GetBounds();
 }
 
 
@@ -81,7 +70,6 @@ void BlockMapView::Refresh()
 
 
 
-    m_bands      = isOpen ? m_model->GetBands() : vector<BlockBand>();
     m_blockCount = count;
     m_current    = isOpen ? m_model->GetBlock() : 0;
     grid         = GetGridRect();
@@ -680,7 +668,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
 //
 //  A zoomable map zooms on the wheel about the pointer, pans on a drag,
 //  fits on a double-click, and selects on a click. Any other map selects on
-//  a press. A press on a band steps to the band's first block.
+//  a press.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -690,10 +678,8 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
     RECT     grid     = GetGridRect();
     POINT    p        = ev.positionDip;
     int64_t  cell     = FindCellAt (p);
-    bool     isBand   = p.x >= bounds.left && p.x < bounds.right && p.y >= bounds.top && p.y < grid.top;
     bool     isInside = PtInRect (&bounds, p) != FALSE;
     int64_t  now      = (int64_t) GetTickCount64();
-    double   at       = 0.0;
 
 
 
@@ -753,22 +739,6 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.button != DxuiMouseButton::Left || m_model == nullptr || !m_onSelect)
     {
-        return false;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && isBand && bounds.right > bounds.left)
-    {
-        at = (double) (p.x - bounds.left) / (bounds.right - bounds.left) * m_blockCount;
-
-        for (const BlockBand & band : m_bands)
-        {
-            if (!band.isMap && !band.isNested && band.Contains ((uint32_t) at))
-            {
-                m_onSelect (band.first);
-                return true;
-            }
-        }
-
         return false;
     }
 
@@ -851,8 +821,6 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     m_isDark      = DiskInspectorPalette::IsDarkSurface (theme.Background());
     m_differsArgb = theme.ErrorForeground();
 
-    PaintBands (painter, text, theme);
-
     painter.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
     hr = text.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -870,66 +838,13 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockMapView::PaintBands
-//
-//  Each partition across the map's width in proportion to its blocks, with
-//  its label, and a partition map's blocks muted. A volume inside a
-//  partition isn't drawn over it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    constexpr float  kTextPadDip = 3.0f;
-
-
-
-    RECT      bounds = GetBounds();
-    float     width  = (float) (bounds.right - bounds.left);
-    float     height = m_scaler.ToPxf (kBandDip);
-    float     count  = (float) std::max<uint32_t> (1, m_blockCount);
-    float     x      = 0.0f;
-    float     w      = 0.0f;
-    float     pad    = m_scaler.ToPxf (kTextPadDip);
-    HRESULT   hr     = S_OK;
-
-
-
-    for (const BlockBand & band : m_bands)
-    {
-        if (band.isNested)
-        {
-            continue;
-        }
-
-        x = bounds.left + width * band.first / count;
-        w = std::max (1.0f, width * band.count / count);
-
-        painter.FillRect    (x, (float) bounds.top, w, height, band.isMap ? theme.BackgroundElevated() : theme.SelectionBackground());
-        painter.OutlineRect (x, (float) bounds.top, w, height, 1.0f, theme.Border());
-
-        if (w > pad * 2)
-        {
-            hr = text.DrawString (band.label.c_str(), x + pad, (float) bounds.top, w - pad * 2, height,
-                                  theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
-                                  DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockMapView::PaintCells
 //
 //  As the disk inspector's File map grid draws its cells: only those in
 //  view; while blocks are highlighted, every other cell dimmed and a
 //  marching marquee around the highlighted ones; each run of blocks with
-//  its file or structure where the cells have room; the cell under the
+//  its file or structure where the cells have room, the cells of a label
+//  filled as one area without the gaps between them; the cell under the
 //  pointer lit faintly and outlined; and the current block lit by the
 //  shimmer and outlined in the focus ring.
 //
@@ -986,7 +901,7 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         color = GetCellColor (palette, cell);
 
-        if (isRun && color == runArgb && at.top == run.top && at.left == run.right + m_grid.GetGapPx() && m_grid.GetGapPx() == 0)
+        if (isRun && color == runArgb && at.top == run.top && at.left == run.right + m_grid.GetGapPx() && (m_grid.GetGapPx() == 0 || IsSameLabel (cell - 1, cell)))
         {
             run.right = at.right;
             continue;
@@ -1006,6 +921,8 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
     {
         painter.FillRect (left + run.left, top + run.top, (float) (run.right - run.left), (float) (run.bottom - run.top), runArgb);
     }
+
+    PaintLabelGaps (painter, palette, left, top, c0, c1, r0, r1);
 
     for (int r = r0; m_isDiffsShown && r <= r1; r++)
     {
@@ -1051,6 +968,85 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         InspectorMarquee::PaintShimmer (painter, x, y, w, h, InspectorMarquee::GetClockMs(), box);
         painter.OutlineRect (x - 1.0f, y - 1.0f, w + 2.0f, h + 2.0f, outline, theme.FocusRing());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::IsSameLabel
+//
+//  Whether two cells have the same label, so they are drawn as one area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockMapView::IsSameLabel (uint32_t a, uint32_t b) const
+{
+    return a < m_labels.size() && b < m_labels.size() && !m_labels[a].empty() && m_labels[a] == m_labels[b];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::PaintLabelGaps
+//
+//  The gap below each cell is filled where the cell below has the same
+//  label and color, and the corner between four such cells, so a
+//  labeled run of rows is one area.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::PaintLabelGaps (IDxuiPainter & painter, const DiskInspectorPalette & palette, float left, float top, int c0, int c1, int r0, int r1) const
+{
+    int       columns = m_grid.GetColumns();
+    uint32_t  cell    = 0;
+    uint32_t  below   = 0;
+    uint32_t  color   = 0;
+    RECT      at      = {};
+    RECT      under   = {};
+
+
+
+    if (m_grid.GetGapPx() == 0 || m_labels.empty())
+    {
+        return;
+    }
+
+    for (int r = r0; r < r1; r++)
+    {
+        for (int c = c0; c <= c1; c++)
+        {
+            cell  = (uint32_t) (r * columns + c);
+            below = cell + (uint32_t) columns;
+
+            if (below >= m_grid.GetCellCount() || !IsSameLabel (cell, below) || !m_grid.HasBlocks (cell) || !m_grid.HasBlocks (below))
+            {
+                continue;
+            }
+
+            color = GetCellColor (palette, cell);
+
+            if (color != GetCellColor (palette, below))
+            {
+                continue;
+            }
+
+            at    = m_grid.GetCellRect (cell);
+            under = m_grid.GetCellRect (below);
+
+            painter.FillRect (left + at.left, top + at.bottom, (float) (at.right - at.left), (float) (under.top - at.bottom), color);
+
+            if (c < c1 && IsSameLabel (cell, cell + 1) && IsSameLabel (cell, below + 1) && GetCellColor (palette, cell + 1) == color && GetCellColor (palette, below + 1) == color)
+            {
+                painter.FillRect (left + at.right, top + at.bottom, (float) m_grid.GetGapPx(), (float) (under.top - at.bottom), color);
+            }
+        }
     }
 }
 

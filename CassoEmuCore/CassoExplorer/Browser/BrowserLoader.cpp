@@ -1208,10 +1208,12 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     {
         CatalogRow  row;
 
-        row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false));
+        row.name          = PhysicalCards::IsOnCard (path) ? TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false))
+                                                           : TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
         row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (kind)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
         row.sizeBytes     = entry.byteCount;
         row.isDiskImage   = true;
+        row.isPartition   = true;
         row.containerPath = path + L"|" + TextEncoding::NarrowToWide (entry.step);
         row.sourceIndex   = m_browser.m_rows.size();
 
@@ -1228,6 +1230,74 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::LoadPartition
+//
+//  The volume in a partition of an image, a row that opens it, or for a
+//  partition with no file system Casso reads, the partitions inside it, such
+//  as an 800K UniDOS disk's two volumes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
+{
+    HRESULT                      hr         = S_OK;
+    HRESULT                      hrReadOnly = S_OK;
+    size_t                       bar        = path.rfind (L'|');
+    std::string                  step       = TextEncoding::WideToNarrow (path.substr (bar + 1));
+    PartitionLayoutKind          kind       = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+    const PartitionEntry       * found      = nullptr;
+    CatalogRow                   row;
+
+
+
+    CBREx (bar != std::wstring::npos, E_INVALIDARG);
+
+    hr = ListPartitions (path.substr (0, bar), kind, entries);
+    CHRF (hr, m_listError = std::format (L"Unable to open {}.", path.substr (bar + 1)));
+
+    for (const PartitionEntry & entry : entries)
+    {
+        found = (found == nullptr && entry.step == step) ? &entry : found;
+    }
+
+    if (found == nullptr)
+    {
+        m_listError = std::format (L"Unable to open {}.", path.substr (bar + 1));
+    }
+
+    CBRF (found != nullptr, hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs && LoadPartitions (path))
+    {
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (*found));
+    row.typeText      = TextEncoding::NarrowToWide (std::string (VolumeImage::GetSystemName (found->partition.isHfs ? VolumeKind::Hfs : found->partition.volumeKind))) + L" volume";
+    row.sizeBytes     = found->byteCount;
+    row.isDiskImage   = true;
+    row.containerPath = path;
+    row.sourceIndex   = 0;
+
+    m_browser.m_rows.push_back (std::move (row));
+
+    m_browser.m_isPartitionList = true;
+    m_writeProtected            = false;
+
+    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+    IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+
+Error:
+    return hr;
 }
 
 
@@ -1471,7 +1541,8 @@ bool BrowserLoader::IsOnMissingDrive (const Location & location) const
 {
     bool  hostPath = location.kind == Location::Kind::HostFolder
                   || location.kind == Location::Kind::DiskImage
-                  || location.kind == Location::Kind::DiskDirectory;
+                  || location.kind == Location::Kind::DiskDirectory
+                  || location.kind == Location::Kind::Partition;
 
 
 

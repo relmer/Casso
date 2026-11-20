@@ -700,13 +700,17 @@ void ExplorerTreePane::RevealLocationInTree()
         }
     }
 
-    row = knownId.empty() ? WalkTreeLabels (m_tree->FindRowById (TreeModel::kThisPcRootId), path)
-                          : WalkTreeLabels (m_tree->FindRowById (knownId), path.substr (known));
+    //  The walk ends at the image file, and a partition of it or the volume
+    //  in one is found below by its node's id.
+    row = knownId.empty() ? WalkTreeLabels (m_tree->FindRowById (TreeModel::kThisPcRootId), path.substr (0, path.find (L'|')))
+                          : WalkTreeLabels (m_tree->FindRowById (knownId), path.substr (known, path.find (L'|') - known));
 
     if (row < 0)
     {
         return;
     }
+
+    row = RevealPartitionSteps (row, path, !knownId.empty(), location.kind == Location::Kind::Partition);
 
     //  The open folder's own row is opened too, as Explorer's is.
     m_tree->HighlightRow (row);
@@ -737,6 +741,56 @@ void ExplorerTreePane::ScrollTreeToRow (int row)
     {
         m_revealPending = true;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::RevealPartitionSteps
+//
+//  From the image file's row, each partition step of the path in turn: its
+//  partition's node and the volume in it are opened, and the row returned is
+//  the last partition's for a partition's location, or else its volume's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerTreePane::RevealPartitionSteps (int row, const std::wstring & path, bool underCasso, bool isPartition)
+{
+    size_t  bar       = path.find (L'|');
+    int     partition = -1;
+    int     volume    = -1;
+
+
+
+    while (bar != std::wstring::npos)
+    {
+        size_t        next   = path.find (L'|', bar + 1);
+        std::wstring  prefix = path.substr (0, next);
+
+        m_tree->SetRowExpanded (row, true);
+
+        partition = m_tree->FindRowById (TreeModel::MakePartitionId (underCasso, prefix));
+
+        if (partition >= 0)
+        {
+            m_tree->SetRowExpanded (partition, true);
+        }
+
+        volume = m_tree->FindRowById (TreeModel::MakeImageId (underCasso, prefix));
+
+        if (next == std::wstring::npos)
+        {
+            return (isPartition && partition >= 0) ? partition : (volume >= 0) ? volume : row;
+        }
+
+        row = (volume >= 0) ? volume : (partition >= 0) ? partition : row;
+        bar = next;
+    }
+
+    return row;
 }
 
 
