@@ -1177,7 +1177,7 @@ void ExplorerListPane::FillList()
             }
         }
     }
-    else if (m_grownLocation != m_listLocation && m_columns.GetView() == DxuiListView::View::Details && count > 0 && !m_context.browser.IsListLoading())
+    else if ((m_grownLocation != m_listLocation || m_context.IsPicker()) && m_columns.GetView() == DxuiListView::View::Details && count > 0 && !m_context.browser.IsListLoading())
     {
         m_grownLocation = m_listLocation;
 
@@ -1186,7 +1186,8 @@ void ExplorerListPane::FillList()
         //  and no column is wider than its widest value. A large folder is
         //  measured a screenful at a time. The name's width doesn't change, as a
         //  long name is cut short in File Explorer too, except in a picker,
-        //  whose list is of images that are picked by name.
+        //  whose list is of images that are picked by name. A picker's columns
+        //  are fitted again each time its list is filled or filtered.
         size_t  first = (size_t) CatalogModel::Column::Name + (m_context.IsPicker() ? 0 : 1);
 
         for (size_t column = first; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
