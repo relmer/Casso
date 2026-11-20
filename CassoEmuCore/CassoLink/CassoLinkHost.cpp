@@ -1130,6 +1130,16 @@ HRESULT CassoLinkHost::SendSessionScreen (bool active, Byte tone, const std::vec
     hr = AwaitReady();
     CHR (hr);
 
+    //  The client sounds a screen's tone before its Ready and doesn't read
+    //  the line meanwhile, so the next request waits for that Ready. A spare
+    //  Ready received earlier, as the client sends while idle, is dropped,
+    //  or the next request arrives during the tone, when the line isn't read.
+    if (tone != 0)
+    {
+        hr = DiscardReceived();
+        CHR (hr);
+    }
+
     hr = SendPacket (CassoLinkCodec::kSessionScreen, screen);
     CHR (hr);
 
