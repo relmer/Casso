@@ -37,22 +37,11 @@ void BlockMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 //  BlockMapView::GetGridRect
 //
-//  Below the bands when there are any.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT BlockMapView::GetGridRect() const
 {
-    RECT  grid = GetBounds();
-
-
-
-    if (!m_bands.empty())
-    {
-        grid.top += (LONG) (m_scaler.ToPxf (kBandDip) + m_scaler.ToPxf (kBandGapDip));
-    }
-
-    return grid;
+    return GetBounds();
 }
 
 
@@ -81,7 +70,6 @@ void BlockMapView::Refresh()
 
 
 
-    m_bands      = isOpen ? m_model->GetBands() : vector<BlockBand>();
     m_blockCount = count;
     m_current    = isOpen ? m_model->GetBlock() : 0;
     grid         = GetGridRect();
@@ -680,7 +668,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
 //
 //  A zoomable map zooms on the wheel about the pointer, pans on a drag,
 //  fits on a double-click, and selects on a click. Any other map selects on
-//  a press. A press on a band steps to the band's first block.
+//  a press.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -690,10 +678,8 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
     RECT     grid     = GetGridRect();
     POINT    p        = ev.positionDip;
     int64_t  cell     = FindCellAt (p);
-    bool     isBand   = p.x >= bounds.left && p.x < bounds.right && p.y >= bounds.top && p.y < grid.top;
     bool     isInside = PtInRect (&bounds, p) != FALSE;
     int64_t  now      = (int64_t) GetTickCount64();
-    double   at       = 0.0;
 
 
 
@@ -753,22 +739,6 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.button != DxuiMouseButton::Left || m_model == nullptr || !m_onSelect)
     {
-        return false;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && isBand && bounds.right > bounds.left)
-    {
-        at = (double) (p.x - bounds.left) / (bounds.right - bounds.left) * m_blockCount;
-
-        for (const BlockBand & band : m_bands)
-        {
-            if (!band.isMap && !band.isNested && band.Contains ((uint32_t) at))
-            {
-                m_onSelect (band.first);
-                return true;
-            }
-        }
-
         return false;
     }
 
@@ -851,8 +821,6 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     m_isDark      = DiskInspectorPalette::IsDarkSurface (theme.Background());
     m_differsArgb = theme.ErrorForeground();
 
-    PaintBands (painter, text, theme);
-
     painter.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
     hr = text.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -862,60 +830,6 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
     painter.PopClipRect();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockMapView::PaintBands
-//
-//  Each partition across the map's width in proportion to its blocks, with
-//  its label, and a partition map's blocks muted. A volume inside a
-//  partition isn't drawn over it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    constexpr float  kTextPadDip = 3.0f;
-
-
-
-    RECT      bounds = GetBounds();
-    float     width  = (float) (bounds.right - bounds.left);
-    float     height = m_scaler.ToPxf (kBandDip);
-    float     count  = (float) std::max<uint32_t> (1, m_blockCount);
-    float     x      = 0.0f;
-    float     w      = 0.0f;
-    float     pad    = m_scaler.ToPxf (kTextPadDip);
-    HRESULT   hr     = S_OK;
-
-
-
-    for (const BlockBand & band : m_bands)
-    {
-        if (band.isNested)
-        {
-            continue;
-        }
-
-        x = bounds.left + width * band.first / count;
-        w = std::max (1.0f, width * band.count / count);
-
-        painter.FillRect    (x, (float) bounds.top, w, height, band.isMap ? theme.BackgroundElevated() : theme.SelectionBackground());
-        painter.OutlineRect (x, (float) bounds.top, w, height, 1.0f, theme.Border());
-
-        if (w > pad * 2)
-        {
-            hr = text.DrawString (band.label.c_str(), x + pad, (float) bounds.top, w - pad * 2, height,
-                                  theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
-                                  DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
 }
 
 

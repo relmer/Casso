@@ -29,8 +29,6 @@
 class BlockMapView : public IDxuiControl
 {
 public:
-    static constexpr float  kBandDip     = 18.0f;
-    static constexpr float  kBandGapDip  = 6.0f;
     static constexpr float  kFontDip     = 11.0f;
     static constexpr float  kOutlineDip  = 2.0f;
 
@@ -120,7 +118,6 @@ private:
 
     RECT             GetGridRect    () const;
     bool             IsDiffersShown (int64_t cell) const;
-    void             PaintBands     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void             PaintCells     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
     void             PaintMarquee   (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
     uint32_t         GetCellColor   (const DiskInspectorPalette & palette, uint32_t cell) const;
@@ -172,7 +169,6 @@ private:
     int64_t                     m_hoverCell        = -1;
     bool                        m_isOutlined       = true;
     bool                        m_isFrozen         = false;
-    vector<BlockBand>           m_bands;
     uint32_t                    m_blockCount       = 0;
     uint32_t                    m_current          = 0;
     bool                        m_isZoomable       = false;
