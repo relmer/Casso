@@ -1162,9 +1162,9 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     confirmed = options.disk.yes;
     declined  = "was not removed: nobody was there to answer, and --yes answers in advance";
 
-    if (!confirmed && m_confirm)
+    if (!confirmed && CanConfirm())
     {
-        confirmed = m_confirm ("Remove " + options.disk.path + " and everything below it?");
+        confirmed = Confirm ("Remove " + options.disk.path + " and everything below it?");
         declined  = "was not removed";
     }
 
@@ -4129,7 +4129,7 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     hr = ResolveVolume (options, spec, result);
     CHR (hr);
 
-    now             = m_clock();
+    now             = GetToday();
     spec.pascalDate = PascalVolume::MakeDate (now.wYear, now.wMonth, now.wDay);
 
     hr = ResolveBoot (options, spec, payload, result);
@@ -5099,7 +5099,7 @@ HRESULT DiskCommandRunner::ResolveFlux (const CommandLineOptions & options,
     else if (options.disk.flux)
     {
         hr = ParseTrackList (options.disk.fluxTracks, outMask);
-        CHRF (hr, RefuseBadValue (result,
+        CHRF (hr, result.FailBadValue (
                   "Error: illegal track list\n"
                   "       Tracks are whole numbers from 0 to 34, separated by commas. A\n"
                   "       range is two of them joined by a hyphen, such as 0-2,17.\n"));
@@ -5150,23 +5150,6 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskCommandRunner::RefuseBadValue (DiskCommandResult & result, const char * summary)
-{
-    result.diagnostics    += summary;
-    result.exitStatus      = DiskCommandResult::kNoOutput;
-    result.badCommandLine  = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskCommandRunner::RunSectorRead
-//
-////////////////////////////////////////////////////////////////////////////////
-
 void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                                        DiskCommandResult        & result)
 {
@@ -5189,7 +5172,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
     //  landed on the wrong sector -- so there is no default to fall back to.
     stated = options.disk.numbering != CommandLineOptions::DiskOptions::Numbering::Unstated;
 
-    CBRFEx (stated, E_INVALIDARG, RefuseBadValue (result,
+    CBRFEx (stated, E_INVALIDARG, result.FailBadValue (
             "Error: --logical or --physical is required\n"
             "       --logical is the numbering used by catalogs, DOS tools, and\n"
             "       reference books. --physical is the address-field order recorded\n"
@@ -5211,7 +5194,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                   NibblizationLayer::kSectorsPerTrack - 1);
     }
 
-    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (onDisk, E_INVALIDARG, result.FailBadValue (summary));
 
     isARead = options.disk.count >= 1;
 
@@ -5223,7 +5206,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                   options.disk.count);
     }
 
-    CBRFEx (isARead, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (isARead, E_INVALIDARG, result.FailBadValue (summary));
 
     first = (size_t) (options.disk.track * NibblizationLayer::kSectorsPerTrack
                     + options.disk.sector);
@@ -5246,7 +5229,7 @@ void DiskCommandRunner::RunSectorRead (const CommandLineOptions & options,
                   (spare == 1) ? "remains" : "remain");
     }
 
-    CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (fits, E_INVALIDARG, result.FailBadValue (summary));
 
     //  No filesystem needed, and none looked for. That is the whole point of
     //  the command: a disk built by sectorwrite may have no catalog at all.
@@ -5373,7 +5356,7 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
 
     stated = options.disk.numbering != CommandLineOptions::DiskOptions::Numbering::Unstated;
 
-    CBRFEx (stated, E_INVALIDARG, RefuseBadValue (result,
+    CBRFEx (stated, E_INVALIDARG, result.FailBadValue (
             "Error: --logical or --physical is required\n"
             "       --logical is the numbering used by catalogs, DOS tools, and\n"
             "       reference books. --physical is the address-field order recorded\n"
@@ -5395,7 +5378,7 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
                   NibblizationLayer::kSectorsPerTrack - 1);
     }
 
-    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (onDisk, E_INVALIDARG, result.FailBadValue (summary));
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, payload);
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
@@ -5436,7 +5419,7 @@ void DiskCommandRunner::RunSectorWrite (const CommandLineOptions & options,
                       (spare == 1) ? "remains" : "remain");
         }
 
-        CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
+        CBRFEx (fits, E_INVALIDARG, result.FailBadValue (summary));
 
         for (size_t index = 0; index < needed; index++)
         {
@@ -5572,7 +5555,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
                   options.disk.block, blocks - 1);
     }
 
-    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (onDisk, E_INVALIDARG, result.FailBadValue (summary));
 
     isARead = options.disk.count >= 1;
 
@@ -5584,7 +5567,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
                   options.disk.count);
     }
 
-    CBRFEx (isARead, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (isARead, E_INVALIDARG, result.FailBadValue (summary));
 
     fits = options.disk.block + options.disk.count <= blocks;
 
@@ -5604,7 +5587,7 @@ void DiskCommandRunner::RunBlockRead (const CommandLineOptions & options,
                   (spare == 1) ? "remains" : "remain");
     }
 
-    CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (fits, E_INVALIDARG, result.FailBadValue (summary));
 
     for (int index = 0; index < options.disk.count; index++)
     {
@@ -5725,7 +5708,7 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
                   options.disk.block, blocks - 1);
     }
 
-    CBRFEx (onDisk, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (onDisk, E_INVALIDARG, result.FailBadValue (summary));
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, payload);
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
@@ -5752,7 +5735,7 @@ void DiskCommandRunner::RunBlockWrite (const CommandLineOptions & options,
                   (spare == 1) ? "remains" : "remain");
     }
 
-    CBRFEx (fits, E_INVALIDARG, RefuseBadValue (result, summary));
+    CBRFEx (fits, E_INVALIDARG, result.FailBadValue (summary));
 
     for (size_t index = 0; index < needed; index++)
     {

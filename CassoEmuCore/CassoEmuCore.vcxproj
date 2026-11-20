@@ -1391,6 +1391,7 @@
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Disk\IDiskCommandContext.h" />
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Ui\Dialogs\CommandLineHelpDialog.h" />
     <ClInclude Include="Ui\Dialogs\CommandLineHelpLayout.h" />

@@ -10,6 +10,7 @@
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
 #include "Devices/Disk/BlockImage.h"
+#include "IDiskCommandContext.h"
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -69,7 +70,7 @@ class BlockBuffer;
 class CardVolumeEdit;
 
 
-class DiskCommandRunner
+class DiskCommandRunner : private IDiskCommandContext
 {
 public:
 
@@ -287,12 +288,6 @@ public:
     //  is OpenImage, which is handed a path and nothing else. Threading the
     //  command through every layer to reach it would put it in six signatures
     //  that have no other use for it.
-    //  A refused option VALUE: the composed sentence goes to the
-    //  diagnostics and the line is marked bad, so the edge narrows the page
-    //  to the one command the reader named. One routine, so the F-suffixed
-    //  macros can carry a snprintf-composed refusal in one action.
-    static void  RefuseBadValue (DiskCommandResult & result, const char * summary);
-
     //  --flux as a mask of whole tracks. Without it, init keeps the tracks
     //  the existing WOZ already stores as flux.
     HRESULT  ResolveFlux (const CommandLineOptions & options,
@@ -303,7 +298,7 @@ public:
     static HRESULT  ParseTrackList (const std::string & text, uint64_t & outMask);
 
     void  ReportMissingParameter (const std::string & parameter,
-                                  DiskCommandResult & result) const;
+                                  DiskCommandResult & result) const override;
 
     //  Every required operand this command did not get, in the order its
     //  grammar lists them.
@@ -327,7 +322,7 @@ public:
     //  rather than to the finished sentence: a diagnostic carries file names
     //  and volume labels, and a sweep over the whole thing would rewrite a
     //  name that happened to hold %L.
-    std::string         ApplyPrefix        (const std::string & text) const;
+    std::string         ApplyPrefix        (const std::string & text) const override;
 
 
     //  The banner the Help command prints above the page, handed over by whoever
@@ -511,7 +506,7 @@ private:
     //  drive it directly, which is why it was public on the runner
     //  before it was a class.
 public:
-    DiskImageSession &  GetSession ()  { return m_session; }
+    DiskImageSession &  GetSession ()  override { return m_session; }
 
     //  Public so a file read or written over an CassoLink converts as one
     //  in an image does.
@@ -534,6 +529,11 @@ public:
 
 private:
     static SYSTEMTIME  GetLocalDate ();
+
+    IDiskFileIo  & GetFileIo () override                             { return m_fileIo; }
+    bool           CanConfirm() const override                       { return m_confirm != nullptr; }
+    bool           Confirm   (const std::string & question) override { return m_confirm (question); }
+    SYSTEMTIME     GetToday  () override                             { return m_clock(); }
 
     //  Whether a command puts bytes into the image it was given.
     static bool  WritesTheImage (CommandLineOptions::DiskOptions::Command command);
