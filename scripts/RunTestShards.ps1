@@ -120,12 +120,14 @@ Write-Host ("{0} tests in {1} classes, {2} shards" -f $allTests.Count, $byClass.
 
 #
 #  One vstest.console per shard. The filter selects each class by the
-#  "Class::" prefix of its tests' fully qualified names.
+#  "Class::" prefix of its tests' fully qualified names, excluding the
+#  tests whose names start with OnDemand_.
 #
 $processes = @()
 
 for ($i = 0; $i -lt $shardCount; $i++) {
     $filter  = ($shardNames[$i] | ForEach-Object { "FullyQualifiedName~$($_)::" }) -join '|'
+    $filter  = "($filter)&FullyQualifiedName!~OnDemand_"
     $logPath = Join-Path $workDir "shard$i.log"
     $vstestArgs = @("`"$TestDll`"", "`"/TestCaseFilter:$filter`"")
 
