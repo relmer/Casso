@@ -17,7 +17,7 @@
 //  last 800. OzDOS has one volume in the first half of every block and one in
 //  the second half.
 //
-//  The layouts are from CiderPress II's notes, under its Apache license.
+//  The layouts are from CiderPress II's notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

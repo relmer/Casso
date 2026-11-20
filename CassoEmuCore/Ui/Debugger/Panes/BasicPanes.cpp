@@ -742,9 +742,9 @@ void BasicProgramPane::AddStatementHeat (
         }
     }
 
-    for (int start : GetStatementStarts (line))
+    for (int statementStart : GetStatementStarts (line))
     {
-        std::pair<int, int>  statement = GetStatement (line, start);
+        std::pair<int, int>  statement = GetStatement (line, statementStart);
         Word                 token     = (Word) (line.address + 4 + statement.first);
         Byte                 level     = heat.statement[token];
         uint32_t             count     = (heat.statementCount.size() == 0x10000) ? heat.statementCount[token] : 0;

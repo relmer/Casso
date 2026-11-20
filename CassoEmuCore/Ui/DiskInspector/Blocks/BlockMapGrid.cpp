@@ -290,36 +290,3 @@ int64_t BlockMapGrid::FindCellAt (int xPx, int yPx) const
 
     return (int64_t) cell;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockMapGrid::GetRoleName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LPCWSTR BlockMapGrid::GetRoleName (SectorRole role)
-{
-    switch (role)
-    {
-        case SectorRole::BootArea:            return L"Boot blocks";
-        case SectorRole::VtocOrKeyBlock:      return L"Volume header";
-        case SectorRole::CatalogOrDirectory:  return L"Directory";
-        case SectorRole::UnusedCatalogSector: return L"Unused directory";
-        case SectorRole::VolumeBitmap:        return L"Volume bitmap";
-        case SectorRole::Subdirectory:        return L"Subdirectory";
-        case SectorRole::IndexBlock:          return L"Index block";
-        case SectorRole::FileData:            return L"File data";
-        case SectorRole::BadBlocksFile:       return L"Bad blocks";
-        case SectorRole::AllocatedUnowned:    return L"Marked used, in no file";
-        case SectorRole::OwnedMarkedFree:     return L"In a file, marked free";
-        case SectorRole::CrossLinked:         return L"In two or more files";
-        case SectorRole::Free:                return L"Free";
-        case SectorRole::Count:               break;
-    }
-
-    return L"Free";
-}

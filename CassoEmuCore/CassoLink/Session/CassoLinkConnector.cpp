@@ -79,7 +79,7 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     std::vector<Byte>                          transfer;
     std::vector<std::wstring>                  ports;
     bool                                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
-    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
+    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp;
     LinkFault                                  fault;
     std::unique_ptr<FaultInjectingByteStream>  faulty;
     IByteStream                              * target  = nullptr;
@@ -252,13 +252,14 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     ComSettings         search;
     DWORD               opened   = 0;
     size_t              next     = 0;
-    auto                deadline = std::chrono::steady_clock::time_point();
+    uint64_t            deadline = 0;
     Byte                control  = 0;
     Byte                driveMap = 0;
     bool                ready    = false;
     std::wstring        model;
     HRESULT             logged   = S_OK;
     HRESULT             columns  = S_OK;
+    DWORD               linkBaud = m_session.m_settings.baud;
 
 
 
@@ -281,6 +282,13 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     else if (m_session.m_settings.transport == LinkTransport::Serial && m_session.m_settings.baud != m_session.m_settings.bootstrapBaud && !m_adtPro && !IsLineOpen())
     {
         speeds.push_back (m_session.m_settings.bootstrapBaud);
+    }
+
+    //  At 230,400 baud, an interface other than a IIgs's port runs the link
+    //  at 115,200, and an Apple that ran the link before waits there.
+    if (openAt == 0 && m_session.m_settings.baud == LinkProgram::kIIgsBaud && std::ranges::find (speeds, LinkProgram::kFallbackBaud) == speeds.end())
+    {
+        speeds.push_back (LinkProgram::kFallbackBaud);
     }
 
     //  A line kept open between attempts is prompted again on each one. A
@@ -308,12 +316,12 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     //  starts at either, and sends its Ready about once a second, is read
     //  within a slice or two rather than after half the attempt. Once a shim
     //  is read the line stays at its speed, as the program loads at it.
-    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (m_connectTimeoutMs);
+    deadline = m_session.m_factory.GetTickMs() + m_connectTimeoutMs;
 
-    while (!ready && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    while (!ready && !stop.stop_requested() && m_session.m_factory.GetTickMs() < deadline)
     {
         DWORD  speed   = speeds[next % speeds.size()];
-        DWORD  left    = (DWORD) std::chrono::duration_cast<std::chrono::milliseconds> (deadline - std::chrono::steady_clock::now()).count();
+        DWORD  left    = (DWORD) (deadline - (std::min) (deadline, m_session.m_factory.GetTickMs()));
         DWORD  sliceMs = (speeds.size() > 1) ? (std::min) ({ kSpeedSliceMs, m_connectTimeoutMs / (DWORD) speeds.size(), left }) : left;
 
 
@@ -341,21 +349,34 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
-    //  An Uthernet II and the cassette ports have no speed to set.
-    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Cassette)
+    //  An Uthernet II, the network cards and the cassette ports have no
+    //  speed to set.
+    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Udp
+        && m_session.m_settings.transport != LinkTransport::Cassette)
     {
-        LinkProgram::GetSpeedControl (m_session.m_settings.baud, control);
+        LinkProgram::GetSpeedControl (linkBaud, control);
 
         hr = m_session.m_host->SetSpeed (control);
         CHR (hr);
+
+        //  230,400 baud is a IIgs's port's alone; any other interface sends
+        //  a NAK for it, and the link runs at 115,200.
+        if (hr == S_FALSE)
+        {
+            linkBaud = LinkProgram::kFallbackBaud;
+            LinkProgram::GetSpeedControl (linkBaud, control);
+
+            hr = m_session.m_host->SetSpeed (control);
+            CHR (hr);
+        }
     }
 
     //  A port opened again at the link's speed has a new host, and the link
     //  is ready once the program's Ready arrives on it. The program sends
     //  Ready again after each second with no reply, so no Idle is sent.
-    if (m_session.m_settings.transport == LinkTransport::Serial && opened != m_session.m_settings.baud)
+    if (m_session.m_settings.transport == LinkTransport::Serial && opened != linkBaud)
     {
-        hr = OpenStream (m_session.m_settings.baud, stop);
+        hr = OpenStream (linkBaud, stop);
         CHR (hr);
 
         m_prompted = true;
@@ -417,6 +438,25 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnector::IsProbed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnector::IsProbed (LinkTransport transport, bool adtPro, bool stopRequested)
+{
+    bool  typable = transport == LinkTransport::Serial || transport == LinkTransport::Emulated;
+
+
+
+    return typable && !adtPro && !stopRequested;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnector::ConnectOrBootstrap
 //
 //  A serial or emulated line with no Apple answering is probed for one
@@ -431,12 +471,11 @@ HRESULT CassoLinkConnector::ConnectOrBootstrap (std::stop_token stop)
     HRESULT  probed   = S_OK;
     HRESULT  reopened = S_OK;
     bool     waiting  = false;
-    bool     typable  = (m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::Emulated) && !m_adtPro;
 
 
 
     hr = Connect (stop);
-    BAIL_OUT_IF (SUCCEEDED (hr) || !typable || stop.stop_requested(), hr);
+    BAIL_OUT_IF (SUCCEEDED (hr) || !IsProbed (m_session.m_settings.transport, m_adtPro, stop.stop_requested()), hr);
 
     probed = ProbeForPrompt (stop, waiting);
 
@@ -486,7 +525,7 @@ HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWait
     std::vector<std::string>   lines;
     Byte                       got[64]  = {};
     size_t                     read     = 0;
-    auto                       deadline = std::chrono::steady_clock::time_point();
+    uint64_t                   deadline = 0;
 
 
 
@@ -511,9 +550,9 @@ HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWait
                               [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
     CHR (hr);
 
-    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kPromptProbeWaitMs);
+    deadline = m_stream->GetTickMs() + kPromptProbeWaitMs;
 
-    while (!outWaiting && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    while (!outWaiting && !stop.stop_requested() && m_stream->GetTickMs() < deadline)
     {
         hr = m_stream->Read (got, sizeof (got), 100, read);
         CHR (hr);
@@ -582,20 +621,20 @@ bool CassoLinkConnector::IsLineOpen() const
 
 void CassoLinkConnector::ServeUntilRetry (std::stop_token stop)
 {
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (m_retryMs);
+    uint64_t deadline = m_session.m_factory.GetTickMs() + m_retryMs;
     bool     queued   = false;
     bool     ready    = false;
     HRESULT  hr       = S_OK;
 
 
 
-    while (!stop.stop_requested() && !queued && !ready && std::chrono::steady_clock::now() < deadline)
+    while (!stop.stop_requested() && !queued && !ready && m_session.m_factory.GetTickMs() < deadline)
     {
         if (!m_session.m_host)
         {
             std::unique_lock<std::mutex>  lock (m_lock);
 
-            m_wake.wait_until (lock, stop, deadline, [this] () { return !m_queue.empty(); });
+            m_session.m_factory.WaitIdle (m_wake, lock, stop, m_retryMs, [this] () { return !m_queue.empty(); });
             break;
         }
 
@@ -665,7 +704,7 @@ void CassoLinkConnector::ServeAdtPro (std::stop_token stop)
                 {
                     std::unique_lock<std::mutex>  lock (m_lock);
 
-                    m_wake.wait_for (lock, stop, std::chrono::milliseconds (m_retryMs), [] () { return false; });
+                    m_session.m_factory.WaitIdle (m_wake, lock, stop, m_retryMs, [] () { return false; });
                 }
 
                 continue;
@@ -772,6 +811,10 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
 
             hr = m_session.m_factory.ListenTcp (port, m_session.m_settings.transport, stream);
         }
+        else if (m_session.m_settings.transport == LinkTransport::Udp)
+        {
+            hr = m_session.m_factory.OpenUdp (host, port, stream);
+        }
         else
         {
             hr = m_session.m_factory.ConnectTcp (host, port, stop, stream);
@@ -869,26 +912,51 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
 
 HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs, bool & outReady)
 {
-    HRESULT  hr       = S_OK;
-    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    static constexpr int       kPromptRepeats    = 4;
+    static constexpr uint64_t  kPromptIntervalMs = 1000;
+
+
+
+    HRESULT  hr          = S_OK;
+    uint64_t deadline    = m_session.m_factory.GetTickMs() + timeoutMs;
+    uint64_t prompted    = 0;
+    int      repeatsLeft = 0;
+    bool     waiting     = false;
 
 
 
     outReady = false;
     m_session.SetState (LinkState::WaitingForReady);
 
-    while (!outReady && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    while (!outReady && !stop.stop_requested() && m_session.m_factory.GetTickMs() < deadline)
     {
+        waiting = !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient();
+
         //  An Apple that sent its Ready before the line was open is waiting
         //  for a reply, and is prompted for another, once for each line
         //  opened. A prompt is an envelope, which ADTPro's client, idle on
         //  the same line, would read as the start of its next reply.
-        if (!m_prompted && !m_session.m_host->HasClient() && !m_session.m_host->HasAdtProClient())
+        //
+        //  The prompt is sent again each second, a few times, until a Ready
+        //  arrives: the first step of a universal disk written before it
+        //  took any byte as the PC could miss the Idle's start byte at
+        //  115,200 baud, and wait on.
+        if (!m_prompted && waiting)
         {
             hr = m_session.m_host->PromptReady();
             CHR (hr);
 
-            m_prompted = true;
+            m_prompted  = true;
+            prompted    = m_session.m_factory.GetTickMs();
+            repeatsLeft = kPromptRepeats;
+        }
+        else if (repeatsLeft > 0 && waiting && m_session.m_factory.GetTickMs() - prompted >= kPromptIntervalMs)
+        {
+            hr = m_session.m_host->PromptReady();
+            CHR (hr);
+
+            prompted = m_session.m_factory.GetTickMs();
+            repeatsLeft--;
         }
 
         hr = m_session.m_host->ServeOne (CassoLinkSession::kIdlePollMs);
@@ -899,7 +967,7 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
         if (m_session.m_host->HasAdtProClient())
         {
             m_adtPro = true;
-            deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+            deadline = m_session.m_factory.GetTickMs() + timeoutMs;
         }
 
         if (m_session.m_host->HasClient())
@@ -939,7 +1007,7 @@ bool CassoLinkConnector::IsPeerGone()
 {
     bool      ready = false;
     bool      known = m_stream && m_stream->TryGetPeerReady (ready);
-    uint64_t  now   = GetTickCount64();
+    uint64_t  now   = m_session.m_factory.GetTickMs();
 
 
 

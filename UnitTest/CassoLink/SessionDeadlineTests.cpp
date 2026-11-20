@@ -131,7 +131,10 @@ public:
 
         AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, boot));
 
-        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+
+        InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
         AssertSucceeded (machine.GetConnectors().AttachSerialStream (2, machineEnd));
         GuestSession::Mount (machine, boot);
 

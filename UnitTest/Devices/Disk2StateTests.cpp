@@ -139,7 +139,7 @@ namespace Disk2State
             m_readLatch     = static_cast<uint8_t> (seed + 1);
             m_bus           = static_cast<uint8_t> (seed + 2);
             m_headWindow    = static_cast<uint8_t> (seed + 3);
-            m_weakRngState  = kRngBase + seed;
+            m_fakeBitState  = kRngBase + seed;
             m_readNibbles   = kCountBase + seed;
             m_writeNibbles  = kCountBase + seed + 4;
 
@@ -176,7 +176,7 @@ namespace Disk2State
             Assert::AreEqual (m_readLatch,            other.m_readLatch,            L"read latch");
             Assert::AreEqual (m_bus,                  other.m_bus,                  L"bus");
             Assert::AreEqual (m_headWindow,           other.m_headWindow,           L"head window");
-            Assert::AreEqual (m_weakRngState,         other.m_weakRngState,         L"weak-bit generator");
+            Assert::AreEqual (m_fakeBitState,         other.m_fakeBitState,         L"weak-bit generator");
             Assert::AreEqual (m_readNibbles,          other.m_readNibbles,          L"read nibbles");
             Assert::AreEqual (m_writeNibbles,         other.m_writeNibbles,         L"write nibbles");
             Assert::AreEqual (m_fluxNow,              other.m_fluxNow,              L"flux time");

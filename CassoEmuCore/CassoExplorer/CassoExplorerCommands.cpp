@@ -516,6 +516,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildCommandBarEntries (C
     {
         case CommandBarExtra::RecycleBin: added = BuildEntries (kRecycleBinRows); break;
         case CommandBarExtra::Archive:    added = BuildEntries (kArchiveRows);    break;
+        case CommandBarExtra::ArchiveImage:  added = BuildEntries (kArchiveImageRows);  break;
         case CommandBarExtra::AppleDrive: added = BuildEntries (kAppleDriveRows); break;
         case CommandBarExtra::Search:     added = BuildEntries (kSearchRows);     break;
         case CommandBarExtra::Results:    added = BuildEntries (kResultsRows);    break;

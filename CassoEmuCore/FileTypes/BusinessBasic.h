@@ -12,11 +12,11 @@
 //
 //  BusinessBasic
 //
-//  An Apple /// Business BASIC program, ProDOS type $09: the program's
-//  length as a word, then lines, each its length in a byte, the line number
-//  as a word, its bytes and a $00, to a length of 0. A byte past $7F is a
-//  keyword, and $FF is followed by a byte that picks one from a second
-//  table; the token tables are CiderPress II's, under its Apache license.
+//  An Apple /// Business BASIC program, ProDOS type $09, as a listing:
+//  lines of an offset to the next, a line number and the statements to a
+//  $00, to a line whose offset is 0. A byte of $80 and above is a keyword,
+//  and $FF is followed by a byte that picks one from a second table.
+//  docs/file-formats/business-basic.md is the format.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,5 +36,5 @@ private:
 
     static const char *  GetKeyword  (Byte token);
     static const char *  GetExtended (Byte token);
-    static void          AppendWord  (std::string & ioLine, const char * keyword);
+    static bool          IsWordEnd   (char c);
 };

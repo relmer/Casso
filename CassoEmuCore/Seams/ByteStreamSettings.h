@@ -27,6 +27,7 @@ enum class LinkTransport
     Uthernet,
     AdtProServer,
     Cassette,
+    Udp,
 };
 
 

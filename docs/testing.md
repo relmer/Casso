@@ -418,106 +418,56 @@ publishes vectors for them, encoding one defensible model of a thing hardware
 does not do consistently. They are not generated, and there is nothing here
 to exempt.
 
-## Vector depth: 200 by default, 10,000 available
+## Vector depth: a subset in every unit test run, the full set on request
 
-**The checked-in set is 200 vectors per opcode.** 486 opcode files, ~4.9 MB,
-under `UnitTest/HarteVectors/`. Every clone, every worktree, and CI get real
-opcode coverage with no setup.
+**A unit test run checks 10 vectors per opcode**, compiled into the test DLL
+under `UnitTest/HarteVectorSubset/`. A unit test run doesn't read vector files,
+and what it checks doesn't depend on what a machine has cached. The subset is
+a smoke test: it catches a broken opcode, a wrong addressing mode or a
+dispatch mistake in seconds, on every run.
 
-**The full set is 10,000 per opcode**, about 186 MB, not checked in.
+**The full set is 10,000 vectors per opcode**, about 244 MB for the 6502 and
+the 65C02 together. It isn't checked in, and it runs only through
+`scripts/RunHarteTests.ps1`.
 
-### Why the default is reduced
+**The checked-in reduced set, 200 vectors per opcode**, under
+`UnitTest/HarteVectors/`, is the source of the subset. Regenerating it doesn't use the
+network.
 
-The full set costs a **1.7 GB download** to produce. `GenerateHarteTests.py`
-fetches ~4.2 MB of JSON per opcode from GitHub and packs it down to the
-compact `.bin` form; the 9× shrink is the point of the conversion, but the
-download is paid in full every time. `--max-vectors` truncates during packing
-and does **not** reduce it.
+### When to run the full set
 
-That cost is why the vectors were gitignored, and being gitignored is what
-caused the real problem: they existed only where somebody had run the
-generator. Combined with the data directory being resolved from compile-time
-`__FILE__`, every worktree and **every CI run since the suite was written**
-found an empty directory and passed 409 opcode tests in under a millisecond
-each without loading a vector. A missing per-opcode file is a legitimate skip,
-so nothing reported it.
+Run the full set after any change that could reasonably break it:
 
-Checking in a reduced set removes the whole failure mode. No download, no
-cache, no provisioning step, no network; a fresh clone is correct
-immediately.
-
-### Why 200 is a defensible default
-
-- **It is a fair sample.** The vectors arrive in random order, not sorted:
-  initial PC is non-monotonic across the file, and the first 200 alone cover
-  60 of the 64 reachable flag combinations and 135 of 256 accumulator values.
-  Truncation is unbiased, and deterministic, the same input always produces
-  the same output.
-- **It is ~82,000 vectors across the suite**, not a token gesture.
-- **10,000 is redundant for most opcodes.** `LDA #imm` derives only N and Z
-  from the loaded byte; 256 operand values times a few flag states covers it
-  exhaustively.
-
-### When to run the full depth
-
-The count earns its keep where the state space is genuinely large, and 200 is
-a thin sample of it. Use the full set when:
-
-- **You touched the CPU core**: `CassoCore/Cpu.cpp`, `Microcode.h`, the
+- **The CPU cores**: `CassoCore/Cpu.cpp`, `CpuOperations`, `Microcode.h`, the
   opcode tables, `CassoEmuCore/Core/Cpu65C02.cpp`, or anything that changes
-  instruction dispatch, flag computation, or addressing.
-- **You are chasing a copy-protection or "this game misbehaves" bug.** These
-  are usually one flag wrong in one corner, which is the case a 200-vector
-  sample is most likely to miss.
-- **You are adding or changing undocumented-opcode behavior.**
+  instruction dispatch, flag computation, addressing, decimal mode, cycle
+  counts or interrupt timing.
+- **The MMU or the memory bus**: anything that changes how a read or a write
+  gets to memory, since every vector checks the RAM it touches.
+- **Undocumented-opcode behavior**, new or changed.
+- **A copy-protection or "this game misbehaves" bug** that might be one flag
+  wrong in one corner, which is the case a sample is most likely to miss.
 - **Before a release**, as a backstop.
 
-Concretely, the arithmetic and shift/rotate opcodes are where depth matters:
+Disk, video, audio, UI and assembler work doesn't touch the CPU, so the subset
+is enough.
+
 `ADC` alone spans A (256) × operand (256) × carry (2) × decimal (2) =
 **262,144** meaningful combinations, so even 10,000 samples under 4% of it.
 Decimal-mode `ADC`/`SBC` flag behavior is the classic hiding place.
 
-For the load/store/transfer/branch bulk, 200 and 10,000 are both
-comprehensively sufficient.
-
-### When the full set is required
-
-**Run the full 10,000-vector set for any change to CPU behavior or the
-instruction set.** That means new or changed opcodes, addressing modes, flag
-handling, decimal mode, cycle counts, interrupt timing, or anything in
-`Cpu`, `CpuOperations`, `Cpu65C02` and the tables they read. The reduced set
-samples 2% of each opcode's vectors; the bugs that matter here are usually
-one flag wrong in one corner, and that is exactly what a sample misses.
-
-Everything else runs fine against the checked-in reduced set. Disk, video,
-audio, UI and assembler work does not touch the CPU, so paying eight extra
-minutes per run buys nothing.
-
-**The full set can be switched off by renaming its directory**, which is
-worth doing while working on anything else, because it takes the Debug suite
-from about nine minutes to under four:
+### Running the full set
 
 ```powershell
-#  Off: the runner falls back to the checked-in 200-vector set
-Rename-Item "$env:LOCALAPPDATA\Casso\HarteTests" "HarteTests.off"
-
-#  Back on, before touching the CPU
-Rename-Item "$env:LOCALAPPDATA\Casso\HarteTests.off" "HarteTests"
+.\scripts\RunHarteTests.ps1                  # download, generate, build, run
+.\scripts\RunHarteTests.ps1 -SkipGenerate    # run the set already generated
 ```
 
-Renaming rather than deleting keeps the 1.7 GB download from having to be
-paid again. The runner prints which depth it used on every run, so a full
-run cannot be mistaken for a reduced one.
-
-### Getting the full set
-
-```powershell
-.\scripts\RunHarteTests.ps1              # download, generate, build, run
-```
-
-It lands in `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\`, which is shared by every
-checkout on the machine, so this is once per machine and not once per
-worktree. Budget about four minutes and 1.7 GB.
+The full set is generated into `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\`, which
+every checkout on the machine shares, so the 1.7 GB download is once per
+machine. The script sets `CASSO_HARTE_DIR` to that folder and runs only the
+Harte tests. Without `CASSO_HARTE_DIR`, the opcode tests run the embedded
+subset, whatever is cached.
 
 `-Opcode` and `-MaxVectors` write into the same folder. A folder that exists wins over the checked-in set, so after an `-Opcode` run the cache has one opcode and the rest of the suite fails. Delete the folder, or run the full command, before the next full run.
 
@@ -526,42 +476,33 @@ is refused: `HarteVectorDepth` names the first stale file and the version it
 found. Regenerate it; there is no upgrade path, because the cycle counts were
 never in those files to begin with.
 
-If you already have a full set and want to refresh the checked-in reduced one:
+### Regenerating the reduced set and the subset
+
+From a full set, with no network:
 
 ```powershell
 python scripts\ReduceHarteVectors.py `
     --src $env:LOCALAPPDATA\Casso\HarteTests\6502 `
     --out UnitTest\HarteVectors\6502 --cpu 6502 --vectors 200
+python scripts\EmbedHarteVectors.py
 ```
 
-That reads the existing `.bin` files and truncates them. No network.
+`EmbedHarteVectors.py` writes `UnitTest/HarteVectorSubset/` from the reduced
+set. Rerun it rather than editing those files.
 
-### How the runner decides which set it used
+### What each run reports
 
-`GetHarteTestDataDir` resolves at runtime, richest set first:
-
-1. `CASSO_HARTE_DIR`: explicit override, for CI or a scratch set
-2. `%LOCALAPPDATA%\Casso\HarteTests\<cpu>\`: the full set, if generated
-3. `UnitTest/HarteVectors/<cpu>/`: the checked-in reduced set
-
-So generating the full set silently upgrades every subsequent run, and
-deleting it falls back to the reduced set.
-
-**`HarteVectorDepth` reports which one ran, on every run:**
+**`HarteVectorDepth` reports which vectors ran, on every run:**
 
 ```
-Harte 6502: 230 opcodes, 200 vectors each (46000 total, final state and cycle count) -- REDUCED set.
+Harte 6502: 230 opcodes, 10 vectors each (2300 total, final state and cycle count) -- REDUCED set.
 Harte 6502: 230 opcodes, 10000 vectors each (2300000 total, final state and cycle count) -- FULL depth.
 ```
 
-The numbers are read out of the file headers, never hardcoded, so the message
-cannot drift out of step with the data. The same test **fails** when the
-directory is empty; that is the guard against the silent-pass mode returning.
-
-The report shows a range rather than a single number when depth is not uniform
-across a set. Upstream has been uniform at 10,000 for both `6502` and
-`rockwell65c02` since the August 2026 regeneration; it was not always, so the
-range is kept.
+The numbers are read from the vectors' headers, never hardcoded, so the
+message can't drift out of step with the data. The same test **fails** when no
+vectors are found, which guards against the old failure mode: for the life of
+the suite, CI passed 409 opcode tests without loading a single vector.
 
 ### Pinning
 

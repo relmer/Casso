@@ -17,7 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  SerialLoaderTests
 //
 //  The serial loader a bootstrap types into an Apple, run on a //c's
-//  firmware and 65C02. The loader's bytes are put in memory at $3A50 rather
+//  firmware and 65C02. The loader's bytes are put in memory at $3950 rather
 //  than typed in, and the shim transfer is written to the port from this
 //  thread, so the machine runs only when the test runs it and nothing waits
 //  on the clock.
@@ -75,7 +75,7 @@ public:
         machine.GetCpu()->SetPC (0xE000);
         machine.GetRunner().RunCycles (kBootCycles);
 
-        InProcessByteStream::CreatePair (machineEnd, pcEnd);
+        InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
         Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (kPort, machineEnd));
 
         Type (machine, "IN#2\r");

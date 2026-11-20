@@ -21,6 +21,7 @@ CassoLinkHost::CassoLinkHost (std::shared_ptr<IByteStream> stream, ICassoLinkFol
     m_folder (folder),
     m_clock  (std::move (clock))
 {
+    m_lastHeardMs = m_stream->GetTickMs();
 }
 
 
@@ -55,8 +56,8 @@ HRESULT CassoLinkHost::Fill (size_t count, DWORD timeoutMs, bool & outFilled)
         CBREx (!closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
         BAIL_OUT_IF (got == 0, S_OK);
 
-        m_lastHeardMs = GetTickCount64();
-        m_adtProServer.m_buffer.insert (m_adtProServer.m_buffer.end(), chunk, chunk + got);
+        m_lastHeardMs = m_stream->GetTickMs();
+        TakeReceived (std::span<const Byte> (chunk, got));
     }
 
     outFilled = true;
@@ -87,6 +88,7 @@ HRESULT CassoLinkHost::DiscardReceived()
 
 
     m_adtProServer.m_buffer.clear();
+    m_textNibble = -1;
 
     for (int read = 0; read < kDiscardReads && got > 0; read++)
     {
@@ -110,7 +112,7 @@ Error:
 
 DWORD CassoLinkHost::GetSilenceMs() const
 {
-    return (DWORD) std::min<uint64_t> (GetTickCount64() - m_lastHeardMs, MAXDWORD);
+    return (DWORD) std::min<uint64_t> (m_stream->GetTickMs() - m_lastHeardMs, MAXDWORD);
 }
 
 
@@ -149,7 +151,7 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
     size_t     consumed = 0;
     bool       complete = false;
     bool       filled   = false;
-    ULONGLONG  deadline = GetTickCount64() + timeoutMs;
+    ULONGLONG  deadline = m_stream->GetTickMs() + timeoutMs;
     ULONGLONG  now      = 0;
 
 
@@ -162,13 +164,13 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         if (complete)
         {
-            m_lastPacketMs = GetTickCount64();
+            m_lastPacketMs = m_stream->GetTickMs();
             TraceReceived (outPacket);
         }
 
         BAIL_OUT_IF (complete, S_OK);
 
-        now = GetTickCount64();
+        now = m_stream->GetTickMs();
 
         hr = Fill (m_adtProServer.m_buffer.size() + 1, now < deadline ? (DWORD) (deadline - now) : 0, filled);
         CHR (hr);
@@ -192,10 +194,24 @@ Error:
 HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 {
     std::lock_guard<std::mutex>  lock (m_sendLock);
+    std::vector<Byte>            text;
 
 
 
-    m_lastPacketMs = GetTickCount64();
+    m_lastPacketMs = m_stream->GetTickMs();
+
+    if (m_textForm)
+    {
+        text.reserve (bytes.size() * 2);
+
+        for (Byte b : bytes)
+        {
+            text.push_back ((Byte) (kTextHigh | (b >> 4)));
+            text.push_back ((Byte) (kTextLow  | (b & 0x0F)));
+        }
+
+        bytes = text;
+    }
 
     if (m_pcFault.IsArmed())
     {
@@ -428,7 +444,7 @@ HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const 
             break;
         }
 
-        isData = packet.command == CassoLinkCodec::kSectorData;
+        isData = packet.command == CassoLinkCodec::kSectorData || packet.command == CassoLinkCodec::kSectorBlank;
         CBREx (isData, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         hr = CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, one);
@@ -874,14 +890,15 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
 
         //  Write sectors takes each sector as its nibbles, written as they
         //  arrive; Write track takes the bytes, formatted with the track.
-        //  A sector of zeros goes to Write track as its numbers alone.
+        //  A sector of one value goes to Write track as its numbers and the
+        //  value.
         if (command == CassoLinkCodec::kWriteSectors)
         {
             hr = CassoLinkCodec::EncodeSectorNibbles (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
         }
         else if (IsBlank (data.subspan (index * kSectorSize, kSectorSize)))
         {
-            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], encoded);
+            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], data[index * kSectorSize], encoded);
         }
         else
         {
@@ -952,6 +969,7 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     const Byte       request[] = { control };
     CassoLinkPacket  packet;
     bool             acked     = false;
+    bool             refused   = false;
 
 
 
@@ -964,8 +982,12 @@ HRESULT CassoLinkHost::SetSpeed (Byte control)
     hr = ReadReply (packet);
     CHR (hr);
 
-    acked = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
-    CBREx (acked, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    acked   = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kAck;
+    refused = packet.command == CassoLinkCodec::kAcknowledge && !packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak;
+    CBREx (acked || refused, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  A NAK is a speed the interface doesn't have, and the speed is as it was.
+    hr = acked ? S_OK : S_FALSE;
 
 Error:
     return hr;
@@ -1240,102 +1262,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkHost::ServeReady
-//
-//  A client of another version is sent the current program, and so is one
-//  whose CRC differs from the image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
-{
-    HRESULT  hr      = S_OK;
-    bool     whole   = IsWholeReady (packet);
-    bool     current = false;
-    bool     intact  = false;
-
-
-
-    CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    ReadClient (packet);
-
-    current = m_client.programVersion == LinkProgram::kProgramVersion;
-    intact  = current;
-
-    if (current)
-    {
-        hr = CheckProgramCrc (intact);
-        CHR (hr);
-    }
-
-    m_badProgramLoads = (current && !intact) ? m_badProgramLoads + 1 : 0;
-
-    if (m_badProgramLoads > 0 && m_adtProServer.m_activity)
-    {
-        m_adtProServer.m_activity (std::format ("The program on the Apple failed its CRC check: it computed {:04X}, and the image sent is {:04X}",
-                                                m_client.programCrc, CassoLinkCodec::ComputeCrc (m_program)));
-    }
-
-    //  A program that fails again after it is loaded again points to the
-    //  Apple's memory, which another load would not fix. The cassette build
-    //  came from the cassette input, so its audio is sent again instead.
-    CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
-    CBREx (intact || m_programChip != LinkChip::Cassette, HRESULT_FROM_WIN32 (ERROR_CRC));
-
-    if (intact)
-    {
-        hr = SendPacket (CassoLinkCodec::kIdle, {});
-        CHR (hr);
-    }
-    else
-    {
-        hr = LoadProgram();
-        CHR (hr);
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkHost::CheckProgramCrc
-//
-//  Whether the CRC in the client's Ready matches the image of the program
-//  for its chip. A Ready with no CRC, from an earlier program, passes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassoLinkHost::CheckProgramCrc (bool & outIntact)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    outIntact = true;
-
-    BAIL_OUT_IF (!m_client.hasProgramCrc, S_OK);
-
-    hr = AssembleProgram();
-    CHR (hr);
-
-    outIntact = CassoLinkCodec::ComputeCrc (m_program) == m_client.programCrc;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkHost::ReadClient
 //
 //  A Ready's versions and drives, and the program's ROM identification and
@@ -1350,9 +1276,11 @@ Error:
 
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
-    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag);
-    LinkChip  chip  = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
+    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag | LinkProgram::kSosReadyFlag);
+    LinkChip  chip  = (packet.payload[2] & LinkProgram::kNetworkReadyFlags) == LinkProgram::kNetworkReadyFlags ? LinkChip::Network
+                    : (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
                     : (packet.payload[2] & LinkProgram::kCassetteReadyFlag) != 0 ? LinkChip::Cassette
+                    : (packet.payload[2] & LinkProgram::kSosReadyFlag) != 0      ? LinkChip::Sos
                                                                                  : LinkChip::Acia;
 
 
@@ -1368,6 +1296,7 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     m_client.hasRomId       = packet.payload.size() >= 9;
     m_client.hasProgramCrc  = packet.payload.size() == 11;
     m_client.programCrc     = m_client.hasProgramCrc ? (Word) (packet.payload[9] | (packet.payload[10] << 8)) : (Word) 0;
+    m_client.isSos          = chip == LinkChip::Sos;
     m_hasClient             = true;
 
     if (m_client.hasRomId)
@@ -1416,7 +1345,7 @@ HRESULT CassoLinkHost::AwaitReady()
     //  as the client's chip doesn't take a byte while it sends. They are
     //  dropped, and the next one, just sent, is waited for. A read's Status
     //  counts, so the Ready right after it is used.
-    if (!current && m_lastPacketMs != 0 && GetTickCount64() - m_lastPacketMs > kStaleReadyMs)
+    if (!current && m_lastPacketMs != 0 && m_stream->GetTickMs() - m_lastPacketMs > kStaleReadyMs)
     {
         hr = DiscardReceived();
         CHR (hr);
@@ -1830,107 +1759,6 @@ HRESULT CassoLinkHost::AssembleProgram()
     }
 
     CHR (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkHost::LoadProgram
-//
-//  Load program and the program's pages, each followed by the shim's bare
-//  ACK or NAK. Sent to a running program instead, Load program alone
-//  returns it to the shim.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassoLinkHost::LoadProgram()
-{
-    HRESULT            hr      = S_OK;
-    std::vector<Byte>  page (kSectorSize, 0);
-    std::vector<Byte>  encoded;
-    Byte               count[1] = {};
-    size_t             pages    = 0;
-    size_t             from     = 0;
-    Byte               reply    = 0;
-    bool               filled   = false;
-    bool               acked    = false;
-    bool               running  = false;
-    CassoLinkPacket    stray;
-
-
-
-    hr = AssembleProgram();
-    CHR (hr);
-
-    pages    = (m_program.size() + kSectorSize - 1) / kSectorSize;
-    count[0] = (Byte) pages;
-
-    hr = SendPacket (CassoLinkCodec::kLoadProgram, count);
-    CHR (hr);
-
-    //  A running program goes back to the shim, whose Ready comes next.
-    BAIL_OUT_IF (m_client.programVersion != 0, S_OK);
-
-    for (size_t i = 0; i < pages; i++)
-    {
-        from = i * kSectorSize;
-
-        std::fill (page.begin(), page.end(), (Byte) 0);
-        std::copy_n (m_program.begin() + (ptrdiff_t) from, std::min (kSectorSize, m_program.size() - from), page.begin());
-
-        encoded.clear();
-
-        hr = CassoLinkCodec::EncodeSectorData ((Byte) i, (Byte) i, page, encoded);
-        CHR (hr);
-
-        acked = false;
-
-        for (int attempt = 0; attempt <= kMaxResends && !acked; attempt++)
-        {
-            hr = Send (encoded);
-            CHR (hr);
-
-            do
-            {
-                hr = Fill (1, m_adtProServer.m_operationTimeoutMs, filled);
-                CHR (hr);
-                CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
-
-                reply = m_adtProServer.m_buffer[0];
-                running = reply == CassoLinkCodec::kStart && i + 1 == pages;
-
-                //  A packet in place of the last page's ACK is the program's
-                //  Ready: the program is running, and its Ready is left for
-                //  the next operation to read. A packet in place of another
-                //  page's, such as a second Ready from the shim, is read whole
-                //  and dropped, so that no byte of it is taken for the reply:
-                //  a Ready's check byte can be an ACK's.
-                if (reply == CassoLinkCodec::kStart && !running)
-                {
-                    hr = ReadPacket (m_adtProServer.m_operationTimeoutMs, stray);
-                    hr = (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)) ? S_OK : hr;
-                    CHR (hr);
-
-                    reply = 0;
-                }
-                else if (!running)
-                {
-                    Consume (1);
-                }
-            }
-            while (!running && reply != CassoLinkCodec::kAck && reply != CassoLinkCodec::kNak);
-
-            acked = running || reply == CassoLinkCodec::kAck;
-        }
-
-        CBREx (acked, HRESULT_FROM_WIN32 (ERROR_RETRY));
-    }
 
 Error:
     return hr;

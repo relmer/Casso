@@ -165,6 +165,7 @@ void CassoLinkConnections::AddBlockDevices (const Link & link, LinkTreeEntry & i
         row.unit          = devices[each].unit;
         row.blocks        = devices[each].blocks;
         row.volume        = devices[each].volume.empty() ? std::wstring() : L"/" + TextEncoding::NarrowToWide (devices[each].volume);
+        row.device        = TextEncoding::NarrowToWide (devices[each].device);
 
         if (catalog != link.requests.end() && catalog->second->state == LinkOperationState::Done)
         {

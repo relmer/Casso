@@ -590,6 +590,7 @@ void FullSendStatus::SetBoot (const std::string & file, const std::string & boot
     m_boots.push_back ({ file, boot, fsCheck });
     m_booted.insert (file);
     m_snapshot.revision++;
+    m_bootArrived.notify_all();
 }
 
 
@@ -609,6 +610,25 @@ bool FullSendStatus::HasBoot (const std::string & file) const
 
 
     return m_booted.contains (file);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::WaitForBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendStatus::WaitForBoot (const std::string & file, DWORD ms) const
+{
+    std::unique_lock  lock (m_lock);
+
+
+
+    return m_bootArrived.wait_for (lock, std::chrono::milliseconds (ms), [this, &file] () { return m_booted.contains (file); });
 }
 
 

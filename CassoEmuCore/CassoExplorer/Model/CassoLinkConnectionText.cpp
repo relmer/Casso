@@ -184,6 +184,13 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
                          : std::format (L"Connecting to {}.\nBoot that Apple from a CassoLink disk saved from {}.", where, name);
                     break;
 
+                case LinkTransport::Udp:
+                    text = settings.IsSearch()
+                         ? std::wstring (L"Each Apple on this PC's network that boots a CassoLink disk on an original Uthernet "
+                                         L"or a LANceGS is listed when its announcement arrives.")
+                         : std::format (L"Connecting to {}.\nBoot that Apple from a CassoLink disk saved from {}.", where, name);
+                    break;
+
                 case LinkTransport::Cassette:
                     text = std::format (L"Waiting for the CassoLink program on {}.\nChoose Send the program from {}'s menu.", name, name);
                     break;

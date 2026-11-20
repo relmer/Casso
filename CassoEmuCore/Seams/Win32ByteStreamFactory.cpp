@@ -1,10 +1,11 @@
 #include "Pch.h"
 
-#include "CassoLink/Audio/CassetteByteStream.h"
+#include "CassoLink/Audio/DualCassetteByteStream.h"
 #include "CassoLink/Audio/WasapiCassetteAudio.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32ComPort.h"
 #include "Seams/Win32TcpStream.h"
+#include "Seams/Win32UdpStream.h"
 
 
 
@@ -162,10 +163,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ByteStreamFactory::OpenUdp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ByteStreamFactory::OpenUdp (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream)
+{
+    HRESULT                          hr     = S_OK;
+    std::unique_ptr<Win32UdpStream>  stream = std::make_unique<Win32UdpStream>();
+
+
+
+    hr = stream->Open (host, port);
+    CHR (hr);
+
+    outStream = std::move (stream);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ByteStreamFactory::OpenCassette
 //
 //  COM is started on the calling thread, the session's, which reads the
-//  stream from then on, and is left started for the thread's life.
+//  stream from then on, and is left started for the thread's life. The
+//  stream serves Casso's program and ADTPro's audio client.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +210,7 @@ HRESULT Win32ByteStreamFactory::OpenCassette (const std::wstring & outputId, con
     hr = audio->Open (outputId, inputId);
     CHR (hr);
 
-    outStream = std::make_unique<CassetteByteStream> (audio);
+    outStream = std::make_unique<DualCassetteByteStream> (audio);
 
 Error:
     return hr;

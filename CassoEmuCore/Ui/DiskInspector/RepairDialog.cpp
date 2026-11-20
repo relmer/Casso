@@ -146,12 +146,33 @@ int RepairDialogBody::GetHeightDip (size_t changes, int introLines)
 
 void RepairDialog::Configure (const IDxuiTheme * theme, const std::wstring & fileName, const DiskAnalysis & analysis, const std::set<std::wstring> & chosen)
 {
-    m_theme    = theme;
-    m_fileName = fileName;
-    m_analysis = &analysis;
-    m_fullPlan = DiskRepair::Plan (analysis, {});
-    m_chosen   = chosen.empty() ? DiskRepair::GetKeys (m_fullPlan) : chosen;
-    m_plan     = DiskRepair::PlanChosen (analysis, {}, m_chosen);
+    RepairPlan  full = DiskRepair::Plan (analysis, {});
+
+
+
+    Configure (theme, FormatIntro (fileName, full), GetIntroLines (full), full,
+               [&analysis] (const std::set<std::wstring> & keys) { return DiskRepair::PlanChosen (analysis, {}, keys); }, chosen.empty() ? DiskRepair::GetKeys (full) : chosen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairDialog::Configure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RepairDialog::Configure (const IDxuiTheme * theme, const std::wstring & intro, int introLines, const RepairPlan & fullPlan, PlanFn planChosen, const std::set<std::wstring> & chosen)
+{
+    m_theme      = theme;
+    m_introText  = intro;
+    m_introLines = introLines;
+    m_fullPlan   = fullPlan;
+    m_planChosen = std::move (planChosen);
+    m_chosen     = chosen;
+    m_plan       = m_planChosen (m_chosen);
 }
 
 
@@ -322,7 +343,7 @@ void RepairDialog::OnCreate()
 
     m_intro.SetTextRole   (DxuiTextRole::Body);
     m_intro.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_intro.SetText       (FormatIntro (m_fileName, m_fullPlan));
+    m_intro.SetText       (m_introText);
     m_status.SetTextRole  (DxuiTextRole::Error);
     m_status.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -341,7 +362,7 @@ void RepairDialog::OnCreate()
     }
 
     body = CreateDialogContent<RepairDialogBody>();
-    body->Init (m_intro, m_checks, m_repairs, m_status, GetIntroLines (m_fullPlan));
+    body->Init (m_intro, m_checks, m_repairs, m_status, m_introLines);
 
     m_repair = AddDialogButton (L"Repair", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
@@ -363,9 +384,9 @@ void RepairDialog::OnCreate()
 
 void RepairDialog::Replan()
 {
-    if (m_analysis != nullptr)
+    if (m_planChosen)
     {
-        m_plan = DiskRepair::PlanChosen (*m_analysis, {}, m_chosen);
+        m_plan = m_planChosen (m_chosen);
     }
 
     m_status.SetText (FormatStatus (m_plan));
@@ -376,6 +397,43 @@ void RepairDialog::Replan()
     }
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairDialog::ShowModal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RepairDialog::ShowModal (HWND owner, const IDxuiTheme * theme)
+{
+    HRESULT                   hr     = S_OK;
+    DxuiWindow::CreateParams  params;
+
+
+
+    params.title                    = L"Repair disk image";
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = owner;
+    params.initialSizeDip           = SIZE { kWidthDip, kChromeDip + RepairDialogBody::GetHeightDip (m_fullPlan.changes.size(), m_introLines) };
+    params.minSizeDip               = params.initialSizeDip;
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = Create (params);
+    CHRA (hr);
+
+    SetTheme (theme);
+    ShowModalDialog (IDOK);
+
+Error:
+    return hr;
 }
 
 
@@ -398,13 +456,12 @@ HRESULT RepairDialog::Run (
     RepairPlan                    & outPlan,
     std::wstring                  & outNote)
 {
-    HRESULT                   hr       = S_OK;
-    DiskAnalysis              analysis;
-    RepairDialog              dialog;
-    DxuiWindow::CreateParams  params;
-    std::wstring              name     = fs::path (TextEncoding::Utf8ToWide (imagePath)).filename().wstring();
-    std::wstring              reason;
-    bool                      canWrite = false;
+    HRESULT       hr       = S_OK;
+    DiskAnalysis  analysis;
+    RepairDialog  dialog;
+    std::wstring  name     = fs::path (TextEncoding::Utf8ToWide (imagePath)).filename().wstring();
+    std::wstring  reason;
+    bool          canWrite = false;
 
 
 
@@ -419,21 +476,8 @@ HRESULT RepairDialog::Run (
     canWrite = dialog.GetFullPlan().canRepair;
     CBRF (canWrite, outNote = L"Repair isn't available. " + dialog.GetFullPlan().reason);
 
-    params.title                    = L"Repair disk image";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = owner;
-    params.initialSizeDip           = GetSizeDip (dialog.GetFullPlan());
-    params.minSizeDip               = params.initialSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
+    hr = dialog.ShowModal (owner, theme);
     CHRA (hr);
-
-    dialog.SetTheme (theme);
-    dialog.ShowModalDialog (IDOK);
 
     canWrite = dialog.IsConfirmed();
     BAIL_OUT_IF (!canWrite, S_OK);

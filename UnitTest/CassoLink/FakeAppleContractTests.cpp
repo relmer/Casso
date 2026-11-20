@@ -160,7 +160,7 @@ public:
 
 
 
-        InProcessByteStream::CreatePair (appleEnd, pcEnd);
+        InProcessByteStream::CreateVirtualPair (appleEnd, pcEnd);
         apple.drives[0]   = disk;
         apple.drives[1]   = disk;
         apple.startAsShim = true;

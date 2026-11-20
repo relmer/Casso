@@ -91,7 +91,7 @@ public:
                     return true;
                 }
 
-                std::this_thread::sleep_for (std::chrono::milliseconds (10));
+                std::this_thread::yield();
             }
 
             return false;
@@ -272,7 +272,7 @@ public:
         do
         {
             entries = rig.links->BuildTreeEntries();
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
         while (!entries[0].replying && std::chrono::steady_clock::now() < until);
 
@@ -286,7 +286,7 @@ public:
         do
         {
             entries = rig.links->BuildTreeEntries();
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
         while (entries[0].drives.size() < 2 && std::chrono::steady_clock::now() < until);
 
@@ -314,9 +314,17 @@ public:
 
         do
         {
-            rig.links->ProbeDrives();
             entries = rig.links->BuildTreeEntries();
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
+        }
+        while (!entries[0].replying && std::chrono::steady_clock::now() < until);
+
+        rig.links->ProbeDrives();
+
+        do
+        {
+            entries = rig.links->BuildTreeEntries();
+            std::this_thread::yield();
         }
         while ((entries[0].drives.size() < 3 || entries[0].drives.back().volume.empty()) && std::chrono::steady_clock::now() < until);
 
@@ -328,6 +336,24 @@ public:
         Assert::AreEqual (7, device.slot);
         Assert::AreEqual (CassoLinkBlockDevices::kFirstDrive, device.drive);
         Assert::AreEqual (std::wstring (L"Slot 7, Unit 1, 800K (/BIGDISK)"), TreeModel::GetLinkDriveLabel (device));
+    }
+
+
+
+
+    //  An Apple ///'s device is labeled with its SOS name, not its SOS
+    //  device number.
+    TEST_METHOD (AnAppleIIIsDevice_IsLabeledWithItsSosName)
+    {
+        LinkTreeEntry::Drive  device;
+
+        device.isBlockDevice = true;
+        device.slot          = 1;
+        device.blocks        = 280;
+        device.device        = L".D1";
+        device.volume        = L"/UTILITIES";
+
+        Assert::AreEqual (std::wstring (L".D1, 140K (/UTILITIES)"), TreeModel::GetLinkDriveLabel (device));
     }
 
 
@@ -424,14 +450,14 @@ public:
 
     TEST_METHOD (AnAdtProServer_ServesAdtProsClient_AndNoOtherConnectionDoes)
     {
-        Rig                         rig;
-        CassoLinkSettings           ordinary = rig.links->GetLinks()[0];
-        CassoLinkSettings           server;
-        std::vector<Byte>           wire;
-        std::vector<LinkTreeEntry>  entries;
-        auto                        until    = std::chrono::steady_clock::now() + std::chrono::seconds (10);
-        bool                        logged   = false;
-        int                         opened   = 0;
+        Rig                                   rig;
+        CassoLinkSettings                     ordinary = rig.links->GetLinks()[0];
+        CassoLinkSettings                     server;
+        std::vector<Byte>                     wire;
+        std::vector<LinkTreeEntry>            entries;
+        auto                                  until    = std::chrono::steady_clock::now() + std::chrono::seconds (10);
+        bool                                  logged   = false;
+        std::shared_ptr<InProcessByteStream>  ended;
 
         server.transport = LinkTransport::AdtProServer;
         server.address   = "127.0.0.1:6502";
@@ -445,11 +471,16 @@ public:
 
         while (rig.factory.GetUnansweredEnd() == nullptr && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
+        //  The session has read the whole request.
         rig.factory.GetUnansweredEnd()->Write (wire.data(), wire.size());
-        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+
+        while (!rig.factory.GetUnansweredEnd()->IsFarDrained() && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::yield();
+        }
 
         for (const CassoLinkConnections::Activity & activity : rig.links->GetActivity())
         {
@@ -458,12 +489,13 @@ public:
 
         rig.links->Stop ("Test");
         rig.links->SetLinks ({ ordinary, server });
-        opened = rig.factory.connections.load();
+        ended = rig.factory.GetUnansweredEnd();
         AssertSucceeded (rig.links->Start (server.name));
 
-        while (rig.factory.connections.load() == opened && std::chrono::steady_clock::now() < until)
+        //  The server's line, once it opens. The stopped link doesn't open another.
+        while (rig.factory.GetUnansweredEnd() == ended && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
         rig.factory.GetUnansweredEnd()->Write (wire.data(), wire.size());
@@ -475,7 +507,7 @@ public:
                 logged = logged || (activity.connection == TextEncoding::NarrowToWide (server.name) && activity.text.starts_with (L"ADTPro: listed the folder"));
             }
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
         Assert::IsTrue (logged, L"the server's request is in the activity log");
@@ -496,7 +528,7 @@ public:
 
         while (rig.links->GetActivity().empty() && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
         Assert::IsFalse (rig.links->GetActivity().empty());
@@ -988,7 +1020,7 @@ public:
 
         while (volumeOf() != L"DOS 3.3 volume 200" && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
         Assert::AreEqual (std::wstring (L"DOS 3.3 volume 200"), volumeOf());
@@ -998,7 +1030,7 @@ public:
         while (entries[0].replying && std::chrono::steady_clock::now() < until)
         {
             volumeOf();
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
         Assert::IsFalse (entries[0].replying, L"the line is lost");
@@ -1008,7 +1040,7 @@ public:
 
         while (volumeOf() != L"DOS 3.3 volume 201" && std::chrono::steady_clock::now() < until)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            std::this_thread::yield();
         }
 
         Assert::AreEqual (std::wstring (L"DOS 3.3 volume 201"), volumeOf(), L"the drive read again once connected again");

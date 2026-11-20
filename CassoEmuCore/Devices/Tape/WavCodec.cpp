@@ -110,6 +110,10 @@ void WavCodec::Encode (const TapeAudio & audio, std::vector<Byte> & bytes)
     uint32_t            bits           = isEightBit ? kBits8 : kWrittenBitsPerSample;
     uint32_t            bytesPerSample = bits / kBits8;
     uint32_t            dataSize       = (uint32_t) (audio.samples.size() * bytesPerSample);
+    size_t              header         = 0;
+    const float       * in             = audio.samples.data();
+    const float       * inEnd          = in + audio.samples.size();
+    Byte              * out            = nullptr;
 
 
 
@@ -130,19 +134,25 @@ void WavCodec::Encode (const TapeAudio & audio, std::vector<Byte> & bytes)
     WriteTag      (bytes, "data");
     WriteLittle32 (bytes, dataSize);
 
-    // 8-bit WAV samples are unsigned, centered on 128.
-    for (float sample : audio.samples)
+    //  8-bit WAV samples are unsigned, centered on 128. The samples are
+    //  written through pointers: a checked subscript or push_back per sample
+    //  costs most of a Debug build's time here.
+    header = bytes.size();
+    bytes.resize (header + dataSize);
+    out = bytes.data() + header;
+
+    for (; in < inEnd; in++)
     {
         if (isEightBit)
         {
-            bytes.push_back ((Byte) clamp (round ((double) sample * kFullScale8) + kCenter8, 0.0, kMaxUnsigned8));
+            *out++ = (Byte) clamp (round ((double) *in * kFullScale8) + kCenter8, 0.0, kMaxUnsigned8);
         }
         else
         {
-            double  scaled = round ((double) sample * kFullScale16);
+            Word  word = (Word) (int16_t) clamp (round ((double) *in * kFullScale16), -kFullScale16, kMaxPositive);
 
-            scaled = clamp (scaled, -kFullScale16, kMaxPositive);
-            WriteLittle16 (bytes, (Word) (int16_t) scaled);
+            *out++ = (Byte) (word & 0xFF);
+            *out++ = (Byte) (word >> 8);
         }
     }
 }
@@ -246,12 +256,17 @@ void WavCodec::ReadSamples (std::span<const Byte> data, const Format & format, T
     size_t              frames         = data.size() / format.blockAlign;
     size_t              count          = frames * format.channels;
     std::vector<float>  interleaved (count);
+    const Byte        * in             = data.data();
+    float             * out            = interleaved.data();
+    float             * outEnd         = out + count;
 
 
 
-    for (size_t i = 0; i < count; i++)
+    //  A pointer walk: a checked subscript per byte costs most of a Debug
+    //  build's time here.
+    for (; out < outEnd; out++, in += bytesPerSample)
     {
-        interleaved[i] = ReadSample (data, i * bytesPerSample, format);
+        *out = ReadSample (in, format);
     }
 
     TapeChannelMixer::MixToMono (interleaved, format.channels, audio.samples);
@@ -271,7 +286,7 @@ void WavCodec::ReadSamples (std::span<const Byte> data, const Format & format, T
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float WavCodec::ReadSample (std::span<const Byte> data, size_t at, const Format & format)
+float WavCodec::ReadSample (const Byte * at, const Format & format)
 {
     constexpr double  kScale8       = 128.0;
     constexpr double  kScale24      = 8388608.0;
@@ -287,28 +302,28 @@ float WavCodec::ReadSample (std::span<const Byte> data, size_t at, const Format 
     {
         if (format.bitsPerSample == kBits32)
         {
-            memcpy (&floatSample, data.data() + at, sizeof (floatSample));
+            memcpy (&floatSample, at, sizeof (floatSample));
             return floatSample;
         }
 
-        memcpy (&doubleSample, data.data() + at, sizeof (doubleSample));
+        memcpy (&doubleSample, at, sizeof (doubleSample));
         return (float) doubleSample;
     }
 
     switch (format.bitsPerSample)
     {
     case kBits8:
-        return (float) (((double) data[at] - kScale8) / kScale8);
+        return (float) (((double) at[0] - kScale8) / kScale8);
 
     case kBits16:
-        return (float) ((double) (int16_t) ReadLittle16 (data, at) / kFullScale16);
+        return (float) ((double) (int16_t) (at[0] | at[1] << 8) / kFullScale16);
 
     case kBits24:
-        packed = (int32_t) ((uint32_t) data[at] << kSignShift24 | (uint32_t) data[at + 1] << (kSignShift24 * 2) | (uint32_t) data[at + 2] << (kSignShift24 * 3));
+        packed = (int32_t) ((uint32_t) at[0] << kSignShift24 | (uint32_t) at[1] << (kSignShift24 * 2) | (uint32_t) at[2] << (kSignShift24 * 3));
         return (float) ((double) (packed >> kSignShift24) / kScale24);
 
     default:
-        return (float) ((double) (int32_t) ReadLittle32 (data, at) / kScale32);
+        return (float) ((double) (int32_t) ((uint32_t) at[0] | (uint32_t) at[1] << 8 | (uint32_t) at[2] << 16 | (uint32_t) at[3] << 24) / kScale32);
     }
 }
 

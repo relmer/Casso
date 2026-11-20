@@ -420,7 +420,7 @@ namespace SuperSerialCardMachineTestNs
                     std::shared_ptr<InProcessByteStream>  machineEnd;
                     std::shared_ptr<InProcessByteStream>  pcEnd;
 
-                    InProcessByteStream::CreatePair (machineEnd, pcEnd);
+                    InProcessByteStream::CreateVirtualPair (machineEnd, pcEnd);
                     ends.push_back (pcEnd);
                     port      = tcpPort;
                     outStream = std::make_unique<Handle> (machineEnd);

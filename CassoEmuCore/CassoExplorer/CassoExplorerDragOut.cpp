@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
+#include "CassoExplorer/Model/BasicListingOutput.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
@@ -917,13 +918,19 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                    {}, browser.GetLocation().innerPath,
                                    [&browser, image, kind = browser.GetVolumeKind()] (const std::string & catalogPath, const FileEntry & entry)
                                    {
-                                       return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind);
+                                       return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind,
+                                                                       browser.GetDecodeOptions (browser.GetLocation().path, catalogPath));
                                    },
                                    raw);
 
-        for (const DragPayload::Descriptor & descriptor : plan.descriptors)
+        for (DragPayload::Descriptor & descriptor : plan.descriptors)
         {
             options->push_back (browser.GetDecodeOptions (browser.GetLocation().path, descriptor.catalogPath));
+
+            if (descriptor.converted)
+            {
+                BasicListingOutput::RenameForOptions (descriptor.relativePath, options->back());
+            }
         }
 
         descriptors = std::make_shared<std::vector<DragPayload::Descriptor>> (plan.descriptors);
@@ -1030,7 +1037,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                        {}, matches[first].directory,
                                        [&browser, from, kind = matches[first].kind] (const std::string & catalogPath, const FileEntry & entry)
                                        {
-                                           return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind);
+                                           return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind,
+                                                                           browser.GetDecodeOptions (TextEncoding::NarrowToWide (from), catalogPath));
                                        },
                                        raw);
 

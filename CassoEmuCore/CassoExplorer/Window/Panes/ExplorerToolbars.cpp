@@ -546,7 +546,7 @@ void ExplorerToolbars::UpdateCommandBar()
     }
     else if (!m_context.browser.GetExtractTarget().empty())
     {
-        extra = Extra::Archive;
+        extra = m_context.actions.CanInspect() ? Extra::ArchiveImage : Extra::Archive;
     }
     else if (m_context.actions.CanCompare())
     {

@@ -64,7 +64,9 @@ struct CassoLinkStatus
 //  A ProDOS block device or SmartPort unit, as the block module lists it:
 //  its slot; its unit, a SmartPort unit's number or a ProDOS drive, 1 or 2;
 //  its blocks; its kind, a SmartPort unit's type or kNoKind; and its volume
-//  name, empty when block 2 isn't a ProDOS volume header.
+//  name, empty when block 2 isn't a ProDOS volume header. On an Apple ///,
+//  the slot is the SOS device's number, the unit SOS's unit, and the device
+//  its name, as .D1.
 struct CassoLinkBlockDevice
 {
     static constexpr Byte  kNoKind = 0xFF;
@@ -75,6 +77,7 @@ struct CassoLinkBlockDevice
     uint32_t      blocks      = 0;
     Byte          kind        = kNoKind;
     std::string   volume;
+    std::string   device;
 };
 
 
@@ -499,7 +502,7 @@ private:
     static bool  IsKeyReport  (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
     void         NoteKey      (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
     static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11; }
-    static bool  IsBlank      (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
+    static bool  IsBlank      (std::span<const Byte> sector) { return !sector.empty() && std::all_of (sector.begin(), sector.end(), [&sector] (Byte b) { return b == sector[0]; }); }
 
     //  An operation sent again while its request is lost or a reply arrives
     //  damaged, up to kMaxResends times. The next attempt's AwaitReady skips
@@ -530,11 +533,23 @@ private:
         return hr;
     }
 
+    //  A card run through its Pascal firmware has each byte as two
+    //  characters, kTextHigh plus its high nibble and then kTextLow plus its
+    //  low nibble, with bit 7 ignored (Shim.s). The host takes that form
+    //  when a Ready arrives in it, a $C1 as $4C and then $61.
+    static constexpr Byte  kTextHigh = 0x40;
+    static constexpr Byte  kTextLow  = 0x60;
+
+    void     TakeReceived      (std::span<const Byte> bytes);
+
     HRESULT  ReadStatus        (const CassoLinkPacket & packet, CassoLinkStatus & outStatus);
     void     MakeBlockRequest  (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outRequest) const;
     HRESULT  SendBlock         (uint32_t block, std::span<const Byte> data);
     HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
     HRESULT  LoadProgram       ();
+    HRESULT  LoadImage         (const std::vector<Byte> & image, bool restartOnReady = false);
+    HRESULT  LoadImageOnce     (const std::vector<Byte> & image, bool restartOnReady, bool & outRestart);
+    HRESULT  AwaitQuietReady   ();
     HRESULT  SendSectors       (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer = {});
 
@@ -555,7 +570,7 @@ private:
     bool                            m_fullSendRequest = false;
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
-    std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
+    std::atomic<uint64_t>           m_lastHeardMs     { 0 };
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
@@ -569,6 +584,8 @@ private:
     LinkByteFault                   m_pcFault;
     std::optional<LinkFault>        m_appleFault;
     int                             m_requests        = 0;   // requests sent since the Apple's fault was armed
+    bool                            m_textForm        = false;   // each byte as two characters
+    int                             m_textNibble      = -1;      // the high nibble received, or -1
 
     //  The host's parts, each with the state it uses.
     friend class           CassoLinkAdtProServer;
