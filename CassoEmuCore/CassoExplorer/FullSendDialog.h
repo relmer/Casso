@@ -249,7 +249,7 @@ public:
     //  The actions on a disk's row: a double-click selects its image in the
     //  folder, and its menu has Open, Inspect disk image, Disk properties and
     //  Repair disk image.
-    enum class DiskAction { Select, Open, Inspect, Properties, Repair };
+    enum class DiskAction { Select, Open, Inspect, Properties, Repair, Report };
 
     using DiskActionFn = std::function<void (const std::string & file, DiskAction action)>;
     using MovedFn      = std::function<void (POINT topLeftPx)>;

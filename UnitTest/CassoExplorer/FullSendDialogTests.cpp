@@ -533,8 +533,9 @@ public:
 
 
 
-        Assert::AreEqual ((size_t) 3, woz.size());
-        Assert::AreEqual ((size_t) 2, dsk.size(), L"Disk properties is for a WOZ image");
+        Assert::AreEqual ((size_t) 4, woz.size());
+        Assert::AreEqual ((size_t) 3, dsk.size(), L"Disk properties is for a WOZ image");
+        Assert::AreEqual (std::wstring (L"Report a &problem..."), woz.back().command->label);
         Assert::AreEqual ((size_t) 1, activity.size());
         Assert::AreEqual (std::wstring (L"&Copy"), activity[0].command->label);
 

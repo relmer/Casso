@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
+#include "CassoExplorer/Window/Managers/DiskReportSender.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
@@ -9,6 +10,8 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Model/CassoLinkLogFile.h"
+#include "Core/PathResolver.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
@@ -481,6 +484,7 @@ void FullSendWindowManager::RunFullSendDisk (const std::string & file, FullSendD
         case FullSendDialog::DiskAction::Inspect:    m_context.opener.InspectSelected();                                                             break;
         case FullSendDialog::DiskAction::Properties: m_context.properties.ShowWozProperties ((std::filesystem::path (folder) / name).wstring(), WozPropertiesDialog::kInfoTab); break;
         case FullSendDialog::DiskAction::Repair:     m_context.commandManager.RepairDiskImage ((std::filesystem::path (folder) / name).wstring());                    break;
+        case FullSendDialog::DiskAction::Report:     ReportDisk (std::filesystem::path (folder) / name);                                                          break;
         default:                                                                                                                                     break;
     }
 }
@@ -560,4 +564,27 @@ void FullSendWindowManager::EndFullSend (const std::wstring & connection)
     {
         PostMessageW (found->second->GetHwnd(), WM_CLOSE, 0, 0);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendWindowManager::ReportDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendWindowManager::ReportDisk (const std::filesystem::path & image)
+{
+    DiskReportSender::Sources  sources;
+
+
+
+    sources.links    = m_context.app.links;
+    sources.pictures = m_context.app.pictures;
+    sources.logFile  = PathResolver::GetLocalAppDataDir (L"Casso") / L"Logs" / CassoLinkLogFile::kFileName;
+
+    DiskReportSender::Report (m_context.window.GetHwnd(), m_context.theme, image, sources);
 }

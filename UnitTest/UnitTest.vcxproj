@@ -465,6 +465,7 @@
     <ClCompile Include="CassoLink\CassoLinkCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTests.cpp" />
     <ClCompile Include="CassoLink\ByteStreamSettingsTests.cpp" />
+    <ClCompile Include="CassoLink\DiskProblemReportTests.cpp" />
     <ClCompile Include="CassoLink\LinkProgramTests.cpp" />
     <ClCompile Include="CassoLink\ShimSccTests.cpp" />
     <ClCompile Include="CassoLink\UniversalSccTests.cpp" />

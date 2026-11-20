@@ -280,6 +280,8 @@
     <ClCompile Include="CassoLink\CassoLinkProDosDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSosDisk.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
+    <ClCompile Include="CassoLink\FullSend\DiskProblemReport.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\DiskReportSender.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkConnector.cpp" />
@@ -1959,6 +1961,8 @@
     <ClInclude Include="CassoLink\CassoLinkSosDisk.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />
+    <ClInclude Include="CassoLink\FullSend\DiskProblemReport.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\DiskReportSender.h" />
     <ClInclude Include="CassoLink\LinkedDisk.h" />
     <ClInclude Include="CassoLink\CassoLinkSession.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkConnector.h" />

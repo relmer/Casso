@@ -1643,8 +1643,8 @@ void FullSendDialog::AddCommand (std::vector<DxuiPopupMenuItem> & items, const w
 //  A disk's row has Open, Inspect disk image and, for a WOZ image, Disk
 //  properties, as the image's menu in the folder has them, then Repair disk
 //  image when the file system is bad or suspect and the inspector can
-//  repair it. The activity list has Copy, which copies every line of the
-//  session.
+//  repair it, and Report a problem last. The activity list has Copy, which
+//  copies every line of the session.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1684,6 +1684,8 @@ std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & fil
     {
         AddCommand (items, L"&Repair disk image...", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Repair); } });
     }
+
+    AddCommand (items, L"Report a &problem...", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Report); } });
 
     return items;
 }
