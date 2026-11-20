@@ -309,8 +309,10 @@ void FullSendDriveCheck::ReportRepeat (int drive, const FullSendCheckedDisk & di
 //  A new disk that is formatted and has no files isn't sent: its drive's
 //  number on the Apple sends it, as it sends a repeat. A DOS 3.3 disk whose
 //  one file is a short BASIC program has that program's track read first, as
-//  a program with no lines is what INIT writes after NEW. A blank is counted
-//  once while it stays in its drive.
+//  a program with no lines is what INIT writes after NEW. A disk that passes
+//  is called blank only when it isn't write-protected and each of
+//  FullSendDisk::kBlankProbeTracks reads whole and all zero, as a formatter
+//  leaves it. A blank is counted once while it stays in its drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,6 +323,7 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
     int            track   = FullSendDisk::FindLoneProgramTrack (ioDisk.image);
     bool           hasDisk = true;
     bool           whole   = false;
+    bool           isBlank = false;
     std::string    system;
 
 
@@ -337,6 +340,12 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
     }
 
     if (hasDisk && FullSendDisk::IsBlank (ioDisk.image, ioDisk.wholeTracks, system))
+    {
+        hr = ProbeBlank (drive, ioDisk, isBlank);
+        CHR (hr);
+    }
+
+    if (isBlank)
     {
         ioDisk.check  = FullSendDiskCheck::Blank;
         ioDisk.system = system;
@@ -356,6 +365,55 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
     else
     {
         record.blankDisk.clear();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDriveCheck::ProbeBlank
+//
+//  Whether a disk whose directory is empty is blank past it too: not
+//  write-protected, and each probe track read whole and all zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendDriveCheck::ProbeBlank (int drive, FullSendCheckedDisk & ioDisk, bool & outBlank)
+{
+    HRESULT  hr      = S_OK;
+    bool     hasDisk = true;
+    bool     whole   = false;
+
+
+
+    outBlank = !m_context.link.IsWriteProtected (drive);
+
+    for (int track : FullSendDisk::kBlankProbeTracks)
+    {
+        if (!outBlank)
+        {
+            break;
+        }
+
+        if (!ioDisk.IsReadWhole (track))
+        {
+            hr = m_context.link.ReadTrack (drive, track, ioDisk.image, hasDisk, whole);
+            CHR (hr);
+
+            if (hasDisk && whole)
+            {
+                ioDisk.wholeTracks.push_back (track);
+            }
+        }
+
+        outBlank = ioDisk.IsReadWhole (track) && FullSendDisk::IsTrackZero (ioDisk.image, track);
     }
 
 Error:

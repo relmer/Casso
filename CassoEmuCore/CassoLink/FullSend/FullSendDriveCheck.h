@@ -83,6 +83,7 @@ private:
     void                 CountRepeat     (int drive, const FullSendCheckedDisk & disk, bool swapped);
     void                 ReportRepeat    (int drive, const FullSendCheckedDisk & disk);
     HRESULT              CheckBlank      (int drive, FullSendCheckedDisk & ioDisk);
+    HRESULT              ProbeBlank      (int drive, FullSendCheckedDisk & ioDisk, bool & outBlank);
     HRESULT              ShowResult      (int drive, const FullSendCheckedDisk & disk);
     DriveRecord        & GetRecord       (int drive)       { return m_drives[(size_t) drive - 1]; }
     const DriveRecord  & GetRecord       (int drive) const { return m_drives[(size_t) drive - 1]; }

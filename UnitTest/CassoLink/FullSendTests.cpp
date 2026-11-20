@@ -626,6 +626,37 @@ public:
         Assert::AreEqual (0, snapshot.totals.sent);
     }
 
+    //  A disk whose directory is empty isn't blank when it's write-protected,
+    //  or when a probe track away from the directory has data, as an Infocom
+    //  disk's track 0 passed for an empty Pascal directory. Each is sent.
+    TEST_METHOD (Session_AnEmptyDirectory_WithDataPastIt_OrWriteProtected_IsSent)
+    {
+        for (bool isProtected : { false, true })
+        {
+            Rig  rig;
+
+            rig.link.drives[0]  = BlankDos();
+            rig.link.present[1] = false;
+
+            if (isProtected)
+            {
+                rig.link.writeProtected[0] = true;
+            }
+            else
+            {
+                size_t  at = (size_t) FullSendDisk::kBlankProbeTracks[1] * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+
+                rig.link.drives[0][at + 7] = 0x4C;
+            }
+
+            auto  session = rig.Run();
+
+            Assert::IsTrue (session->GetScreen().drives[0] != FullSendDriveState::Blank, isProtected ? L"Write-protected" : L"Data on a probe track");
+            Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size(), L"The disk is sent");
+            Assert::AreEqual (0, rig.status.GetSnapshot().totals.blanks);
+        }
+    }
+
     //  A raw capture's reads, when the link returns them, are written beside
     //  the image with .reads added to its file.
     TEST_METHOD (Session_ARawCapturesReads_AreWrittenBesideItsImage)
