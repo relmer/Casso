@@ -4,6 +4,7 @@
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/DiskCommandText.h"
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Partitions/CardVolumeEdit.h"
@@ -68,7 +69,7 @@ CommandLineOptions DiskOperations::MakeOptions (Command command, const std::stri
 
 std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
 {
-    std::string  damage = DiskCommandRunner::DescribeDamage (hr, kind);
+    std::string  damage = DiskCommandText::DescribeDamage (hr, kind);
 
 
 
