@@ -33,7 +33,8 @@ TEST_CLASS (InspectorTipTests)
 {
 public:
 
-    static constexpr double  kOneCell = 1e-6;
+    static constexpr double  kOneCell      = 1e-6;
+    static constexpr int     kEmptyRing    = DiskImage::kQuarterTrackCount - 1;   // empty on a .dsk, beyond the head's reach
 
 
 
@@ -154,8 +155,33 @@ public:
         tip = InspectorTip::BuildPlatterTip (context, 68, turn, kOneCell, true);
         Assert::IsTrue (tip.GetText().find (L"\nNibble $96 at offset $") != std::wstring::npos, tip.GetText().c_str());
 
-        tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
+        analysis.entries[kEmptyRing].isBeyondHeadReach = false;   // an empty ring within reach
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
         Assert::IsTrue (tip.GetText().ends_with (L"\nNothing recorded\nThe drive reads random bits here"), tip.GetText().c_str());
+    }
+
+
+
+    //  An empty ring beyond the head's reach has no random bits to read: its
+    //  tip has the track where the head stops, and its swatch
+    //  is the dimmed empty color the platter draws there.
+    TEST_METHOD (AnEmptyRingBeyondTheHeadsReach_IsMarkedAsBeyondIt)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewContext   context;
+        InspectorTip           tip;
+        uint32_t               dim = 0;
+
+
+
+        analysis = GetDsk();
+        context.analysis = &analysis;
+        dim = context.palette.colors.beyondReach;
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
+
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nBeyond the head's reach\nA Disk II's head stops at track 34.75"), tip.GetText().c_str());
+        Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
+        Assert::AreEqual (DxuiColor::Mix (context.palette.colors.nothingRecorded, dim | 0xFF000000u, static_cast<float> (dim >> 24) / 255.0f), tip.GetSwatches()[0].argb);
     }
 
 
@@ -215,7 +241,8 @@ public:
         Assert::AreEqual (std::wstring (L"Data field"), GetLine (tip.GetText(), tip.GetSwatches()[0].line));
         Assert::AreEqual (context.palette.GetKindColor (PlatterKind::DataField), tip.GetSwatches()[0].argb);
 
-        tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
+        analysis.entries[kEmptyRing].isBeyondHeadReach = false;   // an empty ring within reach
+        tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
         Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
         Assert::AreEqual (std::wstring (L"Nothing recorded"), GetLine (tip.GetText(), tip.GetSwatches()[0].line));
         Assert::AreEqual (context.palette.colors.nothingRecorded, tip.GetSwatches()[0].argb);
