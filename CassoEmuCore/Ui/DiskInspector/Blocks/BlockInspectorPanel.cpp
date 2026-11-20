@@ -1240,21 +1240,17 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_nav.GetSearch().SetDpi (scaler.GetDpi());
     m_nav.GetSearch().Layout ({ boundsPx.right - 2 * pad - tools - search, barTop, boundsPx.right - 2 * pad - tools, barTop + row }, scaler);
 
-    m_treeShare      = std::clamp (m_treeShare, kMinTree, kMaxTree);
-    m_split          = std::clamp (m_split, std::max (kMinSplit, m_treeShare + kMinTree * 2), kMaxSplit);
-    treeX            = boundsPx.left + (int) (width * m_treeShare);
-    mapX             = boundsPx.left + (int) (width * m_split);
-    m_treeSplitterPx = { treeX, top, treeX + splitter, boundsPx.bottom };
-    m_splitterPx     = { mapX, top, mapX + splitter, boundsPx.bottom };
+    treeX = m_splitters.PlaceColumns (boundsPx, mapX);
+
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::Tree, { treeX, top, treeX + splitter, boundsPx.bottom });
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::Map,  { mapX, top, mapX + splitter, boundsPx.bottom });
 
     m_nav.GetTree().SetDpi (scaler.GetDpi());
     m_nav.GetTree().Layout ({ boundsPx.left + pad, top + pad, treeX, boundsPx.bottom - pad }, scaler);
     m_nav.GetList().SetDpi (scaler.GetDpi());
 
-    m_listShare = std::clamp (m_listShare, kMinList, kMaxList);
-
-    LayoutMiddle ({ m_treeSplitterPx.right + pad, top + pad, mapX - pad, boundsPx.bottom - pad }, scaler);
-    LayoutGrid   ({ m_splitterPx.right + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
+    LayoutMiddle ({ treeX + splitter + pad, top + pad, mapX - pad, boundsPx.bottom - pad }, scaler);
+    LayoutGrid   ({ mapX + splitter + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
 }
 
 
@@ -1334,7 +1330,7 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     int   line     = scaler.ToPx ((int) kLineDip);
     int   button   = scaler.ToPx ((int) kButtonDip);
     int   splitter = scaler.ToPx ((int) kSplitterDip);
-    int   listEnd  = column.top + (int) ((column.bottom - column.top) * m_listShare);
+    int   listEnd  = m_splitters.PlaceListEnd (column);
     int   y        = 0;
     int   hexEnd   = 0;
     int   barH     = m_isLongJob ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
@@ -1347,8 +1343,8 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_nav.GetList().SetVisible (true);
     m_nav.GetList().Layout ({ column.left, column.top, column.right, listEnd }, scaler);
 
-    m_listSplitterPx = { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter };
-    y                = m_listSplitterPx.bottom + pad / 2;
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::List, { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter });
+    y = listEnd + pad / 2 + splitter + pad / 2;
 
     for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy, (IDxuiControl *) m_hex, (IDxuiControl *) m_fields })
     {
@@ -1372,10 +1368,9 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_cancel->Layout  ({ column.right - button, y, column.right, y + row }, scaler);
     y = m_rowRect.bottom + (isRow ? pad : 0);
 
-    m_hexShare = std::clamp (m_hexShare, kMinHex, kMaxHex);
-    hexEnd     = (int) column.left + (int) ((column.right - column.left) * m_hexShare);
+    hexEnd = m_splitters.PlaceHexEnd (column);
 
-    m_hexSplitterPx = { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) };
+    m_splitters.SetBarRect (BlockPanelSplitters::Bar::Hex, { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) });
 
     m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
     m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
@@ -1454,7 +1449,7 @@ void BlockInspectorPanel::FitFields()
     hexMin = m_hex->GetContentWidthPx() > 0 ? m_hex->GetContentWidthPx() + m_scaler.ToPx ((int) kHexScrollDip) : 0;
     m_hex->SetBytesPerRow (bytes);
 
-    m_hexShare = std::clamp ((float) (width - pad - m_fields->MeasureWidthPx (*m_text)) / (float) width, std::max (kMinHex, (float) hexMin / (float) width), kMaxHex);
+    m_splitters.FitHex ((float) (width - pad - m_fields->MeasureWidthPx (*m_text)) / (float) width, (float) hexMin / (float) width);
     Layout (GetBounds(), m_scaler);
 }
 
@@ -1576,14 +1571,7 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
 
 void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    painter.FillRect ((float) m_splitterPx.left, (float) m_splitterPx.top, (float) (m_splitterPx.right - m_splitterPx.left), (float) (m_splitterPx.bottom - m_splitterPx.top),
-                      m_isSplitting ? theme.Accent() : theme.Divider());
-    painter.FillRect ((float) m_treeSplitterPx.left, (float) m_treeSplitterPx.top, (float) (m_treeSplitterPx.right - m_treeSplitterPx.left),
-                      (float) (m_treeSplitterPx.bottom - m_treeSplitterPx.top), m_isTreeSplitting ? theme.Accent() : theme.Divider());
-    painter.FillRect ((float) m_listSplitterPx.left, (float) (m_listSplitterPx.top + m_listSplitterPx.bottom) / 2.0f, (float) (m_listSplitterPx.right - m_listSplitterPx.left),
-                      1.0f, m_isListSplitting ? theme.Accent() : theme.Divider());
-    painter.FillRect ((float) (m_hexSplitterPx.left + m_hexSplitterPx.right) / 2.0f, (float) m_hexSplitterPx.top, 1.0f, (float) (m_hexSplitterPx.bottom - m_hexSplitterPx.top),
-                      m_isHexSplitting ? theme.Accent() : theme.Divider());
+    m_splitters.Paint (painter, theme);
 
     DxuiPanel::Paint (painter, text, theme);
     PaintHeader (painter, text, theme);
@@ -1742,9 +1730,10 @@ void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRender
 
 bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    RECT  cancel = m_cancel->GetBounds();
-    RECT  map    = m_map->GetBounds();
-    RECT  bounds = GetBounds();
+    RECT  cancel  = m_cancel->GetBounds();
+    RECT  map     = m_map->GetBounds();
+    RECT  bounds  = GetBounds();
+    bool  isMoved = false;
 
 
 
@@ -1755,44 +1744,10 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
     UpdateFieldTip (ev);
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_treeSplitterPx, ev.positionDip))
+    if (m_splitters.OnMouse (ev, bounds, m_nav.GetList().GetBounds(), (int) bounds.bottom - m_scaler.ToPx ((int) kPadDip), isMoved))
     {
-        m_isTreeSplitting = true;
-        return true;
-    }
-
-    if (m_isTreeSplitting && ev.kind == DxuiMouseEventKind::Move && bounds.right > bounds.left)
-    {
-        m_treeShare = std::clamp ((float) (ev.positionDip.x - bounds.left) / (float) (bounds.right - bounds.left), kMinTree, kMaxTree);
-        Layout (bounds, m_scaler);
-
-        if (m_onChanged)
+        if (isMoved)
         {
-            m_onChanged();
-        }
-
-        return true;
-    }
-
-    if (m_isTreeSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isTreeSplitting = false;
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_hexSplitterPx, ev.positionDip))
-    {
-        m_isHexSplitting = true;
-        return true;
-    }
-
-    if (m_isHexSplitting && ev.kind == DxuiMouseEventKind::Move)
-    {
-        RECT  list = m_nav.GetList().GetBounds();
-
-        if (list.right > list.left)
-        {
-            m_hexShare = std::clamp ((float) (ev.positionDip.x - list.left) / (float) (list.right - list.left), kMinHex, kMaxHex);
             Layout (bounds, m_scaler);
 
             if (m_onChanged)
@@ -1801,68 +1756,6 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
             }
         }
 
-        return true;
-    }
-
-    if (m_isHexSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isHexSplitting = false;
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_listSplitterPx, ev.positionDip))
-    {
-        m_isListSplitting = true;
-        return true;
-    }
-
-    if (m_isListSplitting && ev.kind == DxuiMouseEventKind::Move)
-    {
-        RECT  list = m_nav.GetList().GetBounds();
-        int   foot = (int) bounds.bottom - m_scaler.ToPx ((int) kPadDip);
-
-        if (foot > list.top)
-        {
-            m_listShare = std::clamp ((float) (ev.positionDip.y - list.top) / (float) (foot - list.top), kMinList, kMaxList);
-            Layout (bounds, m_scaler);
-
-            if (m_onChanged)
-            {
-                m_onChanged();
-            }
-        }
-
-        return true;
-    }
-
-    if (m_isListSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isListSplitting = false;
-        return true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, ev.positionDip))
-    {
-        m_isSplitting = true;
-        return true;
-    }
-
-    if (m_isSplitting && ev.kind == DxuiMouseEventKind::Move && bounds.right > bounds.left)
-    {
-        m_split = std::clamp ((float) (ev.positionDip.x - bounds.left) / (float) (bounds.right - bounds.left), kMinSplit, kMaxSplit);
-        Layout (bounds, m_scaler);
-
-        if (m_onChanged)
-        {
-            m_onChanged();
-        }
-
-        return true;
-    }
-
-    if (m_isSplitting && ev.kind == DxuiMouseEventKind::Up)
-    {
-        m_isSplitting = false;
         return true;
     }
 
@@ -1942,11 +1835,9 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR BlockInspectorPanel::GetCursorForPoint (POINT clientPx) const
 {
-    bool  isSplitter = PtInRect (&m_splitterPx, clientPx) || PtInRect (&m_treeSplitterPx, clientPx) || PtInRect (&m_hexSplitterPx, clientPx)
-                    || m_isSplitting || m_isTreeSplitting || m_isHexSplitting;
-    bool  isList     = PtInRect (&m_listSplitterPx, clientPx) || m_isListSplitting;
+    LPCWSTR  cursor = m_splitters.GetCursor (clientPx);
 
 
 
-    return isList ? IDC_SIZENS : isSplitter ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
+    return cursor != nullptr ? cursor : DxuiPanel::GetCursorForPoint (clientPx);
 }

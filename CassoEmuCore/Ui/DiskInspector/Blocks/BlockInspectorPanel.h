@@ -6,6 +6,7 @@
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
 #include "Ui/DiskInspector/Blocks/BlockNavigator.h"
+#include "Ui/DiskInspector/Blocks/BlockPanelSplitters.h"
 
 class BlockFieldsView;
 class BlockHexView;
@@ -55,20 +56,9 @@ public:
     static constexpr float  kTitleDip     = 16.0f;
     static constexpr float  kFontDip      = 12.0f;
     static constexpr float  kSplitterDip  = 6.0f;
-    static constexpr float  kMinSplit     = 0.45f;   // the map's left edge, a share of the width
-    static constexpr float  kMaxSplit     = 0.85f;
-    static constexpr float  kTreeShare    = 0.18f;   // the tree's share of the width at first
-    static constexpr float  kMinTree      = 0.08f;
-    static constexpr float  kMaxTree      = 0.35f;
     static constexpr float  kSearchDip    = 220.0f;
-    static constexpr float  kHexShare     = 0.60f;   // the hex view's share of the width beside the fields at first
-    static constexpr float  kMinHex       = 0.30f;
-    static constexpr float  kMaxHex       = 0.85f;
     static constexpr int    kMinHexBytes  = 8;       // the fewest bytes in a hex row when the fields are fitted
     static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
-    static constexpr float  kListShare    = 0.45f;   // the list's share of the middle column's height at first
-    static constexpr float  kMinList      = 0.15f;
-    static constexpr float  kMaxList      = 0.80f;
     static constexpr float  kBarDip       = 240.0f;
     static constexpr float  kButtonDip    = 110.0f;
     static constexpr int    kBytesPerRow  = 16;
@@ -222,6 +212,7 @@ private:
     BlockHexView          * m_hex             = nullptr;
     BlockFieldsView       * m_fields          = nullptr;
     BlockHexSource          m_source;
+    BlockPanelSplitters     m_splitters;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
     ActionFn                m_onQueued;
@@ -237,12 +228,8 @@ private:
     bool                    m_isLongJob       = false;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;
-    bool                    m_isSplitting     = false;
-    bool                    m_isTreeSplitting = false;
-    bool                    m_isListSplitting = false;
     DxuiInPlaceTip          m_fieldTip;
     const IDxuiTheme      * m_theme           = nullptr;
-    bool                    m_isHexSplitting  = false;
     bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
     bool                    m_isEditing       = false;
     bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
@@ -250,14 +237,6 @@ private:
     int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for
     int64_t                 m_shownBlock      = -1;
     int                     m_hexContentPx    = 0;   // the hex view's width for all its columns when the column was laid out
-    float                   m_split           = 0.62f;
-    float                   m_treeShare       = kTreeShare;
-    float                   m_listShare       = kListShare;
-    float                   m_hexShare        = kHexShare;
-    RECT                    m_splitterPx      = {};
-    RECT                    m_treeSplitterPx  = {};
-    RECT                    m_listSplitterPx  = {};
-    RECT                    m_hexSplitterPx   = {};
     RECT                    m_titleRect       = {};
     RECT                    m_fieldRect       = {};
     RECT                    m_rowRect         = {};
