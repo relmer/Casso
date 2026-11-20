@@ -108,8 +108,10 @@ public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
     void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, FormatParts & format);
-    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static std::wstring  GetFormatDescription (const wchar_t * extension);
+    void                 Layout               (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool                 OnMouse              (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip        = 60;
     static constexpr int  kBrowseWidthDip       = 100;

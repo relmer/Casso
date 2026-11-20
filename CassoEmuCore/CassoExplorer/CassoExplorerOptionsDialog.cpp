@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "Config/CrtPresets.h"
+#include "Core/TextEncoding.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Settings/DisplayPage.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -45,6 +46,39 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
     { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream",
       L"A Pontiac Aztek. A beak only a mother could love, and a tent in the back for when family and friends abandon you due to your automotive proclivities.", ".nb2" },
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerFullSendPage::GetFormatDescription
+//
+//  The format list's text for an extension, after its ".ext: " lead. An
+//  extension missing from the list returns an empty string.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerFullSendPage::GetFormatDescription (const wchar_t * extension)
+{
+    std::wstring  description;
+
+
+
+    for (const FullSendFormat & format : s_kFullSendFormats)
+    {
+        std::wstring  label = format.label;
+        size_t        colon = label.find (L": ");
+
+        if (description.empty() && colon != std::wstring::npos && TextEncoding::NarrowToWide (format.extension) == extension)
+        {
+            description = label.substr (colon + 2);
+        }
+    }
+
+    return description;
+}
 
 
 

@@ -7,6 +7,7 @@
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/KrunchMapDialog.h"
 #include "CassoLink/FullSend/FullSendProtection.h"
@@ -82,7 +83,14 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
 
     for (const wchar_t * extension : { L".dsk", L".do", L".po", L".d13", L".nib", L".nb2", L".woz" })
     {
-        spec.filters.push_back (FileDialogFilter { std::format (L"{} (*{})", CatalogModel::GetDiskImageTypeName (extension), extension), std::format (L"*{}", extension) });
+        std::wstring  description = CassoExplorerFullSendPage::GetFormatDescription (extension);
+
+        if (description.empty())
+        {
+            description = CatalogModel::GetDiskImageTypeName (extension);
+        }
+
+        spec.filters.push_back (FileDialogFilter { std::format (L"{} (*{})", description, extension), std::format (L"*{}", extension) });
     }
 
 
