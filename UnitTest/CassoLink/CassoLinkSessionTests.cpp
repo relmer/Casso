@@ -329,6 +329,36 @@ public:
 
 
 
+    //  An Apple that boots its disk well after the attempt starts, past the
+    //  first several prompts, is prompted each second until the attempt
+    //  times out, so it links within the same attempt.
+    TEST_METHOD (AnAppleThatBootsLate_IsPromptedUntilTheAttemptEnds)
+    {
+        Rig     rig;
+        size_t  waits = 0;
+
+        rig.apple.startAsShim    = true;
+        rig.apple.readySentEarly = true;
+        rig.apple.promptsMissed  = 8;
+        rig.apple.readyEveryMs   = 60000;
+        rig.session->SetRetryInterval (100);
+
+        rig.Start (20000);
+
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready, 20000), L"a later prompt drew the Ready");
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.sink.lock);
+
+            waits = (size_t) std::count (rig.sink.states.begin(), rig.sink.states.end(), LinkState::WaitingForReady);
+        }
+
+        Assert::AreEqual ((size_t) 1, waits, L"one attempt, with no second one");
+    }
+
+
+
+
     //  An Apple at Applesoft's prompt doesn't send Ready. A link started with
     //  no Bootstrap chosen probes the prompt, the Apple sends the ready
     //  byte, and it is bootstrapped and linked.
