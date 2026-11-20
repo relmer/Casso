@@ -20,7 +20,8 @@
 
 struct BlockPlace
 {
-    enum class Kind { Card, Volume, Directory, File, Block };
+    //  A partition's `entry` is its band's index in the model's bands.
+    enum class Kind { Card, Partition, Volume, Directory, File, Block };
 
     Kind      kind   = Kind::Block;
     int       volume = -1;
@@ -126,15 +127,17 @@ public:
 
     bool  HasCard () const;
 
-    //  The tree: the card and its partitions for an image with partitions,
-    //  or the volume, each with its directories below it and then the volumes
-    //  inside it. A node's id is its place's.
+    //  The tree: for an image with partitions, the card, each partition, and
+    //  the volume in it; for an image of one volume, the volume. A volume has
+    //  its directories below it and then the volumes inside it. A node's id
+    //  is its place's.
     vector<DxuiTreeNode>  BuildTree (const std::wstring & cardLabel) const;
 
     static std::wstring  MakeId  (const BlockPlace & place);
     static bool          ParseId (const std::wstring & id, BlockPlace & outPlace);
 
-    //  The list for a place: a card's partitions; a volume's structures,
+    //  The list for a place: a card's partitions; a partition's volume; a
+    //  volume's structures,
     //  findings, directories and files; a directory's blocks, then its
     //  directories and files; a file's index blocks and runs of data; or
     //  with `query`, each entry of the volume or the card whose name has it,
@@ -151,8 +154,9 @@ public:
     std::wstring  FormatPath (const BlockPlace & place) const;
     bool          FindPath   (const std::wstring & path, const std::wstring & cardLabel, BlockPlace & outPlace) const;
 
-    //  What an address bar separator's menu lists: a card's volumes, or a
-    //  volume's or a directory's directories, with their places.
+    //  What an address bar separator's menu lists: a card's partitions, a
+    //  partition's volume, a volume's directories and the volumes inside it,
+    //  or a directory's directories, with their places.
     vector<std::pair<std::wstring, BlockPlace>>  GetChildPlaces (const BlockPlace & place) const;
 
     //  The row of a listing that covers a block, as an index in the order
@@ -170,11 +174,19 @@ public:
     static std::wstring  GetStorageName    (const BlockFileEntry & entry);
     std::wstring         GetVolumeName     (int volume) const;
 
+    //  The partitions the card has, as band indexes: the bands of the
+    //  partition map or layout, not a volume inside another volume.
+    vector<int>  GetPartitionBands () const;
+
+    //  The places above a volume, nearest first: the volumes it's inside,
+    //  then its partition. The card isn't one.
+    vector<BlockPlace>  GetAncestors (int volume) const;
+
 private:
     static constexpr size_t  kMaxRunRows   = 256;
     static constexpr size_t  kMaxIndexRows = 64;
 
-    void                  AddCardRows         (BlockListing & listing) const;
+    void                  AddCardRows         (BlockListing & listing, const vector<int> & volumes) const;
     void                  AddVolumeRows       (BlockListing & listing, int volume) const;
     void                  AddEntryRows        (BlockListing & listing, int volume, int directory) const;
     void                  AddFileRows         (BlockListing & listing, int volume, int file) const;
@@ -185,6 +197,8 @@ private:
     DxuiTreeNode          BuildVolumeNode     (int volume, const vector<int> & containers, bool isExpanded) const;
     vector<int>           GetVolumes          () const;
     vector<int>           FindContainers      (const vector<int> & volumes) const;
+    int                   FindPartitionOf     (int volume) const;
+    vector<int>           GetTopVolumes       () const;
     static void           SetEntryColumns     (BlockListing & listing);
     static LPCWSTR        GetStructureName    (BlockStructure structure, uint32_t tree);
 

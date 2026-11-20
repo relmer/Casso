@@ -346,9 +346,18 @@ void BlockNavigator::SelectTreeNode (const BlockPlace & container)
         }
     }
 
-    if (container.kind != BlockPlace::Kind::Card)
+    if (container.kind == BlockPlace::Kind::Partition)
+    {
+        chain.push_back (BlockBrowser::MakeId (container));
+    }
+    else if (container.kind != BlockPlace::Kind::Card)
     {
         chain.push_back (BlockBrowser::MakeId ({ BlockPlace::Kind::Volume, container.volume }));
+
+        for (const BlockPlace & ancestor : m_browser.GetAncestors (container.volume))
+        {
+            chain.push_back (BlockBrowser::MakeId (ancestor));
+        }
     }
 
     chain.push_back (BlockBrowser::MakeId ({ BlockPlace::Kind::Card }));
