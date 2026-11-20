@@ -34,11 +34,11 @@
 #
 # Each runs for an hour at most.
 #
-# With CASSO_VISIBLE set, AppleWin's window is shown through WSLg; otherwise
-# it runs offscreen.
+# With CASSO_VISIBLE set, AppleWin's window is shown through WSLg as an X11
+# window, which xdotool can type into; otherwise it runs offscreen.
 TARGET=$1
 SA2_VIDEO=offscreen
-[ -n "$CASSO_VISIBLE" ] && SA2_VIDEO=
+[ -n "$CASSO_VISIBLE" ] && SA2_VIDEO=x11
 
 # GSplus doesn't end on SIGTERM while it runs offscreen, so whatever is left
 # after a second is killed outright. The LANceGS's forward of UDP 6502 is
