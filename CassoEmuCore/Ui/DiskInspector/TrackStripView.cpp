@@ -10,6 +10,7 @@
 #include "Ui/DiskInspector/InspectorTip.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
+#include "Ui/DiskInspector/StripHitTest.h"
 #include "Ui/DiskInspector/ZoomStops.h"
 #include "Core/NumberFormat.h"
 
@@ -20,16 +21,8 @@
 static constexpr int    s_kLabelRowDip     = 18;
 static constexpr float  s_kOutlineDip      = 2.0f;
 static constexpr float  s_kDividerMinDip   = 4.0f;
-static constexpr float  s_kValuePadDip     = 3.0f;
 static constexpr float  s_kLabelDip        = 11.0f;
-static constexpr float  s_kCellsPerNibble   = 8.0f;
 static constexpr float  s_kPadDip          = 6.0f;
-static constexpr float  s_kCellDigitDip    = 9.0f;
-static constexpr float  s_kCellTimingDip   = 30.0f;
-static constexpr float  s_kDigitsEstDip    = 14.0f;
-static constexpr double s_kCoarseRatio     = 4.0;
-static constexpr double s_kMinStepRatio    = 1.2;
-static constexpr double s_kBitStepRatio    = 1.25;
 static constexpr float  s_kValueShare      = 0.4f;
 static constexpr float  s_kLineInsetDip    = 3.0f;
 static constexpr float  s_kLineStepDip     = 2.0f;
@@ -110,8 +103,8 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float                        top       = static_cast<float> (bar.top);
     float                        height    = static_cast<float> (bar.bottom - bar.top);
     float                        textPx    = m_scaler.ToPxf (kSmallDip);
-    bool                         isTimed   = IsTimed (track);
-    bool                         showCells = GetCellPx (track) >= m_scaler.ToPxf (s_kCellDigitDip);
+    bool                         isTimed   = StripHitTest::IsTimed (track);
+    bool                         showCells = StripHitTest::GetCellPx (track, m_context.model->GetStripSpan(), GetWidth()) >= m_scaler.ToPxf (StripHitTest::kCellDigitDip);
     float                        valueH    = showCells ? height * s_kValueShare : height;
     size_t                       i         = 0;
     int                          count     = 0;
@@ -126,7 +119,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 
 
-    UpdateTurns (track);
+    m_hits.Update (track);
 
     struct StripValue
     {
@@ -144,9 +137,9 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     text.MeasureString (L"FF", textPx, DxuiTheme::kMonoFace, digitsW, textH);
     m_digitsW = digitsW;
 
-    for (i = 0; i + 1 < m_turns.size(); i++)
+    for (i = 0; i + 1 < m_hits.GetTurns().size(); i++)
     {
-        count = g.GetSegments (m_turns[i], m_turns[i + 1] - m_turns[i], parts);
+        count = g.GetSegments (m_hits.GetTurns()[i], m_hits.GetTurns()[i + 1] - m_hits.GetTurns()[i], parts);
         color = m_context.palette.GetNibbleColor (track, static_cast<int> (i), m_context.isTimingMode, m_context.timingRange);
 
         for (k = 0; k < count; k++)
@@ -157,7 +150,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
             //  A nibble's width varies by up to a pixel with where it falls, and
             //  the hex zoom stop is exactly this width, so a pixel of slack
             //  puts every nibble's value on screen at that stop.
-            if (w + 1.0f >= digitsW + m_scaler.ToPxf (s_kValuePadDip))
+            if (w + 1.0f >= digitsW + m_scaler.ToPxf (StripHitTest::kValuePadDip))
             {
                 label = GetNibbleKindLabel (track.nibbleKinds[i]) + std::format (L": {:02X}", framed.nibbles[i].value)
                       + (i < track.isFailedChecksum.size() && track.isFailedChecksum[i] != 0 ? L", checksum failed" : L"");
@@ -197,7 +190,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         PaintTimingLine (painter, theme, track, g, top, top + height);
     }
-    else if (isTimed && GetCellPx (track) < m_scaler.ToPxf (s_kCellTimingDip))
+    else if (isTimed && StripHitTest::GetCellPx (track, m_context.model->GetStripSpan(), GetWidth()) < m_scaler.ToPxf (StripHitTest::kCellTimingDip))
     {
         PaintTimingLine (painter, theme, track, g, top + valueH, top + valueH + (height - valueH) / 2);
     }
@@ -214,7 +207,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     if (m_context.isFileHighlighted)
     {
-        GetFileParts   (track, g, fileParts);
+        m_hits.GetFileParts (track, g, m_context.fileMap, m_context.model->GetQuarterTrack(), m_context.selectedFile, fileParts);
         DimOutsideFile (painter, fileParts);
     }
 
@@ -235,7 +228,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     //  Where each nibble's value fills the bar, the stretch labels move to
     //  the label row.
-    PaintStretchLabels (text, theme, track, g, GetCellPx (track) * s_kCellsPerNibble >= digitsW + m_scaler.ToPxf (s_kValuePadDip));
+    PaintStretchLabels (text, theme, track, g, StripHitTest::GetCellPx (track, m_context.model->GetStripSpan(), GetWidth()) * StripHitTest::kCellsPerNibble >= digitsW + m_scaler.ToPxf (StripHitTest::kValuePadDip));
 }
 
 
@@ -273,17 +266,16 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTh
 
 
 
-    if (m_sectionsOf != &track && m_context.analysis != nullptr)
+    if (m_context.analysis != nullptr)
     {
-        m_sections   = NibbleSections::Build (*m_context.analysis, m_context.model->GetQuarterTrack());
-        m_sectionsOf = &track;
+        m_hits.UpdateSections (track, *m_context.analysis, m_context.model->GetQuarterTrack());
     }
 
-    for (const NibbleSection & section : m_sections)
+    for (const NibbleSection & section : m_hits.GetSections())
     {
         int     end   = section.firstNibble + section.count;
-        double  a     = m_turns[static_cast<size_t> (section.firstNibble)];
-        double  b     = (end < static_cast<int> (m_turns.size())) ? m_turns[static_cast<size_t> (end)] : m_turns.back();
+        double  a     = m_hits.GetTurns()[static_cast<size_t> (section.firstNibble)];
+        double  b     = (end < static_cast<int> (m_hits.GetTurns().size())) ? m_hits.GetTurns()[static_cast<size_t> (end)] : m_hits.GetTurns().back();
         int     count = g.GetSegments (a, b - a, parts);
 
         switch (section.kind)
@@ -341,7 +333,7 @@ float TrackStripView::GetLabelRowClearance (IDxuiTextRenderer & text, const Trac
 {
     std::array<StripSegment, 2>  seams    = {};
     std::array<StripSegment, 2>  brackets = {};
-    int                          count    = GetSeamSegments (track, g, seams);
+    int                          count    = m_hits.GetSeamSegments (track, g, seams);
     int                          inView   = 0;
     float                        textPx   = m_scaler.ToPxf (s_kLabelDip);
     float                        pad      = m_scaler.ToPxf (s_kPadDip);
@@ -358,7 +350,7 @@ float TrackStripView::GetLabelRowClearance (IDxuiTextRenderer & text, const Trac
 
     if (section.sectorIndex >= 0)
     {
-        inView = GetSectorParts (track, g, section.sectorIndex, a, b, brackets);
+        inView = m_hits.GetSectorParts (track, g, section.sectorIndex, a, b, brackets);
 
         for (int j = 0; j < inView; j++)
         {
@@ -408,9 +400,9 @@ void TrackStripView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float                        bandH      = static_cast<float> (bar.bottom) - bandTop;
     float                        rowH       = bandH / 2;
     float                        textPx     = m_scaler.ToPxf (kSmallDip);
-    bool                         showTiming = IsTimed (track) && GetCellPx (track) >= m_scaler.ToPxf (s_kCellTimingDip);
-    uint32_t                     first      = FluxTiming::GetCellAt (m_cellTurns, g.GetTurn (static_cast<float> (bar.left)));
-    uint32_t                     inView     = static_cast<uint32_t> (GetWidth() / std::max (GetCellPx (track), 1.0f)) + 2;
+    bool                         showTiming = StripHitTest::IsTimed (track) && StripHitTest::GetCellPx (track, m_context.model->GetStripSpan(), GetWidth()) >= m_scaler.ToPxf (StripHitTest::kCellTimingDip);
+    uint32_t                     first      = FluxTiming::GetCellAt (m_hits.GetCellTurns(), g.GetTurn (static_cast<float> (bar.left)));
+    uint32_t                     inView     = static_cast<uint32_t> (GetWidth() / std::max (StripHitTest::GetCellPx (track, m_context.model->GetStripSpan(), GetWidth()), 1.0f)) + 2;
     uint32_t                     n          = 0;
     uint32_t                     cell       = 0;
     int                          count      = 0;
@@ -425,7 +417,7 @@ void TrackStripView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & tex
     for (n = 0; n < inView && n < framed.cellCount; n++)
     {
         cell  = (first + n) % framed.cellCount;
-        count = g.GetSegments (m_cellTurns[cell], m_cellTurns[cell + 1] - m_cellTurns[cell], parts);
+        count = g.GetSegments (m_hits.GetCellTurns()[cell], m_hits.GetCellTurns()[cell + 1] - m_hits.GetCellTurns()[cell], parts);
 
         for (k = 0; k < count; k++)
         {
@@ -496,8 +488,8 @@ void TrackStripView::PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme &
 
     for (x = static_cast<float> (bar.left); x < bar.right; x += step)
     {
-        a = FluxTiming::GetCellAt (m_cellTurns, g.GetTurn (x));
-        b = FluxTiming::GetCellAt (m_cellTurns, g.GetTurn (std::min (x + step, static_cast<float> (bar.right))));
+        a = FluxTiming::GetCellAt (m_hits.GetCellTurns(), g.GetTurn (x));
+        b = FluxTiming::GetCellAt (m_hits.GetCellTurns(), g.GetTurn (std::min (x + step, static_cast<float> (bar.right))));
         t = std::clamp (FluxTiming::GetMeanDeviation (track, a, (b == a) ? a + 1 : b) / std::max (m_context.timingRange, 1e-6), -1.0, 1.0);
         y = mid - static_cast<float> (t) * half;
 
@@ -534,7 +526,7 @@ void TrackStripView::PaintSeam (IDxuiPainter & painter, IDxuiTextRenderer & text
 {
     RECT                         bar    = GetBarRect();
     std::array<StripSegment, 2>  parts  = {};
-    int                          count  = GetSeamSegments (track, g, parts);
+    int                          count  = m_hits.GetSeamSegments (track, g, parts);
     float                        rule   = m_scaler.ToPxf (s_kSeamRuleDip);
     float                        textPx = m_scaler.ToPxf (s_kLabelDip);
     float                        textW  = 0;
@@ -556,38 +548,6 @@ void TrackStripView::PaintSeam (IDxuiPainter & painter, IDxuiTextRenderer & text
                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetSeamSegments
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int TrackStripView::GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const
-{
-    const SyncRun &  seam  = track.measurements.longestSync;
-    size_t           n     = track.framed.nibbles.size();
-    double           a     = 0;
-    double           b     = 0;
-    int              count = 0;
-
-
-
-    //  A run's width in cells is each sync nibble's, so its extent comes from
-    //  where its first nibble starts and where the nibble after it starts.
-    if (seam.count > 0 && n > 0 && m_turns.size() == n + 1)
-    {
-        a     = m_turns[static_cast<size_t> (seam.firstNibble) % n];
-        b     = m_turns[static_cast<size_t> (seam.firstNibble + seam.count) % n];
-        count = g.GetSegments (a, b - a - std::floor (b - a), outParts);
-    }
-
-    return count;
 }
 
 
@@ -629,7 +589,7 @@ void TrackStripView::PaintLabels (IDxuiPainter & painter, IDxuiTextRenderer & te
     {
         const AnalyzedSector &  sector = track.sectors[s];
 
-        count = GetSectorParts (track, g, static_cast<int> (s), a, b, parts);
+        count = m_hits.GetSectorParts (track, g, static_cast<int> (s), a, b, parts);
 
         for (k = 0; k < count; k++)
         {
@@ -692,71 +652,6 @@ std::wstring TrackStripView::GetNibbleKindLabel (NibbleKind kind)
     }
 
     return label;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetSectorParts
-//
-//  A sector's stretch from its address prologue to the end of its data
-//  epilogue, as turns and as its segments in view.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int TrackStripView::GetSectorParts (const TrackAnalysis & track, const StripGeometry & g, int sectorIndex, double & outStart, double & outEnd,
-                                    std::array<StripSegment, 2> & outParts) const
-{
-    const AnalyzedSector &  sector = track.sectors[static_cast<size_t> (sectorIndex)];
-    const LocatedField &    first  = track.fields[sector.addressField];
-    const LocatedField &    last   = track.fields[sector.dataField >= 0 ? sector.dataField : sector.addressField];
-    int                     end    = last.firstNibble + last.nibbleCount;
-
-
-
-    outStart = m_turns[static_cast<size_t> (first.firstNibble)];
-    outEnd   = (end < static_cast<int> (m_turns.size())) ? m_turns[static_cast<size_t> (end)] : m_turns.back();
-
-    return g.GetSegments (outStart, outEnd - outStart - std::floor (outEnd - outStart), outParts);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetSectorAtX
-//
-//  The sector whose bracket is under a point, or -1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int TrackStripView::GetSectorAtX (const TrackAnalysis & track, float xPx) const
-{
-    StripGeometry                g      = MakeGeometry();
-    std::array<StripSegment, 2>  parts  = {};
-    int                          found  = -1;
-    int                          count  = 0;
-    double                       a      = 0;
-    double                       b      = 0;
-
-
-
-    for (int s = 0; s < static_cast<int> (track.sectors.size()) && found < 0; s++)
-    {
-        count = GetSectorParts (track, g, s, a, b, parts);
-
-        for (int k = 0; k < count; k++)
-        {
-            found = (xPx >= parts[k].x0 && xPx < parts[k].x1) ? s : found;
-        }
-    }
-
-    return found;
 }
 
 
@@ -846,8 +741,8 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             {
                 //  A click on a sector's bracket selects the sector, and the
                 //  platter flies to it.
-                UpdateTurns (*track);
-                sector    = GetSectorAtX (*track, static_cast<float> (p.x));
+                m_hits.Update (*track);
+                sector    = m_hits.GetSectorAt (*track, MakeGeometry(), static_cast<float> (p.x));
                 isHandled = sector >= 0;
 
                 if (sector >= 0)
@@ -869,8 +764,8 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
                 //  A plain press starts a selection at the nibble under it.
                 if (!ev.shift)
                 {
-                    UpdateTurns (*track);
-                    nibble        = GetNibbleAtX (*track, static_cast<float> (p.x));
+                    m_hits.Update (*track);
+                    nibble        = m_hits.GetNibbleAt (MakeGeometry(), static_cast<float> (p.x));
                     m_isSelecting = nibble >= 0;
 
                     if (nibble >= 0)
@@ -887,8 +782,8 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
 
             if (m_isSelecting && isMoved)
             {
-                UpdateTurns (*track);
-                nibble = GetNibbleAtX (*track, std::clamp (static_cast<float> (p.x), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.right - 1)));
+                m_hits.Update (*track);
+                nibble = m_hits.GetNibbleAt (MakeGeometry(), std::clamp (static_cast<float> (p.x), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.right - 1)));
 
                 if (nibble >= 0)
                 {
@@ -915,8 +810,8 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             //  nibble clicked.
             if (m_isPressed && m_isShiftPress && !m_isPanning && m_context.model->GetNibbleCount() > 0)
             {
-                UpdateTurns (*track);
-                nibble = GetNibbleAtX (*track, static_cast<float> (p.x));
+                m_hits.Update (*track);
+                nibble = m_hits.GetNibbleAt (MakeGeometry(), static_cast<float> (p.x));
 
                 if (nibble >= 0)
                 {
@@ -981,7 +876,7 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
         outText     = tip.GetText();
         outAnchorPx = { pointPx.x, bar.top, pointPx.x + 1, bar.bottom };
     }
-    else if (track != nullptr && !m_isPanning && pointPx.y >= m_boundsDip.top && pointPx.y < bar.top && IsOverSeam (*track, static_cast<float> (pointPx.x)))
+    else if (track != nullptr && !m_isPanning && pointPx.y >= m_boundsDip.top && pointPx.y < bar.top && m_hits.IsOverSeam (*track, MakeGeometry(), static_cast<float> (pointPx.x)))
     {
         outText     = std::format (L"Longest sync run, {} nibbles at cell {}\nThe likely write seam", track->measurements.longestSync.count,
                                    NumberFormat::FormatInteger (track->measurements.longestSync.startCell));
@@ -1042,39 +937,19 @@ bool TrackStripView::BuildTip (POINT pointPx, InspectorTip & outTip) const
 
     if (track != nullptr && !m_isPanning && PtInRect (&bar, pointPx))
     {
-        UpdateTurns (*track);
-        nibble = GetNibbleAtX (*track, static_cast<float> (pointPx.x));
+        m_hits.Update (*track);
+        nibble = m_hits.GetNibbleAt (MakeGeometry(), static_cast<float> (pointPx.x));
     }
 
     if (nibble >= 0)
     {
-        first  = static_cast<uint32_t> (GetCellAtX (*track, static_cast<float> (pointPx.x)));
-        next   = static_cast<uint32_t> (GetCellAtX (*track, static_cast<float> (pointPx.x + 1)));
+        first  = static_cast<uint32_t> (StripHitTest::GetCellAt (*track, MakeGeometry(), static_cast<float> (pointPx.x)));
+        next   = static_cast<uint32_t> (StripHitTest::GetCellAt (*track, MakeGeometry(), static_cast<float> (pointPx.x + 1)));
         outTip = InspectorTip::BuildNibbleTip (m_context, *track, nibble, first, (next + track->framed.cellCount - first) % track->framed.cellCount,
                                                m_context.isTimingMode);
     }
 
     return nibble >= 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::UpdateTurns
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void TrackStripView::UpdateTurns (const TrackAnalysis & track) const
-{
-    if (m_turnsOf != &track)
-    {
-        StripGeometry::BuildNibbleTurns (track, m_turns);
-        FluxTiming::BuildCellTurns (track, m_cellTurns);
-        m_turnsOf = &track;
-    }
 }
 
 
@@ -1113,120 +988,6 @@ RECT TrackStripView::GetBarRect() const
     bar.top = std::min (bar.bottom, bar.top + m_scaler.ToPx (s_kLabelRowDip));
 
     return bar;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetNibbleAtX
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int TrackStripView::GetNibbleAtX (const TrackAnalysis & track, float xPx) const
-{
-    double  turn   = MakeGeometry().GetTurn (xPx);
-    int     nibble = -1;
-
-
-
-    if (m_turns.size() > 1)
-    {
-        //  The turns rise from the first nibble's, which can be just before
-        //  the index, so the turn is brought into the same lap.
-        turn -= std::floor (turn);
-        turn += (turn < m_turns.front()) ? 1.0 : 0.0;
-
-        auto  after = std::upper_bound (m_turns.begin(), m_turns.end() - 1, turn);
-
-        nibble = (after == m_turns.begin()) ? static_cast<int> (m_turns.size()) - 2 : static_cast<int> (after - m_turns.begin()) - 1;
-    }
-
-    (void) track;
-
-    return nibble;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetCellAtX
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int TrackStripView::GetCellAtX (const TrackAnalysis & track, float xPx) const
-{
-    double  turn = MakeGeometry().GetTurn (xPx);
-
-
-
-    turn -= std::floor (turn);
-
-    return static_cast<int> (PlatterGeometry::GetCellAtTurn (track, turn));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::IsTimed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool TrackStripView::IsTimed (const TrackAnalysis & track)
-{
-    return track.framed.isFlux && track.framed.turnTicks > 0 && track.framed.cellTicks.size() >= track.framed.cellCount;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetCellPx
-//
-//  How wide a cell of the mean length is at the strip's zoom.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float TrackStripView::GetCellPx (const TrackAnalysis & track) const
-{
-    return GetWidth() / static_cast<float> (m_context.model->GetStripSpan() * std::max<uint32_t> (track.framed.cellCount, 1));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::IsOverSeam
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool TrackStripView::IsOverSeam (const TrackAnalysis & track, float xPx) const
-{
-    std::array<StripSegment, 2>  parts  = {};
-    int                          count  = GetSeamSegments (track, MakeGeometry(), parts);
-    int                          k      = 0;
-    bool                         isOver = false;
-
-
-
-    for (k = 0; k < count; k++)
-    {
-        isOver = isOver || (xPx >= parts[k].x0 && xPx < parts[k].x1);
-    }
-
-    return isOver;
 }
 
 
@@ -1287,43 +1048,9 @@ void TrackStripView::StepZoomAt (int steps, double fraction)
 
     if (track != nullptr && span > 0)
     {
-        newSpan = std::clamp (1.0 / ZoomStops::Step (GetZoomStops (*track), 1.0 / span, steps), StripGeometry::kMinSpan, 1.0);
+        newSpan = std::clamp (1.0 / ZoomStops::Step (StripHitTest::GetZoomStops (*track, GetWidth(), m_digitsW, m_scaler), 1.0 / span, steps), StripGeometry::kMinSpan, 1.0);
         m_context.model->SetStrip (StripGeometry::GetStartForZoom (m_context.model->GetStripStart(), span, newSpan, fraction), newSpan);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetZoomStops
-//
-//  The strip's zooms, as the whole track over the strip's width: by fours
-//  while the nibbles are too narrow for their values, then where the values
-//  fit, where each cell's bit fits and a step past it, and for a flux track
-//  where each cell's timing fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-vector<double> TrackStripView::GetZoomStops (const TrackAnalysis & track) const
-{
-    double          cells   = static_cast<double> (std::max<uint32_t> (track.framed.cellCount, 1));
-    double          widthPx = std::max (GetWidth(), 1.0f);
-    double          digitsW = (m_digitsW > 0) ? m_digitsW : m_scaler.ToPxf (s_kDigitsEstDip);
-    double          hexCell = (digitsW + m_scaler.ToPxf (s_kValuePadDip)) / s_kCellsPerNibble;
-    double          bitCell = m_scaler.ToPxf (s_kCellDigitDip);
-    vector<double>  details = { hexCell * cells / widthPx, bitCell * cells / widthPx, bitCell * s_kBitStepRatio * cells / widthPx };
-
-
-
-    if (IsTimed (track))
-    {
-        details.push_back (m_scaler.ToPxf (s_kCellTimingDip) * cells / widthPx);
-    }
-
-    return ZoomStops::Build (1.0, s_kCoarseRatio, details, s_kMinStepRatio);
 }
 
 
@@ -1359,7 +1086,7 @@ void TrackStripView::PanBy (double fractionOfView)
 
 void TrackStripView::SelectFieldAt (const TrackAnalysis & track, float x)
 {
-    int  nibble = GetNibbleAtX (track, x);
+    int  nibble = m_hits.GetNibbleAt (MakeGeometry(), x);
 
 
 
@@ -1409,9 +1136,8 @@ std::wstring TrackStripView::GetReadout() const
 
     if (track != nullptr && track->framed.cellCount > 0)
     {
-        UpdateTurns (*track);
-        first = (span >= 1.0) ? 0 : FluxTiming::GetCellAt (m_cellTurns, start);
-        last  = (span >= 1.0) ? track->framed.cellCount - 1 : FluxTiming::GetCellAt (m_cellTurns, start + span);
+        m_hits.Update (*track);
+        m_hits.GetCellsInView (*track, start, span, first, last);
     }
 
     return (track != nullptr && track->framed.cellCount > 0)
@@ -1456,8 +1182,8 @@ void TrackStripView::PaintDiffs (IDxuiPainter & painter, const TrackAnalysis & t
             continue;
         }
 
-        a     = m_turns[static_cast<size_t> (first % size)];
-        b     = m_turns[static_cast<size_t> ((first + length) % size)];
+        a     = m_hits.GetTurns()[static_cast<size_t> (first % size)];
+        b     = m_hits.GetTurns()[static_cast<size_t> ((first + length) % size)];
         count = g.GetSegments (a, (b > a) ? b - a : b + 1.0 - a, parts);
 
         for (int k = 0; k < count; k++)
@@ -1503,8 +1229,8 @@ void TrackStripView::PaintHits (IDxuiPainter & painter, const TrackAnalysis & tr
 
     for (const FindMarks::Run & run : (marks != nullptr && size > 0) ? marks->nibbles : vector<FindMarks::Run>())
     {
-        a     = m_turns[static_cast<size_t> (run.first % size)];
-        b     = m_turns[static_cast<size_t> ((run.first + run.count) % size)];
+        a     = m_hits.GetTurns()[static_cast<size_t> (run.first % size)];
+        b     = m_hits.GetTurns()[static_cast<size_t> ((run.first + run.count) % size)];
         count = g.GetSegments (a, (b > a) ? b - a : b + 1.0 - a, parts);
 
         for (int k = 0; k < count; k++)
@@ -1541,9 +1267,9 @@ void TrackStripView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 
 
 
-    if (first >= 0 && end > first && end < static_cast<int> (m_turns.size()))
+    if (first >= 0 && end > first && end < static_cast<int> (m_hits.GetTurns().size()))
     {
-        count = g.GetSegments (m_turns[first], m_turns[end] - m_turns[first], parts);
+        count = g.GetSegments (m_hits.GetTurns()[first], m_hits.GetTurns()[end] - m_hits.GetTurns()[first], parts);
     }
 
     for (k = 0; k < count; k++)
@@ -1615,10 +1341,10 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
 
     if (PtInRect (&bar, m_context.hoverPx) && !m_isPanning && m_context.GetTrack() != nullptr)
     {
-        nibble = GetNibbleAtX (*m_context.GetTrack(), static_cast<float> (m_context.hoverPx.x));
+        nibble = m_hits.GetNibbleAt (MakeGeometry(), static_cast<float> (m_context.hoverPx.x));
     }
 
-    count = (nibble >= 0 && nibble + 1 < static_cast<int> (m_turns.size())) ? g.GetSegments (m_turns[nibble], m_turns[nibble + 1] - m_turns[nibble], parts) : 0;
+    count = (nibble >= 0 && nibble + 1 < static_cast<int> (m_hits.GetTurns().size())) ? g.GetSegments (m_hits.GetTurns()[nibble], m_hits.GetTurns()[nibble + 1] - m_hits.GetTurns()[nibble], parts) : 0;
 
     for (int k = 0; k < count; k++)
     {
@@ -1647,9 +1373,9 @@ void TrackStripView::PaintDividers (IDxuiPainter & painter, const IDxuiTheme & t
 
 
 
-    for (size_t i = 0; i + 1 < m_turns.size(); i++)
+    for (size_t i = 0; i + 1 < m_hits.GetTurns().size(); i++)
     {
-        count = g.GetSegments (m_turns[i], m_turns[i + 1] - m_turns[i], parts);
+        count = g.GetSegments (m_hits.GetTurns()[i], m_hits.GetTurns()[i + 1] - m_hits.GetTurns()[i], parts);
 
         for (int k = 0; k < count; k++)
         {
@@ -1700,8 +1426,8 @@ void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & them
         }
 
         const LocatedField  & field     = track.fields[sector.dataField];
-        double                a         = m_turns[field.firstNibble];
-        double                b         = m_turns[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_turns.size() - 1)];
+        double                a         = m_hits.GetTurns()[field.firstNibble];
+        double                b         = m_hits.GetTurns()[std::min<size_t> (static_cast<size_t> (field.firstNibble + field.nibbleCount), m_hits.GetTurns().size() - 1)];
         const vector<int>   & own       = map->cells[cell].owners;
         bool                  isMine    = std::find (own.begin(), own.end(), m_context.selectedFile) != own.end();
         uint32_t              roleColor = m_context.palette.GetRoleColor (static_cast<MapRole> (map->cells[cell].role));
@@ -1722,40 +1448,6 @@ void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & them
             }
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TrackStripView::GetFileParts
-//
-//  Where the selected file's sectors lie across the bar, a run of them as
-//  one part, on a whole track, in order from left to right.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void TrackStripView::GetFileParts (const TrackAnalysis & track, const StripGeometry & g, vector<StripSegment> & outParts) const
-{
-    const FileMap *              map   = m_context.fileMap;
-    int                          qt    = m_context.model->GetQuarterTrack();
-    int                          file  = m_context.selectedFile;
-    std::array<StripSegment, 2>  parts = {};
-    int                          count = 0;
-    bool                         isOn  = map != nullptr && map->notMapped == NotMappedReason::None && qt % DiskImage::kQuarterTracksPerWholeTrack == 0 && file >= 0;
-
-
-
-    for (const InspectorMarquee::Span & span : isOn ? InspectorMarquee::GetFileSpans (track, m_turns, *map, qt / DiskImage::kQuarterTracksPerWholeTrack, file)
-                                                    : vector<InspectorMarquee::Span>())
-    {
-        count = g.GetSegments (span.a, span.b - span.a, parts);
-        outParts.insert (outParts.end(), parts.begin(), parts.begin() + count);
-    }
-
-    std::sort (outParts.begin(), outParts.end(), [] (const StripSegment & x, const StripSegment & y) { return x.x0 < y.x0; });
 }
 
 

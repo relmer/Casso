@@ -433,6 +433,7 @@
     <ClCompile Include="EmuTests\InspectorComponentTests.cpp" />
     <ClCompile Include="EmuTests\SelectionHistoryTests.cpp" />
     <ClCompile Include="EmuTests\StripGeometryTests.cpp" />
+    <ClCompile Include="EmuTests\StripHitTestTests.cpp" />
     <ClCompile Include="EmuTests\PlatterRendererTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />
     <ClCompile Include="EmuTests\LatchFramerTests.cpp" />
