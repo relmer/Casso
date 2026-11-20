@@ -37,8 +37,8 @@ struct DeviceConfig;
 //
 //  Targets 0-6 are hard disks, each selectable once it has an image. With
 //  Casso's firmware in place of the ROM, the slot page and the $C0n0 window
-//  are CassoBlockFirmware's, and ProDOS's drives 1 and 2 are the first two
-//  targets with an image.
+//  are CassoBlockFirmware's. ProDOS's drives 1 and 2 are the first two
+//  targets with an image, and SmartPort's units are every target with one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -345,7 +345,8 @@ HRESULT AppleScsiCard::UseCassoFirmware()
         }
 
         return nullptr;
-    });
+    },
+    { "SCSI HD", 0x03, 0x00 });
 }
 
 

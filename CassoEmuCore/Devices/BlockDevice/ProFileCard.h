@@ -38,7 +38,8 @@ struct DeviceConfig;
 //  with line 3 clear, so they start nothing.
 //
 //  With Casso's firmware in place of the ROM, the slot page and the $C0n0
-//  window are CassoBlockFirmware's, and the drive is ProDOS's drive 1.
+//  window are CassoBlockFirmware's, and the drive is ProDOS's drive 1 and
+//  SmartPort's unit 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -225,7 +225,7 @@ Byte ProFileCard::ReadExpansionRom (Word address)
 
 HRESULT ProFileCard::UseCassoFirmware()
 {
-    return m_casso.Enable ([this] (int drive) -> ICassoBlockUnit * { return drive == 0 ? m_drive.get() : nullptr; });
+    return m_casso.Enable ([this] (int drive) -> ICassoBlockUnit * { return drive == 0 ? m_drive.get() : nullptr; }, { "PROFILE", 0x02, 0x00 });
 }
 
 
