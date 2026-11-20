@@ -888,6 +888,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetCassoFirmware
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetCassoFirmware (size_t index, bool isOn)
+{
+    HRESULT                hr            = S_OK;
+    size_t                 hardwareCount = m_current.hardware.size();
+    const BlockCardSpec  * card          = nullptr;
+
+
+
+    CBR (index < hardwareCount);
+
+    card = BlockDeviceCatalog::FindCard (m_current.hardware[index].type);
+    CBR (card != nullptr && card->hasCassoFirmware);
+
+    m_current.hardware[index].cassoFirmware = isOn;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetSlotPortImage
 //
 //  The image on `port` of the card in `slot`.

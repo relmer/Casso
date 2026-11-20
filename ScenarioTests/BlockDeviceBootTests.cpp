@@ -212,8 +212,32 @@ public:
     }
 
 
-    //  A PRODOS VOLUME ON A HARD DISK AT ID 6 BOOTS through Apple's SCSI card
-    //  ROM in slot 7 of an enhanced //e with no floppy controller.
+    //  A PRODOS VOLUME BOOTS THROUGH CASSO'S FIRMWARE on the SCSI card, with
+    //  no SCSI command run.
+    TEST_METHOD (CassoFirmware_BootsProDosFromAHardDisk)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
+
+
+
+        io.files[kHardDiskPath]  = image;
+        io.stamps[kHardDiskPath] = FileStamp { image.size(), 1 };
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty,
+                              { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath), true } }, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetRefs().scsiCards[0]->IsCassoFirmware());
+
+        Boot (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the hard disk");
+        Assert::IsTrue (machine.GetRefs().scsiCards[0]->GetTarget (6).GetCommandLog().empty(), L"no SCSI command ran");
+    }
+
+
+    //  A PRODOS VOLUME ON A HARD DISK AT ID 6 BOOTS through Apple's SCSI card    //  ROM in slot 7 of an enhanced //e with no floppy controller.
     TEST_METHOD (ScsiCard_BootsProDosFromAHardDisk)
     {
         constexpr Byte     kRead6 = 0x08;

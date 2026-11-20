@@ -964,6 +964,7 @@
     <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
     <ClCompile Include="BlockDeviceTests\DriveRuleMountAgreementTests.cpp" />
     <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
+    <ClCompile Include="BlockDeviceTests\CassoBlockFirmwareTests.cpp" />
     <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
     <ClCompile Include="BlockDeviceTests\AppleScsiCardTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />

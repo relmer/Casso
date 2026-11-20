@@ -619,6 +619,14 @@ void HardwarePage::Rebuild()
         {
             const HardwareEntry  & entry = state->GetHardware()[i];
 
+            if (label == MakeFirmwareLabel (entry))
+            {
+                HRESULT  hr = state->SetCassoFirmware (i, checked);
+
+                IGNORE_RETURN_VALUE (hr, S_OK);
+                return;
+            }
+
             for (size_t port = 0; port < entry.ports.size(); ++port)
             {
                 if (label == MakeTimingLabel (entry, port))
@@ -792,6 +800,21 @@ void HardwarePage::AddDriveRows (const HardwareEntry & entry, DxuiTreeNode & slo
         return;
     }
 
+    if (card->hasCassoFirmware)
+    {
+        DxuiTreeNode  firmware;
+
+
+
+        firmware.label          = MakeFirmwareLabel (entry);
+        firmware.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        firmware.checked        = entry.cassoFirmware;
+        firmware.expanded       = false;
+        firmware.lockReason     = L"Casso's firmware copies each block straight into memory, much faster than Apple's ROM. Casso uses it whenever Apple's ROM for the card isn't installed.";
+
+        slotRow.children.push_back (std::move (firmware));
+    }
+
     for (size_t port = 0; port < entry.ports.size(); ++port)
     {
         const BlockDriveSpec  * drive = BlockDeviceCatalog::FindDrive (entry.ports[port]);
@@ -853,6 +876,21 @@ std::wstring HardwarePage::MakeDriveLabel (const HardwareEntry & entry, size_t p
 
 
     return std::format (L"{}: {} ({})", unit, name, file);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MakeFirmwareLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HardwarePage::MakeFirmwareLabel (const HardwareEntry & entry)
+{
+    return std::format (L"Casso's fast firmware, slot {}", entry.slot);
 }
 
 
