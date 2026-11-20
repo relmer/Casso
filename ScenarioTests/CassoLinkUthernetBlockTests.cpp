@@ -50,9 +50,9 @@ public:
 
 
 
-    //  A blank ProDOS volume whose free blocks have a pattern, with a boot
-    //  block that jumps to slot 6.
-    static std::vector<Byte>  MakeDisk()
+    //  A blank ProDOS volume, its free blocks pseudo-random bytes when
+    //  `random` is set, with a boot block that jumps to slot 6.
+    static std::vector<Byte>  MakeDisk (bool random)
     {
         std::vector<Byte>  disk ((size_t) kBlocks * kBlock, 0);
         uint32_t           seed = 0x1234567;
@@ -61,7 +61,7 @@ public:
 
         AssertSucceeded (ProDosSkeleton::Write (disk, "UTHERBLK"));
 
-        for (size_t at = 64 * kBlock; at < disk.size(); at++)
+        for (size_t at = 64 * kBlock; random && at < disk.size(); at++)
         {
             seed     = seed * 1664525 + 1013904223;
             disk[at] = (Byte) (seed >> 24);
@@ -75,7 +75,24 @@ public:
 
     TEST_METHOD (TheUniDisk_IsReadThroughAnUthernetII)
     {
-        std::vector<Byte>                  disk   = MakeDisk();
+        ReadThroughTheCard (true);
+    }
+
+
+
+    //  An empty volume's blocks are sent as runs.
+    TEST_METHOD (AnEmptyVolume_IsReadThroughAnUthernetII)
+    {
+        ReadThroughTheCard (false);
+    }
+
+
+
+    //  The volume, its free blocks random when `random` is set, read through
+    //  the link and compared with the image.
+    static void  ReadThroughTheCard (bool random)
+    {
+        std::vector<Byte>                  disk   = MakeDisk (random);
         FakeDiskFileIo                     io;
         FakeHostNetwork                    network;
         TestMachine::BlockCard             card;

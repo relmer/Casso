@@ -3361,6 +3361,106 @@ fltorig: .byte 0
 putb    = putraw
         endif
 
+; rlebeg and rleend: where a module writes a packet whole, for the network and
+; W5100 builds. rlebeg returns the address in A (low) and Y (high), and in X
+; 0 when the packet is written at the address and up, or 1 when every byte is
+; written to the one address, the W5100's data port. There is room for
+; RLEROOM bytes. The carry is set where there's no such place: a build with
+; faults, whose bytes go through putb, the 6551 and the cassette builds, and a
+; W5100 whose transmit memory wraps too soon. rleend sends the packet:
+; rletot is its length, and for the W5100 rlehdr is its envelope's length,
+; command and check, written over the four bytes after its start.
+RLEROOM  = 800
+rletot:  .word 0
+rlehdr:  .byte 0, 0, 0, 0
+        ifndef FAULTS
+        ifdef NETWORK
+rlebeg: lda txn+1               ; a datagram with room for RLEROOM more
+        bne rbflush
+        lda txn
+        cmp #<(LINKMAX-RLEROOM)
+        bcc rbroom
+rbflush: jsr flush
+rbroom: lda prst+1
+        ldy prst+2
+        ldx #0
+        clc
+        rts
+rleend: lda prst+1
+        clc
+        adc rletot
+        sta prst+1
+        lda prst+2
+        adc rletot+1
+        sta prst+2
+        lda txn
+        clc
+        adc rletot
+        sta txn
+        lda txn+1
+        adc rletot+1
+        sta txn+1
+        rts
+RLEPLACE = 1
+        endif
+        ifdef W5100
+        ifndef NETWORK
+rlebeg: lda txn                 ; the bytes put before it, sent first
+        beq rbempty
+        jsr flush
+rbempty: lda txwr+1             ; the slow way where the packet would wrap the ring
+        and #$0F
+        cmp #>($1000-RLEROOM)
+        bcs rbnone
+        ora #TXMEM
+        ldy txwr
+        jsr wzptr
+        txa                     ; X is slotx: the data port's address
+        clc
+        adc #<WZDATA
+        ldy #>WZDATA
+        ldx #1
+        clc
+        rts
+rbnone: sec
+        rts
+rleend: lda txwr                ; the envelope's length, command and check, from its second byte
+        clc
+        adc #1
+        tay
+        lda txwr+1
+        adc #0
+        and #$0F
+        ora #TXMEM
+        jsr wzptr
+        lda rlehdr
+        sta WZDATA,x
+        lda rlehdr+1
+        sta WZDATA,x
+        lda rlehdr+2
+        sta WZDATA,x
+        lda rlehdr+3
+        sta WZDATA,x
+        lda txwr
+        clc
+        adc rletot
+        sta txwr
+        lda txwr+1
+        adc rletot+1
+        sta txwr+1
+        lda #1
+        sta txn
+        jmp flush
+RLEPLACE = 1
+        endif
+        endif
+        endif
+        ifndef RLEPLACE
+rlebeg: sec
+        rts
+rleend: rts
+        endif
+
 ; putblk: the 512 bytes at the page in A and the next put, as putb puts each.
 ; The network and W5100 builds copy them into the datagram or the chip's
 ; transmit memory in one pass; a build with faults puts each through putb,

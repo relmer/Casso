@@ -76,6 +76,13 @@ bkind    = $63                  ; and its kind
 blen     = $64                  ; and $65: a reply's length, or a block's CRC
 bxor     = $66                  ; the EOR of a block's bytes, for the packet's check
 btmp     = $67                  ; sendblk: the CRC's low byte between a round's two bytes
+rbyte    = $68                  ; sendrle: a run's byte
+rfrom    = $69                  ; and where it starts in the page
+rpages   = $6A                  ; the packet's whole pages written
+rmode    = $6B                  ; 0 to write at rbase and up, 1 to the one address
+rbase    = $6C                  ; and $6D: where the packet is written
+rsp      = $6E                  ; the stack pointer, for a packet that grows too long
+RESC     = $DB                  ; the escape byte in Block runs
 
 ; ---------------------------------------------------------------------------
 ; List block devices
@@ -325,7 +332,7 @@ brloop: lda p_index
         beq brsend
         jsr reread
         bcs brfail
-brsend: jsr sendblk
+brsend: jsr sendrle
         jsr p_pollcancel
         jsr nextblk
         jmp brloop
@@ -540,6 +547,192 @@ sbhdr:  lda blkhdr,x
         jmp p_putb
 
 blkhdr: .byte $C1, <517, >517, CMDBLKDATA, $C1 ^ <517 ^ >517 ^ CMDBLKDATA
+
+; sendrle: Block runs with bblk and BLKBUF's bytes, the packet written whole
+; where rlebeg returns. Each byte is sent as it is, a run of n + 4 of a byte
+; within a page as RESC, n and the byte, and a RESC alone as RESC, $FF. The CRC
+; is of the block number and the bytes as sent, and the packet's EOR is 0,
+; which the PC doesn't check for Block runs. One pass finds the runs and the
+; CRC and writes the packet, with each store's address set in the code. With no
+; place to write, or a packet that would pass three pages, the block is sent
+; as Block data instead.
+sendrle: jsr p_rlebeg
+        bcc srgo
+        jmp sendblk
+srgo:   sta rbase
+        sty rbase+1
+        stx rmode
+        sta srst+1
+        sty srst+2
+        sta srfast+1
+        sty srfast+2
+        lda #$9D                ; STA abs,X: up from the address
+        cpx #0
+        beq srop
+        lda #$8D                ; STA abs: the one address
+srop:   sta srst
+        sta srfast
+        tsx
+        stx rsp
+        lda #0
+        sta rpages
+        sta p_crclo
+        sta p_crchi
+        tax
+        lda #$C1                ; the envelope, its length and check set after
+        jsr srout
+        lda #0
+        jsr srout
+        jsr srout
+        lda #CMDBLKRUNS
+        jsr srout
+        lda #0
+        jsr srout
+        lda bblk
+        jsr sremit
+        lda bblk+1
+        jsr sremit
+        lda bblk+2
+        jsr sremit
+        lda #>BLKBUF
+        jsr srpagein
+        lda #>(BLKBUF+256)
+        jsr srpagein
+        lda p_crclo
+        jsr srout
+        lda p_crchi
+        jsr srout
+        lda #0
+        jsr srout
+        stx p_rletot
+        lda rpages
+        sta p_rletot+1
+        txa                     ; the payload: all but the envelope and EOR
+        sec
+        sbc #6
+        sta p_rlehdr
+        lda rpages
+        sbc #0
+        sta p_rlehdr+1
+        lda #CMDBLKRUNS
+        sta p_rlehdr+2
+        eor #$C1
+        eor p_rlehdr
+        eor p_rlehdr+1
+        sta p_rlehdr+3
+        lda rmode
+        bne srsend
+        ldy #1
+        lda p_rlehdr
+        sta (rbase),y
+        iny
+        lda p_rlehdr+1
+        sta (rbase),y
+        ldy #4
+        lda p_rlehdr+3
+        sta (rbase),y
+srsend: jmp p_rleend
+
+; srpagein: the page in A of the block, as its bytes and runs.
+srpagein: sta srsrc+2
+        sta srnext+2
+        sta srrcmp+2
+        ldy #0
+srloop:
+srsrc:  lda BLKBUF,y
+srnext: cmp BLKBUF+1,y
+        beq srrun
+        cmp #RESC
+        beq sresc
+srfast: sta $FFFF,x             ; a byte as it is, with its CRC inline
+        eor p_crchi
+        sta srfh+1
+        sta srfl+1
+        lda p_crclo
+srfh:   eor p_CRCHI
+        sta p_crchi
+srfl:   lda p_CRCLO
+        sta p_crclo
+        inx
+        bne srfx
+        jsr srpage
+srfx:   iny
+        bne srloop
+        rts
+sresc:  jsr sremit
+        lda #$FF
+        jsr sremit
+        jmp srfx
+srrun:  sta rbyte
+        sty rfrom
+srrl:   iny
+        beq srrend
+srrcmp: cmp BLKBUF,y
+        beq srrl
+srrend: tya                     ; the run's length, 0 for the whole page
+        sec
+        sbc rfrom
+        beq srlong
+        cmp #4
+        bcs srlong
+        sta rfrom               ; under 4: each byte as it is
+srshort: lda rbyte
+        cmp #RESC
+        bne srsone
+        jsr sremit
+        lda #$FF
+srsone: jsr sremit
+        dec rfrom
+        bne srshort
+        beq srrdone             ; always
+srlong: sec
+        sbc #4
+        pha
+        lda #RESC
+        jsr sremit
+        pla
+        jsr sremit
+        lda rbyte
+        jsr sremit
+srrdone: cpy #0
+        bne srloop
+        rts
+
+; sremit: A at the packet's next byte, with its CRC. Y is kept.
+sremit: pha
+        eor p_crchi
+        sta srch+1
+        sta srcl+1
+        lda p_crclo
+srch:   eor p_CRCHI
+        sta p_crchi
+srcl:   lda p_CRCLO
+        sta p_crclo
+        pla
+        ; falls through
+
+; srout: A at the packet's next byte. Y is kept.
+srout:
+srst:   sta $FFFF,x
+        inx
+        bne sroret
+        jsr srpage
+sroret: rts
+
+; srpage: a page of the packet written. Past three, the block is sent as
+; Block data, from sendrle's caller.
+srpage: inc rpages
+        lda rpages
+        cmp #3
+        bcs srtoo
+        lda rmode
+        bne srpgret
+        inc srst+2
+        inc srfast+2
+srpgret: rts
+srtoo:  ldx rsp
+        txs
+        jmp sendblk
 
 ; getblk: the host's Block data for bblk into BLKBUF. C is set on a
 ; timeout, a packet that isn't Block data, another block or a failed CRC. The

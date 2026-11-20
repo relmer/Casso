@@ -103,7 +103,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 106;
+    static constexpr Word    kProgramVersion    = 107;
     static constexpr Byte    kShimVersion       = 12;
     static constexpr Word    kShimAddress       = 0x3A00;
 

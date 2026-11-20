@@ -12,7 +12,6 @@
 static constexpr size_t  s_kEntryBytes    = 23;     // slot, unit, SmartPort, blocks (3), kind, volume name (16)
 static constexpr size_t  s_kNameBytes     = 16;
 static constexpr size_t  s_kSosEntryBytes = s_kEntryBytes + s_kNameBytes;   // and the SOS device's name
-static constexpr size_t  s_kBlockPayload = 3 + CassoLinkCodec::kBlockSize + 2;   // the block's number, its bytes and their CRC
 static constexpr Byte    s_kNameLength   = 0x0F;
 
 
@@ -119,7 +118,8 @@ void CassoLinkHost::MakeBlockRequest (const CassoLinkBlockDevice & device, uint3
 //
 //  CassoLinkHost::ReadBlocks
 //
-//  Each Block data packet must be the next block, whole and with its CRC.
+//  Each Block data or Block runs packet must be the next block, whole and
+//  with its CRC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,10 +145,9 @@ HRESULT CassoLinkHost::ReadBlocks (const CassoLinkBlockDevice & device, uint32_t
 
     for (;;)
     {
-        std::span<const Byte>  data;
-        uint32_t               block = 0;
-        Word                   crc   = 0;
-        bool                   valid = false;
+        std::vector<Byte>  data;
+        uint32_t           block = 0;
+        bool               valid = false;
 
         hr = ReadReply (packet);
         CHR (hr);
@@ -160,18 +159,11 @@ HRESULT CassoLinkHost::ReadBlocks (const CassoLinkBlockDevice & device, uint32_t
             break;
         }
 
-        valid = packet.command == CassoLinkCodec::kBlockData && packet.payload.size() == s_kBlockPayload;
-        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-        block = (uint32_t) packet.payload[0] | ((uint32_t) packet.payload[1] << 8) | ((uint32_t) packet.payload[2] << 16);
-        data  = std::span<const Byte> (packet.payload).subspan (3, CassoLinkCodec::kBlockSize);
-        crc   = (Word) (packet.payload[3 + CassoLinkCodec::kBlockSize] | (packet.payload[4 + CassoLinkCodec::kBlockSize] << 8));
+        hr = CassoLinkCodec::ParseBlock (packet, block, data);
+        CHR (hr);
 
         valid = block == next;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-        valid = CassoLinkCodec::ComputeCrc (data) == crc;
-        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_CRC));
 
         outData.insert (outData.end(), data.begin(), data.end());
         next++;
