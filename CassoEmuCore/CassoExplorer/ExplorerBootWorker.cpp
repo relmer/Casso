@@ -337,8 +337,21 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         std::string  fromUser = FindGivenName (*fileIo, given, folder, name);
         FullSendRow  row;
         bool         renamed  = false;
+        std::string  print;
+        bool         isRaw    = false;
 
         CheckFileSystem (bytes, path, result);
+
+        //  A raw capture is of a disk that is likely copy-protected, whose
+        //  file system's bookkeeping is often odd on purpose, so it has no
+        //  verdict of damage.
+        hr = FullSendManifestFile::FindFingerprint (*fileIo, folder, name, print, isRaw);
+
+        if (SUCCEEDED (hr) && isRaw && (result.fsCheck == FullSendManifest::kCheckBad || result.fsCheck == FullSendManifest::kCheckSuspect))
+        {
+            result.fsCheck = FullSendManifest::kCheckNone;
+            result.fsFinding.clear();
+        }
 
         hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, result.fsCheck, row);
         IGNORE_RETURN_VALUE (hr, S_OK);
