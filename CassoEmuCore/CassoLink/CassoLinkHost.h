@@ -59,6 +59,7 @@ struct CassoLinkStatus
     Byte  done           = 0;
     Byte  error          = 0;
     bool  writeProtected = false;   // the drive's disk, as the program sensed it at the operation's start
+    bool  thirteenSector = false;   // and whether a 13-sector address field passed during it
 };
 
 //  A ProDOS block device or SmartPort unit, as the block module lists it:

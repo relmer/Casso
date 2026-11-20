@@ -1167,6 +1167,10 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
         //  the drive reads alike.
         label += L" (no disk or unformatted)";
     }
+    else if (drive.thirteenSector)
+    {
+        label += L" (13-sector disk)";
+    }
     else if (!drive.volume.empty())
     {
         label += L" (" + drive.volume + L")";

@@ -617,6 +617,9 @@ HRESULT CassoLinkSessionTypes::DriveSource::ReadSectors (std::span<const size_t>
         hr = m_session.m_host->ReadSectors ((Byte) m_drive, (Byte) track, physicals, data, status);
         CHR (hr);
 
+        //  A 13-sector disk has no 16-sector address field to find.
+        CBREx (status.error != CassoLinkHost::kErrorNotFound || !status.thirteenSector, CassoLinkSession::kThirteenSectorDisk);
+
         hr = CassoLinkSession::FromStatusError (status.error);
         CHR (hr);
 

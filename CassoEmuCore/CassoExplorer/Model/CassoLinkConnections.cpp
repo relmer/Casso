@@ -1036,7 +1036,8 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             }
             else if (catalog->second->state == LinkOperationState::Failed)
             {
-                row.empty = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
+                row.empty          = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
+                row.thirteenSector = catalog->second->result == CassoLinkSession::kThirteenSectorDisk;
             }
 
             entry.drives.push_back (row);

@@ -94,6 +94,10 @@ public:
     //  The bit of Status's drive byte that marks a write-protected disk.
     static constexpr Byte  kStatusWriteProtected = 0x40;
 
+    //  The bit for a drive whose disk has 13-sector address fields, which a
+    //  read for 16 sectors passes over.
+    static constexpr Byte  kStatusThirteenSector = 0x20;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;

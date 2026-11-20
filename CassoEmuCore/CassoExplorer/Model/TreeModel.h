@@ -115,6 +115,9 @@ struct LinkTreeEntry
 
         //  A ProDOS drive's top-level folders, once its catalog is read.
         std::vector<std::wstring>  folders;
+
+        //  Whether its disk has only 13-sector address fields.
+        bool          thirteenSector = false;
     };
 
     std::wstring        name;

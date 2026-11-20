@@ -99,6 +99,10 @@ public:
 
     static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
 
+    //  A read of a drive whose disk has 13-sector address fields, as DOS 3.2
+    //  and earlier wrote, and no 16-sector one.
+    static constexpr HRESULT       kThirteenSectorDisk = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_MEDIA);
+
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }

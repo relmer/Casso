@@ -319,6 +319,7 @@ OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
 STATWP     = $40                ; Status's drive bit for a write-protected disk
+STAT13     = $20                ; and for a 13-sector address field seen
 
 ; Errors.
 ERRNONE    = $00
@@ -1981,7 +1982,10 @@ ssloop: lda stathdr,x
         sta peor
         lda op
         jsr putpe
-        lda drive
+        lda saw13
+        beq ss16
+        lda #STAT13
+ss16:   ora drive
         ora wpbit
         jsr putpe
         lda track
