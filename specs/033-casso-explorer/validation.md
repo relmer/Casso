@@ -1321,5 +1321,6 @@ the cards stopped being read every two seconds, they were read only when a
 drive letter changed or Windows reported a device change. They are now read
 once at the start.
 
-The card's node in the tree has no expander and doesn't list its partitions
-after the card is opened, while the list does.
+The card's node in the tree had no expander after the card was opened: a tree
+node read with nothing under it stayed that way when it was refreshed with
+children to read. Now the node opens to the four partitions.
