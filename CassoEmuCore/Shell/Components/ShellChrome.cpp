@@ -1165,7 +1165,7 @@ int ShellChrome::GetDeskSlideClearPx() const
 
 
 
-    if (m_shell.m_scene->GetScene().HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
+    if (m_shell.m_scene->GetScene().HasRecorder() && m_shell.m_tapeDeck->IsRecorderOnDesk())
     {
         clearPx += m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
     }
@@ -1249,6 +1249,7 @@ void ShellChrome::SyncChromeBands()
     inputs.drivesOnBar         = m_shell.m_scene->AreDrivesOnBar();
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
+    inputs.dockRecorderDp      = GetDockRecorderDp();
     inputs.chromeSceneScale    = m_chromeSceneScale;
     inputs.driveBarZoom        = GetDriveBarZoom();
     inputs.toolbarBandDp       = m_toolbar.GetBandDp();
@@ -1453,7 +1454,7 @@ void ShellChrome::ReflowChromeForMachineChange()
 
     if (m_shell.m_scene->IsReady())
     {
-        m_shell.m_scene->GetScene().SetRecorderShown (m_shell.m_tapeDeck->IsTapeRecorderShown());
+        m_shell.m_scene->GetScene().SetRecorderShown (m_shell.m_tapeDeck->IsRecorderOnDesk());
         m_shell.m_scene->InvalidateSceneComposition();
     }
 

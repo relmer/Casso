@@ -8,6 +8,7 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Layout/DriveLabel.h"
 #include "Ui/Chrome/DriveWidget.h"
 
@@ -51,6 +52,11 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     int                                    originX     = 0;
     int                                    rowTop      = 0;
     int                                    stripBottom = (m_driveStripAreaPx.bottom > m_driveStripAreaPx.top) ? (int) m_driveStripAreaPx.bottom : clientH;
+    bool                                   tapeDocked  = m_shell.m_tapeDeck->IsRecorderDocked();
+    int                                    tapeW       = 0;
+    int                                    tapeX       = 0;
+    int                                    rowW        = 0;
+    RECT                                   tapeProbe   = {};
     std::vector<std::vector<DeskDrive>>    classes     = DriveBarFan::Group (m_shell.m_scene->GetDrivePlan());
 
 
@@ -86,7 +92,20 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
                                           MulDiv (s_kCompactDriveWidgetGapDp, (int) barDpi, s_kBaseDpi), clientW,
                                           MulDiv (s_kDriveBarEdgeDp,      (int) dpi, s_kBaseDpi),
                                           MulDiv (s_kDriveBarMinBoxGapDp, (int) dpi, s_kBaseDpi));
-    originX = std::max (0, (clientW - DriveBarFan::GetRowWidth (fan.GetClassCount(), slot.cx, gap)) / 2);
+    rowW    = DriveBarFan::GetRowWidth (fan.GetClassCount(), slot.cx, gap);
+
+    // A docked recorder is at the right end of the row, and the row is
+    // centered with it.
+    if (tapeDocked)
+    {
+        m_shell.m_tapeDeck->GetWidget().Layout (RECT {}, scaler);
+        tapeProbe = m_shell.m_tapeDeck->GetWidget().GetOuterRect();
+        tapeW     = tapeProbe.right - tapeProbe.left;
+        rowW     += ((fan.GetClassCount() > 0) ? gap : 0) + tapeW;
+    }
+
+    originX = std::max (0, (clientW - rowW) / 2);
+    tapeX   = originX + rowW - tapeW;
     rowTop  = std::max (clientH - bottomInsetPx, clientH - (int) slot.cy - bottomGap);
 
     fan.SetExpandAll (sliding);
@@ -106,12 +125,52 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }
 
+    if (tapeDocked)
+    {
+        int  tapeTop = rowTop + (int) slot.cy - (tapeProbe.bottom - tapeProbe.top);
+
+        // Bottom-aligned with the drives' boxes.
+        m_shell.m_tapeDeck->SetAnchor ({ tapeX, tapeTop, tapeX, tapeTop }, barDpi);
+    }
+
     m_driveBarFan.SetDpi     (barDpi);
     m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, sliding ? stripBottom : clientH });
     m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_driveBarSlideProgress > 0.0f));
 
     PlaceDriveBarWidgets();
     (void) SyncDriveBarViews();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::GetDockRecorderDp
+//
+//  A docked recorder's height at 96 DPI, with the gap under it, which the
+//  drive band makes room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellChrome::GetDockRecorderDp() const
+{
+    DxuiDpiScaler  scaler;
+    RECT           probe = {};
+    int            dp    = 0;
+
+
+
+    if (m_shell.DeskSceneActive() && m_shell.m_tapeDeck->IsRecorderDocked())
+    {
+        scaler.SetDpi (s_kBaseDpi);
+        m_shell.m_tapeDeck->GetWidget().Layout (RECT {}, scaler);
+        probe = m_shell.m_tapeDeck->GetWidget().GetOuterRect();
+        dp    = (probe.bottom - probe.top) + s_kLabelBottomGapDp;
+    }
+
+    return dp;
 }
 
 

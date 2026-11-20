@@ -113,6 +113,7 @@ public:
     // puts on the bar, the class's other drives fanned out above it on hover.
     // The Disk II widgets are placed in their drives' slots.
     void    LayoutDriveBar         (int bottomInsetPx, int clientW, int clientH, UINT dpi);
+    int     GetDockRecorderDp      () const;
     void    HideDriveBar           ();
     bool    UpdateDriveBarHover    (POINT pt);
     bool    HandleDriveBarClick    (POINT pt);

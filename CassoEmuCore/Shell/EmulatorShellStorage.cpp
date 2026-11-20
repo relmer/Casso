@@ -807,6 +807,7 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     ids.push_back (IDM_VIEW_AUTOHIDE_DRIVES);
     ids.push_back (IDM_VIEW_FLOPPIES_ON_DESK);
     ids.push_back (IDM_VIEW_HARD_DISKS_ON_DESK);
+    ids.push_back (IDM_VIEW_RECORDER_ON_DESK);
     ids.push_back (IDM_VIEW_FLOPPY_PAIR_BESIDE);
 
     for (int id : ids)
@@ -914,7 +915,7 @@ void EmulatorShell::ShowFloppyContextMenu (const DeskDrive & drive, int x, int y
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    for (int id : { IDM_VIEW_AUTOHIDE_DRIVES, IDM_VIEW_FLOPPIES_ON_DESK, IDM_VIEW_HARD_DISKS_ON_DESK, IDM_VIEW_FLOPPY_PAIR_BESIDE })
+    for (int id : { IDM_VIEW_AUTOHIDE_DRIVES, IDM_VIEW_FLOPPIES_ON_DESK, IDM_VIEW_HARD_DISKS_ON_DESK, IDM_VIEW_RECORDER_ON_DESK, IDM_VIEW_FLOPPY_PAIR_BESIDE })
     {
         items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (id)));
     }
@@ -1015,7 +1016,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    for (int id : { IDM_VIEW_AUTOHIDE_DRIVES, IDM_VIEW_FLOPPIES_ON_DESK, IDM_VIEW_HARD_DISKS_ON_DESK, IDM_VIEW_FLOPPY_PAIR_BESIDE })
+    for (int id : { IDM_VIEW_AUTOHIDE_DRIVES, IDM_VIEW_FLOPPIES_ON_DESK, IDM_VIEW_HARD_DISKS_ON_DESK, IDM_VIEW_RECORDER_ON_DESK, IDM_VIEW_FLOPPY_PAIR_BESIDE })
     {
         items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (id)));
     }

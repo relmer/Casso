@@ -714,6 +714,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             // A place row is for a class the machine has drives of.
             case IDM_VIEW_FLOPPIES_ON_DESK:   visible = m_scene->HasDriveClass (DeskDriveClass::Floppy);                            break;
             case IDM_VIEW_HARD_DISKS_ON_DESK: visible = m_scene->HasDriveClass (DeskDriveClass::HardDisk);                          break;
+            case IDM_VIEW_RECORDER_ON_DESK:   visible = m_tapeDeck->IsTapeRecorderShown() && DeskSceneActive();                     break;
 
             // The //c Plus's port drives are plugged in from the plug-in rows.
             // Each row is visible only while the port has room for its kind.
@@ -777,6 +778,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_HARD_DISKS_ON_DESK:
             {
                 return EmulatorCommands::GetDrivePlaceLabel (true, m_scene->IsClassOnDesk (DeskDriveClass::HardDisk));
+            }
+
+            case IDM_VIEW_RECORDER_ON_DESK:
+            {
+                return EmulatorCommands::GetRecorderPlaceLabel (!m_tapeDeck->IsRecorderDocked());
             }
 
             case IDM_DISK_WP1:

@@ -1020,7 +1020,7 @@ bool ShellRenderer::TryPresentUiFrame()
                     driveRow         = m_shell.m_scene->m_stripRectPx;
                     driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 
-                    if (m_shell.m_scene->m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
+                    if (m_shell.m_scene->m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsRecorderOnDesk())
                     {
                         driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
                     }
