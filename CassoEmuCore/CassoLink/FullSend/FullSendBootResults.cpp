@@ -35,7 +35,10 @@ FullSendBootResults::FullSendBootResults (FullSendStatus & status, FullSendManif
 //  file. An image that did not boot is listed on the Apple at the next
 //  pause, by its number. The latest one not read again yet has the offer to
 //  read its disk again; an earlier one's offer is withdrawn, as the pause
-//  has room for one.
+//  has room for one. A sector image that booted with a bad file system has
+//  the offer too: a protected disk's odd catalog reads that way, and so does
+//  a crack's, so its disk is captured raw only when the offer is taken, and
+//  the folder then has both images.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +52,20 @@ void FullSendBootResults::Apply()
         m_manifest.SetBoot (boot.file, boot.boot, boot.fsCheck);
         m_latest      = boot.boot;
         m_latestCheck = boot.fsCheck;
+
+        if (boot.boot == FullSendManifest::kBootBooted && boot.fsCheck == FullSendManifest::kCheckBad && found != rows.end()
+            && found->status != FullSendManifest::kStatusRawCapture && !m_retried.contains (found->fingerprint))
+        {
+            if (!m_retryImage.empty())
+            {
+                m_failed.push_back (m_retryImage);
+            }
+
+            m_retryImage  = std::format ("{:04}", found->sequence);
+            m_retryPrint  = found->fingerprint;
+            m_retryDrive  = found->drive;
+            m_retryBooted = true;
+        }
 
         if (boot.boot == FullSendManifest::kBootDidNotBoot)
         {
@@ -72,9 +89,10 @@ void FullSendBootResults::Apply()
                     m_failed.push_back (m_retryImage);
                 }
 
-                m_retryImage = image;
-                m_retryPrint = found->fingerprint;
-                m_retryDrive = found->drive;
+                m_retryImage  = image;
+                m_retryPrint  = found->fingerprint;
+                m_retryDrive  = found->drive;
+                m_retryBooted = false;
             }
         }
     }
@@ -111,7 +129,14 @@ std::vector<std::string> FullSendBootResults::GetLines() const
         lines.push_back (ListImages (m_stillFailed) + " still does not boot.");
     }
 
-    if (!m_retryImage.empty())
+    if (!m_retryImage.empty() && m_retryBooted)
+    {
+        lines.push_back (std::format ("{} booted, but its catalog is odd.", m_retryImage));
+        lines.push_back ("Capture it again");
+        lines.push_back ("in raw mode, or put in a new disk,");
+        lines.push_back ("then press Space.");
+    }
+    else if (!m_retryImage.empty())
     {
         lines.push_back (std::format ("{} did not boot. Capture it again", m_retryImage));
         lines.push_back ("or put in a new disk, then press Space.");

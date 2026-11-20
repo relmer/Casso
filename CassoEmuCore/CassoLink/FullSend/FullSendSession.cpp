@@ -466,7 +466,8 @@ Error:
 //  A disk whose image did not boot, sent as a new image beside the first. A
 //  raw capture is built from its reads and the first capture's. A likely
 //  copy-protected disk saved as its sectors, or one whose damage is unclear,
-//  is captured raw, because protected sectors read the same each time. A
+//  is captured raw, because protected sectors read the same each time. So
+//  is a sector image that booted with a bad file system. A
 //  damaged disk is read with verification on, for sectors that read
 //  differently each time.
 //
@@ -480,8 +481,9 @@ HRESULT FullSendSession::SendAgain (int drive, const FullSendCheckedDisk & disk)
     const FullSendRow  * first         = m_folder.FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
     bool                 protectedCopy = first != nullptr && first->status == FullSendManifest::kStatusProtected;
     bool                 unclearCopy   = first != nullptr && first->status == FullSendManifest::kStatusUnclear;
-    bool                 rawAgain      = protectedCopy || unclearCopy;
     bool                 rawCopy       = first != nullptr && first->status == FullSendManifest::kStatusRawCapture;
+    bool                 oddCatalog    = first != nullptr && !rawCopy && first->boot == FullSendManifest::kBootBooted && first->fsCheck == FullSendManifest::kCheckBad;
+    bool                 rawAgain      = protectedCopy || unclearCopy || oddCatalog;
     bool                 verify        = !rawAgain && !rawCopy && !wasVerify;
 
 
@@ -489,7 +491,8 @@ HRESULT FullSendSession::SendAgain (int drive, const FullSendCheckedDisk & disk)
     m_context.boots.NoteRetried (disk.fingerprint);
     m_check.ClearRepeat (drive);
 
-    m_context.Report (protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
+    m_context.Report (oddCatalog    ? std::format ("The image captured from the disk in drive {} booted, but its file system is damaged, which can be copy protection. Capturing the disk again in raw mode.", drive)
+                    : protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
                     : unclearCopy   ? std::format ("The image captured from the disk in drive {} did not boot, and its unreadable sectors may be copy protection. Capturing the disk again in raw mode.", drive)
                     : rawCopy       ? std::format ("The raw capture of the disk in drive {} did not boot. Capturing it again, combined with the first capture's reads.", drive)
                                     : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive), drive);

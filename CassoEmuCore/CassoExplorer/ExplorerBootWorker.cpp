@@ -356,16 +356,20 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, result.fsCheck, row);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  An image with unreadable sectors or a bad file system is a failed
-        //  capture, even when it boots. The Apple's tone has the same rule. A
-        //  raw capture has every track, so the count from the sector read
-        //  before it doesn't apply.
-        result.isComplete = (row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture) && result.fsCheck != FullSendManifest::kCheckBad;
+        //  An image that didn't boot with unreadable sectors or a bad file
+        //  system is a failed capture. One that boots isn't, as a crack's odd
+        //  catalog reads as bad. The Apple's tone has the same rule. A raw
+        //  capture has every track, so the count from the sector read before
+        //  it doesn't apply.
+        result.isComplete = report.verdict == BootVerdict::Booted
+                            || ((row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture) && result.fsCheck != FullSendManifest::kCheckBad);
 
         //  An image saved as a number is renamed with the user's earlier name
-        //  for its disk, or its title once it boots, or with neither, a DOS
-        //  3.3 disk's first program after HELLO.
-        if (titled.empty() && (format == DiskFormat::Dsk || format == DiskFormat::Do))
+        //  for its disk, or its title once it boots. A DOS 3.3 disk that
+        //  doesn't boot, as a data disk, takes its first program after HELLO;
+        //  one that boots with no title found stays a number, as a game's
+        //  program files are often called something meaningless.
+        if (titled.empty() && report.verdict != BootVerdict::Booted && (format == DiskFormat::Dsk || format == DiskFormat::Do))
         {
             titled = MakeNumberedName (name, FullSendDisk::GetProgramTitle (bytes));
         }

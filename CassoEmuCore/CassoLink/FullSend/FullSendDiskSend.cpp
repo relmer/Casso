@@ -709,8 +709,9 @@ void FullSendDiskSend::ReportSent (const Sending & disk)
 //  The image is booted on the PC while its disk is in the drive, so an
 //  image that did not boot is on the Apple at the pause that follows. Where
 //  the Apple sounds the results, the failure's tone is for an image that did
-//  not boot, has unreadable sectors or has a bad file system, and the
-//  success's for any other. A duplicate isn't booted.
+//  not boot, and for one that has unreadable sectors or a bad file system
+//  unless it booted, as a crack's odd catalog does; the success's is for any
+//  other. A duplicate isn't booted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -743,8 +744,9 @@ HRESULT FullSendDiskSend::AwaitBootCheck (Sending & disk)
 
     m_context.boots.Apply();
 
-    failed = m_context.boots.GetLatest() == FullSendManifest::kBootDidNotBoot || m_context.boots.GetLatestCheck() == FullSendManifest::kCheckBad ||
-             (disk.image.raw.empty() && !disk.image.unreadable.empty());
+    failed = m_context.boots.GetLatest() == FullSendManifest::kBootDidNotBoot ||
+             (m_context.boots.GetLatest() != FullSendManifest::kBootBooted &&
+              (m_context.boots.GetLatestCheck() == FullSendManifest::kCheckBad || (disk.image.raw.empty() && !disk.image.unreadable.empty())));
 
     screen.tone = !m_context.link.HasBootTones() || m_context.boots.GetLatest().empty() ? tone
                 : failed                                                                ? FullSendTone::DidNotBoot

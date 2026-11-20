@@ -38,7 +38,7 @@ public:
         std::string               renamedFrom;  // the file's name before, when the boot renamed it
         std::string               source;       // as given to Queue
         bool                      hasReport  = false;
-        bool                      isComplete = true;    // false for a Full Send image with unreadable sectors or a bad file system
+        bool                      isComplete = true;    // false for a Full Send image that didn't boot, with unreadable sectors or a bad file system
         BootVerdict               verdict    = BootVerdict::Unclear;
         std::string               reason;
         std::string               machine;

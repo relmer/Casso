@@ -1144,43 +1144,64 @@ public:
         Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Done; }));
     }
 
-    //  An image with unreadable sectors is a failed capture, even when it
-    //  boots.
-    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithBadSectors_HasTheFailureTone)
+    //  An image with unreadable sectors is a failed capture when its boot is
+    //  unclear. One that boots has the success's tone.
+    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithBadSectors_HasTheFailureToneUnlessItBoots)
     {
-        Rig  rig;
-
-        rig.link.drives[0]  = Other (1);
-        rig.link.badDisk    = rig.link.drives[0];
-        rig.link.badSectors = { { 5, 0 } };
-        rig.link.present[1] = false;
-        rig.link.bootTones  = true;
-        rig.link.onAwait    = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted); };
-
-        rig.Run();
-
-        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
-        Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
-    }
-
-    //  An image with a bad file system is a failed capture, even when it
-    //  boots. An image with no standard file system isn't.
-    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithABadFileSystem_HasTheFailureTone)
-    {
-        for (const char * check : { FullSendManifest::kCheckBad, FullSendManifest::kCheckNone })
+        for (const char * boot : { FullSendManifest::kBootUnclear, FullSendManifest::kBootBooted })
         {
             Rig   rig;
-            bool  isBad = std::string (check) == FullSendManifest::kCheckBad;
+            bool  isBooted = std::string (boot) == FullSendManifest::kBootBooted;
+
+            rig.link.drives[0]  = Other (1);
+            rig.link.badDisk    = rig.link.drives[0];
+            rig.link.badSectors = { { 5, 0 } };
+            rig.link.present[1] = false;
+            rig.link.bootTones  = true;
+            rig.link.onAwait    = [&rig, boot] (const std::string & file) { rig.status.SetBoot (file, boot); };
+
+            rig.Run();
+
+            Assert::AreEqual (!isBooted, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
+            Assert::AreEqual (isBooted,  std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+        }
+    }
+
+    //  An image with a bad file system that boots has the success's tone, as a
+    //  crack's odd catalog reads as bad, and the pause offers to capture its
+    //  disk again in raw mode. One whose boot is unclear has the failure's
+    //  tone. An image with no standard file system isn't a failure.
+    TEST_METHOD (Session_WithBootTonesOnTheApple_ABadFileSystem_FailsOnlyAnImageThatDidntBoot)
+    {
+        struct Case
+        {
+            const char *  boot;
+            const char *  check;
+            bool          isFailed;
+        };
+
+        for (const Case & each : { Case { FullSendManifest::kBootBooted,  FullSendManifest::kCheckBad,  false },
+                                   Case { FullSendManifest::kBootUnclear, FullSendManifest::kCheckBad,  true },
+                                   Case { FullSendManifest::kBootBooted,  FullSendManifest::kCheckNone, false } })
+        {
+            Rig   rig;
+            bool  isOffered = false;
 
             rig.link.drives[0]  = Other (1);
             rig.link.present[1] = false;
             rig.link.bootTones  = true;
-            rig.link.onAwait    = [&rig, check] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted, std::string(), check); };
+            rig.link.onAwait    = [&rig, each] (const std::string & file) { rig.status.SetBoot (file, each.boot, std::string(), each.check); };
 
             rig.Run();
 
-            Assert::AreEqual (isBad, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
-            Assert::AreEqual (isBad, std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+            for (const std::string & line : rig.link.pauseLines.back())
+            {
+                isOffered = isOffered || line.find ("booted, but its catalog is odd") != std::string::npos;
+            }
+
+            Assert::AreEqual (each.isFailed,  std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
+            Assert::AreEqual (!each.isFailed, std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
+            Assert::AreEqual (std::string (each.boot) == FullSendManifest::kBootBooted && std::string (each.check) == FullSendManifest::kCheckBad, isOffered, L"The raw capture is offered");
         }
     }
 
