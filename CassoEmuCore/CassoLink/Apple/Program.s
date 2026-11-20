@@ -1386,7 +1386,11 @@ notedisk: ldx drive
         lda misses
         cmp #8
         bcc ndok
+        lda saw13               ; 2 for a 13-sector disk, 1 for none
+        beq ndnone
         lda #1
+ndnone: clc
+        adc #1
         sta nodisk,x
         rts
 ndok:   lda err
@@ -1394,7 +1398,8 @@ ndok:   lda err
         sta nodisk,x
 nddone: rts
 
-nodisk: .byte 0, 0
+nodisk: .byte 0, 0              ; 1 empty or unrecognized, 2 a 13-sector disk
+saw13:  .byte 0                 ; nonzero once a 13-sector address field passed
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
 wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
@@ -1772,6 +1777,7 @@ bgarmed:
         sta idles
         sta misses
         sta wpbit
+        sta saw13
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -3634,8 +3640,12 @@ ra2:    lda Q6L,x
 ra3:    lda Q6L,x
         bpl ra3
         cmp #$96
+        beq ra3ok
+        cmp #$B5                ; a 13-sector disk's address field
         bne ra1c
-        ldy #0
+        sta saw13
+        beq ra1
+ra3ok:  ldy #0
 ra4:    lda Q6L,x
         bpl ra4
         sec
@@ -4986,9 +4996,16 @@ stdrive1: sta pcsum+1
         ldx pcsum+1
         lda nodisk-1,x
         beq sdidle
+        cmp #2
+        beq sd13
         lda #<onodisk
         sta ptr
         lda #>onodisk
+        sta ptr+1
+        bne sdidle
+sd13:   lda #<o13sec
+        sta ptr
+        lda #>o13sec
         sta ptr+1
 sdidle: lda pcsum+1
         cmp drive
@@ -5165,6 +5182,8 @@ optext: .word oidle, oread, owrite, oformat
 oidle:   .text "Idle"
          .byte 0
 onodisk: .text "Empty or no recognized sectors"
+         .byte 0
+o13sec:  .text "13-sector disk"
          .byte 0
 oread:   .text "Reading"
          .byte 0
