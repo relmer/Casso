@@ -33,9 +33,9 @@ void Disassembler65816::Disassemble (
     while (at < bytes.size())
     {
         DisassembledInstruction  line;
-        Byte              opcode = bytes[at];
-        char              mode   = s_kModes[opcode];
-        size_t            size   = 1 + GetOperandSize (mode, wideM, wideX);
+        Byte                     opcode = bytes[at];
+        char                     mode   = s_kModes[opcode];
+        size_t                   size   = 1 + GetOperandSize (mode, wideM, wideX);
 
         line.address = (Word) (origin + at);
 

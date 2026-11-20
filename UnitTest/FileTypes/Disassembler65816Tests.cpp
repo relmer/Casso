@@ -26,7 +26,7 @@ public:
 
     TEST_METHOD (RepAndSep_SetTheWidthOfAnImmediate)
     {
-        std::vector<Byte>              code = { 0xC2, 0x30, 0xA9, 0x34, 0x12, 0xE2, 0x20, 0xA9, 0x12, 0xA2, 0x00, 0x10 };
+        std::vector<Byte>                     code  = { 0xC2, 0x30, 0xA9, 0x34, 0x12, 0xE2, 0x20, 0xA9, 0x12, 0xA2, 0x00, 0x10 };
         std::vector<DisassembledInstruction>  lines;
 
 
@@ -44,7 +44,7 @@ public:
 
     TEST_METHOD (WithoutFollowing_TheStartingWidthsAreKept)
     {
-        std::vector<Byte>              code = { 0xE2, 0x30, 0xA9, 0x34, 0x12 };
+        std::vector<Byte>                     code  = { 0xE2, 0x30, 0xA9, 0x34, 0x12 };
         std::vector<DisassembledInstruction>  lines;
 
 
@@ -58,7 +58,7 @@ public:
 
     TEST_METHOD (LongAndBlockAndBranchOperands)
     {
-        std::vector<Byte>              code = { 0x22, 0x00, 0x10, 0xE1, 0x54, 0x01, 0x02, 0x82, 0xFD, 0xFF, 0xA7, 0x10, 0x83, 0x03 };
+        std::vector<Byte>                     code  = { 0x22, 0x00, 0x10, 0xE1, 0x54, 0x01, 0x02, 0x82, 0xFD, 0xFF, 0xA7, 0x10, 0x83, 0x03 };
         std::vector<DisassembledInstruction>  lines;
 
 
@@ -78,7 +78,7 @@ public:
 
     TEST_METHOD (ACutOffInstruction_IsListedAsBytes)
     {
-        std::vector<Byte>              code = { 0xEA, 0xAD, 0x00 };
+        std::vector<Byte>                     code  = { 0xEA, 0xAD, 0x00 };
         std::vector<DisassembledInstruction>  lines;
 
 
