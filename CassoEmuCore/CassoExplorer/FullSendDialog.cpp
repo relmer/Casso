@@ -1294,10 +1294,10 @@ float FullSendPanel::PaintDisks (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  FullSendPanel::PaintActivity
 //
-//  The activity lines, the newest last, m_lineScroll lines back from the
-//  newest, each after its time and the drive it's about. A line wider than
-//  the list wraps onto a second row, and the list has as many lines as fit
-//  its rows. The wheel scrolls the list, and a thumb at its right marks the
+//  The activity lines, the newest first, from m_lineScroll lines back from
+//  the newest, each after its time and the drive it's about. A line wider
+//  than the list wraps onto a second row, and the list has as many lines as
+//  fit its rows. The wheel scrolls the list, and a thumb at its right marks the
 //  visible lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1354,7 +1354,7 @@ float FullSendPanel::PaintActivity (IDxuiPainter & painter, IDxuiTextRenderer & 
     //  A wrapped line's text begins where a single line's does, centered in
     //  the first row, and its block is one row and one more line of text
     //  tall, so the space below it matches the space below a single line.
-    for (size_t i = first; i < end; i++)
+    for (size_t i = end; i-- > first; )
     {
         HRESULT  hr     = S_OK;
         float    inset  = (lineH - textH) * 0.5f;
@@ -1420,7 +1420,7 @@ void FullSendPanel::PaintThumb (IDxuiPainter & painter, const IDxuiTheme & theme
 //  FullSendPanel::HandleWheel
 //
 //  The wheel over the disks done or the activity scrolls that list a row a
-//  notch: up toward the newest disk, and down toward older activity.
+//  notch: up toward the newest entry, and down toward older ones.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
