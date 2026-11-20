@@ -186,6 +186,19 @@ public:
     }
 
 
+    //  With no partition selected, the card image is what Inspect opens.
+    TEST_METHOD (CanInspect_TheOpenCardWithNoPartitionSelected)
+    {
+        CardHost  host;
+
+        host.OpenCard();
+
+        Assert::IsTrue (host.browser.IsPartitionListLocation());
+        Assert::IsTrue (host.browser.GetSelectedRows().empty());
+        Assert::IsTrue (host.actions.CanInspect(), L"the card image itself");
+    }
+
+
     TEST_METHOD (Verbs_OpenPartitionHasCopyAndReplaceAndNoFormat)
     {
         CardHost      host;

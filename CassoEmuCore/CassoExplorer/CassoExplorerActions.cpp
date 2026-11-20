@@ -411,9 +411,11 @@ bool CassoExplorerActions::CanInspect() const
 
 
 
+    //  With no partition selected, the partitioned image is the target.
     if (m_browser.IsPartitionListLocation())
     {
-        return m_partitions.TryGetTarget (partition) && InspectorWindowSet::CanInspect (partition);
+        return m_partitions.TryGetTarget (partition) ? InspectorWindowSet::CanInspect (partition)
+                                                     : m_browser.GetSelectedRows().empty() && InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
     }
 
     if (TryGetWrappedImage (wrapped))
