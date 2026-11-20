@@ -1001,13 +1001,43 @@ volume through the link, which the Apple then lists and reads back.
 |---|---|---|
 | MAME 0.289 `apple2cp`, the //c Plus, through `Mame.ps1 -Target IIcPlus` | 800K in the internal 3.5-inch drive | Passed in 19 minutes: the volume read through the link is the image mounted, and COPIED is listed and read back |
 | MAME's //c with ROM 4 and a UniDisk 3.5 | | Not possible: `apple2c4` and `apple2c0` have only 5.25-inch drives in MAME 0.289, and their ROM sets aren't installed |
-| AppleWin with a hard disk card, through `Wsl.ps1 -Target HardDisk` | 32 MB and 800K | Not run: the Linux build's Super Serial Card has no TCP serial, and the Windows build isn't installed |
+| AppleWin `sa2` with a hard disk card in slot 7, through `Wsl.ps1 -Target HardDisk` | 32 MB and 800K | Passed in 51 minutes over the Uthernet: both volumes read through the link are the images mounted, and COPIED is listed and read back |
 
 The //c Plus link runs at 9,600 baud, since MAME's null modem is set to it
 and its rate can't be changed from the command line, so the 800K volume takes
 about 18 minutes. The universal disk boots from the external 5.25-inch drive
 with the 800K volume in the internal drive, since a ProDOS volume with no
 PRODOS file is passed over.
+
+The AppleWin link runs over its original Uthernet (CS8900A), since the Linux
+build's Super Serial Card has no TCP serial. The Linux build has the hard disk
+card in slot 7 only, which the Apple boots first, so the 32 MB volume's boot
+block is a jump to the Disk II in slot 6. AppleWin's hard disk card copies a
+block into memory itself, with no 6502 loop, so its reads are far cheaper than
+a real card's.
+
+### Speed, and ADTPro 2.1 on the same setup
+
+The first AppleWin run read 12 blocks a second over Ethernet, no faster than
+serial: the Apple spent about 80 ms of 6502 time on each block. Program 106
+puts a block to the card in one pass, finds its CRC two bytes a round and its
+EOR four bytes a round, and copies a frame to the CS8900A a page at a time.
+`BlockReads_AreProfiled`, run with CASSO_PROFILE_BLOCKS set, writes the cycles
+a block by routine on an emulated //c.
+
+ADTPro 2.1's Ethernet client ran on the same AppleWin setup through
+`Wsl.ps1 -Target Adtpro`, with 2 blocks at once and sound off, its server in
+the WSL instance. Speeds count the volume's bytes only.
+
+| Volume | CassoLink, program 105 | CassoLink, program 106 | ADTPro 2.1 |
+|---|---|---|---|
+| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 50 kbps, 130 s |
+| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 105 kbps, 62 s |
+| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 108 kbps, 41.4 minutes |
+
+ADTPro sends each byte as its difference from the last and drops runs of a
+byte, so it is faster on empty space and slower on data that doesn't repeat.
+Each copy it sent was compared with the image and is the same.
 
 ## A2Pico cards (Story 41, SC-070)
 
