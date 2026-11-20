@@ -1240,8 +1240,7 @@ bool CassoExplorerBrowser::TryGetSelectedEntry (const FileEntry *& outEntry) con
 //  CassoExplorerBrowser::CaptureNameSource
 //
 //  A picker filters by name the rows of a folder, the Casso node and its
-//  stock and demo disks. On the Casso node the stock and demo disks follow
-//  its images, and are listed only while a filter is typed.
+//  stock and demo disks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1262,24 +1261,6 @@ void CassoExplorerBrowser::CaptureNameSource (const Location & location)
     }
 
     m_nameSourceBase = m_rows.size();
-
-    if (!isCasso)
-    {
-        return;
-    }
-
-    for (const std::vector<StockDiskRow> * disks : { &m_stockDisks, &m_demoDisks })
-    {
-        std::vector<CatalogRow>  extra;
-
-        StockDisksListing::Build (*disks, extra);
-
-        for (CatalogRow & row : extra)
-        {
-            row.sourceIndex = m_rows.size();
-            m_rows.push_back (std::move (row));
-        }
-    }
 }
 
 
