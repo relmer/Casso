@@ -132,6 +132,7 @@ public:
             Assert::IsTrue (BootProbe::Judge (dos, limits, reason) == BootVerdict::Booted, L"A boot to BASIC with DOS");
             Assert::IsTrue (BootProbe::Judge (bare, limits, reason) == BootVerdict::DidNotBoot, L"A load that fell to the ROM's BASIC");
         }
+
         Assert::IsFalse (reason.empty(), L"Each verdict has a reason");
 
         Assert::AreEqual ("did-not-boot", BootProbe::GetVerdictName (BootVerdict::DidNotBoot));
