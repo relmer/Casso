@@ -718,8 +718,8 @@ void CassoExplorerOptionsDialog::WireFullSend()
 
     m_fullSendNote.SetText      (L"Full Send quickly archives a stack of floppies. Just keep feeding the drives on the Apple after each disk is completed "
                                  L"and find your disk images in the Full Send folder. Full Send detects duplicates, and can detect and image many "
-                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, capture the disk with "
-                                 L"Capture raw disk on its drive's menu instead.");
+                                 L"copy-protection schemes. If a particular copy-protection scheme isn't auto-detected, choose Create image on "
+                                 L"its drive's menu and save it as a WOZ, which captures the disk raw.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -884,7 +884,7 @@ void CassoExplorerOptionsDialog::WireVerify()
 
     m_verifyOverrideHead.SetText (L"Verify for specific connections, or for a single transfer");
     ExplorerTextStyles::Apply (m_verifyOverrideHead, ExplorerTextStyles::kFormLabel);
-    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. A drive's menu has Create verified image and Write image and verify for that transfer. "
+    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. "
                                   L"In Full Send on the Apple, press V at any time to turn verification on or off. Tracks already read aren't read again. "
                                   L"The Apple's screen always indicates whether verification is on.");
 

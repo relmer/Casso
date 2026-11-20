@@ -33,6 +33,7 @@ public:
 
     void  ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
     void  CaptureRawDisk          (const Location & drive, const std::wstring & suggested = std::wstring());
+    void  CaptureToImage          (const std::wstring & link, int number, const std::filesystem::path & image);
     void  WriteImageToDisk        (const Location & drive = Location(), bool forceVerify = false);
     void  StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
     bool  TryGetSelectedLinkDrive (Location & outDrive) const;

@@ -49,10 +49,11 @@ CassoLinkDriveManager::~CassoLinkDriveManager() = default;
 //  CassoLinkDriveManager::ReadDiskToImage
 //
 //  A linked Apple drive's disk into an image file the user picks, in the
-//  format of its extension. The drive is the one given, else the open
-//  drive, else the drive row selected on its machine; the list stays where
-//  it is. When sectors cannot be read, the user may read the disk again
-//  with them written as zeros.
+//  format of its extension: a WOZ is captured raw, and any other is the
+//  disk's sectors. The drive is the one given, else the open drive, else
+//  the drive row selected on its machine; the list stays where it is. When
+//  sectors cannot be read, the user may read the disk again with them
+//  written as zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +80,8 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.d13, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.d13;*.woz;*.nib;*.nb2" },
-                              FileDialogFilter { L"All files (*.*)", L"*.*" } };
+    spec.filters          = { FileDialogFilter { L"Sector images (*.dsk, *.do, *.po, *.d13, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.d13;*.nib;*.nb2" },
+                              FileDialogFilter { L"Raw capture, for copy-protected disks (*.woz)", L"*.woz" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
     spec.defaultExtension = L"dsk";
@@ -104,6 +105,12 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
             spec.defaultFileName = picked.filename().wstring();
             chosen               = false;
         }
+    }
+
+    if (_wcsicmp (picked.extension().c_str(), L".woz") == 0)
+    {
+        CaptureToImage (link, number, picked);
+        BAIL_OUT_IF (true, S_OK);
     }
 
     //  The second read goes to the link and drive the first one read, not to
@@ -224,9 +231,33 @@ void CassoLinkDriveManager::CaptureRawDisk (const Location & drive, const std::w
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, picked.wstring(), [this, picked] (const std::wstring & report)
+    CaptureToImage (link, number, picked);
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDriveManager::CaptureToImage
+//
+//  The tracks whose reads differ are reported when the capture is done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDriveManager::CaptureToImage (const std::wstring & link, int number, const std::filesystem::path & image)
+{
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this, image] (const std::wstring & report)
     {
-        std::wstring  text = picked.filename().wstring() + L" was captured." + (report.empty() ? std::wstring() : L"\n\n" + report);
+        std::wstring  text = image.filename().wstring() + L" was captured." + (report.empty() ? std::wstring() : L"\n\n" + report);
 
         m_context.window.ShowMessage (text.c_str(), MB_ICONINFORMATION);
     });
@@ -237,9 +268,6 @@ void CassoLinkDriveManager::CaptureRawDisk (const Location & drive, const std::w
     }
 
     m_context.cassoLinkManager.HandleConnectionChanged();
-
-Error:
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
