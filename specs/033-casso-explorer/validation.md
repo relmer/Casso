@@ -979,12 +979,13 @@ Found along the way:
   before its Ready. MAME's card connects straight to Casso, so no reply
   comes; the test boots the universal disk with no dial command, MAME's
   socket listens, and a TCP connection is made to it.
-- A serial, TCP or UDP connection prompts five times in its first few
-  seconds and then waits for a Ready. An Apple that boots the universal disk
-  after that doesn't send a Ready unprompted, so the tests start the connection
-  once the disk waits, as a user boots the disk and then connects. The prompt
-  stops early so that an ADTPro client idling on the same line doesn't take
-  a prompt for the start of its next reply.
+- A serial, TCP or UDP connection prompted five times in the first seconds
+  of an attempt and then waited for a Ready, so an Apple that booted the
+  universal disk later linked only on the next attempt, 25 seconds on. The
+  connection now prompts each second until a Ready arrives or the attempt
+  ends. `AnAppleThatBootsLate_IsPromptedUntilTheAttemptEnds` tests it, and
+  the Super Serial Card and network tests start the connection with the
+  emulator.
 - MAME doesn't start the Super Serial Card without its ROM, 341-0065-A, in
   `roms\a2ssc`; `Mame.ps1` copies it from Casso's data folder.
 - GSplus running offscreen doesn't end on SIGTERM, so `run.sh stop` kills

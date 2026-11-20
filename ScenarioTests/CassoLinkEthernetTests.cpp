@@ -35,8 +35,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  - "uthernet" runs AppleWin's Linux build with an Uthernet over libslirp.
 //
 //  Both run through scripts\EmuTargets\Wsl.ps1, which also builds them. The
-//  connection prompts only in its first few seconds, so it is started once
-//  the universal disk waits.
+//  connection is started with the emulator and prompts until the universal
+//  disk answers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +46,6 @@ public:
 
     static constexpr uint16_t        kPort        = 6502;
     static constexpr DWORD           kConnectMs   = 120'000;
-    static constexpr DWORD           kBootMs      = 60'000;
     static constexpr DWORD           kWholeDiskMs = 600'000;
     static constexpr DWORD           kFileMs      = 180'000;
     static constexpr size_t          kDiskBytes   = 143'360;
@@ -111,8 +110,6 @@ public:
                                                                                (run == "lancegs") ? L"LanceGs" : L"Uthernet",
                                                                                (folder / "d1.dsk").wstring(), (folder / "d2.dsk").wstring())),
                         folder);
-
-        std::this_thread::sleep_for (std::chrono::milliseconds (kBootMs));
 
         settings.name      = "Ethernet";
         settings.transport = LinkTransport::Udp;

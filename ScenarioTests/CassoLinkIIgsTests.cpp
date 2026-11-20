@@ -35,8 +35,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //    whole-disk write, which DOS 3.3's INIT, KEGS and GSplus pass, so the
 //    write is skipped on MAME.
 //  - "mame-ssc" runs it with a Super Serial Card in slot 7. The card's
-//    socket listens, and a TCP serial connection is started once the
-//    universal disk waits.
+//    socket listens, and a TCP serial connection to it prompts until the
+//    universal disk answers.
 //  - "kegs" and "gsplus" run KEGS and GSplus in the WSL instance
 //    Ubuntu-CassoEmu through scripts\EmuTargets\Wsl.ps1, which also builds
 //    them, with the modem port connected to the Windows host at kPort.
@@ -52,7 +52,6 @@ public:
     static constexpr uint16_t        kPort        = 19802;
     static constexpr DWORD           kBaud        = 9600;
     static constexpr DWORD           kConnectMs   = 180'000;
-    static constexpr DWORD           kBootMs      = 60'000;
     static constexpr DWORD           kWholeDiskMs = 600'000;
     static constexpr DWORD           kFileMs      = 180'000;
     static constexpr size_t          kDiskBytes   = 143'360;
@@ -136,12 +135,10 @@ public:
                                                                               isMame ? L" -Headless" : L"")),
                         folder);
 
-        //  The connection prompts only in its first few seconds, so it is
-        //  started once the universal disk waits, as a user boots the disk and
-        //  then connects.
+        //  The card's connection is started once MAME runs, and prompts until
+        //  the universal disk answers.
         if (isSsc)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (kBootMs));
             AssertSucceeded (session->Start (settings));
         }
 
