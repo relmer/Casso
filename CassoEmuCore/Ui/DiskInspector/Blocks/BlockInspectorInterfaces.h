@@ -25,6 +25,14 @@ struct EditBarState;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  A job's result, written by its work and read by its completion.
+struct BlockJobResult
+{
+    HRESULT       hr = S_OK;
+    std::wstring  message;
+};
+
+
 //  The worker's jobs, as the panel queues them.
 class IBlockJobs
 {

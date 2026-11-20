@@ -6,6 +6,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Ui/DiskInspector/Blocks/BlockFileSession.h"
 #include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
@@ -31,7 +32,6 @@ static constexpr LPCWSTR  s_kpszGlyphGoTo = L"\xE8AD";
 static constexpr LPCWSTR  s_kpszGlyphCopy = L"\xE8C8";
 static constexpr LPCWSTR  s_kpszGlyphEdit = L"\xE70F";
 static constexpr LPCWSTR  s_kpszClassName = L"CassoBlockInspector";
-static constexpr LPCWSTR  s_kpszFileChangedNote = L" (the file changed; save or discard to read it again)";
 
 
 
@@ -64,19 +64,19 @@ HRESULT BlockInspectorWindow::Open (
     const std::wstring  & path,
     std::wstring        & outError)
 {
-    HRESULT                   hr = S_OK;
+    HRESULT                   hr     = S_OK;
     DxuiWindow::CreateParams  params;
+    size_t                    markAt = std::wstring::npos;
 
 
 
-    m_fileIo = &fileIo;
-    m_path   = path;
-    m_theme  = theme;
+    m_theme = theme;
+    m_session.SetFile (fileIo, path);
 
     outError.clear();
     BuildCommands();
 
-    params.title                    = BlockInspectorState::BuildTitle (GetFileName(), std::wstring(), false, m_titleMark);
+    params.title                    = BlockInspectorState::BuildTitle (m_session.GetFileName(), std::wstring(), false, markAt);
     params.hInstance                = hInstance;
     params.ownerHwnd                = nullptr;
     params.placementAnchorHwnd      = owner;
@@ -94,7 +94,7 @@ HRESULT BlockInspectorWindow::Open (
     SetTheme (theme);
     m_tooltip.SetTheme (*theme);
     Show (true);
-    QueueOpen();
+    m_session.Open();
 
 Error:
     return hr;
@@ -134,7 +134,7 @@ void BlockInspectorWindow::BuildCommands()
     c.save                      = make (L"&Save...", L"Ctrl+S", [this] () { Save(); });
     c.save->isEnabled           = hasEdits;
     c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { SaveEditedCopy(); });
-    c.saveEditedCopy->isEnabled = [this, hasEdits] () { return hasEdits() && !IsOnCard(); };
+    c.saveEditedCopy->isEnabled = [this, hasEdits] () { return hasEdits() && !m_session.IsOnCard(); };
     c.close                     = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
 
     //  Edit
@@ -203,32 +203,9 @@ void BlockInspectorWindow::BuildCommands()
     c.nextDifference->isEnabled     = [this] () { return m_model.IsOpen() && m_model.CountDifferent() > 0; };
 
     //  Disk
-    c.compareWith = make (L"&Compare with...", L"", [this] ()
-    {
-        FileDialogSpec         spec;
-        std::filesystem::path  picked;
-        bool                   isPicked = false;
-        HRESULT                hr       = S_OK;
-
-        spec.title         = L"Compare with";
-        spec.initialFolder = fs::path (m_path).parent_path();
-        spec.filters       = { { L"Images of blocks", L"*.po;*.hdv;*.2mg;*.2img;*.dc;*.dc42;*.image" }, { L"All files", L"*.*" } };
-
-        hr = m_dialogs.PickFileToOpen (GetHwnd(), spec, picked, isPicked);
-
-        if (SUCCEEDED (hr) && isPicked)
-        {
-            CompareWithFile (picked.wstring());
-        }
-    });
+    c.compareWith = make (L"&Compare with...", L"", [this] () { m_session.CompareWithPicked(); });
     c.compareWith->isEnabled   = isOpen;
-    c.endComparison            = make (L"&End comparison", L"", [this] ()
-    {
-        m_model.EndComparison();
-        m_titleNote.clear();
-        UpdateTitle();
-        m_panel->Refresh();
-    });
+    c.endComparison            = make (L"&End comparison", L"", [this] () { m_session.EndComparison(); });
     c.endComparison->isEnabled = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_model.IsComparing(); };
     c.repair                   = make (L"&Repair...", L"", [this] () { Repair(); });
     c.repair->isEnabled        = [this, isOpen] () { return isOpen() && GetRepairVolume() >= 0; };
@@ -281,6 +258,7 @@ void BlockInspectorWindow::OnCreate()
 
     m_panel = CreateChild<BlockInspectorPanel>();
     m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
+    m_session.Attach (*m_panel, *m_panel);
 
     m_isDarkSurface = m_theme == nullptr || DiskInspectorPalette::IsDarkSurface (m_theme->Background());
 
@@ -307,54 +285,6 @@ void BlockInspectorWindow::OnCreate()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::QueueOpen
-//
-//  A file that doesn't open is reported, and the window closes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::QueueOpen()
-{
-    auto                   result = std::make_shared<JobResult>();
-    IDiskFileIo          * fileIo = m_fileIo;
-    std::string            path   = TextEncoding::WideToUtf8 (m_path);
-    BlockInspectorModel  * model  = &m_model;
-
-
-
-    m_panel->QueueJob ({ L"Opening " + GetFileName(), false,
-                         [result, fileIo, path, model] (BlockJobProgress & progress)
-                         {
-                             std::unique_ptr<BlockImageFile>  file;
-
-                             (void) progress;
-                             result->hr = BlockImageFile::Open (*fileIo, path, file, result->message);
-
-                             if (SUCCEEDED (result->hr))
-                             {
-                                 result->hr      = model->Open (std::move (file));
-                                 result->message = FAILED (result->hr) ? L"The image's blocks can't be read." : L"";
-                             }
-                         },
-                         [this, result] ()
-                         {
-                             if (FAILED (result->hr))
-                             {
-                                 ShowMessage (result->message.empty() ? L"The image can't be opened in the block inspector." : result->message);
-                                 CloseWindow();
-                                 return;
-                             }
-
-                             m_panel->Refresh();
-                         } });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorWindow::RenderIfChanged
 //
 //  Each finished job's completion, then a reload that came in while a job
@@ -371,11 +301,7 @@ void BlockInspectorWindow::RenderIfChanged()
 
     m_worker.RunFinished();
 
-    if (m_isReloadPending && !m_worker.IsBusy())
-    {
-        m_isReloadPending = false;
-        Reload();
-    }
+    m_session.RunPendingReload();
 
     m_panel->UpdateBusy();
     UpdateEditing();
@@ -714,7 +640,7 @@ void BlockInspectorWindow::Save()
 
 void BlockInspectorWindow::StartSave()
 {
-    if (!IsOnCard() && !m_model.GetFile().IsFileUnchanged())
+    if (!m_session.IsOnCard() && !m_model.GetFile().IsFileUnchanged())
     {
         SaveToPreservedCopy();
     }
@@ -739,10 +665,10 @@ void BlockInspectorWindow::StartSave()
 
 void BlockInspectorWindow::SaveToPreservedCopy()
 {
-    auto                   result = std::make_shared<JobResult>();
+    auto                   result = std::make_shared<BlockJobResult>();
     BlockInspectorModel  * model  = &m_model;
-    IDiskFileIo          * fileIo = m_fileIo;
-    fs::path               image  = m_path;
+    IDiskFileIo          * fileIo = &m_session.GetFileIo();
+    fs::path               image  = m_session.GetPath();
     std::string            stamp  = PreservedCopy::MakeStamp (time (nullptr));
     fs::path               target;
     fs::path               candidate;
@@ -791,7 +717,7 @@ void BlockInspectorWindow::SaveToPreservedCopy()
                              if (SUCCEEDED (result->hr))
                              {
                                  m_model.ClearEdits();
-                                 Reload();
+                                 m_session.Reload();
                              }
 
                              m_panel->Refresh();
@@ -877,7 +803,7 @@ void BlockInspectorWindow::RedoApplied()
 
 void BlockInspectorWindow::QueueWrite (const std::wstring & label, const std::wstring & done, WriteFn write)
 {
-    auto                   result = std::make_shared<JobResult>();
+    auto                   result = std::make_shared<BlockJobResult>();
     BlockInspectorModel  * model  = &m_model;
 
 
@@ -892,7 +818,7 @@ void BlockInspectorWindow::QueueWrite (const std::wstring & label, const std::ws
                              bool  isClosing = m_isCloseAfterSave && SUCCEEDED (result->hr);
 
                              m_isCloseAfterSave = false;
-                             m_editNote         = SUCCEEDED (result->hr) ? done + L" " + GetFileName()
+                             m_editNote         = SUCCEEDED (result->hr) ? done + L" " + m_session.GetFileName()
                                                                          : (result->message.empty() ? L"The edits weren't saved." : result->message);
                              m_panel->Refresh();
 
@@ -919,10 +845,10 @@ void BlockInspectorWindow::QueueWrite (const std::wstring & label, const std::ws
 
 void BlockInspectorWindow::SaveEditedCopy()
 {
-    auto                   result    = std::make_shared<JobResult>();
+    auto                   result    = std::make_shared<BlockJobResult>();
     BlockInspectorModel  * model     = &m_model;
-    IDiskFileIo          * fileIo    = m_fileIo;
-    fs::path               image     = m_path;
+    IDiskFileIo          * fileIo    = &m_session.GetFileIo();
+    fs::path               image     = m_session.GetPath();
     std::wstring           extension = image.has_extension() ? image.extension().wstring().substr (1) : std::wstring (L"po");
     FileDialogSpec         spec;
     fs::path               target;
@@ -933,7 +859,7 @@ void BlockInspectorWindow::SaveEditedCopy()
 
 
 
-    BAIL_OUT_IF (m_worker.IsBusy() || !m_model.IsOpen() || m_model.GetEdits().IsEmpty() || IsOnCard(), S_OK);
+    BAIL_OUT_IF (m_worker.IsBusy() || !m_model.IsOpen() || m_model.GetEdits().IsEmpty() || m_session.IsOnCard(), S_OK);
 
     spec.filters         = { { L"Disk images", L"*." + extension } };
     spec.defaultExtension = extension;
@@ -951,7 +877,7 @@ void BlockInspectorWindow::SaveEditedCopy()
 
         if (isTaken)
         {
-            ShowMessage (L"That file is the image this window opened. Choose another file for the copy.");
+            ShowWarning (L"That file is the image this window opened. Choose another file for the copy.");
         }
     }
 
@@ -1021,35 +947,8 @@ void BlockInspectorWindow::InitEditBar()
 
 void BlockInspectorWindow::UpdateEditing()
 {
-    m_panel->SetEditState (BlockInspectorState::BuildEditBarState (m_model, m_worker.IsBusy(), m_panel->IsEditing(), IsOnCard(), m_editNote));
-    UpdateTitle();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::UpdateTitle
-//
-//  Set only when it changes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::UpdateTitle()
-{
-    size_t        markAt = std::wstring::npos;
-    std::wstring  title  = BlockInspectorState::BuildTitle (GetFileName(), m_titleNote, m_model.IsOpen() && !m_model.GetEdits().IsEmpty(), markAt);
-
-
-
-    if (title != m_title || markAt != m_titleMark)
-    {
-        m_title     = title;
-        m_titleMark = markAt;
-        SetTitle (title, markAt);
-    }
+    m_panel->SetEditState (BlockInspectorState::BuildEditBarState (m_model, m_worker.IsBusy(), m_panel->IsEditing(), m_session.IsOnCard(), m_editNote));
+    m_session.UpdateTitle();
 }
 
 
@@ -1177,11 +1076,11 @@ void BlockInspectorWindow::Repair()
 
     if (m_worker.IsBusy() || !full.canRepair)
     {
-        ShowMessage (L"Repair isn't available. " + (m_worker.IsBusy() ? std::wstring (L"Wait for the current job to finish.") : full.reason));
+        ShowWarning (L"Repair isn't available. " + (m_worker.IsBusy() ? std::wstring (L"Wait for the current job to finish.") : full.reason));
         return;
     }
 
-    intro = BlockRepairTarget::BuildIntro (IsOnCard(), GetFileName(), GetHostFileName(), full.before == FileSystemVerdict::Suspect, m_model.IsSectorVolume (volume), lines);
+    intro = BlockRepairTarget::BuildIntro (m_session.IsOnCard(), m_session.GetFileName(), m_session.GetHostFileName(), full.before == FileSystemVerdict::Suspect, m_model.IsSectorVolume (volume), lines);
 
     //  Blocks in no file can be another file system's on a hybrid disk or a
     //  larger DOS image, so freeing them starts unchecked.
@@ -1197,13 +1096,13 @@ void BlockInspectorWindow::Repair()
         return;
     }
 
-    source.isCard         = IsOnCard();
-    source.imagePath      = m_path;
-    source.hostFileName   = GetHostFileName();
+    source.isCard         = m_session.IsOnCard();
+    source.imagePath      = m_session.GetPath();
+    source.hostFileName   = m_session.GetHostFileName();
     source.volumeLabel    = m_model.GetVolumeMap (volume).volumeName;
     source.isSectorVolume = m_model.IsSectorVolume (volume);
     source.volumeBytes    = (uint64_t) m_model.GetVolumeSize (volume) * BlockInspectorModel::kBlockBytes;
-    destination           = BlockRepairTarget::ChooseDestination (source, *m_fileIo, m_drives);
+    destination           = BlockRepairTarget::ChooseDestination (source, m_session.GetFileIo(), m_drives);
 
     if (destination.isUserChoice && !PickRepairTarget (destination.why, destination.bytes, destination.host))
     {
@@ -1240,7 +1139,7 @@ bool BlockInspectorWindow::PickRepairTarget (const std::wstring & why, uint64_t 
 
     if (!why.empty())
     {
-        ShowMessage (why);
+        ShowWarning (why);
     }
 
     spec.title            = L"Save the repaired copy";
@@ -1258,13 +1157,13 @@ bool BlockInspectorWindow::PickRepairTarget (const std::wstring & why, uint64_t 
             return false;
         }
 
-        if (!IsOnCard() && (fs::equivalent (picked, m_path, error) || _wcsicmp (fs::absolute (picked, error).wstring().c_str(), fs::absolute (m_path, error).wstring().c_str()) == 0))
+        if (!m_session.IsOnCard() && (fs::equivalent (picked, m_session.GetPath(), error) || _wcsicmp (fs::absolute (picked, error).wstring().c_str(), fs::absolute (m_session.GetPath(), error).wstring().c_str()) == 0))
         {
-            ShowMessage (L"That file is the image this window opened. Choose another file for the copy.");
+            ShowWarning (L"That file is the image this window opened. Choose another file for the copy.");
         }
         else if (!m_drives.HasRoomFor (picked.parent_path(), bytes))
         {
-            ShowMessage (L"That drive doesn't have room for the repaired copy. Choose another folder.");
+            ShowWarning (L"That drive doesn't have room for the repaired copy. Choose another folder.");
         }
         else
         {
@@ -1293,10 +1192,10 @@ bool BlockInspectorWindow::PickRepairTarget (const std::wstring & why, uint64_t 
 
 void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan, bool isCard, const fs::path & target)
 {
-    auto                   result = std::make_shared<JobResult>();
+    auto                   result = std::make_shared<BlockJobResult>();
     BlockInspectorModel  * model  = &m_model;
-    IDiskFileIo          * fileIo = m_fileIo;
-    fs::path               image  = m_path;
+    IDiskFileIo          * fileIo = &m_session.GetFileIo();
+    fs::path               image  = m_session.GetPath();
 
 
 
@@ -1472,24 +1371,6 @@ void BlockInspectorWindow::StepDifference (bool isForward)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::IsOnCard
-//
-//  A partition of a storage card is written in place; there is no image
-//  file to copy for Save as.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BlockInspectorWindow::IsOnCard() const
-{
-    return PhysicalCards::IsOnCard (m_path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorWindow::ConfirmClose
 //
 //  A job that can be canceled is canceled; while one that can't be is
@@ -1518,7 +1399,7 @@ bool BlockInspectorWindow::ConfirmClose()
 
     if (m_worker.TryGetLongJob (label, canCancel, done, total) && !canCancel)
     {
-        ShowMessage (label + L" hasn't finished. Close the window after it finishes.");
+        ShowWarning (label + L" hasn't finished. Close the window after it finishes.");
         return false;
     }
 
@@ -1529,7 +1410,7 @@ bool BlockInspectorWindow::ConfirmClose()
     if (blocks > 0)
     {
         choice = InspectorDialogs::ShowChoice (GetHwnd(), m_theme, L"Unsaved changes",
-                                               { InspectorText::FormatUnsavedChanges (blocks, L"block", L"blocks", GetFileName()) },
+                                               { InspectorText::FormatUnsavedChanges (blocks, L"block", L"blocks", m_session.GetFileName()) },
                                                { { L"Save", kSave, true, false }, { L"Discard", kDiscard, false, false }, { L"Cancel", kCancel, false, true } });
 
         //  The window closes once the save succeeds.
@@ -1597,121 +1478,6 @@ void BlockInspectorWindow::OnWindowClose()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::Reload
-//
-//  A file this window wrote is not read again. A reload that comes in while
-//  a job runs is made once the job ends.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::Reload()
-{
-    enum class Outcome
-    {
-        Unchanged,
-        EditsPending,
-        Gone,
-        Reopened,
-    };
-
-    auto                   outcome = std::make_shared<Outcome> (Outcome::Unchanged);
-    IDiskFileIo          * fileIo  = m_fileIo;
-    std::string            path    = TextEncoding::WideToUtf8 (m_path);
-    BlockInspectorModel  * model   = &m_model;
-    uint32_t               block   = 0;
-
-
-
-    if (m_worker.IsBusy())
-    {
-        m_isReloadPending = true;
-        return;
-    }
-
-    if (!m_model.IsOpen())
-    {
-        return;
-    }
-
-    block = m_model.GetBlock();
-
-    m_panel->QueueJob ({ L"Reading the file again", false,
-                         [outcome, fileIo, path, model, block] (BlockJobProgress & progress)
-                         {
-                             std::unique_ptr<BlockImageFile>  file;
-                             std::wstring                     error;
-                             HRESULT                          hr = S_OK;
-
-                             (void) progress;
-
-                             if (model->GetFile().IsFileUnchanged())
-                             {
-                                 return;
-                             }
-
-                             if (!model->GetEdits().IsEmpty())
-                             {
-                                 *outcome = Outcome::EditsPending;
-                                 return;
-                             }
-
-                             hr = BlockImageFile::Open (*fileIo, path, file, error);
-
-                             if (SUCCEEDED (hr))
-                             {
-                                 hr = model->Open (std::move (file));
-                             }
-
-                             if (SUCCEEDED (hr))
-                             {
-                                 model->SelectBlock (block);
-                             }
-
-                             *outcome = SUCCEEDED (hr) ? Outcome::Reopened : Outcome::Gone;
-                         },
-                         [this, outcome] ()
-                         {
-                             if (*outcome == Outcome::Reopened && m_titleNote == s_kpszFileChangedNote)
-                             {
-                                 m_titleNote.clear();
-                                 UpdateTitle();
-                             }
-                             else if (*outcome == Outcome::EditsPending)
-                             {
-                                 m_titleNote = s_kpszFileChangedNote;
-                                 UpdateTitle();
-                             }
-                             else if (*outcome == Outcome::Gone)
-                             {
-                                 NoteFileGone();
-                             }
-
-                             m_panel->Refresh();
-                         } });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::NoteFileGone
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::NoteFileGone()
-{
-    m_titleNote = L" (the file can't be read)";
-    UpdateTitle();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorWindow::ChangeTheme
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1745,76 +1511,15 @@ void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::ShowMessage
+//  BlockInspectorWindow::ShowWarning
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorWindow::ShowMessage (const std::wstring & text)
+void BlockInspectorWindow::ShowWarning (const std::wstring & text)
 {
     int  shown = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Block inspector", MB_OK | MB_ICONWARNING);
 
 
 
     IGNORE_RETURN_VALUE (shown, 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::CompareWithFile
-//
-//  A comparison canceled from its progress has no message.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::CompareWithFile (const std::wstring & path)
-{
-    auto                   result = std::make_shared<JobResult>();
-    IDiskFileIo          * fileIo = m_fileIo;
-    std::string            other  = TextEncoding::WideToUtf8 (path);
-    BlockInspectorModel  * model  = &m_model;
-    std::wstring           name   = fs::path (path).filename().wstring();
-
-
-
-    m_panel->QueueJob ({ L"Comparing with " + name, true,
-                         [result, fileIo, other, model] (BlockJobProgress & progress)
-                         {
-                             std::unique_ptr<BlockImageFile>  file;
-
-                             if (!BlockImageFile::IsBlockImage (*fileIo, other))
-                             {
-                                 result->hr      = E_INVALIDARG;
-                                 result->message = L"Only another image of blocks can be compared with this one.";
-                                 return;
-                             }
-
-                             result->hr = BlockImageFile::Open (*fileIo, other, file, result->message);
-
-                             if (FAILED (result->hr))
-                             {
-                                 result->message = result->message.empty() ? L"The other image can't be read." : result->message;
-                                 return;
-                             }
-
-                             result->hr      = model->CompareWith (std::move (file), &progress);
-                             result->message = FAILED (result->hr) && result->hr != E_ABORT ? L"The other image's blocks can't be read." : L"";
-                         },
-                         [this, result, name] ()
-                         {
-                             if (!result->message.empty())
-                             {
-                                 ShowMessage (result->message);
-                             }
-                             else if (SUCCEEDED (result->hr))
-                             {
-                                 m_titleNote = L" compared with " + name;
-                                 UpdateTitle();
-                             }
-
-                             m_panel->Refresh();
-                         } });
 }

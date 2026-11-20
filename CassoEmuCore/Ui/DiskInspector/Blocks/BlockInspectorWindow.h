@@ -10,6 +10,7 @@
 #include "Seams/Win32DriveSpace.h"
 #include "Seams/Win32ShellIcons.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
+#include "Ui/DiskInspector/Blocks/BlockFileSession.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/Components/InspectorMenuBar.h"
 #include "Ui/DiskInspector/Components/InspectorStatusBar.h"
@@ -45,7 +46,7 @@ class IDiskFileIo;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BlockInspectorWindow : public DxuiWindow
+class BlockInspectorWindow : public DxuiWindow, public IBlockDialogs, public IBlockFrame
 {
 public:
     static constexpr int       kOpeningWidthDip  = 1280;
@@ -69,18 +70,11 @@ public:
 
     void  SetOnClosed    (std::function<void ()> fn) { m_onClosed = std::move (fn); }
 
-    //  The name in the title and messages in place of the file's name, such
-    //  as a card's partition as Casso Explorer lists it. Set before Open.
-    void  SetDisplayName (const std::wstring & name) { m_displayName = name; }
+    //  The file: its display name, set before Open, reading it again, and
+    //  comparing it with another image.
+    BlockFileSession  & GetFileSession () { return m_session; }
 
-    //  The file read again when it changed and no edits are pending; with
-    //  edits pending, a note in the title.
-    void  Reload       ();
-    void  NoteFileGone ();
-
-    //  Compares the window's image, as A, with another image of blocks.
-    void  CompareWithFile (const std::wstring & path);
-    void  ChangeTheme     (const IDxuiTheme * theme);
+    void  ChangeTheme (const IDxuiTheme * theme);
 
     //  Once a frame: the finished jobs' completions, the busy state, and a
     //  repaint after a change.
@@ -92,22 +86,27 @@ public:
     bool     OnKey             (const DxuiKeyEvent & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
+    void                 ShowWarning    (const std::wstring & text) override;
+    HWND                 GetDialogOwner () const override { return GetHwnd(); }
+    const IDxuiTheme   * GetDialogTheme () const override { return m_theme; }
+    IHostDialogs       & GetHostDialogs () override       { return m_dialogs; }
+
+    void    CloseWindow  () override;
+    void    RequestClose () override                                         { OnWindowClose(); }
+    void    MarkDirty    () override                                         { m_isDirty = true; }
+    void    SetCaption   (const std::wstring & title, size_t markAt) override { SetTitle (title, markAt); }
+    double  GetZoom      () const override                                   { return m_zoom; }
+    void    SetZoom      (double zoom) override;
+
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;
 
 private:
-    struct JobResult
-    {
-        HRESULT       hr = S_OK;
-        std::wstring  message;
-    };
-
     using WriteFn = std::function<HRESULT (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)>;
 
     void                                  BuildCommands       ();
     static bool                           RunCommand          (const InspectorCommands::Command & command);
-    void                                  QueueOpen           ();
     void                                  Save                ();
     void                                  QueueSave           ();
     void                                  StartSave           ();
@@ -118,7 +117,6 @@ private:
     void                                  SaveEditedCopy      ();
     void                                  InitEditBar         ();
     void                                  UpdateEditing       ();
-    void                                  UpdateTitle         ();
     bool                                  HandleEditKey       (const DxuiKeyEvent & ev);
     void                                  Discard             ();
     int                                   GetRepairVolume     () const;
@@ -131,21 +129,13 @@ private:
     void                                  ShowLevel           (BlockPlace::Kind kind);
     void                                  UpdateTooltip       (POINT pointPx);
     void                                  StepDifference      (bool isForward);
-    void                                  SetZoom             (double zoom);
     bool                                  ConfirmClose        ();
-    void                                  CloseWindow         ();
-    void                                  ShowMessage         (const std::wstring & text);
-    std::wstring                          GetFileName         () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
-
-    //  The name of the file a repaired copy is of: for an image in a ZIP,
-    //  the ZIP's.
-    std::wstring                          GetHostFileName     () const { return IsOnCard() ? GetFileName() : fs::path (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (m_path)))).filename().wstring(); }
-    bool                                  IsOnCard            () const;
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
     BlockInspectorModel       m_model;
     BlockInspectorWorker      m_worker;
+    BlockFileSession          m_session         { m_model, *this, *this };
     Win32HostDialogs          m_dialogs;
     Win32Clipboard            m_clipboard;
     Win32DriveSpace           m_drives;
@@ -153,14 +143,8 @@ private:
     InspectorMenuBar          m_menus;
     InspectorStatusBar        m_status;
     BlockInspectorPanel     * m_panel           = nullptr;
-    IDiskFileIo             * m_fileIo          = nullptr;
-    std::wstring              m_path;
-    std::wstring              m_displayName;
     std::wstring              m_hint;
     std::wstring              m_editNote;                // the edit bar's note: the last save's result, or why it failed
-    std::wstring              m_titleNote;               // after the name in the title, as the image compared with
-    std::wstring              m_title;
-    size_t                    m_titleMark       = std::wstring::npos;
     DxuiTooltip               m_tooltip;
     Win32ShellIcons           m_icons;
     std::wstring              m_tooltipText;
@@ -169,7 +153,6 @@ private:
     double  m_zoom             = 1.0;
     bool    m_isDirty          = true;
     bool    m_isClosed         = false;
-    bool    m_isReloadPending  = false;
     bool    m_isCloseAfterSave = false;
     bool    m_isDarkSurface    = true;     // the surface the icons were last drawn for
 };
