@@ -1039,6 +1039,13 @@ ADTPro sends each byte as its difference from the last and drops runs of a
 byte, so it is faster on empty space and slower on data that doesn't repeat.
 Each copy it sent was compared with the image and is the same.
 
+The Uthernet II build puts a block to the W5100's transmit memory in one
+pass. AppleWin's Uthernet II has no TCP listen, so it can't run the program,
+whose socket listens for the PC. `CassoLinkUthernetBlockTests` reads an 800K
+UniDisk volume through Casso's Uthernet II on an enhanced //e instead: the
+volume read is the image, at 93,704 cycles a block, of which the UniDisk's
+firmware takes about 56,600.
+
 ## A2Pico cards (Story 41, SC-070)
 
 The owner has no A2Pico, so the card is checked against the A2retroNET
