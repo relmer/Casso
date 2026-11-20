@@ -201,6 +201,7 @@
     <ClCompile Include="CassoLinkIIgsTests.cpp" />
     <ClCompile Include="CassoLinkEthernetTests.cpp" />
     <ClCompile Include="CassoLinkBlockEmulatorTests.cpp" />
+    <ClCompile Include="CassoLinkUthernetBlockTests.cpp" />
     <ClCompile Include="CassoLinkSosDiskTests.cpp" />
     <ClCompile Include="CassoLinkSccTests.cpp" />
     <ClCompile Include="CassoLinkAdtProAudioTests.cpp" />
@@ -237,6 +238,8 @@
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FileMapTestImages.cpp" />
     <ClCompile Include="..\UnitTest\Inspector\RepairFixtures.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
