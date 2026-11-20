@@ -54,6 +54,7 @@ public:
     //  when the volume is Bad or Suspect, for a test.
     DxuiButton       & GetVerdictLink   () const { return *m_mapVerdict; }
     const DxuiButton & GetCopyButton    () const { return *m_mapCopy; }
+    const DxuiButton & GetFilePicker    () const { return *m_filePicker; }
 
 private:
     void  OpenFilePicker     (bool isOpen);
@@ -82,6 +83,7 @@ private:
     DxuiLabel                * m_mapStepLabel       = nullptr;
     DxuiButton               * m_filePicker         = nullptr;
     bool                       m_isPickerOpen       = true;
+    bool                       m_isVerdictRoom      = true;    // the verdict fits between the picker and Copy map
     std::wstring               m_pickerLabel        = L"Choose a file";
     float                      m_pickerTextPx       = 0.0f;
     float                      m_stepTextPx         = 0.0f;
