@@ -189,6 +189,16 @@ public:
 
 
 
+    static bool  IsEmpty (const std::vector<bool> & events, std::mutex & lock)
+    {
+        std::lock_guard<std::mutex>  guard (lock);
+
+        return events.empty();
+    }
+
+
+
+
     //  A wait for Ready that lasts the notice time is reported, and then its
     //  end; a Ready within the notice time isn't.
     TEST_METHOD (ALongWaitForReady_IsReportedToTheWaitObserver)
@@ -206,7 +216,15 @@ public:
 
         auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
 
-        client.clientEnd->AdvanceWhenBlocked (400);
+        //  The host may block in another read before it waits for Ready, so
+        //  the time moves in steps until the wait is reported, well short of
+        //  the operation's timeout.
+        for (int step = 0; step < 100 && IsEmpty (events, lock); step++)
+        {
+            client.clientEnd->AdvanceWhenBlocked (50);
+            std::this_thread::yield();
+        }
+
         client.SendReady (LinkProgram::kProgramVersion);
 
         Assert::AreEqual (S_OK, sending.get());
