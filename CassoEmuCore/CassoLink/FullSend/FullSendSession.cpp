@@ -603,6 +603,11 @@ std::array<int, 2> FullSendSession::GetOrder (int first) const
 std::vector<std::string> FullSendSession::GetPauseLines() const
 {
     std::vector<std::string>  lines = m_context.boots.GetLines();
+    std::vector<int>          sent;
+    bool                      both  = m_check.IsRepeat (1) && m_check.IsRepeat (2);
+    int                       drive = m_check.IsRepeat (1) ? 1 : 2;
+
+
 
     //  The offer to capture a disk again is the only thing on the pause, its
     //  first line in inverse, as it isn't the usual flow.
@@ -618,11 +623,6 @@ std::vector<std::string> FullSendSession::GetPauseLines() const
 
         return lines;
     }
-    std::vector<int>          sent;
-    bool                      both  = m_check.IsRepeat (1) && m_check.IsRepeat (2);
-    int                       drive = m_check.IsRepeat (1) ? 1 : 2;
-
-
 
     for (int d : { 1, 2 })
     {
