@@ -46,6 +46,8 @@ public:
     static constexpr float  kHeadingFontDip = 14.0f;
     static constexpr int    kDiskRows       = 6;
     static constexpr int    kActivityRows   = 6;
+    static constexpr float  kThumbDip       = 4.0f;    // a list's scroll thumb
+    static constexpr float  kThumbGutterDip = 8.0f;    // and the gutter at the list's right it's drawn in
 
     //  A map cell's largest size, under the pointer, and the range in tracks
     //  either side over which cells are magnified.
@@ -141,8 +143,9 @@ public:
 private:
     float  PaintDrive    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int number, const FullSendDriveStatus & drive, float left, float top, float width) const;
     float  PaintLegend   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
-    float  PaintDisks    (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
-    float  PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
+    float  PaintDisks    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
+    float  PaintActivity (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
+    void   PaintThumb    (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & area, size_t first, size_t shown, size_t total) const;
     void   DrawLine      (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, bool heading = false, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
     void   PaintProgress (IDxuiPainter & painter, float left, float top, float width, float height, bool isGrowing) const;
 
@@ -176,6 +179,7 @@ private:
 
     void   AddCell       (float left, float top, float width, float height, int number, int position) const;
     bool   HandleClick   (const DxuiMouseEvent & ev);
+    bool   HandleWheel   (const DxuiMouseEvent & ev);
     void   UpdateTip     (int drive, int track, POINT pointPx, int64_t nowMs);
     int    FindMapAt     (POINT pointPx) const;
     void   LayMap        (int drive, float pointer, float strength, MapSpans & outSpans) const;
@@ -198,6 +202,9 @@ private:
     mutable std::vector<Cell>  m_cells;
     mutable std::vector<Row>   m_rows;
     mutable RECT               m_activity    = {};
+    mutable RECT               m_disksArea   = {};
+    size_t                     m_diskScroll  = 0;           // the disks done scrolled past, from the newest
+    size_t                     m_lineScroll  = 0;           // the activity lines scrolled past, from the newest
     mutable Maps               m_maps        = {};
     mutable const IDxuiTheme * m_theme       = nullptr;     // as last painted with, for the tip's color marks
     mutable RECT               m_cover       = {};          // what a magnified map covers, from its drive's heading down; empty with none

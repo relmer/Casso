@@ -479,7 +479,7 @@ HRESULT FullSendSession::SendAgain (int drive, const FullSendCheckedDisk & disk)
 
     m_context.Report (protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
                     : unclearCopy   ? std::format ("The image captured from the disk in drive {} did not boot, and its unreadable sectors may be copy protection. Capturing the disk again in raw mode.", drive)
-                                    : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
+                                    : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive), drive);
 
     if (verify)
     {

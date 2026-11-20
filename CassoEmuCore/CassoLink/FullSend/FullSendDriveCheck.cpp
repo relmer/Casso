@@ -228,6 +228,8 @@ HRESULT FullSendDriveCheck::FindRepeat (FullSendCheckedDisk & ioDisk, bool & out
     hr = m_context.folder.Reload();
     CHR (hr);
 
+    m_context.status.RenameDisks (m_context.folder.GetManifest().GetRows());
+
     hr = m_context.FindMovedImages (matches);
     CHR (hr);
 
@@ -286,13 +288,13 @@ void FullSendDriveCheck::ReportRepeat (int drive, const FullSendCheckedDisk & di
 
     if (match == nullptr)
     {
-        m_context.Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive));
+        m_context.Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive), drive);
     }
     else
     {
         m_context.screen.GetName (drive) = match->file;
 
-        m_context.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, match->file, drive));
+        m_context.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, match->file, drive), drive);
     }
 }
 
@@ -349,7 +351,7 @@ HRESULT FullSendDriveCheck::CheckBlank (int drive, FullSendCheckedDisk & ioDisk)
             m_context.status.AddBlank();
         }
 
-        m_context.Report (std::format ("The disk in drive {} is formatted for {} but is blank, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive));
+        m_context.Report (std::format ("The disk in drive {} is formatted for {} but is blank, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive), drive);
     }
     else
     {

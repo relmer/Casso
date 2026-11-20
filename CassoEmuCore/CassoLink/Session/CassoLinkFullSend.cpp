@@ -605,7 +605,7 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<
 
         if (withEarlier && !earlier.empty())
         {
-            m_status.AddLine (std::format ("Combining the reads of both captures of the disk in drive {} to build its image", drive));
+            m_status.AddLine (std::format ("Combining the reads of both captures of the disk in drive {} to build its image", drive), drive);
 
             CassoLinkCapture::MergeReads (result.positions, earlier);
 
@@ -633,7 +633,7 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<
 
     for (const auto & [position, sector] : result.replaced)
     {
-        m_status.AddLine (std::format ("Track {} sector {} was taken from another read", CassoLinkDiskTransfer::FormatPosition (position), sector));
+        m_status.AddLine (std::format ("Track {} sector {} was taken from another read", CassoLinkDiskTransfer::FormatPosition (position), sector), drive);
     }
 
     for (int position : result.unstable)

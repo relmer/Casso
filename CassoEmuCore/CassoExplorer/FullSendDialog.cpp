@@ -349,7 +349,7 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (HandleClick (ev))
+    if (HandleClick (ev) || HandleWheel (ev))
     {
         return true;
     }
@@ -989,9 +989,9 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     DrawLine (text, DescribeTotals (m_view.snapshot.totals), left, top, width, theme.Foreground());
     top += m_scaler.ToPxf (kLineDip) + section;
 
-    top = PaintDisks (text, theme, top) + section;
+    top = PaintDisks (painter, text, theme, top) + section;
 
-    PaintActivity (text, theme, top);
+    PaintActivity (painter, text, theme, top);
 }
 
 
@@ -1227,41 +1227,51 @@ float FullSendPanel::PaintLegend (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  FullSendPanel::PaintDisks
 //
-//  The latest disks done: number, file, file system, status and time.
-//  Returns the bottom of kDiskRows rows, whether or not as many are done.
+//  The disks done, the newest first, from the m_diskScroll'th: drive,
+//  number, file, file system, status and time. The wheel scrolls the list,
+//  and a thumb at its right marks the visible rows. Returns the bottom of
+//  kDiskRows rows, whether or not as many are done.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
+float FullSendPanel::PaintDisks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
 {
     RECT    bounds = GetBounds();
     float   left   = (float) bounds.left;
-    float   width  = (float) (bounds.right - bounds.left);
+    float   width  = (float) (bounds.right - bounds.left) - m_scaler.ToPxf (kThumbGutterDip);
     float   lineH  = m_scaler.ToPxf (kLineDip);
     size_t  count  = m_view.snapshot.disks.size();
-    float   number = width * 0.08f;
-    float   file   = width * 0.32f;
+    size_t  first  = std::min (m_diskScroll, count > (size_t) kDiskRows ? count - kDiskRows : 0);
+    float   drive  = width * 0.05f;
+    float   number = width * 0.07f;
+    float   file   = width * 0.28f;
     float   system = width * 0.14f;
     float   took   = width * 0.08f;
-    float   status = width - number - file - system - took;
+    float   status = width - drive - number - file - system - took;
 
 
 
-    DrawLine (text, count > (size_t) kDiskRows ? std::format (L"Disks done: the latest {} of {}", kDiskRows, count) : std::wstring (L"Disks done"),
+    DrawLine (text, count > (size_t) kDiskRows ? std::format (L"Disks done: {} to {} of {}", first + 1, std::min (first + kDiskRows, count), count) : std::wstring (L"Disks done"),
               left, top, width, theme.HeadingForeground(), true);
     top += m_scaler.ToPxf (kHeadingDip);
 
-    for (size_t i = 0; i < (size_t) kDiskRows; i++)
+    m_disksArea = RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + lineH * kDiskRows) };
+    PaintThumb (painter, theme, m_disksArea, first, kDiskRows, count);
+
+    for (size_t i = first; i < first + (size_t) kDiskRows; i++)
     {
         if (i < count)
         {
             const FullSendDoneDisk  & disk = m_view.snapshot.disks[i];
             std::wstring              name = disk.row.file.empty() ? std::wstring (L"(no image)") : TextEncoding::NarrowToWide (disk.row.file);
 
-            DrawLine (text, std::format (L"{:04}", disk.row.sequence), left, top, number, theme.ForegroundMuted());
-            DrawLine (text, name, left + number, top, file, theme.Foreground());
-            DrawLine (text, TextEncoding::NarrowToWide (disk.fileSystem), left + number + file, top, system, theme.ForegroundMuted());
-            DrawLine (text, DescribeStatus (disk.row), left + number + file + system, top, status, theme.ForegroundMuted());
+            float                     x    = left + drive;
+
+            DrawLine (text, std::format (L"D{}", disk.row.drive), left, top, drive, theme.ForegroundMuted());
+            DrawLine (text, std::format (L"{:04}", disk.row.sequence), x, top, number, theme.ForegroundMuted());
+            DrawLine (text, name, x + number, top, file, theme.Foreground());
+            DrawLine (text, TextEncoding::NarrowToWide (disk.fileSystem), x + number + file, top, system, theme.ForegroundMuted());
+            DrawLine (text, DescribeStatus (disk.row), x + number + file + system, top, status, theme.ForegroundMuted());
             DrawLine (text, (disk.seconds > 0.0) ? FormatSeconds (disk.seconds) : std::wstring(), left + width - took, top, took, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
 
             if (!disk.row.file.empty())
@@ -1284,21 +1294,25 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
 //
 //  FullSendPanel::PaintActivity
 //
-//  The latest activity lines, the newest last, each after its time. A line
-//  wider than the list wraps onto a second row, and the list has as many of
-//  the latest lines as fit its rows.
+//  The activity lines, the newest last, m_lineScroll lines back from the
+//  newest, each after its time and the drive it's about. A line wider than
+//  the list wraps onto a second row, and the list has as many lines as fit
+//  its rows. The wheel scrolls the list, and a thumb at its right marks the
+//  visible lines.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
+float FullSendPanel::PaintActivity (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
 {
     RECT                       bounds = GetBounds();
     float                      left   = (float) bounds.left;
-    float                      width  = (float) (bounds.right - bounds.left);
+    float                      width  = (float) (bounds.right - bounds.left) - m_scaler.ToPxf (kThumbGutterDip);
     float                      lineH  = m_scaler.ToPxf (kLineDip);
     float                      time   = width * 0.10f;
+    float                      drive  = width * 0.05f;
     size_t                     count  = m_view.snapshot.lines.size();
-    size_t                     first  = count;
+    size_t                     end    = count - std::min (m_lineScroll, count > 0 ? count - 1 : 0);
+    size_t                     first  = end;
     int                        used   = 0;
     std::vector<std::wstring>  lines  (count);
     std::vector<int>           rows   (count, 1);
@@ -1323,7 +1337,7 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
         hr = text.MeasureString (lines[i].c_str(), m_scaler.ToPxf (kFontDip), s_kpszFont, measured, height);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        rows[i] = (measured > width - time) ? 2 : 1;
+        rows[i] = (measured > width - time - drive) ? 2 : 1;
         textH   = (height > 0.0f) ? std::min (height, lineH) : textH;
 
         if (used + rows[i] > kActivityRows)
@@ -1335,20 +1349,25 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
         first = i;
     }
 
+    PaintThumb (painter, theme, m_activity, count - end, end - first, count);
+
     //  A wrapped line's text begins where a single line's does, centered in
     //  the first row, and its block is one row and one more line of text
     //  tall, so the space below it matches the space below a single line.
-    for (size_t i = first; i < count; i++)
+    for (size_t i = first; i < end; i++)
     {
         HRESULT  hr     = S_OK;
         float    inset  = (lineH - textH) * 0.5f;
         float    blockH = rows[i] == 1 ? lineH : lineH + textH;
+        float    x      = left + time + drive;
+        int      number = m_view.snapshot.lines[i].drive;
 
         DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].time), left, top, time, theme.ForegroundMuted());
+        DrawLine (text, number > 0 ? std::format (L"D{}", number) : std::wstring(), left + time, top, drive, theme.ForegroundMuted());
 
-        hr = rows[i] == 1 ? text.DrawString (lines[i].c_str(), left + time, top, width - time, lineH, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+        hr = rows[i] == 1 ? text.DrawString (lines[i].c_str(), x, top, width - time - drive, lineH, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false)
-                          : text.DrawString (lines[i].c_str(), left + time, top + inset, width - time, blockH - inset, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                          : text.DrawString (lines[i].c_str(), x, top + inset, width - time - drive, blockH - inset, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
                                              DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1356,6 +1375,86 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
     }
 
     return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintThumb
+//
+//  A list's thumb in the gutter at its right, the share of its height that
+//  the visible entries are of all of them, `first` entries down from the top.
+//  A list with every entry visible has no thumb.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintThumb (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & area, size_t first, size_t shown, size_t total) const
+{
+    float  height = (float) (area.bottom - area.top);
+    float  thumbW = m_scaler.ToPxf (kThumbDip);
+    float  thumbH = 0.0f;
+    float  thumbY = 0.0f;
+
+
+
+    if (total == 0 || shown >= total)
+    {
+        return;
+    }
+
+    thumbH = std::max (height * (float) shown / (float) total, thumbW * 2.0f);
+    thumbY = (float) area.top + (height - thumbH) * (float) first / (float) (total - shown);
+
+    painter.FillRect ((float) GetBounds().right - thumbW, thumbY, thumbW, thumbH, theme.ForegroundMuted());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::HandleWheel
+//
+//  The wheel over the disks done or the activity scrolls that list a row a
+//  notch: up toward the newest disk, and up toward older activity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::HandleWheel (const DxuiMouseEvent & ev)
+{
+    POINT   pt      = { ev.positionDip.x, ev.positionDip.y };
+    int     notches = (int) std::lround (ev.wheelDelta);
+    size_t  disks   = m_view.snapshot.disks.size();
+    size_t  lines   = m_view.snapshot.lines.size();
+    bool    handled = false;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Wheel || ev.wheelHorizontal || notches == 0)
+    {
+        return false;
+    }
+
+    if (PtInRect (&m_disksArea, pt))
+    {
+        int64_t  most = disks > (size_t) kDiskRows ? (int64_t) (disks - kDiskRows) : 0;
+
+        m_diskScroll = (size_t) std::clamp ((int64_t) m_diskScroll - notches, (int64_t) 0, most);
+        handled      = true;
+    }
+    else if (PtInRect (&m_activity, pt))
+    {
+        int64_t  most = lines > 0 ? (int64_t) lines - 1 : 0;
+
+        m_lineScroll = (size_t) std::clamp ((int64_t) m_lineScroll + notches, (int64_t) 0, most);
+        handled      = true;
+    }
+
+    return handled;
 }
 
 

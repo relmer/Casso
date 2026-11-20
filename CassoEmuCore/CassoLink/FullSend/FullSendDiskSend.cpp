@@ -141,7 +141,7 @@ HRESULT FullSendDiskSend::Begin (Sending & disk)
     m_context.status.SetActivity (FullSendActivity::Sending, disk.drive);
     m_context.status.BeginDisk (disk.drive, verifying, verifying ? std::span<const int>() : std::span<const int> (disk.checked->wholeTracks));
     m_context.status.SetTitle (disk.drive, disk.title, FullSendDisk::GetSystemName (sectors));
-    m_context.status.AddLine (std::format ("Sending the disk in drive {}", disk.drive));
+    m_context.status.AddLine (std::format ("Sending the disk in drive {}", disk.drive), disk.drive);
 
     if (m_context.link.HasDrive (other))
     {
@@ -330,7 +330,7 @@ HRESULT FullSendDiskSend::DropChanged (Sending & disk)
 
 
     m_check.NoteChanged (disk.checked->fingerprint);
-    m_context.Report (std::format ("The disk in drive {} changed while it was read, so no image was written", disk.drive));
+    m_context.Report (std::format ("The disk in drive {} changed while it was read, so no image was written", disk.drive), disk.drive);
 
     m_context.screen.SetDriveState (disk.drive, FullSendDriveState::Idle);
     m_context.status.ClearDisk (disk.drive, FullSendDiskState::None);
@@ -386,7 +386,7 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
                : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, disk.drive)
                                                                     : std::format ("The disk in drive {} doesn't have a recognized boot loader", disk.drive);
 
-        m_context.Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
+        m_context.Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.", disk.drive);
     }
 
     m_context.screen.SetDriveState (disk.drive, FullSendDriveState::Capturing);
@@ -446,7 +446,7 @@ HRESULT FullSendDiskSend::CheckVolume (Sending & disk)
     BAIL_OUT_IF (!differs, S_OK);
 
     m_context.Report (std::format ("The disk in drive {} doesn't use volume {}, so it can't be saved as a {} image. Preserving its volume {} by saving it as a WOZ image instead.",
-                                   disk.drive, imageVolume, FullSendDisk::GetImageExtension (image.sectors, m_context.folder.GetExtension()), layouts[0].volume));
+                                   disk.drive, imageVolume, FullSendDisk::GetImageExtension (image.sectors, m_context.folder.GetExtension()), layouts[0].volume), disk.drive);
 
     hr = m_context.link.MeasureLayouts (disk.drive, NibblizationLayer::kTrackCount, image.report.layouts);
     CHR (hr);
@@ -654,7 +654,7 @@ void FullSendDiskSend::Tally (Sending & disk)
 
     if (disk.isProtected && !isRaw)
     {
-        m_context.Report (std::format ("{} is likely copy-protected, and its image {} has the sectors that could be read.", disk.title, row.file));
+        m_context.Report (std::format ("{} is likely copy-protected, and its image {} has the sectors that could be read.", disk.title, row.file), disk.drive);
     }
 }
 
@@ -678,7 +678,7 @@ void FullSendDiskSend::ReportSent (const Sending & disk)
     m_context.Report (disk.hasEarlier             ? std::format ("Disk {:04} is {}, a duplicate of {}. Took {}.", row.sequence, row.file, row.duplicateOf, took)
                       : !row.duplicateOf.empty()  ? std::format ("Disk {:04} is {}, sent again though it matches {}. Took {}.", row.sequence, row.file, row.duplicateOf, took)
                       : !disk.image.raw.empty()   ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected. Took {}.", row.sequence, row.file, took)
-                                                  : std::format ("Disk {:04} is {}, with {} unreadable sectors. Took {}.", row.sequence, row.file, row.unreadable, took));
+                                                  : std::format ("Disk {:04} is {}, with {} unreadable sectors. Took {}.", row.sequence, row.file, row.unreadable, took), disk.drive);
 }
 
 
