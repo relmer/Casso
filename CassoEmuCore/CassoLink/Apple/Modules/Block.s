@@ -84,6 +84,7 @@ rpages   = $6A                  ; the packet's whole pages written
 rmode    = $6B                  ; 0 to write at rbase and up, 1 to the one address
 rbase    = $6C                  ; and $6D: where the packet is written
 rsp      = $6E                  ; the stack pointer, for a packet that grows too long
+brun     = $6F                  ; nonzero when the last block read had runs
 RESC     = $DB                  ; the escape byte in Block runs
 
 ; ---------------------------------------------------------------------------
@@ -320,10 +321,30 @@ sdend:  lda p_peor
 bread:  lda #p_OPREAD
         jsr bargs
         bcs brdone
+        lda #0
+        sta brun
 brloop: lda p_index
         cmp p_count
         beq brdone
-        lda #<BLKBUF
+        lda bvfy                ; a read goes into the datagram, except with verify
+        ora brun                ; or after a block with runs, as the next likely has them
+        bne brbuf
+        jsr p_rawbeg
+        bcs brbuf
+        sta rbase
+        sty rbase+1
+        clc
+        adc #8                  ; past the envelope and the block number
+        sta bptr
+        tya
+        adc #0
+        sta bptr+1
+        lda #1
+        jsr devio
+        bcs brfail
+        jsr sendraw
+        jmp brnext
+brbuf:  lda #<BLKBUF
         sta bptr
         lda #>BLKBUF
         sta bptr+1
@@ -334,8 +355,11 @@ brloop: lda p_index
         beq brsend
         jsr reread
         bcs brfail
-brsend: jsr sendrle
-        jsr p_pollcancel
+brsend: lda #<BLKBUF
+        ldy #>BLKBUF
+        jsr setsrc
+        jsr sendrle
+brnext: jsr p_pollcancel
         jsr nextblk
         jmp brloop
 brfail: sta p_err
@@ -481,15 +505,21 @@ sendblk: lda #0
         sta p_crchi
         lda bnocrc
         bne sbsend
-        ldy #0
-sblo:   lda BLKBUF,y
+        jsr blkcrc
+        jmp sbsend
+
+; blkcrc: the CRC of the block at the address setsrc set, two bytes a round,
+; into crclo and crchi.
+blkcrc: ldy #0
+sblo:
+sbl0:   lda BLKBUF,y
         eor p_crchi
         tax
         lda p_CRCLO,x
         sta btmp
         lda p_crclo
         eor p_CRCHI,x
-        eor BLKBUF+1,y
+sbl1:   eor BLKBUF+1,y
         tax
         lda btmp
         eor p_CRCHI,x
@@ -499,14 +529,15 @@ sblo:   lda BLKBUF,y
         iny
         iny
         bne sblo
-sbhi:   lda BLKBUF+256,y
+sbhi:
+sbh0:   lda BLKBUF+256,y
         eor p_crchi
         tax
         lda p_CRCLO,x
         sta btmp
         lda p_crclo
         eor p_CRCHI,x
-        eor BLKBUF+257,y
+sbh1:   eor BLKBUF+257,y
         tax
         lda btmp
         eor p_CRCHI,x
@@ -516,6 +547,7 @@ sbhi:   lda BLKBUF+256,y
         iny
         iny
         bne sbhi
+        rts
 sbsend: lda bblk
         sta bknum
         lda bblk+1
@@ -542,6 +574,98 @@ sbhdr:  lda blkhdr,x
 blkhdr: .byte $C1, <517, >517, CMDBLKPLAIN, $C1 ^ <517 ^ >517 ^ CMDBLKPLAIN
 bknum:  .byte 0, 0, 0
 
+; setsrc: the block's bytes at A (low) and Y (high) for hasruns and blkcrc,
+; set in their code.
+setsrc: sta smp0+1
+        sta sbl0+1
+        sty smp0+2
+        sty sbl0+2
+        iny
+        sta smp2+1
+        sta sbh0+1
+        sty smp2+2
+        sty sbh0+2
+        dey
+        clc
+        adc #1
+        bcc ssnext
+        iny
+ssnext: sta smp1+1
+        sta sbl1+1
+        sty smp1+2
+        sty sbl1+2
+        iny
+        sta smp3+1
+        sta sbh1+1
+        sty smp3+2
+        sty sbh1+2
+        rts
+
+; sendraw: the block read into the datagram at rbase, past its envelope and
+; number, sent there as Block plain. With runs where hasruns looks, it is
+; copied to BLKBUF and sent as sendrle sends it.
+sendraw: lda bptr
+        ldy bptr+1
+        jsr setsrc
+        jsr hasruns
+        bcc srwhole
+        lda #1
+        sta brun
+        jsr cpblk
+        lda #<BLKBUF
+        ldy #>BLKBUF
+        jsr setsrc
+        jmp srtry
+srwhole: lda #0
+        sta p_crclo
+        sta p_crchi
+        lda bnocrc
+        bne srwnum
+        jsr blkcrc
+srwnum: lda bblk
+        sta bknum
+        lda bblk+1
+        sta bknum+1
+        lda bblk+2
+        sta bknum+2
+        ldy #7
+srwhdr: lda blkhdr,y
+        sta (rbase),y
+        dey
+        bpl srwhdr
+        inc bptr+1              ; the CRC and EOR after the block's 512 bytes
+        inc bptr+1
+        ldy #0
+        lda p_crclo
+        sta (bptr),y
+        iny
+        lda p_crchi
+        sta (bptr),y
+        iny
+        lda #0
+        sta (bptr),y
+        dec bptr+1
+        dec bptr+1
+        lda #<523
+        sta p_rletot
+        lda #>523
+        sta p_rletot+1
+        jmp p_rleend
+
+; cpblk: the block at bptr copied to BLKBUF.
+cpblk:  ldy #0
+cplo:   lda (bptr),y
+        sta BLKBUF,y
+        iny
+        bne cplo
+        inc bptr+1
+cphi:   lda (bptr),y
+        sta BLKBUF+256,y
+        iny
+        bne cphi
+        dec bptr+1
+        rts
+
 ; sendrle: Block runs with bblk and BLKBUF's bytes, the packet written whole
 ; where rlebeg returns. Each byte is sent as it is, a run of n + 4 of a byte
 ; within a page as RESC, n and the byte, and a RESC alone as RESC, $FF. The CRC
@@ -552,19 +676,32 @@ bknum:  .byte 0, 0, 0
 ; as Block data instead. So is a block with no two bytes alike at any of 32
 ; places 16 bytes apart, since looking for runs in it would cost more than
 ; they save.
-sendrle: ldx #0
-srsamp: lda BLKBUF,x
-        cmp BLKBUF+1,x
-        beq srtry
-        lda BLKBUF+256,x
-        cmp BLKBUF+257,x
-        beq srtry
+sendrle: jsr hasruns
+        lda #0
+        rol a
+        sta brun
+        bne srtry
+        jmp sendblk
+
+; hasruns: the carry set when the block at the address setsrc set has two
+; bytes alike at any of 32 places 16 bytes apart.
+hasruns: ldx #0
+srsamp:
+smp0:   lda BLKBUF,x
+smp1:   cmp BLKBUF+1,x
+        beq srhas
+smp2:   lda BLKBUF+256,x
+smp3:   cmp BLKBUF+257,x
+        beq srhas
         txa
         clc
         adc #16
         tax
         bne srsamp
-        jmp sendblk
+        clc
+        rts
+srhas:  sec
+        rts
 srtry:  jsr p_rlebeg
         bcc srgo
         jmp srbyput

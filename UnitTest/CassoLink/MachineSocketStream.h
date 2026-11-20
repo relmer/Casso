@@ -54,7 +54,7 @@ public:
         return S_OK;
     }
 
-    size_t  GetReadableCount() override          { return m_state->sent.size(); }
+    size_t  GetReadableCount () override          { return m_state->sent.size(); }
     bool    IsClosed         () const override   { return m_state->destroyed || m_state->shutdownSent; }
     void    Close            () override         { m_state->inboundEof = true; }
 

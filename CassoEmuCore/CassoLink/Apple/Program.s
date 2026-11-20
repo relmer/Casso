@@ -3461,6 +3461,28 @@ rlebeg: sec
 rleend: rts
         endif
 
+; rawbeg: an empty datagram with room for a whole Block plain packet, so a
+; module reads a block into it in place and sends it with rleend. Its address
+; is returned in A (low) and Y (high). The carry is set with no such room to
+; offer: in every build but the network one, and in a build with faults.
+        ifndef FAULTS
+        ifdef NETWORK
+rawbeg: lda txn
+        ora txn+1
+        beq rwroom
+        jsr flush
+rwroom: lda prst+1
+        ldy prst+2
+        clc
+        rts
+RAWPLACE = 1
+        endif
+        endif
+        ifndef RAWPLACE
+rawbeg: sec
+        rts
+        endif
+
 ; putblk: the 512 bytes at the page in A and the next put, as putb puts each.
 ; The network and W5100 builds copy them into the datagram or the chip's
 ; transmit memory in one pass; a build with faults puts each through putb,
