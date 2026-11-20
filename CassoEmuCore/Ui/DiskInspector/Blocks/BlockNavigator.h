@@ -56,6 +56,10 @@ public:
     //  or the tree and the list built again from the new maps.
     void  Sync ();
 
+    //  The tree is built again at the next Sync, as after an icon set's
+    //  change of surface.
+    void  InvalidateIcons () { m_isIconsStale = true; }
+
     void  GoTo         (const BlockPlace & place);
     void  ShowBlock    (uint32_t block);
     void  ReplaceBlock (uint32_t block);
@@ -132,4 +136,5 @@ private:
     int                                     m_sortColumn   = 0;
     bool                                    m_isDescending = false;
     bool                                    m_isFilling    = false;
+    bool                                    m_isIconsStale = false;
 };

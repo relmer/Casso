@@ -123,12 +123,13 @@ void BlockNavigator::Sync()
 
 
 
-    if (generation == m_generation || !m_model->IsOpen())
+    if ((generation == m_generation && !m_isIconsStale) || !m_model->IsOpen())
     {
         return;
     }
 
-    m_generation = generation;
+    m_generation   = generation;
+    m_isIconsStale = false;
 
     if (isFirst)
     {
@@ -768,8 +769,9 @@ std::wstring BlockNavigator::GetCardLabel() const
 //
 //  BlockNavigator::SetTreeIcons
 //
-//  The card and each volume have the disk image's floppy, and each
-//  directory the folder, as in Casso Explorer's tree.
+//  The card and each volume have the disk image's floppy, each partition
+//  the partition's icon, and each directory the folder, as in Casso
+//  Explorer's tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -788,7 +790,9 @@ void BlockNavigator::SetTreeIcons (vector<DxuiTreeNode> & nodes)
     {
         if (BlockBrowser::ParseId (node.id, place))
         {
-            node.icon = m_icons->GetForKind (place.kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder : IShellIcons::Kind::DiskImage);
+            node.icon = m_icons->GetForKind (place.kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder
+                                           : place.kind == BlockPlace::Kind::Partition ? IShellIcons::Kind::Partition
+                                                                                       : IShellIcons::Kind::DiskImage);
         }
 
         SetTreeIcons (node.children);

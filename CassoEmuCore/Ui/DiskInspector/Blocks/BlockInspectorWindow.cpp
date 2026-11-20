@@ -280,8 +280,11 @@ void BlockInspectorWindow::OnCreate()
     m_panel = CreateChild<BlockInspectorPanel>();
     m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
 
-    m_icons.SetDpi    (GetDpiForWindow (GetHwnd()));
-    m_icons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI));
+    m_isDarkSurface = m_theme == nullptr || DiskInspectorPalette::IsDarkSurface (m_theme->Background());
+
+    m_icons.SetDpi         (GetDpiForWindow (GetHwnd()));
+    m_icons.SetSizePx      (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI));
+    m_icons.SetDarkSurface (m_isDarkSurface);
     m_panel->GetNavigator().SetIcons     (&m_icons);
     m_panel->GetNavigator().SetPopupHost (GetPopupHost());
     m_panel->SetPopupHost                (GetPopupHost());
@@ -1911,10 +1914,24 @@ void BlockInspectorWindow::NoteFileGone()
 
 void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
 {
+    bool  isDark = DiskInspectorPalette::IsDarkSurface (theme->Background());
+
+
+
     m_theme = theme;
 
     SetTheme (theme);
     m_tooltip.SetTheme (*theme);
+
+    //  A theme on the other surface takes the icons drawn for it.
+    if (isDark != m_isDarkSurface && m_panel != nullptr)
+    {
+        m_isDarkSurface = isDark;
+        m_icons.SetDarkSurface (isDark);
+        m_panel->GetNavigator().InvalidateIcons();
+        m_panel->GetNavigator().Sync();
+    }
+
     Invalidate();
 }
 
