@@ -317,7 +317,11 @@ public:
         rig.apple.promptsMissed  = 1;
         rig.apple.readyEveryMs   = 60000;
         rig.session->SetRetryInterval (100);
-        rig.Start (500);
+
+        //  The first attempt times out after the missed prompt. Three seconds
+        //  is enough for the next attempt to load the program on a loaded
+        //  machine.
+        rig.Start (3000);
 
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready, 20000), L"the next attempt's prompt drew the Ready");
     }
@@ -471,11 +475,12 @@ public:
 
         AssertSucceeded (rig.Finish (rig.session->ReadBlockDevice (drive, kImage, false))->result);
 
+        Assert::IsTrue (rig.apple.WaitForLabel ("READ S7,U1 BLOCK 64 OF 64"), L"the label has the device and the block");
+        Assert::IsTrue (rig.apple.WaitForLabel ("CATALOG S7,U1 (/BIGDISK)"), L"and the catalog's label, its volume");
+
         std::lock_guard<std::mutex>  guard (rig.apple.lock);
 
         Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 64 OF 64") != rig.apple.labels.end(), L"the label has the device and the block");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG S7,U1 (/BIGDISK)") != rig.apple.labels.end(), L"and the catalog's label, its volume");
     }
 
 

@@ -62,6 +62,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- After going back to an older release, a machine that a newer release had set up no longer fails to start with a missing ROM error.
+- Going back to an older release no longer lists machines it doesn't support.
 - Speaker music made with pulse-width modulation, such as Archon's, sounds
   like music rather than white noise. Low notes are no longer broken up.
 - The //c switch bar no longer flashes while the window is resized.

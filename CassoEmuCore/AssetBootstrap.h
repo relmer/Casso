@@ -23,6 +23,7 @@ using MediaFilter = bool (*) (const std::wstring & path);
 
 class IDxuiTheme;
 struct CassoTheme;
+struct EmbeddedConfig;
 
 
 
@@ -38,8 +39,8 @@ struct CassoTheme;
 //   * Detect missing ROM files for a given machine config and offer
 //     to download them from the AppleWin project.
 //
-//  Runtime asset roots live under the user-writable
-//  %LOCALAPPDATA%\Casso\ directory.
+//  Runtime asset roots live under the user-writable data folder, which
+//  PathResolver::GetDataFolder chooses.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,6 +136,13 @@ public:
                                            const wstring          & machineName,
                                            vector<string>         & outRomFiles,
                                            string                 & outError);
+
+    // The embedded config this build has for the machine, matched without
+    // regard to case, or null when it has none.
+    static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName);
+
+    // Whether this build has an embedded config for the machine.
+    static bool                   HasEmbeddedConfig  (const wstring & machineName);
 
     // The machine's name from its embedded config, such as "Apple //e";
     // the id when the config can't be read.

@@ -197,7 +197,7 @@ public:
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
         std::vector<TreeNode>  nodes;
-        StorageCardTreeEntry   card { L"\\.\PhysicalDrive2", L"Storage card (I:, Test, 64 MB)" };
+        StorageCardTreeEntry   card { L"\\\\.\\PhysicalDrive2", L"Storage card (I:, Test, 64 MB)" };
 
         SeedHost (fs);
         Configure (model);

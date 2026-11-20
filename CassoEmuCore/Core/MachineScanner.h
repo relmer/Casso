@@ -38,7 +38,11 @@ struct MachineInfo
 //  Main.cpp's FindFile semantics so the picker and the loader can never
 //  disagree about which config the user picked).
 //
-//  The directory lister and file reader functors are injected. Production
+//  A subfolder is listed only when `hasEmbeddedConfig` accepts its name. A
+//  file written by a newer build can add a machine folder that this build has
+//  no config for, and that machine can't be booted.
+//
+//  The directory lister, file reader and predicate functors are injected. Production
 //  callers pass `&MachineScanner::ListDirectory` and `&MachineScanner::ReadFile`;
 //  tests pass in-memory fakes.
 //
@@ -50,12 +54,14 @@ public:
 
     using DirectoryLister = std::function<vector<fs::path> (const fs::path &)>;
     using FileReader      = std::function<HRESULT (const fs::path &, string &)>;
+    using ConfigPredicate = std::function<bool (const wstring &)>;
 
 
     static vector<MachineInfo> Scan (
         const vector<fs::path> & searchPaths,
         const DirectoryLister  & lister,
-        const FileReader       & reader);
+        const FileReader       & reader,
+        const ConfigPredicate  & hasEmbeddedConfig);
 
 
     // Resolve `requested` to a discovered machine's canonical fileName,
