@@ -470,6 +470,28 @@ public:
 
 
 
+
+    TEST_METHOD (SlotCards_ComeFromEachSlotsFirmwareBytes)
+    {
+        CassoLinkClient            client;
+        const std::array<Byte, 4>  diskII     = { 0x20, 0x00, 0x03, 0x3C };
+        const std::array<Byte, 4>  smartPort  = { 0x20, 0x00, 0x03, 0x00 };
+        const std::array<Byte, 4>  pascalCard = { 0x00, 0x00, 0x38, 0x18 };
+
+        Assert::IsTrue (client.GetSlotCards().empty(), L"an earlier program's Ready has no slot bytes");
+
+        client.hasSlotIds = true;
+        client.slotIds.fill (0xFF);
+
+        std::copy (diskII.begin(),     diskII.end(),     client.slotIds.begin() + 5 * 4);
+        std::copy (smartPort.begin(),  smartPort.end(),  client.slotIds.begin() + 4 * 4);
+        std::copy (pascalCard.begin(), pascalCard.end(), client.slotIds.begin() + 1 * 4);
+
+        Assert::AreEqual (std::string ("2: Pascal firmware card, 5: SmartPort, 6: Disk II"), client.GetSlotCards());
+    }
+
+
+
     //  Small letters for a //e, //c or IIgs; capitals for a ][ or ][+, and
     //  for the shim, whose Ready has no ROM bytes.
     TEST_METHOD (Lowercase_IsForTheModelsWhoseScreenHasIt)

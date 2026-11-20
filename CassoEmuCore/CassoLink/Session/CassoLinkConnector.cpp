@@ -406,6 +406,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
         std::lock_guard<std::mutex>  lock (m_lock);
 
         m_modelName = model;
+        m_client    = m_session.m_host->GetClient();
     }
 
     m_session.SetState (LinkState::Ready);

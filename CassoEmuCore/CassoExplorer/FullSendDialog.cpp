@@ -1644,7 +1644,8 @@ void FullSendDialog::AddCommand (std::vector<DxuiPopupMenuItem> & items, const w
 //  properties, as the image's menu in the folder has them, then Repair disk
 //  image when the file system is bad or suspect and the inspector can
 //  repair it, and Report a problem last. The activity list has Copy, which
-//  copies every line of the session.
+//  copies every line of the session, and while a session runs, a raw capture
+//  of each drive's disk at the next pause.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1662,6 +1663,13 @@ std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & fil
     if (file.empty())
     {
         AddCommand (items, L"&Copy", [this]() { DxuiClipboard::SetText (GetHwnd(), FullSendPanel::FormatActivity (m_view.snapshot)); });
+
+        if (m_rawCapture && IsRunning (m_view.snapshot))
+        {
+            AddCommand (items, L"Capture drive &1 raw for a report", [this]() { m_rawCapture (1); });
+            AddCommand (items, L"Capture drive &2 raw for a report", [this]() { m_rawCapture (2); });
+        }
+
         return items;
     }
 

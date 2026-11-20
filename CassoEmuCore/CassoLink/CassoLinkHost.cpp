@@ -1187,7 +1187,8 @@ HRESULT CassoLinkHost::WaitForAnyKey (const std::vector<std::string> & lines, By
 //
 //  The program sends Key with no code once a second while no key is pressed,
 //  so an Apple that was reset or unplugged times out as in any operation. Each
-//  line of the prompt ends in a zero.
+//  line of the prompt ends in a zero. A key pressed on the PC ends the wait
+//  at one of those, with a Cancel that ends the Apple's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1233,6 +1234,17 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
         CBREx (isKey, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         outKey = packet.payload[0];
+
+        if (outKey == CassoLinkCodec::kKeyNone)
+        {
+            outKey = m_hostKey.exchange (CassoLinkCodec::kKeyNone);
+
+            if (outKey != CassoLinkCodec::kKeyNone)
+            {
+                hr = SendPacket (CassoLinkCodec::kCancel, {});
+                CHR (hr);
+            }
+        }
     }
 
 Error:
@@ -1279,7 +1291,8 @@ Error:
 //  CassoLinkHost::ReadClient
 //
 //  A Ready's versions and drives, and the program's ROM identification and
-//  CRC; the payload is 4, 9 or 11 bytes.
+//  CRC, then each slot's firmware bytes; the payload is 4, 9, 11 or 39
+//  bytes.
 //
 //  The program sent is the build for the chip the Ready indicates, whatever
 //  the link's transport: a link of the wrong kind at the Apple's address,
@@ -1308,7 +1321,8 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     m_client.shimVersion    = (Byte) (packet.payload[2] & ~flags);
     m_client.driveMap       = packet.payload[3];
     m_client.hasRomId       = packet.payload.size() >= 9;
-    m_client.hasProgramCrc  = packet.payload.size() == 11;
+    m_client.hasProgramCrc  = packet.payload.size() >= 11;
+    m_client.hasSlotIds     = packet.payload.size() >= 11 + m_client.slotIds.size();
     m_client.programCrc     = m_client.hasProgramCrc ? (Word) (packet.payload[9] | (packet.payload[10] << 8)) : (Word) 0;
     m_client.isSos          = chip == LinkChip::Sos;
     m_hasClient             = true;
@@ -1316,6 +1330,11 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     if (m_client.hasRomId)
     {
         std::copy_n (packet.payload.begin() + 4, m_client.romId.size(), m_client.romId.begin());
+    }
+
+    if (m_client.hasSlotIds)
+    {
+        std::copy_n (packet.payload.begin() + 11, m_client.slotIds.size(), m_client.slotIds.begin());
     }
 }
 

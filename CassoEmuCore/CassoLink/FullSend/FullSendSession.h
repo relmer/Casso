@@ -81,6 +81,7 @@ private:
     HRESULT                   Pause         ();
     HRESULT                   CheckDrives   (const std::string & retry, bool & outSent);
     HRESULT                   SendRepeat    (int drive, bool & outSent);
+    HRESULT                   CaptureRaw    (int drive, bool & outSent);
     HRESULT                   SendAgain     (int drive, const FullSendCheckedDisk & disk);
     HRESULT                   CheckDrive    (int drive, FullSendCheckedDisk & outDisk);
     HRESULT                   SendDisk      (int drive, const FullSendCheckedDisk & disk, FullSendSendMode mode);

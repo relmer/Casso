@@ -82,6 +82,9 @@ public:
     //  Stops the running operation; queued ones remain.
     void       Cancel ();
 
+    //  A key for the Full Send's pause, pressed on the PC, as kKeyRawDrive1.
+    void       PressFullSendKey (Byte key) { if (m_host != nullptr) { m_host->PressKey (key); } }
+
     LinkState  GetState    () const { return m_connector.m_state; }
 
     //  Whether ADTPro's own client is on the line instead of Casso's. The
@@ -100,6 +103,10 @@ public:
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }
     std::wstring  GetPort      () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_port; }
+
+    //  The Apple's Ready as it was last connected: its ROM's identification,
+    //  its program's version and CRC, and the drives it found.
+    CassoLinkClient  GetClient () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_client; }
 
     //  Why the line last failed to open, such as a TCP port another program
     //  listens on; empty once it opens.

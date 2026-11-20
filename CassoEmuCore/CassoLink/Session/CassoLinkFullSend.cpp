@@ -516,6 +516,8 @@ HRESULT CassoLinkFullSend::WaitForKey (const std::vector<std::string> & lines, F
            : code == CassoLinkCodec::kKeyDrive2 ? FullSendKey::Drive2
            : code == CassoLinkCodec::kKeyVerify ? FullSendKey::Verify
            : code == CassoLinkCodec::kKeyPrefix ? FullSendKey::Prefix
+           : code == CassoLinkCodec::kKeyRawDrive1 ? FullSendKey::RawDrive1
+           : code == CassoLinkCodec::kKeyRawDrive2 ? FullSendKey::RawDrive2
                                                 : FullSendKey::Space;
 
 Error:

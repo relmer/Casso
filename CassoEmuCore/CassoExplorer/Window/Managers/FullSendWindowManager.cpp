@@ -368,6 +368,20 @@ void FullSendWindowManager::ShowConnectionWindow (const std::wstring & connectio
 
     window->SetDiskAction ([this] (const std::string & file, FullSendDialog::DiskAction action) { RunFullSendDisk (file, action); });
     window->SetCanRepair  ([this] (const std::string & file) { return CanRepair (file); });
+
+    if (!connection.empty())
+    {
+        window->SetRawCapture ([this, connection] (int drive)
+        {
+            CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (TextEncoding::WideToNarrow (connection)) : nullptr;
+
+            if (session != nullptr)
+            {
+                session->PressFullSendKey (drive == 1 ? CassoLinkCodec::kKeyRawDrive1 : CassoLinkCodec::kKeyRawDrive2);
+            }
+        });
+    }
+
     window->SetOnMoved ([this] (POINT topLeft)
     {
         m_context.prefs.fullSendWindow.x     = topLeft.x;
@@ -585,6 +599,12 @@ void FullSendWindowManager::ReportDisk (const std::filesystem::path & image)
     sources.links    = m_context.app.links;
     sources.pictures = m_context.app.pictures;
     sources.logFile  = PathResolver::GetLocalAppDataDir (L"Casso") / L"Logs" / CassoLinkLogFile::kFileName;
+    sources.select   = [this] (const std::filesystem::path & file)
+    {
+        m_context.addressBar.GoToLocation (Location::MakeHostFolder (file.parent_path().wstring()));
+        m_context.listPane.FillList();
+        m_context.listPane.SelectRowNamed (file.filename().wstring());
+    };
 
     DiskReportSender::Report (m_context.window.GetHwnd(), m_context.theme, image, sources);
 }

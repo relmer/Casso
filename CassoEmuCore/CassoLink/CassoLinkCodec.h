@@ -134,6 +134,8 @@ public:
     static constexpr Byte  kKeyEscape     = 0x9B;
     static constexpr Byte  kKeyLeft       = 0x88;
     static constexpr Byte  kKeyDelete     = 0xFF;
+    static constexpr Byte  kKeyRawDrive1  = 0x01;     // pressed on the PC, never sent by the Apple
+    static constexpr Byte  kKeyRawDrive2  = 0x02;
     static constexpr Byte  kWaitKeys      = 0x00;
     static constexpr Byte  kWaitTyped     = 0x01;
 

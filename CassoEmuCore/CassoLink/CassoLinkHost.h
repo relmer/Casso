@@ -455,6 +455,11 @@ public:
     //  Any Cancel ends the wait with ERROR_CANCELLED.
     HRESULT  WaitForKey   (const std::vector<std::string> & lines, Byte & outKey);
 
+    //  A key pressed on the PC, from any thread. The next wait for a key
+    //  ends with it, at the Apple's next report that no key is pressed: a
+    //  Cancel ends the Apple's wait, and its Ready follows.
+    void     PressKey     (Byte key) { m_hostKey = key; }
+
     //  As WaitForKey, with every key the Apple's keyboard sends, for a line
     //  typed there.
     HRESULT  WaitForAnyKey (const std::vector<std::string> & lines, Byte & outKey);
@@ -508,7 +513,7 @@ private:
 
     static bool  IsKeyReport  (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
     void         NoteKey      (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
-    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11; }
+    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11 || size == 39; }
     static bool  IsBlank      (std::span<const Byte> sector) { return !sector.empty() && std::all_of (sector.begin(), sector.end(), [&sector] (Byte b) { return b == sector[0]; }); }
 
     //  An operation sent again while its request is lost or a reply arrives
@@ -577,6 +582,7 @@ private:
     bool                            m_fullSendRequest = false;
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
+    std::atomic<Byte>               m_hostKey         { CassoLinkCodec::kKeyNone };
     std::atomic<uint64_t>           m_lastHeardMs     { 0 };
     std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;

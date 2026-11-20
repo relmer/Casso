@@ -19,8 +19,8 @@ class IDxuiTheme;
 //  A problem report for a disk image: the facts about it are gathered, the
 //  user types a note, and the zip is saved in a Reports folder beside the
 //  image. Then a new GitHub issue opens in the browser, with the zip selected
-//  in File Explorer to drag onto it, or the mail program drafts an email with
-//  the zip attached.
+//  in Casso Explorer to drag onto it, or the mail program drafts an email
+//  with the zip attached.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +32,9 @@ public:
         CassoLinkConnections   * links    = nullptr;
         IDiskPictures          * pictures = nullptr;
         std::filesystem::path    logFile;
+
+        //  Selects a file in the window's list, in its folder.
+        std::function<void (const std::filesystem::path & file)>  select;
     };
 
     static constexpr const wchar_t *  kReportsFolder = L"Reports";
@@ -50,5 +53,4 @@ private:
     static bool         ReadAll           (const std::filesystem::path & path, std::vector<Byte> & outBytes);
     static HRESULT      WriteAll          (const std::filesystem::path & path, const std::vector<Byte> & bytes);
     static HRESULT      SendEmail         (HWND owner, const std::filesystem::path & zip, const std::string & subject, const std::string & body);
-    static void         ShowInFolder      (const std::filesystem::path & path);
 };

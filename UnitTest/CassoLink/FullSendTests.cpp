@@ -1529,6 +1529,22 @@ public:
         Assert::IsTrue (rig.link.captures == std::vector<int> { 1 });
     }
 
+    //  A raw capture started on the PC skips the sector read, whatever the
+    //  check found.
+    TEST_METHOD (Session_RawDriveKey_CapturesTheDiskRawOnly)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = BlankDos();
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::RawDrive1 };
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 });
+        Assert::IsTrue (rig.link.diskReads.empty(), L"no sector read");
+    }
+
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
     {
         Rig  rig;

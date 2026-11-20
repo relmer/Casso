@@ -354,6 +354,13 @@ HRESULT FullSendSession::Pause()
             continue;
         }
 
+        if (key == FullSendKey::RawDrive1 || key == FullSendKey::RawDrive2)
+        {
+            hr = CaptureRaw (key == FullSendKey::RawDrive1 ? 1 : 2, sent);
+            CHR (hr);
+            continue;
+        }
+
         hr = SendRepeat (key == FullSendKey::Drive1 ? 1 : 2, sent);
         CHR (hr);
     }
@@ -445,6 +452,47 @@ HRESULT FullSendSession::SendRepeat (int drive, bool & outSent)
     m_check.ClearRepeat (drive);
 
     BAIL_OUT_IF (disk.check == FullSendDiskCheck::None, S_OK);
+
+    hr = SendDisk (drive, disk, FullSendSendMode::Anyway);
+    CHR (hr);
+
+    outSent = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::CaptureRaw
+//
+//  The drive's disk captured raw whatever its check found, for a disk that
+//  failed or looked blank or empty, so a problem report has its image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CaptureRaw (int drive, bool & outSent)
+{
+    HRESULT              hr   = S_OK;
+    FullSendCheckedDisk  disk;
+
+
+
+    outSent = false;
+
+    BAIL_OUT_IF (!m_context.link.HasDrive (drive), S_OK);
+
+    hr = CheckDrive (drive, disk);
+    CHR (hr);
+
+    m_check.ClearRepeat (drive);
+    m_context.Report (std::format ("Capturing the disk in drive {} in raw mode, for a problem report", drive), drive);
+
+    disk.isRawOnly = true;
 
     hr = SendDisk (drive, disk, FullSendSendMode::Anyway);
     CHR (hr);

@@ -50,6 +50,8 @@ enum class FullSendKey
     Drive2,
     Verify,
     Prefix,
+    RawDrive1,      // a raw capture of the drive's disk, started on the PC
+    RawDrive2,
 };
 
 class IFullSendLink

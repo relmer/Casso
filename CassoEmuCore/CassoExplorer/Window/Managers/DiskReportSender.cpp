@@ -72,8 +72,12 @@ void DiskReportSender::Report (HWND owner, const IDxuiTheme * theme, const std::
 
     if (choice == IDYES)
     {
+        if (sources.select)
+        {
+            sources.select (zipPath);
+        }
+
         ShellExecuteW (owner, L"open", DiskProblemReport::MakeIssueUrl (facts, zipName).c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-        ShowInFolder (zipPath);
     }
     else if (choice == IDNO)
     {
@@ -81,8 +85,12 @@ void DiskReportSender::Report (HWND owner, const IDxuiTheme * theme, const std::
 
         if (FAILED (hr))
         {
+            if (sources.select)
+            {
+                sources.select (zipPath);
+            }
+
             DxuiMessageBox (owner, theme, L"No mail program could draft the email. Attach the zip from the Reports folder to an email yourself.", CassoExplorerShell::kAppName, MB_OK | MB_ICONINFORMATION);
-            ShowInFolder (zipPath);
         }
     }
 }
@@ -201,15 +209,37 @@ void DiskReportSender::GatherLink (const Sources & sources, DiskProblemFacts & i
         std::string          name    = CassoLinkSettings::MakeName (settings);
         CassoLinkSession   * session = sources.links->GetSession (name);
         std::wstring         model   = (session != nullptr) ? session->GetModelName() : std::wstring();
+        CassoLinkClient      client;
 
         if (model.empty())
         {
             continue;
         }
 
-        ioFacts.appleModel = TextEncoding::WideToNarrow (model);
-        ioFacts.transport  = std::format ("{}, {} on {} at {} baud", name, CassoLinkSettings::GetTransportName (settings.transport),
-                                          TextEncoding::WideToNarrow (session->GetPort()), settings.baud);
+        client = session->GetClient();
+
+        ioFacts.appleModel  = TextEncoding::WideToNarrow (model);
+        ioFacts.transport   = std::format ("{}, {} on {} at {} baud", name, CassoLinkSettings::GetTransportName (settings.transport),
+                                           TextEncoding::WideToNarrow (session->GetPort()), settings.baud);
+        ioFacts.linkProgram = std::format ("version {} on the Apple, {} sent; shim {}", client.programVersion, LinkProgram::kProgramVersion, client.shimVersion);
+        ioFacts.appleDrives = std::format ("drive map ${:02X}", client.driveMap);
+
+        if (client.hasSlotIds)
+        {
+            ioFacts.appleDrives += "; slots " + client.GetSlotCards();
+        }
+
+        if (client.hasProgramCrc)
+        {
+            ioFacts.linkProgram += std::format ("; CRC ${:04X}", client.programCrc);
+        }
+
+        if (client.hasRomId)
+        {
+            ioFacts.appleRom = std::format ("$FBB3=${:02X} $FBC0=${:02X} $FBBF=${:02X} $FB1E=${:02X} IIgs={}",
+                                            client.romId[0], client.romId[1], client.romId[2], client.romId[3], client.romId[4]);
+        }
+
         break;
     }
 }
@@ -427,32 +457,4 @@ Error:
     }
 
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskReportSender::ShowInFolder
-//
-//  A File Explorer window on the zip's folder with the zip selected, to drag
-//  onto the issue.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskReportSender::ShowInFolder (const std::filesystem::path & path)
-{
-    PIDLIST_ABSOLUTE  item = ILCreateFromPathW (path.wstring().c_str());
-    HRESULT           hr   = S_OK;
-
-
-
-    if (item != nullptr)
-    {
-        hr = SHOpenFolderAndSelectItems (item, 0, nullptr, 0);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        ILFree (item);
-    }
 }

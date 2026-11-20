@@ -60,6 +60,9 @@ std::string DiskProblemReport::FormatReport (const DiskProblemFacts & facts)
     text += "\r\nCassoLink\r\n";
     AddLine (text, "Transport",      facts.transport);
     AddLine (text, "Apple",          facts.appleModel);
+    AddLine (text, "Apple ROM",      facts.appleRom);
+    AddLine (text, "Apple memory",   facts.appleMemory);
+    AddLine (text, "Apple drives",   facts.appleDrives);
     AddLine (text, "Apple program",  facts.linkProgram);
 
     return text;

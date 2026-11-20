@@ -32,6 +32,9 @@ struct DiskProblemFacts
     std::string        transport;          // the port and its speed
     std::string        appleModel;
     std::string        linkProgram;        // the Apple program's version
+    std::string        appleRom;           // the ROM's identification bytes
+    std::string        appleDrives;        // the drives the Apple program found
+    std::string        appleMemory;        // the Apple's RAM
     std::string        drive;              // the drive the disk was read in
     std::string        note;               // what the user typed
 };

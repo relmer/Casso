@@ -1825,7 +1825,7 @@ bgwp:   sta wpbit
 
 ; sendready: Ready with this program's version, the shim's and the drives:
 ; bit 0 for drive 1, bit 1 for drive 2. Then the ROM's identification bytes,
-; and the program's CRC as selfcrc computed it.
+; the program's CRC as selfcrc computed it, and each slot's firmware bytes.
 sendready: ldx #0
 srloop: lda readypkt,x
         jsr putb
@@ -1834,11 +1834,12 @@ srloop: lda readypkt,x
         bne srloop
         rts
 
-readypkt: .byte $C1, $0B, $00, CMDREADY, $C1 ^ $0B ^ $00 ^ CMDREADY
+readypkt: .byte $C1, $27, $00, CMDREADY, $C1 ^ $27 ^ $00 ^ CMDREADY
           .byte <PROGVER, >PROGVER, READYVER
 readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
 readycrc: .byte 0, 0                ; selfcrc sets it, low byte first
+readyslot: .ds 28                  ; $Cn01, $Cn03, $Cn05 and $Cn07 of slots 1 to 7
 readychk: .byte 0
 readyend:
 
@@ -1873,13 +1874,37 @@ ridcaps: lda $FBC0
         bcs ridsum
         lda #1
         sta readyrom+4
-ridsum: lda #<PROGVER ^ >PROGVER ^ READYVER
+ridsum: jsr readslots
+        lda #<PROGVER ^ >PROGVER ^ READYVER
         eor readymap
-        ldx #6                  ; readyrom's 5 bytes and readycrc's 2
+        ldx #34                 ; readyrom's 5 bytes, readycrc's 2 and readyslot's 28
 ridnext: eor readyrom,x
         dex
         bpl ridnext
         sta readychk
+        rts
+
+; readslots: the bytes of each slot's firmware that identify a card, as a
+; Disk II's $20, $00, $03, $3C, into readyslot. Reading a slot's page selects
+; its $C800 ROM, so $CFFF deselects them after.
+readslots: ldx #0
+        lda #1
+        sta ptr
+        lda #$C1
+        sta ptr+1
+rsslot: ldy #0
+rsbyte: lda (ptr),y
+        sta readyslot,x
+        inx
+        iny
+        iny
+        cpy #8
+        bne rsbyte
+        inc ptr+1
+        lda ptr+1
+        cmp #$C8
+        bne rsslot
+        lda $CFFF
         rts
 
 ; probe: drive 2 into readymap. A drive at the port reads nibbles from a
