@@ -891,7 +891,7 @@ void Deflate::AssignCodes (Code & ioCode)
     {
         bits = ioCode.lengths[symbol];
 
-        if (bits != 0)
+        if (bits != 0 && bits <= kMaxBits)
         {
             code     = nextCode[bits]++;
             reversed = 0;
