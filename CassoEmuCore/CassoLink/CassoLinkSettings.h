@@ -54,7 +54,6 @@ struct CassoLinkSettings
     DWORD          bootstrapBaud     = kDefaultBootstrapBaud;
     bool           hardwareHandshake = false;
     bool           use40             = false;    // 40 columns on the Apple even where it has 80
-    bool           blockCrc          = false;    // a read's blocks checked by CRC over Ethernet, as serial's always are
     int            verify            = kVerifyDefault;
     std::wstring   folder;
 
