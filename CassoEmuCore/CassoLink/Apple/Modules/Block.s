@@ -555,8 +555,23 @@ blkhdr: .byte $C1, <517, >517, CMDBLKDATA, $C1 ^ <517 ^ >517 ^ CMDBLKDATA
 ; which the PC doesn't check for Block runs. One pass finds the runs and the
 ; CRC and writes the packet, with each store's address set in the code. With no
 ; place to write, or a packet that would pass three pages, the block is sent
-; as Block data instead.
-sendrle: jsr p_rlebeg
+; as Block data instead. So is a block with no two bytes alike at any of 32
+; places 16 bytes apart, since looking for runs in it would cost more than
+; they save.
+sendrle: ldx #0
+srsamp: lda BLKBUF,x
+        cmp BLKBUF+1,x
+        beq srtry
+        lda BLKBUF+256,x
+        cmp BLKBUF+257,x
+        beq srtry
+        txa
+        clc
+        adc #16
+        tax
+        bne srsamp
+        jmp sendblk
+srtry:  jsr p_rlebeg
         bcc srgo
         jmp sendblk
 srgo:   sta rbase
