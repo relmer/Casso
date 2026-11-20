@@ -107,7 +107,8 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .toolbars         = toolbars,
                  .treePane         = treePane,
                  .pickerMode       = pickerMode,
-                 .pickerBar        = pickerBar }
+                 .pickerBar        = pickerBar,
+                 .pickerSearch     = pickerSearch }
 {
 }
 
@@ -165,6 +166,7 @@ void ExplorerWindowParts::CreateControls()
     layout.SetSplitters (treeSplitter, previewSplitter);
     statusBar.Create();
     pickerBar.Create();
+    pickerSearch.Create();
     tabManager.Create();
     toolbars.CreateNavBar();
     addressBar.Create();

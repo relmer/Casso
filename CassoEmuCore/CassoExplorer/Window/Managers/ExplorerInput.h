@@ -30,7 +30,7 @@ public:
     LPCWSTR                   GetCursorForPoint  (POINT clientPx) const;
     void                      SetFocusPane       (ExplorerPane pane);
     ExplorerPane              GetFocusPane       () const { return m_focus; }
-    bool                      HasCaretFocus      () const { return m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch || m_focus == ExplorerPane::PickerName; }
+    bool                      HasCaretFocus      () const { return m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch || m_focus == ExplorerPane::PickerName || m_focus == ExplorerPane::PickerSearch; }
     FocusStop                 GetFocusStop       () const;
     void                      SetFocusStop       (const FocusStop & stop);
     std::vector<FocusStop>    BuildFocusStops    () const;

@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/FocusRing.h"
@@ -67,6 +68,7 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_context.tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
     m_context.addressBar.HandleFocusChanged   (pane);
     m_context.pickerBar.HandleFocusChanged    (pane == ExplorerPane::PickerName);
+    m_context.pickerSearch.HandleFocusChanged (pane == ExplorerPane::PickerSearch);
     m_context.toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
     m_context.toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_context.preview.HandleFocusChanged  (pane);
@@ -713,6 +715,18 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A picker's search box above the list, as the search box above.
+    if (m_focus == ExplorerPane::PickerSearch)
+    {
+        handled = m_context.pickerSearch.HandleKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            m_context.window.Invalidate();
+            return handled;
+        }
+    }
+
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
         handled = m_context.preview.GetFind().HandleBoxKey (m_focus, ev);
@@ -844,6 +858,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         case ExplorerPane::Address: handled = m_context.addressBar.HandleKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_context.addressBar.HandleFindBoxKey (ev);  break;
         case ExplorerPane::PickerName:                                           break;
+        case ExplorerPane::PickerSearch:                                         break;
         case ExplorerPane::Tabs:    handled = m_context.tabManager.HandleKey (ev); break;
         case ExplorerPane::Tree:    handled = m_context.treePane.HandleKey (ev); break;
         case ExplorerPane::List:    handled = m_context.listPane.HandleKey (ev); break;

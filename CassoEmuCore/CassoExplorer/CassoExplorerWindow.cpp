@@ -1058,6 +1058,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         ExplorerPane  focus   = m_parts->input.GetFocusPane();
         bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn()
                               : (focus == ExplorerPane::PickerName)     ? m_parts->pickerBar.IsCaretOn()
+                              : (focus == ExplorerPane::PickerSearch)   ? m_parts->pickerSearch.IsCaretOn()
                                                                         : m_parts->preview.GetFind().IsCaretOn (focus);
 
         if (caretOn != m_caretOn)

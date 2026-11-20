@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -319,8 +320,10 @@ void ExplorerListPane::Layout (const RECT & rect)
 
     m_paneRect = rect;
 
-    //  The infobars take the top of the pane, and the list the rest.
+    //  The infobars take the top of the pane, then a picker's search box,
+    //  and the list the rest.
     listRect = m_bars.Layout (rect);
+    listRect = m_context.pickerSearch.Layout (listRect);
 
     m_list->Layout        (listRect, m_context.scaler);
     m_listMessage->Layout (GetListMessageRect(), m_context.scaler);
@@ -1286,6 +1289,12 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         }
 
         cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
+
+        //  A picker's search marks the words typed in each name.
+        if (!m_context.browser.GetNameFilter().empty())
+        {
+            cells[0].matches = SearchQuery::FindNameMatches (cells[0].text, CassoExplorerBrowser::SplitFilterWords (m_context.browser.GetNameFilter()));
+        }
 
         ApplyPropertyCells (row, cells);
 
