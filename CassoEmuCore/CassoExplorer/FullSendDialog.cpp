@@ -461,8 +461,8 @@ void FullSendPanel::MakeMapItems (const Map & map, MapItems & outItems)
 //
 //  FullSendPanel::LayMap
 //
-//  A drive's map magnified about a pointer at a strength. Each cell grows
-//  taller; its place and width are those at rest.
+//  A drive's map magnified about a pointer at a strength. The cells near
+//  the pointer grow taller and wider, and the row spreads around them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -475,9 +475,8 @@ void FullSendPanel::LayMap (int drive, float pointer, float strength, MapSpans &
 
     MakeMapItems (m_maps[(size_t) drive], items);
 
-    options.reach      = m_maps[(size_t) drive].pitch * kMagnifyReachTracks;
-    options.anchor     = DxuiMagnifiedRow::Anchor::Pointer;
-    options.growsWidth = false;
+    options.reach  = m_maps[(size_t) drive].pitch * kMagnifyReachTracks;
+    options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
 
     DxuiMagnifiedRow::Lay (items, pointer, strength, options, outSpans);
 }
@@ -971,9 +970,8 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     }
 
     //  A magnified map's cells are drawn over the text near them: the text
-    //  drawn so far is flushed first. Each cell is in its place at rest, so
-    //  the map at rest is under the magnified one, and the headings and
-    //  titles are covered only where a cell grows over them.
+    //  drawn so far is flushed first. The map at rest isn't drawn under it,
+    //  as the spread cells leave gaps where it would show.
     if (m_cover.right > m_cover.left && m_hotDrive >= 0 && m_maps[(size_t) m_hotDrive].isPainted)
     {
         LayMap (m_hotDrive, m_pointerX, gain, spans);
@@ -1020,6 +1018,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     bool          busy    = drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
     std::wstring  title   = drive.title.empty() ? std::wstring (L"No disk") : TextEncoding::NarrowToWide (drive.title);
     float         header  = top;
+    bool          atRest  = m_cover.right <= m_cover.left || m_hotDrive != number - 1;
 
 
 
@@ -1030,10 +1029,14 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     DrawLine (text, title, left, top, width, theme.Foreground());
     top += lineH + space * 2.0f;
 
-    //  The map at rest; Paint draws a magnified map over it.
+    //  The map at rest, unless Paint draws it magnified after the text.
     m_maps[(size_t) number - 1] = { true, left, top, pitch, pitch - space, cellH, header, width };
-    LayMap (number - 1, 0.0f, 0.0f, spans);
-    PaintCells (painter, theme, drive, m_maps[(size_t) number - 1], spans);
+
+    if (atRest)
+    {
+        LayMap (number - 1, 0.0f, 0.0f, spans);
+        PaintCells (painter, theme, drive, m_maps[(size_t) number - 1], spans);
+    }
 
     for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
     {
