@@ -827,6 +827,18 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  In a picker, Alt+Q moves to the search box. Ctrl+E and Ctrl+F do nothing
+    //  there.
+    if (m_context.IsPicker() && !ev.shift && ((ev.alt && !ev.ctrl && ev.vk == 'Q') || (ev.ctrl && !ev.alt && (ev.vk == 'E' || ev.vk == 'F'))))
+    {
+        if (ev.alt)
+        {
+            m_context.pickerSearch.Focus();
+        }
+
+        return true;
+    }
+
     command = CassoExplorerCommands::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift);
 
     if (command != 0)

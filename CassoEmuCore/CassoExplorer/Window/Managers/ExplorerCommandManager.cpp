@@ -839,11 +839,7 @@ void ExplorerCommandManager::Dispatch (int id)
         //  Find searches the hex preview while it has focus; elsewhere it goes
         //  to the search box, as Explorer's Ctrl+E and Ctrl+F do.
         case CassoExplorerCommands::kFind:
-            if (m_context.IsPicker())
-            {
-                m_context.pickerSearch.Focus();
-            }
-            else if (!m_context.preview.GetFind().FocusFind())
+            if (!m_context.preview.GetFind().FocusFind())
             {
                 m_context.input.SetFocusPane (ExplorerPane::LocationSearch);
             }
