@@ -163,9 +163,10 @@ private:
     std::wstring                 m_fittedSearch;   // the search whose columns were last fitted to its results
     size_t                       m_fittedRows      = 0;
     Location                     m_grownLocation;   // the folder whose columns were last fitted to its rows
-    static constexpr size_t      s_kFitAllRowsMax     = 500;    // past this many rows, only those on screen are measured
-    static constexpr int         s_kFolderPathPeekDip = 60;     // room past a picker's folder name, to show a path follows
-    static constexpr uint64_t    s_kArrivalWaitMs     = 10000;
+    static constexpr size_t      s_kFitAllRowsMax  = 500;    // past this many rows, only those on screen are measured
+    static constexpr uint64_t    s_kArrivalWaitMs  = 10000;
+
+    static constexpr int  s_kFolderPathPeekDip = 60;   // room past a picker's folder name, to show a path follows
 
     std::wstring               m_arrivalFolder;   // see SelectWhenListed
     std::vector<std::wstring>  m_arrivalNames;
