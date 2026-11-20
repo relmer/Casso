@@ -93,13 +93,23 @@ public:
 };
 
 
-//  The window's message box and file dialogs.
+//  The answer to the question of what to do with unsaved edits.
+enum class BlockUnsavedChoice
+{
+    Cancel,
+    Save,
+    Discard,
+};
+
+
+//  The window's message box, its questions and its file dialogs.
 class IBlockDialogs
 {
 public:
     virtual ~IBlockDialogs() = default;
 
     virtual void                 ShowWarning     (const std::wstring & text) = 0;
+    virtual BlockUnsavedChoice   AskUnsaved      (const std::wstring & line) = 0;
     virtual HWND                 GetDialogOwner  () const = 0;
     virtual const IDxuiTheme   * GetDialogTheme  () const = 0;
     virtual IHostDialogs       & GetHostDialogs  () = 0;

@@ -1178,6 +1178,7 @@
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorState.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockFileSession.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockEditController.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockRepairTarget.cpp" />
     <ClCompile Include="Seams\Win32DriveSpace.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
@@ -2203,6 +2204,7 @@
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorInterfaces.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorState.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockFileSession.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockEditController.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockRepairTarget.h" />
     <ClInclude Include="Seams\IDriveSpace.h" />
     <ClInclude Include="Seams\Win32DriveSpace.h" />

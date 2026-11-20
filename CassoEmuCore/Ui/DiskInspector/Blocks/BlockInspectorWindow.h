@@ -15,6 +15,7 @@
 #include "Ui/DiskInspector/Components/InspectorMenuBar.h"
 #include "Ui/DiskInspector/Components/InspectorStatusBar.h"
 
+class BlockEditController;
 class BlockInspectorPanel;
 class IDiskFileIo;
 
@@ -87,6 +88,7 @@ public:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
     void                 ShowWarning    (const std::wstring & text) override;
+    BlockUnsavedChoice   AskUnsaved     (const std::wstring & line) override;
     HWND                 GetDialogOwner () const override { return GetHwnd(); }
     const IDxuiTheme   * GetDialogTheme () const override { return m_theme; }
     IHostDialogs       & GetHostDialogs () override       { return m_dialogs; }
@@ -103,28 +105,12 @@ protected:
     void  OnWindowClose () override;
 
 private:
-    using WriteFn = std::function<HRESULT (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)>;
-
     void                                  BuildCommands       ();
     static bool                           RunCommand          (const InspectorCommands::Command & command);
-    void                                  Save                ();
-    void                                  QueueSave           ();
-    void                                  StartSave           ();
-    void                                  SaveToPreservedCopy ();
-    void                                  UndoApplied         ();
-    void                                  RedoApplied         ();
-    void                                  QueueWrite          (const std::wstring & label, const std::wstring & done, WriteFn write);
-    void                                  SaveEditedCopy      ();
-    void                                  InitEditBar         ();
-    void                                  UpdateEditing       ();
-    bool                                  HandleEditKey       (const DxuiKeyEvent & ev);
-    void                                  Discard             ();
     int                                   GetRepairVolume     () const;
     void                                  Repair              ();
     bool                                  PickRepairTarget    (const std::wstring & why, uint64_t bytes, fs::path & ioTarget);
     void                                  QueueRepairCopy     (int volume, const RepairPlan & plan, bool isCard, const fs::path & target);
-    void                                  CopyBlock           ();
-    void                                  PasteIntoBlock      ();
     void                                  GoToBlock           ();
     void                                  ShowLevel           (BlockPlace::Kind kind);
     void                                  UpdateTooltip       (POINT pointPx);
@@ -133,26 +119,25 @@ private:
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
-    BlockInspectorModel       m_model;
-    BlockInspectorWorker      m_worker;
-    BlockFileSession          m_session         { m_model, *this, *this };
-    Win32HostDialogs          m_dialogs;
-    Win32Clipboard            m_clipboard;
-    Win32DriveSpace           m_drives;
-    InspectorCommands         m_commands;
-    InspectorMenuBar          m_menus;
-    InspectorStatusBar        m_status;
-    BlockInspectorPanel     * m_panel           = nullptr;
-    std::wstring              m_hint;
-    std::wstring              m_editNote;                // the edit bar's note: the last save's result, or why it failed
-    DxuiTooltip               m_tooltip;
-    Win32ShellIcons           m_icons;
-    std::wstring              m_tooltipText;
-    const IDxuiTheme        * m_theme           = nullptr;
+    BlockInspectorModel                     m_model;
+    BlockInspectorWorker                    m_worker;
+    BlockFileSession                        m_session     { m_model, *this, *this };
+    Win32HostDialogs                        m_dialogs;
+    Win32Clipboard                          m_clipboard;
+    Win32DriveSpace                         m_drives;
+    InspectorCommands                       m_commands;
+    InspectorMenuBar                        m_menus;
+    InspectorStatusBar                      m_status;
+    BlockInspectorPanel                   * m_panel       = nullptr;
+    std::unique_ptr<BlockEditController>    m_edits;
+    std::wstring                            m_hint;
+    DxuiTooltip                             m_tooltip;
+    Win32ShellIcons                         m_icons;
+    std::wstring                            m_tooltipText;
+    const IDxuiTheme                      * m_theme       = nullptr;
     std::function<void ()>    m_onClosed;
     double  m_zoom             = 1.0;
     bool    m_isDirty          = true;
     bool    m_isClosed         = false;
-    bool    m_isCloseAfterSave = false;
     bool    m_isDarkSurface    = true;     // the surface the icons were last drawn for
 };
