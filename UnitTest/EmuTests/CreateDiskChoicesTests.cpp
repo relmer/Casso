@@ -226,12 +226,12 @@ public:
     //  the authority; the builder is, and both are checked against it.
     TEST_METHOD (TheCommandLineAdvertisesExactlyWhatTheBuilderWrites)
     {
-        const DiskCommandRunner::ContainerName *  words = nullptr;
-        size_t                                    count = 0;
-        size_t                                    i     = 0;
-        std::vector<DiskFormat>                   advertised;
+        const BlankDiskSpecResolver::ContainerName  * words      = nullptr;
+        size_t                                        count      = 0;
+        size_t                                        i          = 0;
+        std::vector<DiskFormat>                       advertised;
 
-        words = DiskCommandRunner::GetAdvertisedContainers (count);
+        words = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         for (i = 0; i < count; i++)
         {

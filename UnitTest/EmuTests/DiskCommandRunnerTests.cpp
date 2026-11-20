@@ -2456,13 +2456,13 @@ public:
     //
     TEST_METHOD (Create_WritesEveryContainerItAdvertises)
     {
-        const DiskCommandRunner::ContainerName *  containers = nullptr;
-        size_t                                    count      = 0;
-        size_t                                    i          = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = nullptr;
+        size_t                                        count      = 0;
+        size_t                                        i          = 0;
 
 
 
-        containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0, L"the tool advertises at least one container");
 
@@ -2508,13 +2508,13 @@ public:
     //
     TEST_METHOD (Create_RefusesTheWrongFilesystemForAContainerWithoutAsserting)
     {
-        const DiskCommandRunner::ContainerName *  containers = nullptr;
-        size_t                                    count      = 0;
-        size_t                                    i          = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = nullptr;
+        size_t                                        count      = 0;
+        size_t                                        i          = 0;
 
 
 
-        containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         for (i = 0; i < count; i++)
         {

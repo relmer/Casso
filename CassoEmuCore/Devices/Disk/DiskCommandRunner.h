@@ -9,6 +9,7 @@
 #include "DiskCommandResult.h"
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
+#include "BlankDiskSpecResolver.h"
 #include "DiskSectorCommands.h"
 #include "Devices/Disk/BlockImage.h"
 #include "IDiskCommandContext.h"
@@ -109,46 +110,8 @@ public:
     DiskCommandResult  Run (const CommandLineOptions & options);
 
 
-    //  Puts a computed image over the target, or refuses and leaves the target
-    //  byte-for-byte as it was.
-    //
-    //  Makes a new image file, or reformats one that is already there.
-    //
-    //  TWO COMMANDS BECAUSE THEY ANSWER TO DIFFERENT THINGS. `create` writes a
-    //  file that did not exist and decides its container; `init` finds the
-    //  container already decided by the file it was handed and only rewrites
-    //  what is inside it. So `create` takes --type and `init` does not, and
-    //  create refuses to write over something rather than quietly replacing a
-    //  disk somebody still wanted.
-    //
-    //  One row of the container table: the word a reader types and the
-    //  format it names.
-    struct ContainerName
-    {
-        const char  *  name;
-        DiskFormat     format;
 
-        //  The track size a NEW image of this container gets, and zero for
-        //  the containers where the idea does not apply. It rides in the same
-        //  row as the word so the two cannot be set in different places: a
-        //  container offered without a size, or given one that disagrees with
-        //  its name, is not expressible.
-        size_t         nibbleTrackSize;
-    };
 
-    //
-    //  Every container `create` advertises, as one list.
-    //
-    //  READABLE FROM OUTSIDE so that nothing has to restate it. The refusals
-    //  print this list rather than a sentence of their own, and a test sweeps
-    //  it, so a row added here reaches both without either being edited --
-    //  which is how `do` came to be offered by the command line and refused
-    //  by the builder.
-    //
-    static const ContainerName *  GetAdvertisedContainers (size_t & outCount);
-
-    //  What was just written, in the words the flags asked for it with.
-    static std::string  DescribeNewDisk (const BlankDiskSpec & spec);
 
     //  A disk that starts a binary with no operating system on it. Its own
     //  path rather than a flag on the formatted one: there is no filesystem
@@ -162,6 +125,17 @@ public:
 
     static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
 
+    //  Puts a computed image over the target, or refuses and leaves the target
+    //  byte-for-byte as it was.
+    //
+    //  Makes a new image file, or reformats one that is already there.
+    //
+    //  TWO COMMANDS BECAUSE THEY ANSWER TO DIFFERENT THINGS. `create` writes a
+    //  file that did not exist and decides its container; `init` finds the
+    //  container already decided by the file it was handed and only rewrites
+    //  what is inside it. So `create` takes --type and `init` does not, and
+    //  create refuses to write over something rather than quietly replacing a
+    //  disk somebody still wanted.
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
 
     //  A ProDOS volume larger than a floppy, in a block container.
@@ -180,8 +154,6 @@ public:
     static bool                IsThirteenSectorImage  (const CommandLineOptions & options);
     void                       BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
     static bool                IsLargeCreate          (const CommandLineOptions & options);
-    static ProDosBootSystem    GetBootSystem          (const std::string & formatName);
-    static bool                IsProDosFamilyFormat   (const std::string & formatName);
     static bool                IsHfsFormat            (const CommandLineOptions & options);
     static const char        * GetVolumeNameRule      (bool isHfs);
     static bool                IsBlockOnlyExtension   (const std::string & imagePath);
@@ -197,52 +169,13 @@ public:
 
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
-    //
-    //  The container a new image should be written as, from --type or, failing
-    //  that, from the name it is being given.
-    //
-    //  An unknown word is refused by NAME, with the ones that exist, rather
-    //  than defaulting: a reader who typed --type 2mg means it, and silently
-    //  handing them a .dsk is worse than saying no.
-    //
-    HRESULT  ResolveContainer (const CommandLineOptions & options,
-                               size_t                   & outNibbleTrackSize,
-                               DiskFormat               & outFormat,
-                               DiskCommandResult        & result);
 
-    //  The advertised container words as a list in a sentence, each carrying
-    //  `prefix` (a dot when they are being described as extensions) and joined
-    //  by `conjunction` before the last.
-    static std::string  FormatContainerWordList (const char * prefix, const char * conjunction);
 
-    //  Why a settled spec cannot be written, in words, or empty if it can.
-    static std::string  DescribeSpecRefusal (const BlankDiskSpec & spec);
 
-    //  What goes INSIDE it: a DOS 3.3 catalog, a ProDOS directory, or nothing.
-    HRESULT  ResolveContents (const CommandLineOptions & options,
-                              BlankDiskContents        & outContents,
-                              DiskCommandResult        & result);
 
-    //  --volume, which is a number under DOS 3.3 and a name under ProDOS.
-    HRESULT  ResolveVolume (const CommandLineOptions & options,
-                            BlankDiskSpec            & inOutSpec,
-                            DiskCommandResult        & result);
 
-    //  Reads the operating system a --bootable disk is copied FROM, or the
-    //  binary a --boot disk starts instead of one.
-    HRESULT  ResolveBoot (const CommandLineOptions & options,
-                          BlankDiskSpec            & inOutSpec,
-                          BootPayload              & outPayload,
-                          DiskCommandResult        & result);
 
-    //  The SOS disk a ProDOS volume that starts an Apple /// copies SOS from.
-    HRESULT  ResolveSosBoot   (const std::string & source, BootPayload & outPayload, DiskCommandResult & result);
 
-    //  The disk a bootable Apple Pascal or CP/M disk is copied from.
-    HRESULT  LoadSystemSource (const std::string   & path,
-                               BlankDiskContents     contents,
-                               BootPayload         & outPayload,
-                               DiskCommandResult   & result);
 
     //  Everything create and init share: build the bytes, then put them there.
     void  BuildAndWrite (const CommandLineOptions & options,
@@ -250,6 +183,8 @@ public:
                          size_t                     nibbleTrackSize,
                          bool                       overExisting,
                          DiskCommandResult        & result);
+
+
 
 
 
@@ -269,15 +204,6 @@ public:
     //  is OpenImage, which is handed a path and nothing else. Threading the
     //  command through every layer to reach it would put it in six signatures
     //  that have no other use for it.
-    //  --flux as a mask of whole tracks. Without it, init keeps the tracks
-    //  the existing WOZ already stores as flux.
-    HRESULT  ResolveFlux (const CommandLineOptions & options,
-                          bool                       overExisting,
-                          uint64_t                 & outMask,
-                          DiskCommandResult        & result);
-
-    static HRESULT  ParseTrackList (const std::string & text, uint64_t & outMask);
-
     void  ReportMissingParameter (const std::string & parameter,
                                   DiskCommandResult & result) const override;
 
@@ -513,7 +439,8 @@ private:
     //  The thumbnail cache, or empty for the one under local application data.
     std::filesystem::path  m_thumbnailFolder;
 
-    DiskSectorCommands  m_sectorCommands { *this };
+    BlankDiskSpecResolver  m_specResolver   { *this };
+    DiskSectorCommands     m_sectorCommands { *this };
 
     //  The command being run and the prefix it was typed with, recorded at the
     //  top of Run so a refusal deep inside can answer in the reader's own
