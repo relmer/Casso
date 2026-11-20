@@ -80,8 +80,12 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    spec.filters          = { FileDialogFilter { L"Sector images (*.dsk, *.do, *.po, *.d13, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.d13;*.nib;*.nb2" },
-                              FileDialogFilter { L"Raw capture, for copy-protected disks (*.woz)", L"*.woz" } };
+    spec.filters          = { FileDialogFilter { L"Disk image, the usual choice (*.dsk)",                 L"*.dsk" },
+                              FileDialogFilter { L"DOS 3.3 order sectors (*.do)",                         L"*.do"  },
+                              FileDialogFilter { L"ProDOS order blocks (*.po)",                           L"*.po"  },
+                              FileDialogFilter { L"13-sector disk, DOS 3.2 and earlier (*.d13)",          L"*.d13" },
+                              FileDialogFilter { L"Nibbles, every track's bytes as read (*.nib, *.nb2)",  L"*.nib;*.nb2" },
+                              FileDialogFilter { L"Raw capture, for copy-protected disks (*.woz)",        L"*.woz" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
     spec.defaultExtension = L"dsk";
