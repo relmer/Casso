@@ -9,6 +9,8 @@
 #include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
+#include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
+#include "Ui/DiskInspector/Blocks/BlockRepairTarget.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
@@ -74,7 +76,7 @@ HRESULT BlockInspectorWindow::Open (
     outError.clear();
     BuildCommands();
 
-    params.title                    = L"Block inspector - " + GetFileName();
+    params.title                    = BlockInspectorState::BuildTitle (GetFileName(), std::wstring(), false, m_titleMark);
     params.hInstance                = hInstance;
     params.ownerHwnd                = nullptr;
     params.placementAnchorHwnd      = owner;
@@ -456,66 +458,7 @@ void BlockInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 
     DxuiPanel::Paint (painter, text, theme);
-    m_status.Paint (painter, text, theme, BuildLead(), palette.colors.sectorBad);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::BuildLead
-//
-//  The status band's left end: the count of unsaved blocks, the
-//  comparison's result while comparing, the volume's chips, "Opening" while
-//  the file opens, and the selection.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-vector<InspectorStatusBar::LeadItem> BlockInspectorWindow::BuildLead() const
-{
-    using LeadKind = InspectorStatusBar::LeadKind;
-
-    vector<InspectorStatusBar::LeadItem>  items;
-    size_t                                differ  = 0;
-    size_t                                unsaved = 0;
-
-
-
-    if (!m_model.IsOpen())
-    {
-        items.push_back ({ L"Opening", LeadKind::Note });
-        return items;
-    }
-
-    unsaved = m_model.GetEdits().GetChangedBlocks().size();
-
-    if (unsaved > 0)
-    {
-        items.push_back ({ InspectorText::FormatCount ((int) unsaved, L"unsaved block", L"unsaved blocks"), LeadKind::Result });
-    }
-
-    if (m_worker.IsBusy())
-    {
-        return items;
-    }
-
-    if (m_model.IsComparing())
-    {
-        differ = m_model.CountDifferent();
-        items.push_back ({ differ == 0 ? std::wstring (L"No blocks differ") : differ == 1 ? std::wstring (L"1 block differs") : std::format (L"{} blocks differ", NumberFormat::FormatInteger (differ)),
-                           LeadKind::Result });
-    }
-
-    for (const SummaryChip & chip : InspectorText::BuildBlockChips (m_model))
-    {
-        items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
-    }
-
-    items.push_back ({ m_panel->GetSelectionLine(), LeadKind::Selection });
-
-    return items;
+    m_status.Paint (painter, text, theme, BlockInspectorState::BuildLead (m_model, m_worker.IsBusy(), m_panel->GetSelectionLine()), palette.colors.sectorBad);
 }
 
 
@@ -1078,25 +1021,7 @@ void BlockInspectorWindow::InitEditBar()
 
 void BlockInspectorWindow::UpdateEditing()
 {
-    bool          isOpen = m_model.IsOpen() && !m_worker.IsBusy();
-    EditBarState  state;
-
-
-
-    state.canEdit        = isOpen;
-    state.isEditing      = m_panel->IsEditing();
-    state.hasSectorEdit  = isOpen && m_model.GetEdits().HasChanges (m_model.GetBlock());
-    state.hasChecksum    = false;
-    state.bytes          = m_model.IsOpen() ? m_model.GetEdits().CountChangedBytes() : 0;
-    state.sectors        = m_model.IsOpen() ? (int) m_model.GetEdits().GetChangedBlocks().size() : 0;
-    state.canApply       = isOpen;
-    state.canSaveCopy    = !IsOnCard();
-    state.canUndoApplied = isOpen && m_model.CanUndoApplied();
-    state.canRedoApplied = isOpen && m_model.CanRedoApplied();
-    state.canUseB        = isOpen && m_model.IsComparing() && m_model.IsDifferent (m_model.GetBlock());
-    state.note           = m_editNote;
-
-    m_panel->SetEditState (state);
+    m_panel->SetEditState (BlockInspectorState::BuildEditBarState (m_model, m_worker.IsBusy(), m_panel->IsEditing(), IsOnCard(), m_editNote));
     UpdateTitle();
 }
 
@@ -1108,17 +1033,14 @@ void BlockInspectorWindow::UpdateEditing()
 //
 //  BlockInspectorWindow::UpdateTitle
 //
-//  "Block inspector - " and the file's name, with a red dot after the name
-//  while edits are pending, then a note such as the image it is compared with.
+//  Set only when it changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorWindow::UpdateTitle()
 {
-    bool          hasEdits = m_model.IsOpen() && !m_model.GetEdits().IsEmpty();
-    std::wstring  name     = L"Block inspector - " + GetFileName();
-    std::wstring  title    = name + m_titleNote;
-    size_t        markAt   = hasEdits ? name.size() : std::wstring::npos;
+    size_t        markAt = std::wstring::npos;
+    std::wstring  title  = BlockInspectorState::BuildTitle (GetFileName(), m_titleNote, m_model.IsOpen() && !m_model.GetEdits().IsEmpty(), markAt);
 
 
 
@@ -1234,31 +1156,21 @@ int BlockInspectorWindow::GetRepairVolume() const
 //  BlockInspectorWindow::Repair
 //
 //  The confirmation lists every change the volume can have, and the checked
-//  ones are written to a repaired copy, as the track inspector writes one:
-//  beside the image, unless the image is on a removable drive, which can
-//  be slow or short of space, or its drive doesn't have room for the copy.
-//  Then, and for a card's partition, the user chooses where the copy goes.
-//  The image isn't written.
+//  ones are written to a repaired copy, as the track inspector writes one,
+//  where BlockRepairTarget chooses. The image isn't written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorWindow::Repair()
 {
     int                     volume = GetRepairVolume();
-    bool                    isCard = IsOnCard();
-    std::wstring            name   = RepairDialog::FormatName (GetHostFileName());
     RepairPlan              full   = m_model.PlanRepair (volume, {});
     RepairDialog            dialog;
-    fs::path                target;
-    fs::path                host;
-    std::wstring            rest;
-    uint64_t                bytes  = 0;
-    std::wstring            why;
-    std::wstring            label;
+    BlockRepairSource       source;
+    BlockRepairDestination  destination;
     std::wstring            intro;
     int                     lines  = 0;
     std::set<std::wstring>  chosen;
-    std::error_code         error;
     HRESULT                 hr     = S_OK;
 
 
@@ -1269,14 +1181,7 @@ void BlockInspectorWindow::Repair()
         return;
     }
 
-    intro = isCard ? FormatCardIntro (GetFileName()) : RepairDialog::FormatIntro (GetHostFileName());
-    lines = kRepairIntroLines;
-
-    if (full.before == FileSystemVerdict::Suspect)
-    {
-        intro += L"\n\n" + FormatCaution (m_model.IsSectorVolume (volume));
-        lines += kCautionLines;
-    }
+    intro = BlockRepairTarget::BuildIntro (IsOnCard(), GetFileName(), GetHostFileName(), full.before == FileSystemVerdict::Suspect, m_model.IsSectorVolume (volume), lines);
 
     //  Blocks in no file can be another file system's on a hybrid disk or a
     //  larger DOS image, so freeing them starts unchecked.
@@ -1292,38 +1197,20 @@ void BlockInspectorWindow::Repair()
         return;
     }
 
-    if (isCard)
-    {
-        label  = m_model.GetVolumeMap (volume).volumeName;
-        bytes  = (uint64_t) m_model.GetVolumeSize (volume) * BlockInspectorModel::kBlockBytes;
-        target = fs::path ((label.empty() ? std::wstring (L"Partition") : label) + (m_model.IsSectorVolume (volume) ? L" (repaired).dsk" : L" (repaired).po"));
-    }
-    else
-    {
-        bytes  = fs::file_size (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (m_path))), error);
-        target = TextEncoding::Utf8ToWide (RepairCopy::GetHostCopyPath (*m_fileIo, TextEncoding::WideToUtf8 (m_path)));
-        host   = TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (target.wstring())));
+    source.isCard         = IsOnCard();
+    source.imagePath      = m_path;
+    source.hostFileName   = GetHostFileName();
+    source.volumeLabel    = m_model.GetVolumeMap (volume).volumeName;
+    source.isSectorVolume = m_model.IsSectorVolume (volume);
+    source.volumeBytes    = (uint64_t) m_model.GetVolumeSize (volume) * BlockInspectorModel::kBlockBytes;
+    destination           = BlockRepairTarget::ChooseDestination (source, *m_fileIo, m_drives);
 
-        if (IsOnRemovableDrive (host))
-        {
-            why = name + L" is on a removable drive, which can be slow or short of space. Choose where to save the repaired copy.";
-        }
-        else if (!HasRoomFor (host.parent_path(), bytes))
-        {
-            why = L"The drive with " + name + L" doesn't have room for the repaired copy. Choose where to save it.";
-        }
-    }
-
-    //  For an image in a ZIP, the user chooses where the copy of the ZIP goes.
-    host = isCard ? target : host;
-    rest = target.wstring().substr (host.wstring().size());
-
-    if ((isCard || !why.empty()) && !PickRepairTarget (why, bytes, host))
+    if (destination.isUserChoice && !PickRepairTarget (destination.why, destination.bytes, destination.host))
     {
         return;
     }
 
-    QueueRepairCopy (volume, dialog.GetPlan(), isCard, host.wstring() + rest);
+    QueueRepairCopy (volume, dialog.GetPlan(), source.isCard, destination.host.wstring() + destination.rest);
 }
 
 
@@ -1375,7 +1262,7 @@ bool BlockInspectorWindow::PickRepairTarget (const std::wstring & why, uint64_t 
         {
             ShowMessage (L"That file is the image this window opened. Choose another file for the copy.");
         }
-        else if (!HasRoomFor (picked.parent_path(), bytes))
+        else if (!m_drives.HasRoomFor (picked.parent_path(), bytes))
         {
             ShowMessage (L"That drive doesn't have room for the repaired copy. Choose another folder.");
         }

@@ -7,6 +7,7 @@
 #include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/Win32DriveSpace.h"
 #include "Seams/Win32ShellIcons.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
@@ -51,9 +52,6 @@ public:
     static constexpr int       kOpeningHeightDip = 800;
     static constexpr int       kMinWidthDip      = 960;
     static constexpr int       kMinHeightDip     = 640;
-    static constexpr int       kRepairIntroLines = 3;
-    static constexpr int       kCautionLines     = 3;
-    static constexpr uint64_t  kRoomMarginBytes  = 1024 * 1024;
 
     BlockInspectorWindow  ();
     ~BlockInspectorWindow () override;
@@ -127,10 +125,6 @@ private:
     void                                  Repair              ();
     bool                                  PickRepairTarget    (const std::wstring & why, uint64_t bytes, fs::path & ioTarget);
     void                                  QueueRepairCopy     (int volume, const RepairPlan & plan, bool isCard, const fs::path & target);
-    static std::wstring                   FormatCardIntro     (const std::wstring & fileName);
-    static std::wstring                   FormatCaution       (bool isDos);
-    static bool                           IsOnRemovableDrive  (const fs::path & path);
-    static bool                           HasRoomFor          (const fs::path & folder, uint64_t bytes);
     void                                  CopyBlock           ();
     void                                  PasteIntoBlock      ();
     void                                  GoToBlock           ();
@@ -138,7 +132,6 @@ private:
     void                                  UpdateTooltip       (POINT pointPx);
     void                                  StepDifference      (bool isForward);
     void                                  SetZoom             (double zoom);
-    vector<InspectorStatusBar::LeadItem>  BuildLead           () const;
     bool                                  ConfirmClose        ();
     void                                  CloseWindow         ();
     void                                  ShowMessage         (const std::wstring & text);
@@ -155,6 +148,7 @@ private:
     BlockInspectorWorker      m_worker;
     Win32HostDialogs          m_dialogs;
     Win32Clipboard            m_clipboard;
+    Win32DriveSpace           m_drives;
     InspectorCommands         m_commands;
     InspectorMenuBar          m_menus;
     InspectorStatusBar        m_status;

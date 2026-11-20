@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
+#include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
 #include "Ui/DiskInspector/Blocks/BlockNavigator.h"
 
 class BlockFieldsView;
@@ -45,7 +46,7 @@ struct InspectorCommands;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BlockInspectorPanel : public DxuiPanel
+class BlockInspectorPanel : public DxuiPanel, public IBlockJobs, public IBlockView, public IBlockNavigation, public IBlockDisplay
 {
 public:
     static constexpr float  kPadDip       = 8.0f;
@@ -93,19 +94,20 @@ public:
 
     //  Reads the model again after a change, once the current block is
     //  loaded. A block not loaded yet is loaded by a job first.
-    void  Refresh ();
+    void  Refresh () override;
 
     //  The job queued on the worker. The window is notified, so the job's
     //  completion runs soon after its work ends. With no worker, as in a
     //  test, the job runs on the calling thread.
-    void  QueueJob (BlockInspectorWorker::Job job);
+    void  QueueJob (BlockInspectorWorker::Job job) override;
 
     //  The controls enabled or disabled, and the progress read, from the
     //  worker's jobs. The window calls it on each frame.
     void  UpdateBusy ();
 
-    bool  IsBusy     () const { return m_worker != nullptr && m_worker->IsBusy(); }
-    bool  IsLongJob  () const { return m_isLongJob; }
+    bool  IsBusy     () const override { return m_worker != nullptr && m_worker->IsBusy(); }
+    void  CancelJobs () override       { if (m_worker != nullptr) { m_worker->Cancel(); } }
+    bool  IsLongJob  () const          { return m_isLongJob; }
 
     //  A block number typed in decimal, or in hex after '$'.
     static bool  TryParseBlock (const std::wstring & text, uint32_t & outBlock);
@@ -113,38 +115,38 @@ public:
     //  Steps to a block, or back or forward, and refreshes. OpenBlock draws
     //  a block below the list without leaving the list's place, and moves
     //  the keyboard focus to the hex view.
-    void  SelectBlock (uint32_t block);
+    void  SelectBlock (uint32_t block) override;
     void  OpenBlock   (uint32_t block);
-    void  GoToBlock   (uint32_t block);
+    void  GoToBlock   (uint32_t block) override;
 
     //  Editing, as Edit block turns on and off: typing in the hex view
     //  changes the block only while it is on. The edit bar's state is the
     //  window's.
-    void       SetEditing   (bool isEditing);
-    bool       IsEditing    () const { return m_isEditing; }
-    void       SetEditState (const EditBarState & state);
-    EditBar  & GetEditBar   () const { return *m_editBar; }
-    void       Step         (int64_t delta);
-    void       GoBack       ();
-    void       GoForward    ();
+    void       SetEditing   (bool isEditing) override;
+    bool       IsEditing    () const override { return m_isEditing; }
+    void       SetEditState (const EditBarState & state) override;
+    EditBar  & GetEditBar   () const override { return *m_editBar; }
+    void       Step         (int64_t delta) override;
+    void       GoBack       () override;
+    void       GoForward    () override;
 
     //  The overlays, as the corner chips and the View menu turn them.
-    bool  IsFilesOn      () const { return m_isFilesOn; }
-    bool  IsDiffsOn      () const { return m_isDiffsOn; }
-    void  SetFilesOn     (bool isOn);
-    void  SetDiffsOn     (bool isOn);
+    bool  IsFilesOn      () const override { return m_isFilesOn; }
+    bool  IsDiffsOn      () const override { return m_isDiffsOn; }
+    void  SetFilesOn     (bool isOn) override;
+    void  SetDiffsOn     (bool isOn) override;
 
     //  The levels, Card, Volume, Files, File and Block.
-    BlockNavigator        & GetNavigator ()       { return m_nav; }
-    const BlockNavigator  & GetNavigator () const { return m_nav; }
+    BlockNavigator        & GetNavigator ()       override { return m_nav; }
+    const BlockNavigator  & GetNavigator () const override { return m_nav; }
 
     //  The current block as a hex dump with its text, for Copy block.
-    std::wstring  BuildBlockText () const;
+    std::wstring  BuildBlockText () const override;
 
     //  "Selected: block 2" at the Block level, the path of the file or the
     //  directory at the Files and File levels, the volume's name at the
     //  Volume level, or empty.
-    std::wstring  GetSelectionLine () const;
+    std::wstring  GetSelectionLine () const override;
 
 
     //  The popup host for a cut-off field row's tip.
@@ -152,10 +154,10 @@ public:
 
     //  The tip for a byte of the hex view under a point: its field, and what
     //  its color marks. False where there is no byte.
-    bool  GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;
+    bool  GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
-    BlockMapView  & GetMap     () const { return *m_map; }
-    BlockHexView  * GetHexView () const { return m_hex; }
+    BlockMapView  & GetMap     () const override { return *m_map; }
+    BlockHexView  * GetHexView () const override { return m_hex; }
 
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
