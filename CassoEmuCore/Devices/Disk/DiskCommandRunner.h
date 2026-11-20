@@ -19,37 +19,7 @@
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 
-//  Forward-declared rather than included: pulling VolumeImage.h in would drag
-//  DiskImage.h through this header and into the console project, which does not
-//  share the core library's Pch conveniences.
-enum class VolumeKind;
-
-//  BlankDiskBuilder.h is kept out for the same reason, and the create and init
-//  commands take everything from it by reference, so opaque declarations are all
-//  this header needs. Including it built the library fine and broke the console
-//  project, which is the failure mode the note above is about.
-enum class DiskFormat;
-enum class BlankDiskContents;
-enum class ProDosBootSystem;
-struct BlankDiskSpec;
-struct BootPayload;
-struct ParsedHostName;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskCommandResult
-//
-//  Everything one disk command produced, separated by where it goes. The runner
-//  decides all of it; the executable only delivers it.
-//
-//  Payload is kept apart from output text because the two need different
-//  treatment at the platform edge -- text wants the host's line-ending
-//  translation and binary must not have it.
-//
+class IIntentChannel;
 
 
 
@@ -69,16 +39,9 @@ struct ParsedHostName;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class IIntentChannel;
-class BlockBuffer;
-class CardVolumeEdit;
-
-
 class DiskCommandRunner : private IDiskCommandContext
 {
 public:
-
-
     explicit DiskCommandRunner (IDiskFileIo & fileIo);
 
     //  Where a stated intent is announced once the image has been written.
@@ -111,41 +74,36 @@ public:
 
     DiskCommandResult  Run (const CommandLineOptions & options);
 
+    //  The banner the Help command prints above the page, handed over by whoever
+    //  built the runner. Empty means no banner, which is what every caller that
+    //  is not the console executable wants.
+    void  SetBanner (const std::string & banner);
 
+    //  Every required operand this command did not get, in the order its
+    //  grammar lists them.
+    //
+    //  ALL OF THEM, NOT THE FIRST ONE NOTICED. Each command used to check its
+    //  own operands wherever it happened to need them, so `disk get` with
+    //  nothing at all complained that <name> was missing and never mentioned
+    //  <image> -- the operand that comes first, and that the reader would have
+    //  had to supply before the complaint made sense.
+    std::vector<std::string>  FindMissingParameters (const CommandLineOptions & options) const;
 
+    //  The open/commit seam, reachable so the commit-path tests can
+    //  drive it directly, which is why it was public on the runner
+    //  before it was a class.
+    DiskImageSession &  GetSession ()  override { return m_session; }
 
+private:
+    void  RunBoot      (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    //  Whether a booting DOS 3.3 would actually run this file. Its boot command
+    //  is RUN, so a greeting RUN does not understand is one in name only --
+    //  measured on the stock master, where a binary named as the greeting
+    //  leaves the disk booting and the program never running.
+    static bool  IsRunnableAsDos33Greeting (const VolumeListing  & listing,
+                                            const std::string    & name);
 
     //  What a command says when a required operand is not there: that
     //  command's usage, and then which parameter is missing.
@@ -158,21 +116,9 @@ public:
     void  ReportMissingParameter (const std::string & parameter,
                                   DiskCommandResult & result) const override;
 
-    //  Every required operand this command did not get, in the order its
-    //  grammar lists them.
-    //
-    //  ALL OF THEM, NOT THE FIRST ONE NOTICED. Each command used to check its
-    //  own operands wherever it happened to need them, so `disk get` with
-    //  nothing at all complained that <name> was missing and never mentioned
-    //  <image> -- the operand that comes first, and that the reader would have
-    //  had to supply before the complaint made sense.
-    std::vector<std::string>  FindMissingParameters (const CommandLineOptions & options) const;
-
     //  The same report for a list of them.
     void  ReportMissingParameters (const std::vector<std::string> & parameters,
                                    DiskCommandResult & result) const;
-
-
 
     //  The same substitution, against the prefix THIS run was asked for.
     //
@@ -180,64 +126,8 @@ public:
     //  rather than to the finished sentence: a diagnostic carries file names
     //  and volume labels, and a sweep over the whole thing would rewrite a
     //  name that happened to hold %L.
-    std::string         ApplyPrefix        (const std::string & text) const override;
+    std::string  ApplyPrefix (const std::string & text) const override;
 
-
-    //  The banner the Help command prints above the page, handed over by whoever
-    //  built the runner. Empty means no banner, which is what every caller that
-    //  is not the console executable wants.
-    void  SetBanner (const std::string & banner);
-
-private:
-    void  RunBoot      (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    //  Whether a booting DOS 3.3 would actually run this file. Its boot command
-    //  is RUN, so a greeting RUN does not understand is one in name only --
-    //  measured on the stock master, where a binary named as the greeting
-    //  leaves the disk booting and the program never running.
-    static bool  IsRunnableAsDos33Greeting (const VolumeListing  & listing,
-                                            const std::string    & name);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    //  The open/commit seam, reachable so the commit-path tests can
-    //  drive it directly, which is why it was public on the runner
-    //  before it was a class.
-public:
-    DiskImageSession &  GetSession ()  override { return m_session; }
-
-private:
     static SYSTEMTIME  GetLocalDate ();
 
     IDiskFileIo  & GetFileIo () override                             { return m_fileIo; }
@@ -278,5 +168,4 @@ private:
     CommandLineOptions::DiskOptions::Command  m_command    =
         CommandLineOptions::DiskOptions::Command::None;
     char                                      m_flagPrefix = '-';
-
 };
