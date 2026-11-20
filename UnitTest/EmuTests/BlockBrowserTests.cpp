@@ -4,6 +4,8 @@
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
@@ -137,6 +139,56 @@ public:
         Assert::AreEqual (std::wstring (L"GAMES"), nodes[0].children[0].label);
         Assert::IsTrue (BlockBrowser::ParseId (nodes[0].children[0].id, place));
         Assert::IsTrue (place.kind == BlockPlace::Kind::Directory);
+    }
+
+
+    //  Two DOS Master volumes at the end of an 800K ProDOS volume are its
+    //  children in the tree, not its siblings.
+    TEST_METHOD (Tree_HasEachVolumeInsideTheVolumeItIsIn)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        BlockBrowser                     browser (&model);
+        vector<DxuiTreeNode>             nodes;
+        vector<Byte>                     bytes    = vector<Byte> (k800KBlocks * kBlockBytes, 0);
+        Dos33Geometry                    geometry = Dos33Geometry::Make (35, 16);
+        vector<Byte>                     dos      (geometry.GetImageByteSize(), 0);
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        size_t                           volumes  = 0;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (bytes, "OUTER"));
+        AssertSucceeded (Dos33Skeleton::Write (dos, 254, geometry));
+
+        for (uint32_t block = 1040; block < k800KBlocks; block++)
+        {
+            bytes[ProDosSkeleton::GetBitmapByteOffset (bytes, block)] &= (Byte) ~(0x80 >> (block & 7));
+        }
+
+        std::copy (dos.begin(), dos.end(), bytes.begin() + (ptrdiff_t) (1040 * kBlockBytes));
+        std::copy (dos.begin(), dos.end(), bytes.begin() + (ptrdiff_t) (1320 * kBlockBytes));
+
+        io.files["dm.po"]  = bytes;
+        io.stamps["dm.po"] = { bytes.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "dm.po", file, error));
+        AssertSucceeded (model.Open (std::move (file)));
+
+        nodes = browser.BuildTree (L"dm.po");
+
+        Assert::AreEqual ((size_t) 1, nodes.size(), L"the ProDOS volume, at the top");
+
+        for (const DxuiTreeNode & child : nodes[0].children)
+        {
+            BlockPlace  place;
+
+            Assert::IsTrue (BlockBrowser::ParseId (child.id, place));
+            volumes += (place.kind == BlockPlace::Kind::Volume) ? 1 : 0;
+        }
+
+        Assert::AreEqual ((size_t) 2, volumes, L"both DOS volumes, inside it");
     }
 
 

@@ -127,8 +127,8 @@ public:
     bool  HasCard () const;
 
     //  The tree: the card and its partitions for an image with partitions,
-    //  or the volume, each with its directories below it. A node's id is
-    //  its place's.
+    //  or the volume, each with its directories below it and then the volumes
+    //  inside it. A node's id is its place's.
     vector<DxuiTreeNode>  BuildTree (const std::wstring & cardLabel) const;
 
     static std::wstring  MakeId  (const BlockPlace & place);
@@ -182,7 +182,9 @@ private:
     BlockListRow          MakeEntryRow        (int volume, int entry, uint32_t blocks, bool isPath) const;
     BlockListRow          MakeBlocksRow       (BlockListRow::Kind kind, int volume, const std::wstring & name, const vector<uint32_t> & blocks) const;
     vector<DxuiTreeNode>  BuildDirectoryNodes (int volume, int directory) const;
+    DxuiTreeNode          BuildVolumeNode     (int volume, const vector<int> & containers, bool isExpanded) const;
     vector<int>           GetVolumes          () const;
+    vector<int>           FindContainers      (const vector<int> & volumes) const;
     static void           SetEntryColumns     (BlockListing & listing);
     static LPCWSTR        GetStructureName    (BlockStructure structure, uint32_t tree);
 

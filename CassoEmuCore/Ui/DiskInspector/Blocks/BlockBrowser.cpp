@@ -282,19 +282,18 @@ vector<DxuiTreeNode> BlockBrowser::BuildTree (const std::wstring & cardLabel) co
 {
     vector<DxuiTreeNode>  volumes;
     DxuiTreeNode          card;
-    bool                  isCard = HasCard();
+    bool                  isCard     = HasCard();
+    vector<int>           all        = GetVolumes();
+    vector<int>           containers = FindContainers (all);
 
 
 
-    for (int volume : GetVolumes())
+    for (size_t i = 0; i < all.size(); i++)
     {
-        DxuiTreeNode  node;
-
-        node.id       = MakeId ({ BlockPlace::Kind::Volume, volume });
-        node.label    = GetVolumeName (volume);
-        node.expanded = !isCard;
-        node.children = BuildDirectoryNodes (volume, -1);
-        volumes.push_back (std::move (node));
+        if (containers[i] < 0)
+        {
+            volumes.push_back (BuildVolumeNode (all[i], containers, !isCard));
+        }
     }
 
     if (!isCard)
@@ -308,6 +307,88 @@ vector<DxuiTreeNode> BlockBrowser::BuildTree (const std::wstring & cardLabel) co
     card.children = std::move (volumes);
 
     return { card };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::BuildVolumeNode
+//
+//  A volume with its directories below it, then the volumes inside it, such
+//  as DOS Master's volumes in a ProDOS partition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTreeNode BlockBrowser::BuildVolumeNode (int volume, const vector<int> & containers, bool isExpanded) const
+{
+    DxuiTreeNode  node;
+    vector<int>   all  = GetVolumes();
+
+
+
+    node.id       = MakeId ({ BlockPlace::Kind::Volume, volume });
+    node.label    = GetVolumeName (volume);
+    node.expanded = isExpanded;
+    node.children = BuildDirectoryNodes (volume, -1);
+
+    for (size_t i = 0; i < all.size(); i++)
+    {
+        if (containers[i] == volume)
+        {
+            node.children.push_back (BuildVolumeNode (all[i], containers, false));
+        }
+    }
+
+    return node;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::FindContainers
+//
+//  For each volume, the smallest other volume whose blocks include its
+//  blocks, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> BlockBrowser::FindContainers (const vector<int> & volumes) const
+{
+    vector<int>  containers (volumes.size(), -1);
+    uint32_t     first      = 0;
+    uint32_t     end        = 0;
+    uint32_t     outerFirst = 0;
+    uint32_t     outerEnd   = 0;
+    uint32_t     best       = 0;
+
+
+
+    for (size_t i = 0; i < volumes.size(); i++)
+    {
+        first = m_model->GetVolumeFirst (volumes[i]);
+        end   = first + m_model->GetVolumeSize (volumes[i]);
+        best  = UINT32_MAX;
+
+        for (size_t j = 0; j < volumes.size(); j++)
+        {
+            outerFirst = m_model->GetVolumeFirst (volumes[j]);
+            outerEnd   = outerFirst + m_model->GetVolumeSize (volumes[j]);
+
+            if (j != i && outerFirst <= first && end <= outerEnd && outerEnd - outerFirst > end - first && outerEnd - outerFirst < best)
+            {
+                containers[i] = volumes[j];
+                best          = outerEnd - outerFirst;
+            }
+        }
+    }
+
+    return containers;
 }
 
 
