@@ -1,38 +1,17 @@
 #include "Pch.h"
 
-#include "Core/TextEncoding.h"
-#include "Devices/Disk/IDiskFileIo.h"
-#include "Devices/Disk/Inspector/InspectorClipboard.h"
-#include "Devices/Disk/Inspector/InspectorFormat.h"
-#include "Devices/Disk/Partitions/PhysicalCards.h"
-#include "Devices/Disk/PreservedCopy.h"
+#include "Ui/DiskInspector/Blocks/BlockCommandSet.h"
 #include "Ui/DiskInspector/Blocks/BlockEditController.h"
-#include "Ui/DiskInspector/Blocks/BlockFileSession.h"
-#include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
-#include "Ui/DiskInspector/Blocks/BlockRepairController.h"
+#include "Ui/DiskInspector/Blocks/BlockInspectorTips.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
-#include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
+#include "Ui/DiskInspector/Blocks/BlockRepairController.h"
 #include "Ui/DiskInspector/Components/InspectorDialogs.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
-#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
-#include "Ui/DiskInspector/InspectorText.h"
-#include "Ui/DiskInspector/RepairDialog.h"
-#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
-#include "Core/NumberFormat.h"
-
-
-
-
-
-static constexpr LPCWSTR  s_kpszGlyphGoTo = L"\xE8AD";
-static constexpr LPCWSTR  s_kpszGlyphCopy = L"\xE8C8";
-static constexpr LPCWSTR  s_kpszGlyphEdit = L"\xE70F";
-static constexpr LPCWSTR  s_kpszClassName = L"CassoBlockInspector";
 
 
 
@@ -65,6 +44,10 @@ HRESULT BlockInspectorWindow::Open (
     const std::wstring  & path,
     std::wstring        & outError)
 {
+    static constexpr LPCWSTR  kpszClassName = L"CassoBlockInspector";
+
+
+
     HRESULT                   hr     = S_OK;
     DxuiWindow::CreateParams  params;
     size_t                    markAt = std::wstring::npos;
@@ -75,7 +58,6 @@ HRESULT BlockInspectorWindow::Open (
     m_session.SetFile (fileIo, path);
 
     outError.clear();
-    BuildCommands();
 
     params.title                    = BlockInspectorState::BuildTitle (m_session.GetFileName(), std::wstring(), false, markAt);
     params.hInstance                = hInstance;
@@ -85,7 +67,7 @@ HRESULT BlockInspectorWindow::Open (
     params.minSizeDip               = { kMinWidthDip, kMinHeightDip };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
-    params.classNameOverride        = s_kpszClassName;
+    params.classNameOverride        = kpszClassName;
     params.placement                = DxuiWindowPlacement::Default;
     params.fitToWorkArea            = true;
 
@@ -93,7 +75,7 @@ HRESULT BlockInspectorWindow::Open (
     CHRAF (hr, outError = L"The block inspector window can't be created.");
 
     SetTheme (theme);
-    m_tooltip.SetTheme (*theme);
+    m_tips->SetTheme (*theme);
     Show (true);
     m_session.Open();
 
@@ -107,162 +89,24 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::BuildCommands
-//
-//  The commands block mode has, in the slots of the track inspector's menus.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::BuildCommands()
-{
-    InspectorCommands &  c        = m_commands;
-    auto                 isOpen   = [this] () { return m_model.IsOpen() && !m_worker.IsBusy(); };
-    auto                 hasEdits = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && !m_model.GetEdits().IsEmpty(); };
-
-
-
-    auto  make = [] (LPCWSTR label, LPCWSTR accelerator, std::function<void()> dispatch)
-    {
-        auto  command = std::make_shared<DxuiCommand>();
-
-        command->label       = label;
-        command->accelerator = accelerator;
-        command->dispatch    = std::move (dispatch);
-        return command;
-    };
-
-    //  File
-    c.save                      = make (L"&Save...", L"Ctrl+S", [this] () { m_edits->Save(); });
-    c.save->isEnabled           = hasEdits;
-    c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { m_edits->SaveEditedCopy(); });
-    c.saveEditedCopy->isEnabled = [this, hasEdits] () { return hasEdits() && !m_session.IsOnCard(); };
-    c.close                     = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
-
-    //  Edit
-    c.undoApplied                = make (L"&Undo save", L"Ctrl+Z", [this] () { m_edits->UndoApplied(); });
-    c.undoApplied->isEnabled     = [this, isOpen] () { return isOpen() && m_model.CanUndoApplied(); };
-    c.redoApplied                = make (L"&Redo save", L"Ctrl+Y", [this] () { m_edits->RedoApplied(); });
-    c.redoApplied->isEnabled     = [this, isOpen] () { return isOpen() && m_model.CanRedoApplied(); };
-    c.copySector                 = make (L"Copy &block", L"Ctrl+Shift+C", [this] () { m_edits->CopyBlock(); });
-    c.copySector->isEnabled      = isOpen;
-    c.copySector->glyph          = s_kpszGlyphCopy;
-    c.copySector->tip            = L"Copy the whole block as a hex dump (Ctrl+Shift+C)";
-    c.copySector->isGlyphInMenus = true;
-    c.editSector                 = make (L"&Edit block", L"F2", [this] () { m_panel->SetEditing (!m_panel->IsEditing()); });
-    c.editSector->isEnabled      = isOpen;
-    c.editSector->isChecked      = [this] () { return m_panel != nullptr && m_panel->IsEditing(); };
-    c.editSector->glyph          = s_kpszGlyphEdit;
-    c.discardEdits               = make (L"&Discard edits", L"", [this] () { m_edits->Discard(); });
-    c.discardEdits->isEnabled    = hasEdits;
-
-    //  View
-    c.zoomIn             = make (L"Zoom &in", L"+", [this] () { m_panel->GetMap().StepZoom (1); });
-    c.zoomIn->isEnabled  = [this] () { return m_model.IsOpen() && !m_panel->GetMap().IsAtMost(); };
-    c.zoomOut            = make (L"Zoom &out", L"-", [this] () { m_panel->GetMap().StepZoom (-1); });
-    c.zoomOut->isEnabled = [this] () { return m_model.IsOpen() && !m_panel->GetMap().IsAtFit(); };
-    c.fit                = make (L"&Whole volume", L"0", [this] () { m_panel->GetMap().Fit(); });
-    c.fit->isEnabled     = [this] () { return m_model.IsOpen() && !m_panel->GetMap().IsAtFit(); };
-
-    c.overlays.push_back (make (L"&Files", L"", [this] () { m_panel->SetFilesOn (!m_panel->IsFilesOn()); }));
-    c.overlays.back()->isChecked = [this] () { return m_panel->IsFilesOn(); };
-    c.overlays.back()->isEnabled = isOpen;
-    c.overlays.push_back (make (L"D&ifferences", L"", [this] () { m_panel->SetDiffsOn (!m_panel->IsDiffsOn()); }));
-    c.overlays.back()->isChecked = [this] () { return m_panel->IsDiffsOn(); };
-    c.overlays.back()->isEnabled = [this] () { return m_model.IsOpen() && m_model.IsComparing(); };
-
-    for (const auto & [label, kind] : { std::pair<LPCWSTR, BlockPlace::Kind> (L"&Card",   BlockPlace::Kind::Card),
-                                        std::pair<LPCWSTR, BlockPlace::Kind> (L"&Volume", BlockPlace::Kind::Volume),
-                                        std::pair<LPCWSTR, BlockPlace::Kind> (L"&Block",  BlockPlace::Kind::Block) })
-    {
-        c.views.push_back (make (label, L"", [this, kind] () { ShowLevel (kind); }));
-        c.views.back()->radio     = true;
-        c.views.back()->isChecked = [this, kind] () { return m_panel->GetNavigator().GetPlace().kind == kind; };
-        c.views.back()->isEnabled = [this, kind] ()
-        {
-            return m_model.IsOpen() && !m_worker.IsBusy() && (kind == BlockPlace::Kind::Card ? m_panel->GetNavigator().GetBrowser().HasCard() : kind == BlockPlace::Kind::Block || m_model.GetVolumeCount() > 0);
-        };
-    }
-
-    //  Go
-    c.back                          = make (L"&Back", L"Alt+Left", [this] () { m_panel->GoBack(); });
-    c.back->isEnabled               = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetNavigator().GetBrowser().CanGoBack(); };
-    c.forward                       = make (L"&Forward", L"Alt+Right", [this] () { m_panel->GoForward(); });
-    c.forward->isEnabled            = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetNavigator().GetBrowser().CanGoForward(); };
-    c.goTo                          = make (L"&Go to block...", L"Ctrl+G", [this] () { GoToBlock(); });
-    c.goTo->isEnabled               = isOpen;
-    c.goTo->shortLabel              = L"Go to";
-    c.goTo->glyph                   = s_kpszGlyphGoTo;
-    c.goTo->tip                     = L"Go to a block (Ctrl+G)";
-    c.goTo->isGlyphInMenus          = true;
-    c.previousSector                = make (L"&Previous block", L"Page Up", [this] () { m_panel->Step (-1); });
-    c.previousSector->isEnabled     = [this] () { return m_model.IsOpen() && m_model.GetBlock() > 0; };
-    c.nextSector                    = make (L"&Next block", L"Page Down", [this] () { m_panel->Step (1); });
-    c.nextSector->isEnabled         = [this] () { return m_model.IsOpen() && m_model.GetBlock() + 1 < m_model.GetBlockCount(); };
-    c.previousDifference            = make (L"Previous &difference", L"Shift+F8", [this] () { StepDifference (false); });
-    c.previousDifference->isEnabled = [this] () { return m_model.IsOpen() && m_model.CountDifferent() > 0; };
-    c.nextDifference                = make (L"Next d&ifference", L"F8", [this] () { StepDifference (true); });
-    c.nextDifference->isEnabled     = [this] () { return m_model.IsOpen() && m_model.CountDifferent() > 0; };
-
-    //  Disk
-    c.compareWith = make (L"&Compare with...", L"", [this] () { m_session.CompareWithPicked(); });
-    c.compareWith->isEnabled   = isOpen;
-    c.endComparison            = make (L"&End comparison", L"", [this] () { m_session.EndComparison(); });
-    c.endComparison->isEnabled = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_model.IsComparing(); };
-    c.repair                   = make (L"&Repair...", L"", [this] () { m_repair->Repair(); });
-    c.repair->isEnabled        = [this, isOpen] () { return isOpen() && m_repair->CanRepair(); };
-
-    //  Window
-    c.windowZoomIn  = make (L"Zoom &in", L"Ctrl++", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, 1)); });
-    c.windowZoomOut = make (L"Zoom &out", L"Ctrl+-", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, -1)); });
-    c.actualSize    = make (L"&Actual size", L"Ctrl+0", [this] () { SetZoom (1.0); });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::RunCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BlockInspectorWindow::RunCommand (const InspectorCommands::Command & command)
-{
-    bool  isRun = command != nullptr && command->dispatch && command->IsEnabled();
-
-
-
-    if (isRun)
-    {
-        command->dispatch();
-    }
-
-    return isRun;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorWindow::OnCreate
+//
+//  The menu bar is created before the panel and filled once the commands,
+//  which act on the panel, are built.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorWindow::OnCreate()
 {
     m_menus.Create  (*this, GetPopupHost(), GetTextRenderer(), m_commands);
-    m_tooltip.SetPopupHost (GetPopupHost());
     m_status.Create (*this, [this] (double zoom) { SetZoom (zoom); }, false);
 
     m_panel = CreateChild<BlockInspectorPanel>();
-    m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
-    m_session.Attach (*m_panel, *m_panel);
 
-    m_edits  = std::make_unique<BlockEditController> (BlockEditController::Parts { m_model, *m_panel, *m_panel, *this, *this, m_session, m_session, m_clipboard });
-    m_repair = std::make_unique<BlockRepairController> (BlockRepairController::Parts { m_model, *m_panel, *m_panel, *m_panel, *this, m_session, *m_edits, m_drives });
+    CreateParts();
+    m_menus.Rebuild (m_commands);
+
+    m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
 
     m_isDarkSurface = m_theme == nullptr || DiskInspectorPalette::IsDarkSurface (m_theme->Background());
 
@@ -276,11 +120,41 @@ void BlockInspectorWindow::OnCreate()
     m_panel->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
     m_panel->SetOnChanged      ([this] () { m_isDirty = true; });
     m_panel->SetOnJobQueued    ([this] () { m_isDirty = true; });
-    m_edits->ConnectEditBar();
     m_panel->SetOnCopy         ([this] () { m_edits->CopyBlock(); });
-    m_panel->SetOnHint         ([this] (const std::wstring & hint) { m_hint = hint; m_status.SetHint (hint); m_isDirty = true; });
+    m_panel->SetOnHint         ([this] (const std::wstring & hint) { m_status.SetHint (hint); m_isDirty = true; });
+    m_edits->ConnectEditBar();
 
     FocusControl (m_panel->GetHexView());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::CreateParts
+//
+//  The parts of block mode, each with the panel's and the window's
+//  interfaces it calls, and the commands over them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::CreateParts()
+{
+    BlockInspectorPanel  & panel = *m_panel;
+
+
+
+    m_session.Attach (panel, panel);
+
+    m_edits      = std::make_unique<BlockEditController>   (BlockEditController::Parts   { m_model, panel, panel, *this, *this, m_session, m_session, m_clipboard });
+    m_repair     = std::make_unique<BlockRepairController> (BlockRepairController::Parts { m_model, panel, panel, panel, *this, m_session, *m_edits, m_drives });
+    m_tips       = std::make_unique<BlockInspectorTips>    (panel, panel);
+    m_commandSet = std::make_unique<BlockCommandSet>       (BlockCommandSet::Parts       { m_model, panel, panel, panel, panel, *this, *this, m_session, m_session, *m_edits, *m_repair }, m_commands);
+
+    m_tips->SetPopupHost (GetPopupHost());
+    m_commandSet->Build();
 }
 
 
@@ -313,7 +187,7 @@ void BlockInspectorWindow::RenderIfChanged()
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
     m_status.Tick (GetHwnd());
-    m_tooltip.Tick ((int64_t) GetTickCount64());
+    m_tips->Tick ((int64_t) GetTickCount64());
 
     //  The window's context menus open with an animation each frame
     //  advances, as the disk inspector's do.
@@ -361,10 +235,13 @@ void BlockInspectorWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & 
     zoomed.SetDpi (static_cast<UINT> (std::lround (scaler.GetDpi() * m_zoom)));
 
     SetBounds (boundsPx);
-    m_tooltip.SetDpi          (scaler.GetDpi());
-    m_tooltip.SetViewportSize (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top);
     m_menus.Layout  ({ boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + menus }, boundsPx, scaler);
     m_status.Layout ({ boundsPx.left, boundsPx.bottom - status, boundsPx.right, boundsPx.bottom }, scaler);
+
+    if (m_tips != nullptr)
+    {
+        m_tips->Layout (scaler.GetDpi(), boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top);
+    }
 
     if (m_panel != nullptr)
     {
@@ -426,16 +303,15 @@ void BlockInspectorWindow::SetZoom (double zoom)
 //
 //  BlockInspectorWindow::OnMouse
 //
-//  The mouse's Back and Forward buttons go back and forward; Ctrl with the
+//  The mouse's Back and Forward buttons run their commands; Ctrl with the
 //  wheel, or the wheel over the zoom, zooms the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 {
-    if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::Back || ev.button == DxuiMouseButton::Forward))
+    if (m_commandSet->TryRunMouseButton (ev))
     {
-        (void) RunCommand (ev.button == DxuiMouseButton::Back ? m_commands.back : m_commands.forward);
         return true;
     }
 
@@ -446,16 +322,7 @@ bool BlockInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     }
 
     m_isDirty = true;
-
-    if (ev.kind == DxuiMouseEventKind::Move)
-    {
-        UpdateTooltip (ev.positionDip);
-    }
-    else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
-    {
-        m_tooltip.RequestHide ((int64_t) GetTickCount64());
-        m_tooltipText.clear();
-    }
+    m_tips->OnMouse (ev);
 
     return DxuiPanel::OnMouse (ev);
 }
@@ -466,60 +333,18 @@ bool BlockInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::UpdateTooltip
-//
-//  Over the block map, the map's tip appears at once and follows the
-//  pointer, as the File map grid's does in the disk inspector.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::UpdateTooltip (POINT pointPx)
-{
-    std::wstring               tip;
-    RECT                       anchor = {};
-    vector<DxuiTooltipSwatch>  swatches;
-    int64_t                    now    = (int64_t) GetTickCount64();
-
-
-
-    if (!m_worker.IsBusy() && m_panel->GetMap().GetTooltip (pointPx, tip, anchor))
-    {
-        (void) m_panel->GetMap().GetTooltipSwatches (pointPx, swatches);
-    }
-    else if (!m_worker.IsBusy() && !m_panel->GetHexTooltip (pointPx, tip, anchor, swatches))
-    {
-        tip.clear();
-    }
-
-    if (tip.empty())
-    {
-        m_tooltip.RequestHide (now);
-    }
-    else
-    {
-        m_tooltip.SetSwatches    (swatches);
-        m_tooltip.RequestShowNow (anchor, tip, now);
-    }
-
-    m_tooltipText = tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorWindow::OnKey
 //
-//  The menus first, then the window's shortcuts, then the focused control.
+//  The menus first, then the window's keys, then text being typed, then the
+//  hex view's keys while editing, then the shortcuts, then the focused
+//  control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 {
-    bool  isDown = ev.kind == DxuiKeyEventKind::Down;
-    bool  isZoom = ev.vk == '0' || ev.vk == VK_NUMPAD0 || ev.vk == VK_OEM_PLUS || ev.vk == VK_ADD || ev.vk == VK_OEM_MINUS || ev.vk == VK_SUBTRACT;
+    IDxuiControl  * focused  = nullptr;
+    bool            isResult = false;
 
 
 
@@ -530,155 +355,36 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    if (!isDown)
+    if (ev.kind != DxuiKeyEventKind::Down)
     {
         return DxuiPanel::OnKey (ev);
     }
 
-    if (ev.ctrl && !ev.alt && isZoom)
+    if (m_commandSet->TryRunWindowKey (ev, isResult))
     {
-        SetZoom ((ev.vk == '0' || ev.vk == VK_NUMPAD0) ? 1.0 : DxuiZoomControl::StepZoom (m_zoom, (ev.vk == VK_OEM_PLUS || ev.vk == VK_ADD) ? 1 : -1));
-        return true;
+        return isResult;
     }
 
-    if (ev.alt && !ev.ctrl && !ev.shift && (ev.vk == VK_LEFT || ev.vk == VK_RIGHT))
-    {
-        return RunCommand (ev.vk == VK_LEFT ? m_commands.back : m_commands.forward);
-    }
+    focused = GetFocusManager().GetFocusedControl();
 
     //  Text being typed takes its keys first: Ctrl+A, the clipboard, undo,
     //  Escape and the arrows.
-    if (m_panel->GetNavigator().IsTyping (GetFocusManager().GetFocusedControl()))
+    if (m_panel->GetNavigator().IsTyping (focused))
     {
         return DxuiPanel::OnKey (ev);
     }
 
-    //  While editing, the hex view takes Ctrl+Z and Ctrl+Y for the pending
-    //  edits, and Escape stops editing, as the Sector data tab does.
-    if (m_panel->IsEditing() && GetFocusManager().GetFocusedControl() == (IDxuiControl *) m_panel->GetHexView() && m_edits->HandleKey (ev))
+    if (m_panel->IsEditing() && focused == (IDxuiControl *) m_panel->GetHexView() && m_edits->HandleKey (ev))
     {
         return true;
     }
 
-    if (!ev.ctrl && !ev.alt && ev.vk == VK_F2)
+    if (m_commandSet->TryRunKey (ev, isResult))
     {
-        return RunCommand (m_commands.editSector);
-    }
-
-    if (ev.ctrl && !ev.alt)
-    {
-        switch (ev.vk)
-        {
-            case 'G': return RunCommand (m_commands.goTo);
-            case 'C': return ev.shift ? RunCommand (m_commands.copySector) : DxuiPanel::OnKey (ev);
-            case 'S': return RunCommand (m_commands.save);
-            case 'Z': return RunCommand (m_commands.undoApplied);
-            case 'Y': return RunCommand (m_commands.redoApplied);
-            default:  break;
-        }
-    }
-
-    if (!ev.ctrl && !ev.alt)
-    {
-        switch (ev.vk)
-        {
-            case VK_PRIOR:  return RunCommand (m_commands.previousSector);
-            case VK_NEXT:   return RunCommand (m_commands.nextSector);
-            case VK_F8:     return RunCommand (ev.shift ? m_commands.previousDifference : m_commands.nextDifference);
-            case VK_ESCAPE: m_worker.Cancel(); break;
-            default:        break;
-        }
+        return isResult;
     }
 
     return DxuiPanel::OnKey (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::GetCursorForPoint
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LPCWSTR BlockInspectorWindow::GetCursorForPoint (POINT clientPx) const
-{
-    return DxuiPanel::GetCursorForPoint (clientPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::ShowLevel
-//
-//  The View menu's places: the card, the volume of the current place or
-//  block, and the current block.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::ShowLevel (BlockPlace::Kind kind)
-{
-    BlockNavigator  & navigator = m_panel->GetNavigator();
-    int               volume    = navigator.GetPlace().volume >= 0 ? navigator.GetPlace().volume : std::max (0, m_model.FindVolume (m_model.GetBlock()));
-
-
-
-    if (kind == BlockPlace::Kind::Block)
-    {
-        m_panel->SelectBlock (m_model.GetBlock());
-        return;
-    }
-
-    navigator.GoTo ({ kind, kind == BlockPlace::Kind::Card ? -1 : volume, -1 });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::GoToBlock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::GoToBlock()
-{
-    uint32_t  block = 0;
-
-
-
-    if (BlockGoToDialog::Choose (GetHwnd(), m_theme, m_model.GetBlockCount(), m_model.GetBlock(), block))
-    {
-        m_panel->GoToBlock (block);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::StepDifference
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::StepDifference (bool isForward)
-{
-    uint32_t  block = 0;
-
-
-
-    if (m_model.FindDifference (isForward, block))
-    {
-        m_panel->SelectBlock (block);
-    }
 }
 
 
@@ -779,7 +485,7 @@ void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
     m_theme = theme;
 
     SetTheme (theme);
-    m_tooltip.SetTheme (*theme);
+    m_tips->SetTheme (*theme);
 
     //  A theme on the other surface takes the icons drawn for it.
     if (isDark != m_isDarkSurface && m_panel != nullptr)
@@ -791,6 +497,25 @@ void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
     }
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::ShowWarning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::ShowWarning (const std::wstring & text)
+{
+    int  shown = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Block inspector", MB_OK | MB_ICONWARNING);
+
+
+
+    IGNORE_RETURN_VALUE (shown, 0);
 }
 
 
@@ -817,23 +542,4 @@ BlockUnsavedChoice BlockInspectorWindow::AskUnsaved (const std::wstring & line)
 
 
     return choice == kSave ? BlockUnsavedChoice::Save : choice == kDiscard ? BlockUnsavedChoice::Discard : BlockUnsavedChoice::Cancel;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::ShowWarning
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::ShowWarning (const std::wstring & text)
-{
-    int  shown = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Block inspector", MB_OK | MB_ICONWARNING);
-
-
-
-    IGNORE_RETURN_VALUE (shown, 0);
 }

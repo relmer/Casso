@@ -344,6 +344,7 @@
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorModelTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorPanelTests.cpp" />
+    <ClCompile Include="EmuTests\BlockCommandSetTests.cpp" />
     <ClCompile Include="EmuTests\BlockEditControllerTests.cpp" />
     <ClCompile Include="EmuTests\BlockFileSessionTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorStateTests.cpp" />

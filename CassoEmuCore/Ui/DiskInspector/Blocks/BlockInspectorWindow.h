@@ -2,21 +2,20 @@
 
 #include "Pch.h"
 
-#include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
-#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Seams/Win32Clipboard.h"
-#include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32DriveSpace.h"
+#include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32ShellIcons.h"
-#include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 #include "Ui/DiskInspector/Blocks/BlockFileSession.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/Components/InspectorMenuBar.h"
 #include "Ui/DiskInspector/Components/InspectorStatusBar.h"
 
+class BlockCommandSet;
 class BlockEditController;
 class BlockInspectorPanel;
+class BlockInspectorTips;
 class BlockRepairController;
 class IDiskFileIo;
 
@@ -31,30 +30,26 @@ class IDiskFileIo;
 //  The disk inspector in block mode, for an image file of blocks, laid out
 //  as the track inspector is: the menu bar, the BlockInspectorPanel, and the
 //  status band with the volume's chips, the selection and the window's zoom.
-//  Editing matches the track inspector's: Edit block turns typing on, and
-//  the edit bar has the unsaved changes and the actions on them. Save
-//  writes at once; the user confirms each undo and redo of a save. A *
-//  before the file's name in the title and a count in the status band mark
-//  unsaved changes. Closing with unsaved changes offers Save, Discard and
-//  Cancel.
+//  The window creates the parts of block mode and routes input to them:
+//  BlockFileSession for the file, BlockEditController for the edits,
+//  BlockRepairController for repair, BlockInspectorTips for the tips and
+//  BlockCommandSet for the commands and their keys.
 //  The closed callback is called when the window closes.
 //
-//  Every read and write of the image runs on m_worker's thread: opening it,
-//  each block, comparing, saving edits and reading it again. Each job's
-//  completion runs on the next frame of the window set's timer. The
-//  progress of a long job is drawn in the panel. Closing cancels a job that
-//  can be canceled. While a job that can't be is running, the window
-//  doesn't close.
+//  Every read and write of the image runs on m_worker's thread. Each job's
+//  completion runs on the next frame of the window set's timer. Closing
+//  cancels a job that can be canceled. While a job that can't be is
+//  running, the window doesn't close.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class BlockInspectorWindow : public DxuiWindow, public IBlockDialogs, public IBlockFrame
 {
 public:
-    static constexpr int       kOpeningWidthDip  = 1280;
-    static constexpr int       kOpeningHeightDip = 800;
-    static constexpr int       kMinWidthDip      = 960;
-    static constexpr int       kMinHeightDip     = 640;
+    static constexpr int  kOpeningWidthDip  = 1280;
+    static constexpr int  kOpeningHeightDip = 800;
+    static constexpr int  kMinWidthDip      = 960;
+    static constexpr int  kMinHeightDip     = 640;
 
     BlockInspectorWindow  ();
     ~BlockInspectorWindow () override;
@@ -70,23 +65,15 @@ public:
                    const std::wstring  & path,
                    std::wstring        & outError);
 
-    void  SetOnClosed    (std::function<void ()> fn) { m_onClosed = std::move (fn); }
+    void                SetOnClosed     (std::function<void ()> fn) { m_onClosed = std::move (fn); }
+    BlockFileSession  & GetFileSession  ()                          { return m_session; }
+    void                ChangeTheme     (const IDxuiTheme * theme);
+    void                RenderIfChanged ();
 
-    //  The file: its display name, set before Open, reading it again, and
-    //  comparing it with another image.
-    BlockFileSession  & GetFileSession () { return m_session; }
-
-    void  ChangeTheme (const IDxuiTheme * theme);
-
-    //  Once a frame: the finished jobs' completions, the busy state, and a
-    //  repaint after a change.
-    void  RenderIfChanged ();
-
-    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
-    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool     OnMouse           (const DxuiMouseEvent & ev) override;
-    bool     OnKey             (const DxuiKeyEvent & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    bool  OnKey   (const DxuiKeyEvent & ev) override;
 
     void                 ShowWarning    (const std::wstring & text) override;
     BlockUnsavedChoice   AskUnsaved     (const std::wstring & line) override;
@@ -106,36 +93,30 @@ protected:
     void  OnWindowClose () override;
 
 private:
-    void                                  BuildCommands       ();
-    static bool                           RunCommand          (const InspectorCommands::Command & command);
-    void                                  GoToBlock           ();
-    void                                  ShowLevel           (BlockPlace::Kind kind);
-    void                                  UpdateTooltip       (POINT pointPx);
-    void                                  StepDifference      (bool isForward);
-    bool                                  ConfirmClose        ();
+    void  CreateParts  ();
+    bool  ConfirmClose ();
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
     BlockInspectorModel                     m_model;
     BlockInspectorWorker                    m_worker;
-    BlockFileSession                        m_session     { m_model, *this, *this };
+    BlockFileSession                        m_session       { m_model, *this, *this };
     Win32HostDialogs                        m_dialogs;
     Win32Clipboard                          m_clipboard;
     Win32DriveSpace                         m_drives;
     InspectorCommands                       m_commands;
     InspectorMenuBar                        m_menus;
     InspectorStatusBar                      m_status;
-    BlockInspectorPanel                   * m_panel       = nullptr;
+    BlockInspectorPanel                   * m_panel         = nullptr;
     std::unique_ptr<BlockEditController>    m_edits;
     std::unique_ptr<BlockRepairController>  m_repair;
-    std::wstring                            m_hint;
-    DxuiTooltip                             m_tooltip;
+    std::unique_ptr<BlockInspectorTips>     m_tips;
+    std::unique_ptr<BlockCommandSet>        m_commandSet;
     Win32ShellIcons                         m_icons;
-    std::wstring                            m_tooltipText;
-    const IDxuiTheme                      * m_theme       = nullptr;
-    std::function<void ()>    m_onClosed;
-    double  m_zoom             = 1.0;
-    bool    m_isDirty          = true;
-    bool    m_isClosed         = false;
-    bool    m_isDarkSurface    = true;     // the surface the icons were last drawn for
+    const IDxuiTheme                      * m_theme         = nullptr;
+    std::function<void ()>                  m_onClosed;
+    double                                  m_zoom          = 1.0;
+    bool                                    m_isDirty       = true;
+    bool                                    m_isClosed      = false;
+    bool                                    m_isDarkSurface = true;     // the surface the icons were last drawn for
 };
