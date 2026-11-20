@@ -180,7 +180,7 @@ public:
         drive.positions[50] = FullSendPositionMark::Skipped;
         drive.positions[51] = FullSendPositionMark::Unstable;
         Assert::AreEqual (std::wstring (L"Track 12: read\n"
-                                        L"Track 12.25: weak bits, which read differently every time, as on the disk\n"
+                                        L"Track 12.25: weak bits which read differently each time\n"
                                         L"Track 12.75: the reads differ in length"),
                           FullSendPanel::DescribeTrack (drive, 12));
 

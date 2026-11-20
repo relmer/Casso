@@ -217,10 +217,10 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
     {
         switch (drive.positions[(size_t) position])
         {
-            case FullSendPositionMark::Read:     state = L"read";                                                        break;
-            case FullSendPositionMark::Weak:     state = L"weak bits, which read differently every time, as on the disk"; break;
-            case FullSendPositionMark::Unstable: state = L"the reads differ in length";                                  break;
-            default:                                                                                                      break;
+            case FullSendPositionMark::Read:     state = L"read";                                        break;
+            case FullSendPositionMark::Weak:     state = L"weak bits which read differently each time"; break;
+            case FullSendPositionMark::Unstable: state = L"the reads differ in length";                 break;
+            default:                                                                                     break;
         }
     }
     else
@@ -461,8 +461,8 @@ void FullSendPanel::MakeMapItems (const Map & map, MapItems & outItems)
 //
 //  FullSendPanel::LayMap
 //
-//  A drive's map magnified about a pointer at a strength, spreading past
-//  the ends of the map at rest, with the point under the pointer under it.
+//  A drive's map magnified about a pointer at a strength. Each cell grows
+//  taller; its place and width are those at rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -475,8 +475,9 @@ void FullSendPanel::LayMap (int drive, float pointer, float strength, MapSpans &
 
     MakeMapItems (m_maps[(size_t) drive], items);
 
-    options.reach  = m_maps[(size_t) drive].pitch * kMagnifyReachTracks;
-    options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
+    options.reach      = m_maps[(size_t) drive].pitch * kMagnifyReachTracks;
+    options.anchor     = DxuiMagnifiedRow::Anchor::Pointer;
+    options.growsWidth = false;
 
     DxuiMagnifiedRow::Lay (items, pointer, strength, options, outSpans);
 }
