@@ -60,6 +60,10 @@ public:
         Assert::IsTrue (BootCheck::GetMachines ("Apple //c Plus") == fromCPlus);
         Assert::AreEqual (std::string ("Apple //c Plus"), BootCheck::GetMachineName ("Apple2cPlus"));
 
+        //  A 13-sector disk's machine is a ][+ with the 13-sector Disk II first.
+        Assert::IsTrue (BootCheck::GetMachines ("Apple //c (ROM 3)", true) == std::vector<std::string> { "Apple2Plus/13", "Apple2c", "Apple2eEnhanced", "Apple2Plus" });
+        Assert::AreEqual (std::string ("Apple ][ plus with a 13-sector Disk II"), BootCheck::GetMachineName ("Apple2Plus/13"));
+
         Assert::IsTrue (BootCheck::IsBetter (BootVerdict::Booted, BootVerdict::Unclear));
         Assert::IsTrue (BootCheck::IsBetter (BootVerdict::Unclear, BootVerdict::DidNotBoot));
         Assert::IsFalse (BootCheck::IsBetter (BootVerdict::DidNotBoot, BootVerdict::DidNotBoot));
@@ -88,5 +92,27 @@ public:
         Assert::IsTrue (slots->GetArrayElement (0).HasString ("device", device));
         Assert::AreEqual (std::string ("disk-ii"), device);
         Assert::IsTrue (root.HasString ("name", device), L"The other fields are as they were");
+    }
+
+    //  For a 13-sector disk, the Disk II's ROM is the 13-sector one, and its
+    //  other fields are as they were.
+    TEST_METHOD (KeepDiskSlots_ForThirteenSectors_UsesThe13SectorRom)
+    {
+        std::string        json = R"({ "slots": [ { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom", "ports": [ "disk-ii-drive" ] } ] })";
+        JsonValue          root;
+        JsonParseError     error;
+        const JsonValue  * slots = nullptr;
+        std::string        rom;
+
+
+
+        AssertSucceeded (BootMachine::KeepDiskSlots (json, true));
+        AssertSucceeded (JsonParser::Parse (json, root, error));
+
+        Assert::IsTrue (root.HasArray ("slots", slots));
+        Assert::IsTrue (slots->GetArrayElement (0).HasString ("rom", rom));
+        Assert::AreEqual (std::string ("Disk2_13Sector.rom"), rom);
+        Assert::IsTrue (slots->GetArrayElement (0).HasString ("device", rom));
+        Assert::AreEqual (std::string ("disk-ii"), rom);
     }
 };

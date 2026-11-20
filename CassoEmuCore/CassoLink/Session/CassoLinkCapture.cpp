@@ -1446,6 +1446,18 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     hr = WozLoader::Serialize (image, outResult.woz);
     CHR (hr);
 
+    //  The boot sector format is track 0's: a 13-sector disk boots only from
+    //  a Disk II with the 13-sector boot ROM.
+    if (auto  zero = streams.find (0);  zero != streams.end())
+    {
+        bool  thirteen  = false;
+        int   addressed = 0;
+
+        CountSectors (zero->second.bytes, 0, thirteen, addressed);
+
+        edits.bootSectorFormat = addressed == 0 ? WozLoader::kBootSectorUnknown : thirteen ? WozLoader::kBootSector13 : WozLoader::kBootSector16;
+    }
+
     edits.meta.push_back ({ "image_date", imageDate });
     edits.meta.push_back ({ "notes", DescribeResult (outResult, drive) });
 
