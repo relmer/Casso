@@ -227,8 +227,9 @@ public:
                                             fs::path    & outPath,
                                             string      & outError);
 
-    // The startup download dialog for that ROM, with `title` and `intro` in
-    // place of the startup wording and Cancel in place of Exit. Modal on
+    // The startup download dialog for a catalog ROM, from the host its entry
+    // lists or AppleWin's resource folder, with `title` and `intro` in place of the
+    // startup wording and Cancel in place of Exit. Modal on
     // `owner`. `outDownloaded` is true when the ROM was written; a failed
     // download sets `outError` and returns S_OK, as Cancel does without it.
     static HRESULT   OfferOptionalRomDownload (HWND                 owner,

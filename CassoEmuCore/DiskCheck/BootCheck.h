@@ -57,7 +57,8 @@ private:
 //  that order, on which the image boots, or the best of them when it boots
 //  on none, with the machine it is from. A machine after one the image
 //  boots on is stopped. A machine that can't be built, as with a ROM not
-//  installed, is passed over and listed in outMissing.
+//  installed, is passed over and listed in outMissing; the 13-sector
+//  machine is listed as kRom13.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

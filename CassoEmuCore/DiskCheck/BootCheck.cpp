@@ -380,9 +380,11 @@ HRESULT BootCheck::Run (const std::vector<Byte> & image, DiskFormat format, cons
         std::string  error;
         HRESULT      hrBuild = build (id, built, error);
 
+        //  A 13-sector disk's machine missing is the 13-sector ROM missing, as
+        //  the ][+'s ROMs are checked with the plain ][+.
         if (FAILED (hrBuild) || built.host == nullptr || built.builder == nullptr)
         {
-            outMissing.push_back (error.empty() ? id : error);
+            outMissing.push_back (id.ends_with (kThirteen) ? std::string (kRom13) : error.empty() ? id : error);
             continue;
         }
 
