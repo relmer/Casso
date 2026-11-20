@@ -945,6 +945,51 @@ Four changes to KEGS, made only in that instance, let it run the link:
   a binary link: a page of the program arrived 15 bytes short. A raw
   outgoing connection now passes them.
 
+### Every target through scripts/EmuTargets, 2026-11-19
+
+The targets are started by `scripts/EmuTargets/Mame.ps1` (MAME on Windows)
+and `scripts/EmuTargets/Wsl.ps1` (the WSL instance), and the tests start
+them the same way. `Wsl.ps1 -Setup` built KEGS, GSplus, MAME 0.285 and
+AppleWin in the instance from `scripts/EmuTargets/wsl/`, with the KEGS
+patches applied by `kegs-patch.py`; KEGS and GSplus take a ROM 03 image
+dumped from MAME's apple2gs by `DumpIIgsRom.lua`.
+
+| Target | Interface | Test | Result |
+|---|---|---|---|
+| MAME 0.289 `apple2gs` | Modem port | `CassoLinkIIgsTests`, `mame` | Passed, the whole-disk write skipped |
+| MAME 0.289 `apple2gs` | Super Serial Card in slot 7 | `CassoLinkIIgsTests`, `mame-ssc` | Passed, the whole-disk write skipped |
+| KEGS 1.38 | Modem port | `CassoLinkIIgsTests`, `kegs` | Passed, write included |
+| GSplus 1.38.0 | Modem port | `CassoLinkIIgsTests`, `gsplus` | Passed, write included |
+| MAME 0.285 `apple2ee` | LANceGS in slot 3, UDP | `CassoLinkEthernetTests`, `lancegs` | Passed, write included |
+| AppleWin `sa2` | Uthernet in slot 3, UDP | `CassoLinkEthernetTests`, `uthernet` | Passed, write included |
+
+Each test runs Story 14's operations: connect, read drive 2 to an image,
+browse, copy a file each way, rename, make a folder, delete, and write an
+image to drive 2 and read it back. The LANceGS's MAC address is the shim's
+02:43:41:53:53:01, set in MAME's `apple2ee.cfg`; the universal disk salts it
+for each Apple, as `TheUniversalDisk_TakesADhcpAddress_SaltsItsMac_AndAnnounces`
+tests.
+
+GSplus is KEGS 1.38 with an SDL3 front end, and its stock build has the same
+two faults as KEGS, so it takes the same patches.
+
+Found along the way:
+
+- A Super Serial Card with a dial command waits for a modem's reply line
+  before its Ready. MAME's card connects straight to Casso, so no reply
+  comes; the test boots the universal disk with no dial command, MAME's
+  socket listens, and a TCP connection is made to it.
+- A serial, TCP or UDP connection prompts five times in its first few
+  seconds and then waits for a Ready. An Apple that boots the universal disk
+  after that doesn't send a Ready unprompted, so the tests start the connection
+  once the disk waits, as a user boots the disk and then connects. The prompt
+  stops early so that an ADTPro client idling on the same line doesn't take
+  a prompt for the start of its next reply.
+- MAME doesn't start the Super Serial Card without its ROM, 341-0065-A, in
+  `roms\a2ssc`; `Mame.ps1` copies it from Casso's data folder.
+- GSplus running offscreen doesn't end on SIGTERM, so `run.sh stop` kills
+  what remains after a second.
+
 ## A2Pico cards (Story 41, SC-070)
 
 The owner has no A2Pico, so the card is checked against the A2retroNET
