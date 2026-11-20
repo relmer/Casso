@@ -782,7 +782,7 @@ void BlockBrowser::SetEntryColumns (BlockListing & listing)
 
 void BlockBrowser::AddCardRows (BlockListing & listing, const vector<int> & volumes) const
 {
-    BlockListGroup        group  = { L"Partitions" };
+    BlockListGroup        group  = { L"Volumes" };
     std::set<SectorRole>  kinds;
     int                   number = 0;
     size_t                used   = 0;
@@ -790,7 +790,7 @@ void BlockBrowser::AddCardRows (BlockListing & listing, const vector<int> & volu
 
 
 
-    listing.columns  = { L"Partition", L"File system", L"Name", L"Blocks", L"Used", L"Findings" };
+    listing.columns  = { L"Volume", L"File system", L"Name", L"Blocks", L"Used", L"Findings" };
     listing.isNumber = { true, false, false, true, true, false };
 
     for (int volume : volumes)

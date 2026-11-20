@@ -122,7 +122,9 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
 
     for (const BlockBand & band : model.GetBands())
     {
-        if (!band.isMap)
+        //  A volume nested in a partition, such as DOS Master's, isn't one of
+        //  the image's partitions.
+        if (!band.isMap && !band.isNested)
         {
             first = partitions == 0 ? band.first : first;
             partitions++;
