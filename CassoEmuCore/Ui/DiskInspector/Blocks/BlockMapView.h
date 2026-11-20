@@ -119,6 +119,8 @@ private:
     RECT             GetGridRect    () const;
     bool             IsDiffersShown (int64_t cell) const;
     void             PaintCells     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
+    void             PaintLabelGaps (IDxuiPainter & painter, const DiskInspectorPalette & palette, float left, float top, int c0, int c1, int r0, int r1) const;
+    bool             IsSameLabel    (uint32_t a, uint32_t b) const;
     void             PaintMarquee   (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
     uint32_t         GetCellColor   (const DiskInspectorPalette & palette, uint32_t cell) const;
     void             PaintLabels    (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const;
