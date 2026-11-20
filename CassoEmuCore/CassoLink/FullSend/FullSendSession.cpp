@@ -310,6 +310,7 @@ HRESULT FullSendSession::Pause()
 
         lines = GetPauseLines();
         lines.push_back (FullSendScreen::GetQuipText (screen.quip));
+        FitPauseLines (lines);
 
         hr = link.WaitForKey (lines, key);
         CHR (hr);
@@ -626,6 +627,54 @@ std::vector<std::string> FullSendSession::GetPauseLines() const
     }
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::FitPauseLines
+//
+//  The pause's lines cut to what the Apple takes: the history's rows, and a
+//  request whose lines, each with its ending zero, and the mode byte fit in
+//  s_kPauseBytes. Blank rows go first, then the quip, then the earliest
+//  notes, so the instructions remain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::FitPauseLines (std::vector<std::string> & ioLines)
+{
+    auto  bytes = [&ioLines] ()
+    {
+        size_t  total = 1;
+
+        for (const std::string & line : ioLines)
+        {
+            total += std::min (line.size(), CassoLinkCodec::kSessionRowLength) + 1;
+        }
+
+        return total;
+    };
+    auto  fits  = [&] () { return ioLines.size() <= s_kPauseRows && bytes() <= s_kPauseBytes; };
+
+
+
+    for (auto blank = std::find (ioLines.begin(), ioLines.end(), std::string()); !fits() && blank != ioLines.end(); blank = std::find (ioLines.begin(), ioLines.end(), std::string()))
+    {
+        ioLines.erase (blank);
+    }
+
+    if (!fits() && !ioLines.empty())
+    {
+        ioLines.pop_back();
+    }
+
+    while (!fits() && !ioLines.empty())
+    {
+        ioLines.erase (ioLines.begin());
+    }
 }
 
 

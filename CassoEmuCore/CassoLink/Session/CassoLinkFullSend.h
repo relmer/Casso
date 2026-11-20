@@ -4,6 +4,7 @@
 
 #include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendScreen.h"
+#include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
@@ -53,6 +54,9 @@ public:
 
     //  The time for a manifest's row: UTC, in ISO 8601.
     static std::string  GetUtcTime ();
+
+    //  The Apple's history line for a session that ended for `reason`.
+    static std::string  DescribeEnd (FullSendSession::EndReason reason, int sent, int bad, int duplicates);
 
     //  The Full Send window's model of this connection's session.
     const FullSendStatus &  GetStatus () const { return m_status; }

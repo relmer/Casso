@@ -32,6 +32,38 @@ CassoLinkFullSend::CassoLinkFullSend (CassoLinkSession & session)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkFullSend::DescribeEnd
+//
+//  A session that ended well has its counts; one that failed has its reason
+//  first and no duplicate count, as the line has CassoLinkCodec::
+//  kLogLength characters after ERR.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkFullSend::DescribeEnd (FullSendSession::EndReason reason, int sent, int bad, int duplicates)
+{
+    std::string  text;
+
+
+
+    switch (reason)
+    {
+        case FullSendSession::EndReason::Canceled:        text = std::format ("Ended on PC: {} sent, {} bad, {} dup", sent, bad, duplicates); break;
+        case FullSendSession::EndReason::LinkFailed:      text = std::format ("Link failed: {} sent, {} bad", sent, bad);                     break;
+        case FullSendSession::EndReason::ManifestDamaged: text = std::format ("Manifest damaged: {} sent", sent);                             break;
+        case FullSendSession::EndReason::FileFailed:      text = std::format ("File failed: {} sent, {} bad", sent, bad);                     break;
+        default:                                          text = std::format ("Full Send: {} sent, {} bad, {} dup", sent, bad, duplicates);   break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkFullSend::Run
 //
 //  Q ends the session as Cancel does. The Apple's screen is cleared on
@@ -63,9 +95,9 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
-    //  The Apple's history line: how the session ended and its counts.
-    operation.fullSendSummary = std::format ("{}: {} sent, {} bad, {} dup", session.GetEndReason() == FullSendSession::EndReason::Canceled ? "Ended on PC" : "Full Send",
-                                             session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
+    //  The Apple's history line: how the session ended and its counts. The
+    //  line is short, so a failure's reason is first, where it isn't cut.
+    operation.fullSendSummary = DescribeEnd (session.GetEndReason(), session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
     m_operation       = nullptr;
 
     for (size_t i = 0; i < CassoLinkSessionTypes::kDriveCount; i++)

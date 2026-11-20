@@ -14,6 +14,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/CassoLinkFullSend.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -668,6 +669,83 @@ public:
         Assert::IsFalse (has (rig.link.pauseLines[0]), L"The result arrived after the first pause was drawn");
         Assert::IsTrue (has (rig.link.pauseLines[1]), L"The next pause has the image");
         Assert::IsFalse (has (rig.link.pauseLines[2]), L"And the one after it doesn't");
+    }
+
+    //  Several images that did not boot before a pause are one line, the
+    //  first four by number and a count of the rest, so the pause fits the
+    //  Apple's rows.
+    TEST_METHOD (Session_ImagesThatDidNotBoot_AreOneLineAtThePause)
+    {
+        Rig  rig;
+
+
+
+        rig.link.drives[0]    = Other (1);
+        rig.link.present[1]   = false;
+        rig.link.beforeKey[1] = [&rig] (ScriptedLink &)
+        {
+            for (int image = 7; image <= 12; image++)
+            {
+                rig.status.SetBoot (std::format ("{:04}.dsk", image), FullSendManifest::kBootDidNotBoot);
+            }
+        };
+        rig.link.keys         = { FullSendKey::Space, FullSendKey::Space };
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
+        Assert::AreEqual (std::string ("0007, 0008, 0009, 0010 and 2 more did not boot."), rig.link.pauseLines[1][0]);
+        Assert::IsTrue (rig.link.pauseLines[1].size() <= FullSendSession::s_kPauseRows);
+    }
+
+    //  A pause's lines are cut to the Apple's rows and request: blank rows
+    //  first, then the quip, then the earliest notes; the instructions remain.
+    TEST_METHOD (PauseLines_AreCutToTheApplesRows_KeepingWhatToDo)
+    {
+        std::vector<std::string>  lines;
+
+
+
+        for (int note = 0; note < 7; note++)
+        {
+            lines.push_back (std::format ("Note {}", note));
+        }
+
+        lines.insert (lines.end(), { "", "Put in a new disk and press Space.", "", "The quip" });
+
+        FullSendSession::FitPauseLines (lines);
+
+        Assert::AreEqual (FullSendSession::s_kPauseRows, lines.size());
+        Assert::AreEqual (std::string ("Note 0"), lines[0]);
+        Assert::AreEqual (std::string ("Put in a new disk and press Space."), lines[7]);
+
+        std::vector<std::string>  wide (6, std::string (60, 'x'));
+
+        wide.insert (wide.end(), { "Put in a new disk and press Space.", "The quip" });
+        FullSendSession::FitPauseLines (wide);
+
+        size_t  bytes = 1;
+
+        for (const std::string & line : wide)
+        {
+            bytes += line.size() + 1;
+        }
+
+        Assert::IsTrue (bytes <= FullSendSession::s_kPauseBytes, L"The request fits");
+        Assert::AreEqual (std::string ("Put in a new disk and press Space."), wide.back());
+    }
+
+    //  The Apple's history line for a session that failed has the reason
+    //  first, and fits the line's characters after ERR.
+    TEST_METHOD (TheHistoryLine_OfAFailedSession_HasItsReasonFirst)
+    {
+        std::string  failed = CassoLinkFullSend::DescribeEnd (FullSendSession::EndReason::LinkFailed, 15, 0, 1);
+
+
+
+        Assert::AreEqual (std::string ("Link failed: 15 sent, 0 bad"), failed);
+        Assert::IsTrue   (failed.size() + 4 <= CassoLinkCodec::kLogLength, L"ERR and the line fit");
+        Assert::AreEqual (std::string ("Full Send: 15 sent, 0 bad, 1 dup"), CassoLinkFullSend::DescribeEnd (FullSendSession::EndReason::Quit, 15, 0, 1));
     }
 
     //  An image that is booted is awaited with VALIDATING on the Apple, and

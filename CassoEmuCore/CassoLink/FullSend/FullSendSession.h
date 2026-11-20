@@ -65,6 +65,13 @@ public:
     const std::string       & GetPrefix     () const                                    { return m_prefix; }
     const std::string       & GetMessage    () const                                    { return m_message; }
 
+    static void               FitPauseLines (std::vector<std::string> & ioLines);
+
+    //  The rows a pause's prompt has on the Apple, the history's, and the most
+    //  bytes its request takes.
+    static constexpr size_t  s_kPauseRows  = 8;
+    static constexpr size_t  s_kPauseBytes = 255;
+
 private:
     static constexpr size_t  kPrefixLength = 16;
 
