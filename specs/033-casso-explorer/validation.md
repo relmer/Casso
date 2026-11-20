@@ -1029,11 +1029,19 @@ ADTPro 2.1's Ethernet client ran on the same AppleWin setup through
 `Wsl.ps1 -Target Adtpro`, with 2 blocks at once and sound off, its server in
 the WSL instance. Speeds count the volume's bytes only.
 
-| Volume | CassoLink, program 105 | CassoLink, program 106 | ADTPro 2.1 |
-|---|---|---|---|
-| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 50 kbps, 130 s |
-| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 105 kbps, 62 s |
-| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 108 kbps, 41.4 minutes |
+| Volume | CassoLink, program 105 | CassoLink, program 106 | CassoLink, program 107 | ADTPro 2.1 |
+|---|---|---|---|---|
+| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 91 kbps, 72 s | 50 kbps, 130 s |
+| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 231 kbps, 28.4 s | 105 kbps, 62 s |
+| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 233 kbps, 19.2 minutes | 108 kbps, 41.4 minutes |
+
+Program 107 sends a block with runs of a byte as Block runs, written whole
+into the datagram, or into the W5100's transmit memory, in one pass that finds
+the runs and the CRC. A block with no two bytes alike at 32 places 16 bytes
+apart is sent as Block data, so data that doesn't repeat is read as fast as
+before. On Casso's Uthernet II, an empty 800K UniDisk volume costs 68,880
+cycles a block against 93,586 for random data, most of both the UniDisk's
+firmware. The 6551 and cassette builds send Block data.
 
 ADTPro sends each byte as its difference from the last and drops runs of a
 byte, so it is faster on empty space and slower on data that doesn't repeat.
