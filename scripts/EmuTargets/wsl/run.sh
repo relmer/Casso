@@ -25,7 +25,10 @@
 TARGET=$1
 
 # GSplus doesn't end on SIGTERM while it runs offscreen, so whatever is left
-# after a second is killed outright.
+# after a second is killed outright. The LANceGS's forward of UDP 6502 is
+# removed with its connection tracking: a connection that prompts each second
+# keeps a tracked flow alive, and would go on to 10.0.3.2 under the next
+# target.
 stop_all() {
     for signal in TERM KILL; do
         pkill -"$signal" -x xkegs
@@ -37,6 +40,10 @@ stop_all() {
         pkill -"$signal" -x dnsmasq
         sleep 1
     done
+
+    iptables -t nat -F PREROUTING 2> /dev/null
+    iptables -t nat -F POSTROUTING 2> /dev/null
+    conntrack -D -p udp --dport 6502 > /dev/null 2>&1
 }
 
 write_kegs_config() {
@@ -104,7 +111,6 @@ lancegs)
     ;;
 uthernet)
     stop_all
-    iptables -t nat -F PREROUTING 2> /dev/null
     SDL_VIDEODRIVER=offscreen exec timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
         -r 'Configuration\Slot 3.Card type=15' \
         --nat '3,udp,,6502,,6502' \

@@ -45,7 +45,7 @@ gsplus)
     ;;
 lancegs)
     apt-get install -y -q git build-essential python3 libsdl2-dev libsdl2-ttf-dev libfontconfig-dev \
-        libpulse-dev libasound2-dev libxinerama-dev libxi-dev dnsmasq-base iproute2 iptables > /root/mame-deps.log 2>&1
+        libpulse-dev libasound2-dev libxinerama-dev libxi-dev dnsmasq-base iproute2 iptables conntrack > /root/mame-deps.log 2>&1
     if [ ! -d /opt/mame ]; then
         git clone -q --depth 1 --branch mame0285 https://github.com/mamedev/mame.git /opt/mame
     fi
