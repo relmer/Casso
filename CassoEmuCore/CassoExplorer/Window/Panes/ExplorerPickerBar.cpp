@@ -78,6 +78,12 @@ void ExplorerPickerBar::Create()
         m_name->SetOnChange ([this] (const std::wstring &) { Update(); });
     }
 
+    if (request->offerVerify)
+    {
+        m_verify = m_context.window.CreateChild<DxuiCheckbox> (L"Verify", request->verify);
+        m_verify->SetSingleLineLabel (true);
+    }
+
     if (m_context.pickerMode.GetFilterCount() > 1)
     {
         m_filter = m_context.window.CreateChild<DxuiButton> (std::wstring());
@@ -147,6 +153,14 @@ void ExplorerPickerBar::Layout (const RECT & band)
         width = scaler.ToPx ((button == m_filter) ? kFilterMaxDip : DxuiButtonRow::GetWidthForLabel (button->GetAccessibleName()));
 
         button->Layout (RECT { right - width, top, right, top + height }, scaler);
+        right -= width + gap;
+    }
+
+    if (m_verify != nullptr)
+    {
+        width = scaler.ToPx (kVerifyDip);
+
+        m_verify->Layout (RECT { right - width, top, right, top + height }, scaler);
         right -= width + gap;
     }
 
@@ -392,7 +406,7 @@ std::vector<DxuiButton *> ExplorerPickerBar::GetButtons() const
 
 int ExplorerPickerBar::GetButtonCount() const
 {
-    return (int) GetButtons().size();
+    return (int) GetButtons().size() + GetVerifyStops();
 }
 
 
@@ -410,6 +424,13 @@ bool ExplorerPickerBar::IsButtonEnabled (int index) const
     std::vector<DxuiButton *>  buttons = GetButtons();
 
 
+
+    if (index < GetVerifyStops())
+    {
+        return index == 0 && m_verify->IsEnabled();
+    }
+
+    index -= GetVerifyStops();
 
     return index >= 0 && index < (int) buttons.size() && buttons[(size_t) index]->IsEnabled() && buttons[(size_t) index]->IsVisible();
 }
@@ -430,9 +451,14 @@ void ExplorerPickerBar::SetButtonFocus (int index)
 
 
 
+    if (m_verify != nullptr)
+    {
+        m_verify->SetFocused (index == 0);
+    }
+
     for (size_t i = 0; i < buttons.size(); i++)
     {
-        buttons[i]->SetFocused ((int) i == index);
+        buttons[i]->SetFocused ((int) i == index - GetVerifyStops());
     }
 }
 
@@ -455,7 +481,14 @@ bool ExplorerPickerBar::HandleButtonKey (int index, const DxuiKeyEvent & ev)
         return false;
     }
 
-    GetButtons()[(size_t) index]->Click();
+    if (index < GetVerifyStops())
+    {
+        m_verify->SetChecked (!m_verify->IsChecked());
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    GetButtons()[(size_t) (index - GetVerifyStops())]->Click();
 
     return true;
 }

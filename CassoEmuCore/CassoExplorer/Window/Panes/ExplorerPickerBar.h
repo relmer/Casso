@@ -32,6 +32,7 @@ public:
     static constexpr int  kFilterMaxDip  = 320;
     static constexpr int  kNameLabelDip  = 84;
     static constexpr int  kNameMinDip    = 160;
+    static constexpr int  kVerifyDip     = 90;
 
     //  The band's height in the window: kBandDip in a picker, 0 otherwise.
     int   GetBandDip () const;
@@ -59,7 +60,11 @@ public:
     bool          IsCaretOn          () const;
     bool          HasNameBox         () const { return m_name != nullptr; }
 
-    //  The bar's buttons as Tab stops, left to right. -1 clears the focus.
+    //  Whether the Verify check box is checked; false when the bar has none.
+    bool  IsVerifyChecked () const { return m_verify != nullptr && m_verify->IsChecked(); }
+
+    //  The bar's buttons as Tab stops, left to right, the Verify check box
+    //  first. -1 clears the focus.
     int   GetButtonCount  () const;
     bool  IsButtonEnabled (int index) const;
     void  SetButtonFocus  (int index);
@@ -68,11 +73,13 @@ public:
 private:
     void                      ShowFilterMenu ();
     std::vector<DxuiButton *> GetButtons     () const;
+    int                       GetVerifyStops () const { return m_verify != nullptr ? 1 : 0; }
 
     ExplorerContext      & m_context;
     ExplorerPickerChips  * m_chips            = nullptr;
     DxuiLabel            * m_nameLabel        = nullptr;
     DxuiTextInput        * m_name             = nullptr;
+    DxuiCheckbox         * m_verify           = nullptr;
     DxuiButton           * m_filter           = nullptr;
     DxuiButton           * m_create           = nullptr;
     DxuiButton           * m_skip             = nullptr;

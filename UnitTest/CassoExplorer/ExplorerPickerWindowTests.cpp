@@ -122,6 +122,53 @@ public:
 
     //  A picker opens with the cursor in its search box. Tab moves to the box
     //  just before the list, and to the bar's buttons last.
+    //  A request that offers Verify has the check box as the bar's first Tab
+    //  stop, and its state is in the outcome of a confirm.
+    TEST_METHOD (Picker_OffersVerify_AndReturnsItsState)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        PickerOutcome  outcome;
+        DxuiKeyEvent   space;
+        int            image = -1;
+
+
+
+        request.form        = PickerForm::ModalOpen;
+        request.filters     = { { L"Disk images", L"*.dsk;*.po" } };
+        request.offerVerify = true;
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+
+        rig.app.picker  = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+        rig.parts->listPane.FillList();
+
+        Assert::IsFalse (rig.parts->pickerBar.IsVerifyChecked(), L"the box starts as the request has it");
+
+        space.kind = DxuiKeyEventKind::Down;
+        space.vk   = VK_SPACE;
+
+        Assert::IsTrue (rig.parts->pickerBar.IsButtonEnabled (0));
+        Assert::IsTrue (rig.parts->pickerBar.HandleButtonKey (0, space));
+        Assert::IsTrue (rig.parts->pickerBar.IsVerifyChecked(), L"Space on the first stop checks the box");
+
+        for (int row = 0; row < (int) rig.browser.GetRows().size(); row++)
+        {
+            image = rig.browser.GetRows()[(size_t) row].isDirectory ? image : row;
+        }
+
+        rig.browser.SetSelectedRows ({ image });
+        rig.parts->statusBar.Fill();
+        rig.parts->pickerMode.Confirm();
+
+        Assert::IsTrue (outcome.isConfirmed);
+        Assert::IsTrue (outcome.verified);
+    }
+
+
     TEST_METHOD (Picker_OpensInSearch_AndTabReachesTheBar)
     {
         Rig                     rig;

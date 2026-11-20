@@ -63,6 +63,8 @@ PickerRequest CassoHostDialogs::MakeRequest (const FileDialogSpec & spec, bool i
     request.defaultFileName  = spec.defaultFileName;
     request.defaultExtension = spec.defaultExtension;
     request.askToReplace     = spec.askToReplace;
+    request.offerVerify      = spec.verify != nullptr;
+    request.verify           = spec.verify != nullptr && *spec.verify;
     request.viewKey          = isSave ? L"Save" : L"Open";
 
     if (spec.receivingDrive.has_value())
@@ -107,6 +109,11 @@ HRESULT CassoHostDialogs::RunPicker (HWND owner, const FileDialogSpec & spec, bo
     {
         outPath   = outcome.path;
         outPicked = true;
+
+        if (spec.verify != nullptr)
+        {
+            *spec.verify = outcome.verified;
+        }
     }
 
 Error:

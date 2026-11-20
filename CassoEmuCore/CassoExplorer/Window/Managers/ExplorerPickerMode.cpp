@@ -388,6 +388,7 @@ void ExplorerPickerMode::ConfirmPath (const std::wstring & path)
     if (m_context.app.outcome != nullptr)
     {
         m_context.app.outcome->isConfirmed = true;
+        m_context.app.outcome->verified    = m_context.pickerBar.IsVerifyChecked();
         m_context.app.outcome->path        = path;
     }
 
@@ -429,6 +430,7 @@ void ExplorerPickerMode::CreateNew()
         if (m_context.app.outcome != nullptr)
         {
             m_context.app.outcome->isConfirmed = true;
+            m_context.app.outcome->verified    = m_context.pickerBar.IsVerifyChecked();
         }
 
         m_context.window.CloseWindow();
