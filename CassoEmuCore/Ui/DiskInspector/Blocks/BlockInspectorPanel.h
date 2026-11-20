@@ -2,9 +2,9 @@
 
 #include "Pch.h"
 
-#include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
+#include "Ui/DiskInspector/Blocks/BlockJobQueue.h"
 #include "Ui/DiskInspector/Blocks/BlockNavigator.h"
 #include "Ui/DiskInspector/Blocks/BlockPanelSplitters.h"
 
@@ -47,7 +47,7 @@ struct InspectorCommands;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BlockInspectorPanel : public DxuiPanel, public IBlockJobs, public IBlockView, public IBlockNavigation, public IBlockDisplay
+class BlockInspectorPanel : public DxuiPanel, public IBlockView, public IBlockNavigation, public IBlockDisplay
 {
 public:
     static constexpr float  kPadDip       = 8.0f;
@@ -86,18 +86,13 @@ public:
     //  loaded. A block not loaded yet is loaded by a job first.
     void  Refresh () override;
 
-    //  The job queued on the worker. The window is notified, so the job's
-    //  completion runs soon after its work ends. With no worker, as in a
-    //  test, the job runs on the calling thread.
-    void  QueueJob (BlockInspectorWorker::Job job) override;
-
     //  The controls enabled or disabled, and the progress read, from the
     //  worker's jobs. The window calls it on each frame.
     void  UpdateBusy ();
 
-    bool  IsBusy     () const override { return m_worker != nullptr && m_worker->IsBusy(); }
-    void  CancelJobs () override       { if (m_worker != nullptr) { m_worker->Cancel(); } }
-    bool  IsLongJob  () const          { return m_isLongJob; }
+    IBlockJobs  & GetJobs   ()       { return m_jobs; }
+    bool          IsBusy    () const { return m_jobs.IsBusy(); }
+    bool          IsLongJob () const { return m_jobs.IsLongJob(); }
 
     //  A block number typed in decimal, or in hex after '$'.
     static bool  TryParseBlock (const std::wstring & text, uint32_t & outBlock);
@@ -192,7 +187,6 @@ private:
     void  BuildCapsules     ();
 
     BlockInspectorModel   * m_model           = nullptr;
-    BlockInspectorWorker  * m_worker          = nullptr;
     IDxuiTextRenderer     * m_text            = nullptr;
     DxuiDpiScaler           m_scaler;
     DxuiToolbar           * m_tools           = nullptr;
@@ -213,6 +207,7 @@ private:
     BlockFieldsView       * m_fields          = nullptr;
     BlockHexSource          m_source;
     BlockPanelSplitters     m_splitters;
+    BlockJobQueue           m_jobs;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
     ActionFn                m_onQueued;
@@ -222,10 +217,6 @@ private:
     std::wstring            m_title;
     vector<Capsule>         m_capsules;
     std::wstring            m_fieldLine;
-    std::wstring            m_jobLabel;
-    uint64_t                m_jobDone         = 0;
-    uint64_t                m_jobTotal        = 0;
-    bool                    m_isLongJob       = false;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;
     DxuiInPlaceTip          m_fieldTip;

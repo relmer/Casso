@@ -143,15 +143,16 @@ void BlockInspectorWindow::OnCreate()
 void BlockInspectorWindow::CreateParts()
 {
     BlockInspectorPanel  & panel = *m_panel;
+    IBlockJobs           & jobs  = panel.GetJobs();
 
 
 
-    m_session.Attach (panel, panel);
+    m_session.Attach (jobs, panel);
 
-    m_edits      = std::make_unique<BlockEditController>   (BlockEditController::Parts   { m_model, panel, panel, *this, *this, m_session, m_session, m_clipboard });
-    m_repair     = std::make_unique<BlockRepairController> (BlockRepairController::Parts { m_model, panel, panel, panel, *this, m_session, *m_edits, m_drives });
-    m_tips       = std::make_unique<BlockInspectorTips>    (panel, panel);
-    m_commandSet = std::make_unique<BlockCommandSet>       (BlockCommandSet::Parts       { m_model, panel, panel, panel, panel, *this, *this, m_session, m_session, *m_edits, *m_repair }, m_commands);
+    m_edits      = std::make_unique<BlockEditController>   (BlockEditController::Parts   { m_model, jobs, panel, *this, *this, m_session, m_session, m_clipboard });
+    m_repair     = std::make_unique<BlockRepairController> (BlockRepairController::Parts { m_model, jobs, panel, panel, *this, m_session, *m_edits, m_drives });
+    m_tips       = std::make_unique<BlockInspectorTips>    (panel, jobs);
+    m_commandSet = std::make_unique<BlockCommandSet>       (BlockCommandSet::Parts       { m_model, jobs, panel, panel, panel, *this, *this, m_session, m_session, *m_edits, *m_repair }, m_commands);
 
     m_tips->SetPopupHost (GetPopupHost());
     m_commandSet->Build();

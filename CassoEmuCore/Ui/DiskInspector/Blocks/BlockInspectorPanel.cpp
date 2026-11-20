@@ -61,10 +61,20 @@ BlockInspectorPanel::~BlockInspectorPanel() = default;
 void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text,
                                 const InspectorCommands * commands)
 {
-    m_model  = model;
-    m_worker = worker;
-    m_text   = text;
-    m_theme  = theme;
+    m_model = model;
+    m_text  = text;
+    m_theme = theme;
+
+    m_jobs.SetWorker   (worker);
+    m_jobs.SetOnQueued ([this] ()
+    {
+        UpdateBusy();
+
+        if (m_onQueued)
+        {
+            m_onQueued();
+        }
+    });
 
     if (commands != nullptr && commands->goTo != nullptr)
     {
@@ -189,7 +199,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     m_next->SetOnClick            ([this] () { Step (1); });
 
     m_copy->SetOnClick   ([this] () { if (m_onCopy) { m_onCopy(); } });
-    m_cancel->SetOnClick ([this] () { if (m_worker != nullptr) { m_worker->Cancel(); } });
+    m_cancel->SetOnClick ([this] () { m_jobs.CancelJobs(); });
     m_editBar->SetUnit   (L"block", L"blocks");
 
     m_cancel->SetVisible (false);
@@ -391,7 +401,7 @@ void BlockInspectorPanel::SetEditState (const EditBarState & state)
 
     m_editBar->SetState (state);
 
-    if (width > 0 && m_scaler.GetDpi() != 0 && !m_isLongJob && m_editBar->GetHeightPx (width, m_scaler) != before)
+    if (width > 0 && m_scaler.GetDpi() != 0 && !m_jobs.IsLongJob() && m_editBar->GetHeightPx (width, m_scaler) != before)
     {
         Layout (GetBounds(), m_scaler);
     }
@@ -718,45 +728,13 @@ void BlockInspectorPanel::Refresh()
 
     if (!m_model->IsLoaded (block))
     {
-        QueueJob ({ L"", false,
+        m_jobs.QueueJob ({ L"", false,
                     [model, block] (BlockJobProgress & progress) { (void) progress; model->LoadBlock (block); },
                     [this] () { Refresh(); } });
         return;
     }
 
     Present();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::QueueJob
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
-{
-    BlockJobProgress  progress;
-
-
-
-    if (m_worker == nullptr)
-    {
-        job.work (progress);
-        job.finish();
-        return;
-    }
-
-    m_worker->Queue (std::move (job));
-    UpdateBusy();
-
-    if (m_onQueued)
-    {
-        m_onQueued();
-    }
 }
 
 
@@ -775,33 +753,34 @@ void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
 
 void BlockInspectorPanel::UpdateBusy()
 {
-    bool  canCancel = false;
-    bool  wasLong   = m_isLongJob;
+    bool  wasLong = m_jobs.IsLongJob();
+    bool  isLong  = false;
 
 
 
-    if (m_worker == nullptr)
+    if (!m_jobs.HasWorker())
     {
         return;
     }
 
-    m_isLongJob = m_worker->TryGetLongJob (m_jobLabel, canCancel, m_jobDone, m_jobTotal);
+    m_jobs.Poll();
+    isLong = m_jobs.IsLongJob();
 
     m_map->SetFrozen     (IsBusy());
-    m_cancel->SetVisible (m_isLongJob && canCancel);
+    m_cancel->SetVisible (isLong && m_jobs.CanCancel());
 
     for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_copy, (IDxuiControl *) m_editBar,
                                     (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
-        control->SetEnabled (!m_isLongJob);
+        control->SetEnabled (!isLong);
     }
 
-    if (wasLong != m_isLongJob && m_scaler.GetDpi() != 0)
+    if (wasLong != isLong && m_scaler.GetDpi() != 0)
     {
         Layout (GetBounds(), m_scaler);
     }
 
-    if (m_onChanged && (m_isLongJob || wasLong))
+    if (m_onChanged && (isLong || wasLong))
     {
         m_onChanged();
     }
@@ -1333,7 +1312,7 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     int   listEnd  = m_splitters.PlaceListEnd (column);
     int   y        = 0;
     int   hexEnd   = 0;
-    int   barH     = m_isLongJob ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
+    int   barH     = m_jobs.IsLongJob() ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
     bool  isRow    = barH > 0;
 
 
@@ -1351,7 +1330,7 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
         control->SetVisible (true);
     }
 
-    m_editBar->SetVisible (!m_isLongJob && barH > 0);
+    m_editBar->SetVisible (!m_jobs.IsLongJob() && barH > 0);
 
     m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
     m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
@@ -1588,7 +1567,7 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
     }
 
-    if (m_isLongJob)
+    if (m_jobs.IsLongJob())
     {
         PaintProgress (painter, text, theme);
     }
@@ -1687,7 +1666,6 @@ void BlockInspectorPanel::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer
 void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float  kBarHighDip = 8.0f;
-    constexpr int    kPercent    = 100;
 
 
 
@@ -1697,8 +1675,8 @@ void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRender
     float         barW   = m_scaler.ToPxf (kBarDip);
     float         barH   = m_scaler.ToPxf (kBarHighDip);
     float         barTop = top + (height - barH) / 2.0f;
-    double        share  = m_jobTotal > 0 ? std::min (1.0, (double) m_jobDone / (double) m_jobTotal) : 0.0;
-    std::wstring  label  = m_jobTotal > 0 ? std::format (L"{} ({}%)", m_jobLabel, (int) (share * kPercent)) : m_jobLabel;
+    double        share  = m_jobs.GetShare();
+    std::wstring  label  = m_jobs.BuildProgressLabel();
     float         textX  = left + barW + m_scaler.ToPxf (kPadDip);
     float         textW  = (float) m_rowRect.right - textX - m_scaler.ToPxf (kButtonDip + kPadDip);
     HRESULT       hr     = S_OK;
