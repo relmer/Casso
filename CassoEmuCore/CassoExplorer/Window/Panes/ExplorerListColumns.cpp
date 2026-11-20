@@ -190,6 +190,7 @@ bool ExplorerListColumns::IsCassoImageList (const Location & location)
 
 bool ExplorerListColumns::IsUnderCassoNode (const Location & location) const
 {
+    HRESULT                hr      = S_OK;
     std::vector<TreeNode>  nodes;
     std::wstring           path;
     std::wstring           folder;
@@ -202,7 +203,14 @@ bool ExplorerListColumns::IsUnderCassoNode (const Location & location) const
         return location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId;
     }
 
-    if (location.kind != Location::Kind::HostFolder || FAILED (m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes)))
+    if (location.kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+
+    hr = m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+
+    if (FAILED (hr))
     {
         return false;
     }
