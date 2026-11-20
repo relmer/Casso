@@ -73,6 +73,8 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
 
     ReadTextRows (host, trace.rows);
 
+    trace.hasDos = host.GetMemoryBus().ReadByte (s_kDosVector) == s_kJmp;
+
     trace.isTextMode = !host.GetSoftSwitchMirror().graphicsMode;
     trace.isBlank    = IsBlank (trace.rows, trace.isTextMode, outReport.frame);
 
@@ -344,6 +346,11 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
         verdict   = BootVerdict::DidNotBoot;
         outReason = "The machine stopped at a BASIC prompt after an error.";
     }
+    else if (IsBarePrompt (trace))
+    {
+        verdict   = BootVerdict::DidNotBoot;
+        outReason = "The machine stopped at a BASIC prompt with nothing else on the screen and no DOS loaded. A load that failed, or a failed copy-protection check, often ends this way.";
+    }
     else if (trace.samples.back().frameHash == trace.samples[(size_t) trace.driveStarted].frameHash)
     {
         verdict   = BootVerdict::DidNotBoot;
@@ -382,6 +389,46 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     }
 
     return verdict;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootProbe::IsBarePrompt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsBarePrompt (const Trace & trace)
+{
+    bool  hasPrompt   = false;
+    bool  onlyPrompts = true;
+
+
+
+    if (!trace.isTextMode || trace.hasDos)
+    {
+        return false;
+    }
+
+    for (const std::string & row : trace.rows)
+    {
+        size_t  first = row.find_first_not_of (' ');
+        size_t  end   = row.find_last_not_of (' ');
+
+        if (first == std::string::npos)
+        {
+            continue;
+        }
+
+        //  A prompt is ] and at most the cursor after it.
+        hasPrompt   = hasPrompt || row[first] == ']';
+        onlyPrompts = onlyPrompts && row[first] == ']' && end - first <= 1;
+    }
+
+    return hasPrompt && onlyPrompts;
 }
 
 

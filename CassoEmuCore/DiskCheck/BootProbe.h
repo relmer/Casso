@@ -95,6 +95,7 @@ public:
         std::vector<std::string>  rows;
         bool                      isTextMode   = true;
         bool                      isBlank      = false;     // the screen at the end, by IsBlank
+        bool                      hasDos       = true;      // $3D0 has the JMP that DOS 3.3 and BASIC.SYSTEM put there
 
         //  The program counter at short intervals once the boot ended, and
         //  the memory from the lowest to the highest of them and of the
@@ -153,9 +154,17 @@ public:
     //  The 40-column text screen's rows, through the processor's memory.
     static void         ReadTextRows (MachineHost & host, std::vector<std::string> & outRows);
 
+    //  Whether a text screen has nothing but BASIC prompts with no DOS in
+    //  memory: a load that failed and fell to the ROM's BASIC. A disk that
+    //  boots to BASIC has DOS 3.3 or BASIC.SYSTEM, which set $3D0.
+    static bool         IsBarePrompt (const Trace & trace);
+
 private:
     static uint64_t     HashFrame (const std::vector<uint32_t> & frame);
     static bool         HasRow    (const std::vector<std::string> & rows, std::string_view text);
+
+    static constexpr Word  s_kDosVector = 0x03D0;
+    static constexpr Byte  s_kJmp       = 0x4C;
 
     static constexpr uint32_t  s_kTextArgb         = 0xFFFFFFFF;
     static constexpr Word      s_kTextPage1        = 0x0400;

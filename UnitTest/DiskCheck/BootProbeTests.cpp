@@ -118,6 +118,20 @@ public:
         Assert::IsTrue (BootProbe::Judge (prodos, limits, reason) == BootVerdict::NotBootable, L"ProDOS with no system file");
         Assert::IsTrue (BootProbe::Judge (data, limits, reason) == BootVerdict::NotBootable, L"A later formatter's data disk");
         Assert::IsTrue (BootProbe::Judge (eamon, limits, reason) == BootVerdict::NotBootable, L"An Eamon adventure's data disk");
+
+        //  Nothing but BASIC prompts: a boot to BASIC with DOS loaded, and a
+        //  load that fell to the ROM's BASIC with no DOS.
+        {
+            BootProbe::Trace  dos  = booted;
+            BootProbe::Trace  bare = booted;
+
+            dos.rows    = { "", "]" };
+            bare.rows   = { "]", "] " };
+            bare.hasDos = false;
+
+            Assert::IsTrue (BootProbe::Judge (dos, limits, reason) == BootVerdict::Booted, L"A boot to BASIC with DOS");
+            Assert::IsTrue (BootProbe::Judge (bare, limits, reason) == BootVerdict::DidNotBoot, L"A load that fell to the ROM's BASIC");
+        }
         Assert::IsFalse (reason.empty(), L"Each verdict has a reason");
 
         Assert::AreEqual ("did-not-boot", BootProbe::GetVerdictName (BootVerdict::DidNotBoot));
