@@ -130,6 +130,7 @@
     <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
     <ClCompile Include="Devices\Disk\DiskCreateCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFilePayload.cpp" />
     <ClCompile Include="Devices\Disk\DiskSectorCommands.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -1398,6 +1399,7 @@
     <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
     <ClInclude Include="Devices\Disk\DiskCommandText.h" />
     <ClInclude Include="Devices\Disk\DiskCreateCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskFilePayload.h" />
     <ClInclude Include="Devices\Disk\DiskSectorCommands.h" />
     <ClInclude Include="Devices\Disk\IDiskCommandContext.h" />
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />

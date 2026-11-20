@@ -4313,18 +4313,6 @@ public:
             L"Windows text placed and read back as text is the identity");
     }
 
-    //  Text for the PC ends each line with CR LF, whether the conversion
-    //  wrote LF, as Apple text's does, or CR LF, as Pascal text's does.
-    TEST_METHOD (ToWindowsLineEndings_MakesEachLineEndCrLfOnce)
-    {
-        std::string   text  = "A\nB\r\nC\n\nD";
-        vector<Byte>  bytes (text.begin(), text.end());
-
-        DiskCommandRunner::ToWindowsLineEndings (bytes);
-
-        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\n\r\nD"), std::string (bytes.begin(), bytes.end()));
-    }
-
     TEST_METHOD (Put_WithTextAndNoNamedType_TakesTheFilesystemsOwnTextType)
     {
         // A caller who named no type gets the one that matches the conversion

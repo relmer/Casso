@@ -118,12 +118,9 @@ public:
 
 
 
-    //  A ProDOS volume larger than a floppy, in a block container.
-    //  The `._NAME` file a data fork's resource fork is written to.
     //  Each problem an image's or archive's structure has.
     void  RunTest (const CommandLineOptions & options, DiskCommandResult & result);
 
-    static std::string  GetAppleDoublePath (const std::string & hostFile);
     HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
 
     //  The resource fork, Finder information and, with no --type or --load,
@@ -278,53 +275,14 @@ private:
     //  Whether a ProDOS volume carries the PRODOS file its boot block loads.
     static bool  HasProDosSystemFile       (const VolumeListing  & listing);
 
-    //  Which type byte a placement uses: what the caller named, or the sensible
-    //  one for the conversion they asked for.
-    //  What a file's own bytes say it is, or 0 when they say nothing.
-    //
-    //  ONLY CONSULTED WHEN NOBODY NAMED A TYPE. A guess that overrode --type
-    //  would be a tool arguing with its operator, and one that fired on a
-    //  binary would file it where the guest cannot run it. Anything not
-    //  positively recognized stays a binary, which is what a build loop
-    //  produces and what the default has always been.
-    static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
 
-    //  ProDOS's type for an Integer BASIC program.
-    static constexpr Byte  kProDosIntegerType = 0xFA;
 
-    static HRESULT  ResolvePascalKind  (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
-    static bool     ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem);
 
-    static HRESULT  ResolveFileType (const CommandLineOptions & options,
-                                     VolumeKind                 kind,
-                                     const std::vector<Byte>  & hostBytes,
-                                     Byte                     & outType,
-                                     DiskCommandResult        & result);
 
-    //  What the file is called on the disk: --as when given, otherwise the host
-    //  file's own last component, which is the name the caller already chose.
-    static std::string  GetOnDiskName (const CommandLineOptions & options);
 
-    //  With no --as, a host name in one of Casso Explorer's forms sets the
-    //  entry's name and, with no --text or --basic, its conversion. False for any
-    //  other host name, and the options are then left as they were.
-    static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
 
-    //  For a get with no --text or --basic, the one an output name in Casso
-    //  Explorer's text or BASIC listing form has, as a copy out writes it.
-    static void     ApplyOutputEncoding (CommandLineOptions & inOutOptions);
 
-    //  For a get whose output file has a conversion's suffix, such as
-    //  SOURCE.Merlin.txt: replace the payload's bytes with that conversion.
-    //  An error for a file in another format.
-    static HRESULT  ApplyHostFileConversion (const CommandLineOptions  & options,
-                                             VolumeKind                  kind,
-                                             const std::string         & name,
-                                             FilePayload               & inOutPayload,
-                                             DiskCommandResult         & result);
 
-    //  Set the payload's type and aux type from that form's name.
-    static HRESULT  ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload);
 
 
 
@@ -348,25 +306,6 @@ private:
     //  before it was a class.
 public:
     DiskImageSession &  GetSession ()  override { return m_session; }
-
-    //  Public so a file read or written over an CassoLink converts as one
-    //  in an image does.
-    //  The bytes a file from the host becomes on the disk, with whatever conversion was
-    //  asked for already applied. Refuses a conversion this build cannot do.
-    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
-                                     VolumeKind                  kind,
-                                     const std::vector<Byte>   & hostBytes,
-                                     FilePayload               & outPayload,
-                                     DiskCommandResult         & result);
-
-    //  Applies the requested character conversion, or refuses one this build
-    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
-    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
-                                   FilePayload              & payload,
-                                   DiskCommandResult        & result);
-
-    //  Text with an LF line end made CR LF.
-    static void     ToWindowsLineEndings (std::vector<Byte> & inOutBytes);
 
 private:
     static SYSTEMTIME  GetLocalDate ();
