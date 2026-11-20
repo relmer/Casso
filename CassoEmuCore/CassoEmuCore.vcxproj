@@ -127,6 +127,13 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCreateCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFileCommands.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFilePayload.cpp" />
+    <ClCompile Include="Devices\Disk\DiskListCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskSectorCommands.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -1393,6 +1400,14 @@
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
+    <ClInclude Include="Devices\Disk\DiskCommandText.h" />
+    <ClInclude Include="Devices\Disk\DiskCreateCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskFileCommands.h" />
+    <ClInclude Include="Devices\Disk\DiskFilePayload.h" />
+    <ClInclude Include="Devices\Disk\DiskListCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskSectorCommands.h" />
+    <ClInclude Include="Devices\Disk\IDiskCommandContext.h" />
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Ui\Dialogs\CommandLineHelpDialog.h" />
     <ClInclude Include="Ui\Dialogs\CommandLineHelpLayout.h" />

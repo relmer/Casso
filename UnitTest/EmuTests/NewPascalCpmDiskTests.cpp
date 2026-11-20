@@ -57,8 +57,8 @@ public:
 
     TEST_METHOD (CreateMakesAPascalDiskInEveryContainer)
     {
-        size_t                                    count      = 0;
-        const DiskCommandRunner::ContainerName *  containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t                                        count      = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0);
 
@@ -129,8 +129,8 @@ public:
 
     TEST_METHOD (CreateMakesACpmDiskInEveryContainerAndItIsDetected)
     {
-        size_t                                    count      = 0;
-        const DiskCommandRunner::ContainerName *  containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t                                        count      = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0);
 
@@ -196,8 +196,8 @@ public:
 
     TEST_METHOD (AFileOnANewDiskIsReadBackInEveryContainer)
     {
-        size_t                                    count      = 0;
-        const DiskCommandRunner::ContainerName *  containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        size_t                                        count      = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0);
 
