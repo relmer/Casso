@@ -15,6 +15,7 @@ static constexpr const char *  s_kpszKindRoot          = "root";
 static constexpr const char *  s_kpszKindRecycleBin    = "recycleBin";
 static constexpr const char *  s_kpszKindShellFolder   = "shellFolder";
 static constexpr const char *  s_kpszKindAppleDrive    = "appleDrive";
+static constexpr const char *  s_kpszKindPartition     = "partition";
 
 
 
@@ -259,6 +260,7 @@ const char * CassoExplorerPrefs::GetLocationKindName (Location::Kind kind)
         case Location::Kind::RecycleBin:    name = s_kpszKindRecycleBin;    break;
         case Location::Kind::ShellFolder:   name = s_kpszKindShellFolder;   break;
         case Location::Kind::AppleDrive:    name = s_kpszKindAppleDrive;    break;
+        case Location::Kind::Partition:     name = s_kpszKindPartition;     break;
         default:                            break;
     }
 
@@ -284,6 +286,7 @@ bool CassoExplorerPrefs::TryGetLocationKind (const std::string & name, Location:
     else if (name == s_kpszKindRecycleBin)    { outKind = Location::Kind::RecycleBin; }
     else if (name == s_kpszKindShellFolder)   { outKind = Location::Kind::ShellFolder; }
     else if (name == s_kpszKindAppleDrive)    { outKind = Location::Kind::AppleDrive; }
+    else if (name == s_kpszKindPartition)     { outKind = Location::Kind::Partition; }
     else                                      { return false; }
 
     return true;

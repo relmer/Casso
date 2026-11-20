@@ -79,6 +79,10 @@ struct Partition
     //  The name or description the map has for the partition, when it has one.
     std::string          name;
 
+    //  The type the map has for the partition, such as Apple_PRODOS, when it
+    //  has one.
+    std::string          type;
+
     PartitionSpan        span       = PartitionSpan::WholeBlocks;
 
     //  True for a DOS volume whose sectors are in track and sector order on

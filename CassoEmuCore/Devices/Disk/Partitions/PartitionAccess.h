@@ -100,6 +100,15 @@ public:
     static bool         TryParseStepName (const std::string & step, int & outIndex);
     static uint64_t     GetByteCount     (const Partition & partition);
 
+    //  A partition's label in the trees: the name and type its map has, as
+    //  "ProDOS_Part (Apple_PRODOS)", the type alone for an empty name, or
+    //  "Partition 3" for a layout without labels.
+    static std::string  GetPartitionLabel (const Partition & partition);
+
+    //  A partition's volume's label: its name, "DOS 3.3 volume 254" for a DOS
+    //  volume, or "Untitled".
+    static std::string  GetVolumeLabel (const PartitionEntry & entry);
+
     //  "Partition 2: GAMES", and with the size, "Partition 2: GAMES (32 MB)".
     //  The text after the colon is the volume's name, the map's name for the
     //  partition, or a DOS volume's number.
@@ -141,6 +150,7 @@ private:
                                    std::string        & outError);
 
     static void         ReadVolumeLabel (IBlockStore & store, PartitionEntry & ioEntry);
+    static void         ReadHfsName     (IBlockStore & store, PartitionEntry & ioEntry);
     static void         ReadProDosName  (IBlockStore & store, PartitionEntry & ioEntry);
     static bool         IsSparse        (const Partition & partition);
     static std::string  GetLeafName     (const std::string & path);

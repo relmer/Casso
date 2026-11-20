@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/MemoryBlockStore.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PartitionLayout.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -169,6 +170,8 @@ public:
         Assert::AreEqual ((uint32_t) 8,   partitions[0].firstBlock);
         Assert::AreEqual ((uint32_t) 400, partitions[0].blockCount);
         Assert::AreEqual (std::string ("PRO"), partitions[0].name);
+        Assert::AreEqual (std::string ("Apple_PRODOS"), partitions[0].type);
+        Assert::AreEqual (std::string ("PRO (Apple_PRODOS)"), PartitionAccess::GetPartitionLabel (partitions[0]));
         Assert::IsTrue   (partitions[0].volumeKind == VolumeKind::ProDos);
         Assert::AreEqual (std::string ("APM"), std::string (PartitionLayout::GetLayoutName (kind)));
     }

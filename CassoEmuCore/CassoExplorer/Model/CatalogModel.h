@@ -62,6 +62,7 @@ struct CatalogRow
     bool          locked        = false;
     bool          isDirectory   = false;
     bool          isDiskImage   = false;
+    bool          isPartition   = false;   // a partition of an image, which opens as the list of its volumes
 
     //  A host item's attributes: a hidden one's icon is drawn faded, and a
     //  compressed or encrypted one's name in color, as Explorer draws them.

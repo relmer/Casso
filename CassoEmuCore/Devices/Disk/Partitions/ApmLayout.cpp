@@ -40,6 +40,8 @@ HRESULT ApmLayout::TryDetect (IBlockStore & store, std::vector<Partition> & outP
         hr = PartitionLayout::AppendBlockPartition (store, PartitionLayoutKind::Apm, entry.firstBlock, entry.blockCount,
                                                     TextEncoding::WideToUtf8 (entry.name), outPartitions);
         CHR (hr);
+
+        outPartitions.back().type = TextEncoding::WideToUtf8 (entry.type);
     }
 
 Error:
