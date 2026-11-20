@@ -8,6 +8,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/IShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
@@ -167,6 +168,15 @@ void ExplorerThemes::Apply()
 
         m_context.shellIcons.SetDarkSurface (luminance < 128);
         m_context.listPane.SetDarkSurface (luminance < 128);
+
+        //  The tree's nodes have icons from when they were listed, so a
+        //  change of surface lists them again.
+        if (m_isDark != (luminance < 128) && m_context.treePane.GetControl() != nullptr)
+        {
+            m_context.treePane.RefreshTree();
+        }
+
+        m_isDark = luminance < 128;
 
         if (m_context.window.GetHwnd() != nullptr)
         {
