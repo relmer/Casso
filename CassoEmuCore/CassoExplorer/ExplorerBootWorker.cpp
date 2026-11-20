@@ -5,10 +5,14 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
+#include "DiskCheck/BootProbe.h"
 #include "DiskCheck/BootTitle.h"
 #include "DiskCheck/GivenNames.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
+#include "FileTypes/SaveSummary.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 
@@ -317,6 +321,13 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
     result.hasReport = true;
     result.verdict   = report.verdict;
     result.reason    = report.reason;
+
+    //  A disk that doesn't boot and has a saved game has the save for its
+    //  thumbnail, drawn as a text screen.
+    if (report.verdict != BootVerdict::Booted)
+    {
+        DrawSave (bytes, TextEncoding::WideToNarrow (file.wstring()), m_build, report);
+    }
 
     hr = PicturePreview::EncodePng (report.frame, report.width, report.height, png);
     CHR (hr);
@@ -719,4 +730,56 @@ void ExplorerBootWorker::Run()
             onCount();
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::DrawSave
+//
+//  The rows are written to the text page of an enhanced //e, powered on and
+//  not run, in normal characters, and its screen is drawn as a boot's is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerBootWorker::DrawSave (const std::vector<Byte> & bytes, const std::string & path, const BootCheck::MachineFn & build, BootReport & ioReport)
+{
+    HRESULT                   hr      = S_OK;
+    std::vector<Byte>         sectors;
+    SectorDecodeReport        decoded;
+    std::vector<std::string>  rows;
+    BootCheck::Built          built;
+    std::string               error;
+    bool                      isDrawn = false;
+
+
+
+    hr = VolumeImage::Load (bytes, path, sectors, decoded);
+    BAIL_OUT_IF (FAILED (hr) || !SaveSummary::Find (sectors, rows), S_OK);
+
+    hr = build (BootCheck::kEnhanced, built, error);
+    BAIL_OUT_IF (FAILED (hr) || built.host == nullptr || built.builder == nullptr, S_OK);
+
+    built.host->PowerCycle();
+
+    for (size_t row = 0; row < SaveSummary::kRows; row++)
+    {
+        Word  base = (Word) (s_kTextPage + (row % 8) * s_kRowStride + (row / 8) * s_kThirdStride);
+
+        for (size_t column = 0; column < SaveSummary::kColumns; column++)
+        {
+            char  ch = (row < rows.size() && column < rows[row].size()) ? rows[row][column] : ' ';
+
+            built.host->GetMemoryBus().WriteByte ((Word) (base + column), (Byte) (ch | s_kNormal));
+        }
+    }
+
+    BootProbe::RenderFrame (*built.host, *built.builder, ioReport.frame, ioReport.width, ioReport.height);
+    isDrawn = true;
+
+Error:
+    return isDrawn;
 }

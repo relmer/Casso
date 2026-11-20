@@ -6,6 +6,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
 #include "DiskCheck/BootCheck.h"
@@ -735,6 +736,35 @@ public:
         {
             LogBoot (path.c_str(), {}, sectors, false);
         }
+    }
+
+    //  The image CASSO_SAVE_IMAGE's saved game drawn for its thumbnail, as
+    //  save.png in CASSO_LINK_OUT: run only when CASSO_SAVE_IMAGE is set.
+    TEST_METHOD (ASaveDisk_IsDrawnForItsThumbnail)
+    {
+        std::string            path = GetSetting ("CASSO_SAVE_IMAGE", "");
+        std::filesystem::path  out  = GetSetting ("CASSO_LINK_OUT", ".");
+        std::vector<Byte>      bytes;
+        std::vector<Byte>      png;
+        BootReport             report;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_SAVE_IMAGE isn't set; no save to draw.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        Assert::IsTrue (ExplorerBootWorker::DrawSave (bytes, path, BootCheck::BuildInstalled, report), L"The image has a save");
+        AssertSucceeded (PicturePreview::EncodePng (report.frame, report.width, report.height, png));
+        WriteFile (out / "save.png", png);
     }
 
     //  Each .woz, .dsk, .do and .po file of the folder CASSO_PROBE_IMAGES,

@@ -375,6 +375,7 @@
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
+    <ClCompile Include="FileTypes\SaveSummaryTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveWrapperTests.cpp" />
     <ClCompile Include="EmuTests\ArchiveVolumeTests.cpp" />

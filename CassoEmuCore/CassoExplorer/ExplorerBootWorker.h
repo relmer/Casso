@@ -96,6 +96,11 @@ public:
     //  A result as a line for an activity list.
     static std::string  Describe (const Result & result);
 
+    //  A disk image's saved game drawn on a text screen of a machine `build`
+    //  makes, in place of the report's frame (SaveSummary). False, with the
+    //  frame as it was, for a disk with no save.
+    static bool         DrawSave (const std::vector<Byte> & bytes, const std::string & path, const BootCheck::MachineFn & build, BootReport & ioReport);
+
     //  A file-system verdict as the manifest's fscheck column has it.
     static std::string  GetCheckName (FileSystemVerdict verdict);
 
@@ -114,6 +119,13 @@ private:
     static void         CheckFileSystem (const std::vector<Byte> & bytes, const std::wstring & path, Result & ioResult);
 
     static constexpr DWORD   s_kBusyPollMs    = 250;
+
+    //  The text page, the bytes between its rows of one third and between its
+    //  thirds, and the high bit of a normal character (DrawSave).
+    static constexpr Word    s_kTextPage      = 0x0400;
+    static constexpr Word    s_kRowStride     = 0x80;
+    static constexpr Word    s_kThirdStride   = 40;
+    static constexpr Byte    s_kNormal        = 0x80;
     static constexpr size_t  s_kMaxTitleChars = 60;
 
     ThumbnailStore           & m_store;
