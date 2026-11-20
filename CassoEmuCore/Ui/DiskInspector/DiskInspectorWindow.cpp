@@ -29,6 +29,7 @@
 #include "Ui/DiskInspector/Components/FindPart.h"
 #include "Ui/DiskInspector/Components/HostLink.h"
 #include "Ui/DiskInspector/Components/InspectorCommandSet.h"
+#include "Ui/DiskInspector/Components/InspectorWindowLayout.h"
 #include "Ui/DiskInspector/Components/ScreenNotes.h"
 #include "Ui/DiskInspector/Components/WalkthroughPart.h"
 #include "Ui/DiskInspector/Components/InspectorDialogs.h"
@@ -72,12 +73,7 @@ static constexpr LPCWSTR  s_kpszNoDisk      = L"No disk";
 static constexpr LPCWSTR  s_kpszAnalyzing   = L"Analyzing";
 
 static constexpr int      s_kToolbarDip     = 40;
-static constexpr int      s_kRowDip         = 28;
-static constexpr int      s_kStripDip       = 64;
 static constexpr int      s_kHintRowDip     = 20;
-static constexpr int      s_kMarginDip      = 8;
-static constexpr int      s_kSplitterDip    = 6;
-static constexpr int      s_kButtonDip      = 32;
 static constexpr int      s_kTabWidthDip    = 96;
 static constexpr int      s_kFileNameDip    = 260;
 static constexpr float    s_kChipPadDip     = 8.0f;
@@ -85,10 +81,7 @@ static constexpr float    s_kChipGapDip     = 6.0f;
 static constexpr float    s_kChipHeightDip  = 22.0f;
 static constexpr float    s_kChipTextDip    = 12.0f;
 static constexpr float    s_kAnalyzingDip   = 90.0f;
-static constexpr double   s_kMinSplit       = 0.3;
-static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr int      s_kStatusDip      = 28;
-static constexpr int      s_kMinPlatterColumnDip = 420;
 static constexpr double   s_kCharWidthDip   = 6.6;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
@@ -98,7 +91,6 @@ static constexpr int      s_kFindButtonDip   = 60;
 static constexpr int      s_kCompareDip      = 122;
 static constexpr int      s_kFollowDip       = 110;
 static constexpr int      s_kGoToHeadDip     = 94;
-static constexpr int      s_kBarDip          = 36;
 static constexpr int      s_kMinFileNameDip  = 200;
 static constexpr int      s_kFocusGapDip    = 3;
 static constexpr int      s_kModeTabDip     = 76;
@@ -889,56 +881,32 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 //
 //  DiskInspectorWindow::LayoutContent
 //
-//  The toolbar row across the top. Under it the platter column, the platter
-//  as large as the column allows with its controls in the corners; past
-//  the splitter the track column: header, sector row, the view selector,
-//  and the chosen view's content. Along the bottom, the strip and its controls.
+//  The frames from InspectorWindowLayout, then the track column's header,
+//  sector row, view selector and the chosen view's content, with the edit
+//  bar above the Sector data tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int                        margin    = scaler.ToPx (s_kMarginDip);
-    int                        row       = scaler.ToPx (s_kRowDip);
-    int                        button    = scaler.ToPx (s_kButtonDip);
-    int                        width     = boundsDip.right - boundsDip.left;
-    int                        splitX    = boundsDip.left + static_cast<int> (width * m_splitFraction);
-    int                        toolbar   = m_toolbar->GetHeightPx (scaler);
-    int                        bar       = m_session.comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
-    int                        top       = boundsDip.top + toolbar + bar;
-    int                        strip     = scaler.ToPx (s_kStripDip);
-    int                        band      = 2 * margin + strip + (m_session.comparison.IsComparing() ? strip + margin / 2 : 0) + margin / 2 + row;
-    int                        bandTop   = std::max (top, static_cast<int> (boundsDip.bottom) - band);
-    int                        x         = boundsDip.left + margin;
-    int                        column    = splitX - boundsDip.left - 2 * margin;
-    int                        areaH     = std::max (0, bandTop - top - 2 * margin);
-    int                        side      = std::max (0, std::min (column, areaH));
-    int                        y         = 0;
-    int                        minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), m_corners->GetMinWidthPx (scaler));
-    int                        fitted    = 0;
-    RECT                       right     = {};
-    RECT                       platter   = {};
+    InspectorWindowLayout::Inputs  in;
+    InspectorWindowLayout::Frames  f;
+    int                            margin = scaler.ToPx (InspectorWindowLayout::kMarginDip);
+    int                            width  = boundsDip.right - boundsDip.left;
+    int                            y      = 0;
+    RECT                           right  = {};
 
 
 
-    //  Wherever the splitter is, the platter column is at least as wide as
-    //  its control row, up to the splitter's largest share of the window.
-    if (column < minColumn)
-    {
-        column = std::max (0, std::min (minColumn, static_cast<int> (width * s_kMaxSplit) - 2 * margin));
-        splitX = boundsDip.left + 2 * margin + column;
-        side   = std::max (0, std::min (column, areaH));
-    }
-
-    //  The column is no wider than the platter and its control row, and leaves
-    //  a sector's bytes their full width, so their font follows the zoom.
-    fitted = std::max (minColumn, std::min (areaH, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - SectorsView::GetFullWidthPx (scaler)));
-    if (column > fitted)
-    {
-        column = fitted;
-        splitX = boundsDip.left + 2 * margin + column;
-        side   = std::min (column, areaH);
-    }
+    in.bounds        = boundsDip;
+    in.splitFraction = m_splitFraction;
+    in.toolbarPx     = m_toolbar->GetHeightPx (scaler);
+    in.isComparing   = m_session.comparison.IsComparing();
+    in.minColumnPx   = m_corners->GetMinWidthPx (scaler);
+    in.sectorsPx     = SectorsView::GetFullWidthPx (scaler);
+    in.cornerBandPx  = m_corners->GetBottomBandPx (scaler);
+    f                = InspectorWindowLayout::Plan (in, scaler);
+    right            = f.trackColumn;
 
     m_session.scaler = scaler;
     m_tooltip.SetDpi (scaler.GetDpi());
@@ -948,27 +916,21 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_session.context.scenePx = boundsDip;
 
     //  The walkthrough's toolbar step covers the menu bar too.
-    m_session.layout.toolbar  = { boundsDip.left, boundsDip.top - m_menus->GetHeightPx (m_session.hostScaler), boundsDip.right, boundsDip.top + toolbar };
-    m_toolbar->Layout  ({ boundsDip.left, boundsDip.top, boundsDip.right, boundsDip.top + toolbar }, scaler);
-    m_findPart->Layout ({ boundsDip.left, top, boundsDip.right, bandTop }, scaler);
-    m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
-    right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, bandTop - margin / 2 };
+    m_session.layout.toolbar = { boundsDip.left, boundsDip.top - m_menus->GetHeightPx (m_session.hostScaler), boundsDip.right, f.toolbar.bottom };
+    m_toolbar->Layout  (f.toolbar, scaler);
+    m_findPart->Layout (f.findArea, scaler);
+    m_splitterPx = f.splitter;
 
-    m_comparisonPart->Layout ({ boundsDip.left, top - bar, boundsDip.right, top }, scaler);
+    m_comparisonPart->Layout        (f.compareBar, scaler);
+    m_session.views.platter->Layout (f.platter, scaler);
 
-    //  The platter as large as its column allows; its controls float in the corners.
-    platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
-    //  The overlay and zoom groups go in a band under the disk.
-    platter.bottom = std::max<LONG> (platter.top + 1, std::min<LONG> (platter.bottom, top + margin + areaH - m_corners->GetBottomBandPx (scaler)));
-    m_session.views.platter->Layout (platter, scaler);
-
-    m_session.layout.platterArea = { boundsDip.left, top, splitX, bandTop };
-    m_session.layout.platterColumn = { boundsDip.left + margin, top + margin, splitX - margin, top + margin + areaH };
+    m_session.layout.platterArea   = f.platterArea;
+    m_session.layout.platterColumn = f.platterColumn;
     m_corners->Layout (m_session.layout.platterColumn, scaler);
 
     //  The track column.
-    y             = m_trackColumn->Layout (right, scaler);
-    m_session.layout.trackArea = { m_splitterPx.right, top, boundsDip.right, m_trackColumn->GetBoundsPx().bottom };
+    y = m_trackColumn->Layout (right, scaler);
+    m_session.layout.trackArea = { f.trackArea.left, f.trackArea.top, f.trackArea.right, m_trackColumn->GetBoundsPx().bottom };
 
     m_session.layout.diskContent = { right.left, y, right.right, right.bottom };
 
@@ -989,15 +951,11 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_copySector->Layout       ({ right.right - scaler.ToPx (s_kCopySectorDip), y, right.right, y + scaler.ToPx (SectorsView::kHeaderDip) + margin / 2 }, scaler);
     m_session.views.sectors->SetHeaderReserve (scaler.ToPx (s_kCopySectorDip) + margin);
 
-    //  The strip across the bottom, B's under it while comparing (FR-121).
-    y = bandTop + margin;
-    m_session.views.strip->Layout ({ x, y, boundsDip.right - margin, y + strip }, scaler);
-    y += strip + margin / 2;
-    m_session.views.stripB->Layout ({ x, y, boundsDip.right - margin, y + (m_session.comparison.IsComparing() ? strip : 0) }, scaler);
-    y += m_session.comparison.IsComparing() ? strip + margin / 2 : 0;
-    m_stripControls->Layout ({ x, y, boundsDip.right - margin, y + row }, scaler);
+    m_session.views.strip->Layout  (f.strip, scaler);
+    m_session.views.stripB->Layout (f.stripB, scaler);
+    m_stripControls->Layout        (f.stripControls, scaler);
 
-    m_session.layout.stripArea = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
+    m_session.layout.stripArea = f.stripArea;
 }
 
 
@@ -1151,7 +1109,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (ev.kind == DxuiMouseEventKind::Move && m_isSplitting && width > 0)
     {
-        m_splitFraction = std::clamp (static_cast<double> (p.x - m_boundsDip.left) / width, s_kMinSplit, s_kMaxSplit);
+        m_splitFraction = std::clamp (static_cast<double> (p.x - m_boundsDip.left) / width, InspectorWindowLayout::kMinSplit, InspectorWindowLayout::kMaxSplit);
         Layout (m_boundsDip, m_session.hostScaler);
         isHandled = true;
     }

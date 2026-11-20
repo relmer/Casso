@@ -432,6 +432,7 @@
     <ClCompile Include="EmuTests\PlatterViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorComponentTests.cpp" />
     <ClCompile Include="EmuTests\InspectorCommandSetTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorWindowLayoutTests.cpp" />
     <ClCompile Include="EmuTests\SelectionHistoryTests.cpp" />
     <ClCompile Include="EmuTests\StripGeometryTests.cpp" />
     <ClCompile Include="EmuTests\StripHitTestTests.cpp" />
