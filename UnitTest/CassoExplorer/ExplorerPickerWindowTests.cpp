@@ -536,9 +536,9 @@ public:
     }
 
 
-    //  The startup form: drive 1's 5.25-inch rule, the stock disks, Start,
-    //  and a skip button that ends the picker confirmed with no path.
-    TEST_METHOD (StartupForm_OpensOnStockDisks_WhenCassoListsNothing)
+    //  The startup form opens on the Casso node, which lists the stock disks
+    //  with the images in Casso's folders.
+    TEST_METHOD (StartupForm_ListsStockDisksUnderCasso)
     {
         auto               empty   = std::make_unique<Rig>();
         auto               listed  = std::make_unique<Rig>();
@@ -554,7 +554,9 @@ public:
         empty->app.picker       = &request;
         empty->app.request.tabs = { tab };
         empty->Open();
-        Assert::AreEqual (std::wstring (TreeModel::kStockDisksId), empty->browser.GetLocation().path);
+        Assert::AreEqual (std::wstring (TreeModel::kCassoRootId), empty->browser.GetLocation().path);
+        Assert::AreEqual ((size_t) 1, empty->browser.GetRows().size());
+        Assert::AreEqual (std::wstring (L"ProDOS Users Disk"), empty->browser.GetRows()[0].name);
 
         listed->Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
         listed->browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });

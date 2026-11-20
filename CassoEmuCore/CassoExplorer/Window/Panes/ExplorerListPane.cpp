@@ -837,6 +837,19 @@ void ExplorerListPane::RefreshTip()
         overItem = m_columns.GetView() != DxuiListView::View::Content || point.x < text.left;
     }
 
+    //  The Folder column's cell shows its whole path in a tip.
+    if (overItem && m_columns.GetView() == DxuiListView::View::Details && !m_context.browser.GetRows()[(size_t) row].folderPath.empty()
+        && m_list->GetCellRectPx (row, (size_t) CatalogModel::Column::Folder, anchor))
+    {
+        OffsetRect (&anchor, list.left, list.top);
+
+        if (ExplorerLayout::Contains (anchor, point))
+        {
+            m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, m_context.browser.GetRows()[(size_t) row].folderPath);
+            return;
+        }
+    }
+
     if (!overItem)
     {
         m_context.tips.HideHoverTip (ExplorerTips::TipOwner::List);
@@ -1189,6 +1202,10 @@ void ExplorerListPane::FillList()
         //  whose list is of images that are picked by name. A picker's columns
         //  are fitted again each time its list is filled or filtered.
         size_t  first = (size_t) CatalogModel::Column::Name + (m_context.IsPicker() ? 0 : 1);
+
+        //  A picker's Folder column fits each folder's name, and has room past
+        //  it to show that a path follows, which a hover shows in full.
+        m_list->SetColumnFitStop ((size_t) CatalogModel::Column::Folder, m_context.IsPicker() ? L" (" : L"", s_kFolderPathPeekDip);
 
         for (size_t column = first; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
         {

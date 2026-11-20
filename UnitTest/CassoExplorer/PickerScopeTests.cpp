@@ -233,10 +233,18 @@ public:
         Assert::IsTrue (names.find (L"notes")  == std::wstring::npos, names.c_str());
         Assert::AreEqual ((size_t) 2, browser.GetScopedOutCount(), L"the 800K image and the text file");
 
-        //  The Casso node's list, by the same scope.
+        //  The Casso node's list of the whole subtree, by the same scope.
         AssertSucceeded (browser.SelectTreeNode (TreeModel::kCassoRootId));
-        Assert::AreEqual ((size_t) 1, browser.GetRows().size());
-        Assert::AreEqual (std::wstring (L"a.dsk"), browser.GetRows()[0].name);
+        names.clear();
+
+        for (const CatalogRow & row : browser.GetRows())
+        {
+            names += row.name + L";";
+        }
+
+        Assert::AreEqual ((size_t) 2, browser.GetRows().size(), names.c_str());
+        Assert::IsTrue (names.find (L"a.dsk;") != std::wstring::npos, names.c_str());
+        Assert::IsTrue (names.find (L"c.dsk;") != std::wstring::npos, names.c_str());
     }
 
 
