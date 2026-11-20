@@ -364,7 +364,8 @@ Error:
 //  when the disk is assessed as protected: a damaged disk with no file
 //  system Casso recognizes is assessed alike, and a raw capture of it has
 //  more than its sector image. A disk read again in raw mode is captured
-//  whatever its signs, as is one whose track 0 has no sectors. The capture
+//  whatever its signs, as is one whose track 0 has no sectors, and a blank
+//  disk sent with its drive's number, whose sectors may not be all it has. The capture
 //  draws on the Apple's screen, so the session's screen is drawn again
 //  after it.
 //
@@ -376,7 +377,8 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
     FullSendImage  & image    = disk.image;
     ProtectionSigns  signs    = FullSendProtection::Find (image.sectors);
     bool             rawOnly  = disk.checked->isRawOnly;
-    bool             rawAgain = disk.mode == FullSendSendMode::RawAgain || rawOnly;
+    bool             isBlank  = disk.mode == FullSendSendMode::Anyway && disk.checked->check == FullSendDiskCheck::Blank;
+    bool             rawAgain = disk.mode == FullSendSendMode::RawAgain || rawOnly || isBlank;
     bool             readSign = m_protection.readErrors && !image.unreadable.empty()
                              && std::string (FullSendDisk::AssessDamage (image.sectors, image.report.emptyTracks, (int) image.unreadable.size())) == FullSendManifest::kStatusProtected;
     std::string      reason;
@@ -399,6 +401,10 @@ HRESULT FullSendDiskSend::CaptureProtected (Sending & disk)
                                                                     : std::format ("The disk in drive {} doesn't have a recognized boot loader", disk.drive);
 
         m_context.Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.", disk.drive);
+    }
+    else if (isBlank)
+    {
+        m_context.Report (std::format ("The disk in drive {} looks blank, so it's captured in raw mode too, for anything its sectors don't show.", disk.drive), disk.drive);
     }
 
     m_context.screen.SetDriveState (disk.drive, FullSendDriveState::Capturing);

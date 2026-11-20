@@ -1514,6 +1514,21 @@ public:
         Assert::AreEqual (std::string ("D1: Sent 0002"), session->GetScreen().GetRows()[3]);
     }
 
+    //  A blank disk sent with its drive's key is captured raw too, as what
+    //  reads as blank may have more than its sectors.
+    TEST_METHOD (Session_DriveKey_CapturesABlankDiskRaw)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = BlankDos();
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Drive1 };
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 });
+    }
+
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
     {
         Rig  rig;
