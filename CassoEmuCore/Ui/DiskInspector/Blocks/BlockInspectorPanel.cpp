@@ -27,10 +27,6 @@ static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kInsetDip       = 4;
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
 static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
-static constexpr uint32_t s_kChangedColor   = 0xFFE0A030;
-static constexpr uint32_t s_kDiffersColor   = 0xFFF06060;
-static constexpr uint32_t s_kFieldColor     = 0xFF60B0F0;
-static constexpr uint32_t s_kLinkColor      = 0xFF60D090;
 
 
 
@@ -99,7 +95,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     InitCorners();
     InitRightColumn (theme, hwnd);
 
-    m_hex->SetOwnerWindow (hwnd);
+    m_hexPane.GetHexView().SetOwnerWindow (hwnd);
     Refresh();
 }
 
@@ -152,8 +148,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 {
     m_header.Create (*this, [this] (int64_t delta) { Step (delta); }, [this] () { if (m_onCopy) { m_onCopy(); } }, [this] () { m_jobs.CancelJobs(); });
 
-    m_hex    = CreateChild<BlockHexView>();
-    m_fields = CreateChild<BlockFieldsView>();
+    m_hexPane.Create (*this);
 
     m_nav.Create         (*this, m_model, theme, hwnd, m_text);
     m_nav.SetOnPlace     ([this] () { OnLevelChanged(); });
@@ -188,11 +183,12 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
-    m_hex->SetBytesPerRow  (kBytesPerRow);
-    m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_hex->SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
-    m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
-    m_hex->SetOnClick      ([this] (uint64_t offset)
+    BlockHexView     & hex    = m_hexPane.GetHexView();
+    BlockFieldsView  & fields = m_hexPane.GetFields();
+
+    hex.SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
+    hex.SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
+    hex.SetOnClick      ([this] (uint64_t offset)
     {
         if (!IsBusy() && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
         {
@@ -201,21 +197,11 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
-    m_hex->SetMarkColor ([] (uint8_t mark, uint32_t & outArgb)
-    {
-        outArgb = mark == BlockHexSource::kMarkChanged ? s_kChangedColor
-                : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor
-                : mark == BlockHexSource::kMarkField   ? s_kFieldColor
-                :                                        s_kLinkColor;
-
-        return mark != BlockHexSource::kMarkNone;
-    });
-
-    m_fields->SetOnHover ([this] (const BlockField * field)
+    fields.SetOnHover ([this] (const BlockField * field)
     {
         if (!IsBusy())
         {
-            MarkField (field);
+            m_hexPane.MarkField (*m_model, field);
 
             if (m_onChanged)
             {
@@ -224,7 +210,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         }
     });
 
-    m_fields->SetOnFollow ([this] (const BlockField * field)
+    fields.SetOnFollow ([this] (const BlockField * field)
     {
         if (field != nullptr && field->link != BlockField::kNoLink && !IsBusy())
         {
@@ -336,7 +322,7 @@ void BlockInspectorPanel::OpenBlock (uint32_t block)
 
     if (m_onPressed)
     {
-        m_onPressed (m_hex);
+        m_onPressed (&m_hexPane.GetHexView());
     }
 }
 
@@ -359,7 +345,7 @@ void BlockInspectorPanel::SetEditing (bool isEditing)
 
     if (m_isEditing && m_onPressed)
     {
-        m_onPressed (m_hex);
+        m_onPressed (&m_hexPane.GetHexView());
     }
 }
 
@@ -854,125 +840,18 @@ void BlockInspectorPanel::Present()
 //
 //  BlockInspectorPanel::ShowBytes
 //
-//  The block's bytes, or the header's, with their marks and fields. The hex
-//  view starts over at the top only when the block changes.
+//  The block's number, its capsules and its bytes. The fields list is
+//  fitted again for each new block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::ShowBytes()
 {
-    BlockInspectorModel::Block  bytes  = {};
-    BlockInspectorModel::Block  other  = {};
-    vector<BlockField>          fields;
-    uint32_t                    block  = m_model->GetBlock();
-    int64_t                     shown  = (int64_t) block;
-    HRESULT                     hr     = S_OK;
-    size_t                      i      = 0;
+    m_header.ShowBlock (m_model->GetBlock(), BlockHeaderText::BuildCapsules (*m_model, m_model->GetBlock()));
 
-
-
-    m_header.ShowBlock (block, BlockHeaderText::BuildCapsules (*m_model, block));
-
-    hr = m_model->ReadBlock (block, bytes);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    m_source.SetBytes (bytes);
-    m_model->GetFields (block, bytes, fields);
-    m_fields->SetHeading   (L"Fields in block " + NumberFormat::FormatInteger (block));
-    m_fields->SetEmptyText (L"There are no fields in this block.");
-
-    for (i = 0; i < bytes.size(); i++)
+    if (m_hexPane.ShowBytes (*m_model))
     {
-        if (m_model->GetEdits().IsChanged (block, (int) i))
-        {
-            m_source.SetMark (i, BlockHexSource::kMarkChanged);
-        }
-    }
-
-    if (m_model->IsDifferent (block))
-    {
-        hr = m_model->ReadOtherBlock (block, other);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        for (i = 0; i < bytes.size(); i++)
-        {
-            if (bytes[i] != other[i])
-            {
-                m_source.SetMark (i, BlockHexSource::kMarkDiffers);
-            }
-        }
-    }
-
-    for (const BlockField & field : fields)
-    {
-        if (field.link == BlockField::kNoLink)
-        {
-            continue;
-        }
-
-        for (i = field.offset; i < (size_t) field.offset + field.length; i++)
-        {
-            m_source.SetMark (i, BlockHexSource::kMarkLink);
-        }
-
-        if (field.pairOffset >= 0)
-        {
-            m_source.SetMark ((uint64_t) field.pairOffset, BlockHexSource::kMarkLink);
-        }
-    }
-
-    if (shown != m_shownBlock)
-    {
-        m_fields->SetFields (std::move (fields));
-        m_fieldTip.Hide();
-    }
-    else
-    {
-        m_fields->UpdateFields (std::move (fields));
-    }
-
-    if (shown != m_shownBlock)
-    {
-        m_shownBlock = shown;
-        m_hex->SetSource (&m_source);
-        m_hex->ResetNibble();
         FitFields();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::MarkField
-//
-//  The field under the pointer, marked over the link marks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::MarkField (const BlockField * field)
-{
-    uint32_t  i = 0;
-
-
-
-    ShowBytes();
-
-    if (field == nullptr)
-    {
-        return;
-    }
-
-    for (i = field->offset; i < field->offset + field->length; i++)
-    {
-        m_source.SetMark (i, BlockHexSource::kMarkField);
-    }
-
-    if (field->pairOffset >= 0)
-    {
-        m_source.SetMark ((uint64_t) field->pairOffset, BlockHexSource::kMarkField);
     }
 }
 
@@ -1000,7 +879,7 @@ std::wstring BlockInspectorPanel::BuildBlockText() const
 
     hr = m_model->ReadBlock (m_model->GetBlock(), bytes);
 
-    return SUCCEEDED (hr) ? BlockHeaderText::BuildBlockText (bytes, kBytesPerRow) : std::wstring();
+    return SUCCEEDED (hr) ? BlockHeaderText::BuildBlockText (bytes, BlockHexPane::kBytesPerRow) : std::wstring();
 }
 
 
@@ -1161,56 +1040,12 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::List, { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter });
 
-    m_hex->SetVisible    (true);
-    m_fields->SetVisible (true);
-
     y      = m_header.Layout (column, listEnd + pad / 2 + splitter + pad / 2, m_jobs.IsLongJob(), scaler);
     hexEnd = m_splitters.PlaceHexEnd (column);
 
     m_splitters.SetBarRect (BlockPanelSplitters::Bar::Hex, { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) });
 
-    m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
-    m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
-    FitHexRows (hexEnd - (int) column.left);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::UpdateFieldTip
-//
-//  As Casso Explorer's tree draws a name its pane cuts off: the field row
-//  under the pointer whole, laid over the row and on over the map, at
-//  once, with the pointer passing through to the row. A press, the wheel
-//  or leaving the row hides it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::UpdateFieldTip (const DxuiMouseEvent & ev)
-{
-    int   row = -1;
-    RECT  box = {};
-
-
-
-    if (ev.kind == DxuiMouseEventKind::Move && m_text != nullptr && m_theme != nullptr)
-    {
-        row = m_fields->FindRowAt (ev.positionDip);
-    }
-
-    if (row < 0 || !m_fields->GetClippedRowRect (row, *m_text, box))
-    {
-        m_fieldTip.Hide();
-        return;
-    }
-
-    m_fieldTip.Show (box, m_theme->BackgroundElevated() | 0xFF000000u, [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
-    {
-        m_fields->PaintRowTip (row, painter, text, *m_theme);
-    });
+    m_hexPane.Layout ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, { hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
 }
 
 
@@ -1223,7 +1058,7 @@ void BlockInspectorPanel::UpdateFieldTip (const DxuiMouseEvent & ev)
 //
 //  For each new block, the splitter is moved so the fields list is as wide
 //  as its rows, within the splitter's range, with room left in the hex view
-//  for at least kMinHexBytes in a row.
+//  for at least BlockHexPane::kMinHexBytes in a row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1232,7 +1067,6 @@ void BlockInspectorPanel::FitFields()
     RECT  list   = m_nav.GetList().GetBounds();
     int   width  = (int) (list.right - list.left);
     int   pad    = m_scaler.ToPx ((int) kPadDip);
-    int   bytes  = m_hex->GetBytesPerRow();
     int   hexMin = 0;
 
 
@@ -1242,48 +1076,10 @@ void BlockInspectorPanel::FitFields()
         return;
     }
 
-    m_hex->SetBytesPerRow (kMinHexBytes);
-    hexMin = m_hex->GetContentWidthPx() > 0 ? m_hex->GetContentWidthPx() + m_scaler.ToPx ((int) kHexScrollDip) : 0;
-    m_hex->SetBytesPerRow (bytes);
+    hexMin = m_hexPane.MeasureMinHexPx (m_scaler);
 
-    m_splitters.FitHex ((float) (width - pad - m_fields->MeasureWidthPx (*m_text)) / (float) width, (float) hexMin / (float) width);
+    m_splitters.FitHex ((float) (width - pad - m_hexPane.GetFields().MeasureWidthPx (*m_text)) / (float) width, (float) hexMin / (float) width);
     Layout (GetBounds(), m_scaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::FitHexRows
-//
-//  The most bytes in a row, of 16, 8 and 4, whose columns fit the hex
-//  view's width, so no scroll bar across is drawn. Before the view has
-//  measured its text, the rows stay as they are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::FitHexRows (int widthPx)
-{
-    int  room  = widthPx - m_scaler.ToPx ((int) kHexScrollDip);
-    int  bytes = m_hex->GetBytesPerRow();
-
-
-
-    for (int count : { 16, 8, 4 })
-    {
-        m_hex->SetBytesPerRow (count);
-        bytes = count;
-
-        if (m_hex->GetContentWidthPx() == 0 || m_hex->GetContentWidthPx() <= room)
-        {
-            break;
-        }
-    }
-
-    m_hex->SetBytesPerRow (bytes);
-    m_hexContentPx = m_hex->GetContentWidthPx();
 }
 
 
@@ -1295,50 +1091,13 @@ void BlockInspectorPanel::FitHexRows (int widthPx)
 //  BlockInspectorPanel::GetHexTooltip
 //
 //  A byte's offset, then its field and the field's value, then what the
-//  byte's color marks: a link to another block, an edit not yet written,
-//  or a byte that differs from the other image.
+//  byte's color marks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
-    DxuiHexView::HitResult  hit      = m_hex->IsVisible() ? m_hex->HitTestPoint (pointPx) : DxuiHexView::HitResult();
-    uint8_t                 mark     = BlockHexSource::kMarkNone;
-    const BlockField      * field    = nullptr;
-    int                     noteLine = -1;
-
-
-
-    if (!hit.hit || hit.offset >= m_source.GetByteCount())
-    {
-        return false;
-    }
-
-    m_source.ReadMarks (hit.offset, std::span<uint8_t> (&mark, 1));
-
-    //  A split pointer's high byte lies outside its field, at pairOffset.
-    for (const BlockField & candidate : m_fields->GetFields())
-    {
-        if (field == nullptr && (candidate.Contains ((uint32_t) hit.offset) || candidate.pairOffset == (int) hit.offset))
-        {
-            field = &candidate;
-        }
-    }
-
-    outText = BlockHeaderText::BuildByteTip (hit.offset, mark, field, BlockHeaderText::GetOtherName (*m_model), noteLine);
-
-    if (noteLine >= 0)
-    {
-        outSwatches = { { noteLine, mark == BlockHexSource::kMarkLink ? s_kLinkColor : mark == BlockHexSource::kMarkChanged ? s_kChangedColor : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor : s_kFieldColor } };
-    }
-    else
-    {
-        outSwatches.clear();
-    }
-
-    outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
-
-    return true;
+    return m_hexPane.GetTooltip (pointPx, *m_model, outText, outAnchorPx, outSwatches);
 }
 
 
@@ -1358,12 +1117,8 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     DxuiPanel::Paint (painter, text, theme);
     m_header.Paint (painter, text, theme, m_scaler, m_jobs, m_model != nullptr && m_model->IsOpen());
 
-    //  The hex view measures its text as it paints, so its rows are fitted
-    //  again once their width is known.
-    if (m_hex->GetContentWidthPx() != m_hexContentPx)
+    if (m_hexPane.RefitRows (m_scaler))
     {
-        FitHexRows ((int) (m_hex->GetBounds().right - m_hex->GetBounds().left));
-
         if (m_onChanged)
         {
             m_onChanged();
@@ -1399,7 +1154,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return m_header.GetCancel().IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
     }
 
-    UpdateFieldTip (ev);
+    m_hexPane.UpdateFieldTip (ev, m_text, m_theme);
 
     if (m_splitters.OnMouse (ev, bounds, m_nav.GetList().GetBounds(), (int) bounds.bottom - m_scaler.ToPx ((int) kPadDip), isMoved))
     {
@@ -1441,7 +1196,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     //  each get keys once clicked, until a click elsewhere.
     if (ev.kind == DxuiMouseEventKind::Down && m_onPressed)
     {
-        for (IDxuiControl * child : { (IDxuiControl *) m_hex, (IDxuiControl *) &m_nav.GetCrumbs(), (IDxuiControl *) &m_nav.GetSearch(),
+        for (IDxuiControl * child : { (IDxuiControl *) &m_hexPane.GetHexView(), (IDxuiControl *) &m_nav.GetCrumbs(), (IDxuiControl *) &m_nav.GetSearch(),
                                       (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) &m_nav.GetList() })
         {
             RECT  r = child->GetBounds();
@@ -1464,7 +1219,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl)
     {
-        for (IDxuiControl * child : { (IDxuiControl *) m_hex, (IDxuiControl *) m_fields, (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree() })
+        for (IDxuiControl * child : { (IDxuiControl *) &m_hexPane.GetHexView(), (IDxuiControl *) &m_hexPane.GetFields(), (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree() })
         {
             RECT  r = child->GetBounds();
 

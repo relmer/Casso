@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
-#include "Ui/DiskInspector/Blocks/BlockHexSource.h"
+#include "Ui/DiskInspector/Blocks/BlockHexPane.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
 #include "Ui/DiskInspector/Blocks/BlockJobQueue.h"
 #include "Ui/DiskInspector/Blocks/BlockNavigator.h"
@@ -54,9 +54,6 @@ public:
     static constexpr float  kPadDip       = 8.0f;
     static constexpr float  kSplitterDip  = 6.0f;
     static constexpr float  kSearchDip    = 220.0f;
-    static constexpr int    kMinHexBytes  = 8;       // the fewest bytes in a hex row when the fields are fitted
-    static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
-    static constexpr int    kBytesPerRow  = 16;
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
@@ -130,14 +127,14 @@ public:
 
 
     //  The popup host for a cut-off field row's tip.
-    void  SetPopupHost (DxuiHwndSource * host) { m_fieldTip.SetPopupHost (host); }
+    void  SetPopupHost (DxuiHwndSource * host) { m_hexPane.SetPopupHost (host); }
 
     //  The tip for a byte of the hex view under a point: its field, and what
     //  its color marks. False where there is no byte.
     bool  GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     BlockMapView  & GetMap     () const override { return *m_map; }
-    BlockHexView  * GetHexView () const override { return m_hex; }
+    BlockHexView  * GetHexView () const override { return &m_hexPane.GetHexView(); }
 
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -145,13 +142,8 @@ public:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
-    //  A cut-off field row under the pointer, drawn whole over the row.
-    void  UpdateFieldTip (const DxuiMouseEvent & ev);
-
-    //  The most bytes in a hex row that fit `widthPx`, and the fields list
-    //  as wide as its rows.
-    void  FitHexRows (int widthPx);
-    void  FitFields  ();
+    //  The fields list as wide as its rows.
+    void  FitFields ();
 
     void  InitCorners       ();
     void  InitRightColumn   (const IDxuiTheme * theme, HWND hwnd);
@@ -160,7 +152,6 @@ private:
     void  OnMapSelect       (uint32_t block);
     bool  OnType            (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
     bool  OnNavigateKey     (const DxuiKeyEvent & ev);
-    void  MarkField         (const BlockField * field);
     void  ShowBytes         ();
     void  Present           ();
     void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
@@ -179,12 +170,10 @@ private:
     DxuiIconButton        * m_zoomOut         = nullptr;
     DxuiIconButton        * m_zoomIn          = nullptr;
     BlockNavigator          m_nav;
-    BlockHexView          * m_hex             = nullptr;
-    BlockFieldsView       * m_fields          = nullptr;
-    BlockHexSource          m_source;
     BlockPanelSplitters     m_splitters;
     BlockJobQueue           m_jobs;
     BlockHeaderView         m_header;
+    BlockHexPane            m_hexPane;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
     ActionFn                m_onQueued;
@@ -193,13 +182,10 @@ private:
     HintFn                  m_onHint;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;
-    DxuiInPlaceTip          m_fieldTip;
     const IDxuiTheme      * m_theme           = nullptr;
     bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
     bool                    m_isEditing       = false;
     bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
     bool                    m_isStepping      = false;   // the next block drawn replaces the current location
     int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for
-    int64_t                 m_shownBlock      = -1;
-    int                     m_hexContentPx    = 0;   // the hex view's width for all its columns when the column was laid out
 };
