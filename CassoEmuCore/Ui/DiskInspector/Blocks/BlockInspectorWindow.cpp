@@ -261,12 +261,20 @@ void BlockInspectorWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & 
 
 void BlockInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (DiskInspectorPalette::IsDarkSurface (theme.Background()));
+    DiskInspectorPalette  palette   = DiskInspectorPalette::MakeFallback (DiskInspectorPalette::IsDarkSurface (theme.Background()));
+    bool                  isBusy    = m_worker.IsBusy();
+    std::wstring          selection;
 
 
+
+    //  While a job runs, only the worker's thread reads the model.
+    if (m_model.IsOpen() && !isBusy)
+    {
+        selection = m_panel->GetSelectionLine();
+    }
 
     DxuiPanel::Paint (painter, text, theme);
-    m_status.Paint (painter, text, theme, BlockInspectorState::BuildLead (m_model, m_worker.IsBusy(), m_panel->GetSelectionLine()), palette.colors.sectorBad);
+    m_status.Paint (painter, text, theme, BlockInspectorState::BuildLead (m_model, isBusy, selection), palette.colors.sectorBad);
 }
 
 
