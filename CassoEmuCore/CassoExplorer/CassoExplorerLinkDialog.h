@@ -157,6 +157,8 @@ public:
         DxuiCheckbox    * handshake      = nullptr;
     DxuiLabel       * columnsLabel   = nullptr;
     DxuiCheckbox    * columns        = nullptr;
+    DxuiLabel       * crcLabel       = nullptr;
+    DxuiCheckbox    * crc            = nullptr;
     DxuiLabel       * verifyLabel    = nullptr;
     DxuiComboBox    * verify         = nullptr;
         DxuiLabel       * folderNote     = nullptr;
@@ -300,6 +302,8 @@ private:
     DxuiComboBox                 m_verify;
     DxuiLabel                    m_columnsLabel;
     DxuiCheckbox                 m_columns { L"Use 40-column mode (disable 80-column detection)" };
+    DxuiLabel                    m_crcLabel;
+    DxuiCheckbox                 m_crc { L"Check each block read with a CRC (slower)" };
     DxuiLabel                    m_folderNote;
     DxuiLabel                    m_folderLabel;
     DxuiTextInput                m_folder;

@@ -75,7 +75,7 @@ public:
 
     TEST_METHOD (TheUniDisk_IsReadThroughAnUthernetII)
     {
-        ReadThroughTheCard (true);
+        ReadThroughTheCard (true, true);
     }
 
 
@@ -83,14 +83,23 @@ public:
     //  An empty volume's blocks are sent as runs.
     TEST_METHOD (AnEmptyVolume_IsReadThroughAnUthernetII)
     {
-        ReadThroughTheCard (false);
+        ReadThroughTheCard (false, true);
+    }
+
+
+
+    //  With no CRC, as a link over Ethernet reads by default.
+    TEST_METHOD (TheUniDisk_IsReadThroughAnUthernetII_WithNoCrc)
+    {
+        ReadThroughTheCard (true, false);
     }
 
 
 
     //  The volume, its free blocks random when `random` is set, read through
-    //  the link and compared with the image.
-    static void  ReadThroughTheCard (bool random)
+    //  the link, with each block's CRC when `crc` is set, and compared with
+    //  the image.
+    static void  ReadThroughTheCard (bool random, bool crc)
     {
         std::vector<Byte>                  disk   = MakeDisk (random);
         FakeDiskFileIo                     io;
@@ -160,6 +169,8 @@ public:
 
         connection = network.OfferConnection (listener, HostEndpoint { FakeHostNetwork::kLoopback, 50000 });
         host       = std::make_unique<CassoLinkHost> (std::make_shared<MachineSocketStream> (*machine, connection), folder, [] () { return std::array<Byte, 4> {}; });
+
+        host->SetBlockCrc (crc);
 
         AssertSucceeded (LinkProgram::BuildBlockModule (module, LinkChip::W5100));
         AssertSucceeded (host->EnsureModule (module));

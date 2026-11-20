@@ -107,7 +107,7 @@ void CassoLinkHost::MakeBlockRequest (const CassoLinkBlockDevice & device, uint3
 {
     outRequest = { device.slot, device.unit, (Byte) (device.isSmartPort ? 1 : 0),
                    (Byte) (first & 0xFF), (Byte) ((first >> 8) & 0xFF), (Byte) ((first >> 16) & 0xFF),
-                   count, (Byte) (verify ? 1 : 0), m_progressStart, m_progressEnd };
+                   count, (Byte) ((verify ? CassoLinkCodec::kBlockVerify : 0) | (m_blockCrc ? 0 : CassoLinkCodec::kBlockNoCrc)), m_progressStart, m_progressEnd };
 }
 
 
@@ -118,8 +118,8 @@ void CassoLinkHost::MakeBlockRequest (const CassoLinkBlockDevice & device, uint3
 //
 //  CassoLinkHost::ReadBlocks
 //
-//  Each Block data or Block runs packet must be the next block, whole and
-//  with its CRC.
+//  Each Block plain or Block runs packet must be the next block, whole, and
+//  with its CRC when the host checks them (SetBlockCrc).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +159,7 @@ HRESULT CassoLinkHost::ReadBlocks (const CassoLinkBlockDevice & device, uint32_t
             break;
         }
 
-        hr = CassoLinkCodec::ParseBlock (packet, block, data);
+        hr = CassoLinkCodec::ParseBlock (packet, m_blockCrc, block, data);
         CHR (hr);
 
         valid = block == next;

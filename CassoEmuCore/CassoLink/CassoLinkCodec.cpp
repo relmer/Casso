@@ -259,20 +259,21 @@ Error:
 //
 //  CassoLinkCodec::ParseBlock
 //
-//  Block data's CRC is of the block's bytes; Block runs' is of the block's
-//  number and the bytes as sent, and is checked before they are decoded. A
+//  Block data's and Block plain's CRC is of the block's bytes; Block runs' is
+//  of the block's number and the bytes as sent, and is checked before they
+//  are decoded. A
 //  token cut short by the payload's end, or bytes past a whole block, fail
 //  the packet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkCodec::ParseBlock (const CassoLinkPacket & packet, uint32_t & outBlock, std::vector<Byte> & outData)
+HRESULT CassoLinkCodec::ParseBlock (const CassoLinkPacket & packet, bool checkCrc, uint32_t & outBlock, std::vector<Byte> & outData)
 {
     static constexpr size_t  kNumberSize = 3;
     static constexpr size_t  kCrcSize    = 2;
     HRESULT                  hr          = S_OK;
     const auto             & payload     = packet.payload;
-    bool                     isData      = packet.command == kBlockData && payload.size() == kNumberSize + kBlockSize + kCrcSize;
+    bool                     isData      = (packet.command == kBlockData || packet.command == kBlockPlain) && payload.size() == kNumberSize + kBlockSize + kCrcSize;
     bool                     known       = isData || (packet.command == kBlockRuns && payload.size() >= kNumberSize + kCrcSize);
     bool                     crcOk       = false;
     bool                     whole       = false;
@@ -288,7 +289,7 @@ HRESULT CassoLinkCodec::ParseBlock (const CassoLinkPacket & packet, uint32_t & o
 
     end   = payload.size() - kCrcSize;
     crc   = (Word) (payload[end] | (payload[end + 1] << 8));
-    crcOk = ComputeCrc (std::span<const Byte> (payload).subspan (isData ? kNumberSize : 0, isData ? kBlockSize : end)) == crc;
+    crcOk = !checkCrc || ComputeCrc (std::span<const Byte> (payload).subspan (isData ? kNumberSize : 0, isData ? kBlockSize : end)) == crc;
     CBREx (crcOk, HRESULT_FROM_WIN32 (ERROR_CRC));
 
     outData.reserve (kBlockSize);
@@ -621,7 +622,7 @@ HRESULT CassoLinkCodec::DecodeFramed (std::span<const Byte> in, size_t length, s
     BAIL_OUT_IF (in.size() < total, S_OK);
 
     payload     = in.subspan (kEnvelopeSize, length);
-    payloadOk   = length == 0 || in[3] == kBlockRuns || ComputeEor (payload) == in[kEnvelopeSize + length];
+    payloadOk   = length == 0 || in[3] == kBlockRuns || in[3] == kBlockPlain || ComputeEor (payload) == in[kEnvelopeSize + length];
     outConsumed = total;
     CBREx (payloadOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

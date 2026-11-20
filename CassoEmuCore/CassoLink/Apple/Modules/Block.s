@@ -16,10 +16,12 @@
 ; first the name's length, or zeros when block 2 isn't a volume header.
 ;
 ; Read blocks (CMDBLKREAD): the slot, the unit, the SmartPort flag, the first
-; block (three bytes), the count, the verify flag, and the percentages at the
-; request's start and end. Each block is read, and with verify read again and
-; compared, then sent in a Block data packet (CMDBLKDATA): its number (three
-; bytes), its 512 bytes and their CRC-16/XMODEM, low byte first. Then Status:
+; block (three bytes), the count, the flags (1 to verify, 2 for no CRC), and the
+; percentages at the request's start and end. Each block is read, and with
+; verify read again and compared, then sent in a Block plain packet
+; (CMDBLKPLAIN): its number (three bytes), its 512 bytes and their
+; CRC-16/XMODEM, low byte first, or 0 with no CRC; or, with runs of a byte, in
+; a Block runs packet (CMDBLKRUNS), as sendrle has it. Then Status:
 ; the drive is the slot, the track the unit, the count the blocks done, and
 ; the error the firmware's ($27 I/O error, $28 no device, $2B write
 ; protected, $2F offline) or ERRVERIFY.
@@ -74,7 +76,7 @@ bdrv     = $5F                  ; a ProDOS drive being listed
 bcnt     = $60                  ; and $61, $62: a unit's blocks
 bkind    = $63                  ; and its kind
 blen     = $64                  ; and $65: a reply's length, or a block's CRC
-bxor     = $66                  ; the EOR of a block's bytes, for the packet's check
+bnocrc   = $66                  ; nonzero when a read's blocks go with no CRC
 btmp     = $67                  ; sendblk: the CRC's low byte between a round's two bytes
 rbyte    = $68                  ; sendrle: a run's byte
 rfrom    = $69                  ; and where it starts in the page
@@ -404,7 +406,18 @@ bargs:  sta p_op
         lda p_PKTBUF+6
         sta p_count
         lda p_PKTBUF+7
+        and #1
         sta bvfy
+        lda p_PKTBUF+7
+        and #2
+        sta bnocrc
+        lda #$2C                ; BIT abs: each CRC update is run
+        ldx bnocrc
+        beq bacrc
+        lda #$4C                ; JMP abs: and with no CRC, passed over
+bacrc:  sta srfcrc
+        sta srecrc
+        sta spcrc
         lda p_PKTBUF+8
         sta p_plo
         lda p_PKTBUF+9
@@ -459,12 +472,15 @@ rrbad:  lda #p_ERRVERIFY
         sec
         rts
 
-; sendblk: Block data with bblk and BLKBUF's 512 bytes and their CRC. The CRC
-; is found two bytes a round, by the tables inline, and the bytes' EOR in a
-; second pass four bytes a round; the block is then put whole by putblk.
+; sendblk: Block plain with bblk, BLKBUF's 512 bytes and their CRC, or 0 for
+; a read with no CRC. The CRC is found two bytes a round, by the tables
+; inline. Block plain's EOR isn't checked, so it is 0, and the block is put
+; whole by putblk.
 sendblk: lda #0
         sta p_crclo
         sta p_crchi
+        lda bnocrc
+        bne sbsend
         ldy #0
 sblo:   lda BLKBUF,y
         eor p_crchi
@@ -500,53 +516,31 @@ sbhi:   lda BLKBUF+256,y
         iny
         iny
         bne sbhi
-        lda #0
-sbxlo:  eor BLKBUF,y
-        eor BLKBUF+1,y
-        eor BLKBUF+2,y
-        eor BLKBUF+3,y
-        iny
-        iny
-        iny
-        iny
-        bne sbxlo
-sbxhi:  eor BLKBUF+256,y
-        eor BLKBUF+257,y
-        eor BLKBUF+258,y
-        eor BLKBUF+259,y
-        iny
-        iny
-        iny
-        iny
-        bne sbxhi
-        sta bxor
+sbsend: lda bblk
+        sta bknum
+        lda bblk+1
+        sta bknum+1
+        lda bblk+2
+        sta bknum+2
         ldx #0
 sbhdr:  lda blkhdr,x
         jsr p_putb
         inx
-        cpx #5
+        cpx #8
         bne sbhdr
-        lda #0
-        sta p_peor
-        lda bblk
-        jsr p_putpe
-        lda bblk+1
-        jsr p_putpe
-        lda bblk+2
-        jsr p_putpe
-        lda p_peor
-        eor bxor
-        sta p_peor
         lda #>BLKBUF
         jsr p_putblk
         lda p_crclo
-        jsr p_putpe
+        jsr p_putb
         lda p_crchi
-        jsr p_putpe
-        lda p_peor
+        jsr p_putb
+        lda #0
         jmp p_putb
 
-blkhdr: .byte $C1, <517, >517, CMDBLKDATA, $C1 ^ <517 ^ >517 ^ CMDBLKDATA
+; blkhdr: Block plain's envelope, then the block number, which sendblk
+; writes into it.
+blkhdr: .byte $C1, <517, >517, CMDBLKPLAIN, $C1 ^ <517 ^ >517 ^ CMDBLKPLAIN
+bknum:  .byte 0, 0, 0
 
 ; sendrle: Block runs with bblk and BLKBUF's bytes, the packet written whole
 ; where rlebeg returns. Each byte is sent as it is, a run of n + 4 of a byte
@@ -660,6 +654,7 @@ srnext: cmp BLKBUF+1,y
         cmp #RESC
         beq sresc
 srfast: sta $FFFF,x             ; a byte as it is, with its CRC inline
+srfcrc: bit srfnext               ; a JMP with no CRC
         eor p_crchi
         sta srfh+1
         sta srfl+1
@@ -668,7 +663,7 @@ srfh:   eor p_CRCHI
         sta p_crchi
 srfl:   lda p_CRCLO
         sta p_crclo
-        inx
+srfnext: inx
         bne srfx
         jsr srpage
 srfx:   iny
@@ -714,7 +709,9 @@ srrdone: cpy #0
         rts
 
 ; sremit: A at the packet's next byte, with its CRC. Y is kept.
-sremit: pha
+sremit:
+srecrc: bit srout                 ; a JMP with no CRC
+        pha
         eor p_crchi
         sta srch+1
         sta srcl+1
@@ -878,7 +875,9 @@ rlecount: RLEPG 0
 rlesend: RLEPG 1
 
 ; srput1: A through putb, with its CRC. X and Y are kept.
-srput1: pha
+srput1:
+spcrc:  bit p_putb                ; a JMP with no CRC
+        pha
         eor p_crchi
         sta sph+1
         sta spl+1

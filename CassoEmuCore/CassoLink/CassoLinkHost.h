@@ -258,6 +258,10 @@ public:
     //  Debug build's links and the tests of recovery turn on.
     void     SetFaultProgram (bool faults) { m_faultProgram = faults; m_program.clear(); }
 
+    //  Whether a read's blocks come with their CRC, checked here. A link over
+    //  Ethernet turns it off unless its settings ask for it.
+    void     SetBlockCrc    (bool crc) { m_blockCrc = crc; }
+
     //  A fault for what follows: a PC byte's offset is counted from now, and
     //  the Apple's fault is sent ahead of the request it is for, counted from
     //  now. ERROR_NOT_SUPPORTED for the Apple's when the program has no Fault
@@ -581,6 +585,7 @@ private:
     TraceFn                         m_trace;
     std::string                     m_tracedReady;     // text of the last Ready traced
     bool                            m_faultProgram    = false;
+    bool                            m_blockCrc        = true;
     LinkByteFault                   m_pcFault;
     std::optional<LinkFault>        m_appleFault;
     int                             m_requests        = 0;   // requests sent since the Apple's fault was armed

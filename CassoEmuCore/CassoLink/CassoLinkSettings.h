@@ -54,6 +54,7 @@ struct CassoLinkSettings
     DWORD          bootstrapBaud     = kDefaultBootstrapBaud;
     bool           hardwareHandshake = false;
     bool           use40             = false;    // 40 columns on the Apple even where it has 80
+    bool           blockCrc          = false;    // a read's blocks checked by CRC over Ethernet, as serial's always are
     int            verify            = kVerifyDefault;
     std::wstring   folder;
 
@@ -94,6 +95,10 @@ struct CassoLinkSettings
     //  Whether the connection is over a COM port: a Serial one, or an ADTPro
     //  server with a COM port.
     bool                 IsComPort         () const;
+
+    //  Whether the connection is over Ethernet: an Uthernet II, or an original
+    //  Uthernet or LANceGS over UDP.
+    bool                 IsEthernet        () const;
 
     //  Whether the connection is an Uthernet II with no address, which lists
     //  each Apple whose announcement arrives instead of connecting to one.

@@ -482,7 +482,7 @@ public:
         block0.insert (block0.end(), 256, 0x00);
         block0.insert (block0.end(), 253, 0x7E);
 
-        AssertSucceeded (CassoLinkCodec::ParseBlock (MakeRuns (sent), block, data));
+        AssertSucceeded (CassoLinkCodec::ParseBlock (MakeRuns (sent), true, block, data));
         Assert::AreEqual<uint32_t> (0x030201, block);
         Assert::IsTrue (data == block0, L"the block decoded");
     }
@@ -499,7 +499,7 @@ public:
         packet  = MakeRuns (sent);
         packet.payload.back() ^= 0x01;
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, block, data));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, true, block, data));
     }
 
 
@@ -510,9 +510,9 @@ public:
         const HRESULT      kInvalid = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
 
         //  One byte short, one byte over, and a run cut short by the CRC.
-        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 251, 0x00 }), block, data));
-        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252, 0x00, 0x01 }), block, data));
-        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252 }), block, data));
+        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 251, 0x00 }), true, block, data));
+        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252, 0x00, 0x01 }), true, block, data));
+        Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252 }), true, block, data));
     }
 
 
@@ -536,12 +536,12 @@ public:
         packet.payload.push_back ((Byte) (crc & 0xFF));
         packet.payload.push_back ((Byte) (crc >> 8));
 
-        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, block, data));
+        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, true, block, data));
         Assert::AreEqual<uint32_t> (7, block);
         Assert::IsTrue (data == bytes, L"the block's bytes");
 
         packet.payload[10] ^= 0xFF;
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, block, data));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, true, block, data));
     }
 
 
@@ -555,5 +555,40 @@ public:
 
         Assert::AreEqual (S_OK, DecodeOne (wire, consumed, packet));
         Assert::AreEqual (CassoLinkCodec::kBlockRuns, packet.command);
+    }
+
+    //  With no CRC asked for, a read's CRC isn't checked.
+    TEST_METHOD (Blocks_WithNoCrcAskedFor_AreNotChecked)
+    {
+        CassoLinkPacket    packet = MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 252, 0x00 });
+        std::vector<Byte>  data;
+        uint32_t           block  = 0;
+
+        packet.payload.back() ^= 0x01;
+
+        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, false, block, data));
+        Assert::AreEqual<size_t> (CassoLinkCodec::kBlockSize, data.size());
+    }
+
+
+    //  Block plain is Block data's fields with any EOR, and 0 for its CRC on
+    //  a read with no CRC.
+    TEST_METHOD (BlockPlain_IsDecodedWithAnyEor_AndParsed)
+    {
+        std::vector<Byte>  bytes (CassoLinkCodec::kBlockSize, 0x5A);
+        std::vector<Byte>  wire     = { 0xC1, (Byte) (517 & 0xFF), (Byte) (517 >> 8), CassoLinkCodec::kBlockPlain, (Byte) (0xC1 ^ (517 & 0xFF) ^ (517 >> 8) ^ CassoLinkCodec::kBlockPlain), 0x09, 0x00, 0x00 };
+        CassoLinkPacket    packet;
+        std::vector<Byte>  data;
+        size_t             consumed = 0;
+        uint32_t           block    = 0;
+
+        wire.insert (wire.end(), bytes.begin(), bytes.end());
+        wire.insert (wire.end(), { 0x00, 0x00, 0x00 });
+
+        Assert::AreEqual (S_OK, DecodeOne (wire, consumed, packet));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), CassoLinkCodec::ParseBlock (packet, true, block, data));
+        AssertSucceeded (CassoLinkCodec::ParseBlock (packet, false, block, data));
+        Assert::AreEqual<uint32_t> (9, block);
+        Assert::IsTrue (data == bytes, L"the block's bytes");
     }
 };
