@@ -24,7 +24,8 @@
 
 struct Location
 {
-    enum class Kind { None, HostFolder, DiskImage, DiskDirectory, Root, RecycleBin, ShellFolder, AppleDrive };
+    //  A partition is the list of the volumes in a partition of an image.
+    enum class Kind { None, HostFolder, DiskImage, DiskDirectory, Root, RecycleBin, ShellFolder, AppleDrive, Partition };
 
     Kind          kind = Kind::None;
     std::wstring  path;
@@ -42,6 +43,7 @@ struct Location
 
     static Location  MakeHostFolder    (const std::wstring & path)                              { return Location { Kind::HostFolder,    path, std::string() }; }
     static Location  MakeDiskImage     (const std::wstring & path)                              { return Location { Kind::DiskImage,     path, std::string() }; }
+    static Location  MakePartition     (const std::wstring & path)                              { return Location { Kind::Partition,     path, std::string() }; }
     static Location  MakeDiskDirectory (const std::wstring & path, const std::string & inner)   { return Location { Kind::DiskDirectory, path, inner }; }
     static Location  MakeRoot          (const std::wstring & id)                                { return Location { Kind::Root,          id,   std::string() }; }
     static Location  MakeRecycleBin    ()                                                       { return Location { Kind::RecycleBin,    kRecycleBinId, std::string() }; }

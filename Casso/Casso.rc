@@ -17,6 +17,11 @@ IDI_CASSO_PHOTOREAL          ICON "..\\Resources\\Icons\\Casso-3-photoreal.ico"
 // the program for its type.
 IDI_DISK_IMAGE               ICON "..\\Resources\\Icons\\Casso-disk-image.ico"
 
+// A partition's icon in the block inspector's tree, for dark and light
+// surfaces.
+IDI_PARTITION_DARK           ICON "..\\Resources\\Icons\\Casso-partition-dark.ico"
+IDI_PARTITION_LIGHT          ICON "..\\Resources\\Icons\\Casso-partition-light.ico"
+
 // Embedded default machine configs (extracted to Machines/<name>/<name>.json
 // on first run by AssetBootstrap::EnsureMachineConfigs). Sources live under
 // Resources/ which is tracked; the runtime Machines/ tree is .gitignored

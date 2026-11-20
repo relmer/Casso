@@ -965,6 +965,7 @@
     <ClCompile Include="Machines\Apple2\Common\HfsVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsWriter.cpp" />
     <ClCompile Include="Devices\Disk\BlockVolumeOpener.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\ApmLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CffaLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\FocusDriveLayout.cpp" />
@@ -1175,6 +1176,7 @@
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindowRepair.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockNavigator.cpp" />
@@ -1831,6 +1833,7 @@
     <ClInclude Include="Machines\Apple2\Common\HfsVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsWriter.h" />
     <ClInclude Include="Devices\Disk\BlockVolumeOpener.h" />
+    <ClInclude Include="Devices\Disk\Partitions\ApmLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\CffaLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\FocusDriveLayout.h" />

@@ -189,7 +189,7 @@ void CollectionWalk::WalkBytes (const std::string & path, const std::string & na
         return;
     }
 
-    isFilled = layout == PartitionLayoutKind::Cffa || layout == PartitionLayoutKind::FocusDrive
+    isFilled = layout == PartitionLayoutKind::Apm || layout == PartitionLayoutKind::Cffa || layout == PartitionLayoutKind::FocusDrive
             || layout == PartitionLayoutKind::MicroDrive || layout == PartitionLayoutKind::Ppm;
 
     if (isLoaded && !isFilled && (kind != VolumeKind::Unknown || parts.empty()))

@@ -156,8 +156,9 @@ public:
     void  GetFolderChildren  (const Location & location, std::vector<BrowserModel::AddressSegment> & outChildren) { BrowserModel::GetFolderChildren (m_fs, location, outChildren); }
 
     //  The folder holding a host path, or empty at a drive root.
-    static std::wstring  GetParentFolder (const std::wstring & path);
-    static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);
+    static std::wstring  GetParentFolder   (const std::wstring & path);
+    static std::wstring  JoinPath          (const std::wstring & folder, const std::wstring & name);
+    static bool          IsPartitionVolume (const std::wstring & path);
 
     void  SortByColumn     (int column);
 

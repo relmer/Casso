@@ -7,6 +7,9 @@
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "Seams/IShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 
@@ -157,12 +160,28 @@ void ExplorerThemes::Apply()
 
     m_context.tabManager.ApplyTheme (*m_context.theme);
 
-    if (m_context.window.GetHwnd() != nullptr)
+    //  An icon with a version for each surface, as a partition's, is drawn
+    //  for the theme's.
     {
         uint32_t  background = m_context.theme->Background();
         int       luminance  = (int) (((background >> 16) & 0xFF) * 299 + ((background >> 8) & 0xFF) * 587 + (background & 0xFF) * 114) / 1000;
 
-        DxuiDwm::ApplyImmersiveDarkMode (m_context.window.GetHwnd(), luminance < 128);
+        m_context.shellIcons.SetDarkSurface (luminance < 128);
+        m_context.listPane.SetDarkSurface (luminance < 128);
+
+        //  The tree's nodes have icons from when they were listed, so a
+        //  change of surface lists them again.
+        if (m_isDark != (luminance < 128) && m_context.treePane.GetControl() != nullptr)
+        {
+            m_context.treePane.RefreshTree();
+        }
+
+        m_isDark = luminance < 128;
+
+        if (m_context.window.GetHwnd() != nullptr)
+        {
+            DxuiDwm::ApplyImmersiveDarkMode (m_context.window.GetHwnd(), luminance < 128);
+        }
     }
 
     m_context.window.Invalidate();

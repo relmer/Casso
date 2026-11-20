@@ -22,6 +22,10 @@
 //  at Load and stays so after each flush, so a check for a change made since
 //  a read detects only a change by something else.
 //
+//  A DurableCommit of the image works too: the temporary path doesn't exist,
+//  its flush commits the host file, and the replace and remove that follow
+//  have nothing left to do.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class WrappedImageFileIo : public IDiskFileIo
@@ -41,10 +45,10 @@ public:
     HRESULT  WriteAt                (const std::string & path, uint64_t offset, std::span<const Byte> bytes) override;
     HRESULT  ReadAt                 (const std::string & path, uint64_t offset, std::span<Byte> outBytes) override;
     HRESULT  Stat                   (const std::string & path, FileStamp & outStamp) override;
-    bool     Exists                 (const std::string & path) override { (void) path; return true; }
-    HRESULT  Remove                 (const std::string & path) override { (void) path; return E_NOTIMPL; }
+    bool     Exists                 (const std::string & path) override { return path == m_imagePath; }
+    HRESULT  Remove                 (const std::string & path) override { (void) path; return S_OK; }
     HRESULT  ListFiles              (const std::string & folder, std::vector<std::string> & outNames) override { (void) folder; outNames.clear(); return E_NOTIMPL; }
-    HRESULT  ReplaceAtomically      (const std::string & tempPath, const std::string & targetPath) override { (void) tempPath; (void) targetPath; return E_NOTIMPL; }
+    HRESULT  ReplaceAtomically      (const std::string & tempPath, const std::string & targetPath) override { (void) tempPath; return targetPath == m_imagePath ? S_OK : E_NOTIMPL; }
     HRESULT  FlushToStorage         (const std::string & path) override;
     HRESULT  CopyFileMetadata       (const std::string & fromPath, const std::string & toPath) override { (void) fromPath; (void) toPath; return S_OK; }
     HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override { (void) tempPath; (void) targetPath; return E_NOTIMPL; }
@@ -62,6 +66,7 @@ private:
     static ContainerPath  ParseWrapped (const std::string & path);
 
     IDiskFileIo        & m_host;
+    std::string          m_imagePath;
     ContainerPath        m_path;
     std::vector<Byte>    m_bytes;
     std::string          m_innerName;

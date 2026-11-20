@@ -35,6 +35,9 @@ public:
     explicit ExplorerListPane (ExplorerContext & context);
     ~ExplorerListPane ();
 
+    //  Whether the list's icons are drawn on a dark surface.
+    void  SetDarkSurface (bool isDark);
+
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
     void  Create             ();

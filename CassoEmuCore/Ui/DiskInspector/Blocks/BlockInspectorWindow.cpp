@@ -280,8 +280,11 @@ void BlockInspectorWindow::OnCreate()
     m_panel = CreateChild<BlockInspectorPanel>();
     m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
 
-    m_icons.SetDpi    (GetDpiForWindow (GetHwnd()));
-    m_icons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI));
+    m_isDarkSurface = m_theme == nullptr || DiskInspectorPalette::IsDarkSurface (m_theme->Background());
+
+    m_icons.SetDpi         (GetDpiForWindow (GetHwnd()));
+    m_icons.SetSizePx      (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI));
+    m_icons.SetDarkSurface (m_isDarkSurface);
     m_panel->GetNavigator().SetIcons     (&m_icons);
     m_panel->GetNavigator().SetPopupHost (GetPopupHost());
     m_panel->SetPopupHost                (GetPopupHost());
@@ -1448,89 +1451,6 @@ void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::FormatCardIntro
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BlockInspectorWindow::FormatCardIntro (const std::wstring & fileName)
-{
-    std::wstring  name = RepairDialog::FormatName (fileName);
-
-
-
-    return L"Repairing a partition writes a repaired copy of it to an image file you choose. " + name + L" on the card isn't changed. "
-           L"Select the repairs below to apply to the repaired image.";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::FormatCaution
-//
-//  For a volume that is only Possible inconsistencies, whose findings can
-//  be normal for the disk: a DOS volume has the track inspector's caution,
-//  as DOS Master's larger DOS image is in sectors that aren't in any file.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring BlockInspectorWindow::FormatCaution (bool isDos)
-{
-    return isDos ? L"These findings can be normal on a disk made by another DOS or by a program that uses the VTOC or catalog differently. "
-                   L"Repair a disk like this only when it doesn't work."
-                 : L"These findings can be normal on a disk made by a program that allocates blocks differently. "
-                   L"Repair a disk like this only when it doesn't work.";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::IsOnRemovableDrive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BlockInspectorWindow::IsOnRemovableDrive (const fs::path & path)
-{
-    wchar_t  root[MAX_PATH] = {};
-
-
-
-    return GetVolumePathNameW (path.c_str(), root, MAX_PATH) && GetDriveTypeW (root) == DRIVE_REMOVABLE;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::HasRoomFor
-//
-//  Room for the copy and a margin. A drive whose free space can't be read
-//  is taken to have room, and the write reports a failure.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BlockInspectorWindow::HasRoomFor (const fs::path & folder, uint64_t bytes)
-{
-    ULARGE_INTEGER  available = {};
-
-
-
-    return !GetDiskFreeSpaceExW (folder.c_str(), &available, nullptr, nullptr) || available.QuadPart >= bytes + kRoomMarginBytes;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorWindow::CopyBlock
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1911,10 +1831,24 @@ void BlockInspectorWindow::NoteFileGone()
 
 void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
 {
+    bool  isDark = DiskInspectorPalette::IsDarkSurface (theme->Background());
+
+
+
     m_theme = theme;
 
     SetTheme (theme);
     m_tooltip.SetTheme (*theme);
+
+    //  A theme on the other surface takes the icons drawn for it.
+    if (isDark != m_isDarkSurface && m_panel != nullptr)
+    {
+        m_isDarkSurface = isDark;
+        m_icons.SetDarkSurface (isDark);
+        m_panel->GetNavigator().InvalidateIcons();
+        m_panel->GetNavigator().Sync();
+    }
+
     Invalidate();
 }
 

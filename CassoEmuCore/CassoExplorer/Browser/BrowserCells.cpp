@@ -1001,6 +1001,12 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
         return icons.GetForDiskImage (CassoExplorerBrowser::JoinPath (at.path, row.name));
     }
 
+    //  A partition of an image has the partition's icon.
+    if (row.isPartition)
+    {
+        return icons.GetForKind (IShellIcons::Kind::Partition);
+    }
+
     //  A disk image has Casso's floppy wherever else it is listed, one inside
     //  a zip too, as does a linked Apple's drive.
     if (row.isDiskImage || (TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) && drive != 0)
@@ -1090,6 +1096,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetLocationIcon (const Locati
         case Location::Kind::HostFolder:    return icons.GetForPath (at.path, true);
         case Location::Kind::ShellFolder:   return icons.GetForPath (at.path, true);
         case Location::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
+        case Location::Kind::Partition:     return icons.GetForKind (IShellIcons::Kind::Partition);
         case Location::Kind::DiskDirectory: return icons.GetForKind (IShellIcons::Kind::Folder);
         case Location::Kind::RecycleBin:    return icons.GetForKind (IShellIcons::Kind::RecycleBin);
         case Location::Kind::Root:
@@ -1211,6 +1218,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetNodeIcon (const TreeNode &
         //  Every remaining node is a drive or a host folder; a disk image node
         //  has Casso's floppy.
         case TreeNode::Kind::DiskImage:     return icons.GetForKind (IShellIcons::Kind::DiskImage);
+        case TreeNode::Kind::Partition:     return icons.GetForKind (IShellIcons::Kind::Partition);
         default:                            return icons.GetForTreePath (node.location.path, true);
     }
 }

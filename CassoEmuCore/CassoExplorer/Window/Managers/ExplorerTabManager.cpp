@@ -510,6 +510,7 @@ void ExplorerTabManager::FillTabs()
             case Location::Kind::RecycleBin:    tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
             case Location::Kind::DiskDirectory: tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
             case Location::Kind::DiskImage:     tab.icon = m_context.shellIcons.GetForPath (location.path, false);     break;
+            case Location::Kind::Partition:     tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::Partition); break;
             default:                            tab.icon = SearchQuery::IsId (location.path) ? m_context.shellIcons.GetForKind (IShellIcons::Kind::Search)
                                                                                          : m_context.shellIcons.GetForPath (location.path, true);
                                                 break;

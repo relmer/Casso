@@ -6,6 +6,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Archives/ContainerPath.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 #pragma comment(lib, "shlwapi.lib")
@@ -241,6 +242,10 @@ HRESULT CassoExplorerBrowser::Refresh()
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
             hr = m_loader.LoadImage (location.path, (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string());
+            break;
+
+        case Location::Kind::Partition:
+            hr = m_loader.LoadPartition (location.path);
             break;
 
         case Location::Kind::Root:
@@ -1258,6 +1263,29 @@ std::wstring CassoExplorerBrowser::JoinPath (const std::wstring & folder, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::IsPartitionVolume
+//
+//  True for the path of a partition's volume, whose last step is a
+//  partition step such as `#3.po`, and false for a file in an archive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsPartitionVolume (const std::wstring & path)
+{
+    size_t  bar   = path.rfind (L'|');
+    int     index = 0;
+
+
+
+    return bar != std::wstring::npos && PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (path.substr (bar + 1)), index);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::GetParentFolder
 //
 //  A drive root such as C:\ has no parent; the folder directly under it
@@ -1391,7 +1419,10 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
     }
     else if (m_isPartitionList)
     {
-        outLocation = Location::MakeDiskImage (m_rows[row].containerPath);
+        //  A partition of an image opens as the list of its volumes, and a
+        //  volume or a card's partition as its catalog.
+        outLocation = (m_rows[row].isPartition && !PhysicalCards::IsOnCard (m_rows[row].containerPath)) ? Location::MakePartition (m_rows[row].containerPath)
+                                                                                                         : Location::MakeDiskImage (m_rows[row].containerPath);
     }
     else if (!IsVolumeLocation() && !m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
     {
@@ -1596,6 +1627,7 @@ bool CassoExplorerBrowser::CanGoUp() const
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
         case Location::Kind::AppleDrive:
+        case Location::Kind::Partition:
             return true;
 
         case Location::Kind::ShellFolder:
@@ -1634,11 +1666,21 @@ bool CassoExplorerBrowser::TryGetUpTarget (Location & outTarget) const
     {
         outTarget = Location::MakeDiskImage (location.path);
     }
+    else if (location.kind == Location::Kind::Partition)
+    {
+        //  A partition goes up to the image it is in.
+        outTarget = Location::MakeDiskImage (location.path.substr (0, location.path.rfind (L'|')));
+    }
     else if (PhysicalCards::IsOnCard (location.path))
     {
         //  A partition goes up to its card, and a card to This PC.
         outTarget = PhysicalCards::IsCardPath (location.path) ? Location::MakeRoot (TreeModel::kThisPcRootId)
                                                               : Location::MakeDiskImage (location.path.substr (0, location.path.find (L'|')));
+    }
+    else if (location.kind == Location::Kind::DiskImage && IsPartitionVolume (location.path))
+    {
+        //  A partition's volume goes up to its partition.
+        outTarget = Location::MakePartition (location.path);
     }
     else if (location.kind == Location::Kind::AppleDrive)
     {

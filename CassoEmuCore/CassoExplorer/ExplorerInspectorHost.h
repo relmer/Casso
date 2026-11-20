@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Shell/InspectorRequestQueue.h"
@@ -35,6 +36,9 @@ class IIntentChannel;
 //
 //  The bytes of the first successful read are the comparison source "As
 //  first opened" (FR-117), whatever the window saves or reads afterward.
+//
+//  An image in a gzip file or a ZIP is read and saved through a
+//  WrappedImageFileIo, so a save rebuilds and commits the host file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +90,8 @@ private:
 
     std::shared_ptr<const vector<Byte>>  GetAsInsertedBytes (int drive) override { (void) drive; return m_firstBytes; }
 
-    void  Load ();
+    void           Load      ();
+    IDiskFileIo &  GetFileIo () { return m_wrapped != nullptr ? *m_wrapped : m_fileIo; }
 
     std::wstring                   m_path;
     std::string                    m_utf8Path;
@@ -105,4 +110,8 @@ private:
     bool                                 m_isRead     = false;
     std::function<void ()>         m_onClosed;
     std::function<void (const std::wstring &)>  m_onRepaired;
+
+    //  An image in a gzip file or a ZIP is read and saved through this. It's
+    //  empty for any other file.
+    std::unique_ptr<WrappedImageFileIo>  m_wrapped;
 };
