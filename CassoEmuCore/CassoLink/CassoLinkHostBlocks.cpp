@@ -225,6 +225,7 @@ HRESULT CassoLinkHost::WriteBlocks (const CassoLinkBlockDevice & device, uint32_
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         index = packet.payload[1];
+        ReportNak (packet, std::format ("Block {}", first + (uint32_t) index));
 
         hr = SendBlock (first + (uint32_t) index, data.subspan (index * CassoLinkCodec::kBlockSize, CassoLinkCodec::kBlockSize));
         CHR (hr);
@@ -320,12 +321,14 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
 
 
     sized = payload.size() >= 4;
+    ReportVirtualDrop (sized);
     BAIL_OUT_IF (!sized, S_OK);
 
     drive     = payload[0];
     operation = payload[1];
     block     = (uint32_t) payload[2] | ((uint32_t) payload[3] << 8);
     sized     = payload.size() == ((operation == CassoLinkCodec::kVirtualWrite) ? 4 + CassoLinkVirtualDrives::kBlockSize + 2 : 4);
+    ReportVirtualDrop (sized);
     BAIL_OUT_IF (!sized, S_OK);
 
     if (operation == CassoLinkCodec::kVirtualWrite)
@@ -335,6 +338,12 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
 
         crc    = (Word) (payload[4 + CassoLinkVirtualDrives::kBlockSize] | (payload[5 + CassoLinkVirtualDrives::kBlockSize] << 8));
         intact = CassoLinkCodec::ComputeCrc (written) == crc;
+
+        if (!intact)
+        {
+            ReportActivity (std::format ("Virtual drive {}'s block {} arrived damaged, so the Apple will send it again", drive, block));
+        }
+
         BAIL_OUT_IF (!intact, S_OK);
 
         if (m_virtualDrives != nullptr)

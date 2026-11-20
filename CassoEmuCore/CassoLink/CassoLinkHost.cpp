@@ -883,6 +883,8 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
         listed = index < sectors.size();
         CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
+        ReportNak (packet, std::format ("Track {}, sector {}", track, sectors[index]));
+
         sends++;
         CBREx (sends <= limit, HRESULT_FROM_WIN32 (ERROR_RETRY));
 

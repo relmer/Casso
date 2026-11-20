@@ -239,8 +239,10 @@ public:
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;
 
-    void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
-    void     ReportActivity  (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
+    void     SetActivitySink   (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
+    void     ReportActivity    (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
+    void     ReportVirtualDrop (bool sized) { if (!sized) { ReportActivity ("A virtual drive request arrived damaged, so the Apple will send it again"); } }
+    void     ReportNak         (const CassoLinkPacket & packet, const std::string & item) { if (!packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak) { ReportActivity (item + " arrived damaged on the Apple, so it was sent again"); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
