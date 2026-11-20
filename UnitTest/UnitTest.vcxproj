@@ -298,6 +298,7 @@
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
+    <ClCompile Include="EmuTests\Disk2RomSwapTests.cpp" />
     <ClCompile Include="EmuTests\Disk2Tests.cpp" />
     <ClCompile Include="EmuTests\Disk2NibbleEngineTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageTests.cpp" />

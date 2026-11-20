@@ -21,6 +21,8 @@
 #include "Shell/DiskManager.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/RamDevice.h"
+#include "Devices/RomDevice.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
 #include "Devices/Acia6551.h"
@@ -1272,6 +1274,67 @@ void MachineHost::ConnectDiskToController (int slot, int drive)
     }
 
     controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
+
+    if (drive == 0)
+    {
+        MatchDisk2Rom();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetDisk2Roms
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetDisk2Roms (std::vector<Byte> rom16, std::vector<Byte> rom13, RomDevice * device)
+{
+    m_disk2Rom16     = std::move (rom16);
+    m_disk2Rom13     = std::move (rom13);
+    m_disk2RomDevice = device;
+    m_isDisk2Rom13   = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::MatchDisk2Rom
+//
+//  A real card has one ROM or the other. Swapping it with the disk lets a
+//  13-sector disk boot with PR#6 or a power cycle on any machine with the
+//  card, and a 16-sector disk boot after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::MatchDisk2Rom()
+{
+    DiskImage  *  image  = m_diskStore->GetImage (6, 0);
+    bool          want13 = image != nullptr && ThirteenSectorCodec::IsThirteenSector (*image);
+
+
+
+    if (m_disk2Rom16.empty() || m_disk2Rom13.size() != m_disk2Rom16.size() || want13 == m_isDisk2Rom13)
+    {
+        return;
+    }
+
+    if (m_disk2RomDevice != nullptr)
+    {
+        m_disk2RomDevice->Patch (want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+    else if (m_mmu != nullptr)
+    {
+        m_mmu->PatchSlotRom (6, want13 ? m_disk2Rom13 : m_disk2Rom16);
+    }
+
+    m_isDisk2Rom13 = want13;
 }
 
 
