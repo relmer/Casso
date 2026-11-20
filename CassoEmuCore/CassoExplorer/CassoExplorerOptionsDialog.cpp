@@ -41,9 +41,9 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
       L"That same Civic, with aftermarket faux Acura badges. Same engine, better standing at the car show.",                                                    ".do"  },
     { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",
       L"A right-hand-drive import in Ohio. Everything works, but the drive-through window is on the wrong side. Passing mailmen give you a nod of respect.",    ".po"  },
-    { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",
+    { L".nib: Nibbles, padded past a real track's length",
       L"A Saab 900 Turbo. The key goes in the floor between the seats, and its driver will explain why, whether you want him to or not.",                       ".nib" },
-    { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream",
+    { L".nb2: Nibbles, closer to a real track. For when .nib is too mainstream",
       L"A Pontiac Aztek. A beak only a mother could love, and a tent in the back for when family and friends abandon you due to your automotive proclivities.", ".nb2" },
 };
 
