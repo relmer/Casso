@@ -153,6 +153,41 @@ bool BootProbe::IsHeadAtRest (const Trace & trace, const Limits & limits)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BootProbe::IsMostlyIdle
+//
+//  Whether the motor was off for more than half the last settledSlices
+//  samples, after the screen changed from the one when the drive started.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsMostlyIdle (const Trace & trace, const Limits & limits)
+{
+    size_t  count  = trace.samples.size();
+    size_t  window = (size_t) std::max (limits.settledSlices, 1);
+    size_t  off    = 0;
+    bool    idle   = trace.driveStarted >= 0 && count > (size_t) trace.driveStarted + window;
+
+
+
+    if (idle)
+    {
+        idle = trace.samples.back().frameHash != trace.samples[(size_t) trace.driveStarted].frameHash;
+    }
+
+    for (size_t at = count - window; idle && at < count; at++)
+    {
+        off += trace.samples[at].isMotorOn ? 0 : 1;
+    }
+
+    return idle && off * 2 > window;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BootProbe::ReadLoop
 //
 //  The machine runs a quarter of a second more, sampled often. The settled
@@ -325,6 +360,14 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     {
         verdict   = BootVerdict::Booted;
         outReason = "Screen updates were detected and the drive returned to idle.";
+    }
+    else if (!trace.isBlank && IsMostlyIdle (trace, limits))
+    {
+        //  A game whose title loads more now and then, as Tapper's attract
+        //  mode does, has the motor off most of the time; a loader in the
+        //  middle of a read has it on.
+        verdict   = BootVerdict::Booted;
+        outReason = "The screen changed, and the drive was idle most of the time at the end, loading now and then.";
     }
     else
     {

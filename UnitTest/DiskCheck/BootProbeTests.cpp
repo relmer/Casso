@@ -98,6 +98,17 @@ public:
 
         Assert::IsTrue (BootProbe::Judge (stuck, limits, reason) == BootVerdict::DidNotBoot, L"The screen never changed");
         Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Unclear, L"The head was moving at the limit");
+
+        //  The same, with the motor off for most of the end and on now and
+        //  then, as Tapper's attract mode loads more of its title.
+        for (size_t at = loading.samples.size() - 20; at < loading.samples.size(); at++)
+        {
+            loading.samples[at].isMotorOn = at % 4 == 0;
+        }
+
+        Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Booted, L"The drive idle most of the time at the end");
+        loading.isBlank = true;
+        Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Unclear, L"A blank screen with the drive idle most of the time");
         Assert::IsTrue (BootProbe::Judge (running, limits, reason) == BootVerdict::Booted, L"The motor on and the head at rest at the limit");
         Assert::IsTrue (BootProbe::Judge (idle, limits, reason) == BootVerdict::Unclear, L"The drive never started");
         Assert::IsTrue (BootProbe::Judge (monitor, limits, reason) == BootVerdict::DidNotBoot, L"The monitor's prompt");
