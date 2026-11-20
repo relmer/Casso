@@ -163,7 +163,7 @@ public:
 
 
     //  An empty ring beyond the head's reach has no random bits to read: its
-    //  tip has the track where the head stops, and its swatch
+    //  tip has the line for a track outside the head's range, and its swatch
     //  is the dimmed empty color the platter draws there.
     TEST_METHOD (AnEmptyRingBeyondTheHeadsReach_IsMarkedAsBeyondIt)
     {
@@ -179,7 +179,7 @@ public:
         dim = context.palette.colors.beyondReach;
         tip = InspectorTip::BuildPlatterTip (context, kEmptyRing, 0.5, kOneCell, false);
 
-        Assert::IsTrue   (tip.GetText().ends_with (L"\nBeyond the head's reach\nA Disk II's head stops at track 34.75"), tip.GetText().c_str());
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nTrack outside the range of Disk II's read/write head"), tip.GetText().c_str());
         Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
         Assert::AreEqual (DxuiColor::Mix (context.palette.colors.nothingRecorded, dim | 0xFF000000u, static_cast<float> (dim >> 24) / 255.0f), tip.GetSwatches()[0].argb);
     }

@@ -17,7 +17,7 @@
 
 static const std::wstring  s_kSeparator      = std::wstring (L" ") + s_kpszMiddleDot + L" ";
 static constexpr double    s_kHitReachPx     = 5.0;
-static constexpr LPCWSTR   s_kpszBeyondReach = L"Beyond the head's reach";
+static constexpr LPCWSTR   s_kpszBeyondReach = L"Track outside the range of Disk II's read/write head";
 
 
 
@@ -137,7 +137,6 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         tip.AddColor (DxuiColor::Mix (context.palette.colors.nothingRecorded, context.palette.colors.beyondReach | 0xFF000000u,
                                       static_cast<float> (context.palette.colors.beyondReach >> 24) / 255.0f),
                       s_kpszBeyondReach);
-        tip.AddLine  (L"A Disk II's head stops at track " + InspectorFormat::FormatQuarterTrack (analysis.headLimit));
     }
     else if (track == nullptr || track->framed.cellCount == 0)
     {
