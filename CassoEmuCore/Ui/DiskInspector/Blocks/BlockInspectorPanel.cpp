@@ -3,6 +3,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
+#include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
@@ -851,7 +852,7 @@ void BlockInspectorPanel::Present()
 
     ApplyHighlight();
     ShowBytes();
-    BuildFieldLine();
+    m_fieldLine = BlockHeaderText::BuildFieldLine (*m_model, m_model->GetBlock());
 
     m_previous->SetEnabled (m_model->GetBlock() > 0);
     m_next->SetEnabled     (m_model->GetBlock() + 1 < m_model->GetBlockCount());
@@ -869,50 +870,6 @@ void BlockInspectorPanel::Present()
     if (m_onChanged)
     {
         m_onChanged();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::BuildCapsules
-//
-//  Free or Used, then the block's role for a block in use, drawn red for a
-//  damaged role, then each file the block is in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::BuildCapsules()
-{
-    uint32_t      block  = m_model->GetBlock();
-    SectorRole    role   = m_model->GetRole (block);
-    LPCWSTR       label  = m_model->GetMapLabel (block);
-    bool          isFree = role == SectorRole::Free && label == nullptr;
-    bool          isBad  = role == SectorRole::AllocatedUnowned || role == SectorRole::OwnedMarkedFree || role == SectorRole::CrossLinked;
-    std::wstring  owners = m_model->GetOwners (block);
-    size_t        start  = 0;
-    size_t        end    = 0;
-
-
-
-    m_capsules.clear();
-    m_capsules.push_back ({ isFree ? L"Free" : L"Used", false });
-
-    if (!isFree)
-    {
-        m_capsules.push_back ({ label != nullptr ? label : BlockMap::GetRoleName (role), isBad });
-    }
-
-    while (start < owners.size())
-    {
-        end = owners.find (L'\n', start);
-        end = end == std::wstring::npos ? owners.size() : end;
-
-        m_capsules.push_back ({ owners.substr (start, end - start), false });
-        start = end + 1;
     }
 }
 
@@ -942,7 +899,7 @@ void BlockInspectorPanel::ShowBytes()
 
 
     m_title = L"Block " + NumberFormat::FormatInteger (block);
-    BuildCapsules();
+    m_capsules = BlockHeaderText::BuildCapsules (*m_model, block);
 
     hr = m_model->ReadBlock (block, bytes);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1053,112 +1010,25 @@ void BlockInspectorPanel::MarkField (const BlockField * field)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::BuildFieldLine
-//
-//  The field line: the block's Disk Copy tag bytes, and whether the block
-//  differs from the other image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::BuildFieldLine()
-{
-    uint32_t                    block  = m_model->GetBlock();
-    BlockInspectorModel::Tags   tags   = {};
-    size_t                      differ = m_model->IsComparing() ? m_model->CountDifferent() : 0;
-    std::wstring                other  = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
-    vector<std::wstring>        parts;
-    wchar_t                     hex[4] = {};
-    std::wstring                tagText;
-
-
-
-    if (m_model->TryGetTags (block, tags))
-    {
-        for (Byte tag : tags)
-        {
-            swprintf_s (hex, L" %02X", tag);
-            tagText += hex;
-        }
-
-        parts.push_back (L"Tag bytes:" + tagText);
-    }
-
-    if (m_model->IsComparing())
-    {
-        parts.push_back ((m_model->IsDifferent (block) ? L"Differs from " : L"Same as ") + other
-                         + (differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", NumberFormat::FormatInteger (differ))));
-    }
-
-    m_fieldLine.clear();
-
-    for (const std::wstring & part : parts)
-    {
-        m_fieldLine += (m_fieldLine.empty() ? L"" : L"    ") + part;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorPanel::BuildBlockText
-//
-//  Sixteen bytes a line: the offset, the bytes in hex, and their text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring BlockInspectorPanel::BuildBlockText() const
 {
-    constexpr Byte  kHighBit    = 0x80;
-    constexpr Byte  kFirstGlyph = 0x20;
-    constexpr Byte  kLastGlyph  = 0x7E;
-
-
-
     BlockInspectorModel::Block  bytes = {};
-    std::wstring                text;
-    size_t                      i     = 0;
-    size_t                      j     = 0;
-    Byte                        ch    = 0;
     HRESULT                     hr    = S_OK;
 
 
 
     if (m_model == nullptr || !m_model->IsOpen())
     {
-        return text;
+        return std::wstring();
     }
 
     hr = m_model->ReadBlock (m_model->GetBlock(), bytes);
 
-    if (FAILED (hr))
-    {
-        return text;
-    }
-
-    for (i = 0; i < bytes.size(); i += kBytesPerRow)
-    {
-        text += std::format (L"{:04X} ", i);
-
-        for (j = 0; j < (size_t) kBytesPerRow; j++)
-        {
-            text += std::format (L" {:02X}", bytes[i + j]);
-        }
-
-        text += L"  ";
-
-        for (j = 0; j < (size_t) kBytesPerRow; j++)
-        {
-            ch    = (Byte) (bytes[i + j] & ~kHighBit);
-            text += (ch >= kFirstGlyph && ch <= kLastGlyph) ? (wchar_t) ch : L'.';
-        }
-
-        text += L"\r\n";
-    }
-
-    return text;
+    return SUCCEEDED (hr) ? BlockHeaderText::BuildBlockText (bytes, kBytesPerRow) : std::wstring();
 }
 
 
@@ -1484,11 +1354,10 @@ void BlockInspectorPanel::FitHexRows (int widthPx)
 
 bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
-    DxuiHexView::HitResult  hit   = m_hex->IsVisible() ? m_hex->HitTestPoint (pointPx) : DxuiHexView::HitResult();
-    uint8_t                 mark  = BlockHexSource::kMarkNone;
-    const BlockField      * field = nullptr;
-    std::wstring            note;
-    std::wstring            other;
+    DxuiHexView::HitResult  hit      = m_hex->IsVisible() ? m_hex->HitTestPoint (pointPx) : DxuiHexView::HitResult();
+    uint8_t                 mark     = BlockHexSource::kMarkNone;
+    const BlockField      * field    = nullptr;
+    int                     noteLine = -1;
 
 
 
@@ -1508,25 +1377,11 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
         }
     }
 
-    other   = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
-    outText = std::format (L"Byte ${:03X}", hit.offset);
+    outText = BlockHeaderText::BuildByteTip (hit.offset, mark, field, BlockHeaderText::GetOtherName (*m_model), noteLine);
 
-    if (field != nullptr)
+    if (noteLine >= 0)
     {
-        outText += L"\n" + field->label + (field->value.empty() ? L"" : L": " + field->value);
-    }
-
-    note = mark == BlockHexSource::kMarkLink    ? (field != nullptr && field->link != BlockField::kNoLink ? L"Links to block " + NumberFormat::FormatInteger (field->link) + L". Click to open it." : L"Links to another block")
-         : mark == BlockHexSource::kMarkChanged ? L"Changed, not yet written"
-         : mark == BlockHexSource::kMarkDiffers ? L"Differs from " + other
-         : mark == BlockHexSource::kMarkField   ? L"In the field under the pointer in the field list"
-         :                                        L"";
-
-    if (!note.empty())
-    {
-        outText += L"\n" + note;
-        outSwatches = { { (int) std::count (outText.begin(), outText.end(), L'\n'),
-                          mark == BlockHexSource::kMarkLink ? s_kLinkColor : mark == BlockHexSource::kMarkChanged ? s_kChangedColor : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor : s_kFieldColor } };
+        outSwatches = { { noteLine, mark == BlockHexSource::kMarkLink ? s_kLinkColor : mark == BlockHexSource::kMarkChanged ? s_kChangedColor : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor : s_kFieldColor } };
     }
     else
     {
@@ -1624,7 +1479,7 @@ void BlockInspectorPanel::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer
 
     x += w + gap;
 
-    for (const Capsule & capsule : m_capsules)
+    for (const BlockCapsule & capsule : m_capsules)
     {
         text.MeasureString (capsule.text.c_str(), font, DxuiTheme::kBodyFace, w, h);
         w += 2 * chipP;

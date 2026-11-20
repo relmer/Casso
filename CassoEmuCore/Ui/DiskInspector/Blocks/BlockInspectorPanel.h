@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Ui/DiskInspector/Blocks/BlockHeaderText.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorInterfaces.h"
 #include "Ui/DiskInspector/Blocks/BlockJobQueue.h"
@@ -160,14 +161,6 @@ private:
 
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
-    //  A capsule beside the block's number: Free or Used, the block's role,
-    //  or a file the block is in. A damaged role's capsule is drawn red.
-    struct Capsule
-    {
-        std::wstring  text;
-        bool          isBad = false;
-    };
-
     void  InitCorners       ();
     void  InitRightColumn   (const IDxuiTheme * theme, HWND hwnd);
     bool  IsBlockLevel      () const;
@@ -177,14 +170,12 @@ private:
     bool  OnNavigateKey     (const DxuiKeyEvent & ev);
     void  MarkField         (const BlockField * field);
     void  ShowBytes         ();
-    void  BuildFieldLine    ();
     void  Present           ();
     void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
     void  LayoutMiddle      (const RECT & column, const DxuiDpiScaler & scaler);
     void  PaintHeader       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintProgress     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  ApplyHighlight    ();
-    void  BuildCapsules     ();
 
     BlockInspectorModel   * m_model           = nullptr;
     IDxuiTextRenderer     * m_text            = nullptr;
@@ -215,7 +206,7 @@ private:
     ActionFn                m_onCopy;
     HintFn                  m_onHint;
     std::wstring            m_title;
-    vector<Capsule>         m_capsules;
+    vector<BlockCapsule>    m_capsules;
     std::wstring            m_fieldLine;
     bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;
