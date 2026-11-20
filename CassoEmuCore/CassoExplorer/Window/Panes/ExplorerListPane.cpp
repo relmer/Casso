@@ -1192,11 +1192,7 @@ void ExplorerListPane::FillList()
 
         for (size_t column = first; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
         {
-            if (!ExplorerListColumns::IsListColumnShown (column, m_columns.GetChosen()[column], m_listLocation.kind, false))
-            {
-                continue;
-            }
-
+            //  The list skips a column it hides.
             if (count <= s_kFitAllRowsMax)
             {
                 m_list->AutoFitColumnToContent (column);
