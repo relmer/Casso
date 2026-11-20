@@ -30,17 +30,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CASSO_IIGS_EMULATOR selects the emulator; with it unset, nothing is run.
 //
-//  - "mame" runs MAME's apple2gs, installed with its ROMs. MAME fails the
-//    read-back check of a whole-disk write, which DOS 3.3's INIT, KEGS and
-//    GSplus pass, so the write is skipped on MAME.
-//  - "mame-ssc" runs it with a Super Serial Card in slot 7, with the card's
-//    ROM in MAME's roms\a2ssc. The card's socket listens, and a TCP
-//    serial connection is started once the universal disk waits.
+//  - "mame" runs MAME's apple2gs, installed with its ROMs, through
+//    scripts\EmuTargets\Mame.ps1. MAME fails the read-back check of a
+//    whole-disk write, which DOS 3.3's INIT, KEGS and GSplus pass, so the
+//    write is skipped on MAME.
+//  - "mame-ssc" runs it with a Super Serial Card in slot 7. The card's
+//    socket listens, and a TCP serial connection is started once the
+//    universal disk waits.
 //  - "kegs" and "gsplus" run KEGS and GSplus in the WSL instance
-//    Ubuntu-CassoEmu through /root/kegsrun/run.sh and /root/gsplusrun/run.sh,
-//    with the modem port connected to the Windows host at kPort. Both builds
-//    are patched: $00 bytes from a socket are passed to the 8530, where the
-//    stock builds drop them, and slot 6 boots when slot 7 has no disk.
+//    Ubuntu-CassoEmu through scripts\EmuTargets\Wsl.ps1, which also builds
+//    them, with the modem port connected to the Windows host at kPort.
 //
 //  The link starts at 9,600 baud.
 //
@@ -60,10 +59,6 @@ public:
     static constexpr const char *    kD2Image     = "C:\\gs\\d2.dsk";
     static constexpr const char *    kD2Written   = "C:\\gs\\d2-written.dsk";
     static constexpr const char *    kD2Again     = "C:\\gs\\d2-again.dsk";
-    static constexpr const wchar_t * kKegsStart   = L"wsl.exe -d Ubuntu-CassoEmu -u root -- /root/kegsrun/run.sh";
-    static constexpr const wchar_t * kKegsStop    = L"wsl.exe -d Ubuntu-CassoEmu -u root -- pkill -x xkegs";
-    static constexpr const wchar_t * kGsplusStart = L"wsl.exe -d Ubuntu-CassoEmu -u root -- /root/gsplusrun/run.sh";
-    static constexpr const wchar_t * kGsplusStop  = L"wsl.exe -d Ubuntu-CassoEmu -u root -- pkill -x gsplus";
 
 
 
@@ -71,10 +66,11 @@ public:
     TEST_METHOD (AnAppleIIgs_RunsStory14sOperations)
     {
         std::string                        run      = EmulatorLink::GetSetting ("CASSO_IIGS_EMULATOR");
-        std::filesystem::path              mame     = std::filesystem::path (EmulatorLink::GetSetting ("LOCALAPPDATA")) / "Programs" / "MAME" / "mame.exe";
         std::filesystem::path              folder   = std::filesystem::temp_directory_path() / "CassoIIgs";
         bool                               isSsc    = run == "mame-ssc";
         bool                               isMame   = run == "mame" || isSsc;
+        const wchar_t                    * script   = isMame ? L"Mame.ps1" : L"Wsl.ps1";
+        const wchar_t                    * target   = isSsc ? L"IIgsSsc" : isMame ? L"IIgsModem" : (run == "kegs") ? L"Kegs" : L"Gsplus";
         LinkShimOptions                    options;
         std::vector<Byte>                  linkDisk;
         std::vector<Byte>                  blank (kDiskBytes, 0);
@@ -134,27 +130,11 @@ public:
             AssertSucceeded (session->Start (settings));
         }
 
-        if (run == "kegs")
-        {
-            emulator.stopCommand = kKegsStop;
-            emulator.Start (kKegsStart, folder);
-        }
-        else if (run == "gsplus")
-        {
-            emulator.stopCommand = kGsplusStop;
-            emulator.Start (kGsplusStart, folder);
-        }
-        else
-        {
-            Assert::IsTrue (std::filesystem::exists (mame), L"MAME is installed");
-            std::wstring  port   = isSsc ? L"-sl7 ssc -sl7:ssc:rs232 null_modem" : L"-modem null_modem";
-            std::wstring  socket = isSsc ? L"0.0.0.0" : L"127.0.0.1";
-
-            emulator.Start (std::format (L"\"{}\" apple2gs -flop1 \"{}\" -flop2 \"{}\" {} -bitb socket.{}:{} "
-                                         L"-video none -sound none -skip_gameinfo -seconds_to_run 3600",
-                                         mame.wstring(), (folder / "d1.dsk").wstring(), (folder / "d2.dsk").wstring(), port, socket, kPort),
-                            mame.parent_path());
-        }
+        emulator.stopCommand = EmulatorLink::MakeTargetCommand (script, std::format (L"-Target {} -Stop", target));
+        emulator.Start (EmulatorLink::MakeTargetCommand (script, std::format (L"-Target {} -Disk1 \"{}\" -Disk2 \"{}\" -Port {}{}", target,
+                                                                              (folder / "d1.dsk").wstring(), (folder / "d2.dsk").wstring(), kPort,
+                                                                              isMame ? L" -Headless" : L"")),
+                        folder);
 
         //  The connection prompts only in its first few seconds, so it is
         //  started once the universal disk waits, as a user boots the disk and
