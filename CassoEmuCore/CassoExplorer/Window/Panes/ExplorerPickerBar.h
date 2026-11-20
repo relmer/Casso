@@ -13,11 +13,10 @@ class ExplorerPickerChips;
 //
 //  ExplorerPickerBar
 //
-//  A picker's bar along the bottom of the window: the receiving drive and
-//  the images listed for it, the filter entries as a choice when there are
-//  several, the create command when the request has one, and the confirm
-//  and cancel buttons. In a window that is not a picker it has no controls
-//  and its band has no height.
+//  A picker's bar along the bottom of the window: the filter entries as a
+//  choice when there are several, the create command when the request has
+//  one, and the confirm and cancel buttons. In a window that is not a
+//  picker it has no controls and its band has no height.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,12 +57,19 @@ public:
     bool          HandleNameKey      (const DxuiKeyEvent & ev);
     void          HandleFocusChanged (bool isFocused);
     bool          IsCaretOn          () const;
+    bool          HasNameBox         () const { return m_name != nullptr; }
+
+    //  The bar's buttons as Tab stops, left to right. -1 clears the focus.
+    int   GetButtonCount  () const;
+    bool  IsButtonEnabled (int index) const;
+    void  SetButtonFocus  (int index);
+    bool  HandleButtonKey (int index, const DxuiKeyEvent & ev);
 
 private:
-    void  ShowFilterMenu ();
+    void                      ShowFilterMenu ();
+    std::vector<DxuiButton *> GetButtons     () const;
 
     ExplorerContext      & m_context;
-    DxuiLabel            * m_header           = nullptr;
     ExplorerPickerChips  * m_chips            = nullptr;
     DxuiLabel            * m_nameLabel        = nullptr;
     DxuiTextInput        * m_name             = nullptr;

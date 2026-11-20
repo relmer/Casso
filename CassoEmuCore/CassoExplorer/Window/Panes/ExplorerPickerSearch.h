@@ -37,6 +37,7 @@ public:
     void  Focus  ();
 
     std::wstring  GetText () const;
+    bool          HasBox  () const { return m_box != nullptr; }
 
     bool  HandleMouse        (const DxuiMouseEvent & ev);
     bool  HandleKey          (const DxuiKeyEvent & ev);

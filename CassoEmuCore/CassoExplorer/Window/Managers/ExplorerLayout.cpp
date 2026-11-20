@@ -3,6 +3,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Core/MachineConfig.h"
@@ -169,6 +171,17 @@ void ExplorerLayout::ConfigureWidgets()
     }
 
     m_context.listPane.FillList();
+
+    //  A picker opens with the cursor in its search box, or in a save form's
+    //  file name box.
+    if (m_context.pickerBar.HasNameBox())
+    {
+        m_context.input.SetFocusPane (ExplorerPane::PickerName);
+    }
+    else
+    {
+        m_context.pickerSearch.Focus();
+    }
 }
 
 

@@ -28,7 +28,7 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
 
 
     request.form           = PickerForm::ModalOpen;
-    request.title          = std::format (L"Choose a boot disk - {}", machineName);
+    request.title          = driveLabel.empty() ? std::format (L"Choose a boot disk: {}", machineName) : std::format (L"Choose a boot disk: {}, {}", machineName, driveLabel);
     request.receivingDrive = drive;
     request.driveLabel     = driveLabel;
     request.viewKey        = kViewKey;

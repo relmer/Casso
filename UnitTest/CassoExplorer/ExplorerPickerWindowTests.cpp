@@ -5,6 +5,8 @@
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Model/FocusRing.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -94,7 +96,6 @@ public:
         rig.parts->listPane.FillList();
 
         Assert::AreEqual ((size_t) 2, rig.browser.GetRows().size(), L"the folder and the image, without the text file");
-        Assert::AreEqual (std::wstring (L"Disk II, slot 6 drive 1: 5.25-inch disk images"), rig.parts->pickerMode.GetHeaderText());
         Assert::AreEqual (std::wstring (L"Open"), rig.parts->pickerMode.GetConfirmLabel());
         Assert::IsFalse  (rig.parts->pickerBar.IsConfirmEnabled(), L"nothing is selected");
 
@@ -116,6 +117,41 @@ public:
         Assert::IsTrue   (outcome.isConfirmed);
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), outcome.path);
         Assert::IsTrue   (rig.window.closed);
+    }
+
+
+    //  A picker opens with the cursor in its search box. Tab moves to the box
+    //  just before the list, and to the bar's buttons last.
+    TEST_METHOD (Picker_OpensInSearch_AndTabReachesTheBar)
+    {
+        Rig                     rig;
+        PickerRequest           request;
+        PickerOutcome           outcome;
+        std::vector<FocusStop>  stops;
+        auto                    list = stops.end();
+
+
+
+        request.form           = PickerForm::ModalOpen;
+        request.filters        = { { L"Disk images", L"*.dsk;*.po" }, { L"All files", L"*.*" } };
+        request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+
+        rig.app.picker  = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::PickerSearch, L"the search box has the focus");
+
+        stops = rig.parts->input.BuildFocusStops();
+        list  = std::find (stops.begin(), stops.end(), FocusStop { FocusStop::Kind::List });
+
+        Assert::IsTrue (list != stops.begin() && list != stops.end());
+        Assert::IsTrue ((list - 1)->kind == FocusStop::Kind::PickerSearch, L"the search box comes just before the list");
+        Assert::IsTrue (stops.back().kind == FocusStop::Kind::PickerButton, L"the bar's buttons come last");
+        Assert::AreEqual (rig.parts->pickerBar.GetButtonCount() - 1, stops.back().entry, L"Cancel is the last stop");
+
+        rig.parts->input.SetFocusStop (stops.back());
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::PickerButton);
     }
 
 
@@ -544,7 +580,7 @@ public:
 
         Assert::IsTrue (request.form == PickerForm::ModalOpen);
         Assert::IsTrue (request.receivingDrive.has_value() && request.receivingDrive->kind == ReceivingDriveKind::Floppy525);
-        Assert::AreEqual (std::wstring (L"Choose a boot disk - Apple //e"), request.title);
+        Assert::AreEqual (std::wstring (L"Choose a boot disk: Apple //e, Drive 1"), request.title);
         Assert::AreEqual (std::wstring (StartupDiskPicker::kViewKey), request.viewKey);
         Assert::AreEqual ((size_t) 1, request.stockDisks.size());
         Assert::AreEqual ((size_t) 1, request.demoDisks.size());

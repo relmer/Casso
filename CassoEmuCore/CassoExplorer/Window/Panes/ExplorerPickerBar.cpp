@@ -61,9 +61,6 @@ void ExplorerPickerBar::Create()
         return;
     }
 
-    m_header = m_context.window.CreateChild<DxuiLabel> (m_context.pickerMode.GetHeaderText());
-    m_header->SetElide (DxuiElide::Tail);
-
     if (request->receivingDrive.has_value())
     {
         m_chips = m_context.window.CreateChild<ExplorerPickerChips>();
@@ -155,12 +152,10 @@ void ExplorerPickerBar::Layout (const RECT & band)
 
     if (m_name == nullptr)
     {
-        m_header->Layout (RECT { band.left + scaler.ToPx (kEdgePadDip), band.top, (std::max) (band.left, (LONG) right), band.bottom }, scaler);
         return;
     }
 
-    //  A save form has the file name box where a drive's picker has its
-    //  header.
+    //  A save form has the file name box at the left.
     if (!m_isNameConfigured && m_context.window.GetHwnd() != nullptr)
     {
         m_name->SetTextRenderer   (m_context.window.GetTextRenderer());
@@ -175,7 +170,6 @@ void ExplorerPickerBar::Layout (const RECT & band)
         int  left  = band.left + scaler.ToPx (kEdgePadDip);
         int  label = left + scaler.ToPx (kNameLabelDip);
 
-        m_header->Layout    (RECT { left, band.top, left, band.bottom }, scaler);
         m_nameLabel->Layout (RECT { left, band.top, label, band.bottom }, scaler);
         m_name->Layout      (RECT { label, top, (std::max) (label + scaler.ToPx (kNameMinDip), right), top + height }, scaler);
     }
@@ -355,6 +349,115 @@ void ExplorerPickerBar::HandleFocusChanged (bool isFocused)
 bool ExplorerPickerBar::IsCaretOn() const
 {
     return m_name != nullptr && m_name->IsCaretOn();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::GetButtons
+//
+//  Left to right, as Layout places them from the right edge in reverse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiButton *> ExplorerPickerBar::GetButtons() const
+{
+    std::vector<DxuiButton *>  buttons;
+
+
+
+    for (DxuiButton * button : { m_filter, m_create, m_skip, m_confirm, m_cancel })
+    {
+        if (button != nullptr)
+        {
+            buttons.push_back (button);
+        }
+    }
+
+    return buttons;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::GetButtonCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerPickerBar::GetButtonCount() const
+{
+    return (int) GetButtons().size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::IsButtonEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerBar::IsButtonEnabled (int index) const
+{
+    std::vector<DxuiButton *>  buttons = GetButtons();
+
+
+
+    return index >= 0 && index < (int) buttons.size() && buttons[(size_t) index]->IsEnabled() && buttons[(size_t) index]->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::SetButtonFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerBar::SetButtonFocus (int index)
+{
+    std::vector<DxuiButton *>  buttons = GetButtons();
+
+
+
+    for (size_t i = 0; i < buttons.size(); i++)
+    {
+        buttons[i]->SetFocused ((int) i == index);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::HandleButtonKey
+//
+//  Enter or Space presses the focused button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerBar::HandleButtonKey (int index, const DxuiKeyEvent & ev)
+{
+    if (!IsButtonEnabled (index) || ev.kind != DxuiKeyEventKind::Down || (ev.vk != VK_RETURN && ev.vk != VK_SPACE))
+    {
+        return false;
+    }
+
+    GetButtons()[(size_t) index]->Click();
+
+    return true;
 }
 
 

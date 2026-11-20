@@ -71,13 +71,8 @@ public:
     size_t  GetActiveFilter () const { return m_scope.GetActiveFilter(); }
     void    SetActiveFilter (size_t index);
 
-    //  "Apple 3.5 Drive, slot 5 drive 1: 400K and 800K disk images" for a
-    //  drive, and empty for a request with none.
-    std::wstring  GetHeaderText   () const;
     std::wstring  GetConfirmLabel () const;
     std::wstring  GetFilterLabel  (size_t index) const;
-
-    static std::wstring  MakeHeaderText (const PickerRequest & request);
 
 private:
     bool  TryGetRowFile      (int row, std::wstring & outPath) const;

@@ -602,45 +602,6 @@ void ExplorerPickerMode::SetActiveFilter (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPickerMode::GetHeaderText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ExplorerPickerMode::GetHeaderText() const
-{
-    return m_context.IsPicker() ? MakeHeaderText (*m_context.app.picker) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPickerMode::MakeHeaderText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ExplorerPickerMode::MakeHeaderText (const PickerRequest & request)
-{
-    std::wstring  accepted = request.receivingDrive.has_value() ? DriveImageRule::GetAcceptedText (*request.receivingDrive) : std::wstring();
-
-
-
-    if (request.driveLabel.empty())
-    {
-        return accepted;
-    }
-
-    return accepted.empty() ? request.driveLabel : request.driveLabel + L": " + accepted;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerPickerMode::GetConfirmLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
