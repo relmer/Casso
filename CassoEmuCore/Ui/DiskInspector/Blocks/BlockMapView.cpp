@@ -762,7 +762,7 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
         for (const BlockBand & band : m_bands)
         {
-            if (!band.isMap && band.Contains ((uint32_t) at))
+            if (!band.isMap && !band.isNested && band.Contains ((uint32_t) at))
             {
                 m_onSelect (band.first);
                 return true;
@@ -873,7 +873,8 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  BlockMapView::PaintBands
 //
 //  Each partition across the map's width in proportion to its blocks, with
-//  its label, and a partition map's blocks muted.
+//  its label, and a partition map's blocks muted. A volume inside a
+//  partition isn't drawn over it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -896,6 +897,11 @@ void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     for (const BlockBand & band : m_bands)
     {
+        if (band.isNested)
+        {
+            continue;
+        }
+
         x = bounds.left + width * band.first / count;
         w = std::max (1.0f, width * band.count / count);
 

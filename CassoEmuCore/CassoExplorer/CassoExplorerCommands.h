@@ -242,7 +242,7 @@ public:
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     //  The buttons a location adds to the command bar, after View.
-    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search, DiskImage, DiskImagePair, Results };
+    enum class CommandBarExtra { None, RecycleBin, Archive, ArchiveImage, AppleDrive, Search, DiskImage, DiskImagePair, Results };
 
     std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
 
@@ -563,6 +563,14 @@ private:
     static constexpr ToolbarRow  kArchiveRows[] =
     {
         { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
+    };
+
+    //  The same for a gzip file or a ZIP with a disk image the disk inspector
+    //  opens.
+    static constexpr ToolbarRow  kArchiveImageRows[] =
+    {
+        { kExtractAll,       DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all"        },
+        { kInspectDiskImage, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Search,   L"Inspect",     L"Inspect disk image" },
     };
 
     //  The disk inspector's buttons, after View while disk images are

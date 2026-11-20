@@ -6,7 +6,9 @@
 #include "CassoExplorer/ExplorerInspectorWindow.h"
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Archives/WrappedImageFileIo.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Seams/Win32IntentChannel.h"
 
@@ -15,6 +17,9 @@
 
 
 std::map<UINT_PTR, InspectorWindowSet *>  InspectorWindowSet::s_timers;
+std::wstring                              InspectorWindowSet::s_wrappedPath;
+FileStamp                                 InspectorWindowSet::s_wrappedStamp;
+bool                                      InspectorWindowSet::s_isWrappedBlock = false;
 
 
 
@@ -139,7 +144,46 @@ bool InspectorWindowSet::CanInspect (const std::wstring & path)
 
     std::transform (extension.begin(), extension.end(), extension.begin(), [] (wchar_t c) { return static_cast<wchar_t> (towlower (c)); });
 
+    if (WrappedImageFileIo::IsWrapped (TextEncoding::WideToUtf8 (path)))
+    {
+        return IsWrappedBlockImage (path);
+    }
+
     return HasTrackFormat (path) || std::any_of (s_kBlockExtensions.begin(), s_kBlockExtensions.end(), [&extension] (const wchar_t * known) { return extension == known; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWindowSet::IsWrappedBlockImage
+//
+//  The answer for the last path is reused until its host file changes: the
+//  commands are updated often, and the image is expanded to answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorWindowSet::IsWrappedBlockImage (const std::wstring & path)
+{
+    Win32DiskFileIo  fileIo;
+    std::string      utf8   = TextEncoding::WideToUtf8 (path);
+    FileStamp        stamp;
+    HRESULT          hr     = fileIo.Stat (RepairCopy::GetHostPath (utf8), stamp);
+    bool             isSame = SUCCEEDED (hr) && _wcsicmp (path.c_str(), s_wrappedPath.c_str()) == 0
+                           && stamp.sizeBytes == s_wrappedStamp.sizeBytes && stamp.modifiedUnix == s_wrappedStamp.modifiedUnix;
+
+
+
+    if (!isSame)
+    {
+        s_wrappedPath    = path;
+        s_wrappedStamp   = stamp;
+        s_isWrappedBlock = SUCCEEDED (hr) && BlockImageFile::IsBlockImage (fileIo, utf8);
+    }
+
+    return s_isWrappedBlock;
 }
 
 
@@ -199,7 +243,7 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
 
     entry         = std::make_unique<Entry>();
     entry->key    = key;
-    entry->folder = fs::path (path).parent_path().wstring();
+    entry->folder = fs::path (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (path)))).parent_path().wstring();
     entry->host   = std::make_unique<ExplorerInspectorHost> (path, *m_seams.fileIo);
     isBlock       = m_seams.isBlockImage (path);
     entry->window = isBlock ? m_seams.makeBlockWindow (path) : m_seams.makeWindow();

@@ -28,6 +28,10 @@ TEST_CLASS (TapeRecordingVolumeTests)
 {
 public:
 
+    //  Leaders just long enough for the scanner, so the audio is short.
+    static constexpr TapeRecordingTiming  kShortTiming = { 0.5, 0.25 };
+
+
     static std::vector<Byte> MakeBytes (size_t count, Byte seed)
     {
         std::vector<Byte>  bytes (count);
@@ -71,7 +75,7 @@ public:
 
 
 
-        TapeRecordingWriter::Render (files, audio, sidecar);
+        TapeRecordingWriter::Render (files, audio, sidecar, kShortTiming);
         WavCodec::Encode (audio, wav);
 
         return wav;
