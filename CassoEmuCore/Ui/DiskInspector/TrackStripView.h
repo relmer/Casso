@@ -52,26 +52,6 @@ public:
 
 private:
     void            PaintTrack         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
-    void            PaintCells         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void            PaintTimingLine    (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, float top, float bottom);
-    void            PaintFiles         (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void            DimOutsideFile     (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
-    void            PaintMarquee       (IDxuiPainter & painter, const vector<StripSegment> & parts) const;
-    void            PaintSelection     (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g);
-    void            PaintShimmer       (IDxuiPainter & painter, const StripGeometry & g) const;
-    void            PaintDiffs         (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
-    void            PaintHits          (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
-    void            PaintHead          (IDxuiPainter & painter, const StripGeometry & g) const;
-    bool            IsHeadOnTrack      () const;
-    static LPCWSTR  GetHeadLabel       (HeadActivity activity);
-    void            PaintDividers      (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
-    void            PaintSeam          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void            PaintLabels        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void            PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, bool isInLabelRow);
-    float          GetLabelRowClearance (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g, const NibbleSection & section,
-                                         float x0, float x1) const;
-    float                GetSectorLabel     (IDxuiTextRenderer & text, const AnalyzedSector & sector, float widthPx, std::wstring & outLabel) const;
-    static std::wstring  GetNibbleKindLabel (NibbleKind kind);
     bool                 BuildTip           (POINT pointPx, InspectorTip & outTip) const;
     void                 StepZoomAt         (int steps, double fraction);
     StripGeometry        MakeGeometry       () const;
