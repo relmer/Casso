@@ -327,6 +327,13 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
         verdict   = BootVerdict::NotBootable;
         outReason = "The disk has a ProDOS file system but no boot files.";
     }
+    else if (HasRow (trace.rows, "HAS NO DOS TO BOOT"))
+    {
+        //  An Eamon adventure's disk is a data disk, run from the Eamon master,
+        //  and its boot code prints "THIS DISK HAS NO DOS TO BOOT."
+        verdict   = BootVerdict::NotBootable;
+        outReason = "The disk is a data disk with no DOS to boot.";
+    }
     else if (trace.isTextMode && last.starts_with ("*"))
     {
         verdict   = BootVerdict::DidNotBoot;

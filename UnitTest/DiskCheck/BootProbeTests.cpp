@@ -51,8 +51,8 @@ public:
     //  The verdict from samples alone: a screen that changed with the drive
     //  stopped is a boot; a screen as it was when the drive started is not;
     //  a head moving at the limit is unclear, and one at rest with the motor
-    //  on is a boot; and the text screen's prompts and ProDOS's message are
-    //  read before any of those.
+    //  on is a boot; and the text screen's prompts and the messages of ProDOS
+    //  and of an Eamon data disk are read before any of those.
     TEST_METHOD (Judge_ReadsTheScreenTheHeadAndThePrompts)
     {
         BootProbe::Limits  limits;
@@ -65,6 +65,7 @@ public:
         BootProbe::Trace   basic   = booted;
         BootProbe::Trace   prodos  = booted;
         BootProbe::Trace   data    = booted;
+        BootProbe::Trace   eamon   = booted;
         BootProbe::Trace   running = MakeTrace (120, 1, 11, 22, 50);
 
 
@@ -78,6 +79,7 @@ public:
         basic.rows   = { "?SYNTAX ERROR", "]" };
         prodos.rows  = { "*** UNABLE TO LOAD PRODOS ***" };
         data.rows    = { "This is a data disk, not a startup disk.", "", "]" };
+        eamon.rows   = { "THIS DISK HAS NO DOS TO BOOT.", "INSERT ANOTHER DISK AND PRESS A KEY TO REBOOT." };
 
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"The screen changed and the drive stopped");
 
@@ -115,6 +117,7 @@ public:
         Assert::IsTrue (BootProbe::Judge (basic, limits, reason) == BootVerdict::DidNotBoot, L"A BASIC prompt after an error");
         Assert::IsTrue (BootProbe::Judge (prodos, limits, reason) == BootVerdict::NotBootable, L"ProDOS with no system file");
         Assert::IsTrue (BootProbe::Judge (data, limits, reason) == BootVerdict::NotBootable, L"A later formatter's data disk");
+        Assert::IsTrue (BootProbe::Judge (eamon, limits, reason) == BootVerdict::NotBootable, L"An Eamon adventure's data disk");
         Assert::IsFalse (reason.empty(), L"Each verdict has a reason");
 
         Assert::AreEqual ("did-not-boot", BootProbe::GetVerdictName (BootVerdict::DidNotBoot));
