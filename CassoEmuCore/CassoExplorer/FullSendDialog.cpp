@@ -1420,7 +1420,7 @@ void FullSendPanel::PaintThumb (IDxuiPainter & painter, const IDxuiTheme & theme
 //  FullSendPanel::HandleWheel
 //
 //  The wheel over the disks done or the activity scrolls that list a row a
-//  notch: up toward the newest disk, and up toward older activity.
+//  notch: up toward the newest disk, and down toward older activity.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1450,7 +1450,7 @@ bool FullSendPanel::HandleWheel (const DxuiMouseEvent & ev)
     {
         int64_t  most = lines > 0 ? (int64_t) lines - 1 : 0;
 
-        m_lineScroll = (size_t) std::clamp ((int64_t) m_lineScroll + notches, (int64_t) 0, most);
+        m_lineScroll = (size_t) std::clamp ((int64_t) m_lineScroll - notches, (int64_t) 0, most);
         handled      = true;
     }
 
