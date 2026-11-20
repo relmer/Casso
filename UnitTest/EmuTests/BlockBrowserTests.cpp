@@ -217,6 +217,10 @@ public:
         std::wstring                     tree;
         BlockPlace                       place;
         vector<BlockPlace>               targets;
+        BlockInspectorPanel              panel;
+        DxuiDarkTheme                    theme;
+        DxuiDpiScaler                    scaler;
+        MockDxuiTextRenderer             text;
 
 
 
@@ -263,6 +267,19 @@ public:
         Assert::AreEqual ((size_t) 3, browser.BuildCrumbs (place, L"apm.hdv", targets).size());
         Assert::IsTrue   (targets[1].kind == BlockPlace::Kind::Partition);
         Assert::AreEqual ((size_t) 1, browser.BuildListing (targets[1]).groups[0].rows.size(), L"a partition lists its volume");
+
+        //  A partition or a volume chosen highlights its blocks on the map.
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1400, 800 }, scaler);
+
+        panel.GetNavigator().GoTo (targets[1]);
+        Assert::IsTrue  (model.IsHighlighted (kFirst), L"the partition's first block");
+        Assert::IsTrue  (model.IsHighlighted (kFirst + kCount - 1), L"and its last");
+        Assert::IsFalse (model.IsHighlighted (kFirst + kCount), L"not the next partition's");
+
+        panel.GetNavigator().GoTo (place);
+        Assert::IsTrue  (model.IsHighlighted (kFirst + 2), L"the volume's blocks");
+        Assert::IsFalse (model.IsHighlighted (1), L"not the partition map's");
     }
 
 
