@@ -90,6 +90,7 @@ public:
     static std::wstring                      GetEmptyLocationMessage (Location::Kind kind);
     void                                     UpdateTip               (const DxuiMouseEvent & ev, POINT point);
     void                                     RefreshTip              ();
+    static bool                              IsHostFileRow           (const CatalogRow & row, std::wstring & outPath);
     std::vector<DxuiPopupMenuItem>           GetScrollbarMenu        (const DxuiMouseEvent & ev) const;
     bool                                     UpdateScrollbarHover    (POINT at) { return m_list->SetScrollbarHover (at); }
     LPCWSTR                                  GetCursorForPoint       (POINT clientPx) const;

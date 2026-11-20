@@ -246,6 +246,7 @@ public:
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
         std::vector<TreeNode>  nodes;
+        std::vector<TreeNode>  children;
 
         SeedHost (fs);
         Configure (model);
@@ -259,19 +260,21 @@ public:
         Assert::AreEqual (std::wstring (L"notadisk.dsk"), nodes[2].label);
         Assert::AreEqual (std::wstring (L"prodos.po"),    nodes[3].label);
 
-        //  DOS 3.3: an image with no children and no error.
-        Assert::IsTrue  (nodes[1].kind == TreeNode::Kind::DiskImage);
-        Assert::IsFalse (nodes[1].canExpand);
-        Assert::IsTrue  (nodes[1].loadError.empty());
+        //  An image isn't read until it is expanded, so each has an expander.
+        Assert::IsTrue (nodes[1].kind == TreeNode::Kind::DiskImage);
+        Assert::IsTrue (nodes[1].canExpand);
+        Assert::IsTrue (nodes[2].canExpand);
+        Assert::IsTrue (nodes[3].canExpand);
+        Assert::IsTrue (nodes[3].location == Location::MakeDiskImage (L"C:\\Disks\\prodos.po"));
 
-        //  Not a disk: no affordance, and the loader's reason to show.
-        Assert::IsFalse (nodes[2].canExpand);
-        Assert::IsTrue  (nodes[2].loadError.starts_with (L"notadisk.dsk is "));
-        Assert::IsTrue  (nodes[2].loadError.find (L"143,360 bytes") != std::wstring::npos, L"The size a .dsk image has, as the list gives it");
-
-        //  ProDOS: the subdirectory is a child.
-        Assert::IsTrue  (nodes[3].canExpand);
-        Assert::IsTrue  (nodes[3].location == Location::MakeDiskImage (L"C:\\Disks\\prodos.po"));
+        //  Expanded: DOS 3.3 and the file that isn't a disk have no children,
+        //  and ProDOS has its subdirectory.
+        AssertSucceeded (model.GetChildren (nodes[1].id, children));
+        Assert::IsTrue  (children.empty());
+        AssertSucceeded (model.GetChildren (nodes[2].id, children));
+        Assert::IsTrue  (children.empty());
+        AssertSucceeded (model.GetChildren (nodes[3].id, children));
+        Assert::IsFalse (children.empty());
     }
 
 

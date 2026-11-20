@@ -170,6 +170,15 @@ HRESULT CassoExplorerBrowser::SelectTreeNode (const std::wstring & id)
         m_model.NavigateTo (location);
     }
 
+    //  An image's tree node is read when it is selected or expanded, so the
+    //  list can state why one doesn't open.
+    if (found != m_loader.m_nodes.end() && found->second.kind == TreeNode::Kind::DiskImage && found->second.loadError.empty())
+    {
+        HRESULT  hr = m_tree.ReadImageNode (found->second);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     if (found != m_loader.m_nodes.end() && !found->second.loadError.empty())
     {
         m_rows.clear();

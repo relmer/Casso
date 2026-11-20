@@ -766,6 +766,32 @@ void ExplorerListPane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::IsHostFileRow
+//
+//  A row for a file on this computer, wherever it is listed: the Casso
+//  node's images and the stock and demo disks on the disk have the same tip
+//  as the file in its folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::IsHostFileRow (const CatalogRow & row, std::wstring & outPath)
+{
+    if (row.hostPath.empty() || row.isDirectory || (row.isStockDisk && !row.stockDownloaded))
+    {
+        return false;
+    }
+
+    outPath = row.hostPath;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::RefreshTip
 //
 //  Explorer's tip for the item under the pointer: what the shell says of a
@@ -865,7 +891,8 @@ void ExplorerListPane::RefreshTip()
             //  A broken image's tip says why it is broken.
             details = m_rowProblems[(size_t) row];
         }
-        else if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+        else if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+                 || IsHostFileRow (row0, path))
         {
             //  Not yet read: the tip comes when it is, by a posted message.
             if (!m_context.infoTips.TryGet (path, details) && !m_list->IsItemNameCut (row))

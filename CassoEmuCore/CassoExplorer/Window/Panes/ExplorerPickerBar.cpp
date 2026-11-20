@@ -104,7 +104,7 @@ void ExplorerPickerBar::Create()
     }
 
     m_confirm = m_context.window.CreateChild<DxuiButton> (m_context.pickerMode.GetConfirmLabel());
-    m_confirm->SetVariant (DxuiButton::Variant::Primary);
+    m_confirm->SetEmphasis (true);
     m_confirm->SetOnClick ([this] () { m_context.pickerMode.Confirm(); });
 
     m_cancel = m_context.window.CreateChild<DxuiButton> (L"Cancel");

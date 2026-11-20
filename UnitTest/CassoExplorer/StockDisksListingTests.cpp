@@ -35,7 +35,8 @@ public:
         StockDisksListing::Build (disks, rows);
 
         Assert::AreEqual ((size_t) 2, rows.size());
-        Assert::AreEqual (std::wstring (L"DOS 3.3 System Master"), rows[0].name);
+        Assert::AreEqual (std::wstring (L"DOS 3.3 System Master.dsk"), rows[0].name, L"a disk on this computer is listed by its file name");
+        Assert::AreEqual (std::wstring (L"ProDOS Users Disk"), rows[1].name, L"one not yet downloaded, by its title");
         Assert::AreEqual (std::wstring (L"C:\\Stock\\DOS 3.3 System Master.dsk"), rows[0].hostPath);
         Assert::IsTrue  (rows[0].isStockDisk);
         Assert::IsTrue  (rows[0].stockDownloaded);

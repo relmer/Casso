@@ -26,8 +26,8 @@ public:
     explicit ExplorerPickerBar (ExplorerContext & context);
 
     static constexpr int  kBandDip       = 52;
-    static constexpr int  kButtonDip     = 32;
-    static constexpr int  kEdgePadDip    = 12;
+    static constexpr int  kButtonDip     = DxuiButtonRow::kButtonHeightDip;
+    static constexpr int  kEdgePadDip    = DxuiButtonRow::kEdgePadDip;
     static constexpr int  kGapDip        = 8;
     static constexpr int  kFilterMaxDip  = 320;
     static constexpr int  kNameLabelDip  = 84;
