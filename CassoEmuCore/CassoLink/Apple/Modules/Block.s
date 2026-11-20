@@ -573,7 +573,7 @@ srsamp: lda BLKBUF,x
         jmp sendblk
 srtry:  jsr p_rlebeg
         bcc srgo
-        jmp sendblk
+        jmp srbyput
 srgo:   sta rbase
         sty rbase+1
         stx rmode
@@ -748,6 +748,147 @@ srpgret: rts
 srtoo:  ldx rsp
         txs
         jmp sendblk
+
+; RLEOUT: a byte of Block runs, A. With \1 0 it is counted, in X and rpages;
+; with \1 1 it is sent through putb with its CRC. A, X and Y are kept.
+RLEOUT  macro
+        local   rocount
+        if \1
+        jsr srput1
+        else
+        inx
+        bne rocount
+        inc rpages
+rocount:
+        endif
+        endm
+
+; RLEPG: the page in A of the block as Block runs, each byte through RLEOUT
+; with \1, as srpagein finds them.
+RLEPG   macro
+        local   pgsrc, pgnext, pgrcmp, pgloop, pgx, pgesc, pgrun, pgrl, pgrend, pgshort, pgsone, pglong, pgrdone
+        sta pgsrc+2
+        sta pgnext+2
+        sta pgrcmp+2
+        ldy #0
+pgloop:
+pgsrc:  lda BLKBUF,y
+pgnext: cmp BLKBUF+1,y
+        beq pgrun
+        cmp #RESC
+        beq pgesc
+        RLEOUT \1
+pgx:    iny
+        bne pgloop
+        rts
+pgesc:  RLEOUT \1
+        lda #$FF
+        RLEOUT \1
+        jmp pgx
+pgrun:  sta rbyte
+        sty rfrom
+pgrl:   iny
+        beq pgrend
+pgrcmp: cmp BLKBUF,y
+        beq pgrl
+pgrend: tya
+        sec
+        sbc rfrom
+        beq pglong
+        cmp #4
+        bcs pglong
+        sta rfrom
+pgshort: lda rbyte
+        cmp #RESC
+        bne pgsone
+        RLEOUT \1
+        lda #$FF
+pgsone: RLEOUT \1
+        dec rfrom
+        bne pgshort
+        beq pgrdone             ; always
+pglong: sec
+        sbc #4
+        pha
+        lda #RESC
+        RLEOUT \1
+        pla
+        RLEOUT \1
+        lda rbyte
+        RLEOUT \1
+pgrdone: cpy #0
+        bne pgloop
+        rts
+        endm
+
+; srbyput: Block runs through putb, for a transport with no place to write a
+; packet whole: the 6551, the cassette, and a build with faults. The runs are
+; counted first, since the envelope's length comes ahead of them; with no
+; bytes saved, the block is sent as Block data.
+srbyput: ldx #0
+        stx rpages
+        lda #>BLKBUF
+        jsr rlecount
+        lda #>(BLKBUF+256)
+        jsr rlecount
+        lda rpages
+        cmp #2
+        bcc sbsave
+        jmp sendblk
+sbsave: txa                     ; the payload: the block number, the bytes, the CRC
+        clc
+        adc #5
+        sta p_rlehdr
+        lda rpages
+        adc #0
+        sta p_rlehdr+1
+        lda #$C1
+        jsr p_putb
+        lda p_rlehdr
+        jsr p_putb
+        lda p_rlehdr+1
+        jsr p_putb
+        lda #CMDBLKRUNS
+        jsr p_putb
+        eor #$C1
+        eor p_rlehdr
+        eor p_rlehdr+1
+        jsr p_putb
+        lda #0
+        sta p_crclo
+        sta p_crchi
+        lda bblk
+        jsr srput1
+        lda bblk+1
+        jsr srput1
+        lda bblk+2
+        jsr srput1
+        lda #>BLKBUF
+        jsr rlesend
+        lda #>(BLKBUF+256)
+        jsr rlesend
+        lda p_crclo
+        jsr p_putb
+        lda p_crchi
+        jsr p_putb
+        lda #0
+        jmp p_putb
+
+rlecount: RLEPG 0
+rlesend: RLEPG 1
+
+; srput1: A through putb, with its CRC. X and Y are kept.
+srput1: pha
+        eor p_crchi
+        sta sph+1
+        sta spl+1
+        lda p_crclo
+sph:    eor p_CRCHI
+        sta p_crchi
+spl:    lda p_CRCLO
+        sta p_crclo
+        pla
+        jmp p_putb
 
 ; getblk: the host's Block data for bblk into BLKBUF. C is set on a
 ; timeout, a packet that isn't Block data, another block or a failed CRC. The
