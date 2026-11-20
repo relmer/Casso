@@ -182,6 +182,14 @@ public:
 };
 
 
+//  A note that goes nowhere, for a part with no edit bar.
+class NullBlockEditNote : public IBlockEditNote
+{
+public:
+    void  SetNote (const std::wstring & note) override { (void) note; }
+};
+
+
 //  Repair of the current volume.
 class IBlockRepair
 {

@@ -347,6 +347,7 @@
     <ClCompile Include="EmuTests\BlockEditControllerTests.cpp" />
     <ClCompile Include="EmuTests\BlockFileSessionTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorStateTests.cpp" />
+    <ClCompile Include="EmuTests\BlockRepairControllerTests.cpp" />
     <ClCompile Include="EmuTests\BlockRepairTargetTests.cpp" />
     <ClCompile Include="EmuTests\BlockBrowserTests.cpp" />
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />

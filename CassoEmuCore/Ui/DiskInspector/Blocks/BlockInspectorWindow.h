@@ -17,6 +17,7 @@
 
 class BlockEditController;
 class BlockInspectorPanel;
+class BlockRepairController;
 class IDiskFileIo;
 
 
@@ -107,10 +108,6 @@ protected:
 private:
     void                                  BuildCommands       ();
     static bool                           RunCommand          (const InspectorCommands::Command & command);
-    int                                   GetRepairVolume     () const;
-    void                                  Repair              ();
-    bool                                  PickRepairTarget    (const std::wstring & why, uint64_t bytes, fs::path & ioTarget);
-    void                                  QueueRepairCopy     (int volume, const RepairPlan & plan, bool isCard, const fs::path & target);
     void                                  GoToBlock           ();
     void                                  ShowLevel           (BlockPlace::Kind kind);
     void                                  UpdateTooltip       (POINT pointPx);
@@ -130,6 +127,7 @@ private:
     InspectorStatusBar                      m_status;
     BlockInspectorPanel                   * m_panel       = nullptr;
     std::unique_ptr<BlockEditController>    m_edits;
+    std::unique_ptr<BlockRepairController>  m_repair;
     std::wstring                            m_hint;
     DxuiTooltip                             m_tooltip;
     Win32ShellIcons                         m_icons;

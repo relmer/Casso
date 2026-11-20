@@ -12,7 +12,7 @@
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorState.h"
-#include "Ui/DiskInspector/Blocks/BlockRepairTarget.h"
+#include "Ui/DiskInspector/Blocks/BlockRepairController.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
@@ -208,8 +208,8 @@ void BlockInspectorWindow::BuildCommands()
     c.compareWith->isEnabled   = isOpen;
     c.endComparison            = make (L"&End comparison", L"", [this] () { m_session.EndComparison(); });
     c.endComparison->isEnabled = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_model.IsComparing(); };
-    c.repair                   = make (L"&Repair...", L"", [this] () { Repair(); });
-    c.repair->isEnabled        = [this, isOpen] () { return isOpen() && GetRepairVolume() >= 0; };
+    c.repair                   = make (L"&Repair...", L"", [this] () { m_repair->Repair(); });
+    c.repair->isEnabled        = [this, isOpen] () { return isOpen() && m_repair->CanRepair(); };
 
     //  Window
     c.windowZoomIn  = make (L"Zoom &in", L"Ctrl++", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, 1)); });
@@ -261,7 +261,8 @@ void BlockInspectorWindow::OnCreate()
     m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
     m_session.Attach (*m_panel, *m_panel);
 
-    m_edits = std::make_unique<BlockEditController> (BlockEditController::Parts { m_model, *m_panel, *m_panel, *this, *this, m_session, m_session, m_clipboard });
+    m_edits  = std::make_unique<BlockEditController> (BlockEditController::Parts { m_model, *m_panel, *m_panel, *this, *this, m_session, m_session, m_clipboard });
+    m_repair = std::make_unique<BlockRepairController> (BlockRepairController::Parts { m_model, *m_panel, *m_panel, *m_panel, *this, m_session, *m_edits, m_drives });
 
     m_isDarkSurface = m_theme == nullptr || DiskInspectorPalette::IsDarkSurface (m_theme->Background());
 
@@ -605,217 +606,6 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 LPCWSTR BlockInspectorWindow::GetCursorForPoint (POINT clientPx) const
 {
     return DxuiPanel::GetCursorForPoint (clientPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::GetRepairVolume
-//
-//  The volume of the current place, or the image's only volume.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int BlockInspectorWindow::GetRepairVolume() const
-{
-    int  volume = m_panel->GetNavigator().GetPlace().volume;
-
-
-
-    if (volume < 0 && m_model.GetVolumeCount() == 1)
-    {
-        volume = 0;
-    }
-
-    return volume;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::Repair
-//
-//  The confirmation lists every change the volume can have, and the checked
-//  ones are written to a repaired copy, as the track inspector writes one,
-//  where BlockRepairTarget chooses. The image isn't written.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::Repair()
-{
-    int                     volume = GetRepairVolume();
-    RepairPlan              full   = m_model.PlanRepair (volume, {});
-    RepairDialog            dialog;
-    BlockRepairSource       source;
-    BlockRepairDestination  destination;
-    std::wstring            intro;
-    int                     lines  = 0;
-    std::set<std::wstring>  chosen;
-    HRESULT                 hr     = S_OK;
-
-
-
-    if (m_worker.IsBusy() || !full.canRepair)
-    {
-        ShowWarning (L"Repair isn't available. " + (m_worker.IsBusy() ? std::wstring (L"Wait for the current job to finish.") : full.reason));
-        return;
-    }
-
-    intro = BlockRepairTarget::BuildIntro (m_session.IsOnCard(), m_session.GetFileName(), m_session.GetHostFileName(), full.before == FileSystemVerdict::Suspect, m_model.IsSectorVolume (volume), lines);
-
-    //  Blocks in no file can be another file system's on a hybrid disk or a
-    //  larger DOS image, so freeing them starts unchecked.
-    chosen = DiskRepair::GetKeys (full);
-    chosen.erase (L"unowned");
-
-    dialog.Configure (m_theme, intro, lines, full, [this, volume] (const std::set<std::wstring> & keys) { return m_model.PlanRepair (volume, keys); }, chosen);
-
-    hr = dialog.ShowModal (GetHwnd(), m_theme);
-
-    if (FAILED (hr) || !dialog.IsConfirmed())
-    {
-        return;
-    }
-
-    source.isCard         = m_session.IsOnCard();
-    source.imagePath      = m_session.GetPath();
-    source.hostFileName   = m_session.GetHostFileName();
-    source.volumeLabel    = m_model.GetVolumeMap (volume).volumeName;
-    source.isSectorVolume = m_model.IsSectorVolume (volume);
-    source.volumeBytes    = (uint64_t) m_model.GetVolumeSize (volume) * BlockInspectorModel::kBlockBytes;
-    destination           = BlockRepairTarget::ChooseDestination (source, m_session.GetFileIo(), m_drives);
-
-    if (destination.isUserChoice && !PickRepairTarget (destination.why, destination.bytes, destination.host))
-    {
-        return;
-    }
-
-    QueueRepairCopy (volume, dialog.GetPlan(), source.isCard, destination.host.wstring() + destination.rest);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::PickRepairTarget
-//
-//  The Save dialog opens again until the file isn't the image and its
-//  drive has room for the copy. False when the user cancels.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BlockInspectorWindow::PickRepairTarget (const std::wstring & why, uint64_t bytes, fs::path & ioTarget)
-{
-    std::wstring     extension = ioTarget.has_extension() ? ioTarget.extension().wstring().substr (1) : std::wstring (L"po");
-    FileDialogSpec   spec;
-    fs::path         picked;
-    bool             isPicked  = false;
-    bool             isChosen  = false;
-    std::error_code  error;
-    HRESULT          hr        = S_OK;
-
-
-
-    if (!why.empty())
-    {
-        ShowWarning (why);
-    }
-
-    spec.title            = L"Save the repaired copy";
-    spec.filters          = { { L"Disk images", L"*." + extension } };
-    spec.defaultExtension = extension;
-    spec.defaultFileName  = ioTarget.filename().wstring();
-    spec.initialFolder    = ioTarget.parent_path();
-
-    while (!isChosen)
-    {
-        hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, isPicked);
-
-        if (FAILED (hr) || !isPicked)
-        {
-            return false;
-        }
-
-        if (!m_session.IsOnCard() && (fs::equivalent (picked, m_session.GetPath(), error) || _wcsicmp (fs::absolute (picked, error).wstring().c_str(), fs::absolute (m_session.GetPath(), error).wstring().c_str()) == 0))
-        {
-            ShowWarning (L"That file is the image this window opened. Choose another file for the copy.");
-        }
-        else if (!m_drives.HasRoomFor (picked.parent_path(), bytes))
-        {
-            ShowWarning (L"That drive doesn't have room for the repaired copy. Choose another folder.");
-        }
-        else
-        {
-            isChosen = true;
-        }
-    }
-
-    ioTarget = picked;
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorWindow::QueueRepairCopy
-//
-//  The image copied and the plan's blocks written into the copy, or a card's
-//  partition written whole, on the worker's thread. A copy that fails
-//  partway is deleted.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan, bool isCard, const fs::path & target)
-{
-    auto                   result = std::make_shared<BlockJobResult>();
-    BlockInspectorModel  * model  = &m_model;
-    IDiskFileIo          * fileIo = &m_session.GetFileIo();
-    fs::path               image  = m_session.GetPath();
-
-
-
-    m_edits->SetNote (L"Writing the repaired copy...");
-
-    m_panel->QueueJob ({ L"Writing the repaired copy", false,
-                         [result, model, fileIo, image, target, volume, plan, isCard] (BlockJobProgress & progress)
-                         {
-                             std::string   path       = TextEncoding::WideToUtf8 (target.wstring());
-                             std::wstring  targetHost = TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (path));
-
-                             //  An image in a container is copied with its host file.
-                             if (!isCard && !CopyFileW (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (image.wstring()))).c_str(), targetHost.c_str(), FALSE))
-                             {
-                                 result->hr      = HRESULT_FROM_WIN32 (GetLastError());
-                                 result->message = L"The image can't be copied.";
-                             }
-                             else
-                             {
-                                 result->hr = model->WriteRepairTo (*fileIo, path, volume, plan, isCard, result->message, &progress);
-                             }
-
-                             if (FAILED (result->hr) && fileIo->Exists (TextEncoding::WideToUtf8 (targetHost)))
-                             {
-                                 (void) fileIo->Remove (TextEncoding::WideToUtf8 (targetHost));
-                             }
-                         },
-                         [this, result, target] ()
-                         {
-                             m_edits->SetNote (SUCCEEDED (result->hr) ? L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (RepairCopy::GetHostPath (TextEncoding::WideToUtf8 (target.wstring())))).filename().wstring()
-                                                                      : L"Repair failed: " + (result->message.empty() ? std::wstring (L"The repaired copy can't be written.") : result->message));
-                             m_panel->Refresh();
-                         } });
 }
 
 
