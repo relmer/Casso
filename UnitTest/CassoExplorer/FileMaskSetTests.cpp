@@ -108,4 +108,18 @@ public:
         Assert::AreEqual (std::wstring(),        FileMaskSet (L"*.*").GetFirstExtension());
         Assert::AreEqual (std::wstring(),        FileMaskSet (L"").GetFirstExtension());
     }
+
+    TEST_METHOD (ApplyToName_SwapsKnownExtensions_AndLeavesABareNameForSeveral)
+    {
+        std::vector<FileMaskSet>  all = { FileMaskSet (L"*.dsk;*.po;*.woz"), FileMaskSet (L"*.dsk"), FileMaskSet (L"*.woz"), FileMaskSet (L"*.d13") };
+
+
+
+        Assert::AreEqual (std::wstring (L"Slot 6.woz"),   FileMaskSet::ApplyToName (L"Slot 6.DSK",  all[2], all), L"a known extension is replaced");
+        Assert::AreEqual (std::wstring (L"Slot 6.d13"),   FileMaskSet::ApplyToName (L"Slot 6",      all[3], all), L"a bare name gets the type's extension");
+        Assert::AreEqual (std::wstring (L"v1.2.dsk"),     FileMaskSet::ApplyToName (L"v1.2",        all[1], all), L"an unknown extension is kept");
+        Assert::AreEqual (std::wstring (L"Slot 6"),       FileMaskSet::ApplyToName (L"Slot 6.woz",  all[0], all), L"several extensions leave the name bare");
+        Assert::AreEqual (std::wstring (L"Slot 6.txt"),   FileMaskSet::ApplyToName (L"Slot 6.txt",  all[0], all), L"an unknown extension stays with several");
+        Assert::AreEqual (std::wstring (L"Slot 6.woz"),   FileMaskSet::ApplyToName (L"Slot 6.woz",  FileMaskSet (L"*.*"), all), L"all files leaves the name");
+    }
 };
