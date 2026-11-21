@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/BrowserModel.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
@@ -197,6 +198,21 @@ public:
 
         Assert::IsTrue (host.browser.GetRows().empty());
         Assert::IsFalse (host.browser.GetListError().empty());
+    }
+
+
+    TEST_METHOD (List_DamagedPartitionRowOpensWithTheTreesReason)
+    {
+        CardHost  host;
+        Location  target;
+
+        host.OpenCard();
+        Assert::IsTrue (host.browser.TryGetRowLocation (2, target));
+
+        host.browser.NavigateToLocation (target);
+
+        Assert::IsTrue (host.browser.GetRows().empty());
+        Assert::IsTrue (host.browser.GetListError().ends_with (DiskMessageText::kDamagedPartitionText), host.browser.GetListError().c_str());
     }
 
 

@@ -1333,6 +1333,13 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
 
     CBRF (found != nullptr, hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
+    if (found->partition.damaged)
+    {
+        m_listError = DiskImageCatalog::DescribeDamagedPartition (path.substr (0, bar), *found);
+    }
+
+    CBRF (!found->partition.damaged, hr = HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
     if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs)
     {
         PartitionLayoutKind          innerLayout = PartitionLayoutKind::None;
