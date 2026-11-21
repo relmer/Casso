@@ -11,6 +11,7 @@
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "Seams/CassoHostDialogs.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
@@ -460,6 +461,21 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     //  which the strips over them tint; everything below them is opaque.
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
+
+    //  A save form's colors are the standard Save As dialog's: the navigation
+    //  band darker, the command bar a step lighter and the bar under the
+    //  list lighter again.
+    if (m_parts->context.app.picker != nullptr && m_parts->context.app.picker->IsSave())
+    {
+        for (auto [band, fill] : { std::pair { &m_parts->layout.GetToolbarBand(), theme.Background() },
+                                   std::pair { &m_parts->layout.GetMenuBand(),    DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSaveCommandBarTint) },
+                                   std::pair { &m_parts->layout.GetPickerBand(),  DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint) } })
+        {
+            RECT  rect = band->GetBounds();
+
+            painter.FillRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top), fill);
+        }
+    }
 
     m_parts->preview.PaintBackground (painter, theme);
 

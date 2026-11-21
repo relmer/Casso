@@ -41,6 +41,7 @@ public:
     //  edge: measured at 150%. A 12 dip glyph, 16 dip either side and the
     //  toolbar's 4 dip gap. The command bar's padding follows.
     static constexpr float  kNavButtonPadDip         = 16.0f;
+    static constexpr float  kSaveNavButtonPadDip     = 8.0f;    // a save form's, closer together as in the standard Save As dialog
     static constexpr int    kNavBarPadDp             = 5;
     static constexpr int    kNavAddressGapDp         = 8;       // from the refresh button to the address box
     static constexpr float  kCommandBarPadDip        = 12.0f;
