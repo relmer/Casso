@@ -122,9 +122,10 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         // The band has no height under auto-hide, so the row is placed from
         // the bottom of the strip's area: above the //c's switch strip in a
         // window, which is drawn over anything under it, and the window's
-        // bottom edge in fullscreen.
+        // bottom edge in fullscreen. The slide covers the docked recorder
+        // too, which is as tall as a drive's box when no drives are docked.
         rowTop = stripBottom - (int) slot.cy - bottomGap
-               + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
+               + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (std::max (fan.GetExpandedHeight(), (int) slot.cy) + pad + bottomGap));
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }
 
