@@ -764,8 +764,11 @@ bool CassoLinkSession::IsFullSendRunning() const
 //  CassoLinkSession::Run
 //
 //  The session's thread. A failed connection fails what is queued, so a
-//  request made with no Apple on the line ends instead of waiting; the next
-//  request tries again.
+//  request made with no Apple on the line ends instead of waiting, and the
+//  next request connects again. The thread runs above normal priority, so work
+//  elsewhere on a busy machine doesn't delay its reads of the line. Between
+//  packets it waits in the driver, so it rarely runs. A cassette link
+//  decodes audio on this thread, so it stays at normal priority.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -778,8 +781,15 @@ void CassoLinkSession::Run (std::stop_token stop)
     const char                    * status  = nullptr;
     bool                            server  = m_settings.transport == LinkTransport::AdtProServer;
     std::shared_ptr<LinkOperation>  operation;
+    BOOL                            raised  = FALSE;
 
 
+
+    if (m_settings.transport != LinkTransport::Cassette)
+    {
+        raised = SetThreadPriority (GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        IGNORE_RETURN_VALUE (raised, TRUE);
+    }
 
     if (server)
     {
