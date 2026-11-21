@@ -88,6 +88,7 @@ public:
         DxuiTextHAlign                  alignment  = DxuiTextHAlign::Left;
         int                             wrapIndent = 0;         // characters past the last cell's start that a wrapped line starts at
         std::shared_ptr<const Picture>  picture;
+        bool                            rule       = false;     // a line across the text under the row, in the divider color
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -152,6 +153,11 @@ public:
     //  The picture under a point, as its row and the pixel of the picture;
     //  false off a picture.
     bool  HitTestPicture (POINT point, int & outRow, int & outX, int & outY) const;
+
+    //  A rectangle of a row's picture, in its pixels, outlined in the accent
+    //  color, as the cell under the pointer is; row -1 for none. Returns
+    //  whether the outline moved.
+    bool  SetPictureOutline (int row, const RECT & pictureRect);
 
     void          Select           (Position anchor, Position caret);
     void          SelectAll        ();
@@ -228,7 +234,7 @@ private:
     //  what a double-click selects.
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
-    void          PaintPicture      (IDxuiTextRenderer & text, int lineIndex) const;
+    void          PaintPicture      (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const;
     void          AddPictureLines   (int row, float widthPx);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
@@ -249,6 +255,8 @@ private:
     float                  m_paintShift    = 0.0f;
     std::vector<uint8_t>   m_paintStyles;
     IDxuiPainter         * m_paintPainter  = nullptr;
+    int                    m_outlineRow    = -1;
+    RECT                   m_outlineRect   = {};
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;

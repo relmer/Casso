@@ -58,12 +58,13 @@ public:
 
 
 
-        Assert::AreEqual ((size_t) 6, rows.size(), L"The title, the headings, and a row and a detail for each record");
+        Assert::AreEqual ((size_t) 7, rows.size(), L"The title, the headings, and a row and a detail for each record, a blank row between");
+        Assert::AreEqual (std::wstring (L""), rows[4].cells[0], L"The blank row between records");
         Assert::IsTrue   (rows[1].cells == std::vector<std::wstring> ({ L"Name", L"Class" }));
         Assert::IsTrue   (rows[1].spans[0].bold, L"The headings are bold");
         Assert::IsTrue   (rows[2].cells == std::vector<std::wstring> ({ L"ELVE", L"Bishop" }));
         Assert::IsTrue   (rows[3].cells == std::vector<std::wstring> ({ L"      MACE", L"equipped" }), L"The record's detail is under it, its tab a column");
-        Assert::IsTrue   (outParagraph == std::vector<int> ({ 0, 1, 1, 1, 1, 1 }), L"Each row's paragraph");
+        Assert::IsTrue   (outParagraph == std::vector<int> ({ 0, 1, 1, 1, 1, 1, 1 }), L"Each row's paragraph");
     }
 
 
@@ -77,5 +78,33 @@ public:
         Assert::AreEqual (std::wstring (L"ELVE   Bishop"), rows[1].cells[0]);
         Assert::AreEqual (std::wstring (L""),             rows[3].cells[0]);
         Assert::AreEqual (std::wstring (L"SHADE   Bishop"), rows[4].cells[0]);
+    }
+
+
+    TEST_METHOD (Title_IsBold_WithARuleUnderItAboveTheCards)
+    {
+        std::vector<Paragraph>          document = MakeDocument();
+        auto                            table    = std::make_shared<RecordTable> (*document[1].table);
+        std::vector<DxuiTextView::Row>  narrow;
+        std::vector<DxuiTextView::Row>  wide;
+
+
+
+        table->title       = L"Party";
+        document[1].table  = table;
+        narrow = PreviewText::BuildDocumentRows (document, {}, false);
+        wide   = PreviewText::BuildDocumentRows (document, {}, true);
+
+        Assert::AreEqual (std::wstring (L"Party"), narrow[1].cells[0]);
+        Assert::IsTrue   (narrow[1].spans[0].bold && narrow[1].rule, L"Above the cards, bold with a rule");
+        Assert::AreEqual (std::wstring (L"Party"), wide[1].cells[0]);
+        Assert::IsFalse  (wide[1].rule, L"Above the table, the heading row is the rule");
+        Assert::AreEqual (std::wstring (L"Party"), GetFirstText (FlattenRecordTables (document)[1]), L"and a copy out has the title");
+    }
+
+
+    static std::wstring GetFirstText (const Paragraph & paragraph)
+    {
+        return paragraph.runs.empty() ? std::wstring() : paragraph.runs[0].text;
     }
 };

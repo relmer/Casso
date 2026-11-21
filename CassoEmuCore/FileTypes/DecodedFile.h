@@ -214,7 +214,8 @@ struct Paragraph
 //  row and a row a record where the view is wide enough, and as each
 //  record's card where it isn't. A record has a run for each column, the
 //  lines of its card, and lines under it in either form, such as a
-//  character's inventory.
+//  character's inventory. The title, when there is one, is a bold heading
+//  above either form, with a rule under it above the cards.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,6 +230,7 @@ struct RecordTable
         bool  operator== (const Record &) const = default;
     };
 
+    std::wstring               title;
     std::vector<std::wstring>  headings;
     std::vector<Record>        records;
 
@@ -237,8 +239,9 @@ struct RecordTable
 
 
 
-//  The paragraphs with each table as its records' cards and details, a
-//  blank line between records: the form a narrow view and a copy out use.
+//  The paragraphs with each table as its title in bold and its records'
+//  cards and details, a blank line between records: the form a copy out
+//  uses.
 inline std::vector<Paragraph> FlattenRecordTables (const std::vector<Paragraph> & paragraphs)
 {
     std::vector<Paragraph>  flat;
@@ -249,6 +252,14 @@ inline std::vector<Paragraph> FlattenRecordTables (const std::vector<Paragraph> 
         {
             flat.push_back (paragraph);
             continue;
+        }
+
+        if (!paragraph.table->title.empty())
+        {
+            Paragraph  title;
+
+            title.runs = { Run { paragraph.table->title, true } };
+            flat.push_back (title);
         }
 
         for (size_t i = 0; i < paragraph.table->records.size(); i++)

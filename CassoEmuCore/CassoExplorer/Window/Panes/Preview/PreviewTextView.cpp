@@ -302,6 +302,7 @@ void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
     int                               y       = 0;
     std::wstring                      text;
     std::vector<DxuiTooltipSwatch>    swatches;
+    RECT                              cell    = {};
     bool                              over    = m_text->IsVisible() && ev.kind == DxuiMouseEventKind::Move && preview.kind == PreviewContent::Kind::Document
                                              && ExplorerLayout::Contains (m_text->GetBounds(), ev.positionDip);
 
@@ -309,7 +310,24 @@ void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
 
     if (over && m_text->HitTestPicture (ev.positionDip, row, x, y) && row < (int) m_rowParagraph.size() && m_rowParagraph[(size_t) row] < (int) preview.paragraphs.size())
     {
-        tip = preview.paragraphs[(size_t) m_rowParagraph[(size_t) row]].GetTipAt (x, y);
+        const Paragraph &  paragraph = preview.paragraphs[(size_t) m_rowParagraph[(size_t) row]];
+
+        tip = paragraph.GetTipAt (x, y);
+
+        if (tip != nullptr)
+        {
+            cell.left   = paragraph.tipLeft + (x - paragraph.tipLeft) / paragraph.tipCell * paragraph.tipCell;
+            cell.top    = paragraph.tipTop  + (y - paragraph.tipTop)  / paragraph.tipCell * paragraph.tipCell;
+            cell.right  = cell.left + paragraph.tipCell;
+            cell.bottom = cell.top  + paragraph.tipCell;
+        }
+    }
+
+    //  The cell under the pointer is outlined, as the inspector and the
+    //  debugger's heat map outline theirs.
+    if (m_text->SetPictureOutline (tip != nullptr ? row : -1, cell))
+    {
+        m_context.window.Invalidate();
     }
 
     if (tip == nullptr || tip->lines.empty())
