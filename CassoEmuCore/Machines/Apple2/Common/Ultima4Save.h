@@ -87,6 +87,7 @@ private:
     static bool                          IsBcd              (Byte value);
     static void                          RenderMap          (std::span<const Byte> sectors, std::span<const bool> unreadable, int partyX, int partyY, Paragraph & ioMap);
     static void                          AddCharacter       (const Character & character, RecordTable & ioTable);
+    static void                          AddLegend          (std::vector<Paragraph> & ioParagraphs);
     static void                          AddVirtues         (std::span<const Byte> roster, std::vector<Paragraph> & ioParagraphs);
     static Paragraph                     MakeParagraph      (std::vector<Run> runs);
 };

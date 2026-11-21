@@ -400,7 +400,7 @@ void Ultima4Save::RenderMap (std::span<const Byte> sectors, std::span<const bool
 
             if (isLost)
             {
-                tip.lines.push_back ({ s_kHatchDark, L"Couldn't be read" });
+                tip.lines.push_back ({ kHatchedSwatch, L"Couldn't be read" });
                 continue;
             }
 
@@ -543,12 +543,13 @@ void Ultima4Save::AddCharacter (const Character & character, RecordTable & ioTab
     constexpr int        kHitsPerLevel = 100;
     std::wstring         sex           = character.isFemale ? L"female" : L"male";
     RunColor             status        = (character.status == L'G') ? RunColor::Text : RunColor::Bad;
+    RunColor             nameColor     = (character.status == L'D') ? RunColor::Bad : RunColor::Text;
     int                  level         = character.maxHitPoints / kHitsPerLevel;
     RecordTable::Record  record;
 
 
 
-    record.cells = { Run { character.name, true },
+    record.cells = { Run { character.name, true, false, false, nameColor },
                      Run { GetClassName (character.classIndex) },
                      Run { sex },
                      Run { GetStatusName (character.status), false, false, false, status },
@@ -560,7 +561,7 @@ void Ultima4Save::AddCharacter (const Character & character, RecordTable & ioTab
                      Run { GetArmorName (character.armor) },
                      Run { GetWeaponName (character.weapon) } };
 
-    record.card.push_back (MakeParagraph ({ Run { character.name, true },
+    record.card.push_back (MakeParagraph ({ Run { character.name, true, false, false, nameColor },
                                             Run { std::format (L"   {}, {}", GetClassName (character.classIndex), sex), false, false, false, RunColor::Muted } }));
     record.card.push_back (MakeParagraph ({ Run { GetStatusName (character.status), false, false, false, status },
                                             Run { std::format (L"   HP {} / {}   MP {}", character.hitPoints, character.maxHitPoints, character.magic) } }));
@@ -569,6 +570,40 @@ void Ultima4Save::AddCharacter (const Character & character, RecordTable & ioTab
     record.card.push_back (MakeParagraph ({ Run { std::format (L"Armor: {}   Weapon: {}", GetArmorName (character.armor), GetWeaponName (character.weapon)) } }));
 
     ioTable.records.push_back (std::move (record));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima4Save::AddLegend
+//
+//  A color sample and name for the party and each kind of place on the
+//  world, as one paragraph that wraps to the pane. Hovering over a tile
+//  shows its name, so the legend is short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ultima4Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
+{
+    static constexpr Byte  kShown[] = { 0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x17, 0x1E, 0x4C };
+    std::vector<Run>       runs;
+
+
+
+    runs.push_back (Run { L"Party   ", false, false, false, RunColor::Muted, s_kPartyMark });
+
+    for (Byte tile : kShown)
+    {
+        runs.push_back (Run { GetTileName (tile) + L"   ", false, false, false, RunColor::Muted, GetTileColor (tile) });
+    }
+
+    runs.push_back (Run { L"Other   ",         false, false, false, RunColor::Muted, s_kOtherTile });
+    runs.push_back (Run { L"Couldn't be read", false, false, false, RunColor::Muted, kHatchedSwatch });
+
+    ioParagraphs.push_back (MakeParagraph (std::move (runs)));
 }
 
 
@@ -659,9 +694,7 @@ HRESULT Ultima4Save::Decode (const std::vector<Byte> & sectors, std::span<const 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Ultima IV: Quest of the Avatar", true } }));
     outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the party at column {}, row {}", x, y), false, false, false, RunColor::Muted } }));
     outFile.paragraphs.push_back (std::move (map));
-    outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Party: white square   Blue: water   Green: grass and scrub   Dark green: forest   "
-                                                        L"Tan: hills   Gray: mountains   Gold: town   White: castle   Pink: other   Stripes: couldn't be read",
-                                                        false, false, false, RunColor::Muted } }));
+    AddLegend (outFile.paragraphs);
 
     table->headings = { L"Name", L"Class", L"Sex", L"Status", L"Str / Dex / Int", L"HP", L"MP", L"Level", L"Exp", L"Armor", L"Weapon" };
 

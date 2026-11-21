@@ -529,12 +529,13 @@ void Ultima3Save::AddCharacter (const Character & character, RecordTable & ioTab
 {
     std::wstring         sex     = (character.sex == L'M') ? L"male" : (character.sex == L'F') ? L"female" : L"other";
     bool                 isGood  = character.status == L'G';
+    bool                 isDead  = character.status == L'D' || character.status == L'A';
     RunColor             status  = isGood ? RunColor::Text : RunColor::Bad;
     RecordTable::Record  record;
 
 
 
-    record.cells = { Run { character.name, true },
+    record.cells = { Run { character.name, true, false, false, isDead ? RunColor::Bad : RunColor::Text },
                      Run { GetRaceName (character.race) },
                      Run { GetClassName (character.characterClass) },
                      Run { sex },
@@ -548,7 +549,7 @@ void Ultima3Save::AddCharacter (const Character & character, RecordTable & ioTab
                      Run { GetArmorName (character.armor) },
                      Run { GetWeaponName (character.weapon) } };
 
-    record.card.push_back (MakeParagraph ({ Run { character.name, true },
+    record.card.push_back (MakeParagraph ({ Run { character.name, true, false, false, isDead ? RunColor::Bad : RunColor::Text },
                                             Run { std::format (L"   {} {}, {}", GetRaceName (character.race), GetClassName (character.characterClass), sex),
                                                   false, false, false, RunColor::Muted } }));
     record.card.push_back (MakeParagraph ({ Run { GetStatusName (character.status), false, false, false, status },
@@ -576,18 +577,24 @@ void Ultima3Save::AddCharacter (const Character & character, RecordTable & ioTab
 
 void Ultima3Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
 {
-    std::wstring  text = L"Party: white square   ";
+    std::vector<Run>  runs;
 
 
+
+    runs.push_back (Run { L"Party   ", false, false, false, RunColor::Muted, s_kPartyMark });
 
     for (const auto & terrain : s_kTerrain)
     {
-        text += std::format (L"{}: {}   ", terrain.pszColor, terrain.pszName);
+        std::wstring  name = terrain.pszName;
+
+        name[0] = (wchar_t) towupper (name[0]);
+        runs.push_back (Run { name + L"   ", false, false, false, RunColor::Muted, terrain.argb });
     }
 
-    text += L"Pink: monster or ship   Stripes: couldn't be read";
+    runs.push_back (Run { L"Monster or ship   ", false, false, false, RunColor::Muted, s_kOtherTile });
+    runs.push_back (Run { L"Couldn't be read",   false, false, false, RunColor::Muted, kHatchedSwatch });
 
-    ioParagraphs.push_back (MakeParagraph ({ Run { text, false, false, false, RunColor::Muted } }));
+    ioParagraphs.push_back (MakeParagraph (std::move (runs)));
 }
 
 
@@ -637,7 +644,7 @@ void Ultima3Save::LabelMap (std::span<const Byte> sectors, std::span<const bool>
 
             if (isLost)
             {
-                tip.lines.push_back ({ s_kHatchDark, L"Couldn't be read" });
+                tip.lines.push_back ({ kHatchedSwatch, L"Couldn't be read" });
                 continue;
             }
 
