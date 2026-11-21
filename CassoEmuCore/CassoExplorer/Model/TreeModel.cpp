@@ -724,7 +724,7 @@ HRESULT TreeModel::ListShellFolders (const std::wstring & id, std::vector<TreeNo
 
     for (const IShellItemVerbs::ShellFolderItem & item : items)
     {
-        if (item.isFolder && !(item.isFile && !item.path.empty() && HostFolderReader::IsSupportedImage (item.path)))
+        if (item.isFolder && !HostFolderReader::IsShellImage (item))
         {
             outNodes.push_back (MakeShellNode (item));
         }

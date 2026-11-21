@@ -266,10 +266,10 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;
-        row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && HostFolderReader::IsSupportedImage (row.hostPath);
+        row.isDiskImage  = !row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]);
 
         //  An image in a ZIP has no path on the disk, and opens by the ZIP's.
-        if (!row.isDirectory && row.hostPath.empty() && HostFolderReader::IsSupportedImage (row.name) && m_browser.m_previewer.IsLocalArchivePath (id))
+        if (row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]) && m_browser.m_previewer.IsLocalArchivePath (id))
         {
             row.containerPath = MakeContainerPath (id, row.name);
             row.isDiskImage   = !row.containerPath.empty();

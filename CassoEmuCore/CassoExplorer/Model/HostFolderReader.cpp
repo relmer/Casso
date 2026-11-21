@@ -71,6 +71,25 @@ void HostFolderReader::Classify (const std::wstring & folder, const std::vector<
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HostFolderReader::IsShellImage
+//
+//  Whether an item the shell lists is a disk image: a file with an image's
+//  extension, by its path on the disk, or for one inside a zip, which has
+//  no path, by its name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HostFolderReader::IsShellImage (const IShellItemVerbs::ShellFolderItem & item)
+{
+    return (item.isFile || !item.isFolder) && IsSupportedImage (item.path.empty() ? item.name : item.path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HostFolderReader::JoinPath
 //
 ////////////////////////////////////////////////////////////////////////////////

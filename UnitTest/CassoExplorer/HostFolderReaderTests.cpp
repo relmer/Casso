@@ -110,4 +110,26 @@ public:
         Assert::IsTrue (items[0].kind == HostFolderItem::Kind::Archive);
         Assert::IsTrue (items[1].kind == HostFolderItem::Kind::Image, L"an image is never an archive");
     }
+
+
+
+    TEST_METHOD (IsShellImage_TakesAnImageInAZipByItsName)
+    {
+        IShellItemVerbs::ShellFolderItem  onDisk;
+        IShellItemVerbs::ShellFolderItem  inZip;
+        IShellItemVerbs::ShellFolderItem  folder;
+
+        onDisk.path     = L"C:\\Disks\\game.dsk";
+        onDisk.name     = L"game.dsk";
+        inZip.name      = L"game.dsk";
+        inZip.isFolder  = true;
+        inZip.isFile    = true;
+        folder.name     = L"Disks";
+        folder.path     = L"C:\\Disks";
+        folder.isFolder = true;
+
+        Assert::IsTrue  (HostFolderReader::IsShellImage (onDisk));
+        Assert::IsTrue  (HostFolderReader::IsShellImage (inZip));
+        Assert::IsFalse (HostFolderReader::IsShellImage (folder));
+    }
 };

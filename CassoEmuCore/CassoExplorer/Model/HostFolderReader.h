@@ -55,6 +55,7 @@ public:
     void  Classify  (const std::wstring & folder, const std::vector<FileSystemEntry> & entries, std::vector<HostFolderItem> & outItems) const;
 
     static bool          IsSupportedImage (const std::wstring & fileName);
+    static bool          IsShellImage     (const IShellItemVerbs::ShellFolderItem & item);
     static std::wstring  JoinPath         (const std::wstring & folder, const std::wstring & name);
 
 private:
