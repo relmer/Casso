@@ -280,8 +280,10 @@ public:
     bool  AdvanceReveal        (int64_t nowMs);
     void  ApplyReveal          (float t);
     void  StartCompositorSlide (int fullW, int fullH);
+    void  StartCompositorFade  ();
     void  SetSlideCloaked      (bool cloaked);
     void  SetSlide             (float offsetY, const D2D1_RECT_F * clip);
+    void  SetSlideOpacity      (float opacity);
     static constexpr float  kSlideFraction = 0.5f;
 
     //  Whether a popup that asks for acrylic gets it: the system's
@@ -469,4 +471,5 @@ private:
 
     std::promise<int>                       m_completionPromise;
     bool                                    m_completionPending = false;
+    std::shared_ptr<bool>                   m_fadeLanded;                // set when the compositor has committed the fade's start
 };
