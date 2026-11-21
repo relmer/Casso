@@ -40,6 +40,7 @@ public:
     using CardChosenFn = std::function<void (const std::string & device)>;
 
     void  Layout          (const RECT & rect, const DxuiDpiScaler & scaler) override;
+    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     void  SetState        (SettingsPanelState * state);
     void  SetPopupHost    (DxuiHwndSource * host);
     void  SetOnCardChosen (CardChosenFn fn) { m_onCardChosen = std::move (fn); }
@@ -83,11 +84,13 @@ private:
     void                 ApplyCard        (const std::string & device);
     void                 OnEdited         (HRESULT hr, const std::wstring & error = std::wstring());
     void                 Relayout         ();
+    RECT                 GetRowRect       (int row) const;
 
     SettingsPanelState            * m_state          = nullptr;
     CardChosenFn                    m_onCardChosen;
     std::function<void()>           m_onAnimate;
     RECT                            m_baseRect       = {};
+    RECT                            m_panelRect      = {};
     DxuiDpiScaler                   m_scaler;
 
     DxuiListView                          m_list;

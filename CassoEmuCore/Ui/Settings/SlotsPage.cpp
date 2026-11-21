@@ -19,6 +19,8 @@ static constexpr int  s_kLabelWidthDp   = 90;
 static constexpr int  s_kDropdownWidthDp = 240;
 static constexpr int  s_kListHeightDp   = 260;
 static constexpr int  s_kIndentDp       = 20;
+static constexpr int  s_kPanelRadiusDp  = 6;
+static constexpr int  s_kRowInsetDp     = 2;
 
 
 
@@ -593,8 +595,90 @@ void SlotsPage::Relayout()
         y += m_serial.GetContentHeightPx();
     }
 
+    // The surface the selected slot's controls sit on, which the selected
+    // row in the list joins.
+    m_panelRect = { x - pad, rect.top + pad / 2, colRight + pad, std::max ((int) GetRowRect (kLastSlot - kFirstSlot).bottom, y) + pad / 2 };
+
     DxuiPanel::SetBounds (rect);
     SetContentHeightPx (std::max (listBottom, y) + pad - rect.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SlotsPage::GetRowRect
+//
+//  A row's span in the list, in page coordinates; empty when the row is
+//  scrolled out of view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT SlotsPage::GetRowRect (int row) const
+{
+    RECT  list = m_list.GetBounds();
+    RECT  out  = {};
+
+
+
+    for (int y = 0; y < list.bottom - list.top; y++)
+    {
+        int   hit   = m_list.HitTestRow (1, y);
+        bool  isRow = hit == row;
+
+        if (isRow && out.bottom <= out.top)
+        {
+            out = { list.left, list.top + y, list.right, list.top + y + 1 };
+        }
+        else if (isRow)
+        {
+            out.bottom = list.top + y + 1;
+        }
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SlotsPage::Paint
+//
+//  The panel under the selected slot's controls, then the controls, then a
+//  bridge in the panel's fill from the selected row to the panel, so the row
+//  and the panel read as one surface, like a tab pulled out of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SlotsPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    uint32_t  fill   = theme.ContentSelection();
+    float     radius = m_scaler.ToPxf (s_kPanelRadiusDp);
+    RECT      row    = GetRowRect (m_selectedSlot - kFirstSlot);
+    int       inset  = m_scaler.ToPx (s_kRowInsetDp);
+
+
+
+    if (m_panelRect.right > m_panelRect.left)
+    {
+        painter.FillRoundedRect ((float) m_panelRect.left, (float) m_panelRect.top,
+                                 (float) (m_panelRect.right - m_panelRect.left), (float) (m_panelRect.bottom - m_panelRect.top),
+                                 radius, fill);
+    }
+
+    DxuiPanel::Paint (painter, text, theme);
+
+    if (row.bottom > row.top + 2 * inset && m_panelRect.right > m_panelRect.left)
+    {
+        float  left = (float) row.right - 2.0f * radius;
+
+        painter.FillRect (left, (float) (row.top + inset), (float) m_panelRect.left + radius - left, (float) (row.bottom - row.top - 2 * inset), fill);
+    }
 }
 
 
