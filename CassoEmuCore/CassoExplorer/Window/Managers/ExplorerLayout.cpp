@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
@@ -203,6 +204,7 @@ void ExplorerLayout::RecomputeLayout()
 {
     IDxuiControl  * bands[]     = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_pickerBand, &m_bodyBand };
     bool            picker      = m_context.IsPicker();
+    bool            saveForm    = picker && m_context.app.picker->IsSave();
     RECT            body        = {};
     RECT            right       = {};
     RECT            sashRect    = {};
@@ -223,7 +225,7 @@ void ExplorerLayout::RecomputeLayout()
 
     m_context.toolbars.SetHidden   (expanded);
     m_context.addressBar.SetHidden (expanded);
-    m_context.statusBar.SetHidden  (expanded);
+    m_context.statusBar.SetHidden  (expanded || saveForm);
 
     //  An expanded preview fills the tab below the tab strip. The command bar,
     //  the address bar and the status bar are hidden, with bands of 0.
@@ -232,7 +234,7 @@ void ExplorerLayout::RecomputeLayout()
     m_pickerBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (m_context.pickerBar.GetBandDip()));
     m_menuBand.SetThickness    (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kCommandBarDip)));
     m_toolbarBand.SetThickness (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_context.scaler));
-    m_statusBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
+    m_statusBand.SetThickness  ((expanded || saveForm) ? 0 : m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
 
     m_dock.Arrange (m_client, m_context.scaler, bands);
 

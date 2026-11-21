@@ -462,19 +462,14 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
 
-    //  A save form's colors are the standard Save As dialog's: the navigation
-    //  band darker, the command bar a step lighter and the bar under the
-    //  list lighter again.
+    //  A save form's bar under the list is lighter, as in the standard Save
+    //  As dialog.
     if (m_parts->context.app.picker != nullptr && m_parts->context.app.picker->IsSave())
     {
-        for (auto [band, fill] : { std::pair { &m_parts->layout.GetToolbarBand(), theme.Background() },
-                                   std::pair { &m_parts->layout.GetMenuBand(),    DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSaveCommandBarTint) },
-                                   std::pair { &m_parts->layout.GetPickerBand(),  DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint) } })
-        {
-            RECT  rect = band->GetBounds();
+        RECT  rect = m_parts->layout.GetPickerBand().GetBounds();
 
-            painter.FillRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top), fill);
-        }
+        painter.FillRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top),
+                          DxuiColor::Mix (theme.Background(), theme.Foreground(), s_kSavePickerBarTint));
     }
 
     m_parts->preview.PaintBackground (painter, theme);

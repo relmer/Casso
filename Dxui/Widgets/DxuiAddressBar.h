@@ -106,6 +106,9 @@ public:
     //  Replaces the text being edited, the caret after it.
     void  SetEditText     (const std::wstring & text);
     void  SetTextRenderer (IDxuiTextRenderer * text)              { m_renderer = text; m_input.SetTextRenderer (text); }
+    //  The field's fill and edge at rest, in place of the theme's control
+    //  fill and no edge; 0 restores each.
+    void  SetRestColors   (uint32_t fill, uint32_t edge)          { m_restFill = fill; m_restEdge = edge; }
     void  SetFont         (const wchar_t * face, float sizeDip)   { m_face = face; m_fontDip = sizeDip; m_input.SetFont (face, sizeDip); LayoutSegments(); }
     void  SetIconFace     (const wchar_t * face)                  { m_iconFace = face; }
 
@@ -196,6 +199,8 @@ private:
     Hit            m_hover;
     Hit            m_pressed;
     bool           m_editing       = false;
+    uint32_t       m_restFill      = 0;
+    uint32_t       m_restEdge      = 0;
     EditStateFn    m_onEditState;
     EditFn         m_onEditText;
     EditKeyFn      m_onEditKey;

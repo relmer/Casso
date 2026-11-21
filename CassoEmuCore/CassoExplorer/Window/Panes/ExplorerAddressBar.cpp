@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
@@ -150,6 +151,39 @@ void ExplorerAddressBar::Configure()
         ShowAddressSuggestions (text);
     });
     m_address->SetOnEditKey ([this] (WPARAM vk) { return HandleAddressKey (vk); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::ApplyTheme
+//
+//  A save form's address box is the band's color with an edge, and its
+//  search box a step lighter, as the standard Save As dialog draws them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::ApplyTheme (const DxuiTheme * theme)
+{
+    bool  saveForm = m_context.app.picker != nullptr && m_context.app.picker->IsSave();
+
+
+
+    m_suggest.SetTheme (theme);
+
+    if (theme == nullptr || m_address == nullptr || m_findBox == nullptr)
+    {
+        return;
+    }
+
+    if (saveForm)
+    {
+        m_address->SetRestColors (theme->ContentBackground(), theme->Border());
+        m_findBox->SetRestColors (DxuiColor::Mix (theme->ContentBackground(), theme->Foreground(), s_kSaveSearchTint), theme->Border());
+    }
 }
 
 

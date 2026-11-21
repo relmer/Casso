@@ -30,12 +30,15 @@ public:
     static constexpr int  kButtonDip     = DxuiButtonRow::kButtonHeightDip;
     static constexpr int  kEdgePadDip    = DxuiButtonRow::kEdgePadDip;
     static constexpr int  kGapDip        = 8;
-    static constexpr int  kFilterMinDip  = 320;
     static constexpr int  kNameMinDip    = 160;
     static constexpr int  kVerifyDip     = 90;
     static constexpr int  kNoteDip       = 40;
     static constexpr int  kSaveLabelDip  = 100;
     static constexpr int  kRowPadDip     = 12;
+
+    //  The standard Save As dialog's text: Segoe UI at 9 points.
+    static constexpr const wchar_t *  kDialogFace    = L"Segoe UI";
+    static constexpr float            kDialogFontDip = 12.0f;
 
     //  The band's height in the window: kBandDip in a picker, and kNoteDip
     //  more when a filter entry has a note; 0 otherwise.

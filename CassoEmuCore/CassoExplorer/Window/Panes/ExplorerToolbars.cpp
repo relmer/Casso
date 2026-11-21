@@ -205,6 +205,12 @@ void ExplorerToolbars::Configure()
 
 void ExplorerToolbars::ApplyTheme (const DxuiTheme & theme)
 {
+    //  A save form's navigation band is the list's color and its command
+    //  bar a step lighter, as in the standard Save As dialog.
+    bool  saveForm = m_context.app.picker != nullptr && m_context.app.picker->IsSave();
+
+
+
     if (!IsCreated())
     {
         return;
@@ -214,9 +220,9 @@ void ExplorerToolbars::ApplyTheme (const DxuiTheme & theme)
     m_menuBar->SetDropdownColors (theme.dropdownBg, theme.dropdownHover, theme.dropdownItemText, theme.dropdownHoverText,
                                   theme.dropdownAccel, theme.dropdownHoverAccel, theme.panelEdge, theme.buttonBorder);
 
-    m_toolbar->SetStripColors    (theme.navStrip, theme.navItemText);
+    m_toolbar->SetStripColors    (saveForm ? theme.ContentBackground() : theme.navStrip, theme.navItemText);
     m_toolbar->SetEdgeColor      (theme.Border());
-    m_commandBar->SetStripColors (theme.ContentBackground(), theme.navItemText);
+    m_commandBar->SetStripColors (saveForm ? DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), ExplorerMetrics::kSaveCommandBarTint) : theme.ContentBackground(), theme.navItemText);
     m_commandBar->SetEdgeColor   (theme.Border());
 
     //  The buttons' icons and the drop-downs' icons come in a set per theme.
