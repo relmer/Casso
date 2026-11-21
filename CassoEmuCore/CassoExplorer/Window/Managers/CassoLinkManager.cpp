@@ -1535,6 +1535,7 @@ void CassoLinkManager::UpdateTransferTimer()
     else if (!transferring && m_transferTimer)
     {
         KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerLinkTransfer);
+        m_context.statusBar.SetShimmer (false);
     }
 
     m_transferTimer = transferring;
