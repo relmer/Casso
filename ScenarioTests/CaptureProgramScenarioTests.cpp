@@ -701,6 +701,50 @@ public:
     }
 
 
+    //  An address field that ends E2 AA, as Apventure to Atlantis's do and its
+    //  RWTS checks: E2 has three zero bits in a row, which a drive reads as
+    //  zeros. The captured byte is E2, where a rule that allowed only two
+    //  made it E6.
+    TEST_METHOD (AnEndingWithThreeZeroBits_IsCapturedAsRead)
+    {
+        ProgramRig                rig (MakeDisk());
+        std::vector<Byte>         module;
+        CassoLinkCapture::Result  result;
+        DiskImage                 woz;
+        DiskImage               * image  = rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0);
+        size_t                    ending = 0;
+        int                       slot   = 0;
+        Byte                      got    = 0;
+
+
+
+        Assert::IsNotNull (image);
+        slot   = image->ResolveQuarterTrack (0);
+        ending = FindAddressEnding (*image, slot, 0);
+        Assert::AreNotEqual (SIZE_MAX, ending, L"Sector 0's address field is on track 0");
+
+        for (int bit = 0; bit < 8; bit++)
+        {
+            image->WriteBit (slot, (ending + (size_t) bit) % image->GetTrackBitCount (slot), (uint8_t) ((s_kThreeZeros >> (7 - bit)) & 1));
+        }
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-21T00:00:00Z", {}, result, 1));
+        AssertSucceeded (WozLoader::Load (result.woz, woz));
+
+        slot   = woz.ResolveQuarterTrack (0);
+        ending = FindAddressEnding (woz, slot, 0);
+        Assert::AreNotEqual (SIZE_MAX, ending, L"The capture has sector 0's address field");
+
+        for (int bit = 0; bit < 8; bit++)
+        {
+            got = (Byte) ((got << 1) | woz.ReadBit (slot, (ending + (size_t) bit) % woz.GetTrackBitCount (slot)));
+        }
+
+        Assert::AreEqual (s_kThreeZeros, got, L"The ending's first byte is E2");
+    }
+
+
     //  The bit where the address field of `sector` on a track ends, after its
     //  checksum, or SIZE_MAX.
     static size_t  FindAddressEnding (const DiskImage & image, int slot, int sector)
@@ -747,4 +791,5 @@ public:
     static constexpr double  s_kRevolutionTolerance = 0.002;
     static constexpr size_t  s_kWeakBits            = 24;    // three bytes
     static constexpr size_t  s_kNoiseZeros          = 3;     // the MC3470 reads noise after this many
+    static constexpr Byte    s_kThreeZeros          = 0xE2;
 };

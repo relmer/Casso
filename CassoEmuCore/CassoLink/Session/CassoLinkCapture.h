@@ -276,8 +276,9 @@ private:
     static void         FindGapMarker  (const std::vector<Byte> & revolution, std::vector<Byte> & outMarker);
     static void         ToBits         (const Stream & stream, std::vector<uint8_t> & outBits, std::vector<size_t> & outStarts);
 
-    static constexpr Byte    s_kSyncByte = 0xFF;
-    static constexpr size_t  s_kMaxZeros = 2;
+    static constexpr Byte    s_kSyncByte      = 0xFF;
+    static constexpr size_t  s_kMaxZeros      = 2;
+    static constexpr size_t  s_kReadableZeros = 3;   // zero bits in a row a drive reads as zeros; the MC3470 makes up bits after that
 
     //  The zero bits a sync byte may have, which a controller reads alike up
     //  to three, and the sync bytes in a row that make a track's gap.
