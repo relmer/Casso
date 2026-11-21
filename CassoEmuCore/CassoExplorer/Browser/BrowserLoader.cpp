@@ -60,8 +60,9 @@ void BrowserLoader::ReloadAfterNavigation()
 
 HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
 {
-    HRESULT  hr    = S_OK;
-    size_t   index = 0;
+    HRESULT                                    hr       = S_OK;
+    size_t                                     index    = 0;
+    std::unordered_map<std::wstring, int64_t>  loadedAt;
 
 
 
@@ -88,6 +89,15 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
 
     std::erase_if (m_hostEntries, [this] (const FileSystemEntry & entry) { return !m_folderOptions.IsShown (entry); });
 
+    //  When Casso last loaded each image, for the Last used column.
+    if (m_browser.m_recentLoads)
+    {
+        for (const DiskMru::Entry & recent : m_browser.m_recentLoads())
+        {
+            loadedAt.emplace (CassoImagesListing::MakePathKey (recent.path.wstring()), recent.lastLoadedUnix);
+        }
+    }
+
     for (index = 0; index < m_hostEntries.size(); index++)
     {
         const FileSystemEntry &  entry   = m_hostEntries[index];
@@ -104,6 +114,10 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
                                                                                TextEncoding::WideToUtf8 (CassoExplorerBrowser::JoinPath (path, entry.name)),
                                                                                entry.sizeBytes,
                                                                                entry.modifiedUnix);
+
+            auto  loaded = loadedAt.find (CassoImagesListing::MakePathKey (CassoExplorerBrowser::JoinPath (path, entry.name)));
+
+            m_browser.m_rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
         }
 
         //  A folder is listed by the name in its desktop.ini, as in the tree,
@@ -639,6 +653,8 @@ HRESULT BrowserLoader::LoadCassoImages()
     std::vector<std::wstring>    folders;
     std::vector<DiskMru::Entry>  recent;
     std::vector<CatalogRow>      rows;
+    std::vector<CatalogRow>      stock;
+    std::set<std::wstring>       listed;
 
 
 
@@ -661,6 +677,41 @@ HRESULT BrowserLoader::LoadCassoImages()
     }
 
     CassoImagesListing::Build (m_browser.m_fs, m_browser.m_fileIo, m_browser.m_imageClasses, folders, recent, rows);
+
+    for (const CatalogRow & row : rows)
+    {
+        listed.insert (CassoImagesListing::MakePathKey (row.hostPath));
+    }
+
+    //  A picker's stock and demo disks are listed too, under their node's label.
+    for (const TreeNode & node : nodes)
+    {
+        if (node.id != TreeModel::kStockDisksId && node.id != TreeModel::kDemoDisksId)
+        {
+            continue;
+        }
+
+        StockDisksListing::Build ((node.id == TreeModel::kStockDisksId) ? m_browser.m_stockDisks : m_browser.m_demoDisks, stock);
+
+        for (CatalogRow & row : stock)
+        {
+            if (!row.hostPath.empty() && !listed.insert (CassoImagesListing::MakePathKey (row.hostPath)).second)
+            {
+                continue;
+            }
+
+            for (const DiskMru::Entry & entry : recent)
+            {
+                if (CassoImagesListing::MakePathKey (entry.path.wstring()) == CassoImagesListing::MakePathKey (row.hostPath))
+                {
+                    row.lastUsedUnix = entry.lastLoadedUnix;
+                }
+            }
+
+            row.folderShown = node.label;
+            rows.push_back (std::move (row));
+        }
+    }
 
     for (CatalogRow & row : rows)
     {

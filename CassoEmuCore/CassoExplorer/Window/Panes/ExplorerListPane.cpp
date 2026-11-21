@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -319,8 +320,10 @@ void ExplorerListPane::Layout (const RECT & rect)
 
     m_paneRect = rect;
 
-    //  The infobars take the top of the pane, and the list the rest.
+    //  The infobars take the top of the pane, then a picker's search box,
+    //  and the list the rest.
     listRect = m_bars.Layout (rect);
+    listRect = m_context.pickerSearch.Layout (listRect);
 
     m_list->Layout        (listRect, m_context.scaler);
     m_listMessage->Layout (GetListMessageRect(), m_context.scaler);
@@ -763,6 +766,32 @@ void ExplorerListPane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::IsHostFileRow
+//
+//  A row for a file on this computer, wherever it is listed: the Casso
+//  node's images and the stock and demo disks on the disk have the same tip
+//  as the file in its folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::IsHostFileRow (const CatalogRow & row, std::wstring & outPath)
+{
+    if (row.hostPath.empty() || row.isDirectory || (row.isStockDisk && !row.stockDownloaded))
+    {
+        return false;
+    }
+
+    outPath = row.hostPath;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::RefreshTip
 //
 //  Explorer's tip for the item under the pointer: what the shell says of a
@@ -834,6 +863,19 @@ void ExplorerListPane::RefreshTip()
         overItem = m_columns.GetView() != DxuiListView::View::Content || point.x < text.left;
     }
 
+    //  The Folder column's cell shows its whole path in a tip.
+    if (overItem && m_columns.GetView() == DxuiListView::View::Details && !m_context.browser.GetRows()[(size_t) row].folderPath.empty()
+        && m_list->GetCellRectPx (row, (size_t) CatalogModel::Column::Folder, anchor))
+    {
+        OffsetRect (&anchor, list.left, list.top);
+
+        if (ExplorerLayout::Contains (anchor, point))
+        {
+            m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, m_context.browser.GetRows()[(size_t) row].folderPath);
+            return;
+        }
+    }
+
     if (!overItem)
     {
         m_context.tips.HideHoverTip (ExplorerTips::TipOwner::List);
@@ -849,7 +891,8 @@ void ExplorerListPane::RefreshTip()
             //  A broken image's tip says why it is broken.
             details = m_rowProblems[(size_t) row];
         }
-        else if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+        else if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+                 || IsHostFileRow (row0, path))
         {
             //  Not yet read: the tip comes when it is, by a posted message.
             if (!m_context.infoTips.TryGet (path, details) && !m_list->IsItemNameCut (row))
@@ -1174,7 +1217,7 @@ void ExplorerListPane::FillList()
             }
         }
     }
-    else if (m_grownLocation != m_listLocation && m_columns.GetView() == DxuiListView::View::Details && count > 0 && !m_context.browser.IsListLoading())
+    else if ((m_grownLocation != m_listLocation || m_context.IsPicker()) && m_columns.GetView() == DxuiListView::View::Details && count > 0 && !m_context.browser.IsListLoading())
     {
         m_grownLocation = m_listLocation;
 
@@ -1183,16 +1226,17 @@ void ExplorerListPane::FillList()
         //  and no column is wider than its widest value. A large folder is
         //  measured a screenful at a time. The name's width doesn't change, as a
         //  long name is cut short in File Explorer too, except in a picker,
-        //  whose list is of images that are picked by name.
+        //  whose list is of images that are picked by name. A picker's columns
+        //  are fitted again each time its list is filled or filtered.
         size_t  first = (size_t) CatalogModel::Column::Name + (m_context.IsPicker() ? 0 : 1);
+
+        //  A picker's Folder column fits each folder's name, and has room past
+        //  it to show that a path follows, which a hover shows in full.
+        m_list->SetColumnFitStop ((size_t) CatalogModel::Column::Folder, m_context.IsPicker() ? L" (" : L"", s_kFolderPathPeekDip);
 
         for (size_t column = first; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
         {
-            if (!ExplorerListColumns::IsListColumnShown (column, m_columns.GetChosen()[column], m_listLocation.kind, false))
-            {
-                continue;
-            }
-
+            //  The list skips a column it hides.
             if (count <= s_kFitAllRowsMax)
             {
                 m_list->AutoFitColumnToContent (column);
@@ -1286,6 +1330,12 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         }
 
         cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
+
+        //  A picker's search marks the words typed in each name.
+        if (!m_context.browser.GetNameFilter().empty())
+        {
+            cells[0].matches = SearchQuery::FindNameMatches (cells[0].text, CassoExplorerBrowser::SplitFilterWords (m_context.browser.GetNameFilter()));
+        }
 
         ApplyPropertyCells (row, cells);
 

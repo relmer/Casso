@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/CassoBlockFirmware.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/Ncr5380.h"
 #include "Devices/BlockDevice/ScsiBus.h"
@@ -34,7 +35,10 @@ struct DeviceConfig;
 //      $C800-$CBFF   a 1 KB bank of RAM
 //      $CC00-$CFFE   a 1 KB bank of ROM; only $CFFF deselects the card
 //
-//  Targets 0-6 are hard disks, each selectable once it has an image.
+//  Targets 0-6 are hard disks, each selectable once it has an image. With
+//  Casso's firmware in place of the ROM, the slot page and the $C0n0 window
+//  are CassoBlockFirmware's. ProDOS's drives 1 and 2 are the first two
+//  targets with an image, and SmartPort's units are every target with one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +79,11 @@ public:
     HRESULT  SetFirmware (std::vector<Byte> firmware);
     bool     HasFirmware () const { return !m_rom.empty(); }
 
-    void     SetCpuCycleSource (const uint64_t * cycles) { m_bus.SetClock (cycles); }
+    void     SetCpuCycleSource (const uint64_t * cycles) { m_bus.SetClock (cycles); m_casso.SetClock (cycles); }
+
+    HRESULT               UseCassoFirmware ();
+    bool                  IsCassoFirmware  () const { return m_casso.IsEnabled(); }
+    CassoBlockFirmware  & GetCassoFirmware ()       { return m_casso; }
 
     ScsiHardDisk  & GetTarget   (int id);
 
@@ -109,6 +117,7 @@ private:
     Word                                         m_ioStart   = 0;
     Word                                         m_ioEnd     = 0;
     MemoryBus                                  & m_memoryBus;
+    CassoBlockFirmware                           m_casso;
     ScsiBus                                      m_bus;
     Ncr5380                                      m_ncr;
     SlotRomPage                                  m_slotPage;

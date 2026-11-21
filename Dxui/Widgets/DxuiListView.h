@@ -141,6 +141,10 @@ public:
     //  measure only the rows on screen, or only grow, are not reported either.
     void  AutoFitColumnToContent     (size_t idx) { m_columnSizing.AutoFitColumnToContent (idx); }
 
+    //  A fit of the column measures each value only up to `stop`, then adds
+    //  `extraDip`, so a long value shows its start and is cut short after.
+    void  SetColumnFitStop           (size_t idx, const std::wstring & stop, int extraDip) { m_columnSizing.SetColumnFitStop (idx, stop, extraDip); }
+
     //  Every shown column fitted to its content, as FitColumnToContent does
     //  one.
     void  FitAllColumnsToContent    () { m_columnSizing.FitAllColumnsToContent(); }

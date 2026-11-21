@@ -255,6 +255,7 @@ struct CassoExplorerPrefs
     static constexpr const char *  kThemeSkeuomorphic  = "Skeuomorphic";
     static constexpr const char *  kThemeDarkModern    = "DarkModern";
     static constexpr const char *  kThemeRetroTerminal = "RetroTerminal";
+    static constexpr const char *  kThemePhosphor      = "Phosphor";
 
     static constexpr const char *  kNamingDescriptive  = "Descriptive";
     static constexpr const char *  kNamingCiderPress   = "CiderPress";

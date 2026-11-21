@@ -966,6 +966,7 @@
     <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
     <ClCompile Include="BlockDeviceTests\DriveRuleMountAgreementTests.cpp" />
     <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
+    <ClCompile Include="BlockDeviceTests\CassoBlockFirmwareTests.cpp" />
     <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
     <ClCompile Include="BlockDeviceTests\AppleScsiCardTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />
@@ -1015,6 +1016,7 @@
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
     <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />
+    <ClInclude Include="CassoLink\MachineSocketStream.h" />
     <ClInclude Include="CassoLink\SteppedByteStream.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />

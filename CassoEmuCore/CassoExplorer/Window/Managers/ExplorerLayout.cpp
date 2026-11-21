@@ -3,6 +3,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Core/MachineConfig.h"
@@ -145,7 +147,6 @@ void ExplorerLayout::ConfigureWidgets()
     //  The tabs of the request, from the session or a torn-off tab, or Home.
     m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
     m_context.browser.LeaveMissingLocation();
-    m_context.pickerMode.ShowStockDisksIfCassoIsEmpty();
     m_context.browser.SetCardOpenAllowed (true);
 
     m_context.folderSync.StartPolling();
@@ -169,6 +170,17 @@ void ExplorerLayout::ConfigureWidgets()
     }
 
     m_context.listPane.FillList();
+
+    //  A picker opens with the cursor in its search box, or in a save form's
+    //  file name box.
+    if (m_context.pickerBar.HasNameBox())
+    {
+        m_context.input.SetFocusPane (ExplorerPane::PickerName);
+    }
+    else
+    {
+        m_context.pickerSearch.Focus();
+    }
 }
 
 
@@ -310,7 +322,7 @@ void ExplorerLayout::RecomputeLayout()
     }
 
     m_context.statusBar.Layout (m_statusBand.GetBounds());
-    m_context.pickerBar.Layout (m_pickerBand.GetBounds());
+    m_context.pickerBar.Layout (m_pickerBand.GetBounds(), m_context.listPane.GetListView()->GetBounds().left);
 
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_context.listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });

@@ -6,6 +6,7 @@
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "TestMachine.h"
+#include "AssetBootstrap.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -212,8 +213,134 @@ public:
     }
 
 
-    //  A PRODOS VOLUME ON A HARD DISK AT ID 6 BOOTS through Apple's SCSI card
-    //  ROM in slot 7 of an enhanced //e with no floppy controller.
+    //  A PRODOS VOLUME BOOTS THROUGH CASSO'S FIRMWARE on the SCSI card, with
+    //  no SCSI command run.
+    TEST_METHOD (CassoFirmware_BootsProDosFromAHardDisk)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
+
+
+
+        io.files[kHardDiskPath]  = image;
+        io.stamps[kHardDiskPath] = FileStamp { image.size(), 1 };
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty,
+                              { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath), true } }, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetRefs().scsiCards[0]->IsCassoFirmware());
+
+        Boot (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the hard disk");
+        Assert::IsTrue (machine.GetRefs().scsiCards[0]->GetTarget (6).GetCommandLog().empty(), L"no SCSI command ran");
+    }
+
+
+    //  PRODOS 2.4 BOOTS WITH THREE SCSI DRIVES THROUGH CASSO'S FIRMWARE: the
+    //  first two are the slot's drives 1 and 2, and ProDOS moves the third,
+    //  found through SmartPort, to a free slot. Bitsy Bye's Tab key steps
+    //  through the volumes, which reads each drive. The test downloads
+    //  ProDOS 2.4.3 when it isn't on this machine. Its OnDemand_ prefix
+    //  excludes it from every run whose filter doesn't contain OnDemand.
+    TEST_METHOD (OnDemand_ProDos24_BootsWithThreeScsiDrives)
+    {
+        constexpr Word      kDevCount     = 0xBF31;
+        constexpr Word      kDevList      = 0xBF32;
+        constexpr Byte      kSlot7        = 0x70;
+        constexpr Byte      kTab          = 0x09;
+        constexpr uint64_t  kVolumeCycles = 1'000'000ULL;
+
+        FakeDiskFileIo            io;
+        std::wstring              path;
+        std::string               error;
+        std::ifstream             file;
+        std::vector<Byte>         boot;
+        std::vector<PortConfig>   ports (AppleScsiCard::kTargets);
+        std::vector<std::string>  rows;
+        int                       devices   = 0;
+        bool                      moved     = false;
+        bool                      sawSecond = false;
+        bool                      sawThird  = false;
+        const char *              paths[]  = { "C:\\disks\\boot.po", "C:\\disks\\second.po", "C:\\disks\\third.po" };
+        const char *              volumes[] = { nullptr, "SECOND", "THIRD" };
+        const int                 ids[]    = { 0, 2, 5 };
+
+
+
+        AssertSucceeded (AssetBootstrap::EnsureStockBootDisk (AssetBootstrap::StockBootDisk::ProDos243Disk, path, error));
+
+        file.open (std::filesystem::path (path), std::ios::binary);
+        Assert::IsTrue (file.is_open(), L"ProDOS 2.4.3 is on this machine");
+        boot.assign (std::istreambuf_iterator<char> (file), std::istreambuf_iterator<char>());
+
+        for (int i = 0; i < 3; i++)
+        {
+            std::vector<Byte>  image = boot;
+            BlankDiskSpec      spec;
+
+
+
+            if (volumes[i] != nullptr)
+            {
+                spec.format     = DiskFormat::Po;
+                spec.contents   = BlankDiskContents::ProDos;
+                spec.volumeName = volumes[i];
+                AssertSucceeded (BlankDiskBuilder::Build (spec, {}, image));
+            }
+
+            image.resize (kHardDiskBlocks * BlockDeviceMedia::kBlockBytes, 0);
+
+            io.files[paths[i]]  = image;
+            io.stamps[paths[i]] = FileStamp { image.size(), 1 };
+
+            ports[(size_t) ids[i]].device = kpszHd20scDevice;
+            ports[(size_t) ids[i]].image  = paths[i];
+        }
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 7, kpszAppleScsiCardDevice, ports, true } }, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+
+        Boot (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "BITSY", kBootCap), L"ProDOS 2.4.3 boots to Bitsy Bye from the hard disk");
+
+        devices = machine.GetMemoryBus().ReadByte (kDevCount) + 1;
+
+        for (int i = 0; i < devices; i++)
+        {
+            Byte  unit = (Byte) (machine.GetMemoryBus().ReadByte ((Word) (kDevList + i)) & 0xF0);
+
+            moved = moved || ((unit & 0x70) != kSlot7 && unit != 0xB0 && unit != 0x30);
+            Logger::WriteMessage (std::format ("ProDOS device ${:02X}\n", unit).c_str());
+        }
+
+        Assert::IsTrue (devices >= 3, L"ProDOS lists at least three devices");
+        Assert::IsTrue (moved,        L"ProDOS moved the third SCSI drive to another slot");
+
+        for (int i = 0; i < devices + 1; i++)
+        {
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, kTab, kVolumeCycles));
+            machine.RunCycles (kVolumeCycles);
+
+            rows.clear();
+            GuestSession::CollectRows (machine, rows);
+
+            sawSecond = sawSecond || GuestSession::AnyRowContains (rows, ":/SECOND");
+            sawThird  = sawThird  || GuestSession::AnyRowContains (rows, ":/THIRD");
+        }
+
+        Assert::IsTrue (sawSecond, L"Bitsy Bye lists the second SCSI drive's volume");
+        Assert::IsTrue (sawThird,  L"Bitsy Bye lists the third SCSI drive's volume");
+        Assert::AreNotEqual ((uint64_t) 0, machine.GetRefs().scsiCards[0]->GetTarget (5).GetLastActivityCycle(), L"the third drive was read");
+
+        Assert::IsTrue (machine.GetRefs().scsiCards[0]->GetTarget (5).GetCommandLog().empty(), L"no SCSI command ran");
+    }
+
+
+    //  A PRODOS VOLUME ON A HARD DISK AT ID 6 BOOTS through Apple's SCSI card    //  ROM in slot 7 of an enhanced //e with no floppy controller.
     TEST_METHOD (ScsiCard_BootsProDosFromAHardDisk)
     {
         constexpr Byte     kRead6 = 0x08;

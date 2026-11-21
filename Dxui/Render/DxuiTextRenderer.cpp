@@ -455,7 +455,8 @@ void DxuiTextRenderer::SetTextGlow (uint8_t alpha, float radiusEm)
 //  IsBodyFaceRequest
 //
 //  Whether a family argument specifies the body face. A null family is the
-//  body face, as it is everywhere else in this renderer.
+//  body face, as it is everywhere else in this renderer. The variable face is
+//  the body face too, since most modern text is set in it.
 //
 //  DxuiTheme::kSystemFace has the same text as kBodyFace and is compared by
 //  address, so text that specifies it is drawn in the system face under any
@@ -470,7 +471,7 @@ bool DxuiTextRenderer::IsBodyFaceRequest (const wchar_t * family)
 
 
     return !isSystemFace
-           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0));
+           && ((family == nullptr) || (wcscmp (family, DxuiTheme::kBodyFace) == 0) || (wcscmp (family, DxuiTheme::kVariableFace) == 0));
 }
 
 

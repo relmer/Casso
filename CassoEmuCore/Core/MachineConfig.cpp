@@ -1247,6 +1247,12 @@ HRESULT MachineConfigLoader::LoadSlots (
             IGNORE_RETURN_VALUE (hrEnabled, S_OK);
         }
 
+        // Optional: cassoFirmware (default false), for a hard disk card.
+        {
+            HRESULT hrCasso = entry.GetBool ("cassoFirmware", slot.cassoFirmware);
+            IGNORE_RETURN_VALUE (hrCasso, S_OK);
+        }
+
         // Optional: firmware and switches, which a card with a large ROM and
         // DIP switches (the Super Serial Card) lists. Neither fails the load.
         {

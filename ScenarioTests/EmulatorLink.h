@@ -208,7 +208,7 @@ public:
     static std::shared_ptr<LinkOperation>  Finish (Sink & sink, std::shared_ptr<LinkOperation> operation, DWORD timeoutMs)
     {
         Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue (sink.WaitForDone (operation, timeoutMs), L"the operation finishes");
-        Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue (SUCCEEDED (operation->result), std::format (L"{:08X} {}", (uint32_t) operation->result, TextEncoding::NarrowToWide (operation->message)).c_str());
+        Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsTrue (SUCCEEDED (operation->result), std::format (L"{:08X} {} at {}%", (uint32_t) operation->result, TextEncoding::NarrowToWide (operation->message), operation->progress.load()).c_str());
 
         return operation;
     }

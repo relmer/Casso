@@ -233,10 +233,78 @@ public:
         Assert::IsTrue (names.find (L"notes")  == std::wstring::npos, names.c_str());
         Assert::AreEqual ((size_t) 2, browser.GetScopedOutCount(), L"the 800K image and the text file");
 
-        //  The Casso node's list, by the same scope.
+        //  The Casso node's list of the whole subtree, by the same scope.
         AssertSucceeded (browser.SelectTreeNode (TreeModel::kCassoRootId));
+        names.clear();
+
+        for (const CatalogRow & row : browser.GetRows())
+        {
+            names += row.name + L";";
+        }
+
+        Assert::AreEqual ((size_t) 2, browser.GetRows().size(), names.c_str());
+        Assert::IsTrue (names.find (L"a.dsk;") != std::wstring::npos, names.c_str());
+        Assert::IsTrue (names.find (L"c.dsk;") != std::wstring::npos, names.c_str());
+    }
+
+
+
+    TEST_METHOD (NameFilterKeepsPickerScope)
+    {
+        InMemoryFileSystem         fs;
+        FakeDiskFileIo             io;
+        CassoExplorerBrowser       browser { fs, io };
+        PickerScope                scope (MakeRequest ({ { L"All files", L"*.*" } }, ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }));
+        std::vector<DxuiTreeNode>  roots;
+
+
+
+        for (auto [path, bytes] : { std::pair<const wchar_t *, uint64_t> { L"C:\\Disks\\Zork I.dsk", k140K }, { L"C:\\Disks\\Zork II.po", k800K },
+                                    { L"C:\\Disks\\zork notes.txt", 10 }, { L"C:\\Disks\\Archon.dsk", k140K } })
+        {
+            std::string  narrow = TextEncoding::WideToUtf8 (path);
+
+            AssertSucceeded (fs.WriteAllText (path, std::string ((size_t) bytes, '\0')));
+            io.files[narrow]  = std::vector<Byte> ((size_t) bytes, 0);
+            io.stamps[narrow] = FileStamp { bytes, 100 };
+        }
+
+        browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        browser.GetTreeModel().SetDrives ({});
+        browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path) { return _wcsicmp (path.c_str(), L"C:\\Disks") == 0; });
+        browser.SetRowScope ([&scope] (const CatalogRow & row) { return scope.Passes (row); });
+        browser.GetTreeRoots (roots);
+
+        AssertSucceeded (browser.SelectTreeNode (browser.GetTreeChildren (roots[1].id)[0].id));
+        Assert::AreEqual ((size_t) 2, browser.GetRows().size());
+
+        //  The 800K image and the text file match, but are out of the scope.
+        browser.SetNameFilter (L"ZORK");
         Assert::AreEqual ((size_t) 1, browser.GetRows().size());
-        Assert::AreEqual (std::wstring (L"a.dsk"), browser.GetRows()[0].name);
+        Assert::AreEqual (std::wstring (L"Zork I.dsk"), browser.GetRows()[0].name);
+
+        browser.SetNameFilter (L"dsk arch");
+        Assert::AreEqual ((size_t) 1, browser.GetRows().size());
+        Assert::AreEqual (std::wstring (L"Archon.dsk"), browser.GetRows()[0].name);
+
+        browser.SetNameFilter (L"");
+        Assert::AreEqual ((size_t) 2, browser.GetRows().size());
+    }
+
+
+
+    TEST_METHOD (NameFilterWords)
+    {
+        std::vector<std::wstring>  words = CassoExplorerBrowser::SplitFilterWords (L"  Zork   II ");
+
+
+
+        Assert::AreEqual ((size_t) 2, words.size());
+        Assert::AreEqual (std::wstring (L"zork"), words[0]);
+        Assert::AreEqual (std::wstring (L"ii"),   words[1]);
+        Assert::IsTrue  (CassoExplorerBrowser::IsNameFilterMatch (L"Zork II.woz", words));
+        Assert::IsFalse (CassoExplorerBrowser::IsNameFilterMatch (L"Zork I.woz",  words));
+        Assert::IsTrue  (CassoExplorerBrowser::IsNameFilterMatch (L"anything",    {}));
     }
 
 

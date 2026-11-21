@@ -1806,8 +1806,9 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.label    = entry.name;
             node.location = Location::MakeDiskImage (JoinPath (path, entry.name));
 
-            hr = DescribeImage (underCasso, JoinPath (path, entry.name), node);
-            CHR (hr);
+            //  The image is read when it is expanded, not when its folder
+            //  is listed, so a folder of large images opens at once.
+            node.canExpand = true;
 
             images.push_back (node);
         }

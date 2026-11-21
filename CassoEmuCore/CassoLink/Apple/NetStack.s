@@ -784,6 +784,12 @@ cstxgo: lda #>TXFRM
         lda txflen
         ldy txflen+1
         jsr frwords
+        lda nscnt               ; the words as whole pages and the bytes past them,
+        asl a                   ; counted by Y alone, with no count kept a word
+        sta csend
+        lda nscnt+1
+        rol a
+        sta cspg
         ldy #0
 csld0:  lda TXFRM,y
 cswr0:  sta CSRT0
@@ -791,10 +797,18 @@ cswr0:  sta CSRT0
 csld1:  lda TXFRM,y
 cswr1:  sta CSRT1
         iny
-        bne cstxn
-        inc csld0+2
+        beq cspage
+        cpy csend
+        bne csld0
+        lda cspg
+        bne csld0
+        rts
+cspage: inc csld0+2
         inc csld1+2
-cstxn:  jsr frcount
+        dec cspg
+        cpy csend
+        bne csld0
+        lda cspg
         bne csld0
         rts
 
@@ -1030,6 +1044,8 @@ nrhi:   .byte 0
 nsclo:  .byte 0                 ; a chip's checks left
 nschi:  .byte 0
 nscnt:  .word 0                 ; a frame's words or bytes left
+csend:  .byte 0                 ; cstx: where Y stops in the last page
+cspg:   .byte 0                 ; and the whole pages before it
 plen:   .word 0                 ; udpsend: the payload's length
 dmac:   .ds 6                   ; and where it goes
 dip:    .ds 4

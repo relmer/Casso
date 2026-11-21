@@ -31,6 +31,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
@@ -129,4 +130,5 @@ struct ExplorerWindowParts
     ExplorerTreePane                        treePane         { context };
     ExplorerPickerMode                      pickerMode       { context };
     ExplorerPickerBar                       pickerBar        { context };
+    ExplorerPickerSearch                    pickerSearch     { context };
 };
