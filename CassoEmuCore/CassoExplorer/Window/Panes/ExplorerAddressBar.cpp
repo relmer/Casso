@@ -1,6 +1,8 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -157,6 +159,39 @@ void ExplorerAddressBar::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerAddressBar::ApplyTheme
+//
+//  A save form's address box is the band's color with an edge, and its
+//  search box a step lighter, as the standard Save As dialog draws them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::ApplyTheme (const DxuiTheme * theme)
+{
+    bool  saveForm = m_context.app.picker != nullptr && m_context.app.picker->IsSave();
+
+
+
+    m_suggest.SetTheme (theme);
+
+    if (theme == nullptr || m_address == nullptr || m_findBox == nullptr)
+    {
+        return;
+    }
+
+    if (saveForm)
+    {
+        m_address->SetRestColors (theme->ContentBackground(), theme->Border());
+        m_findBox->SetRestColors (DxuiColor::Mix (theme->ContentBackground(), theme->Foreground(), s_kSaveSearchTint), theme->Border());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerAddressBar::Layout
 //
 //  The address box is the toolbar's free span, 32 dip tall and centered in
@@ -180,9 +215,9 @@ void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int righ
 
     addressRect.right -= (int) std::lround (scaler.ToPxf (ExplorerMetrics::kFindBoxRightInsetDip));
 
-    //  A picker's search box is above the list, so the address takes the
-    //  whole row.
-    if (m_context.IsPicker())
+    //  An open form's search box is above the list, so the address takes
+    //  the whole row.
+    if (m_context.pickerSearch.HasBox())
     {
         m_findBox->SetVisible (false);
         m_findBox->Layout     (RECT { addressRect.right, addressRect.top, addressRect.right, addressRect.bottom }, scaler);

@@ -505,9 +505,10 @@ public:
 
     TEST_METHOD (BlockRuns_ThatArentAWholeBlock_AreInvalid)
     {
+        constexpr HRESULT  kInvalid = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+
         std::vector<Byte>  data;
         uint32_t           block    = 0;
-        const HRESULT      kInvalid = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
 
         //  One byte short, one byte over, and a run cut short by the CRC.
         Assert::AreEqual (kInvalid, CassoLinkCodec::ParseBlock (MakeRuns ({ CassoLinkCodec::kRunEscape, 252, 0x00, CassoLinkCodec::kRunEscape, 251, 0x00 }), true, block, data));

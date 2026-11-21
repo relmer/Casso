@@ -51,6 +51,10 @@ struct CassoTheme : public DxuiTheme
     uint32_t  ledActive  = 0;
     uint32_t  ledHalo    = 0;
 
+    // The green monitor's color at full brightness, so the emulated screen
+    // matches the theme's green; 0 is pure green.
+    uint32_t  greenMonitor = 0;
+
     // Typography. A replacement face is drawn at bodyFaceScale times the
     // requested size, so a face with a small x-height reads at the size the
     // layout was built for. A nonzero textGlowAlpha draws a halo of each
@@ -309,6 +313,7 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = kDim;
         theme.tooltipText               = kNormal;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.greenMonitor              = kNormal;
         theme.diskInspector = MakePhosphorInspector (kRule, kDim, kNormal, kBright, kWash);
         return theme;
     }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -37,7 +38,9 @@ ExplorerPickerSearch::ExplorerPickerSearch (ExplorerContext & context)
 
 void ExplorerPickerSearch::Create()
 {
-    if (!m_context.IsPicker())
+    //  A save form has the window's usual search box beside the address
+    //  bar instead.
+    if (!m_context.IsPicker() || m_context.app.picker->IsSave())
     {
         return;
     }
