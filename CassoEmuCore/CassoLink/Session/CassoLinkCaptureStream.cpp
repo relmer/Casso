@@ -949,6 +949,44 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         outUnsure     += unsure ? 1 : 0;
         outUnsureData += (unsure && inData[each]) ? 1 : 0;
     }
+
+    CountEndingZeros (bytes, weak, marks, outZeros);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::CountEndingZeros
+//
+//  Two zero bits after a byte at an address field's ending
+//  (FindAddressEndings) that every read at 8 cycles marks, at least
+//  s_kEndingMarks of them. A //c marks a byte by chance too often for the
+//  zero bits after most bytes to be counted from a few reads, but a
+//  protection such as Ultima IV's times the data latch a few cells after
+//  its address fields' first ending byte, and its check passes with two.
+//  A read at 12 cycles marks a byte followed by two zero bits only about
+//  half the time, so one zero bit and two look alike in a track's few reads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::CountEndingZeros (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros)
+{
+    std::vector<bool>  endings = FindAddressEndings (bytes);
+
+
+
+    for (size_t each = 0; each < bytes.size(); each++)
+    {
+        bool  marked = marks.read[0][each] >= s_kEndingMarks && marks.set[0][each] == marks.read[0][each];
+
+        if (endings[each] && !weak[each] && ioZeros[each] == 0 && marked)
+        {
+            ioZeros[each] = s_kEndingZeros;
+        }
+    }
 }
 
 
@@ -1064,7 +1102,11 @@ bool CassoLinkCapture::IsMarkedOften (int set, int read, double base)
 //  CassoLinkCapture::ToBits
 //
 //  Each byte's eight bits, two zero bits after a sync byte, and a weak byte
-//  as eight zero bits and its weakZeros. A controller reads a run of more
+//  as eight zero bits and its weakZeros. The first weak byte of a stretch
+//  starts with a one: on the disk, flux follows the zero bits after the
+//  byte before at once, and a protection that reads the data latch a few
+//  cells after that byte checks that a new byte has begun. The drive reads
+//  noise after the zeros that follow. A controller reads a run of more
 //  than s_kReadableZeros zero bits as random bits. A byte read at a write
 //  splice, such as C0, ends in six: the zero bit of its eight after
 //  s_kReadableZeros in a row is written as a one, so the splice is as long
@@ -1092,7 +1134,10 @@ void CassoLinkCapture::ToBits (const Stream & stream, std::vector<uint8_t> & out
 
         if (stream.weak[at])
         {
-            outBits.insert (outBits.end(), 8 + (at < stream.weakZeros.size() ? stream.weakZeros[at] : 0), (uint8_t) 0);
+            bool  starts = at == 0 || !stream.weak[at - 1];
+
+            outBits.push_back (starts ? 1 : 0);
+            outBits.insert (outBits.end(), 7 + (at < stream.weakZeros.size() ? stream.weakZeros[at] : 0), (uint8_t) 0);
             zeros = 0;
             continue;
         }

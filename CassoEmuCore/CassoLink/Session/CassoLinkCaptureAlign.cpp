@@ -473,9 +473,11 @@ bool CassoLinkCapture::Align (std::span<const Byte> revolution, std::span<const 
 //  CassoLinkCapture::FindAddressEndings
 //
 //  For each byte of a revolution, whether it is one of the s_kEndingBytes
-//  after an address field's checksum. An address field is a $D5 and two
-//  more bytes, then s_kAddressNibbles 4-and-4 nibbles; a protected disk
-//  changes the two bytes after the $D5, so they aren't checked. The
+//  after an address field's checksum. An address field is a byte with
+//  $D5's bits set, other than a sync byte, and two more bytes, then
+//  s_kAddressNibbles 4-and-4 nibbles, not all sync bytes. A protected disk
+//  changes the prolog, as Ultima IV's D7 AA 96 does, and its RWTS masks the
+//  first byte with $D5, so the other two aren't checked. The
 //  revolution wraps, so a field at its end has its ending at its start.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,14 +492,19 @@ std::vector<bool> CassoLinkCapture::FindAddressEndings (std::span<const Byte> re
 
     for (size_t at = 0; n > field + s_kEndingBytes && at < n; at++)
     {
-        bool  isField = (revolution[at] | 0x80) == 0xD5;
+        Byte  first   = (Byte) (revolution[at] | 0x80);
+        bool  isField = (first & 0xD5) == 0xD5 && first != s_kSyncByte;
+        bool  isSync  = true;
 
         for (size_t k = 3; isField && k < field; k++)
         {
             Byte  nibble = (Byte) (revolution[(at + k) % n] | 0x80);
 
             isField = (nibble & 0xAA) == 0xAA;
+            isSync  = isSync && nibble == s_kSyncByte;
         }
+
+        isField = isField && !isSync;
 
         for (size_t k = 0; isField && k < s_kEndingBytes; k++)
         {

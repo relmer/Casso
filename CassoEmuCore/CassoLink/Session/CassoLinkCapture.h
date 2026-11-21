@@ -250,6 +250,7 @@ private:
     static bool                 Align          (std::span<const Byte> revolution, std::span<const Byte> read, size_t from,
                                                 std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch);
     static std::vector<bool>  FindAddressEndings (std::span<const Byte> revolution);
+    static void               CountEndingZeros   (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, std::vector<uint8_t> & ioZeros);
     static int                CountSectors       (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed);
     static bool               IsCrosstalk        (std::span<const Byte> revolution, int position);
     static void                 CountZeros     (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed, bool fine,
@@ -329,6 +330,8 @@ private:
     static constexpr size_t  s_kSpliceBytes        = 16;
     static constexpr size_t  s_kEndingBytes        = 2;      // where DE AA is: read before a write starts, so no splice falls there
     static constexpr size_t  s_kAddressNibbles     = 8;      // volume, track, sector and checksum, two 4-and-4 nibbles each
+    static constexpr int     s_kEndingMarks        = 2;      // the reads at 8 cycles that mark an ending's byte, at least, to count its zero bits
+    static constexpr uint8_t s_kEndingZeros        = 2;
     static constexpr size_t  s_kProbeShare         = 4;
     static constexpr int     s_kWeakReads          = 2;
     static constexpr size_t  s_kConsensusGap       = 4;
