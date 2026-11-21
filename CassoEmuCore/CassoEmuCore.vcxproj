@@ -1401,6 +1401,18 @@
     <ClCompile Include="Shell\StorageCardWiring.cpp" />
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
+  <!-- RunCodeAnalysis adds /analyze switches to every file through these, so
+       the third-party sources are analyzed with EnablePREfast=false alone. -->
+  <ItemGroup>
+    <ClCompile Update="..\External\**\*.c">
+      <PREfastProjectDirectory />
+      <PREfastLogFile />
+      <PREfastRulesetFile />
+      <PREfastAdditionalOptions />
+      <PREfastAdditionalPlugins />
+      <PREfastRulesetDirectories />
+    </ClCompile>
+  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
     <ClInclude Include="Devices\Disk\DiskCommandText.h" />

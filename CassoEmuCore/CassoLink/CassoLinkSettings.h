@@ -95,6 +95,10 @@ struct CassoLinkSettings
     //  server with a COM port.
     bool                 IsComPort         () const;
 
+    //  Whether the connection is over Ethernet: an Uthernet II, or an original
+    //  Uthernet or LANceGS over UDP.
+    bool                 IsEthernet        () const;
+
     //  Whether the connection is an Uthernet II with no address, which lists
     //  each Apple whose announcement arrives instead of connecting to one.
     bool                 IsSearch          () const;
