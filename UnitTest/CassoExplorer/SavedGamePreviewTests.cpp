@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/InfocomSaveBuilder.h"
 #include "../FileTypes/WizardryScenarioBuilder.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -147,6 +148,28 @@ public:
 
         host.browser.SetPreviewSavedGame (true);
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Document, L"and back");
+    }
+
+
+    //  An Infocom save disk has no file system: it previews as its saved
+    //  positions, and the disk as its details.
+    TEST_METHOD (InfocomSaveDisk_PreviewsAsTheSavedGame)
+    {
+        Host  host;
+
+        host.Seed (InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 2), "C:\\Disks\\zork-save.dsk");
+
+        const PreviewContent &  preview = host.Select (L"zork-save.dsk");
+
+        Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
+        Assert::IsTrue (HasText (preview, L"release 5: hall, score 7, 12 moves"));
+        Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
+
+        host.browser.SetPreviewSavedGame (false);
+
+        Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Details, L"The disk previews as its details");
+        Assert::IsTrue  (host.browser.GetPreview().hasSavedGame);
+        Assert::IsFalse (host.browser.GetPreview().savedGameShown);
     }
 
 

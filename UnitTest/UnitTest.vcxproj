@@ -389,7 +389,9 @@
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
+    <ClCompile Include="FileTypes\DiskSaveTableTests.cpp" />
     <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />
+    <ClCompile Include="CassoExplorer\SavedGamePaneTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
@@ -1005,6 +1007,7 @@
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="FileTypes\WizardryScenarioBuilder.h" />
+    <ClInclude Include="EmuTests\InfocomSaveBuilder.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />

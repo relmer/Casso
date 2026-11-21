@@ -107,6 +107,7 @@ public:
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
     PreviewDiskThumbnail            & GetThumbnail           ()            { return m_thumbnail; }
+    const DxuiSegmentedControl      & GetSections            () const      { return *m_sections; }
 
     //  The preview over the whole tab, below the tab strip, and its steps to
     //  the previous and next file.

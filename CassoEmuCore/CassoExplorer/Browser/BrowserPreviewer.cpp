@@ -10,6 +10,8 @@
 #include "CassoExplorer/Model/PreviewViewChoices.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Devices/Disk/DiskImageSession.h"
+#include "FileTypes/DiskSaveTable.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
@@ -500,7 +502,9 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 {
     ImageContents  contents;
     VolumeListing  listing;
-    VolumeKind     kind = VolumeKind::Unknown;
+    VolumeKind     kind     = VolumeKind::Unknown;
+    DecodedFile    diskSave;
+    bool           hasSave  = false;
 
 
 
@@ -513,6 +517,18 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         listing = std::move (contents.listing);
         kind    = contents.kind;
 
+        //  A disk with no file system may be a game's saved game, such as an
+        //  Infocom save disk.
+        hasSave = !contents.result.Succeeded() && TryDecodeDiskSave (imagePath, diskSave);
+
+        if (hasSave && m_savedGameShown)
+        {
+            PreviewDecoder::FromDecoded (diskSave, m_preview);
+            m_preview.hasSavedGame   = true;
+            m_preview.savedGameShown = true;
+            return;
+        }
+
         if (!contents.result.Succeeded() && PreviewPartitions (imagePath, contents.layout, contents.partitions))
         {
             return;
@@ -520,7 +536,8 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
         if (!contents.result.Succeeded() && PreviewDecoder::ParseDetails (contents.result.message, m_preview.details))
         {
-            m_preview.kind = PreviewContent::Kind::Details;
+            m_preview.kind         = PreviewContent::Kind::Details;
+            m_preview.hasSavedGame = hasSave;
             AddWozDetails (imagePath);
             return;
         }
@@ -546,6 +563,46 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
     AddWozDetails (imagePath);
 
     m_preview.hasSavedGame = FindSavedGame (listing, kind) != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::TryDecodeDiskSave
+//
+//  The image's sectors decoded by the DiskSaveTable entry that accepts them.
+//  False for an image that can't be read or that no entry accepts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, DecodedFile & outFile)
+{
+    HRESULT                       hr     = S_OK;
+    std::string                   narrow = TextEncoding::WideToNarrow (imagePath);
+    std::vector<Byte>             bytes;
+    std::vector<Byte>             sectors;
+    SectorDecodeReport            report;
+    const DiskSaveTable::Entry  * entry  = nullptr;
+
+
+
+    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
+    CHR (hr);
+
+    hr = VolumeImage::Load (bytes, narrow, sectors, report);
+    CHR (hr);
+
+    entry = DiskSaveTable::Find (sectors);
+    CBR (entry != nullptr);
+
+    hr = entry->decode (sectors, outFile);
+    CHR (hr);
+
+Error:
+    return SUCCEEDED (hr);
 }
 
 
