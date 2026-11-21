@@ -74,6 +74,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     bool                                      exists    = false;
     std::wstring                              taken;
     std::optional<FullSendProtectionChoices>  automatic;
+    bool                                      verify    = forceVerify;
 
 
 
@@ -86,19 +87,12 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    spec.filters.push_back (FileDialogFilter { CassoExplorerFullSendPage::GetFormatDescription (L""), L"*.dsk;*.po;*.woz" });
-
-    for (const wchar_t * extension : s_kImageExtensions)
-    {
-        std::wstring  description = CassoExplorerFullSendPage::GetFormatDescription (extension);
-
-        if (description.empty())
-        {
-            description = CatalogModel::GetDiskImageTypeName (extension);
-        }
-
-        spec.filters.push_back (FileDialogFilter { std::format (L"{} (*{})", description, extension), std::format (L"*{}", extension) });
-    }
+    //  The Full Send page's list, and a 13-sector image, which Full Send
+    //  doesn't save.
+    spec.filters = CassoExplorerFullSendPage::GetFormatFilters();
+    spec.filters.push_back (FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
+                                               L"A Model T. It starts with a crank, and only on roads paved before 1980." });
+    spec.verify  = &verify;
 
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
@@ -114,7 +108,8 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         CHR (hr);
         BAIL_OUT_IF (!chosen, S_OK);
 
-        isAuto = std::none_of (std::begin (s_kImageExtensions), std::end (s_kImageExtensions), [&picked] (const wchar_t * extension) { return _wcsicmp (picked.extension().c_str(), extension) == 0; });
+        forceVerify = verify;
+        isAuto      = std::none_of (std::begin (s_kImageExtensions), std::end (s_kImageExtensions), [&picked] (const wchar_t * extension) { return _wcsicmp (picked.extension().c_str(), extension) == 0; });
         exists = false;
 
         //  Automatic's file can have any of its extensions.

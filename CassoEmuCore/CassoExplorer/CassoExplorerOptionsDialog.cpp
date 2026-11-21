@@ -29,6 +29,8 @@ struct FullSendFormat
 //  The common types first, then the rest under a heading. The first
 //  CassoExplorerFullSendPage::kCommonFormatCount entries are the common ones.
 //  Each type's second line is the car it would be.
+static constexpr const wchar_t *  s_kEsotericaHeading = L"Esoterica, for the disk image format enthusiast";
+
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
     { L"Automatic: .po for ProDOS and Pascal disks, .dsk for everything else",
@@ -53,31 +55,32 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerFullSendPage::GetFormatDescription
+//  CassoExplorerFullSendPage::GetFormatFilters
 //
-//  The format list's text for an extension, after its ".ext: " lead. An
-//  extension missing from the list returns an empty string.
+//  The format list as a save picker's types, grouped as on the page, with
+//  each type's car as its note. Automatic lists the types it can save.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoExplorerFullSendPage::GetFormatDescription (const wchar_t * extension)
+std::vector<FileDialogFilter> CassoExplorerFullSendPage::GetFormatFilters()
 {
-    std::wstring  description;
+    std::vector<FileDialogFilter>  filters;
 
 
 
-    for (const FullSendFormat & format : s_kFullSendFormats)
+    for (size_t i = 0; i < std::size (s_kFullSendFormats); i++)
     {
-        std::wstring  label = format.label;
-        size_t        colon = label.find (L": ");
+        FileDialogFilter  filter;
 
-        if (description.empty() && colon != std::wstring::npos && TextEncoding::NarrowToWide (format.extension) == extension)
-        {
-            description = label.substr (colon + 2);
-        }
+        filter.name    = s_kFullSendFormats[i].label;
+        filter.note    = s_kFullSendFormats[i].car;
+        filter.pattern = (*s_kFullSendFormats[i].extension == '\0') ? std::wstring (L"*.dsk;*.po;*.woz") : L"*" + TextEncoding::NarrowToWide (s_kFullSendFormats[i].extension);
+        filter.heading = (i == kCommonFormatCount) ? std::wstring (s_kEsotericaHeading) : std::wstring();
+
+        filters.push_back (filter);
     }
 
-    return description;
+    return filters;
 }
 
 
@@ -715,7 +718,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
     {
         if (i == CassoExplorerFullSendPage::kCommonFormatCount)
         {
-            rows.push_back (L"Esoterica, for the disk image format enthusiast");
+            rows.push_back (s_kEsotericaHeading);
             enabled.push_back (false);
             headings.push_back (true);
             cars.push_back (std::wstring());

@@ -6,6 +6,7 @@
 #include "Config/CrtTypes.h"
 #include "Ui/Settings/ColorPickerOverlay.h"
 #include "Ui/ThemeLoader.h"
+#include "Seams/IHostDialogs.h"
 
 
 class DisplayPage;
@@ -109,9 +110,9 @@ public:
 
     void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, FormatParts & format);
 
-    static std::wstring  GetFormatDescription (const wchar_t * extension);
-    void                 Layout               (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool                 OnMouse              (const DxuiMouseEvent & ev) override;
+    static std::vector<FileDialogFilter>  GetFormatFilters ();
+    void                                  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool                                  OnMouse          (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip        = 60;
     static constexpr int  kBrowseWidthDip       = 100;
