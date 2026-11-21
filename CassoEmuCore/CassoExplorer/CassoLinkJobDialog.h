@@ -4,6 +4,7 @@
 
 #include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
+#include "Seams/ByteStreamSettings.h"
 
 
 class IDxuiTheme;
@@ -30,6 +31,7 @@ struct CassoLinkJobView
 
     std::string                                         link;           // the connection, which keys its tab
     std::wstring                                        tabLabel;
+    std::wstring                                        connection;     // the Apple and how it's connected, as Apple ][ plus over serial on COM3
     std::wstring                                        heading;
     std::wstring                                        step;           // what a running job is doing now
     std::wstring                                        imagePath;
@@ -50,6 +52,10 @@ struct CassoLinkJobView
     //  Apple //c, and empty when it isn't known; elapsed is the seconds since
     //  the operation started.
     static CassoLinkJobView  Build (const LinkOperation & operation, const std::string & link, const std::wstring & model, double elapsed);
+
+    //  The Apple and how it's connected: its model, the transport, and the
+    //  COM port for serial.
+    static std::wstring  DescribeConnection (const std::wstring & model, LinkTransport transport, const std::wstring & port);
 
     //  Whether an operation has a job window: a whole disk read, captured or
     //  written.
@@ -90,6 +96,16 @@ public:
     static constexpr float     kLabelWidthDip  = 220.0f;
     static constexpr float     kSectionGapDip  = 14.0f;
     static constexpr uint32_t  kWeakArgb       = 0xFFE3B341;
+    static constexpr float     kTabWidthDip    = 240.0f;
+
+    //  A map cell's largest size, under the pointer, and the range in tracks
+    //  either side over which cells grow, as on the Full Send window's map.
+    static constexpr float     kMagnifyMax         = 3.0f;
+    static constexpr float     kMagnifyReachTracks = 3.5f;
+
+    //  Whether the map is growing or shrinking, so the window is drawn each
+    //  frame until it settles.
+    bool  IsMagnifying (int64_t nowMs) const { return m_magnifier.IsEasing (nowMs); }
 
     void  Init        ();
     void  SetViews    (std::vector<CassoLinkJobView> views, const std::string & selected);
@@ -107,7 +123,13 @@ private:
     float  PaintSummary (IDxuiTextRenderer & text, const IDxuiTheme & theme, const CassoLinkJobView & view, float left, float top, float width) const;
     void   DrawLine     (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip, DxuiFontWeight weight) const;
 
+    void   LayTabs      ();
+
     DxuiTabStrip                   m_tabs;
+    RECT                           m_tabsPx     = {};
+    DxuiMagnifiedRow               m_magnifier;
+    float                          m_pointerX   = 0.0f;
+    mutable RECT                   m_mapPx      = {};   // the map at rest, as last painted
     DxuiDpiScaler                  m_scaler;
     std::vector<CassoLinkJobView>  m_views;
     std::string                    m_selected;
@@ -139,6 +161,7 @@ public:
     static constexpr int   kFolderId  = 1002;
     static constexpr int   kOpenId    = 1003;
     static constexpr UINT  kTickMs    = 200;
+    static constexpr UINT  kFrameMs   = 16;     // while the map grows or shrinks
 
     using ViewsFn  = std::function<std::vector<CassoLinkJobView> ()>;
     using LinkFn   = std::function<void (const std::string & link)>;
@@ -165,6 +188,9 @@ protected:
 
 private:
     void  Refresh ();
+
+    UINT                 m_tickMs       = kTickMs;
+    int64_t              m_refreshedMs  = 0;
 
     const IDxuiTheme   * m_theme        = nullptr;
     Actions              m_actions;

@@ -230,6 +230,14 @@ std::vector<CassoLinkJobView> CassoLinkJobManager::BuildViews()
         ULONGLONG           from    = (job.startedMs != 0) ? job.startedMs : now;
         ULONGLONG           to      = (job.endedMs != 0) ? job.endedMs : now;
         CassoLinkJobView    view    = CassoLinkJobView::Build (*job.operation, link, model, (double) (to - from) / 1000.0);
+        LinkTransport       kind    = LinkTransport::Serial;
+
+        for (const CassoLinkSettings & settings : m_context.app.links->GetLinks())
+        {
+            kind = (settings.name == link) ? settings.transport : kind;
+        }
+
+        view.connection = CassoLinkJobView::DescribeConnection (model, kind, (session != nullptr) ? session->GetPort() : std::wstring());
 
         if (link == m_selected)
         {

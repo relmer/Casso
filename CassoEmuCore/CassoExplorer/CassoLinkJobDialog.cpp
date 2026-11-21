@@ -41,6 +41,37 @@ std::wstring CassoLinkJobView::DescribeDrive (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkJobView::DescribeConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkJobView::DescribeConnection (const std::wstring & model, LinkTransport transport, const std::wstring & port)
+{
+    std::wstring  apple = model.empty() ? std::wstring (L"The Apple") : model;
+
+
+
+    switch (transport)
+    {
+        case LinkTransport::Serial:       return port.empty() ? apple + L" over serial" : std::format (L"{} over serial on {}", apple, port);
+        case LinkTransport::Tcp:          return apple + L" over TCP";
+        case LinkTransport::WifiModem:    return apple + L" over a Wi-Fi modem";
+        case LinkTransport::Emulated:     return apple + L" in Casso";
+        case LinkTransport::Uthernet:     return apple + L" over Ethernet on an Uthernet II";
+        case LinkTransport::Udp:          return apple + L" over Ethernet";
+        case LinkTransport::AdtProServer: return apple + L" over ADTPro";
+        case LinkTransport::Cassette:     return apple + L" over cassette audio";
+    }
+
+    return apple;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkJobView::Build
 //
 //  A running job's tracks before its share done are read. Once a read ends,
@@ -107,7 +138,8 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
         }
     }
 
-    if (view.IsRunning() && view.percent > 0)
+    //  A capture's step has its own estimate of the time left.
+    if (view.IsRunning() && view.percent > 0 && view.step.find (L" left") == std::wstring::npos)
     {
         view.left = elapsed * (100 - view.percent) / view.percent;
     }
@@ -211,6 +243,41 @@ void CassoLinkJobPanel::SetViews (std::vector<CassoLinkJobView> views, const std
 
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (index);
+
+    LayTabs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::LayTabs
+//
+//  The strip's tabs side by side from its left, each the same width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobPanel::LayTabs()
+{
+    std::vector<DxuiTabStrip::Tab>  tabs  = m_tabs.GetTabs();
+    int                             x     = m_tabsPx.left;
+    int                             width = m_scaler.ToPx (kTabWidthDip);
+    int                             index = m_tabs.GetSelected();
+
+
+
+    for (DxuiTabStrip::Tab & tab : tabs)
+    {
+        tab.rect  = RECT { x, m_tabsPx.top, x + width, m_tabsPx.bottom };
+        x        += width;
+    }
+
+    m_tabs.SetTabs     (std::move (tabs));
+    m_tabs.SetSelected (index);
+    m_tabs.Layout      (m_tabsPx, m_scaler);
+    m_tabs.SetDpi      (m_scaler.GetDpi());
 }
 
 
@@ -248,6 +315,26 @@ const CassoLinkJobView * CassoLinkJobPanel::GetSelected() const
 
 bool CassoLinkJobPanel::OnMouse (const DxuiMouseEvent & ev)
 {
+    int64_t  now    = (int64_t) GetTickCount64();
+    float    grow   = (float) (m_mapPx.bottom - m_mapPx.top) * (kMagnifyMax - 1.0f);
+    bool     isNear = false;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        isNear = ev.kind == DxuiMouseEventKind::Move && m_mapPx.right > m_mapPx.left
+              && ev.positionDip.x >= m_mapPx.left && ev.positionDip.x < m_mapPx.right
+              && ev.positionDip.y >= (float) m_mapPx.top - grow && ev.positionDip.y < m_mapPx.bottom;
+
+        if (isNear)
+        {
+            m_pointerX = (float) ev.positionDip.x;
+        }
+
+        m_magnifier.SetNear (isNear, now);
+    }
+
     return DxuiPanel::OnMouse (ev);
 }
 
@@ -271,8 +358,9 @@ void CassoLinkJobPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     m_scaler    = scaler;
     tabs.bottom = tabs.top + scaler.ToPx (kTabsDip);
+    m_tabsPx    = tabs;
 
-    m_tabs.Layout (tabs, scaler);
+    LayTabs();
 }
 
 
@@ -329,6 +417,9 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     DrawLine (text, view->heading, left, top, width, theme.Foreground(), kHeadingFontDip, DxuiFontWeight::SemiBold);
     top += line + m_scaler.ToPxf (4.0f);
 
+    DrawLine (text, view->connection, left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
+    top += line;
+
     if (view->IsRunning() && !view->step.empty())
     {
         DrawLine (text, view->step, left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
@@ -379,23 +470,45 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 float CassoLinkJobPanel::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const CassoLinkJobView & view, float left, float top, float width) const
 {
-    float    gap   = m_scaler.ToPxf (kMapGapDip);
-    float    cellW = (width - gap * (float) (CassoLinkJobView::kTracks - 1)) / (float) CassoLinkJobView::kTracks;
-    float    cellH = m_scaler.ToPxf (kMapCellDip);
-    float    foot  = std::max (2.0f, std::floor (cellH / 4.0f));
-    HRESULT  hr    = S_OK;
+    float                                                     gap     = m_scaler.ToPxf (kMapGapDip);
+    float                                                     cellW   = (width - gap * (float) (CassoLinkJobView::kTracks - 1)) / (float) CassoLinkJobView::kTracks;
+    float                                                     cellH   = m_scaler.ToPxf (kMapCellDip);
+    float                                                     foot    = std::max (2.0f, std::floor (cellH / 4.0f));
+    float                                                     room    = cellH * (kMagnifyMax - 1.0f);
+    HRESULT                                                   hr      = S_OK;
+    std::array<DxuiMagnifiedItem, CassoLinkJobView::kTracks>  items   = {};
+    std::array<DxuiMagnifiedSpan, CassoLinkJobView::kTracks>  spans   = {};
+    DxuiMagnifiedRow::Options                                 options;
 
 
+
+    top     += room;
+    m_mapPx  = RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + cellH) };
 
     for (int track = 0; track < CassoLinkJobView::kTracks; track++)
     {
-        float  x = left + (cellW + gap) * (float) track;
+        items[(size_t) track].left     = left + (cellW + gap) * (float) track;
+        items[(size_t) track].width    = cellW;
+        items[(size_t) track].maxScale = kMagnifyMax;
+    }
 
-        painter.FillRect (x, top, cellW, cellH, FullSendPanel::GetColor (view.tracks[(size_t) track], theme));
+    options.reach  = (cellW + gap) * kMagnifyReachTracks;
+    options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
+
+    DxuiMagnifiedRow::Lay (items, m_pointerX, m_magnifier.GetStrength ((int64_t) GetTickCount64()), options, spans);
+
+    //  A cell grows up from the map's foot.
+    for (int track = 0; track < CassoLinkJobView::kTracks; track++)
+    {
+        const DxuiMagnifiedSpan  & span    = spans[(size_t) track];
+        float                      height  = cellH * span.scale;
+        float                      cellTop = top + cellH - height;
+
+        painter.FillRect (span.left, cellTop, span.width, height, FullSendPanel::GetColor (view.tracks[(size_t) track], theme));
 
         if (std::find (view.weakTracks.begin(), view.weakTracks.end(), track) != view.weakTracks.end())
         {
-            painter.FillRect (x, top + cellH - foot, cellW, foot, kWeakArgb);
+            painter.FillRect (span.left, top + cellH - foot, span.width, foot, kWeakArgb);
         }
     }
 
@@ -501,7 +614,7 @@ void CassoLinkJobDialog::OnCreate()
         Refresh();
     });
 
-    m_cancelButton = AddDialogButton (L"Cancel job", kCancelId);
+    m_cancelButton = AddDialogButton (L"Cancel job", kCancelId, DxuiButtonRow::Anchor::Left);
     m_folderButton = AddDialogButton (L"Show in folder", kFolderId);
     m_openButton   = AddDialogButton (L"Open", kOpenId);
 
@@ -551,7 +664,26 @@ void CassoLinkJobDialog::OnCreate()
 
 void CassoLinkJobDialog::OnDialogTick()
 {
-    Refresh();
+    int64_t  now    = (int64_t) GetTickCount64();
+    UINT     tickMs = m_panel->IsMagnifying (now) ? kFrameMs : kTickMs;
+
+
+
+    if (tickMs != m_tickMs)
+    {
+        m_tickMs = tickMs;
+        SetDialogTickIntervalMs (tickMs);
+    }
+
+    if (now - m_refreshedMs >= (int64_t) kTickMs)
+    {
+        m_refreshedMs = now;
+        Refresh();
+    }
+    else
+    {
+        Invalidate();
+    }
 }
 
 
