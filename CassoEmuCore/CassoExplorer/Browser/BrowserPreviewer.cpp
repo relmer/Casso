@@ -1311,6 +1311,14 @@ void BrowserPreviewer::PreviewShellItem (const CatalogRow & row)
         return;
     }
 
+    //  A disk image previews as its catalog, as it does in its folder, one in
+    //  a zip by its path through the zip.
+    if (row.isDiskImage)
+    {
+        PreviewImageCatalog (BrowserLoader::GetImagePath (row));
+        return;
+    }
+
     if (!row.hostPath.empty())
     {
         m_preview.kind     = PreviewContent::Kind::Hex;

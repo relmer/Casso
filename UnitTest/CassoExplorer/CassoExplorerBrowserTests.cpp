@@ -299,6 +299,27 @@ public:
     }
 
 
+    //  A disk image the shell lists previews as its catalog, as it does in its
+    //  folder.
+    TEST_METHOD (ShellPreview_ADiskImagePreviewsAsItsCatalog)
+    {
+        Host                              host;
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  image;
+
+        image.name   = L"prodos.po";
+        image.path   = L"C:\\Disks\\prodos.po";
+        image.isFile = true;
+        shell.shellItems = { image };
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (L"::{test}", L"Test"));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
+
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
+    }
+
+
     //  A file of a type Windows previews gets Windows' preview; an assembler's
     //  source and an exported Apple file are Casso Explorer's own.
     TEST_METHOD (ShellPreview_ForTypesWindowsPreviews)
