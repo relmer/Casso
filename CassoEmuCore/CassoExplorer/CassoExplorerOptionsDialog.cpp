@@ -709,7 +709,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     std::vector<std::wstring>  rows;
     std::vector<bool>          enabled;
     std::vector<bool>          headings;
-    std::vector<std::wstring>  cars;
     int                        selected = 0;
 
 
@@ -721,13 +720,11 @@ void CassoExplorerOptionsDialog::WireFullSend()
             rows.push_back (s_kEsotericaHeading);
             enabled.push_back (false);
             headings.push_back (true);
-            cars.push_back (std::wstring());
         }
 
         rows.push_back (s_kFullSendFormats[i].label);
         enabled.push_back (true);
         headings.push_back (false);
-        cars.push_back (s_kFullSendFormats[i].car);
 
         selected = m_choices.fullSendExtension == s_kFullSendFormats[i].extension ? (int) i : selected;
     }
@@ -735,7 +732,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.list.SetItems            (rows);
     m_fullSendFormat.list.SetItemsEnabled     (enabled);
     m_fullSendFormat.list.SetItemHeadings     (headings);
-    m_fullSendFormat.list.SetItemDescriptions (cars);
     m_fullSendFormat.list.SetSelected         (GetFormatRow (selected));
     m_fullSendFormat.list.SetSelect           ([this] (int row) { m_fullSendFormat.note.SetText (s_kFullSendFormats[(size_t) GetFormatIndex (row)].car); });
 

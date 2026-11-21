@@ -76,6 +76,8 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     std::wstring                              taken;
     std::optional<FullSendProtectionChoices>  automatic;
     bool                                      verify    = forceVerify;
+    bool                                      is13      = false;
+    std::wstring                              name;
 
 
 
@@ -88,19 +90,39 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    //  The Full Send page's list, and for a 13-sector disk, a 13-sector
-    //  image, which Full Send doesn't save.
-    spec.filters = CassoExplorerFullSendPage::GetFormatFilters();
+    is13 = m_context.browser.GetTreeModel().IsThirteenSectorDrive (target.path);
+    name = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
 
-    if (m_context.browser.GetTreeModel().IsThirteenSectorDrive (target.path))
+    if (name.size() > 4 && _wcsicmp (name.c_str() + name.size() - 4, L".dsk") == 0)
     {
-        spec.filters.push_back (FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
-                                                   L"A Model T. It starts with a crank, and only on dirt or cobblestone roads." });
+        name.resize (name.size() - 4);
+    }
+
+    //  The Full Send page's list. A 13-sector disk fits only a .d13, which
+    //  Full Send doesn't save, or a raw capture.
+    if (is13)
+    {
+        spec.filters = { FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
+                                            L"A Model T. It starts with a crank, and only on dirt or cobblestone roads." } };
+
+        for (const FileDialogFilter & filter : CassoExplorerFullSendPage::GetFormatFilters())
+        {
+            if (filter.pattern == L"*.woz")
+            {
+                spec.filters.push_back (filter);
+            }
+        }
+
+        name += L".d13";
+    }
+    else
+    {
+        spec.filters = CassoExplorerFullSendPage::GetFormatFilters();
     }
 
     spec.verify           = &verify;
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
+    spec.defaultFileName  = name;
     spec.askToReplace     = false;
     spec.title            = std::format (L"Create image from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content          = FileDialogContent::Images;
@@ -115,7 +137,14 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
 
         forceVerify = verify;
         isAuto      = std::none_of (std::begin (s_kImageExtensions), std::end (s_kImageExtensions), [&picked] (const wchar_t * extension) { return _wcsicmp (picked.extension().c_str(), extension) == 0; });
-        exists = false;
+        exists      = false;
+
+        //  A 13-sector disk's name without an image extension is a .d13.
+        if (is13 && isAuto)
+        {
+            picked += L".d13";
+            isAuto  = false;
+        }
 
         //  Automatic's file can have any of its extensions.
         for (const wchar_t * extension : isAuto ? std::initializer_list<const wchar_t *> { L".dsk", L".po", L".woz" } : std::initializer_list<const wchar_t *> { L"" })
