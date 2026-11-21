@@ -483,7 +483,7 @@ public:
     void  SetSelectionPainted      (bool enabled)                { m_selectionPainted = enabled; }
 
     // Rounds the corners of a row's hover, press and selection box by this
-    // many DIPs. Zero, the default, leaves them square, as Explorer's are.
+    // many DIPs. At zero, the default, they are square, as Explorer's are.
     void  SetRowCornerDip          (float dip)                   { m_rowCornerDip = dip; }
 
     // Selected rows in the accent selection color a text control uses, as a
