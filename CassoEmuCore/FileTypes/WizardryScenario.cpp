@@ -727,9 +727,9 @@ bool WizardryScenario::IsPartyOut (std::span<const Byte> bytes, const Contents &
 //  WizardryScenario::DrawPartyLevel
 //
 //  The maze level the party is on as a picture, with the party's square
-//  marked, and what its colors indicate. A party out in the maze with no
-//  square saved has a line instead: the game saves a square only when the
-//  party is lost there.
+//  marked, and what its colors indicate. A square is saved only for a party
+//  that died in the maze; a party still out there when the game was turned
+//  off has a line in place of the map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -748,7 +748,7 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
         if (IsPartyOut (bytes, contents))
         {
             ioParagraphs.push_back (Paragraph());
-            ioParagraphs.push_back (MakeParagraph ({ Run { L"No map: the party is out in the maze, and the game hasn't saved where.", false, false, false, RunColor::Muted } }));
+            ioParagraphs.push_back (MakeParagraph ({ Run { L"No map: the party is still in the maze, and no square is saved for it. To get them back, choose Recover in the boot disk's Utilities menu.", false, false, false, RunColor::Muted } }));
         }
 
         return;

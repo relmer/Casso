@@ -175,7 +175,7 @@ public:
 
         Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)"), L"Item 1000 is item 0");
         Assert::IsTrue (HasText (file, L"Status: Out, in the maze   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
-        Assert::IsTrue (HasText (file, L"No map: the party is out in the maze, and the game hasn't saved where."));
+        Assert::IsTrue (HasText (file, L"No map: the party is still in the maze, and no square is saved for it. To get them back, choose Recover in the boot disk's Utilities menu."));
     }
 
 
