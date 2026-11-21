@@ -93,23 +93,23 @@ private:
     RECT                            m_baseRect       = {};
     DxuiDpiScaler                   m_scaler;
 
-    DxuiTreeView                    m_list;
-    DxuiLabel                       m_cardLabel;
-    DxuiComboBox                    m_cardDropdown;
-    DxuiLabel                       m_promptLabel;
-    DxuiButton                      m_replaceButton;
-    DxuiButton                      m_cancelButton;
-    DxuiCheckbox                    m_firmware;
-    DxuiLabel                       m_drivesHeading;
+    DxuiTreeView                          m_list;
+    DxuiLabel                             m_cardLabel;
+    DxuiComboBox                          m_cardDropdown;
+    DxuiLabel                             m_promptLabel;
+    DxuiButton                            m_replaceButton;
+    DxuiButton                            m_cancelButton;
+    DxuiCheckbox                          m_firmware;
+    DxuiLabel                             m_drivesHeading;
     std::array<DxuiLabel,    kMaxDrives>  m_driveLabels;
     std::array<DxuiButton,   kMaxDrives>  m_changeButtons;
     std::array<DxuiButton,   kMaxDrives>  m_ejectButtons;
     std::array<DxuiButton,   kMaxDrives>  m_removeButtons;
     std::array<DxuiCheckbox, kMaxDrives>  m_timingBoxes;
-    DxuiButton                      m_addButton;
-    DxuiLabel                       m_protectLabel;
-    std::array<DxuiCheckbox, 2>     m_writeProtect;
-    SerialCardPage                  m_serial;
+    DxuiButton                            m_addButton;
+    DxuiLabel                             m_protectLabel;
+    std::array<DxuiCheckbox, 2>           m_writeProtect;
+    SerialCardPage                        m_serial;
 
     std::vector<SlotCardChoice>     m_cardChoices;
     std::wstring                    m_prompt;
