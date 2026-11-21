@@ -109,8 +109,8 @@ public:
 
     // The labels of the View menu's floppy, hard disk and recorder place
     // rows, returned by the live label query.
-    static std::wstring  GetDrivePlaceLabel    (bool isHardDisk, bool isOnDesk);
-    static std::wstring  GetRecorderPlaceLabel (bool isOnDesk);
+    static std::wstring  GetDrivePlaceLabel      (bool isHardDisk, bool isOnDesk);
+    static std::wstring  GetRecorderPlaceLabel   (bool isOnDesk);
     static std::wstring  GetFloppyPairPlaceLabel (bool isBeside);
 
     // Shell sinks. Read live by every command's functors, so they can be
