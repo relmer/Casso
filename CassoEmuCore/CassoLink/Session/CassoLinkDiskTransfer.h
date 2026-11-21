@@ -62,7 +62,12 @@ public:
     static bool     IsMeasured  (DiskFormat format);
     static HRESULT  BuildImage  (const std::string & imagePath, DiskFormat format, const std::vector<Byte> & sectors, const std::vector<CassoLinkHost::TrackMeasure> & measures, int bitsPerTurn, std::vector<Byte> & outBytes);
 
+    //  An automatic read's sectors call for a raw capture: a sign of copy
+    //  protection the choices check, or a track 0 with no sector read.
+    static bool     IsAutomaticRaw (const std::vector<Byte> & sectors, const std::vector<std::pair<int, int>> & unreadable, const FullSendProtectionChoices & choices);
+
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
+    HRESULT  ChooseAutomatic    (LinkOperation & operation, const std::vector<Byte> & sectors, DiskFormat & outFormat, std::vector<CassoLinkHost::TrackMeasure> & outMeasures, int & outBitsPerTurn, bool & outRaw);
     HRESULT  CaptureWholeDisk   (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk     (LinkOperation & operation);

@@ -7,6 +7,8 @@
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -273,18 +275,22 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
     bool                                      complete    = false;
     std::vector<CassoLinkHost::TrackMeasure>  measures;
     int                                       bitsPerTurn = 0;
+    bool                                      raw         = false;
 
 
 
-    if (_stricmp (std::filesystem::path (operation.imagePath).extension().string().c_str(), ".d13") == 0)
+    if (!operation.automatic && _stricmp (std::filesystem::path (operation.imagePath).extension().string().c_str(), ".d13") == 0)
     {
         hr = ReadThirteenSectorDisk (operation);
         CHR (hr);
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
-    CHR (hr);
+    if (!operation.automatic)
+    {
+        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
+        CHR (hr);
+    }
 
     if (IsMeasured (format))
     {
@@ -315,6 +321,19 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
         CHR (hr);
     }
 
+    if (operation.automatic)
+    {
+        hr = ChooseAutomatic (operation, sectors, format, measures, bitsPerTurn, raw);
+        CHR (hr);
+
+        if (raw)
+        {
+            hr = CaptureWholeDisk (operation);
+            CHR (hr);
+            BAIL_OUT_IF (true, S_OK);
+        }
+    }
+
     complete = operation.unreadable.empty() || operation.blankUnreadable;
 
     if (!complete)
@@ -334,6 +353,109 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
     hr = SaveUnreadableList (operation);
     CHRF (hr, operation.message = std::format ("The image was written, but the list of its unreadable sectors could not be saved as {}.",
                                                GetUnreadableListPath (operation.imagePath)));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::IsAutomaticRaw
+//
+//  The same signs as Full Send's: unreadable sectors on a disk assessed as
+//  copy-protected, or a condition of the Copy-protected disks section.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDiskTransfer::IsAutomaticRaw (const std::vector<Byte> & sectors, const std::vector<std::pair<int, int>> & unreadable, const FullSendProtectionChoices & choices)
+{
+    std::array<int, NibblizationLayer::kTrackCount>  perTrack    = {};
+    int                                              emptyTracks = 0;
+    bool                                             readSign    = false;
+
+
+
+    for (const auto & [track, sector] : unreadable)
+    {
+        if (track >= 0 && track < NibblizationLayer::kTrackCount)
+        {
+            perTrack[(size_t) track]++;
+        }
+    }
+
+    emptyTracks = (int) std::count (perTrack.begin(), perTrack.end(), NibblizationLayer::kSectorsPerTrack);
+    readSign    = choices.readErrors && !unreadable.empty()
+               && std::string (FullSendDisk::AssessDamage (sectors, emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
+
+    return perTrack[0] == NibblizationLayer::kSectorsPerTrack || (choices.captureRaw && (readSign || choices.IsMet (FullSendProtection::Find (sectors))));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::ChooseAutomatic
+//
+//  A disk with signs of copy protection is captured raw. A disk whose track
+//  0 has a volume other than the one a sector image is nibblized with is a
+//  WOZ built to every track's measured layout, when the choices preserve the
+//  volume. Any other is .po for ProDOS and Pascal, and .dsk otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::ChooseAutomatic (LinkOperation & operation, const std::vector<Byte> & sectors, DiskFormat & outFormat, std::vector<CassoLinkHost::TrackMeasure> & outMeasures,
+                                                int & outBitsPerTurn, bool & outRaw)
+{
+    HRESULT                                   hr        = S_OK;
+    const FullSendProtectionChoices         & choices   = *operation.automatic;
+    std::string                               extension = FullSendDisk::GetImageExtension (sectors, std::string());
+    std::vector<CassoLinkHost::TrackMeasure>  first;
+    HRESULT                                   measured  = S_OK;
+    Byte                                      volume    = 0;
+
+
+
+    outRaw = IsAutomaticRaw (sectors, operation.unreadable, choices);
+
+    if (outRaw)
+    {
+        extension = ".woz";
+    }
+    else if (choices.volumeWoz)
+    {
+        hr = TimeDriveForLayout (operation.drive, outBitsPerTurn);
+        CHR (hr);
+
+        //  A track 0 that can't be measured is left to the sector image.
+        measured = MeasureTrack (operation.drive, 0, first);
+        volume   = (SUCCEEDED (measured) && !first.empty()) ? first[0].volume : (Byte) 0;
+
+        if (volume != 0 && volume != NibblizationLayer::GetImageVolume (sectors))
+        {
+            extension = ".woz";
+            outFormat = DiskFormat::Woz;
+
+            for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+            {
+                hr = MeasureTrack (operation.drive, track, outMeasures);
+                CHR (hr);
+            }
+        }
+    }
+
+    operation.imagePath += extension;
+
+    if (!outRaw && outFormat != DiskFormat::Woz)
+    {
+        hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, outFormat);
+        CHR (hr);
+    }
 
 Error:
     return hr;

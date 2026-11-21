@@ -122,6 +122,11 @@ struct LinkOperation
     std::string                      imagePrefix;
     bool                             blankUnreadable = false;
 
+    //  Read disk with an automatic format: the copy-protection choices that
+    //  pick a raw capture or a WOZ, and otherwise .po or .dsk by the disk's
+    //  file system. The extension is appended to imagePath once it's chosen.
+    std::optional<FullSendProtectionChoices>  automatic;
+
     //  Read disk and Write disk of a block device: continue a transfer the
     //  link cut short, from its record beside the image.
     bool                             resume          = false;

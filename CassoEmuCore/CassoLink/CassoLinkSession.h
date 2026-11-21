@@ -135,7 +135,8 @@ public:
 
     //  Every track's standard sectors into an image file, in the format of
     //  its extension, replaced atomically and only when the read succeeds.
-    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false);
+    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false,
+                                                   std::optional<FullSendProtectionChoices> automatic = std::nullopt);
 
     //  A raw capture of the drive's disk into a WOZ 2 image, by the capture
     //  module; the message lists the tracks whose reads differ.

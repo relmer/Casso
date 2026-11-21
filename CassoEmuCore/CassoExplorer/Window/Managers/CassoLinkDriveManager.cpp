@@ -51,24 +51,29 @@ CassoLinkDriveManager::~CassoLinkDriveManager() = default;
 //
 //  A linked Apple drive's disk into an image file the user picks, in the
 //  format of its extension: a WOZ is captured raw, and any other is the
-//  disk's sectors. The drive is the one given, else the open drive, else
-//  the drive row selected on its machine; the list stays where it is. When
-//  sectors cannot be read, the user may read the disk again with them
-//  written as zeros.
+//  disk's sectors. A name without an image extension is Automatic, which
+//  picks the format as Full Send does. The drive is the one given, else the
+//  open drive, else the drive row selected on its machine; the list stays
+//  where it is. When sectors cannot be read, the user may read the disk
+//  again with them written as zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceVerify)
 {
-    HRESULT                        hr     = S_OK;
-    std::filesystem::path          picked;
-    bool                           chosen = false;
-    Location                       target;
-    std::wstring                   link;
-    int                            number = 0;
-    bool                           found  = false;
-    FileDialogSpec                 spec;
-    CassoExplorerActions::Outcome  outcome;
+    HRESULT                                   hr        = S_OK;
+    std::filesystem::path                     picked;
+    bool                                      chosen    = false;
+    Location                                  target;
+    std::wstring                              link;
+    int                                       number    = 0;
+    bool                                      found     = false;
+    FileDialogSpec                            spec;
+    CassoExplorerActions::Outcome             outcome;
+    bool                                      isAuto    = false;
+    bool                                      exists    = false;
+    std::wstring                              taken;
+    std::optional<FullSendProtectionChoices>  automatic;
 
 
 
@@ -81,7 +86,9 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    for (const wchar_t * extension : { L".dsk", L".do", L".po", L".d13", L".nib", L".nb2", L".woz" })
+    spec.filters.push_back (FileDialogFilter { CassoExplorerFullSendPage::GetFormatDescription (L""), L"*.dsk;*.po;*.woz" });
+
+    for (const wchar_t * extension : s_kImageExtensions)
     {
         std::wstring  description = CassoExplorerFullSendPage::GetFormatDescription (extension);
 
@@ -93,10 +100,8 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         spec.filters.push_back (FileDialogFilter { std::format (L"{} (*{})", description, extension), std::format (L"*{}", extension) });
     }
 
-
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
-    spec.defaultExtension = L"dsk";
     spec.askToReplace     = false;
     spec.title            = std::format (L"Create image from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content          = FileDialogContent::Images;
@@ -109,8 +114,21 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         CHR (hr);
         BAIL_OUT_IF (!chosen, S_OK);
 
-        if (GetFileAttributesW (picked.c_str()) != INVALID_FILE_ATTRIBUTES &&
-            DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
+        isAuto = std::none_of (std::begin (s_kImageExtensions), std::end (s_kImageExtensions), [&picked] (const wchar_t * extension) { return _wcsicmp (picked.extension().c_str(), extension) == 0; });
+        exists = false;
+
+        //  Automatic's file can have any of its extensions.
+        for (const wchar_t * extension : isAuto ? std::initializer_list<const wchar_t *> { L".dsk", L".po", L".woz" } : std::initializer_list<const wchar_t *> { L"" })
+        {
+            if (!exists && GetFileAttributesW ((picked.wstring() + extension).c_str()) != INVALID_FILE_ATTRIBUTES)
+            {
+                exists = true;
+                taken  = picked.filename().wstring() + extension;
+            }
+        }
+
+        if (exists &&
+            DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, (taken + L" already exists. Overwrite it?").c_str(),
                             L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK)
         {
             spec.initialFolder   = picked.parent_path();
@@ -125,9 +143,14 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
+    if (isAuto)
+    {
+        automatic = m_context.prefs.fullSendProtection;
+    }
+
     //  The second read goes to the link and drive the first one read, not to
     //  whatever drive the window has open by the time the first one fails.
-    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify] (const LinkOperation & operation, const std::string & link, int drive)
+    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify, automatic] (const LinkOperation & operation, const std::string & link, int drive)
     {
         std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
         std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros? Their list is saved beside the image as " + list + L".";
@@ -136,7 +159,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Read disk to image",
                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Read again", L"Cancel" }) == IDOK)
         {
-            again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr);
+            again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
 
             if (!again.Succeeded())
             {
@@ -145,7 +168,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
 
             m_context.cassoLinkManager.HandleConnectionChanged();
         }
-    }, [this, target, picked] () { OfferRawCapture (target, picked); });
+    }, isAuto ? std::function<void()>() : [this, target, picked] () { OfferRawCapture (target, picked); }, automatic);
 
     if (!outcome.Succeeded())
     {

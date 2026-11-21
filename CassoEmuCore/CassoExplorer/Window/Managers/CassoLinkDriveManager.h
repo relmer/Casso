@@ -31,6 +31,9 @@ public:
     //  The whole-disk read and write pickers' history.
     static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
 
+    //  Create image's types after Automatic, in the Full Send page's order.
+    static constexpr const wchar_t *  s_kImageExtensions[] = { L".dsk", L".woz", L".do", L".po", L".nib", L".nb2", L".d13" };
+
     void  ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
     void  CaptureRawDisk          (const Location & drive, const std::wstring & suggested = std::wstring());
     void  CaptureToImage          (const std::wstring & link, int number, const std::filesystem::path & image);
