@@ -3,7 +3,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
-#include "Ui/Settings/HardwarePage.h"
+#include "Ui/Settings/SlotsPage.h"
 #include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SlotCards.h"
@@ -185,12 +185,28 @@ public:
     }
 
 
+    //  Every slot is listed with its card, and an empty slot as empty.
+    TEST_METHOD (Page_ListsEverySlotWithItsCard)
+    {
+        SettingsPanelState  st;
+        JsonValue           machine = Parse (kMachineJson);
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Apple2e", machine, machine));
+
+        Assert::AreEqual (std::wstring (L"Slot 1: Empty"),  SlotsPage::MakeSlotLabel (st.GetHardware(), 1));
+        Assert::AreEqual (std::wstring (L"Slot 6: Disk ]["), SlotsPage::MakeSlotLabel (st.GetHardware(), 6));
+        Assert::IsTrue   (SlotsPage::MakeSlotLabel (st.GetHardware(), 4).starts_with (L"Slot 4: Mockingboard"));
+    }
+
+
     //  Replacing a card in a filled slot takes a confirmation, and after
     //  Cancel the slot's card is in place.
     TEST_METHOD (Page_ConfirmsBeforeReplacingACard)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
         int                 profile = -1;
 
@@ -231,7 +247,7 @@ public:
     TEST_METHOD (Page_ReportsTheCardPutInASlot)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
         int                 profile = -1;
         std::string         chosen;
@@ -263,12 +279,12 @@ public:
     }
 
 
-    //  A drive selected in the tree takes an image from the file dialog, and
+    //  A drive in the selected slot takes an image from the file dialog, and
     //  a chain's Add drive stops at its limit with the limit in the prompt.
     TEST_METHOD (Page_AttachesAnImageAndLimitsAChain)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
         std::wstring        error;
         std::string         browsedFor;
@@ -282,12 +298,13 @@ public:
 
         page.SetState (&st);
         page.SetOnBrowseImage ([&browsedFor] (const std::string & device, std::string & path) { browsedFor = device; path = "C:/disks/800k.po"; return true; });
-        page.SelectTreeRow (std::format (L"drive:{}:0", liron));
+        page.SelectSlot (5);
         Assert::AreEqual (5, page.GetSelectedSlot());
-        Assert::IsTrue (page.GetAttachButton().IsEnabled());
-        Assert::IsFalse (page.GetEjectButton().IsEnabled(), L"the drive is empty");
+        Assert::IsTrue (page.GetDriveRowCount() > 0);
+        Assert::IsFalse (page.GetEjectButton (0).IsEnabled(), L"the drive is empty");
 
-        page.AttachImage();
+        page.AttachImage (0);
+        Assert::IsTrue (page.GetEjectButton (0).IsEnabled());
         Assert::AreEqual (std::string ("C:/disks/800k.po"), st.GetHardware()[(size_t) liron].portImages[0]);
         Assert::AreEqual (std::string (kpszUniDisk35Device), browsedFor, L"the request has the port's drive, whose images the picker lists");
 
@@ -306,7 +323,7 @@ public:
     TEST_METHOD (Page_BlockedCardShowsItsHosts)
     {
         SettingsPanelState  st;
-        HardwarePage        page;
+        SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
 
 

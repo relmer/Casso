@@ -213,7 +213,21 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeProtect[0].SetLabel (L"Drive 1");
     m_writeProtect[1].SetRect (MakeRect (controlsX + checkWidth,   y, checkWidth, rowHeight));
     m_writeProtect[1].SetLabel (L"Drive 2");
-    y += rowHeight + sectionGap;
+
+    // On a machine with slots, write protection is with the Disk II
+    // controller on the Slots tab. The //c has no slots, so it is here.
+    {
+        bool  showWp = m_state != nullptr && m_state->GetMachineInfo().supportsExternalDrive;
+
+        m_wpLabel.SetVisible         (showWp);
+        m_writeProtect[0].SetVisible (showWp);
+        m_writeProtect[1].SetVisible (showWp);
+
+        if (showWp)
+        {
+            y += rowHeight + sectionGap;
+        }
+    }
 
     m_writeModeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_writeMode.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));

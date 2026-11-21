@@ -100,11 +100,12 @@ void SettingsSheet::OnBuildPages()
 {
     m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
+    m_slotsPage    = CreatePage<SlotsPage>    (L"Slots");
     m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
-    m_serialPage   = CreatePage<SerialCardPage> (L"Serial card");
+    m_serialPage   = &m_slotsPage->GetSerialPage();
     m_networkPage  = CreatePage<NetworkPage>  (L"Network");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
@@ -278,7 +279,7 @@ HRESULT SettingsSheet::OpenModeless (
     // The Disk tab is dynamic (#84): it exists only while the staged config has
     // an enabled Disk ][ controller. Remember its page index for the toggle.
     m_diskPageIndex   = IndexOfPage (m_diskPage);
-    m_serialPageIndex = IndexOfPage (m_serialPage);
+    m_slotsPageIndex  = IndexOfPage (m_slotsPage);
 
     // The Network tab likewise exists only while the staged config has the
     // Uthernet II turned on.
@@ -513,11 +514,11 @@ HRESULT SettingsSheet::OpenModeless (
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).
     m_hardwarePage->SetPopupHost (GetPopupHost());
+    m_slotsPage->SetPopupHost    (GetPopupHost());
     m_diskPage->SetPopupHost     (GetPopupHost());
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
-    m_serialPage->SetPopupHost   (GetPopupHost());
     m_networkPage->SetPopupHost  (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
@@ -644,8 +645,8 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
-    m_hardwarePage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
-    m_hardwarePage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
+    m_slotsPage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
+    m_slotsPage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
     {
         FileDialogSpec          spec;
         fs::path                picked;
@@ -688,7 +689,7 @@ HRESULT SettingsSheet::OpenModeless (
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
-    m_serialPage->SetState          (&m_state);
+    m_slotsPage->SetState           (&m_state);
     m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
     m_serialPage->SetOnDownload ([this] ()
     {
@@ -756,6 +757,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Seed the Disk tab's presence from the loaded config before the first
     // Layout so the tab strip is correct on the very first paint.
     UpdateDiskTabVisibility();
+    UpdateSlotsTabVisibility();
     UpdateSerialTabVisibility();
 
     // Show the window BEFORE the final Rebuild: the first valid layout only
@@ -765,6 +767,7 @@ HRESULT SettingsSheet::OpenModeless (
     // top-left. ShowModelessDialog re-shows harmlessly below.
     Show();
     m_hardwarePage->Rebuild();
+    m_slotsPage->Rebuild();
     m_diskPage->Rebuild();
     m_serialPage->SetComPorts (m_hardwarePage->GetComPorts());
     m_serialPage->Rebuild();
@@ -1083,6 +1086,7 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateSlotsTabVisibility();
     UpdateSerialTabVisibility();
     UpdateNetworkTabVisibility();
     UpdateTabSparkles();
@@ -1630,12 +1634,39 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateSlotsTabVisibility
+//
+//  The Slots tab is present on a machine with slots. The //c has none, so
+//  its ports are on the Machine tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateSlotsTabVisibility()
+{
+    bool  want = !m_state.GetMachineInfo().supportsExternalDrive;
+
+
+
+    if (m_slotsPageIndex < 0 || want == m_slotsTabVisible)
+    {
+        return;
+    }
+
+    m_slotsTabVisible = want;
+    SetPageVisible (m_slotsPageIndex, want);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateSerialTabVisibility
 //
-//  The Serial card tab follows the staged Super Serial Card the way the Disk
-//  tab follows the controller. When the user turns the card on and its
-//  firmware is missing, the tab is selected, so the download it offers is
-//  in front of the user at once.
+//  Tracks the staged Super Serial Card. When the user turns the card on and
+//  its firmware is missing, the download is offered at once, and the card
+//  stays off unless the download succeeds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1643,8 +1674,8 @@ void SettingsSheet::UpdateSerialTabVisibility()
 {
     HRESULT  hr       = S_OK;
     bool     want     = m_state.HasEnabledSerialCard();
-    bool     turnedOn = want && !m_serialTabVisible;
-    bool     settled  = m_serialPageIndex < 0 || want == m_serialTabVisible;
+    bool     turnedOn = want && !m_serialCardOn;
+    bool     settled  = want == m_serialCardOn;
     bool     missing  = false;
     bool     fetched  = false;
 
@@ -1672,19 +1703,11 @@ void SettingsSheet::UpdateSerialTabVisibility()
 
     BAIL_OUT_IF (missing && !fetched, S_OK);
 
-    m_serialTabVisible = want;
-    SetPageVisible (m_serialPageIndex, want);
+    m_serialCardOn = want;
 
     if (turnedOn)
     {
         m_serialPage->Rebuild();
-    }
-
-    // The Machine tab stays open, as it does for any card turned on, and the
-    // new tab is marked.
-    if (turnedOn)
-    {
-        StartTabSparkle (m_serialPageIndex);
     }
 
 Error:
@@ -1966,6 +1989,7 @@ void SettingsSheet::ReportCrossTabChange (const std::wstring & notice)
     m_serialPage->Rebuild();
     m_printingPage->Sync();
     m_hardwarePage->Rebuild();
+    m_slotsPage->Rebuild();
     Invalidate();
 
     m_pendingNotice = notice;
@@ -2115,6 +2139,8 @@ void SettingsSheet::SetSerialCardEnabled (bool enabled)
         hr = m_state.SetHardwareEnabled (static_cast<size_t> (index), enabled);
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_hardwarePage->Rebuild();
+        m_slotsPage->Rebuild();
+    m_slotsPage->Rebuild();
     }
 }
 
