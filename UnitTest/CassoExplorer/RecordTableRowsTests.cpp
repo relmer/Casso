@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "CassoExplorer/Model/PreviewText.h"
+#include "Core/UnicodeSymbols.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -102,6 +103,23 @@ public:
         Assert::AreEqual (std::wstring (L"Party"), GetFirstText (FlattenRecordTables (document)[1]), L"and a copy out has the title");
     }
 
+
+    //  A run with a swatch has a square of its color before its text, and a
+    //  hatched swatch has the crosshatched square.
+    TEST_METHOD (Swatch_IsASquareOfItsColorBeforeTheText)
+    {
+        Paragraph                       legend;
+        std::vector<DxuiTextView::Row>  rows;
+
+
+
+        legend.runs = { Run { L"Water ", false, false, false, RunColor::Text, 0xFF0000FF }, Run { L"Lost", false, false, false, RunColor::Text, kHatchedSwatch } };
+        rows        = PreviewText::BuildDocumentRows ({ legend });
+
+        Assert::AreEqual (std::wstring (s_kpszSwatchSquare) + L" Water " + s_kpszHatchedSquare + L" Lost", rows[0].cells[0]);
+        Assert::AreEqual (0xFF0000FFu, rows[0].spans[0].argb, L"The square is in the swatch's color");
+        Assert::AreEqual (1, rows[0].spans[0].length);
+    }
 
     static std::wstring GetFirstText (const Paragraph & paragraph)
     {

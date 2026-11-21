@@ -132,12 +132,20 @@ struct DecodeOptions
 //  grid's headings and rows of cell strings.
 //
 //  A run's color is a role, drawn in the theme's color for it on screen and
-//  in a fixed color in a copy out. A paragraph with a picture is the
+//  in a fixed color in a copy out. A run with a swatch, an ARGB color, has a
+//  square of that color before its text, as a map's legend has. A paragraph with a picture is the
 //  picture alone, in 32-bit BGRA pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment };
+
+
+
+//  A swatch drawn as dark and light diagonal stripes, as a map marks what
+//  couldn't be read, for a Run's swatch or a PictureTip line. Its alpha is
+//  0, so it can't be a real color.
+inline constexpr uint32_t  kHatchedSwatch = 0x00FFFFFF;
 
 
 
@@ -148,6 +156,7 @@ struct Run
     bool          italic    = false;
     bool          underline = false;
     RunColor      color     = RunColor::Text;
+    uint32_t      swatch    = 0;
 
     bool  operator== (const Run &) const = default;
 };

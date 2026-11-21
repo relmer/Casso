@@ -206,6 +206,7 @@ private:
     };
 
     static constexpr int  s_kPadDip             = 6;
+    static constexpr int  s_kOutlineMinCellDip  = 8;   // a picture cell smaller than this is outlined a cell's width out
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
 

@@ -178,6 +178,8 @@ public:
         Assert::IsTrue   (map != file.paragraphs.end());
         Assert::AreEqual (map->width, map->height);
         Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
+        Assert::IsTrue   (FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil").runs[0].color == RunColor::Bad, L"A dead character's name is red");
+        Assert::IsTrue   (FindRoster (file).records[0].cells[0].color == RunColor::Bad, L"in the table too");
         Assert::IsTrue   (map < std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; }),
                           L"The map is above the party");
         Assert::IsFalse  (HasText (file, L"The party is the gold circle."), L"No legend: the map has tips");

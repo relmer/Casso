@@ -80,7 +80,7 @@ void ExplorerTips::ShowSwatchTip (TipOwner owner, const RECT & anchor, const std
     m_tooltip.SetFollowPointer   (true);
     m_tooltip.SetMaxTextWidthDip (DxuiTooltip::kDefaultMaxTextWidthDip);
     m_tooltip.SetSwatches        (swatches);
-    m_tooltip.RequestShowNow     (anchor, text, CassoExplorerWindow::GetNowMs());
+    m_tooltip.RequestShowNowBelowPointer (POINT { anchor.left, anchor.top }, text, CassoExplorerWindow::GetNowMs());
 }
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/PreviewText.h"
+#include "Core/UnicodeSymbols.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "ApplesoftTokenizer.h"
@@ -284,6 +285,19 @@ void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::C
 
 void PreviewText::AddRunText (DxuiTextView::Row & ioRow, const Run & run, uint32_t argb, const std::wstring & text)
 {
+    //  A swatch is a square in its color, a glyph of the text.
+    if (run.swatch != 0 && !text.empty())
+    {
+        DxuiTextView::Span  square;
+
+        square.cell   = (int) ioRow.cells.size() - 1;
+        square.start  = (int) ioRow.cells.back().size();
+        square.length = 1;
+        square.argb   = (run.swatch == kHatchedSwatch) ? DxuiTooltipSwatch::kHatchLight : run.swatch;
+        ioRow.spans.push_back (square);
+        ioRow.cells.back() += std::wstring ((run.swatch == kHatchedSwatch) ? s_kpszHatchedSquare : s_kpszSwatchSquare) + L" ";
+    }
+
     if (!text.empty() && (run.bold || run.italic || run.underline || argb != 0))
     {
         DxuiTextView::Span  span;
