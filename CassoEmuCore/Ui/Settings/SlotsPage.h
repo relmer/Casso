@@ -51,13 +51,10 @@ public:
     // The edits, exposed for unit tests.
     void                  SelectSlot       (int slot);
     void                  ChooseCard       (int choice);
-    void                  ConfirmReplace   ();
-    void                  CancelReplace    ();
     void                  ChoosePortDrive  (size_t port, int choice);
     void                  ChooseDriveCount (int choice);
     void                  SetAppleFirmware (bool isApple);
     int                   GetSelectedSlot  () const { return m_selectedSlot; }
-    bool                  IsReplacePending () const { return m_replacePending; }
     const std::wstring  & GetStoragePrompt () const { return m_prompt; }
     DxuiComboBox        & GetCardDropdown  ()       { return m_cardDropdown; }
     size_t                GetPortRowCount  () const { return m_portRows; }
@@ -92,8 +89,6 @@ private:
     DxuiLabel                             m_cardLabel;
     DxuiComboBox                          m_cardDropdown;
     DxuiLabel                             m_promptLabel;
-    DxuiButton                            m_replaceButton;
-    DxuiButton                            m_cancelButton;
     DxuiSegmentedControl                  m_firmware;
     DxuiLabel                             m_firmwareNote;
     DxuiLabel                             m_drivesHeading;
@@ -106,10 +101,8 @@ private:
 
     std::vector<SlotCardChoice>     m_cardChoices;
     std::wstring                    m_prompt;
-    std::string                     m_pendingDevice;
     int                             m_selectedSlot   = kFirstSlot;
     int                             m_countBase      = 0;
     size_t                          m_portRows       = 0;
     bool                            m_isCounted      = false;
-    bool                            m_replacePending = false;
 };

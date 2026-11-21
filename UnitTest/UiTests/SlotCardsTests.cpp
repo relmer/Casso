@@ -201,50 +201,9 @@ public:
     }
 
 
-    //  Replacing a card in a filled slot takes a confirmation, and after
-    //  Cancel the slot's card is in place.
-    TEST_METHOD (Page_ConfirmsBeforeReplacingACard)
-    {
-        SettingsPanelState  st;
-        SlotsPage           page;
-        JsonValue           machine = Parse (kMachineJson);
-        int                 profile = -1;
-
-
-
-        AssertSucceeded (st.LoadFromMachine ("Apple2e", machine, machine));
-        page.SetState (&st);
-        page.SelectSlot (4);
-
-        for (size_t i = 0; i < page.GetCardDropdown().GetItems().size(); i++)
-        {
-            if (page.GetCardDropdown().GetItems()[i] == L"ProFile interface card")
-            {
-                profile = (int) i;
-            }
-        }
-
-        Assert::IsTrue (profile >= 0);
-
-        page.ChooseCard (profile);
-        Assert::IsTrue (page.IsReplacePending());
-        Assert::IsTrue (page.GetStoragePrompt().starts_with (L"Replace the Mockingboard"), page.GetStoragePrompt().c_str());
-        Assert::IsFalse (st.RequiresReset(), L"nothing changes before the confirmation");
-
-        page.CancelReplace();
-        Assert::IsFalse (page.IsReplacePending());
-        Assert::AreEqual (std::string ("mockingboard-c"), st.GetHardware()[(size_t) SlotCards::FindSlot (st.GetHardware(), 4)].type);
-
-        page.ChooseCard (profile);
-        page.ConfirmReplace();
-        Assert::AreEqual (std::string (kpszProFileCardDevice), st.GetHardware()[(size_t) SlotCards::FindSlot (st.GetHardware(), 4)].type);
-        Assert::IsTrue (st.RequiresReset());
-    }
-
-
-    //  A card put in a slot is reported, so its firmware download can be
-    //  offered; a card the confirmation was canceled for isn't.
-    TEST_METHOD (Page_ReportsTheCardPutInASlot)
+    //  A card chosen for a filled slot replaces the card in it at once, and
+    //  is reported, so its firmware download can be offered.
+    TEST_METHOD (Page_ReplacesACardAtOnce)
     {
         SettingsPanelState  st;
         SlotsPage           page;
@@ -270,12 +229,9 @@ public:
         Assert::IsTrue (profile >= 0);
 
         page.ChooseCard (profile);
-        page.CancelReplace();
-        Assert::IsTrue (chosen.empty(), L"the replacement was canceled");
-
-        page.ChooseCard (profile);
-        page.ConfirmReplace();
+        Assert::AreEqual (std::string (kpszProFileCardDevice), st.GetHardware()[(size_t) SlotCards::FindSlot (st.GetHardware(), 4)].type);
         Assert::AreEqual (std::string (kpszProFileCardDevice), chosen);
+        Assert::IsTrue   (st.RequiresReset());
     }
 
 

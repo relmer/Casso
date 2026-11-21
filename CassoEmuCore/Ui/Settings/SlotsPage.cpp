@@ -18,7 +18,6 @@ static constexpr int  s_kRowGapDp       = 8;
 static constexpr int  s_kLabelWidthDp   = 90;
 static constexpr int  s_kDropdownWidthDp = 240;
 static constexpr int  s_kListHeightDp   = 260;
-static constexpr int  s_kButtonWidthDp  = 90;
 static constexpr int  s_kIndentDp       = 20;
 static constexpr int  s_kFirmwareWidthDp = 320;
 
@@ -118,8 +117,6 @@ SlotsPage::SlotsPage (std::wstring title)
     Adopt (m_cardLabel);
     Adopt (m_cardDropdown);
     Adopt (m_promptLabel);
-    Adopt (m_replaceButton);
-    Adopt (m_cancelButton);
     Adopt (m_firmware);
     Adopt (m_firmwareNote);
     Adopt (m_drivesHeading);
@@ -165,14 +162,13 @@ SlotsPage::SlotsPage (std::wstring title)
     m_drivesHeading.SetTextRole (DxuiTextRole::Heading);
     m_countLabel.SetText        (L"Drives:");
     m_firmware.SetSegments      ({ L"Casso's fast firmware", L"Apple's ROM" });
-    m_cancelButton.SetLabel     (L"Cancel");
-    m_firmwareNote.SetText      (L"Casso's firmware copies each block straight into memory, much faster than "
-                                 L"Apple's ROM. Apple's ROM runs as slowly as the real card did.");
+    m_firmware.SetAnimationsEnabled (false);
+    m_firmwareNote.SetText      (L"Casso's firmware moves each block straight into memory, as a card with "
+                                 L"DMA would, so disks load at once. Apple's ROM moves each byte through "
+                                 L"the 6502, as slowly as the real card did.");
     m_firmwareNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
     m_firmwareNote.SetTextRole  (DxuiTextRole::Muted);
 
-    m_replaceButton.SetOnClick ([this] () { ConfirmReplace(); });
-    m_cancelButton.SetOnClick  ([this] () { CancelReplace();  });
     m_cardDropdown.SetSelect   ([this] (int index)    { ChooseCard (index);       });
     m_countDropdown.SetSelect  ([this] (int index)    { ChooseDriveCount (index); });
     m_firmware.SetOnChange     ([this] (int index)    { SetAppleFirmware (index == 1); });
@@ -181,7 +177,7 @@ SlotsPage::SlotsPage (std::wstring title)
     {
         bool  isBlocked = index >= 0 && index < (int) m_cardChoices.size() && !m_cardChoices[(size_t) index].allowed;
 
-        if (isBlocked && !m_replacePending)
+        if (isBlocked)
         {
             m_prompt = m_cardChoices[(size_t) index].tip;
             m_promptLabel.SetText (m_prompt);
@@ -349,7 +345,7 @@ void SlotsPage::RebuildDetail()
     m_cardDropdown.SetItems        (cardItems);
     m_cardDropdown.SetItemsEnabled (cardEnabled);
     m_cardDropdown.SetSelected     (cardIndex);
-    m_cardDropdown.SetEnabled      (!isLocked && !m_replacePending);
+    m_cardDropdown.SetEnabled      (!isLocked);
 
     m_promptLabel.SetText ((isLocked && m_prompt.empty()) ? Widen (selected->lockReason) : m_prompt);
 
@@ -464,7 +460,6 @@ void SlotsPage::Relayout()
     int                     gap        = s.ToPx (s_kRowGapDp);
     int                     listW      = s.ToPx (s_kListWidthDp);
     int                     labelW     = s.ToPx (s_kLabelWidthDp);
-    int                     buttonW    = s.ToPx (s_kButtonWidthDp);
     int                     dropW      = s.ToPx (s_kDropdownWidthDp);
     int                     firmwareW  = s.ToPx (s_kFirmwareWidthDp);
     int                     indent     = s.ToPx (s_kIndentDp);
@@ -475,9 +470,9 @@ void SlotsPage::Relayout()
     int                     entry      = GetSelectedEntry();
     const HardwareEntry   * selected   = (m_state != nullptr && entry >= 0) ? &m_state->GetHardware()[(size_t) entry] : nullptr;
     const BlockCardSpec   * card       = (selected != nullptr) ? BlockDeviceCatalog::FindCard (selected->type) : nullptr;
-    bool                    showBlock  = card != nullptr && !m_replacePending;
-    bool                    showCount  = !m_replacePending && ((showBlock && m_isCounted) || IsDiskIiSelected());
-    bool                    showSerial = IsSerialSelected() && !m_replacePending;
+    bool                    showBlock  = card != nullptr;
+    bool                    showCount  = (showBlock && m_isCounted) || IsDiskIiSelected();
+    bool                    showSerial = IsSerialSelected();
     int                     listBottom = 0;
 
 
@@ -502,18 +497,6 @@ void SlotsPage::Relayout()
     m_promptLabel.SetRect    (MakeRect (controlsX, y, right - controlsX, rowH));
 
     if (m_promptLabel.IsVisible())
-    {
-        y += rowH + gap;
-    }
-
-    m_replaceButton.SetDpi     (dpi);
-    m_cancelButton.SetDpi      (dpi);
-    m_replaceButton.SetVisible (m_replacePending);
-    m_cancelButton.SetVisible  (m_replacePending);
-    m_replaceButton.Layout     (MakeRect (controlsX, y, buttonW, rowH));
-    m_cancelButton.Layout      (MakeRect (controlsX + buttonW + gap, y, buttonW, rowH));
-
-    if (m_replacePending)
     {
         y += rowH + gap;
     }
@@ -667,10 +650,8 @@ bool SlotsPage::IsSerialSelected() const
 
 void SlotsPage::SelectSlot (int slot)
 {
-    m_selectedSlot   = std::clamp (slot, kFirstSlot, kLastSlot);
-    m_replacePending = false;
+    m_selectedSlot = std::clamp (slot, kFirstSlot, kLastSlot);
     m_prompt.clear();
-    m_pendingDevice.clear();
 
     Rebuild();
 }
@@ -684,16 +665,15 @@ void SlotsPage::SelectSlot (int slot)
 //  SlotsPage::ChooseCard
 //
 //  A card the machine can't host is not put in; the prompt lists the
-//  machines that can. A card in a filled slot is replaced only after a
-//  confirmation.
+//  machines that can. Any other card goes straight in; Cancel on the
+//  sheet undoes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SlotsPage::ChooseCard (int choice)
 {
-    int                   entry   = GetSelectedEntry();
-    std::string           current = (entry >= 0) ? m_state->GetHardware()[(size_t) entry].type : std::string();
-    std::wstring          label;
+    int          entry   = GetSelectedEntry();
+    std::string  current = (entry >= 0) ? m_state->GetHardware()[(size_t) entry].type : std::string();
 
 
 
@@ -714,67 +694,8 @@ void SlotsPage::ChooseCard (int choice)
         return;
     }
 
-    if (current.empty())
-    {
-        ApplyCard (m_cardChoices[(size_t) choice].device);
-        return;
-    }
-
-    label            = GetCardName (m_state->GetHardware()[(size_t) entry]);
-    m_pendingDevice  = m_cardChoices[(size_t) choice].device;
-    m_replacePending = true;
-
-    if (m_pendingDevice.empty())
-    {
-        m_prompt = std::format (L"Take the {} out of slot {}?", label, m_selectedSlot);
-        m_replaceButton.SetLabel (L"Take out");
-    }
-    else
-    {
-        m_prompt = std::format (L"Replace the {} in slot {} with the {}?", label, m_selectedSlot, m_cardChoices[(size_t) choice].label);
-        m_replaceButton.SetLabel (L"Replace");
-    }
-
-    Rebuild();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SlotsPage::ConfirmReplace
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SlotsPage::ConfirmReplace()
-{
-    if (m_replacePending)
-    {
-        m_replacePending = false;
-        ApplyCard (m_pendingDevice);
-        m_pendingDevice.clear();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SlotsPage::CancelReplace
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SlotsPage::CancelReplace()
-{
-    m_replacePending = false;
-    m_pendingDevice.clear();
-    m_prompt.clear();
-
-    Rebuild();
+    // A copy: the edit rebuilds the list of choices.
+    ApplyCard (std::string (m_cardChoices[(size_t) choice].device));
 }
 
 
