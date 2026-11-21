@@ -151,6 +151,7 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CassoExplorer\DiskImageCatalogTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskMessageTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskFilePayloadTests.cpp" />

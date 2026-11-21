@@ -127,6 +127,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CassoExplorer\Model\DiskImageCatalog.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskMessageText.cpp" />
     <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
     <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
@@ -1402,6 +1403,7 @@
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CassoExplorer\Model\DiskImageCatalog.h" />
     <ClInclude Include="CassoExplorer\Model\DiskMessageText.h" />
     <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
     <ClInclude Include="Devices\Disk\DiskCommandText.h" />

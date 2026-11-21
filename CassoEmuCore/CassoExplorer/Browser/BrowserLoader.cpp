@@ -1100,10 +1100,10 @@ const wchar_t * BrowserLoader::GetCassoLinkHelp()
 
 HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string & directory)
 {
-    DiskOperations::Result  result;
-    HRESULT                 hrReadOnly = S_OK;
-    bool                    onCard     = PhysicalCards::IsOnCard (path);
-    bool                    cached     = !onCard && directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
+    ImageContents  contents;
+    HRESULT        hrReadOnly = S_OK;
+    bool           onCard     = PhysicalCards::IsOnCard (path);
+    bool           cached     = !onCard && directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
 
 
 
@@ -1114,17 +1114,22 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
     if (!cached)
     {
-        result = m_browser.m_operations.List (TextEncoding::WideToNarrow (path), directory, m_browser.m_listing, m_browser.m_kind);
+        HRESULT  hrDescribe = m_browser.m_catalog.Describe (path, directory, contents);
 
-        if (!result.Succeeded() && directory.empty() && LoadPartitions (path))
+        IGNORE_RETURN_VALUE (hrDescribe, S_OK);
+
+        m_browser.m_listing = std::move (contents.listing);
+        m_browser.m_kind    = contents.kind;
+
+        if (!contents.result.Succeeded() && AddPartitionRows (path, contents.layout, contents.partitions))
         {
             return S_OK;
         }
 
-        if (!result.Succeeded())
+        if (!contents.result.Succeeded())
         {
-            m_listError = DiskMessageText::FormatImageError (path, result.message);
-            return result.hr;
+            m_listError = contents.error;
+            return contents.result.hr;
         }
 
         //  The cache holds an image's catalog, which is its volume directory,
@@ -1218,7 +1223,7 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
     {
         m_listError = std::format (L"Unable to open {}.", name);
     }
-    else if (entries.empty() || !LoadPartitions (path))
+    else if (!AddPartitionRows (path, kind, entries))
     {
         hr          = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
         m_listError = std::format (L"No Apple partitions were found on {}.", name);
@@ -1233,25 +1238,20 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserLoader::LoadPartitions
+//  BrowserLoader::AddPartitionRows
 //
 //  The partitions of an image that has no catalog, one row for each. False
 //  for an image with no partitions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BrowserLoader::LoadPartitions (const std::wstring & path)
+bool BrowserLoader::AddPartitionRows (const std::wstring & path, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries)
 {
-    std::vector<PartitionEntry>  entries;
-    PartitionLayoutKind          kind       = PartitionLayoutKind::None;
-    HRESULT                      hr         = S_OK;
-    HRESULT                      hrReadOnly = S_OK;
+    HRESULT  hrReadOnly = S_OK;
 
 
 
-    hr = ListPartitions (path, kind, entries);
-
-    if (FAILED (hr) || entries.empty())
+    if (entries.empty())
     {
         return false;
     }
@@ -1260,9 +1260,8 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     {
         CatalogRow  row;
 
-        row.name          = PhysicalCards::IsOnCard (path) ? TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false))
-                                                           : TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
-        row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (kind)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
+        row.name          = DiskImageCatalog::GetPartitionLabel (path, entry, false);
+        row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (layout)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
         row.sizeBytes     = entry.byteCount;
         row.isDiskImage   = true;
         row.isPartition   = true;
@@ -1328,9 +1327,13 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
 
     CBRF (found != nullptr, hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs && LoadPartitions (path))
+    if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs)
     {
-        BAIL_OUT_IF (true, S_OK);
+        PartitionLayoutKind          innerLayout = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  inner;
+        HRESULT                      hrInner     = m_browser.m_catalog.ListPartitions (path, innerLayout, inner);
+
+        BAIL_OUT_IF (SUCCEEDED (hrInner) && AddPartitionRows (path, innerLayout, inner), S_OK);
     }
 
     row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (*found));
@@ -1369,11 +1372,9 @@ Error:
 
 HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries)
 {
-    HRESULT            hr        = S_OK;
-    std::vector<Byte>  bytes;
-    std::string        narrow    = TextEncoding::WideToNarrow (path);
-    int                drive     = 0;
-    int                partition = 0;
+    HRESULT  hr        = S_OK;
+    int      drive     = 0;
+    int      partition = 0;
 
 
 
@@ -1399,10 +1400,7 @@ HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayou
     }
     else
     {
-        hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
-        CHR (hr);
-
-        hr = PartitionAccess::List (bytes, narrow, outKind, outEntries);
+        hr = m_browser.m_catalog.ListPartitions (path, outKind, outEntries);
         CHR (hr);
     }
 

@@ -498,32 +498,37 @@ void BrowserPreviewer::UpdatePreview()
 
 void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 {
-    DiskOperations::Result  result;
-    VolumeListing           listing;
-    VolumeKind              kind = VolumeKind::Unknown;
+    ImageContents  contents;
+    VolumeListing  listing;
+    VolumeKind     kind = VolumeKind::Unknown;
 
 
 
     if (!m_browser.m_model.TryGetCachedCatalog (imagePath, listing, kind))
     {
-        result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+        HRESULT  hrDescribe = m_browser.m_catalog.Describe (imagePath, std::string(), contents);
 
-        if (!result.Succeeded() && PreviewPartitions (imagePath))
+        IGNORE_RETURN_VALUE (hrDescribe, S_OK);
+
+        listing = std::move (contents.listing);
+        kind    = contents.kind;
+
+        if (!contents.result.Succeeded() && PreviewPartitions (imagePath, contents.layout, contents.partitions))
         {
             return;
         }
 
-        if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
+        if (!contents.result.Succeeded() && PreviewDecoder::ParseDetails (contents.result.message, m_preview.details))
         {
             m_preview.kind = PreviewContent::Kind::Details;
             AddWozDetails (imagePath);
             return;
         }
 
-        if (!result.Succeeded())
+        if (!contents.result.Succeeded())
         {
             m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = DiskMessageText::FormatImageError (imagePath, result.message);
+            m_preview.message = contents.error;
             return;
         }
 
@@ -548,39 +553,25 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BrowserPreviewer::PreviewPartitions (const std::wstring & imagePath)
+bool BrowserPreviewer::PreviewPartitions (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries)
 {
-    HRESULT                      hr            = S_OK;
-    std::string                  narrow        = TextEncoding::WideToNarrow (imagePath);
-    std::vector<Byte>            bytes;
-    std::vector<PartitionEntry>  entries;
-    PartitionLayoutKind          layout        = PartitionLayoutKind::None;
-    bool                         isPartitioned = false;
-
-
-
-    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
-    CHR (hr);
-
-    hr = PartitionAccess::List (bytes, narrow, layout, entries);
-    CHR (hr);
-
-    isPartitioned = layout != PartitionLayoutKind::None && !entries.empty();
-    CBR (isPartitioned);
+    if (layout == PartitionLayoutKind::None || entries.empty())
+    {
+        return false;
+    }
 
     m_preview.details.clear();
     m_preview.details.emplace_back (L"Partition map", TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (layout)));
 
     for (const PartitionEntry & entry : entries)
     {
-        m_preview.details.emplace_back (TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition)),
+        m_preview.details.emplace_back (DiskImageCatalog::GetPartitionLabel (imagePath, entry, false),
                                         TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (entry) + ", " + PartitionAccess::FormatSize (entry.byteCount)));
     }
 
     m_preview.kind = PreviewContent::Kind::Details;
 
-Error:
-    return SUCCEEDED (hr);
+    return true;
 }
 
 

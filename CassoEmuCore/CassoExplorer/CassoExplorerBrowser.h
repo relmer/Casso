@@ -7,6 +7,7 @@
 
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
+#include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
 #include "CassoExplorer/Model/ImageVolumeFacts.h"
@@ -482,6 +483,7 @@ private:
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
+    DiskImageCatalog                    m_catalog        { m_operations };
     TypedPathHistory                    m_typedPaths;
     std::vector<CatalogRow>             m_rows;
     std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped

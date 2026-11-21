@@ -66,7 +66,7 @@ public:
     HRESULT  LoadShellFolder       (const std::wstring & id);
     HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);
     HRESULT  LoadPartition         (const std::wstring & path);
-    bool     LoadPartitions        (const std::wstring & path);
+    bool     AddPartitionRows      (const std::wstring & path, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);
     HRESULT  LoadCard              (const std::wstring & path);
     HRESULT  LoadAppleDrive        (const Location & location);
     void     AddCassoLinkItems     ();
