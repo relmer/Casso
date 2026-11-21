@@ -356,7 +356,7 @@ void CassoLinkJobPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     SetBounds (boundsPx);
 
     m_scaler    = scaler;
-    tabs.bottom = tabs.top + scaler.ToPx (kTabsDip);
+    tabs.bottom = tabs.top + (LONG) scaler.ToPxf (kTabsDip);
     m_tabsPx    = tabs;
 
     LayTabs();
@@ -379,7 +379,7 @@ void CassoLinkJobPanel::LayTabs()
 {
     std::vector<DxuiTabStrip::Tab>  tabs  = m_tabs.GetTabs();
     int                             x     = m_tabsPx.left;
-    int                             width = m_scaler.ToPx (kTabWidthDip);
+    int                             width = (int) m_scaler.ToPxf (kTabWidthDip);
     int                             index = m_tabs.GetSelected();
 
 
@@ -456,7 +456,7 @@ bool CassoLinkJobPanel::HasResult (const CassoLinkJobView & view)
 void CassoLinkJobPanel::LayDrive()
 {
     RECT  bounds = GetBounds();
-    LONG  pad    = m_scaler.ToPx (kPadDip);
+    LONG  pad    = (LONG) m_scaler.ToPxf (kPadDip);
     RECT  drive  = { bounds.left + pad, bounds.top + (LONG) GetHeader (GetSelected()), bounds.right - pad, bounds.bottom };
 
 
