@@ -286,7 +286,7 @@ HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const
         valid = packet.command == CassoLinkCodec::kAcknowledge && packet.payload.size() == 3;
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        ReportNak (packet, std::format ("Track {}'s nibbles", track));
+        ReportNak (packet, std::format ("track {}'s nibbles", track));
 
         hr = SendPacket (CassoLinkCodec::kNibbleData, payload);
         CHR (hr);

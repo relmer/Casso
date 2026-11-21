@@ -225,7 +225,7 @@ HRESULT CassoLinkHost::WriteBlocks (const CassoLinkBlockDevice & device, uint32_
         CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         index = packet.payload[1];
-        ReportNak (packet, std::format ("Block {}", first + (uint32_t) index));
+        ReportNak (packet, std::format ("block {}", first + (uint32_t) index));
 
         hr = SendBlock (first + (uint32_t) index, data.subspan (index * CassoLinkCodec::kBlockSize, CassoLinkCodec::kBlockSize));
         CHR (hr);
@@ -341,7 +341,7 @@ HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
 
         if (!intact)
         {
-            ReportActivity (std::format ("Virtual drive {}'s block {} arrived damaged, so the Apple will send it again", drive, block));
+            ReportActivity (std::format ("Dropped virtual drive {}'s block {}: damaged, the Apple sends it again", drive, block));
         }
 
         BAIL_OUT_IF (!intact, S_OK);

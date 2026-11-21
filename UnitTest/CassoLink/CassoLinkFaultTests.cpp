@@ -502,7 +502,7 @@ public:
             Assert::IsTrue (SameSector (data, (size_t) p, image, DosOffset (kTrack, p)), std::format (L"sector {}", p).c_str());
         }
 
-        Assert::IsTrue (rig.HasActivity ("arrived damaged on the Apple, so it was sent again"), L"the resend is in the log");
+        Assert::IsTrue (rig.HasActivity (": damaged on the Apple"), L"the resend is in the log");
         rig.AssertApplied();
     }
 

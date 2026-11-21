@@ -241,8 +241,8 @@ public:
 
     void     SetActivitySink   (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
     void     ReportActivity    (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
-    void     ReportVirtualDrop (bool sized) { if (!sized) { ReportActivity ("A virtual drive request arrived damaged, so the Apple will send it again"); } }
-    void     ReportNak         (const CassoLinkPacket & packet, const std::string & item) { if (!packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak) { ReportActivity (item + " arrived damaged on the Apple, so it was sent again"); } }
+    void     ReportVirtualDrop (bool sized) { if (!sized) { ReportActivity ("Dropped a virtual drive request: damaged, the Apple sends it again"); } }
+    void     ReportNak         (const CassoLinkPacket & packet, const std::string & item) { if (!packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak) { ReportActivity ("Resent " + item + ": damaged on the Apple"); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
@@ -531,8 +531,8 @@ private:
 
             if (m_adtProServer.m_activity)
             {
-                m_adtProServer.m_activity (damaged ? "A reply from the Apple arrived damaged, so the request was sent again"
-                                                   : "The Apple did not take a request, so it was sent again");
+                m_adtProServer.m_activity (damaged ? "Resent a request: its reply was damaged"
+                                                   : "Resent a request: the Apple did not take it");
             }
         }
 
