@@ -653,5 +653,98 @@ public:
     }
 
 
+    //  A few bits with no flux right after sector 0's address checksum on
+    //  track 0, which the drive reads as noise, as Ultima IV's protection
+    //  has. The stretch is shorter than a write splice's, but it starts at
+    //  an address field's ending, where no splice falls. The
+    //  capture has them as weak bits, so the WOZ has a run of zeros there.
+    TEST_METHOD (AShortWeakStretch_AfterAnAddressField_IsCapturedWeak)
+    {
+        ProgramRig                rig (MakeDisk());
+        std::vector<Byte>         module;
+        CassoLinkCapture::Result  result;
+        DiskImage                 woz;
+        DiskImage               * image  = rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0);
+        size_t                    ending = 0;
+        size_t                    zeros  = 0;
+        size_t                    run    = 0;
+        int                       slot   = 0;
+
+
+
+        Assert::IsNotNull (image);
+        slot   = image->ResolveQuarterTrack (0);
+        ending = FindAddressEnding (*image, slot, 0);
+        Assert::AreNotEqual (SIZE_MAX, ending, L"Sector 0's address field is on track 0");
+
+        //  From the second byte of the ending, as Ultima IV's weak bits start.
+        for (size_t at = ending + 8; at < ending + 8 + s_kWeakBits; at++)
+        {
+            image->WriteBit (slot, at % image->GetTrackBitCount (slot), 0);
+        }
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-21T00:00:00Z", {}, result, 1));
+        AssertSucceeded (WozLoader::Load (result.woz, woz));
+
+        Assert::IsTrue (std::find (result.weak.begin(), result.weak.end(), 0) != result.weak.end(), L"Track 0 has weak bits");
+
+        slot = woz.ResolveQuarterTrack (0);
+
+        for (size_t at = 0; at < woz.GetTrackBitCount (slot); at++)
+        {
+            run   = woz.ReadBit (slot, at) == 0 ? run + 1 : 0;
+            zeros = std::max (zeros, run);
+        }
+
+        Assert::IsTrue (zeros >= s_kNoiseZeros, L"The WOZ has a run of zeros the drive reads as noise");
+    }
+
+
+    //  The bit where the address field of `sector` on a track ends, after its
+    //  checksum, or SIZE_MAX.
+    static size_t  FindAddressEnding (const DiskImage & image, int slot, int sector)
+    {
+        size_t               n      = image.GetTrackBitCount (slot);
+        std::vector<Byte>    nibs;
+        std::vector<size_t>  starts;
+        Byte                 reg    = 0;
+        size_t               start  = 0;
+
+
+
+        for (size_t at = 0; at < n * 2; at++)
+        {
+            if (reg == 0)
+            {
+                start = at;
+            }
+
+            reg = (Byte) ((reg << 1) | image.ReadBit (slot, at % n));
+
+            if (reg & 0x80)
+            {
+                nibs.push_back (reg);
+                starts.push_back (start);
+                reg = 0;
+            }
+        }
+
+        for (size_t k = 0; k + 11 < nibs.size(); k++)
+        {
+            int  found = ((nibs[k + 7] << 1) | 1) & nibs[k + 8];
+
+            if (nibs[k] == 0xD5 && nibs[k + 1] == 0xAA && nibs[k + 2] == 0x96 && found == sector)
+            {
+                return starts[k + 11] % n;
+            }
+        }
+
+        return SIZE_MAX;
+    }
+
+
     static constexpr double  s_kRevolutionTolerance = 0.002;
+    static constexpr size_t  s_kWeakBits            = 24;    // three bytes
+    static constexpr size_t  s_kNoiseZeros          = 3;     // the MC3470 reads noise after this many
 };
