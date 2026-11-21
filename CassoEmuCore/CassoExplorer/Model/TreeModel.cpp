@@ -1619,7 +1619,8 @@ bool TreeModel::IsHiddenDrive (const std::wstring & path) const
 //
 //  TreeModel::ListStorageCard
 //
-//  An open card's partitions. Their directories are in the list.
+//  An open card's partitions. Each has an expander until it is read, as a
+//  partition is read when it is expanded or selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1639,10 +1640,11 @@ void TreeModel::ListStorageCard (const std::wstring & path, std::vector<TreeNode
             std::wstring  partitionPath = card.path + kSeparator + partition.step;
             TreeNode      node;
 
-            node.id       = MakeImageId (false, partitionPath);
-            node.kind     = TreeNode::Kind::DiskImage;
-            node.label    = partition.label;
-            node.location = Location::MakeDiskImage (partitionPath);
+            node.id        = MakeImageId (false, partitionPath);
+            node.kind      = TreeNode::Kind::DiskImage;
+            node.label     = partition.label;
+            node.location  = Location::MakeDiskImage (partitionPath);
+            node.canExpand = true;
 
             outNodes.push_back (node);
         }
@@ -1937,20 +1939,13 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     {
         //  A partition's children are the volumes in it.
         underCasso = id.substr (wcslen (kPartitionPrefix), id.find (kSeparator) - wcslen (kPartitionPrefix)) == kCassoTag;
-        hr         = ListPartitionVolumes (underCasso, id.substr (id.find (kSeparator) + 1), outNodes);
+        hr         = m_images.ListPartitionVolumes (underCasso, id.substr (id.find (kSeparator) + 1), outNodes);
     }
     else if (TryParseImageOrDirectoryId (id, underCasso, path, inner))
     {
         //  An image's children are its directories, and a directory's are the
         //  directories inside it.
-        if (inner.empty())
-        {
-            hr = ListImage (underCasso, path, outNodes);
-        }
-        else
-        {
-            hr = ListImageDirectory (underCasso, path, inner, outNodes);
-        }
+        hr = inner.empty() ? m_images.ListImage (underCasso, path, outNodes) : m_images.ListDirectory (underCasso, path, inner, outNodes);
     }
     else
     {
@@ -1963,6 +1958,34 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     {
         m_children[id] = outNodes;
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ReadImageNode
+//
+//  The node's children are cached, as for a node that was expanded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ReadImageNode (TreeNode & inOutNode)
+{
+    HRESULT                hr = S_OK;
+    std::vector<TreeNode>  children;
+
+
+
+    hr = m_images.Describe (IsUnderCasso (inOutNode.id), inOutNode.location.path, inOutNode, children);
+    CHR (hr);
+
+    m_children[inOutNode.id] = std::move (children);
 
 Error:
     return hr;

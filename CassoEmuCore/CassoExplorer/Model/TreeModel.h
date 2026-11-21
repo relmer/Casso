@@ -4,10 +4,9 @@
 
 #include "CassoExplorer/Model/FolderOptions.h"
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/TreeImageNodes.h"
 #include "Config/IFileSystem.h"
 #include "Seams/IShellItemVerbs.h"
-
-class FilesystemChoices;
 
 
 
@@ -179,9 +178,6 @@ public:
     //  folders listed after it; the caller invalidates what is cached.
     void  SetFolderOptions  (const FolderOptions & options) { m_folderOptions = options; }
 
-    //  The file systems chosen for images detection doesn't recognize.
-    void  SetFilesystemChoices (const FilesystemChoices * choices) { m_filesystemChoices = choices; }
-
 
     //  The shell's navigation roots and pinned folders, read again on each
     //  call: Explorer's sections below Casso's own root. Without the shell the
@@ -288,11 +284,6 @@ public:
 
     static bool  IsSupportedImage (const std::wstring & fileName);
 
-    //  A partition's label and its volume's, once the image it is in is
-    //  listed, or empty.
-    std::wstring  GetPartitionLabel (const std::wstring & path) const { auto found = m_partitions.find (path); return found == m_partitions.end() ? std::wstring() : found->second.label; }
-    std::wstring  GetVolumeLabel    (const std::wstring & path) const { auto found = m_partitions.find (path); return found == m_partitions.end() ? std::wstring() : found->second.volumeLabel; }
-
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
     //  for the second and later entries of the same name, which one it is.
@@ -313,6 +304,10 @@ public:
     //  Reads an image node's file, which a folder's listing leaves unread,
     //  and sets the node's error and whether it expands.
     HRESULT              ReadImageNode   (TreeNode & inOutNode);
+
+    TreeImageNodes &     GetImageNodes   () { return m_images; }
+
+    static std::wstring  GetLeaf         (const std::wstring & path);
 
     static constexpr const wchar_t *  kCassoRootId  = L"casso:";
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
@@ -398,30 +393,8 @@ private:
     bool             IsHiddenDrive      (const std::wstring & path) const;
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
-    HRESULT          ListImage          (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
-    HRESULT          ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes);
-
-    static void  ListDirectories (bool underCasso, const std::wstring & path, const std::vector<Byte> & sectors,
-                                  const std::string & inner, std::vector<TreeNode> & outNodes);
-
-    //  A node for each partition of an image file. The list is empty for a
-    //  file with no partitions.
-    void  ListPartitions (bool underCasso, const std::wstring & path, const std::vector<Byte> & fileBytes,
-                          const std::string & name, bool isInsideVolume, std::vector<TreeNode> & outNodes);
-
-    //  An image's bytes, and the file name whose extension indicates their
-    //  format. `path` is a host file, or a container path to an image inside
-    //  another file.
-    HRESULT  ReadImage (const std::wstring & path, std::vector<Byte> & outBytes, std::string & outName);
-
-    //  Reads and parses one image, producing either its directory children
-    //  or the error on the node.
-    HRESULT          DescribeImage        (bool underCasso, const std::wstring & path, TreeNode & inOutNode);
-    HRESULT          ListPartitionVolumes (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
-    static TreeNode  MakeVolumeNode       (bool underCasso, const std::wstring & path, const std::wstring & label, bool canExpand);
 
     static std::wstring  JoinPath (const std::wstring & folder, const std::wstring & name);
-    static std::wstring  GetLeaf  (const std::wstring & path);
     static bool  TryParseImageOrDirectoryId (const std::wstring & id, bool & outUnderCasso,
                                              std::wstring & outPath, std::string & outInner);
 
@@ -434,19 +407,8 @@ private:
     mutable std::map<std::wstring, bool>             m_archiveExtensions;
     LocalizedNameLookup                              m_localizedName;
     FolderOptions                                    m_folderOptions;
-    const FilesystemChoices                        * m_filesystemChoices = nullptr;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
-
-    //  Each partition of an image listed so far, by its path.
-    struct PartitionInfo
-    {
-        std::wstring  label;
-        std::wstring  volumeLabel;
-        bool          hasFileSystem = false;
-        bool          isProDos      = false;
-    };
-
-    std::map<std::wstring, PartitionInfo>            m_partitions;
+    TreeImageNodes                                   m_images;
     int                                              m_fetchCount     = 0;
     IShellItemVerbs                                * m_shellVerbs     = nullptr;
     ShellFetch                                       m_shellFetch;

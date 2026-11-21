@@ -1248,7 +1248,7 @@ public:
         Host          host;
         std::wstring  folder;
 
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\bad.dsk", "not a disk"));
+        host.SeedBytes (std::vector<Byte> { 'n', 'o', 't', ' ', 'a', ' ', 'd', 'i', 's', 'k' }, L"C:\\Disks\\bad.dsk");
         folder = host.OpenDisksFolder();
 
         host.browser.SelectTreeNode (host.FindChildId (folder, L"bad.dsk"));

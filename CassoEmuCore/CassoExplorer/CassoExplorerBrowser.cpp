@@ -40,6 +40,8 @@ CassoExplorerBrowser::CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & file
 
         return m_loader.m_hostListings.TryTake (s_kHostTreeKey + path, path, outEntries, outResult);
     });
+
+    m_tree.GetImageNodes().SetCatalog (&m_catalog);
 }
 
 

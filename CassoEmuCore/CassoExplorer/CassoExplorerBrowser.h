@@ -342,7 +342,7 @@ public:
     void                    SetLinks (CassoLinkConnections * links) { m_links = links; }
 
     //  The file systems the user chose, which outlive this browser.
-    void                    SetFilesystemChoices (FilesystemChoices * choices) { m_filesystemChoices = choices; m_operations.SetFilesystemChoices (choices); m_tree.SetFilesystemChoices (choices); }
+    void                    SetFilesystemChoices (FilesystemChoices * choices) { m_filesystemChoices = choices; m_operations.SetFilesystemChoices (choices); }
     FilesystemChoices     * GetFilesystemChoices () const { return m_filesystemChoices; }
     CassoLinkConnections  * GetLinks             () const                       { return m_links; }
 
