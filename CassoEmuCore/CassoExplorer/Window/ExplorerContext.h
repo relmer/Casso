@@ -40,6 +40,7 @@ class ExplorerToolbars;
 class ExplorerTreePane;
 class FirewallMonitor;
 class FullSendWindowManager;
+class CassoLinkJobManager;
 class IExplorerWindow;
 class IFolderWatcher;
 class IHostDialogs;
@@ -125,6 +126,7 @@ public:
     CassoLinkManager            & cassoLinkManager;
     CassoLinkDriveManager       & linkDrives;
     FullSendWindowManager       & fullSendWindows;
+    CassoLinkJobManager         & linkJobs;
     ExplorerDragDrop            & dragDrop;
     ExplorerTabManager          & tabManager;
     ExplorerPreviewManager      & preview;

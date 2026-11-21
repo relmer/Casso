@@ -1269,6 +1269,36 @@ std::vector<std::shared_ptr<LinkOperation>> CassoLinkConnections::GetPendingJobs
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::GetPendingJobsByLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>> CassoLinkConnections::GetPendingJobsByLink() const
+{
+    std::vector<std::pair<std::string, std::shared_ptr<LinkOperation>>>  pending;
+    std::lock_guard<std::mutex>                                          lock (m_lock);
+
+
+
+    for (const Job & job : m_jobs)
+    {
+        LinkOperationState  state = job.operation->state;
+
+        if (state == LinkOperationState::Queued || state == LinkOperationState::Running)
+        {
+            pending.push_back ({ job.link, job.operation });
+        }
+    }
+
+    return pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::IsAnyTransferring
 //
 ////////////////////////////////////////////////////////////////////////////////

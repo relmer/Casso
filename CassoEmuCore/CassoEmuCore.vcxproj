@@ -465,6 +465,8 @@
     <ClCompile Include="CassoExplorer\CassoExplorerElevationDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkJobDialog.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkJobManager.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialog.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
@@ -1657,6 +1659,8 @@
     <ClInclude Include="CassoExplorer\CassoExplorerElevationDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
+    <ClInclude Include="CassoExplorer\CassoLinkJobDialog.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkJobManager.h" />
     <ClInclude Include="CassoExplorer\FullSendDialog.h" />
     <ClInclude Include="CassoExplorer\KrunchMapDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerOptionsDialog.h" />

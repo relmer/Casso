@@ -16,6 +16,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 
 
 
@@ -110,19 +111,37 @@ bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
 //
 //  ExplorerStatusBar::HandleSummaryClick
 //
-//  A Full Send's line opens the Full Send window.
+//  A Full Send's line opens the Full Send window, and a disk job's opens the
+//  job window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerStatusBar::HandleSummaryClick (const DxuiMouseEvent & ev)
 {
-    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left
-        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip) || !m_context.fullSendWindows.IsFullSendRunning())
+    bool  isFullSend = false;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip))
     {
         return false;
     }
 
-    m_context.fullSendWindows.ShowFullSendWindow (true);
+    isFullSend = m_context.fullSendWindows.IsFullSendRunning();
+
+    if (!isFullSend && !m_context.linkJobs.HasJobs())
+    {
+        return false;
+    }
+
+    if (isFullSend)
+    {
+        m_context.fullSendWindows.ShowFullSendWindow (true);
+    }
+    else
+    {
+        m_context.linkJobs.ShowWindow();
+    }
 
     return true;
 }

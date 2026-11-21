@@ -607,6 +607,7 @@
     <ClCompile Include="CassoExplorer\CopyOptionRowsTests.cpp" />
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkJobViewTests.cpp" />
     <ClCompile Include="CassoExplorer\FullSendDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\KrunchMapTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />

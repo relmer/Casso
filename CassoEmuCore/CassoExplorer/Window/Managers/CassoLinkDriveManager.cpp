@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
@@ -328,12 +329,9 @@ void CassoLinkDriveManager::CaptureToImage (const std::wstring & link, int numbe
 
 
 
-    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this, image] (const std::wstring & report)
-    {
-        std::wstring  text = image.filename().wstring() + L" was captured." + (report.empty() ? std::wstring() : L"\n\n" + report);
-
-        m_context.window.ShowMessage (text.c_str(), MB_ICONINFORMATION);
-    });
+    //  The job window opens on the capture's tab when it ends, with what it
+    //  found.
+    outcome = m_context.actions.CaptureDisk (TextEncoding::WideToNarrow (link), number, image.wstring(), [this] (const std::wstring &) { m_context.linkJobs.Update(); });
 
     if (!outcome.Succeeded())
     {

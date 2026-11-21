@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Model/CassoLinkConnectionText.h"
@@ -1556,6 +1557,8 @@ void CassoLinkManager::HandleTransferTimer()
     bool       animated = DxuiSystemSettings::Instance().AreAnimationsEnabled();
 
 
+
+    m_context.linkJobs.Update();
 
     //  The last progress aged out, as in a Full Send waiting for disks.
     if (m_context.app.links == nullptr || !m_context.app.links->IsAnyTransferring())

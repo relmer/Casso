@@ -156,6 +156,13 @@ struct LinkOperation
     std::string                      formatted;
     std::vector<std::pair<int, int>> unreadable;
 
+    //  Read disk and Capture disk, once it ends: what it found and how long it
+    //  took, as a label and a value a row, and a capture's positions with weak
+    //  bits, in quarter tracks. Set on the session's thread before the state
+    //  is Done.
+    std::vector<std::pair<std::string, std::string>>  summary;
+    std::vector<int>                                  weakPositions;
+
     //  Check link disk: whether the drive has the link's boot disk.
     bool                             linkDisk = false;
 

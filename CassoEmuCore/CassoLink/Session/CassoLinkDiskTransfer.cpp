@@ -105,6 +105,8 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     }
 
     operation.message += (operation.message.empty() ? "" : " ") + FormatCaptureTimes (result);
+    operation.summary       = MakeCaptureSummary (result);
+    operation.weakPositions = result.weak;
 
 Error:
     return hr;
@@ -161,6 +163,45 @@ std::string CassoLinkDiskTransfer::FormatCaptureTimes (const CassoLinkCapture::R
     return std::format ("{} reads: {} stepping and reading, {} sending {} KB encoded from {} KB at {:.1f} KB/s. {} of {} positions between tracks read.",
                         result.reads, FormatDuration (result.diskMs / 1000.0), FormatDuration (result.lineMs / 1000.0),
                         result.sentBytes / 1024, result.storedBytes / 1024, pace / 1024.0, result.betweenRead, result.betweenTotal);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::MakeCaptureSummary
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::string>> CassoLinkDiskTransfer::MakeCaptureSummary (const CassoLinkCapture::Result & result)
+{
+    std::vector<std::pair<std::string, std::string>>  rows;
+    double                                            pace  = (result.lineMs > 0.0) ? (double) result.sentBytes / (result.lineMs / 1000.0) : 0.0;
+    auto                                              list  = [] (const std::vector<int> & positions)
+    {
+        std::string  text;
+
+        for (int position : positions)
+        {
+            text += (text.empty() ? "" : ", ") + FormatPosition (position);
+        }
+
+        return text.empty() ? std::string ("None") : text;
+    };
+
+
+
+    rows.push_back ({ "Tracks with weak bits",          list (result.weak) });
+    rows.push_back ({ "Tracks whose reads vary in length", list (result.unstable) });
+    rows.push_back ({ "Reads",                          std::to_string (result.reads) });
+    rows.push_back ({ "Stepping and reading",           FormatDuration (result.diskMs / 1000.0) });
+    rows.push_back ({ "Sending",                        std::format ("{}, {} KB compressed to {} KB, at {:.1f} KB/s", FormatDuration (result.lineMs / 1000.0),
+                                                                     result.storedBytes / 1024, result.sentBytes / 1024, pace / 1024.0) });
+    rows.push_back ({ "Positions between tracks read",  std::format ("{} of {}", result.betweenRead, result.betweenTotal) });
+
+    return rows;
 }
 
 

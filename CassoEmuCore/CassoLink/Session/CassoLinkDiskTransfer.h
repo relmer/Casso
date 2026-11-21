@@ -89,8 +89,12 @@ public:
     HRESULT  MeasureTrack       (int drive, int track, std::vector<CassoLinkHost::TrackMeasure> & ioMeasures);
 
     static std::string  FormatCaptureTimes (const CassoLinkCapture::Result & result);
-    static std::string  FormatPosition     (int position);
-    static std::string  FormatDuration     (double seconds);
+
+    //  A finished capture as rows of a label and a value, for the job's
+    //  status window.
+    static std::vector<std::pair<std::string, std::string>>  MakeCaptureSummary (const CassoLinkCapture::Result & result);
+    static std::string                                       FormatPosition     (int position);
+    static std::string                                       FormatDuration     (double seconds);
 
     //  A capture's progress on the status bar.
     void  ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where);
