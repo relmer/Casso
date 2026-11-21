@@ -55,7 +55,7 @@ public:
     void  Layout      (const RECT & band);
     void  SetHidden   (bool hidden) { m_status->SetVisible (!hidden); }
     void  Fill        ();
-    void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
+    void  SetDetail   (const std::wstring & text);
     void  SetShimmer  (bool on);
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
     void  UpdateTip   (const DxuiMouseEvent & ev, POINT point);

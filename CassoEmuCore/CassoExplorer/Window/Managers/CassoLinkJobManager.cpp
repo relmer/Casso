@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/CassoLinkJobManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
@@ -196,7 +197,7 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
             session->Cancel();
         }
     };
-    actions.showInFolder = [this] (const std::wstring & imagePath) { SelectFile (imagePath, false); };
+    actions.showInFolder = [this] (const std::wstring & imagePath) { m_context.tabManager.SelectInFolder (imagePath); };
     actions.open         = [this] (const std::wstring & imagePath) { SelectFile (imagePath, true); };
 
     m_window = CassoLinkJobDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate, std::move (actions), link);

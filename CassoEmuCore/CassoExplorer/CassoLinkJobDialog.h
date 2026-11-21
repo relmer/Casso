@@ -107,16 +107,18 @@ public:
     //  frame until it settles.
     bool  IsMagnifying (int64_t nowMs) const { return m_magnifier.IsEasing (nowMs); }
 
-    void  Init        ();
-    void  SetViews    (std::vector<CassoLinkJobView> views, const std::string & selected);
-    void  SetOnSelect (SelectFn select) { m_onSelect = std::move (select); }
-    void  SetOnClose  (CloseFn close)   { m_onClose = std::move (close); }
+    void  Init          ();
+    void  SetViews      (std::vector<CassoLinkJobView> views, const std::string & selected);
+    void  SetOnSelect   (SelectFn select) { m_onSelect = std::move (select); }
+    void  SetOnClose    (CloseFn close)   { m_onClose = std::move (close); }
+    void  SetOnOpenFile (std::function<void (const std::wstring & imagePath)> open) { m_onOpenFile = std::move (open); }
 
     const CassoLinkJobView *  GetSelected () const;
 
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-    void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
-    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
     float  PaintMap     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const CassoLinkJobView & view, float left, float top, float width) const;
@@ -124,12 +126,16 @@ private:
     void   DrawLine     (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip, DxuiFontWeight weight) const;
 
     void   LayTabs      ();
+    void   PaintLink    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & path, float left, float top, float width) const;
 
     DxuiTabStrip                   m_tabs;
     RECT                           m_tabsPx     = {};
     DxuiMagnifiedRow               m_magnifier;
     float                          m_pointerX   = 0.0f;
     mutable RECT                   m_mapPx      = {};   // the map at rest, as last painted
+    mutable RECT                   m_linkPx     = {};   // the image's link, as last painted
+    bool                           m_isOverLink = false;
+    std::function<void (const std::wstring & imagePath)>  m_onOpenFile;
     DxuiDpiScaler                  m_scaler;
     std::vector<CassoLinkJobView>  m_views;
     std::string                    m_selected;
@@ -158,7 +164,6 @@ public:
     static constexpr int   kWidthDip  = 640;
     static constexpr int   kHeightDip = 520;
     static constexpr int   kCancelId  = 1001;
-    static constexpr int   kFolderId  = 1002;
     static constexpr int   kOpenId    = 1003;
     static constexpr UINT  kTickMs    = 200;
     static constexpr UINT  kFrameMs   = 16;     // while the map grows or shrinks
@@ -197,6 +202,5 @@ private:
     std::string          m_selected;
     CassoLinkJobPanel  * m_panel        = nullptr;
     DxuiButton         * m_cancelButton = nullptr;
-    DxuiButton         * m_folderButton = nullptr;
     DxuiButton         * m_openButton   = nullptr;
 };

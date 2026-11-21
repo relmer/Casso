@@ -85,7 +85,6 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
     CassoLinkJobView    view;
     LinkOperationState  state   = operation.state;
     std::wstring        drive   = DescribeDrive (operation.drive);
-    std::wstring        file    = std::filesystem::path (TextEncoding::NarrowToWide (operation.imagePath)).filename().wstring();
     std::wstring        name    = TextEncoding::NarrowToWide (link);
     int                 done    = 0;
     bool                isRead  = operation.kind == LinkOperationKind::ReadDisk;
@@ -108,11 +107,11 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
 
     switch (view.state)
     {
-        case State::Queued:   view.heading = std::format (L"Waiting to {} {}",  isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);                       break;
-        case State::Running:  view.heading = isWrite ? std::format (L"Writing {} to {}", file, drive) : std::format (L"{} {} to {}", isRead ? L"Reading" : L"Capturing", drive, file); break;
-        case State::Done:     view.heading = isWrite ? std::format (L"Wrote {} to {}", file, drive)   : std::format (L"{} {} to {}", isRead ? L"Read" : L"Captured", drive, file);     break;
-        case State::Failed:   view.heading = std::format (L"Couldn't {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);                           break;
-        case State::Canceled: view.heading = std::format (L"Canceled {} {}", isWrite ? L"writing to" : isRead ? L"reading" : L"capturing", drive);                    break;
+        case State::Queued:   view.heading = std::format (L"Waiting to {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);    break;
+        case State::Running:  view.heading = std::format (L"{} {}", isWrite ? L"Writing to" : isRead ? L"Reading" : L"Capturing", drive);     break;
+        case State::Done:     view.heading = std::format (L"{} {}", isWrite ? L"Wrote to" : isRead ? L"Read" : L"Captured", drive);           break;
+        case State::Failed:   view.heading = std::format (L"Couldn't {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);  break;
+        case State::Canceled: view.heading = std::format (L"Canceled {} {}", isWrite ? L"writing to" : isRead ? L"reading" : L"capturing", drive); break;
     }
 
     done = (view.state == State::Done) ? kTracks : view.percent * kTracks / 100;
@@ -323,6 +322,8 @@ bool CassoLinkJobPanel::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
     {
+        m_isOverLink = ev.kind == DxuiMouseEventKind::Move && PtInRect (&m_linkPx, POINT { (LONG) ev.positionDip.x, (LONG) ev.positionDip.y });
+
         isNear = ev.kind == DxuiMouseEventKind::Move && m_mapPx.right > m_mapPx.left
               && ev.positionDip.x >= m_mapPx.left && ev.positionDip.x < m_mapPx.right
               && ev.positionDip.y >= (float) m_mapPx.top - grow && ev.positionDip.y < m_mapPx.bottom;
@@ -333,6 +334,18 @@ bool CassoLinkJobPanel::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_magnifier.SetNear (isNear, now);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left && PtInRect (&m_linkPx, POINT { (LONG) ev.positionDip.x, (LONG) ev.positionDip.y }) && m_onOpenFile)
+    {
+        const CassoLinkJobView  * view = GetSelected();
+
+        if (view != nullptr)
+        {
+            m_onOpenFile (view->imagePath);
+        }
+
+        return true;
     }
 
     return DxuiPanel::OnMouse (ev);
@@ -417,6 +430,9 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     DrawLine (text, view->heading, left, top, width, theme.Foreground(), kHeadingFontDip, DxuiFontWeight::SemiBold);
     top += line + m_scaler.ToPxf (4.0f);
 
+    PaintLink (painter, text, theme, view->imagePath, left, top, width);
+    top += line;
+
     DrawLine (text, view->connection, left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
     top += line;
 
@@ -453,6 +469,65 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     }
 
     PaintSummary (text, theme, *view, left, top, width);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::PaintLink
+//
+//  The image's path in the link color, underlined under the pointer; a click
+//  on it selects the image in its folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobPanel::PaintLink (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & path, float left, float top, float width) const
+{
+    HRESULT  hr     = S_OK;
+    float    textW  = 0.0f;
+    float    textH  = 0.0f;
+    float    fontPx = m_scaler.ToPxf (kFontDip);
+    float    lineH  = m_scaler.ToPxf (kLineDip);
+
+
+
+    m_linkPx = {};
+
+    hr = text.MeasureString (path.c_str(), fontPx, FullSendPanel::s_kpszFont, textW, textH);
+    CHR (hr);
+
+    textW    = std::min (textW, width);
+    m_linkPx = RECT { (LONG) left, (LONG) top, (LONG) std::ceil (left + textW), (LONG) std::ceil (top + lineH) };
+
+    hr = text.DrawString (path.c_str(), left, top, width, lineH, theme.Accent(), fontPx, FullSendPanel::s_kpszFont,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    CHR (hr);
+
+    if (m_isOverLink)
+    {
+        painter.FillRect (left, top + (lineH + textH) / 2.0f, textW, std::max (1.0f, std::floor (m_scaler.ToPxf (1.0f))), theme.Accent());
+    }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR CassoLinkJobPanel::GetCursorForPoint (POINT clientPx) const
+{
+    return PtInRect (&m_linkPx, clientPx) ? IDC_HAND : DxuiPanel::GetCursorForPoint (clientPx);
 }
 
 
@@ -604,6 +679,13 @@ void CassoLinkJobDialog::OnCreate()
     m_panel = CreateDialogContent<CassoLinkJobPanel>();
     m_panel->Init();
     m_panel->SetOnSelect ([this] (const std::string & link) { Select (link); });
+    m_panel->SetOnOpenFile ([this] (const std::wstring & imagePath)
+    {
+        if (m_actions.showInFolder)
+        {
+            m_actions.showInFolder (imagePath);
+        }
+    });
     m_panel->SetOnClose ([this] (const std::string & link)
     {
         if (m_actions.closeTab)
@@ -615,7 +697,6 @@ void CassoLinkJobDialog::OnCreate()
     });
 
     m_cancelButton = AddDialogButton (L"Cancel job", kCancelId, DxuiButtonRow::Anchor::Left);
-    m_folderButton = AddDialogButton (L"Show in folder", kFolderId);
     m_openButton   = AddDialogButton (L"Open", kOpenId);
 
     AddDialogButton (L"Close", IDCANCEL);
@@ -627,15 +708,6 @@ void CassoLinkJobDialog::OnCreate()
         if (view != nullptr && m_actions.cancel)
         {
             m_actions.cancel (view->link);
-        }
-    });
-    m_folderButton->SetOnClick ([this]()
-    {
-        const CassoLinkJobView  * view = m_panel->GetSelected();
-
-        if (view != nullptr && m_actions.showInFolder)
-        {
-            m_actions.showInFolder (view->imagePath);
         }
     });
     m_openButton->SetOnClick ([this]()
@@ -718,7 +790,6 @@ void CassoLinkJobDialog::Refresh()
     isDone = shown != nullptr && shown->state == CassoLinkJobView::State::Done && !shown->imagePath.empty();
 
     m_cancelButton->SetEnabled (shown != nullptr && shown->IsRunning());
-    m_folderButton->SetEnabled (isDone);
     m_openButton->SetEnabled (isDone);
 
     Invalidate();

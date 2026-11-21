@@ -37,7 +37,7 @@ public:
 
         view = CassoLinkJobView::Build (operation, "COM3", L"Apple ][ plus", 20.0);
 
-        Assert::AreEqual (std::wstring (L"Capturing Slot 6, Drive 2 to Adventure.woz"), view.heading);
+        Assert::AreEqual (std::wstring (L"Capturing Slot 6, Drive 2"), view.heading);
         Assert::AreEqual (std::wstring (L"Apple ][ plus, COM3"), view.tabLabel);
         Assert::IsTrue  (view.tracks[13] == FullSendTrackMark::Read, L"40% of 35 tracks is 14");
         Assert::IsTrue  (view.tracks[14] == FullSendTrackMark::Unread);
@@ -63,7 +63,7 @@ public:
 
         view = CassoLinkJobView::Build (operation, "COM3", L"", 254.0);
 
-        Assert::AreEqual (std::wstring (L"Captured Slot 6, Drive 1 to Adventure.woz"), view.heading);
+        Assert::AreEqual (std::wstring (L"Captured Slot 6, Drive 1"), view.heading);
         Assert::AreEqual (std::wstring (L"COM3"), view.tabLabel, L"No model known");
         Assert::AreEqual ((size_t) 1, view.weakTracks.size());
         Assert::AreEqual (27, view.weakTracks[0], L"Position 108 is track 27");

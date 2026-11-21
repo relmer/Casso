@@ -205,7 +205,7 @@ void ExplorerStatusBar::Fill()
     }
 
     //  A job starting or ending changes the detail field's width.
-    if (m_widened != (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty()))
+    if (m_widened != (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty()) && m_band.right > m_band.left)
     {
         Layout (m_band);
         return;
@@ -224,6 +224,33 @@ void ExplorerStatusBar::Fill()
     m_status->SetText (kStatusDetail,   detail);
     m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::SetDetail
+//
+//  A job starting or ending changes the detail field's width, so the band
+//  is laid out again then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerStatusBar::SetDetail (const std::wstring & text)
+{
+    bool  job = m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+
+
+
+    m_status->SetText (kStatusDetail, text);
+
+    if (job != m_widened && m_band.right > m_band.left)
+    {
+        Layout (m_band);
+    }
 }
 
 
