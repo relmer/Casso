@@ -64,6 +64,7 @@ struct PickerRequest
     //  confirms replacing a file.
     std::wstring                   defaultFileName;
     std::wstring                   defaultExtension;
+    bool                           isImageContent   = false;   // the type box is labeled "Disk image type:"
     bool                           askToReplace     = true;
 
     //  DriveWindow: inserts the image. False leaves the picker open.
@@ -103,6 +104,7 @@ struct PickerRequest
     //  state on confirm is PickerOutcome::verified.
     bool                           offerVerify      = false;
     bool                           verify           = false;
+    std::wstring                   verifyLabel;
 
     bool  IsSave     () const { return form == PickerForm::ModalSave; }
     bool  IsForDrive () const { return receivingDrive.has_value(); }

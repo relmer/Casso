@@ -7,6 +7,7 @@
 
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
+#include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
 #include "CassoExplorer/Model/ImageVolumeFacts.h"
@@ -51,6 +52,7 @@ public:
 
     TreeModel        & GetTreeModel    ()       { return m_tree;  }
     const TreeModel  & GetTreeModel    () const { return m_tree;  }
+    HostFolderReader & GetHostFolders  ()       { return m_hostFolders; }
     BrowserModel     & GetBrowserModel ()       { return m_model; }
     DiskOperations   & GetOperations   ()       { return m_operations; }
     ImageClassCache  & GetImageClasses ()       { return m_imageClasses; }
@@ -82,6 +84,7 @@ public:
     //  Where a tree node or a list row leads, without going there: a folder, a
     //  disk image, or a directory inside one. False for anything else.
     bool  TryGetNodeLocation (const std::wstring & id, Location & outLocation) const;
+    bool  TryGetTreeNode     (const std::wstring & id, DxuiTreeNode & outNode) const;
     bool  TryGetRowLocation  (int row, Location & outLocation);
 
     //  The path a row stands for, as Copy as path gives it: a host item's full
@@ -342,7 +345,7 @@ public:
     void                    SetLinks (CassoLinkConnections * links) { m_links = links; }
 
     //  The file systems the user chose, which outlive this browser.
-    void                    SetFilesystemChoices (FilesystemChoices * choices) { m_filesystemChoices = choices; m_operations.SetFilesystemChoices (choices); m_tree.SetFilesystemChoices (choices); }
+    void                    SetFilesystemChoices (FilesystemChoices * choices) { m_filesystemChoices = choices; m_operations.SetFilesystemChoices (choices); }
     FilesystemChoices     * GetFilesystemChoices () const { return m_filesystemChoices; }
     CassoLinkConnections  * GetLinks             () const                       { return m_links; }
 
@@ -433,8 +436,8 @@ public:
 
     //  Which hidden items the tree and the list show, and whether compressed
     //  items are colored. The next listing follows them.
-    void                   SetFolderOptions (const FolderOptions & options) { m_loader.m_folderOptions = options; m_tree.SetFolderOptions (options); }
-    const FolderOptions &  GetFolderOptions () const                        { return m_loader.m_folderOptions; }
+    void                   SetFolderOptions (const FolderOptions & options) { m_hostFolders.SetFolderOptions (options); }
+    const FolderOptions &  GetFolderOptions () const                        { return m_hostFolders.GetFolderOptions(); }
 
     static constexpr uint32_t  kCompressedDarkArgb  = 0xFF3A99E8u;
     static constexpr uint32_t  kCompressedLightArgb = 0xFF0000FFu;
@@ -480,9 +483,11 @@ private:
     ImageClassCache                     m_imageClasses;
     std::function<void ()>              m_onVolumeFacts;
     ImageVolumeFacts                    m_volumeFacts    { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
-    TreeModel                           m_tree;
+    HostFolderReader                    m_hostFolders;
+    TreeModel                           m_tree           { m_fs, m_hostFolders };
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
+    DiskImageCatalog                    m_catalog        { m_operations };
     TypedPathHistory                    m_typedPaths;
     std::vector<CatalogRow>             m_rows;
     std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped

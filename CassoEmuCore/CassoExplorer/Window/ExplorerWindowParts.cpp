@@ -91,6 +91,8 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .addressBar       = addressBar,
                  .menus            = menus,
                  .commandManager   = commandManager,
+                 .verbs            = verbs,
+                 .imageTools       = imageTools,
                  .clipboard          = clipboard,
                  .prompts          = prompts,
                  .deletion         = deletion,
@@ -406,6 +408,13 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerNewChoices)
     {
         toolbars.SetCommandBarDropDowns();
+        return true;
+    }
+
+    //  An installer that changes a file association may also add commands.
+    if (msg == (UINT) AppMessage::ExplorerAssocChanged)
+    {
+        menus.RefreshPackagedCommands();
         return true;
     }
 

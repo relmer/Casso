@@ -25,6 +25,10 @@ struct ExplorerContext;
 class ExplorerAddressBar
 {
 public:
+    //  How far a save form's search box is mixed from the list's color
+    //  toward the text color.
+    static constexpr float  s_kSaveSearchTint = 0.05f;
+
     explicit ExplorerAddressBar (ExplorerContext & context);
 
     static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
@@ -54,7 +58,7 @@ public:
     void         Layout                  (const RECT & free, const RECT & strip, int rightOfTreePx);
     void         SetHidden               (bool hidden) { m_address->SetVisible (!hidden); m_findBox->SetVisible (!hidden); }
     static RECT  GetAddressRect          (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
-    void         ApplyTheme              (const DxuiTheme * theme) { m_suggest.SetTheme (theme); }
+    void         ApplyTheme              (const DxuiTheme * theme);
     void         CloseSuggestions        () { m_suggest.Close(); }
     LPCWSTR      GetCursorForPoint       (POINT clientPx) const;
 

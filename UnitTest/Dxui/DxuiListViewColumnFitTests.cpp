@@ -257,4 +257,37 @@ public:
         Assert::AreEqual (-1, f.list.GetColumnOverrideWidthPx (0),
                           L"One press starts a drag rather than fitting");
     }
+
+
+    //  The rows draw by GDI's advances, so the columns are fitted by them too:
+    //  a name measured by DirectWrite's narrower advances would be cut short.
+    TEST_METHOD (AFittedColumnShowsItsWidestNameWhole)
+    {
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        std::vector<std::vector<DxuiListView::Cell>>  data;
+        bool                                          whole = false;
+
+        scaler.SetDpi (96);
+        text.SetGdiGlyphWidth (9.0f);
+
+        data.push_back ({ DxuiListView::Cell { L"HardPressed.CDV", false } });
+
+        list.SetColumns        ({ DxuiListView::Column { L"Name", 0 } });
+        list.SetShowHeader     (true);
+        list.SetPreciseAutoFit (true);
+        list.SetRows           (std::move (data));
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+        list.Paint             (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            whole = whole || (call.kind == RecordedTextKind::DrawString && call.text == L"HardPressed.CDV");
+        }
+
+        Assert::IsTrue (whole, L"the name is drawn whole");
+    }
 };

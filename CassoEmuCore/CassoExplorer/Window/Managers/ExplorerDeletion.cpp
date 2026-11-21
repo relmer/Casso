@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
@@ -344,7 +345,7 @@ void ExplorerDeletion::DeleteFromVolume()
             m_context.browser.SelectRowAt (first);
         }
 
-        m_context.commandManager.ReportOutcome (outcome, L"Delete");
+        m_context.verbs.ReportOutcome (outcome, L"Delete");
         m_context.listPane.FillList();
     }
 }

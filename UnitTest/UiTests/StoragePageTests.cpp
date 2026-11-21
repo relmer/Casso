@@ -153,7 +153,7 @@ public:
     {
         DiskPage             page (L"Storage");
         const DxuiLabel    * disks     = nullptr;
-        const DxuiLabel    * protect   = nullptr;
+        const DxuiLabel    * writeMode = nullptr;
         const DxuiLabel    * defaults  = nullptr;
         const DxuiDivider  * rule      = nullptr;
         const DxuiLabel    * tape      = nullptr;
@@ -163,20 +163,20 @@ public:
 
         LayOut (page, 0, 600);
         disks    = FindChild<DxuiLabel> (page, L"Disk drives");
-        protect  = FindChild<DxuiLabel> (page, L"Write protect:");
+        writeMode = FindChild<DxuiLabel> (page, L"Write mode:");
         defaults = FindChild<DxuiLabel> (page, L"Drive 2 pan:");
         rule     = FindChild<DxuiDivider> (page);
         tape     = FindChild<DxuiLabel> (page, L"Cassette tape");
         fastTape = FindChild<DxuiLabel> (page, L"Fast tape loading:");
 
         Assert::IsNotNull (disks);
-        Assert::IsNotNull (protect);
+        Assert::IsNotNull (writeMode);
         Assert::IsNotNull (defaults);
         Assert::IsNotNull (rule);
         Assert::IsNotNull (tape);
         Assert::IsNotNull (fastTape);
 
-        Assert::IsTrue (disks->GetRect().bottom    <= protect->GetRect().top);
+        Assert::IsTrue (disks->GetRect().bottom    <= writeMode->GetRect().top);
         Assert::IsTrue (defaults->GetRect().bottom <= rule->GetBounds().top, L"every disk row sits above the rule");
         Assert::IsTrue (rule->GetBounds().bottom   <= tape->GetRect().top);
         Assert::IsTrue (tape->GetRect().bottom     <= fastTape->GetRect().top);
@@ -221,7 +221,6 @@ public:
         state.SetFastTapeLoading  (!defaults.fastTapeLoading);
         state.SetTapeVolume       (0.25f);
         state.SetTapeAutoStop     (!defaults.tapeAutoStop);
-        state.SetWriteProtect     (0, !defaults.writeProtect[0]);
         state.SetFloppySound      (!defaults.floppySoundEnabled);
         state.SetDriveMotorVolume (0.1f);
 
@@ -231,7 +230,6 @@ public:
         Assert::AreEqual (defaults.fastTapeLoading,    state.GetPrefs().fastTapeLoading);
         Assert::AreEqual (defaults.tapeVolume,         state.GetPrefs().tapeVolume);
         Assert::AreEqual (defaults.tapeAutoStop,       state.GetPrefs().tapeAutoStop);
-        Assert::AreEqual (defaults.writeProtect[0],    state.GetPrefs().writeProtect[0]);
         Assert::AreEqual (defaults.floppySoundEnabled, state.GetPrefs().floppySoundEnabled);
         Assert::AreEqual (defaults.driveMotorVolume,   state.GetPrefs().driveMotorVolume);
         Assert::AreEqual (defaults.fastTapeLoading,    page.GetFastTapeToggle().IsChecked(), L"and the widgets show it");

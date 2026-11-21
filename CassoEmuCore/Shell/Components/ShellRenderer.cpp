@@ -1020,7 +1020,7 @@ bool ShellRenderer::TryPresentUiFrame()
                     driveRow         = m_shell.m_scene->m_stripRectPx;
                     driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp + s_kSceneDriveLabelGapDp);
 
-                    if (m_shell.m_scene->m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsTapeRecorderShown())
+                    if (m_shell.m_scene->m_deskScene.HasRecorder() && m_shell.m_tapeDeck->IsRecorderOnDesk())
                     {
                         driveRow.bottom -= m_shell.m_scaler.ToPx (s_kSceneDriveLabelStripDp);
                     }
@@ -1946,12 +1946,14 @@ void ShellRenderer::RenderFramebuffer()
     // testable independent of the Win32 shell).
     if (color != ColorMode::Color)
     {
+        uint32_t  greenMonitor = m_greenMonitor.load (memory_order_acquire);
+
         for (auto & pixel : m_cpuFramebuffer)
         {
             switch (color)
             {
                 case ColorMode::GreenMono:
-                    pixel = Casso::Video::TintGreenMono (pixel);
+                    pixel = (greenMonitor != 0) ? Casso::Video::TintMonoToColor (pixel, greenMonitor) : Casso::Video::TintGreenMono (pixel);
                     break;
 
                 case ColorMode::AmberMono:

@@ -14,6 +14,8 @@ class GivenNames;
 class IDiskPictures;
 class ExplorerAddressBar;
 class ExplorerCommandManager;
+class ExplorerImageTools;
+class ExplorerVerbs;
 class ExplorerDragDrop;
 class ExplorerClipboard;
 class ExplorerTransferPrompts;
@@ -129,6 +131,8 @@ public:
     ExplorerAddressBar          & addressBar;
     ExplorerMenus               & menus;
     ExplorerCommandManager      & commandManager;
+    ExplorerVerbs               & verbs;
+    ExplorerImageTools          & imageTools;
     ExplorerClipboard           & clipboard;
     ExplorerTransferPrompts     & prompts;
     ExplorerDeletion            & deletion;

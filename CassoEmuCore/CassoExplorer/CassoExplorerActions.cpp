@@ -7,6 +7,7 @@
 #include "Devices/Disk/Archives/WrappedImageFileIo.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "CassoExplorer/Model/BasicConversion.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/BasicListingOutput.h"
@@ -1407,7 +1408,7 @@ void CassoExplorerActions::Append (Outcome & inOutOutcome, const DiskOperations:
             inOutOutcome.message += L"\n";
         }
 
-        inOutOutcome.message += BrowserCells::ShortenPaths (TextEncoding::NarrowToWide (result.message));
+        inOutOutcome.message += DiskMessageText::ShortenPaths (TextEncoding::NarrowToWide (result.message));
     }
 
     if (!result.Succeeded())
@@ -1423,7 +1424,7 @@ void CassoExplorerActions::Append (Outcome & inOutOutcome, const DiskOperations:
     //  it could not decode does: the complaint is shown as a warning.
     if (result.Succeeded() && result.exitStatus == DiskCommandResult::kWithComplaints && !result.message.empty())
     {
-        ActionsCopy::AppendWarning (inOutOutcome, BrowserCells::ShortenPaths (TextEncoding::NarrowToWide (result.message)));
+        ActionsCopy::AppendWarning (inOutOutcome, DiskMessageText::ShortenPaths (TextEncoding::NarrowToWide (result.message)));
     }
 }
 

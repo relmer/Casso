@@ -5,6 +5,7 @@
 #include "CassoExplorer/Browser/BrowserTypes.h"
 
 #include "CassoExplorer/Model/PreviewDecoder.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Core/MemoryBus.h"
 
 class CassoExplorerBrowser;
@@ -68,7 +69,7 @@ public:
     std::wstring              DescribeEmptyArchive (const std::wstring & path) const;
     void                      AddWozDetails        (const std::wstring & imagePath);
     void                      PreviewImageCatalog  (const std::wstring & imagePath);
-    bool                      PreviewPartitions    (const std::wstring & imagePath);
+    bool                      PreviewPartitions    (const std::wstring & imagePath, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries);
     bool                      PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
     static const FileEntry  * FindSavedGame        (const VolumeListing & listing, VolumeKind kind);
 
