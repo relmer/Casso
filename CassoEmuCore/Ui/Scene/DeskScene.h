@@ -154,9 +154,10 @@ public:
     // texture is grown rather than resized, so even a lone label rarely
     // covers all of it.
     // The baked labels the scene draws: the drives' names, the recorder's,
-    // the name of the drive under the pointer, and the info icon after each
-    // drive's name (see ShellDeskScene::s_kSceneLabelCount).
-    static constexpr int  kLabelCount = 9;
+    // the name of the drive under the pointer, the info icon after each
+    // drive's name, each drive's caption, and each extra drive's name and
+    // caption (see ShellDeskScene::s_kSceneLabelCount).
+    static constexpr int  kLabelCount = 11 + 2 * kMaxDeskExtras;
     // The name of the recorder key under the pointer. A tip rather than a
     // decal, so it is drawn over everything, and the recorder's own front
     // lip never cuts through it.

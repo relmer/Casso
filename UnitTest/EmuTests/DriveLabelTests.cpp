@@ -53,6 +53,22 @@ public:
         Assert::AreEqual (std::wstring (L"1 MB"),                    DriveLabel::FormatSize (2048));
     }
 
+    //  A DRIVE'S CAPTION ON THE DESK IS ITS LABEL, MODEL AND SIZE on one
+    //  line: the label first when it has one, and the size in parentheses.
+    TEST_METHOD (Caption_LabelModelAndSize)
+    {
+        Assert::AreEqual (std::wstring (L"Drive 1: Apple Disk ][ (140K)"),      DriveLabel::GetCaption ({ DeskDriveModel::DiskII,       6, 0 }, false, 0, 0));
+        Assert::AreEqual (std::wstring (L"Apple 3.5 drive (800K)"),             DriveLabel::GetCaption ({ DeskDriveModel::Apple35Drive, 2, 0 }, false, 0, 0));
+        Assert::AreEqual (std::wstring (L"S2,D2: Apple 3.5 drive (800K)"),      DriveLabel::GetCaption ({ DeskDriveModel::Apple35Drive, 2, 1 }, true,  1600, 0), L"one of two");
+        Assert::AreEqual (std::wstring (L"UniDisk 3.5 (400K)"),                 DriveLabel::GetCaption ({ DeskDriveModel::UniDisk35,    5, 0 }, false, 800, 0),  L"a 400K disk");
+        Assert::AreEqual (std::wstring (L"Built-in 3.5 drive (800K)"),          DriveLabel::GetCaption ({ DeskDriveModel::Apple35Plus,  0, 0 }, false, 0, 0));
+        Assert::AreEqual (std::wstring (L"ProFile hard disk (10MB)"),           DriveLabel::GetCaption ({ DeskDriveModel::ProFile,      4, 0 }, false, 19456, 19456));
+        Assert::AreEqual (std::wstring (L"SCSI-6: Hard disk 20SC (32MB)"),      DriveLabel::GetCaption ({ DeskDriveModel::HardDisk20SC, 7, 6 }, true,  65535, 0));
+        Assert::AreEqual (std::wstring (L"SCSI-6: Hard disk 20SC"),             DriveLabel::GetCaption ({ DeskDriveModel::HardDisk20SC, 7, 6 }, false, 0, 0),    L"no image");
+        Assert::AreEqual (std::wstring (L"S6,D1: Disk IIc (140K)"),             DriveLabel::GetCaption ({ DeskDriveModel::Disk2c,       6, 0, false, true }, false, 0, 0));
+    }
+
+
     //  A DESK DRIVE'S TIP IS ITS TWO LINES, THEN ITS IMAGE: the image's name
     //  and whether it is write-protected, or "No disk" when the drive is empty.
     TEST_METHOD (Tip_LinesThenImage)

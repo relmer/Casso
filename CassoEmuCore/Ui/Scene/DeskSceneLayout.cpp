@@ -1888,6 +1888,45 @@ float DeskSceneLayout::SolvePictureStandoff (const DeskSceneMetrics & metrics,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::GetDockRestScale
+//
+//  The scale of the first docked device at rest: a drive, else the recorder,
+//  else a docked hard disk. Zero when nothing is docked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::GetDockRestScale (const DeskSceneComposition & comp, int driveCount)
+{
+    float  scale = 0.0f;
+
+
+
+    if (driveCount > 0)
+    {
+        scale = comp.driveWorld[0][0];
+    }
+    else if (comp.hasRecorder != 0)
+    {
+        scale = comp.recorderWorld[0];
+    }
+
+    for (int i = 0; scale == 0.0f && i < comp.extraCount; i++)
+    {
+        if (comp.extraDocked[i] != 0 && comp.extraHidden[i] == 0)
+        {
+            scale = comp.extraWorld[i][0];
+        }
+    }
+
+    return scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::ComputeGlassFill
 //
 //  The fullscreen camera. The monitor mounts exactly as in the windowed
@@ -2007,6 +2046,11 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
         driveCount = SlideDevices (out, metrics, driveCount, eyeDistMm, tanY * aspect, tanY, viewportH,
                                    std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0),
                                    glassCx, kFullscreenSlideScale);
+
+        // The glass fills the screen, so a device's true size beside it is
+        // far too big to grow to. The dock grows from its resting size by
+        // the same share it grows by in a window instead.
+        out.dockFullScale = GetDockRestScale (out, driveCount) / kWindowedSlideScale;
 
         MagnifyDock (out, metrics, driveCount, dock, tanY * aspect, viewportPx);
 

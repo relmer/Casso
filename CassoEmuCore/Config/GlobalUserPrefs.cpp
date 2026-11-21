@@ -54,6 +54,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "autoHideDrives",
     "deskFloppies",
     "deskHardDisks",
+    "recorderInDock",
     "deskFloppyPairBeside",
     "driveBarZoom",
     "showFrameRate",
@@ -1074,6 +1075,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("autoHideDrives",        JsonValue (autoHideDrives));
     root.emplace_back ("deskFloppies",          JsonValue (deskFloppies));
     root.emplace_back ("deskHardDisks",         JsonValue (deskHardDisks));
+    root.emplace_back ("recorderInDock",        JsonValue (recorderInDock));
     root.emplace_back ("deskFloppyPairBeside",  JsonValue (deskFloppyPairBeside));
     root.emplace_back ("driveBarZoom",          JsonValue ((double) driveBarZoom));
     root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
@@ -1264,6 +1266,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     autoHideDrives        = TryGetBoolOpt   (v, "autoHideDrives",          autoHideDrives);
     deskFloppies          = GetStringOpt    (v, "deskFloppies",            deskFloppies);
     deskHardDisks         = GetStringOpt    (v, "deskHardDisks",           deskHardDisks);
+    recorderInDock        = TryGetBoolOpt   (v, "recorderInDock",          recorderInDock);
     deskFloppyPairBeside  = TryGetBoolOpt   (v, "deskFloppyPairBeside",    deskFloppyPairBeside);
     driveBarZoom          = (float) GetNumberOpt (v, "driveBarZoom", driveBarZoom);
     showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);

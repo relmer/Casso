@@ -318,6 +318,7 @@ protected:
     bool     OnOverlayChar     (wchar_t ch) override;
     bool     OnOverlayKey      (WPARAM vk) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    void     OnDialogTick      () override;
 
 private:
     CrtOverrides &  GetOverrides    ();
@@ -325,6 +326,7 @@ private:
     void            WireDisplay     ();
     void            WireColorPicker ();
     void            WireFullSend    ();
+    void            UpdateTickRate  ();
     void            WireProtection  ();
     void            WireVerify      ();
     void            SetCustomColor  (uint32_t argb);
