@@ -529,8 +529,51 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         m_browser.m_model.CacheCatalog (imagePath, listing, kind);
     }
 
+    if (PreviewSavedGame (imagePath, listing, kind))
+    {
+        AddWozDetails (imagePath);
+        return;
+    }
+
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
     AddWozDetails (imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::PreviewSavedGame
+//
+//  A Wizardry scenario disk previews as the saved game in its SCENARIO.DATA:
+//  the roster and the map of the level the party is on. False, with the
+//  preview cleared, for any other disk or a SCENARIO.DATA that doesn't decode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
+{
+    auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
+                                   [] (const FileEntry & entry) { return !entry.isDirectory && _stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0; });
+
+
+
+    if (kind != VolumeKind::Pascal || scenario == listing.entries.end())
+    {
+        return false;
+    }
+
+    PreviewEntry (imagePath, scenario->name, *scenario, kind);
+
+    if (m_preview.kind != PreviewContent::Kind::Document)
+    {
+        m_preview = PreviewContent();
+        return false;
+    }
+
+    return true;
 }
 
 

@@ -69,6 +69,7 @@ public:
     void          AddWozDetails        (const std::wstring & imagePath);
     void          PreviewImageCatalog  (const std::wstring & imagePath);
     bool          PreviewPartitions    (const std::wstring & imagePath);
+    bool          PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
 
     using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
 
