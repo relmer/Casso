@@ -21,7 +21,7 @@ public:
     static constexpr const wchar_t *  kNoFilesystemText     = L"can't be previewed because it doesn't have a recognized file system.";
     static constexpr const wchar_t *  kDamagedPartitionText = L"is damaged: it ends past the end of the image.";
 
-    static std::wstring  FormatImageError        (const std::wstring & imagePath, const std::string & message);
+    static std::wstring  FormatImageError        (const std::wstring & imagePath, const std::string & message, const std::wstring & displayName = std::wstring());
     static std::wstring  FormatLinkError         (HRESULT result, const std::string & message);
     static std::wstring  ShortenPaths            (const std::wstring & message);
     static std::wstring  BreakAfterFirstSentence (std::wstring text);

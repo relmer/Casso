@@ -105,16 +105,17 @@ std::wstring DiskMessageText::FormatLinkError (HRESULT result, const std::string
 //  The command line's refusal, "path: reason", as a sentence about the file
 //  by its own name, since its path is in the address bar and the tree. An
 //  image with no file system gets one plain sentence, and the rest is in the
-//  preview's details.
+//  preview's details. A display name, such as a partition's label, is used in
+//  place of the file's name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DiskMessageText::FormatImageError (const std::wstring & imagePath, const std::string & message)
+std::wstring DiskMessageText::FormatImageError (const std::wstring & imagePath, const std::string & message, const std::wstring & displayName)
 {
     std::wstring  text   = TextEncoding::NarrowToWide (message);
     std::wstring  prefix = imagePath + L": ";
     size_t        slash  = imagePath.find_last_of (L"\\/");
-    std::wstring  leaf   = imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1);
+    std::wstring  leaf   = displayName.empty() ? imagePath.substr ((slash == std::wstring::npos) ? 0 : slash + 1) : displayName;
 
 
 

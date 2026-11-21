@@ -69,6 +69,8 @@ public:
     static std::wstring  DescribeDamagedPartition (const std::wstring & imagePath, const PartitionEntry & entry);
 
 private:
+    std::wstring  DescribeFailure (const std::wstring & path, const std::string & message);
+
     static void  ListSubdirectories (const IVolume & volume, const std::string & directory, const VolumeListing & listing, std::vector<ImageSubdirectory> & outSubdirectories);
 
     DiskOperations  & m_operations;

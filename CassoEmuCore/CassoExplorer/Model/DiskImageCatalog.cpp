@@ -68,7 +68,7 @@ HRESULT DiskImageCatalog::Describe (const std::wstring & path, const std::string
 
     if (!outContents.result.Succeeded())
     {
-        outContents.error  = DiskMessageText::FormatImageError (path, outContents.result.message);
+        outContents.error  = DescribeFailure (path, outContents.result.message);
         outContents.broken = outContents.kind == VolumeKind::Unknown && outContents.partitions.empty() &&
                              outContents.result.message.find (DiskImageSession::kNoFilesystemText) == std::string::npos;
     }
@@ -110,6 +110,52 @@ HRESULT DiskImageCatalog::ListPartitions (const std::wstring & path, PartitionLa
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageCatalog::DescribeFailure
+//
+//  The sentence for an image that didn't open. For a partition of an image
+//  file, the sentence starts with its label, and for one that ends past the
+//  end of the image, it is the damaged partition's sentence, since reading it
+//  fails for that reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskImageCatalog::DescribeFailure (const std::wstring & path, const std::string & message)
+{
+    HRESULT                      hr     = S_OK;
+    size_t                       bar    = path.rfind (L'|');
+    std::wstring                 parent = (bar == std::wstring::npos) ? std::wstring() : path.substr (0, bar);
+    std::string                  step   = (bar == std::wstring::npos) ? std::string() : TextEncoding::WideToNarrow (path.substr (bar + 1));
+    int                          index  = 0;
+    PartitionLayoutKind          layout = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+
+
+
+    if (parent.empty() || PhysicalCards::IsOnCard (parent) || !PartitionAccess::TryParseStepName (step, index))
+    {
+        return DiskMessageText::FormatImageError (path, message);
+    }
+
+    hr = ListPartitions (parent, layout, entries);
+
+    for (const PartitionEntry & entry : SUCCEEDED (hr) ? entries : std::vector<PartitionEntry>())
+    {
+        if (entry.step == step)
+        {
+            return entry.partition.damaged ? DescribeDamagedPartition (parent, entry)
+                                           : DiskMessageText::FormatImageError (path, message, GetPartitionLabel (parent, entry, false));
+        }
+    }
+
+    return DiskMessageText::FormatImageError (path, message);
 }
 
 

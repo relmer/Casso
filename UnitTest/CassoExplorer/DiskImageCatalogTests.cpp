@@ -95,6 +95,7 @@ public:
 
         Rig                rig;
         ImageContents      contents;
+        ImageContents      damaged;
         FixtureProvider    fixtures;
         std::vector<Byte>  bytes;
         HRESULT            hr = S_OK;
@@ -109,6 +110,12 @@ public:
         Assert::AreEqual ((size_t) 2, contents.partitions.size());
         Assert::IsFalse  (contents.partitions[0].partition.damaged, L"the ProDOS partition is whole");
         Assert::IsTrue   (contents.partitions[1].partition.damaged, L"the HFS partition ends past the end of the file");
+
+        //  The partition itself fails to open with the same reason, by its label.
+        hr = rig.catalog.Describe (L"C:\\Disks\\cut.hdv|" + TextEncoding::NarrowToWide (contents.partitions[1].step), std::string(), damaged);
+        Assert::IsTrue   (FAILED (hr));
+        Assert::AreEqual (DiskImageCatalog::DescribeDamagedPartition (L"C:\\Disks\\cut.hdv", contents.partitions[1]), damaged.error);
+        Assert::IsTrue   (damaged.error.find (L'|') == std::wstring::npos, damaged.error.c_str());
     }
 
 
