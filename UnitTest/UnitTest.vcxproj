@@ -390,6 +390,7 @@
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
     <ClCompile Include="FileTypes\Ultima3SaveTests.cpp" />
+    <ClCompile Include="FileTypes\Ultima4SaveTests.cpp" />
     <ClCompile Include="FileTypes\DiskSaveTableTests.cpp" />
     <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />
     <ClCompile Include="CassoExplorer\SavedGamePaneTests.cpp" />

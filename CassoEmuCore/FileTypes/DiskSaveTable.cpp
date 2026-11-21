@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/Ultima3Save.h"
+#include "Machines/Apple2/Common/Ultima4Save.h"
 
 
 
@@ -13,6 +14,7 @@ static constexpr DiskSaveTable::Entry  s_kEntries[] =
 {
     { &DiskSaveTable::IsInfocomSave, &DiskSaveTable::DecodeInfocomSave },
     { &DiskSaveTable::IsUltima3Save, &DiskSaveTable::DecodeUltima3Save },
+    { &DiskSaveTable::IsUltima4Save, &DiskSaveTable::DecodeUltima4Save },
 };
 
 
@@ -143,4 +145,41 @@ HRESULT DiskSaveTable::DecodeUltima3Save (const std::vector<Byte> & sectors, std
 
 
     return Ultima3Save::Decode (sectors, unreadable, outFile, error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::IsUltima4Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::IsUltima4Save (const std::vector<Byte> & sectors)
+{
+    return Ultima4Save::IsFound (sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeUltima4Save
+//
+//  The save disk's saved game, with the world's tiles an unreadable sector
+//  covers striped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeUltima4Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
+{
+    std::wstring  error;
+
+
+
+    return Ultima4Save::Decode (sectors, unreadable, outFile, error);
 }
