@@ -50,6 +50,11 @@ public:
     //  request, such as a key pressed during a read.
     void      SetStepHook (std::function<void()> hook) { m_hook = std::move (hook); }
 
+    //  With a histogram, the machine runs an instruction at a time and each
+    //  instruction's cycles are added to its address's count, for a profile
+    //  of where the Apple's time goes.
+    void      SetProfile  (std::unordered_map<Word, uint64_t> * profile) { m_profile = profile; }
+
     //  A Read of zero runs one step, so the machine advances while a caller
     //  polls.
     HRESULT  Read (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override
@@ -66,7 +71,7 @@ public:
                 break;
             }
 
-            m_machine.RunCycles (kStepCycles);
+            RunStep();
             spent  += kStepCycles;
             m_total += kStepCycles;
 
@@ -86,7 +91,30 @@ public:
     }
 
 private:
+    void  RunStep()
+    {
+        uint64_t  stepped = 0;
+
+
+
+        if (m_profile == nullptr)
+        {
+            m_machine.RunCycles (kStepCycles);
+            return;
+        }
+
+        while (stepped < kStepCycles)
+        {
+            Word  pc     = m_machine.GetCpu()->GetPC();
+            Byte  cycles = m_machine.StepOne();
+
+            (*m_profile)[pc] += cycles;
+            stepped          += cycles;
+        }
+    }
+
     TestMachine                           & m_machine;
+    std::unordered_map<Word, uint64_t>    * m_profile    = nullptr;
     std::shared_ptr<InProcessByteStream>    m_end;
     uint64_t                                m_total      = 0;
     uint64_t                                m_closeAfter = UINT64_MAX;

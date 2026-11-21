@@ -74,6 +74,26 @@ public:
     }
 
 
+    //  Every chip's build, with faults and without, ends below the shim's
+    //  copy of the zero page.
+    TEST_METHOD (EveryChipsProgram_EndsBelowTheZeroPageSave)
+    {
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            for (bool faults : { false, true })
+            {
+                std::vector<Byte>  bytes;
+                std::string        errors;
+                HRESULT            hr = LinkProgram::AssembleProgram (bytes, errors, chip, faults);
+
+                Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+                Assert::IsTrue (LinkProgram::kProgramAddress + bytes.size() <= LinkProgram::kZeroPageSave,
+                                std::format (L"chip {}, faults {}: ends at ${:04X}", (int) chip, faults, LinkProgram::kProgramAddress + bytes.size()).c_str());
+            }
+        }
+    }
+
+
     //  The cassette build, in its debug form too, ends below the shim's copy
     //  of the zero page, as the other builds do.
     TEST_METHOD (TheCassetteProgram_Assembles)
@@ -311,9 +331,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 105;
-        static constexpr uint64_t  s_kAciaHash      = 0xB2905DF753CC45C2;
-        static constexpr uint64_t  s_kW5100Hash     = 0x0E1BDB6E21FD4993;
+        static constexpr Word      s_kHashedVersion = 107;
+        static constexpr uint64_t  s_kAciaHash      = 0x8794D7F0DF0674B9;
+        static constexpr uint64_t  s_kW5100Hash     = 0xDF337E134795C4D2;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

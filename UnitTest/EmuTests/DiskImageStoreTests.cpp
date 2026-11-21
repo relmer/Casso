@@ -1690,8 +1690,8 @@ public:
         //  drift this used to have, when the sentence named four of five.
         {
             size_t  count = 0;
-            const DiskCommandRunner::ContainerName *  names =
-                DiskCommandRunner::GetAdvertisedContainers (count);
+            const BlankDiskSpecResolver::ContainerName *  names =
+                BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
             Assert::IsTrue (count >= 5, L"the table is not shorter than what shipped");
 

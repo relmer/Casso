@@ -26,8 +26,8 @@ static constexpr const char *  s_kpszMachineLabels[][2] =
 
 static const BlockCardSpec  s_kCards[] =
 {
-    { kpszAppleScsiCardDevice, "Apple II SCSI Card",             "Devices/AppleScsiCard", 16384, "341-0437-A.rom", 7, false, s_kpszScsiDrives,    s_kpszPlusAndIIe },
-    { kpszProFileCardDevice,   "ProFile interface card",         "Devices/ProFileCard",    2048, "341-0271-A.rom", 1, false, s_kpszProFileDrives, s_kpszPlusAndIIe },
+    { kpszAppleScsiCardDevice, "Apple II SCSI Card",             "Devices/AppleScsiCard", 16384, "341-0437-A.rom", 7, false, s_kpszScsiDrives,    s_kpszPlusAndIIe, true },
+    { kpszProFileCardDevice,   "ProFile interface card",         "Devices/ProFileCard",    2048, "341-0271-A.rom", 1, false, s_kpszProFileDrives, s_kpszPlusAndIIe, true },
     { kpszLironCardDevice,     "UniDisk 3.5 interface card",     "Devices/LironCard",      4096, "Liron.rom",      4, true,  s_kpszLironDrives,   s_kpszPlusAndIIe },
     { kpszApple35CardDevice,   "Apple II 3.5 Disk Controller Card", "Devices/Apple35Card", 32768, "341-0438-A.rom", 2, false, s_kpszApple35Drives, s_kpszIIeOnly },
 };

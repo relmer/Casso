@@ -127,6 +127,13 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Devices\Disk\BlankDiskSpecResolver.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCommandText.cpp" />
+    <ClCompile Include="Devices\Disk\DiskCreateCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFileCommands.cpp" />
+    <ClCompile Include="Devices\Disk\DiskFilePayload.cpp" />
+    <ClCompile Include="Devices\Disk\DiskListCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskSectorCommands.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -501,6 +508,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTabManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerStatusBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerBar.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerSearch.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerChips.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPickerMode.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerThemes.cpp" />
@@ -1176,7 +1184,19 @@
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
-    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindowRepair.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorState.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockFileSession.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockEditController.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockRepairController.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorTips.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockCommandSet.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockRepairTarget.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockPanelSplitters.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockJobQueue.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHeaderText.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHeaderView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexPane.cpp" />
+    <ClCompile Include="Seams\Win32DriveSpace.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockNavigator.cpp" />
@@ -1192,6 +1212,8 @@
     <ClCompile Include="Ui\DiskInspector\Components\EditingPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\FindPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\HostLink.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorCommandSet.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorWindowLayout.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorMenuBar.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorMenus.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
@@ -1231,6 +1253,9 @@
     <ClCompile Include="Ui\DiskInspector\Views\SectorsView.cpp" />
     <ClCompile Include="Ui\DiskInspector\SectorRowView.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripGeometry.cpp" />
+    <ClCompile Include="Ui\DiskInspector\StripHitTest.cpp" />
+    <ClCompile Include="Ui\DiskInspector\StripTrackPainter.cpp" />
+    <ClCompile Include="Ui\DiskInspector\StripOverlayPainter.cpp" />
     <ClCompile Include="Ui\DiskInspector\TrackHeaderView.cpp" />
     <ClCompile Include="Ui\DiskInspector\TrackStripView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
@@ -1367,6 +1392,8 @@
     <ClCompile Include="Devices\Floppy35\Apple2cPlusDiskPort.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2cPlus\MigChip.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.cpp" />
+    <ClCompile Include="Audio\AudioFileDecoder.cpp" />
+    <ClCompile Include="Devices\BlockDevice\CassoBlockFirmware.cpp" />
     <ClCompile Include="Audio\Floppy35AudioSource.cpp" />
     <ClCompile Include="Audio\HardDiskAudioSource.cpp" />
     <ClCompile Include="Ui\Settings\SlotCards.cpp" />
@@ -1374,6 +1401,14 @@
     <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Disk\BlankDiskSpecResolver.h" />
+    <ClInclude Include="Devices\Disk\DiskCommandText.h" />
+    <ClInclude Include="Devices\Disk\DiskCreateCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskFileCommands.h" />
+    <ClInclude Include="Devices\Disk\DiskFilePayload.h" />
+    <ClInclude Include="Devices\Disk\DiskListCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskSectorCommands.h" />
+    <ClInclude Include="Devices\Disk\IDiskCommandContext.h" />
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Ui\Dialogs\CommandLineHelpDialog.h" />
     <ClInclude Include="Ui\Dialogs\CommandLineHelpLayout.h" />
@@ -1667,6 +1702,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTabManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerStatusBar.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerBar.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerSearch.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerChips.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPickerMode.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerThemes.h" />
@@ -2197,6 +2233,21 @@
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorInterfaces.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorState.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockFileSession.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockEditController.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockRepairController.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorTips.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockCommandSet.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockRepairTarget.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockPanelSplitters.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockJobQueue.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHeaderText.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHeaderView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexPane.h" />
+    <ClInclude Include="Seams\IDriveSpace.h" />
+    <ClInclude Include="Seams\Win32DriveSpace.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapGrid.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockNavigator.h" />
@@ -2212,6 +2263,9 @@
     <ClInclude Include="Ui\DiskInspector\Components\EditingPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\FindPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\HostLink.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorCommandSet.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorWindowLayout.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorCommandInterfaces.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorCommands.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMenuBar.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMenus.h" />
@@ -2258,6 +2312,10 @@
     <ClInclude Include="Ui\DiskInspector\Views\SectorsView.h" />
     <ClInclude Include="Ui\DiskInspector\SectorRowView.h" />
     <ClInclude Include="Ui\DiskInspector\StripGeometry.h" />
+    <ClInclude Include="Ui\DiskInspector\StripHitTest.h" />
+    <ClInclude Include="Ui\DiskInspector\StripPaintScene.h" />
+    <ClInclude Include="Ui\DiskInspector\StripTrackPainter.h" />
+    <ClInclude Include="Ui\DiskInspector\StripOverlayPainter.h" />
     <ClInclude Include="Ui\DiskInspector\TrackHeaderView.h" />
     <ClInclude Include="Ui\DiskInspector\TrackStripView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorViewModel.h" />
@@ -2413,6 +2471,9 @@
     <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlus.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\MigChip.h" />
     <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.h" />
+    <ClInclude Include="Audio\AudioFileDecoder.h" />
+    <ClInclude Include="Devices\BlockDevice\CassoBlockFirmware.h" />
+    <ClInclude Include="Devices\BlockDevice\ICassoBlockUnit.h" />
     <ClInclude Include="Audio\Floppy35AudioSource.h" />
     <ClInclude Include="Audio\HardDiskAudioSource.h" />
     <ClInclude Include="Ui\Settings\SlotCards.h" />
@@ -2432,6 +2493,14 @@
     <None Include="CassoLink\Apple\SosInterp.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
+    <None Include="Devices\BlockDevice\CassoBlock.s" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Casso's block firmware, embedded by AppleSources.targets as the
+         CassoLink sources are. -->
+    <CassoAppleSource Include="Devices\BlockDevice\CassoBlock.s">
+      <Symbol>s_kCassoBlockSource</Symbol>
+    </CassoAppleSource>
   </ItemGroup>
   <!--
     No references to CassoCore or Dxui, though this library includes their

@@ -709,7 +709,7 @@ HRESULT CassoLinkHost::Krunch (Byte drive, Word directoryCrc, const KrunchProgre
 
         if (lost && m_adtProServer.m_activity)
         {
-            m_adtProServer.m_activity ("The Apple did not take a request, so it was sent again");
+            m_adtProServer.m_activity ("Resent a request: the Apple did not take it");
         }
     }
 
@@ -882,6 +882,8 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
         index = (size_t) (std::find (sectors.begin(), sectors.end(), packet.payload[1]) - sectors.begin());
         listed = index < sectors.size();
         CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        ReportNak (packet, std::format ("track {}, sector {}", track, sectors[index]));
 
         sends++;
         CBREx (sends <= limit, HRESULT_FROM_WIN32 (ERROR_RETRY));

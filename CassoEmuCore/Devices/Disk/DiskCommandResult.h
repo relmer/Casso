@@ -60,6 +60,10 @@ struct DiskCommandResult
                       const std::string  & action,
                       const std::string  & reason);
 
+    //  A bad option value: the sentence goes to the diagnostics and the line
+    //  is marked bad, so the help page narrows to the command.
+    void  FailBadValue (const char * summary);
+
     //  Image, file, reason, in that order: a script's user needs to know
     //  which disk before anything else.
     static std::string  FormatFailure (const std::string & imagePath,

@@ -9,42 +9,17 @@
 #include "DiskCommandResult.h"
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
+#include "DiskCreateCommand.h"
+#include "DiskFileCommands.h"
+#include "DiskListCommand.h"
+#include "DiskSectorCommands.h"
 #include "Devices/Disk/BlockImage.h"
+#include "IDiskCommandContext.h"
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 
-//  Forward-declared rather than included: pulling VolumeImage.h in would drag
-//  DiskImage.h through this header and into the console project, which does not
-//  share the core library's Pch conveniences.
-enum class VolumeKind;
-
-//  BlankDiskBuilder.h is kept out for the same reason, and the create and init
-//  commands take everything from it by reference, so opaque declarations are all
-//  this header needs. Including it built the library fine and broke the console
-//  project, which is the failure mode the note above is about.
-enum class DiskFormat;
-enum class BlankDiskContents;
-enum class ProDosBootSystem;
-struct BlankDiskSpec;
-struct BootPayload;
-struct ParsedHostName;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskCommandResult
-//
-//  Everything one disk command produced, separated by where it goes. The runner
-//  decides all of it; the executable only delivers it.
-//
-//  Payload is kept apart from output text because the two need different
-//  treatment at the platform edge -- text wants the host's line-ending
-//  translation and binary must not have it.
-//
+class IIntentChannel;
 
 
 
@@ -64,16 +39,9 @@ struct ParsedHostName;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class IIntentChannel;
-class BlockBuffer;
-class CardVolumeEdit;
-
-
-class DiskCommandRunner
+class DiskCommandRunner : private IDiskCommandContext
 {
 public:
-
-
     explicit DiskCommandRunner (IDiskFileIo & fileIo);
 
     //  Where a stated intent is announced once the image has been written.
@@ -106,204 +74,10 @@ public:
 
     DiskCommandResult  Run (const CommandLineOptions & options);
 
-
-    //  Puts a computed image over the target, or refuses and leaves the target
-    //  byte-for-byte as it was.
-    //
-    //  Makes a new image file, or reformats one that is already there.
-    //
-    //  TWO COMMANDS BECAUSE THEY ANSWER TO DIFFERENT THINGS. `create` writes a
-    //  file that did not exist and decides its container; `init` finds the
-    //  container already decided by the file it was handed and only rewrites
-    //  what is inside it. So `create` takes --type and `init` does not, and
-    //  create refuses to write over something rather than quietly replacing a
-    //  disk somebody still wanted.
-    //
-    //  One row of the container table: the word a reader types and the
-    //  format it names.
-    struct ContainerName
-    {
-        const char  *  name;
-        DiskFormat     format;
-
-        //  The track size a NEW image of this container gets, and zero for
-        //  the containers where the idea does not apply. It rides in the same
-        //  row as the word so the two cannot be set in different places: a
-        //  container offered without a size, or given one that disagrees with
-        //  its name, is not expressible.
-        size_t         nibbleTrackSize;
-    };
-
-    //
-    //  Every container `create` advertises, as one list.
-    //
-    //  READABLE FROM OUTSIDE so that nothing has to restate it. The refusals
-    //  print this list rather than a sentence of their own, and a test sweeps
-    //  it, so a row added here reaches both without either being edited --
-    //  which is how `do` came to be offered by the command line and refused
-    //  by the builder.
-    //
-    static const ContainerName *  GetAdvertisedContainers (size_t & outCount);
-
-    //  What was just written, in the words the flags asked for it with.
-    static std::string  DescribeNewDisk (const BlankDiskSpec & spec);
-
-    //  A disk that starts a binary with no operating system on it. Its own
-    //  path rather than a flag on the formatted one: there is no filesystem
-    //  here to put the binary into.
-    void  BuildDirectBoot (const CommandLineOptions & options,
-                           DiskFormat                 format,
-                           size_t                     nibbleTrackSize,
-                           DiskCommandResult        & result);
-
-    //
-    //  Lays a file from the host into an image at a track and a DOS logical sector,
-    //  with no filesystem involved.
-    //
-    //  FOR THE DISKS THAT HAVE NO FILESYSTEM TO PUT A FILE INTO. A demo that
-    //  boots its own loader and reads fixed tracks is a real and common
-    //  layout, and `put` cannot express it: there is no catalog to make an
-    //  entry in and no allocator to ask for space. This writes exactly the
-    //  bytes given, exactly where it is told.
-    //
-    void  RunSectorRead  (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunSectorWrite (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunBlockRead   (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunBlockWrite  (const CommandLineOptions & options, DiskCommandResult & result);
-
-    //  The record a sector command's Nth position addresses, as a byte
-    //  offset into the DOS-ordered buffer. Positions advance linearly --
-    //  sector, then track -- and each maps through the stated numbering
-    //  independently.
-    static size_t  GetSectorRecordOffset (CommandLineOptions::DiskOptions::Numbering numbering,
-                                          size_t                                     running);
-
-    static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
-
-    void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
-
-    //  A ProDOS volume larger than a floppy, in a block container.
-    //  The `._NAME` file a data fork's resource fork is written to.
-    //  Each problem an image's or archive's structure has.
-    void  RunTest (const CommandLineOptions & options, DiskCommandResult & result);
-
-    static std::string  GetAppleDoublePath (const std::string & hostFile);
-    HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
-
-    //  The resource fork, Finder information and, with no --type or --load,
-    //  the ProDOS type from `._NAME` beside a file being put, as get writes
-    //  them and Casso Explorer reads them.
-    void                ReadAppleDouble    (const CommandLineOptions & options, FilePayload & inOutPayload);
-
-    static bool                IsThirteenSectorImage  (const CommandLineOptions & options);
-    void                       BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
-    static bool                IsLargeCreate          (const CommandLineOptions & options);
-    static ProDosBootSystem    GetBootSystem          (const std::string & formatName);
-    static bool                IsProDosFamilyFormat   (const std::string & formatName);
-    static bool                IsHfsFormat            (const CommandLineOptions & options);
-    static const char        * GetVolumeNameRule      (bool isHfs);
-    static bool                IsBlockOnlyExtension   (const std::string & imagePath);
-    static bool                IsProDosOrderExtension (const std::string & imagePath);
-    static bool                TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
-    void                       BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
-    void                       ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
-
-    //  --bootable on a volume larger than 140K, as on a 140K one: PRODOS and
-    //  BASIC.SYSTEM from the master, and SOS for a format that starts an
-    //  Apple ///. `outBootWords` is what the summary line adds, or empty.
-    HRESULT                    InstallLargeBoot       (const CommandLineOptions & options, bool isHfs, vector<Byte> & ioVolume, std::string & outBootWords, DiskCommandResult & result);
-
-    void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
-
-    //
-    //  The container a new image should be written as, from --type or, failing
-    //  that, from the name it is being given.
-    //
-    //  An unknown word is refused by NAME, with the ones that exist, rather
-    //  than defaulting: a reader who typed --type 2mg means it, and silently
-    //  handing them a .dsk is worse than saying no.
-    //
-    HRESULT  ResolveContainer (const CommandLineOptions & options,
-                               size_t                   & outNibbleTrackSize,
-                               DiskFormat               & outFormat,
-                               DiskCommandResult        & result);
-
-    //  The advertised container words as a list in a sentence, each carrying
-    //  `prefix` (a dot when they are being described as extensions) and joined
-    //  by `conjunction` before the last.
-    static std::string  FormatContainerWordList (const char * prefix, const char * conjunction);
-
-    //  Why a settled spec cannot be written, in words, or empty if it can.
-    static std::string  DescribeSpecRefusal (const BlankDiskSpec & spec);
-
-    //  What goes INSIDE it: a DOS 3.3 catalog, a ProDOS directory, or nothing.
-    HRESULT  ResolveContents (const CommandLineOptions & options,
-                              BlankDiskContents        & outContents,
-                              DiskCommandResult        & result);
-
-    //  --volume, which is a number under DOS 3.3 and a name under ProDOS.
-    HRESULT  ResolveVolume (const CommandLineOptions & options,
-                            BlankDiskSpec            & inOutSpec,
-                            DiskCommandResult        & result);
-
-    //  Reads the operating system a --bootable disk is copied FROM, or the
-    //  binary a --boot disk starts instead of one.
-    HRESULT  ResolveBoot (const CommandLineOptions & options,
-                          BlankDiskSpec            & inOutSpec,
-                          BootPayload              & outPayload,
-                          DiskCommandResult        & result);
-
-    //  The SOS disk a ProDOS volume that starts an Apple /// copies SOS from.
-    HRESULT  ResolveSosBoot   (const std::string & source, BootPayload & outPayload, DiskCommandResult & result);
-
-    //  The disk a bootable Apple Pascal or CP/M disk is copied from.
-    HRESULT  LoadSystemSource (const std::string   & path,
-                               BlankDiskContents     contents,
-                               BootPayload         & outPayload,
-                               DiskCommandResult   & result);
-
-    //  Everything create and init share: build the bytes, then put them there.
-    void  BuildAndWrite (const CommandLineOptions & options,
-                         DiskFormat                 format,
-                         size_t                     nibbleTrackSize,
-                         bool                       overExisting,
-                         DiskCommandResult        & result);
-
-
-
-
-
-
-
-
-
-
-
-    //  What a command says when a required operand is not there: that
-    //  command's usage, and then which parameter is missing.
-    //
-    //  A MEMBER, because the command it should print usage for is the one this
-    //  runner is running, and the deepest caller that notices a missing image
-    //  is OpenImage, which is handed a path and nothing else. Threading the
-    //  command through every layer to reach it would put it in six signatures
-    //  that have no other use for it.
-    //  A refused option VALUE: the composed sentence goes to the
-    //  diagnostics and the line is marked bad, so the edge narrows the page
-    //  to the one command the reader named. One routine, so the F-suffixed
-    //  macros can carry a snprintf-composed refusal in one action.
-    static void  RefuseBadValue (DiskCommandResult & result, const char * summary);
-
-    //  --flux as a mask of whole tracks. Without it, init keeps the tracks
-    //  the existing WOZ already stores as flux.
-    HRESULT  ResolveFlux (const CommandLineOptions & options,
-                          bool                       overExisting,
-                          uint64_t                 & outMask,
-                          DiskCommandResult        & result);
-
-    static HRESULT  ParseTrackList (const std::string & text, uint64_t & outMask);
-
-    void  ReportMissingParameter (const std::string & parameter,
-                                  DiskCommandResult & result) const;
+    //  The banner the Help command prints above the page, handed over by whoever
+    //  built the runner. Empty means no banner, which is what every caller that
+    //  is not the console executable wants.
+    void  SetBanner (const std::string & banner);
 
     //  Every required operand this command did not get, in the order its
     //  grammar lists them.
@@ -315,122 +89,14 @@ public:
     //  had to supply before the complaint made sense.
     std::vector<std::string>  FindMissingParameters (const CommandLineOptions & options) const;
 
-    //  The same report for a list of them.
-    void  ReportMissingParameters (const std::vector<std::string> & parameters,
-                                   DiskCommandResult & result) const;
-
-
-
-    //  The same substitution, against the prefix THIS run was asked for.
-    //
-    //  For diagnostics rather than for the page, and applied to the literal
-    //  rather than to the finished sentence: a diagnostic carries file names
-    //  and volume labels, and a sweep over the whole thing would rewrite a
-    //  name that happened to hold %L.
-    std::string         ApplyPrefix        (const std::string & text) const;
-
-
-    //  The banner the Help command prints above the page, handed over by whoever
-    //  built the runner. Empty means no banner, which is what every caller that
-    //  is not the console executable wants.
-    void  SetBanner (const std::string & banner);
-
-
-    //  What is damaged in a file that could not be read, in the file
-    //  system's terms: "the track/sector list is damaged" on DOS 3.3 and
-    //  "the index block is damaged" on ProDOS, for a chain that leads off the
-    //  disk, loops or ends early. Empty for any other failure. A message
-    //  has it after the file, as "Unable to read HELLO: ...".
-    static std::string  DescribeDamage (HRESULT hr, VolumeKind kind);
-
+    //  The open/commit seam, reachable so the commit-path tests can
+    //  drive it directly, which is why it was public on the runner
+    //  before it was a class.
+    DiskImageSession &  GetSession ()  override { return m_session; }
 
 private:
-    void  RunList      (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunGet       (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunPut       (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunDelete    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunBoot      (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunKrunch    (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunMkdir     (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunRmdir     (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result);
-
-    //  A Pascal or CP/M catalog as the Filer or STAT prints it.
-    HRESULT  AppendNativeListing (const CommandLineOptions             & options,
-                                  const DiskImageSession::OpenedImage  & opened,
-                                  const IVolume                        & volume,
-                                  const VolumeListing                  & listing,
-                                  DiskCommandResult                    & result);
-
-    //  What a listing could not read, on the error stream, with the status.
-    void     ReportListingDamage (const CommandLineOptions             & options,
-                                  const DiskImageSession::OpenedImage  & opened,
-                                  const VolumeListing                  & listing,
-                                  DiskCommandResult                    & result);
-
-    //  One directory's rows, and with `recurse` the rows of everything below
-    //  it, each of those written as a full path. The name column is
-    //  `nameWidth` wide.
-    HRESULT  AppendDirectoryRows (const IVolume      & volume,
-                                  VolumeKind           kind,
-                                  const std::string  & directory,
-                                  bool                 recurse,
-                                  size_t               nameWidth,
-                                  DiskCommandResult  & result);
-
-    //  The name column's width for a recursive listing of `directory`: its
-    //  longest name or path and a gap, if wider than inOutWidth.
-    static HRESULT  MeasureNameWidth (const IVolume & volume, const std::string & directory, size_t & inOutWidth);
-
-    //  A typed path as the volume reads it. A path with no leading slash is
-    //  read from the volume directory and comes back unchanged; one with a
-    //  leading slash names the volume first, and is turned down when that name
-    //  is not this image's. A DOS 3.3 name is one name, slashes included.
-    HRESULT  ResolveVolumePath (const CommandLineOptions             & options,
-                                VolumeKind                             kind,
-                                const BlockImage                     & sectors,
-                                const std::string                    & typed,
-                                std::string                          & outPath,
-                                DiskCommandResult                    & result);
-
-    //  Puts --user on a CP/M name. An error on any other file system.
-    HRESULT  ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result);
-
-    //  The blocks a change to a card partition's volume touched written to
-    //  the card, or the reason the commit failed set in the result.
-    static HRESULT  CommitCard (const std::string & imagePath, CardVolumeEdit & card, const BlockBuffer & edited, DiskCommandResult & result);
-
-    //  Whether mkdir and rmdir change the file system.
-    static bool  HasDirectories (VolumeKind kind);
-
-    //  The path `get`, `delete` and `boot` act on, and the name used in their
-    //  messages: the name as typed, or with --index the entry at that position.
-    HRESULT  ResolveEntryPath (const CommandLineOptions             & options,
-                               VolumeKind                             kind,
-                               const BlockImage                     & sectors,
-                               FilePath                             & outPath,
-                               std::string                          & outName,
-                               DiskCommandResult                    & result);
-
-
-    //  Turns a volume layer's refusal into something a user can act on.
-    //
-    //  THIS IS WHAT KEEPS A PLATFORM CODE OUT OF THE OUTPUT. The volume layer
-    //  answers in Win32 codes because they carry the right meanings without
-    //  asserting on user input, but a number is not a reason -- the person
-    //  reading it wants to know that their file is locked, not that something
-    //  returned 0x80070005.
-    //
-    //  The text is the reason in "Unable to delete HELLO: it is locked", and
-    //  a damaged file's is in the terms of kind's file system.
-    static std::string  DescribeVolumeRefusal (HRESULT hr, VolumeKind kind);
-
-    //  Turns a tokenizer refusal into something a user can act on: which line,
-    //  the line itself, and what is wrong with it. The line's own text is quoted
-    //  because a number alone points at nothing in a file a person is reading.
-    static std::string  DescribeListingRefusal (const char                   * leadIn,
-                                                const ApplesoftListingError  & error);
-
 
     //  Whether a booting DOS 3.3 would actually run this file. Its boot command
     //  is RUN, so a greeting RUN does not understand is one in name only --
@@ -439,101 +105,35 @@ private:
     static bool  IsRunnableAsDos33Greeting (const VolumeListing  & listing,
                                             const std::string    & name);
 
-    //  Whether a ProDOS volume carries the PRODOS file its boot block loads.
-    static bool  HasProDosSystemFile       (const VolumeListing  & listing);
-
-    //  Which type byte a placement uses: what the caller named, or the sensible
-    //  one for the conversion they asked for.
-    //  What a file's own bytes say it is, or 0 when they say nothing.
+    //  What a command says when a required operand is not there: that
+    //  command's usage, and then which parameter is missing.
     //
-    //  ONLY CONSULTED WHEN NOBODY NAMED A TYPE. A guess that overrode --type
-    //  would be a tool arguing with its operator, and one that fired on a
-    //  binary would file it where the guest cannot run it. Anything not
-    //  positively recognized stays a binary, which is what a build loop
-    //  produces and what the default has always been.
-    static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
+    //  A MEMBER, because the command it should print usage for is the one this
+    //  runner is running, and the deepest caller that notices a missing image
+    //  is OpenImage, which is handed a path and nothing else. Threading the
+    //  command through every layer to reach it would put it in six signatures
+    //  that have no other use for it.
+    void  ReportMissingParameter (const std::string & parameter,
+                                  DiskCommandResult & result) const override;
 
-    //  ProDOS's type for an Integer BASIC program.
-    static constexpr Byte  kProDosIntegerType = 0xFA;
+    //  The same report for a list of them.
+    void  ReportMissingParameters (const std::vector<std::string> & parameters,
+                                   DiskCommandResult & result) const;
 
-    static HRESULT  ResolvePascalKind  (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
-    static bool     ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem);
+    //  The same substitution, against the prefix THIS run was asked for.
+    //
+    //  For diagnostics rather than for the page, and applied to the literal
+    //  rather than to the finished sentence: a diagnostic carries file names
+    //  and volume labels, and a sweep over the whole thing would rewrite a
+    //  name that happened to hold %L.
+    std::string  ApplyPrefix (const std::string & text) const override;
 
-    static HRESULT  ResolveFileType (const CommandLineOptions & options,
-                                     VolumeKind                 kind,
-                                     const std::vector<Byte>  & hostBytes,
-                                     Byte                     & outType,
-                                     DiskCommandResult        & result);
-
-    //  What the file is called on the disk: --as when given, otherwise the host
-    //  file's own last component, which is the name the caller already chose.
-    static std::string  GetOnDiskName (const CommandLineOptions & options);
-
-    //  With no --as, a host name in one of Casso Explorer's forms sets the
-    //  entry's name and, with no --text or --basic, its conversion. False for any
-    //  other host name, and the options are then left as they were.
-    static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
-
-    //  For a get with no --text or --basic, the one an output name in Casso
-    //  Explorer's text or BASIC listing form has, as a copy out writes it.
-    static void     ApplyOutputEncoding (CommandLineOptions & inOutOptions);
-
-    //  For a get whose output file has a conversion's suffix, such as
-    //  SOURCE.Merlin.txt: replace the payload's bytes with that conversion.
-    //  An error for a file in another format.
-    static HRESULT  ApplyHostFileConversion (const CommandLineOptions  & options,
-                                             VolumeKind                  kind,
-                                             const std::string         & name,
-                                             FilePayload               & inOutPayload,
-                                             DiskCommandResult         & result);
-
-    //  Set the payload's type and aux type from that form's name.
-    static HRESULT  ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload);
-
-
-
-
-
-
-    //  One line per catalog entry, in the shape the guest's own listing uses --
-    //  with every column the volume records, since ProDOS fills eof= and aux=
-    //  whether or not anybody asks and the widest row still fits in 80.
-    static constexpr size_t  kNameWidth = 17;
-
-    static std::string  FormatDos33Entry  (const FileEntry & entry);
-    static std::string  FormatProDosEntry (const FileEntry & entry, size_t nameWidth = kNameWidth);
-
-    static char  GetDos33TypeLetter (Byte type);
-
-
-
-    //  The open/commit seam, reachable so the commit-path tests can
-    //  drive it directly, which is why it was public on the runner
-    //  before it was a class.
-public:
-    DiskImageSession &  GetSession ()  { return m_session; }
-
-    //  Public so a file read or written over an CassoLink converts as one
-    //  in an image does.
-    //  The bytes a file from the host becomes on the disk, with whatever conversion was
-    //  asked for already applied. Refuses a conversion this build cannot do.
-    static HRESULT  BuildPutPayload (const CommandLineOptions  & options,
-                                     VolumeKind                  kind,
-                                     const std::vector<Byte>   & hostBytes,
-                                     FilePayload               & outPayload,
-                                     DiskCommandResult         & result);
-
-    //  Applies the requested character conversion, or refuses one this build
-    //  cannot perform. A parsed-then-ignored flag is worse than an absent one.
-    static HRESULT  ApplyEncoding (const CommandLineOptions & options,
-                                   FilePayload              & payload,
-                                   DiskCommandResult        & result);
-
-    //  Text with an LF line end made CR LF.
-    static void     ToWindowsLineEndings (std::vector<Byte> & inOutBytes);
-
-private:
     static SYSTEMTIME  GetLocalDate ();
+
+    IDiskFileIo  & GetFileIo () override                             { return m_fileIo; }
+    bool           CanConfirm() const override                       { return m_confirm != nullptr; }
+    bool           Confirm   (const std::string & question) override { return m_confirm (question); }
+    SYSTEMTIME     GetToday  () override                             { return m_clock(); }
 
     //  Whether a command puts bytes into the image it was given.
     static bool  WritesTheImage (CommandLineOptions::DiskOptions::Command command);
@@ -557,11 +157,15 @@ private:
     //  The thumbnail cache, or empty for the one under local application data.
     std::filesystem::path  m_thumbnailFolder;
 
+    DiskCreateCommand      m_createCommand  { *this };
+    DiskFileCommands       m_fileCommands   { *this };
+    DiskListCommand        m_listCommand    { *this, m_fileCommands };
+    DiskSectorCommands     m_sectorCommands { *this };
+
     //  The command being run and the prefix it was typed with, recorded at the
     //  top of Run so a refusal deep inside can answer in the reader's own
     //  spelling and about the command they actually asked for.
     CommandLineOptions::DiskOptions::Command  m_command    =
         CommandLineOptions::DiskOptions::Command::None;
     char                                      m_flagPrefix = '-';
-
 };

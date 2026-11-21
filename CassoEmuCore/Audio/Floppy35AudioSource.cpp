@@ -1,25 +1,88 @@
 #include "Pch.h"
 
 #include "Audio/Floppy35AudioSource.h"
+#include "Audio/AudioFileDecoder.h"
 
 
 
 
-//  Levels of each sound at full volume, chosen against the Disk II's samples.
-static constexpr float   s_kMotorLevel    = 0.06f;
-static constexpr float   s_kStepLevel     = 0.35f;
-static constexpr float   s_kEjectLevel    = 0.25f;
-static constexpr float   s_kInsertLevel   = 0.40f;
+//  The recordings in the order of Floppy35AudioSource::Sound.
+static const wchar_t * const  s_kpszSampleFiles[] =
+{
+    L"35_spin_start_loaded.wav",
+    L"35_spin_loaded.wav",
+    L"35_spin_end.wav",
+    L"35_step_1_1.wav",
+    L"35_seek_12ms.wav",
+};
 
-//  The spindle's hum, at the motor's speed in the outer zone (394 rpm) times
-//  its poles, and the eject motor's.
-static constexpr double  s_kMotorHz       = 105.0;
-static constexpr double  s_kEjectHz       = 160.0;
-static constexpr double  s_kStepHz        = 1400.0;
-static constexpr double  s_kInsertHz      = 85.0;
-static constexpr float   s_kMotorRamp     = 0.0005f;
-static constexpr double  s_kTwoPi         = 6.283185307179586;
-static constexpr uint32_t s_kMsPerSecond  = 1000;
+static_assert (_countof (s_kpszSampleFiles) == (size_t) Floppy35AudioSource::Sound::Count);
+
+static constexpr uint32_t  s_kMsPerSecond = 1000;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadSamples
+//
+//  A missing or unreadable recording is silent, so only a failure to
+//  start Media Foundation is returned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Floppy35AudioSource::LoadSamples (const fs::path & directory, uint32_t sampleRate)
+{
+    HRESULT  hr         = S_OK;
+    HRESULT  hrShutdown = S_OK;
+
+
+
+    hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
+    CHR (hr);
+
+    for (size_t i = 0; i < kSoundCount; i++)
+    {
+        HRESULT  hrFile = AudioFileDecoder::DecodeToMono ((directory / s_kpszSampleFiles[i]).c_str(), sampleRate, m_samples[i]);
+
+
+
+        IGNORE_RETURN_VALUE (hrFile, S_OK);
+    }
+
+    hrShutdown = MFShutdown();
+    IGNORE_RETURN_VALUE (hrShutdown, S_OK);
+
+    SetSampleRate (sampleRate);
+
+    m_motor = {};
+    m_head  = {};
+
+    if (m_motorOn)
+    {
+        Play (m_motor, Sound::SpinLoop, true);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSampleForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Floppy35AudioSource::SetSampleForTest (Sound sound, vector<float> && samples)
+{
+    m_samples[(size_t) sound] = std::move (samples);
+}
 
 
 
@@ -40,12 +103,10 @@ void Floppy35AudioSource::OnFloppy35Event (const Floppy35Event & event)
 
     switch (event.op)
     {
-        case Floppy35Op::MotorOn:   m_motorOn    = true;           break;
-        case Floppy35Op::MotorOff:  m_motorOn    = false;          break;
-        case Floppy35Op::Step:      m_stepLeft   = m_stepTotal;    break;
-        case Floppy35Op::Eject:     m_ejectLeft  = m_ejectTotal;   break;
-        case Floppy35Op::Insert:    m_insertLeft = m_insertTotal;  break;
-        default:                                                   break;
+        case Floppy35Op::MotorOn:   StartMotor();  break;
+        case Floppy35Op::MotorOff:  StopMotor();   break;
+        case Floppy35Op::Step:      Step();        break;
+        default:                                   break;
     }
 }
 
@@ -61,10 +122,8 @@ void Floppy35AudioSource::OnFloppy35Event (const Floppy35Event & event)
 
 void Floppy35AudioSource::SetSampleRate (uint32_t rate)
 {
-    m_rate        = (rate != 0) ? rate : kDefaultRate;
-    m_stepTotal   = m_rate * kStepMs   / s_kMsPerSecond;
-    m_ejectTotal  = m_rate * kEjectMs  / s_kMsPerSecond;
-    m_insertTotal = m_rate * kInsertMs / s_kMsPerSecond;
+    m_rate    = (rate != 0) ? rate : kDefaultRate;
+    m_seekGap = m_rate * kSeekGapMs / s_kMsPerSecond;
 }
 
 
@@ -75,67 +134,69 @@ void Floppy35AudioSource::SetSampleRate (uint32_t rate)
 //
 //  GeneratePCM
 //
-//  The motor's hum ramps in and out; each one-shot sound decays from its
-//  start.
+//  The spin-up rolls into the running loop while the motor stays on. A seek
+//  ends when no step has come for the seek gap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Floppy35AudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 {
-    double  step = s_kTwoPi / (double) m_rate;
-
-
-
     for (uint32_t i = 0; i < numSamples; i++)
     {
-        float   sample = 0.0f;
-        double  t      = m_phase;
-
-
-
-        m_phase += step;
-
-        m_motorLevel = m_motorOn ? std::min (1.0f, m_motorLevel + s_kMotorRamp) : std::max (0.0f, m_motorLevel - s_kMotorRamp);
-
-        if (m_motorLevel > 0.0f)
+        if (m_motorOn && m_motor.buffer == nullptr)
         {
-            sample += m_motorVolume * s_kMotorLevel * m_motorLevel * (float) (std::sin (t * s_kMotorHz) + 0.3 * NextNoise());
+            Play (m_motor, Sound::SpinLoop, true);
         }
 
-        if (m_stepLeft > 0)
+        if (m_seeking && m_sinceStep >= m_seekGap)
         {
-            float  envelope = (float) m_stepLeft / (float) m_stepTotal;
-
-
-
-            sample += m_headVolume * s_kStepLevel * envelope * envelope * (float) (std::sin (t * s_kStepHz) * 0.5 + NextNoise() * 0.5);
-            m_stepLeft--;
+            m_seeking = false;
+            m_head    = {};
         }
 
-        if (m_ejectLeft > 0)
+        if (m_sinceStep < UINT32_MAX)
         {
-            float  envelope = (float) m_ejectLeft / (float) m_ejectTotal;
-
-
-
-            sample += m_doorVolume * s_kEjectLevel * envelope * (float) (std::sin (t * s_kEjectHz) * 0.6 + NextNoise() * 0.4);
-            m_ejectLeft--;
+            m_sinceStep++;
         }
 
-        if (m_insertLeft > 0)
-        {
-            float  envelope = (float) m_insertLeft / (float) m_insertTotal;
+        outMono[i] = m_motorVolume * NextSample (m_motor) + m_headVolume * NextSample (m_head);
+    }
+}
 
 
 
-            sample += m_doorVolume * s_kInsertLevel * envelope * envelope * (float) std::sin (t * s_kInsertHz);
-            m_insertLeft--;
-        }
 
-        outMono[i] = sample;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NextSample
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Floppy35AudioSource::NextSample (Voice & voice)
+{
+    float  sample = 0.0f;
+
+
+
+    if (voice.buffer == nullptr)
+    {
+        return 0.0f;
     }
 
-    m_phase = std::fmod (m_phase, s_kTwoPi * 1000.0);
+    sample = (*voice.buffer)[voice.position++];
+
+    if (voice.position >= voice.buffer->size())
+    {
+        voice.position = 0;
+
+        if (!voice.isLoop)
+        {
+            voice.buffer = nullptr;
+        }
+    }
+
+    return sample;
 }
 
 
@@ -144,21 +205,93 @@ void Floppy35AudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NextNoise
-//
-//  White noise in -1 to 1 from a xorshift generator.
+//  StartMotor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Floppy35AudioSource::NextNoise()
+void Floppy35AudioSource::StartMotor()
 {
-    constexpr float  kScale = 1.0f / 2147483648.0f;
-
-
-
-    m_noise ^= m_noise << 13;
-    m_noise ^= m_noise >> 17;
-    m_noise ^= m_noise << 5;
-
-    return (float) (int32_t) m_noise * kScale;
+    if (!m_motorOn)
+    {
+        m_motorOn = true;
+        Play (m_motor, Sound::SpinStart, false);
+    }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StopMotor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Floppy35AudioSource::StopMotor()
+{
+    if (m_motorOn)
+    {
+        m_motorOn = false;
+        Play (m_motor, Sound::SpinEnd, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Step
+//
+//  A step soon after another is part of a seek, which loops the seek
+//  recording until the steps stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Floppy35AudioSource::Step()
+{
+    bool  isQuick = m_sinceStep < m_seekGap;
+
+
+
+    m_sinceStep = 0;
+
+    if (!isQuick)
+    {
+        m_seeking = false;
+        Play (m_head, Sound::Step, false);
+    }
+    else if (!m_seeking)
+    {
+        m_seeking = true;
+        Play (m_head, Sound::Seek, true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Play
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Floppy35AudioSource::Play (Voice & voice, Sound sound, bool isLoop)
+{
+    const vector<float>  & samples = m_samples[(size_t) sound];
+
+
+
+    voice.buffer   = samples.empty() ? nullptr : &samples;
+    voice.position = 0;
+    voice.isLoop   = isLoop;
+}
+
+
+
+
+

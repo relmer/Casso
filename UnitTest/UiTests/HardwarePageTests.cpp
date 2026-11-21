@@ -41,8 +41,9 @@ public:
         return e;
     }
 
-    //  A SCSI CARD'S DRIVES ARE ROWS UNDER ITS SLOT, each with its image. No
-    //  hard disk has a real timing row.
+    //  A SCSI CARD'S DRIVES ARE ROWS UNDER ITS SLOT, each with its image,
+    //  after the card's Casso firmware switch. No hard disk has a real timing
+    //  row.
     TEST_METHOD (BuildNodes_BlockCardDrivesAndRealTiming)
     {
         std::vector<HardwareEntry>  entries;
@@ -56,15 +57,18 @@ public:
         scsi.ports          = { "", "hd20sc", "", "", "", "", "hd20sc" };
         scsi.portImages     = { "", "C:\\disks\\Total Replay.hdv", "", "", "", "", "stock" };
         scsi.portRealTiming = { false, true, false, false, false, false, false };
+        scsi.cassoFirmware  = true;
         entries.push_back (scsi);
 
         nodes = HardwarePage::BuildNodes (entries);
 
-        Assert::AreEqual<size_t> (2u, nodes[0].children[0].children.size(), L"one row per drive");
-        Assert::AreEqual (std::wstring (L"SCSI ID 1: Apple Hard Disk 20SC (Total Replay.hdv)"), nodes[0].children[0].children[0].label);
-        Assert::AreEqual (std::wstring (L"SCSI ID 6: Apple Hard Disk 20SC (Stock hard disk.hdv)"), nodes[0].children[0].children[1].label);
-        Assert::IsTrue   (nodes[0].children[0].children[0].children.empty(), L"no real timing row for ID 1");
-        Assert::IsTrue   (nodes[0].children[0].children[1].children.empty(), L"no real timing row for ID 6");
+        Assert::AreEqual<size_t> (3u, nodes[0].children[0].children.size(), L"the firmware switch and one row per drive");
+        Assert::AreEqual (std::wstring (L"Casso's fast firmware, slot 7"), nodes[0].children[0].children[0].label);
+        Assert::IsTrue   (nodes[0].children[0].children[0].checked);
+        Assert::AreEqual (std::wstring (L"SCSI ID 1: Apple Hard Disk 20SC (Total Replay.hdv)"), nodes[0].children[0].children[1].label);
+        Assert::AreEqual (std::wstring (L"SCSI ID 6: Apple Hard Disk 20SC (Stock hard disk.hdv)"), nodes[0].children[0].children[2].label);
+        Assert::IsTrue   (nodes[0].children[0].children[1].children.empty(), L"no real timing row for ID 1");
+        Assert::IsTrue   (nodes[0].children[0].children[2].children.empty(), L"no real timing row for ID 6");
     }
 
 

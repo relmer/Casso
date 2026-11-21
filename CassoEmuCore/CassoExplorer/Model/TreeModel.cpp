@@ -134,11 +134,11 @@ void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
 
 bool TreeModel::IsSupportedImage (const std::wstring & fileName)
 {
-    size_t                                    count      = 0;
-    const DiskCommandRunner::ContainerName  * containers = DiskCommandRunner::GetAdvertisedContainers (count);
-    size_t                                    dot        = fileName.rfind (L'.');
-    size_t                                    i          = 0;
-    std::string                               extension;
+    size_t                                        count      = 0;
+    const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
+    size_t                                        dot        = fileName.rfind (L'.');
+    size_t                                        i          = 0;
+    std::string                                   extension;
 
 
 
@@ -1806,8 +1806,9 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.label    = entry.name;
             node.location = Location::MakeDiskImage (JoinPath (path, entry.name));
 
-            hr = DescribeImage (underCasso, JoinPath (path, entry.name), node);
-            CHR (hr);
+            //  The image is read when it is expanded, not when its folder
+            //  is listed, so a folder of large images opens at once.
+            node.canExpand = true;
 
             images.push_back (node);
         }

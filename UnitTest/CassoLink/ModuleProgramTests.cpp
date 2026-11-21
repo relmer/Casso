@@ -158,4 +158,21 @@ public:
 
     //  Capture.s's CAPCODE less the module's .
     static constexpr size_t  kCaptureCodeOffset = 0x470;
+
+    //  The block module, built for each chip, ends before BLKBUF, where a
+    //  block is read.
+    TEST_METHOD (BlockModule_EndsBeforeItsBlockBuffer)
+    {
+        for (LinkChip chip : { LinkChip::Acia, LinkChip::W5100, LinkChip::Cassette, LinkChip::Network })
+        {
+            std::vector<Byte>  module;
+
+            AssertSucceeded (LinkProgram::BuildBlockModule (module, chip));
+            Logger::WriteMessage (std::format ("block module, chip {}: {} bytes\n", (int) chip, module.size()).c_str());
+            Assert::IsTrue (module.size() <= kBlockBufferOffset, std::format (L"chip {}: {} bytes", (int) chip, module.size()).c_str());
+        }
+    }
+
+    //  Block.s's BLKBUF less the module's address.
+    static constexpr size_t  kBlockBufferOffset = 0xC00;
 };
