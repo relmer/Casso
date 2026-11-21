@@ -200,7 +200,8 @@ void ExplorerPickerBar::Layout (const RECT & band, int listLeft)
     right = LayoutButtons (top, band.right - pad);
 
     //  An open form's Verify box is before the buttons; a save form's is at
-    //  the left of the button row, under the file type list.
+    //  the left of the button row, under the file type list, and extends
+    //  to the buttons so a caller's longer label fits.
     if (m_verify != nullptr && m_name == nullptr)
     {
         int  width = scaler.ToPx (kVerifyDip);
@@ -211,7 +212,7 @@ void ExplorerPickerBar::Layout (const RECT & band, int listLeft)
     {
         int  left = GetSaveBoxLeft (band, listLeft);
 
-        m_verify->Layout (RECT { left, top, (std::min) (left + scaler.ToPx (kVerifyDip), right), top + height }, scaler);
+        m_verify->Layout (RECT { left, top, (std::max) (left, right), top + height }, scaler);
     }
 
 }
