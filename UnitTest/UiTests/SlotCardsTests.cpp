@@ -279,9 +279,9 @@ public:
     }
 
 
-    //  A chain card lists every drive it can take, each connected or not,
-    //  and its drives are connected in chain order.
-    TEST_METHOD (Page_ConnectsAChainsDrivesInOrder)
+    //  A chain card has a number of drives connected, from none to its
+    //  limit.
+    TEST_METHOD (Page_SetsHowManyDrivesAChainHas)
     {
         SettingsPanelState  st;
         SlotsPage           page;
@@ -297,15 +297,14 @@ public:
 
         page.SetState (&st);
         page.SelectSlot (5);
-        Assert::AreEqual ((size_t) 4, page.GetPortRowCount(), L"the UniDisk 3.5 card's chain takes four drives");
-        Assert::IsTrue  (page.GetPortToggle (0).IsChecked());
-        Assert::IsFalse (page.GetPortToggle (1).IsChecked());
+        Assert::AreEqual ((size_t) 5, page.GetCountDropdown().GetItems().size(), L"none to four drives");
+        Assert::AreEqual (1, page.GetCountDropdown().GetSelectedIndex());
 
-        page.SetChainDrive (2, true);
-        Assert::AreEqual ((size_t) 3, st.GetHardware()[(size_t) liron].ports.size(), L"connecting drive 3 connects drive 2 too");
+        page.ChooseDriveCount (3);
+        Assert::AreEqual ((size_t) 3, st.GetHardware()[(size_t) liron].ports.size());
 
-        page.SetChainDrive (1, false);
-        Assert::AreEqual ((size_t) 1, st.GetHardware()[(size_t) liron].ports.size(), L"disconnecting drive 2 disconnects drive 3 too");
+        page.ChooseDriveCount (0);
+        Assert::IsTrue (st.GetHardware()[(size_t) liron].ports.empty());
         Assert::IsTrue (st.RequiresReset());
     }
 
@@ -328,6 +327,11 @@ public:
         page.SetState (&st);
         page.SelectSlot (7);
         Assert::AreEqual ((size_t) 7, page.GetPortRowCount());
+        Assert::AreEqual (std::wstring (L"Use Apple's ROM"), page.GetFirmwareLabel().GetText());
+
+        page.SetAppleFirmware (false);
+        Assert::IsTrue   (st.GetHardware()[(size_t) scsi].cassoFirmware);
+        Assert::AreEqual (std::wstring (L"Use Casso's fast firmware"), page.GetFirmwareLabel().GetText());
         Assert::AreEqual (1, page.GetPortDropdown (6).GetSelectedIndex(), L"the HD20SC is at ID 6");
         Assert::AreEqual (0, page.GetPortDropdown (2).GetSelectedIndex());
 

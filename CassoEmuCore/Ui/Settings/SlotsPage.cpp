@@ -20,8 +20,7 @@ static constexpr int  s_kDropdownWidthDp = 240;
 static constexpr int  s_kListHeightDp   = 260;
 static constexpr int  s_kButtonWidthDp  = 90;
 static constexpr int  s_kIndentDp       = 20;
-
-static constexpr wchar_t  s_kResetNote[] = L"Takes effect when the machine resets.";
+static constexpr int  s_kToggleWidthDp  = 44;
 
 
 
@@ -122,19 +121,21 @@ SlotsPage::SlotsPage (std::wstring title)
     Adopt (m_replaceButton);
     Adopt (m_cancelButton);
     Adopt (m_firmware);
+    Adopt (m_firmwareLabel);
+    Adopt (m_firmwareNote);
     Adopt (m_drivesHeading);
+    Adopt (m_countLabel);
+    Adopt (m_countDropdown);
 
     for (size_t i = 0; i < kMaxPorts; i++)
     {
         Adopt (m_portLabels[i]);
         Adopt (m_portDropdowns[i]);
-        Adopt (m_portToggles[i]);
         Adopt (m_timingBoxes[i]);
 
         m_timingBoxes[i].SetLabel (L"Real spin-up and seek times");
 
-        m_portDropdowns[i].SetSelect ([this, i] (int choice)   { ChoosePortDrive (i, choice); });
-        m_portToggles[i].SetOnChange ([this, i] (bool checked) { SetChainDrive (i, checked);  });
+        m_portDropdowns[i].SetSelect ([this, i] (int choice) { ChoosePortDrive (i, choice); });
         m_timingBoxes[i].SetOnChange ([this, i] (bool checked)
         {
             int  entry = GetSelectedEntry();
@@ -144,13 +145,6 @@ SlotsPage::SlotsPage (std::wstring title)
                 OnEdited (m_state->SetPortRealTiming ((size_t) entry, i, checked));
             }
         });
-    }
-
-    Adopt (m_protectLabel);
-
-    for (DxuiCheckbox & checkbox : m_writeProtect)
-    {
-        Adopt (checkbox);
     }
 
     Adopt (m_serial);
@@ -170,28 +164,18 @@ SlotsPage::SlotsPage (std::wstring title)
     m_cardLabel.SetText         (L"Card:");
     m_drivesHeading.SetText     (L"Drives");
     m_drivesHeading.SetTextRole (DxuiTextRole::Heading);
-    m_protectLabel.SetText      (L"Write protect:");
-    m_firmware.SetLabel         (L"Casso's fast firmware");
+    m_countLabel.SetText        (L"Connected:");
     m_cancelButton.SetLabel     (L"Cancel");
-    m_writeProtect[0].SetLabel  (L"Drive 1");
-    m_writeProtect[1].SetLabel  (L"Drive 2");
+    m_firmwareNote.SetText      (L"Casso's firmware copies each block straight into memory, much faster than "
+                                 L"Apple's ROM. Apple's ROM runs as slowly as the real card did.");
+    m_firmwareNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_firmwareNote.SetTextRole  (DxuiTextRole::Muted);
 
     m_replaceButton.SetOnClick ([this] () { ConfirmReplace(); });
     m_cancelButton.SetOnClick  ([this] () { CancelReplace();  });
-    m_cardDropdown.SetSelect   ([this] (int index) { ChooseCard (index); });
-
-    m_firmware.SetOnChange ([this] (bool checked)
-    {
-        int  entry = GetSelectedEntry();
-
-        if (entry >= 0)
-        {
-            OnEdited (m_state->SetCassoFirmware ((size_t) entry, checked));
-        }
-    });
-
-    m_writeProtect[0].SetOnChange ([this] (bool checked) { if (m_state != nullptr) { m_state->SetWriteProtect (0, checked); } });
-    m_writeProtect[1].SetOnChange ([this] (bool checked) { if (m_state != nullptr) { m_state->SetWriteProtect (1, checked); } });
+    m_cardDropdown.SetSelect   ([this] (int index)    { ChooseCard (index);       });
+    m_countDropdown.SetSelect  ([this] (int index)    { ChooseDriveCount (index); });
+    m_firmware.SetOnChange     ([this] (bool checked) { SetAppleFirmware (checked); });
 
     m_cardDropdown.SetOnHighlightChange ([this] (int index)
     {
@@ -234,8 +218,9 @@ void SlotsPage::SetState (SettingsPanelState * state)
 
 void SlotsPage::SetPopupHost (DxuiHwndSource * host)
 {
-    m_cardDropdown.SetPopupHost (host);
-    m_serial.SetPopupHost       (host);
+    m_cardDropdown.SetPopupHost  (host);
+    m_countDropdown.SetPopupHost (host);
+    m_serial.SetPopupHost        (host);
 
     for (DxuiComboBox & dropdown : m_portDropdowns)
     {
@@ -302,8 +287,11 @@ void SlotsPage::RebuildList()
 //
 //  The selected slot's card and the options that card has. A card the
 //  machine requires can't be changed; the prompt has the reason. A chain
-//  card's drives are each connected or not; every other storage card has a
-//  kind of drive, or none, on each port.
+//  card and the Disk II have a number of drives connected; every other
+//  storage card has a kind of drive, or none, on each port.
+//
+//  The Disk II's first drive can't be disconnected, so its count starts at
+//  one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,8 +307,9 @@ void SlotsPage::RebuildDetail()
 
 
 
-    m_portRows = 0;
-    m_isChain  = false;
+    m_portRows  = 0;
+    m_isChain   = false;
+    m_countBase = 0;
 
     if (m_state == nullptr)
     {
@@ -363,10 +352,21 @@ void SlotsPage::RebuildDetail()
 
     m_promptLabel.SetText ((isLocked && m_prompt.empty()) ? Widen (selected->lockReason) : m_prompt);
 
+    if (IsDiskIiSelected())
+    {
+        bool  hasSecond = selected->ports.size() < 2 || !selected->ports[1].empty();
+
+        m_countBase = 1;
+        m_countDropdown.SetItems    ({ L"1 drive", L"2 drives" });
+        m_countDropdown.SetSelected (hasSecond ? 1 : 0);
+    }
+
     if (card != nullptr)
     {
         std::vector<std::wstring>  driveItems = { L"Not connected" };
+        std::vector<std::wstring>  countItems;
         bool                       isScsi     = std::string (card->device) == kpszAppleScsiCardDevice;
+        size_t                     connected  = 0;
 
 
 
@@ -377,9 +377,26 @@ void SlotsPage::RebuildDetail()
             driveItems.push_back (Widen ((drive != nullptr) ? drive->label : device));
         }
 
-        m_firmware.SetChecked (selected->cassoFirmware);
+        m_firmware.SetChecked     (!selected->cassoFirmware);
+        m_firmwareLabel.SetText   (selected->cassoFirmware ? L"Use Casso's fast firmware" : L"Use Apple's ROM");
         m_isChain  = card->isChain;
-        m_portRows = std::min ((size_t) card->portCount, kMaxPorts);
+        m_portRows = m_isChain ? 0 : std::min ((size_t) card->portCount, kMaxPorts);
+
+        for (const std::string & device : selected->ports)
+        {
+            connected += device.empty() ? 0 : 1;
+        }
+
+        for (int count = 0; count <= card->portCount; count++)
+        {
+            countItems.push_back ((count == 1) ? std::wstring (L"1 drive") : std::format (L"{} drives", count));
+        }
+
+        if (m_isChain)
+        {
+            m_countDropdown.SetItems    (countItems);
+            m_countDropdown.SetSelected ((int) connected);
+        }
 
         for (size_t port = 0; port < m_portRows; port++)
         {
@@ -395,15 +412,10 @@ void SlotsPage::RebuildDetail()
             m_portLabels[port].SetText        (isScsi ? std::format (L"SCSI ID {}:", port) : std::format (L"Drive {}:", port + 1));
             m_portDropdowns[port].SetItems    (driveItems);
             m_portDropdowns[port].SetSelected (choice);
-            m_portToggles[port].SetChecked    (drive != nullptr);
-            m_portToggles[port].SetLabel      ((drive != nullptr) ? L"Connected" : L"Not connected");
             m_timingBoxes[port].SetChecked    (port < selected->portRealTiming.size() && selected->portRealTiming[port]);
             m_timingBoxes[port].SetVisible    (drive != nullptr && drive->hasRealTiming);
         }
     }
-
-    m_writeProtect[0].SetChecked (m_state->GetPrefs().writeProtect[0]);
-    m_writeProtect[1].SetChecked (m_state->GetPrefs().writeProtect[1]);
 
     if (IsSerialSelected())
     {
@@ -454,6 +466,7 @@ void SlotsPage::Relayout()
     int                     labelW     = s.ToPx (s_kLabelWidthDp);
     int                     buttonW    = s.ToPx (s_kButtonWidthDp);
     int                     dropW      = s.ToPx (s_kDropdownWidthDp);
+    int                     toggleW    = s.ToPx (s_kToggleWidthDp);
     int                     indent     = s.ToPx (s_kIndentDp);
     int                     x          = rect.left + pad + listW + s.ToPx (s_kPanelGapDp);
     int                     right      = rect.right - pad;
@@ -463,7 +476,7 @@ void SlotsPage::Relayout()
     const HardwareEntry   * selected   = (m_state != nullptr && entry >= 0) ? &m_state->GetHardware()[(size_t) entry] : nullptr;
     const BlockCardSpec   * card       = (selected != nullptr) ? BlockDeviceCatalog::FindCard (selected->type) : nullptr;
     bool                    showBlock  = card != nullptr && !m_replacePending;
-    bool                    showDisk   = IsDiskIiSelected() && !m_replacePending;
+    bool                    showCount  = !m_replacePending && ((showBlock && m_isChain) || IsDiskIiSelected());
     bool                    showSerial = IsSerialSelected() && !m_replacePending;
     int                     listBottom = 0;
 
@@ -505,21 +518,46 @@ void SlotsPage::Relayout()
         y += rowH + gap;
     }
 
-    // A storage card: its firmware switch and the drives connected to it.
-    m_firmware.SetDpi     (dpi);
-    m_firmware.SetVisible (showBlock && card->hasCassoFirmware);
-    m_firmware.SetRect    (MakeRect (controlsX, y, right - controlsX, rowH));
+    // A storage card's firmware: the toggle at the left, the firmware it
+    // selects to its right, and the difference between them under both.
+    {
+        bool  showFirmware = showBlock && card->hasCassoFirmware;
 
-    if (m_firmware.IsVisible())
+        m_firmware.SetDpi          (dpi);
+        m_firmwareLabel.SetDpi     (dpi);
+        m_firmwareNote.SetDpi      (dpi);
+        m_firmware.SetVisible      (showFirmware);
+        m_firmwareLabel.SetVisible (showFirmware);
+        m_firmwareNote.SetVisible  (showFirmware);
+        m_firmware.SetRect         (MakeRect (x, y, toggleW, rowH));
+        m_firmwareLabel.SetRect    (MakeRect (x + toggleW + gap, y, right - x - toggleW - gap, rowH));
+
+        if (showFirmware)
+        {
+            y += rowH;
+
+            m_firmwareNote.SetRect (MakeRect (x, y, right - x, 2 * rowH));
+            y += 2 * rowH + gap;
+        }
+    }
+
+    m_drivesHeading.SetDpi     (dpi);
+    m_drivesHeading.SetVisible (showBlock || showCount);
+    m_drivesHeading.SetRect    (MakeRect (x, y, right - x, rowH));
+
+    if (m_drivesHeading.IsVisible())
     {
         y += rowH + gap;
     }
 
-    m_drivesHeading.SetDpi     (dpi);
-    m_drivesHeading.SetVisible (showBlock);
-    m_drivesHeading.SetRect    (MakeRect (x, y, right - x, rowH));
+    m_countLabel.SetDpi        (dpi);
+    m_countDropdown.SetDpi     (dpi);
+    m_countLabel.SetVisible    (showCount);
+    m_countDropdown.SetVisible (showCount);
+    m_countLabel.SetRect       (MakeRect (x, y, labelW, rowH));
+    m_countDropdown.SetRect    (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
 
-    if (showBlock)
+    if (showCount)
     {
         y += rowH + gap;
     }
@@ -530,11 +568,9 @@ void SlotsPage::Relayout()
 
         m_portLabels[port].SetDpi        (dpi);
         m_portDropdowns[port].SetDpi     (dpi);
-        m_portToggles[port].SetDpi       (dpi);
         m_timingBoxes[port].SetDpi       (dpi);
         m_portLabels[port].SetVisible    (isShown);
-        m_portDropdowns[port].SetVisible (isShown && !m_isChain);
-        m_portToggles[port].SetVisible   (isShown && m_isChain);
+        m_portDropdowns[port].SetVisible (isShown);
 
         if (!isShown)
         {
@@ -544,7 +580,6 @@ void SlotsPage::Relayout()
 
         m_portLabels[port].SetRect    (MakeRect (x, y, labelW, rowH));
         m_portDropdowns[port].SetRect (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
-        m_portToggles[port].SetRect   (MakeRect (controlsX, y, right - controlsX, rowH));
         y += rowH + gap;
 
         if (m_timingBoxes[port].IsVisible())
@@ -552,23 +587,6 @@ void SlotsPage::Relayout()
             m_timingBoxes[port].SetRect (MakeRect (controlsX + indent, y, right - controlsX - indent, rowH));
             y += rowH + gap;
         }
-    }
-
-    // The Disk II controller: each drive's write protection.
-    m_protectLabel.SetDpi     (dpi);
-    m_protectLabel.SetVisible (showDisk);
-    m_protectLabel.SetRect    (MakeRect (x, y, labelW + indent, rowH));
-
-    for (size_t drive = 0; drive < m_writeProtect.size(); drive++)
-    {
-        m_writeProtect[drive].SetDpi     (dpi);
-        m_writeProtect[drive].SetVisible (showDisk);
-        m_writeProtect[drive].SetRect    (MakeRect (controlsX + indent + (int) drive * buttonW, y, buttonW, rowH));
-    }
-
-    if (showDisk)
-    {
-        y += rowH + gap;
     }
 
     // The Super Serial Card: its switches and connection, under the card.
@@ -796,8 +814,8 @@ void SlotsPage::ApplyCard (const std::string & device)
 //
 //  SlotsPage::ChoosePortDrive
 //
-//  Choice 0 is no drive on the port; the others are the card's kinds
-//  of drive, in the order the dropdown lists them.
+//  Choice 0 is no drive on the port; the others are the card's kinds of
+//  drive, in the order the dropdown lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -825,14 +843,47 @@ void SlotsPage::ChoosePortDrive (size_t port, int choice)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SlotsPage::SetChainDrive
+//  SlotsPage::ChooseDriveCount
 //
-//  A chain's drives are connected in order, so connecting a drive connects
-//  the ones ahead of it, and disconnecting one disconnects the ones after.
+//  The number of drives connected to a chain card or the Disk II, from the
+//  dropdown's position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SlotsPage::SetChainDrive (size_t port, bool connected)
+void SlotsPage::ChooseDriveCount (int choice)
+{
+    int  entry = GetSelectedEntry();
+    int  count = choice + m_countBase;
+
+
+
+    if (entry < 0 || choice < 0)
+    {
+        return;
+    }
+
+    if (IsDiskIiSelected())
+    {
+        m_state->SetSecondDriveAttached (count >= 2);
+        OnEdited (S_OK);
+    }
+    else
+    {
+        OnEdited (m_state->SetChainCount ((size_t) entry, (size_t) count));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SlotsPage::SetAppleFirmware
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SlotsPage::SetAppleFirmware (bool isApple)
 {
     int  entry = GetSelectedEntry();
 
@@ -840,7 +891,7 @@ void SlotsPage::SetChainDrive (size_t port, bool connected)
 
     if (entry >= 0)
     {
-        OnEdited (m_state->SetChainCount ((size_t) entry, connected ? port + 1 : port));
+        OnEdited (m_state->SetCassoFirmware ((size_t) entry, !isApple));
     }
 }
 
@@ -852,13 +903,14 @@ void SlotsPage::SetChainDrive (size_t port, bool connected)
 //
 //  SlotsPage::OnEdited
 //
-//  The prompt after an edit: the reset note when it took, else the error.
+//  An edit's error stays in the prompt. A reset the edit takes is reported
+//  by the sheet, beside its OK button.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SlotsPage::OnEdited (HRESULT hr, const std::wstring & error)
 {
-    m_prompt = SUCCEEDED (hr) ? std::wstring (s_kResetNote) : error;
+    m_prompt = SUCCEEDED (hr) ? std::wstring() : error;
 
     Rebuild();
 }

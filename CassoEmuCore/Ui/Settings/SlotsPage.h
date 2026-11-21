@@ -19,9 +19,10 @@ class DxuiHwndSource;
 //
 //  The settings sheet's "Slots" tab, on a machine with slots. The slots are
 //  listed down the left, each with its card. The selected slot's card and
-//  that card's options are on the right: the drives connected to a storage
-//  card, a Super Serial Card's switches and connection, the Disk II's write
-//  protection. Images are inserted and ejected from the drives themselves,
+//  that card's options are on the right: how many drives are connected to a
+//  storage or Disk II card, or which kind of drive is on each SCSI ID, the
+//  firmware a storage card runs, and a Super Serial Card's switches and
+//  connection. Images are inserted and ejected from the drives themselves,
 //  not here. Each edit takes a machine reset to apply.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,14 +54,16 @@ public:
     void                  ConfirmReplace   ();
     void                  CancelReplace    ();
     void                  ChoosePortDrive  (size_t port, int choice);
-    void                  SetChainDrive    (size_t port, bool connected);
+    void                  ChooseDriveCount (int choice);
+    void                  SetAppleFirmware (bool isApple);
     int                   GetSelectedSlot  () const { return m_selectedSlot; }
     bool                  IsReplacePending () const { return m_replacePending; }
     const std::wstring  & GetStoragePrompt () const { return m_prompt; }
     DxuiComboBox        & GetCardDropdown  ()       { return m_cardDropdown; }
     size_t                GetPortRowCount  () const { return m_portRows; }
     DxuiComboBox        & GetPortDropdown  (size_t port) { return m_portDropdowns[port]; }
-    const DxuiToggle    & GetPortToggle    (size_t port) const { return m_portToggles[port]; }
+    DxuiComboBox        & GetCountDropdown ()       { return m_countDropdown; }
+    const DxuiLabel     & GetFirmwareLabel () const { return m_firmwareLabel; }
 
     // A slot's line in the list, "Slot 5: Apple II SCSI Card" or "Slot 2:
     // Empty". Exposed for unit tests.
@@ -90,20 +93,22 @@ private:
     DxuiLabel                             m_promptLabel;
     DxuiButton                            m_replaceButton;
     DxuiButton                            m_cancelButton;
-    DxuiCheckbox                          m_firmware;
+    DxuiToggle                            m_firmware;
+    DxuiLabel                             m_firmwareLabel;
+    DxuiLabel                             m_firmwareNote;
     DxuiLabel                             m_drivesHeading;
+    DxuiLabel                             m_countLabel;
+    DxuiComboBox                          m_countDropdown;
     std::array<DxuiLabel,    kMaxPorts>   m_portLabels;
     std::array<DxuiComboBox, kMaxPorts>   m_portDropdowns;
-    std::array<DxuiToggle,   kMaxPorts>   m_portToggles;
     std::array<DxuiCheckbox, kMaxPorts>   m_timingBoxes;
-    DxuiLabel                             m_protectLabel;
-    std::array<DxuiCheckbox, 2>           m_writeProtect;
     SerialCardPage                        m_serial;
 
     std::vector<SlotCardChoice>     m_cardChoices;
     std::wstring                    m_prompt;
     std::string                     m_pendingDevice;
     int                             m_selectedSlot   = kFirstSlot;
+    int                             m_countBase      = 0;
     size_t                          m_portRows       = 0;
     bool                            m_isChain        = false;
     bool                            m_replacePending = false;

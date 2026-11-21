@@ -64,12 +64,10 @@ public:
     DxuiComboBox          & GetMechanismDropdown () { return m_mechanism; }
     DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
     DxuiToggle            & GetFastTapeToggle    () { return m_fastTape; }
-    DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
     DxuiButton            & GetRestoreDefaultsButton () { return m_reset; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiToggle      & GetFastTapeToggle    () const { return m_fastTape; }
-    const DxuiCheckbox    & WriteProtect         (int drive) const { return m_writeProtect[(size_t) drive]; }
     const DxuiComboBox    & WriteModeDropdown    () const { return m_writeMode; }
     const DxuiComboBox    & GetMechanismDropdown () const { return m_mechanism; }
 
@@ -89,7 +87,6 @@ private:
     IDxuiTextRenderer          * m_textRenderer = nullptr;
     DxuiHwndSource             * m_popupHost    = nullptr;
 
-    DxuiLabel                        m_wpLabel;
     DxuiLabel                        m_writeModeLabel;
     DxuiLabel                        m_audioLabel;
     DxuiLabel                        m_mechLabel;
@@ -116,7 +113,6 @@ private:
     DxuiLabel                        m_tapeAutoStopLabel;
     DxuiLabel                        m_tapeIdleStopLabel;
     DxuiLabel                        m_tapeWavFormatLabel;
-    std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;
     DxuiSlider                       m_headVol;
     DxuiSlider                       m_doorVol;
