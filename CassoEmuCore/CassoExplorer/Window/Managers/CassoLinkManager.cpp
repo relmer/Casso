@@ -1560,7 +1560,7 @@ void CassoLinkManager::HandleTransferTimer()
     //  The last progress aged out, as in a Full Send waiting for disks.
     if (m_context.app.links == nullptr || !m_context.app.links->IsAnyTransferring())
     {
-        m_context.statusBar.SetShimmer (-1.0f);
+        m_context.statusBar.SetShimmer (false);
         RefreshCassoLinkViews();
         return;
     }
@@ -1569,7 +1569,7 @@ void CassoLinkManager::HandleTransferTimer()
     fromPeak     = std::abs (m_pulseFrame - kPulseFrames);
 
     m_context.treePane.SetActivityPulse (animated ? (float) fromPeak / kPulseFrames : 1.0f);
-    m_context.statusBar.SetShimmer (animated ? (float) (now % kShimmerMs) / (float) kShimmerMs : -1.0f);
+    m_context.statusBar.SetShimmer (animated);
     m_context.window.Invalidate();
 }
 

@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 
 
 
@@ -184,6 +185,13 @@ void ExplorerStatusBar::Fill()
         m_context.cassoLinkManager.MarkJobsShown();
     }
 
+    //  A job starting or ending changes the detail field's width.
+    if (m_widened != (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty()))
+    {
+        Layout (m_band);
+        return;
+    }
+
     if (m_context.IsPicker())
     {
         count = DescribePickerCount (status.selection, m_context.browser.GetRows().size(), m_context.browser.GetScopedOutCount(), m_context.app.picker->IsForDrive(),
@@ -197,6 +205,35 @@ void ExplorerStatusBar::Fill()
     m_status->SetText (kStatusDetail,   detail);
     m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::SetShimmer
+//
+//  The detail field, where a CassoLink job's progress is, lit by the disk
+//  inspector's shimmer: a band of light at 45 degrees that sweeps across its
+//  cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerStatusBar::SetShimmer (bool on)
+{
+    if (!on)
+    {
+        m_status->SetOverlay (kStatusDetail, nullptr);
+        return;
+    }
+
+    m_status->SetOverlay (kStatusDetail, [] (IDxuiPainter & painter, const RECT & cell)
+    {
+        InspectorMarquee::PaintShimmer (painter, (float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top),
+                                        InspectorMarquee::GetClockMs(), cell);
+    });
 }
 
 
@@ -263,8 +300,17 @@ void ExplorerStatusBar::Layout (const RECT & band)
     int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_context.scaler) + DxuiSplitter::GetLinePx (m_context.scaler));
     int    zoomPx  = m_context.scaler.ToPx (kStatusZoomDip);
     int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_context.scaler.ToPx (kStatusDetailDip);
+    bool   job     = m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
 
 
+
+    m_band    = band;
+    m_widened = job;
+
+    if (job)
+    {
+        detail = (std::max) (detail, (int) (band.right - band.left) / kJobShareDivisor);
+    }
 
     //  The detail field starts on the splitter's visible line: the lighter of
     //  the two it draws in the middle of its sash, since the darker one is the
@@ -289,7 +335,8 @@ void ExplorerStatusBar::Layout (const RECT & band)
 //
 //  ExplorerStatusBar::UpdateTip
 //
-//  The free space of a disk image says which disk it counts.
+//  The free space of a disk image has a tip with the disk it counts, and a
+//  CassoLink job's progress cut short has its whole text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -298,6 +345,7 @@ void ExplorerStatusBar::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     const std::wstring &  tip      = m_context.browser.GetStatus().freeSpaceTip;
     RECT                  anchor   = m_status->GetFieldRect (kStatusFree);
     RECT                  activity = m_status->GetFieldRect (kStatusFill);
+    RECT                  detail   = m_status->GetFieldRect (kStatusDetail);
 
 
 
@@ -306,6 +354,14 @@ void ExplorerStatusBar::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     {
         m_activityTip = m_context.cassoLinkManager.FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
         m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Status, activity, m_activityTip.c_str(), kActivityTipWidthDip);
+        return;
+    }
+
+    //  A job's progress cut short is shown whole.
+    if (ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (detail, point) && m_status->IsElided (kStatusDetail))
+    {
+        m_detailTip = m_status->GetField (kStatusDetail).text;
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Status, detail, m_detailTip.c_str(), kActivityTipWidthDip);
         return;
     }
 
