@@ -40,20 +40,30 @@ HRESULT Floppy35AudioSource::LoadSamples (const fs::path & directory, uint32_t s
 
 
 
-    hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
-    CHR (hr);
-
-    for (size_t i = 0; i < kSoundCount; i++)
+    for (vector<float> & samples : m_samples)
     {
-        HRESULT  hrFile = AudioFileDecoder::DecodeToMono ((directory / s_kpszSampleFiles[i]).c_str(), sampleRate, m_samples[i]);
-
-
-
-        IGNORE_RETURN_VALUE (hrFile, S_OK);
+        samples.clear();
     }
 
-    hrShutdown = MFShutdown();
-    IGNORE_RETURN_VALUE (hrShutdown, S_OK);
+    // Before the audio device starts, the rate is 0 and the drive is silent.
+    // The device's rate reloads the recordings.
+    if (sampleRate != 0)
+    {
+        hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
+        CHR (hr);
+
+        for (size_t i = 0; i < kSoundCount; i++)
+        {
+            HRESULT  hrFile = AudioFileDecoder::DecodeToMono ((directory / s_kpszSampleFiles[i]).c_str(), sampleRate, m_samples[i]);
+
+
+
+            IGNORE_RETURN_VALUE (hrFile, S_OK);
+        }
+
+        hrShutdown = MFShutdown();
+        IGNORE_RETURN_VALUE (hrShutdown, S_OK);
+    }
 
     SetSampleRate (sampleRate);
 

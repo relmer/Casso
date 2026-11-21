@@ -19,7 +19,6 @@ void TapeDeckWidget::Hide()
     m_captionRect = {};
     m_nameRect    = {};
     m_bandRect    = {};
-    m_railRect    = {};
     m_counterRect = {};
     m_hover       = TapeDeckRegion::None;
     m_hidden      = true;
@@ -87,7 +86,6 @@ bool TapeDeckWidget::UpdateHover (int x, int y)
 //  drive widgets.
 //
 //      TAPE  [   adventure.wav    ]
-//            [=======.............]
 //            [<<][>][#][o][^]  1:23
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,8 +98,12 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     int   nameX    = x + Scale (kCaptionWidthPx, dpi) + Scale (kCaptionGapXPx, dpi);
     int   nameW    = Scale (kNameWidthPx, dpi);
     int   button   = Scale (kButtonSizePx, dpi);
+    int   gapY     = Scale (kControlsGapYPx, dpi);
     int   gap      = Scale (kButtonGapPx, dpi);
     int   controlY = 0;
+    int   counterW = 0;
+    int   rowW     = 0;
+    int   rowX     = 0;
 
 
 
@@ -110,33 +112,31 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     m_nameRect = { nameX, y, nameX + nameW, y + Scale (kNameHeightPx, dpi) };
 
-    m_railRect.left   = nameX;
-    m_railRect.top    = m_nameRect.bottom + Scale (kRailGapPx, dpi);
-    m_railRect.right  = nameX + nameW;
-    m_railRect.bottom = m_railRect.top + Scale (kRailHeightPx, dpi);
-
     m_captionRect.left   = x;
     m_captionRect.right  = x + Scale (kCaptionWidthPx, dpi);
-    m_captionRect.bottom = m_railRect.bottom + Scale (kCaptionDescentPx, dpi);
+    m_captionRect.bottom = m_nameRect.bottom + Scale (kCaptionDescentPx, dpi);
     m_captionRect.top    = m_captionRect.bottom - Scale (kCaptionHeightPx, dpi);
 
     // The name band, caption included, is the control that opens the picker,
-    // as a drive's band is. It stops at the rail; the controls row is below.
-    m_bandRect = { x, y, nameX + nameW, m_railRect.bottom + Scale (kControlsGapYPx, dpi) / 2 };
+    // as a drive's band is. It stops at the name; the controls row is below.
+    m_bandRect = { x, y, nameX + nameW, m_nameRect.bottom + gapY / 2 };
 
-    // The buttons from the rail's left edge, the counter in what is left of
-    // its width, so the whole recorder is no wider than its name.
-    controlY = m_railRect.bottom + Scale (kControlsGapYPx, dpi);
+    // The buttons and the counter, centered under the name. With no tape
+    // the counter has no width, so the buttons alone are centered.
+    controlY = m_nameRect.bottom + gapY;
+    counterW = (m_view.transport != TapeTransport::Empty) ? Scale (kCounterGapXPx, dpi) + Scale (kCounterWidthPx, dpi) : 0;
+    rowW     = (int) kButtonCount * button + ((int) kButtonCount - 1) * gap + counterW;
+    rowX     = nameX + (nameW - rowW) / 2;
 
     for (size_t i = 0; i < kButtonCount; i++)
     {
-        int  left = nameX + (int) i * (button + gap);
+        int  left = rowX + (int) i * (button + gap);
 
         m_buttons[i] = { left, controlY, left + button, controlY + button };
     }
 
-    m_counterRect = { m_buttons[kButtonCount - 1].right + Scale (kCounterGapXPx, dpi), controlY,
-                      nameX + nameW, controlY + button };
+    m_counterRect = { m_buttons[kButtonCount - 1].right + (counterW > 0 ? Scale (kCounterGapXPx, dpi) : 0), controlY,
+                      m_buttons[kButtonCount - 1].right + counterW, controlY + button };
 
     SetBounds (GetOuterRect());
 }
@@ -206,7 +206,9 @@ RECT TapeDeckWidget::GetOuterRect() const
         return {};
     }
 
-    outer.bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
+    // Docked, the label under the nearest control is drawn over whatever is
+    // below the recorder while the row is magnified, and isn't counted in its height.
+    outer.bottom = m_counterRect.bottom + (m_docked ? 0 : Scale (kLabelStripPx, m_dpi));
 
     return outer;
 }
@@ -506,11 +508,12 @@ bool TapeDeckWidget::IsMagnifying() const
 //
 //  IsNearControls
 //
-//  Over the controls row as it is drawn right now -- magnified and spread,
-//  which reaches past the resting row -- or above it where a magnified
-//  control stands, or over the label strip under it. Measured against the
-//  resting row instead, moving onto an end control that had grown out past
-//  the row's edge dropped the magnification under the pointer.
+//  Before the row magnifies, over the resting controls only, so the name
+//  above them stays a target. Once it magnifies, over the controls as drawn
+//  -- magnified and spread, which reaches past the resting row -- or above
+//  it where a magnified control stands, or over the label strip under it.
+//  Measured against the resting row then, moving onto an end control that
+//  had grown out past the row's edge dropped the magnification.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -521,8 +524,8 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
     int         button = m_buttons[0].bottom - m_buttons[0].top;
     int         left   = m_buttons[0].left;
     int         right  = m_counterRect.right;
-    int         top    = m_buttons[0].top - (int) ((kMagnifyMax - 1.0f) * (float) button);
-    int         bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
+    int         top    = m_buttons[0].top - (m_magnifier.IsNear() ? (int) ((kMagnifyMax - 1.0f) * (float) button) : 0);
+    int         bottom = m_counterRect.bottom + (m_docked ? 0 : Scale (kLabelStripPx, m_dpi));
 
 
 
@@ -742,17 +745,14 @@ void TapeDeckWidget::Paint (
 
     ComputeControlRects (GetNowMs(), rects, scales);
 
-    // The highlight spans the name and the rail under it, not the caption,
-    // as a drive's spans its name and head bar.
+    // The highlight spans the name, not the caption.
     if (m_hover == TapeDeckRegion::Name)
     {
         painter.FillRect ((float) m_nameRect.left, (float) m_nameRect.top,
                           (float) (m_nameRect.right - m_nameRect.left),
-                          (float) (m_railRect.bottom - m_nameRect.top),
+                          (float) (m_nameRect.bottom - m_nameRect.top),
                           theme.buttonHover);
     }
-
-    PaintRail (painter, theme);
 
     hr = text.DrawString (kCaption,
                           (float) m_captionRect.left, (float) m_captionRect.top,
@@ -765,7 +765,7 @@ void TapeDeckWidget::Paint (
     PaintName (text, name, hasTape && m_view.loadingPath.empty() ? theme.driveLabel : theme.dropdownAccel);
 
     // The controls go last, in front. A magnified control stands up over the
-    // rail and the name, and stands on the band's own color so what it covers
+    // name, and stands on the band's own color so what it covers
     // does not show through its mark.
     for (size_t i = 0; i <= kButtonCount; i++)
     {
@@ -801,8 +801,11 @@ void TapeDeckWidget::Paint (
         float   best    = FLT_MAX;
         float   labelW  = (float) Scale (kLabelWidthPx, m_dpi);
         float   cx      = 0.0f;
+        float   labelH  = (float) Scale (kLabelStripPx, m_dpi);
+        float   labelY  = 0.0f;
 
-        for (size_t i = 0; i <= kButtonCount; i++)
+        // The counter has a label only while a tape is in.
+        for (size_t i = 0; i < (hasTape ? kButtonCount + 1 : kButtonCount); i++)
         {
             const RECT &  baseBox  = (i < kButtonCount) ? m_buttons[i] : m_counterRect;
             float         distance = fabsf ((float) m_mouseX - (float) (baseBox.left + baseBox.right) * 0.5f);
@@ -816,9 +819,13 @@ void TapeDeckWidget::Paint (
 
         cx = (rects[nearest].left + rects[nearest].right) * 0.5f;
 
+        // Docked, the label goes above the magnified control: under it is
+        // the window's bottom edge.
+        labelY = m_docked ? rects[nearest].top - labelH : (float) m_counterRect.bottom;
+
         hr = text.DrawString (GetControlLabel (nearest),
-                              cx - labelW * 0.5f, (float) m_counterRect.bottom,
-                              labelW, (float) Scale (kLabelStripPx, m_dpi),
+                              cx - labelW * 0.5f, labelY,
+                              labelW, labelH,
                               theme.driveLabel, kLabelFontDip * dipScale, kFontFamily,
                               DxuiTextRenderer::HAlign::Center, DxuiTextRenderer::VAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -832,37 +839,6 @@ Error:
     }
 
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintRail
-//
-//  The drive rail's track, filled from the left as far as the tape has run.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void TapeDeckWidget::PaintRail (IDxuiPainter & painter, const CassoTheme & theme)
-{
-    float  left   = (float) m_railRect.left;
-    float  top    = (float) m_railRect.top;
-    float  width  = (float) (m_railRect.right - m_railRect.left);
-    float  height = (float) (m_railRect.bottom - m_railRect.top);
-    float  filled = width * GetProgress (m_view);
-
-
-
-    painter.FillRect (left, top, width, height, theme.ledIdle);
-    painter.FillRect (left, top, width, height, DxuiColor::ScaleAlpha (theme.driveLabel, kRailTrackAlpha));
-
-    if (filled > 0.0f)
-    {
-        painter.FillRect (left, top, filled, height, DxuiColor::ScaleAlpha (theme.ledActive, kRailFillAlpha));
-    }
 }
 
 

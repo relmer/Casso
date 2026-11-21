@@ -70,38 +70,6 @@ public:
     void                               SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
     const std::vector<std::wstring>  & GetComPorts () const { return m_comPorts; }
 
-    // Opens a file dialog for the image of the drive `device` on a port,
-    // starting at `inOutPath`; returns false when the dialog is canceled.
-    using BrowseImageFn = std::function<bool (const std::string & device, std::string & inOutPath)>;
-    void  SetOnBrowseImage (BrowseImageFn fn) { m_onBrowseImage = std::move (fn); }
-
-    // Called with a card's device once the card is put in a slot.
-    using CardChosenFn = std::function<void (const std::string & device)>;
-    void  SetOnCardChosen  (CardChosenFn fn)  { m_onCardChosen = std::move (fn); }
-
-    // The storage controls above the tree, on a machine with slots: a slot,
-    // the card in it, a confirmation before a card is replaced or taken out,
-    // and buttons for the drive selected in the tree. Each edit takes a
-    // machine reset to apply. Exposed for unit tests.
-    void                  SelectSlot       (int slot);
-    void                  ChooseCard       (int choice);
-    void                  ConfirmReplace   ();
-    void                  CancelReplace    ();
-    void                  SelectTreeRow    (const std::wstring & id);
-    void                  AttachImage      ();
-    void                  EjectImage       ();
-    void                  AddDrive         ();
-    void                  RemoveDrive      ();
-    int                   GetSelectedSlot  () const { return m_selectedSlot; }
-    bool                  IsReplacePending () const { return m_replacePending; }
-    const std::wstring  & GetStoragePrompt () const { return m_storagePrompt; }
-    DxuiComboBox        & GetSlotDropdown  ()       { return m_slotDropdown; }
-    DxuiComboBox        & GetCardDropdown  ()       { return m_cardDropdown; }
-    const DxuiButton    & GetAttachButton  () const { return m_attachButton; }
-    const DxuiButton    & GetEjectButton   () const { return m_ejectButton; }
-    const DxuiButton    & GetAddButton     () const { return m_addButton; }
-    const DxuiButton    & GetRemoveButton  () const { return m_removeButton; }
-
     // Routes the machine + speed dropdown menus through the supplied host's
     // popup pool so the menu HWND escapes the page's clipping bounds.
     void  SetPopupHost (DxuiHwndSource * host);
@@ -169,12 +137,6 @@ private:
     static DxuiTreeCapabilityFlag  MapFlag            (CapabilityFlag flag);
     static std::wstring            Widen              (const std::string & narrow);
     void                           RebuildSerialPorts (SettingsPanelState & state);
-    void                           RebuildStorage     ();
-    void                           ApplyCard          (const std::string & device);
-    int                            GetSelectedEntry   () const;
-    bool                           IsChainSelected    () const;
-    void                           OnStorageEdited    ();
-
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic
     // memory-region rows (one per region). The machine identity is shown by the
     // dropdown above, so no read-only "Machine:" spec row. Cap the memory rows
@@ -211,24 +173,4 @@ private:
     std::vector<std::wstring>                                m_comPorts;
     bool                                                     m_showSerial = false;
 
-    DxuiLabel                     m_slotLabel;
-    DxuiLabel                     m_cardLabel;
-    DxuiComboBox                  m_slotDropdown;
-    DxuiComboBox                  m_cardDropdown;
-    DxuiButton                    m_attachButton;
-    DxuiButton                    m_ejectButton;
-    DxuiButton                    m_addButton;
-    DxuiButton                    m_removeButton;
-    DxuiLabel                     m_promptLabel;
-    DxuiButton                    m_replaceButton;
-    DxuiButton                    m_cancelButton;
-    std::vector<SlotCardChoice>   m_cardChoices;
-    std::wstring                  m_storagePrompt;
-    std::string                   m_pendingDevice;
-    BrowseImageFn                 m_onBrowseImage;
-    CardChosenFn                  m_onCardChosen;
-    int                           m_selectedSlot   = 0;
-    int                           m_selectedPort   = -1;
-    bool                          m_replacePending = false;
-    bool                          m_showStorage    = false;
 };
