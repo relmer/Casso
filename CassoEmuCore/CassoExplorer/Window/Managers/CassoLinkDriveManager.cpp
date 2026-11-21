@@ -183,11 +183,19 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify, automatic] (const LinkOperation & operation, const std::string & link, int drive)
     {
         std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
-        std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros? Their list is saved beside the image as " + list + L".";
+        std::wstring                   message = TextEncoding::NarrowToWide (operation.message)
+                                               + L"\n\nThe disk may be copy-protected. Capture it raw as a WOZ image, which keeps every track as it is on the disk?"
+                                               + L"\n\nOr read it again, writing those sectors as zeros. Their list is saved beside the image as " + list + L".";
         CassoExplorerActions::Outcome  again;
+        std::filesystem::path          woz     = picked;
+        int                            choice  = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Create image",
+                                                                 MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON1, { L"Capture raw", L"Read again", L"Cancel" });
 
-        if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Read disk to image",
-                            MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Read again", L"Cancel" }) == IDOK)
+        if (choice == IDYES)
+        {
+            CaptureToImage (TextEncoding::NarrowToWide (link), drive, woz.replace_extension (L".woz"));
+        }
+        else if (choice == IDNO)
         {
             again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
 
