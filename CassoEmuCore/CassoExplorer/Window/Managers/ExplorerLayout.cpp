@@ -66,8 +66,8 @@ void ExplorerLayout::ConfigureWidgets()
     m_context.preview.Configure();
 
     //  The commands installed apps add to Explorer's menus, and New's
-    //  choices, read once.
-    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerNewChoices);
+    //  choices.
+    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerNewChoices, (UINT) AppMessage::ExplorerAssocChanged);
 
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_treeSplitter->SetOnMoved ([this] (int dip)
