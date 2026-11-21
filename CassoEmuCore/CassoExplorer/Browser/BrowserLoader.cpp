@@ -455,9 +455,8 @@ void BrowserLoader::GetAllRecycledIds (std::vector<std::wstring> & outIds) const
 
 std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
 {
-    VolumeListing               listing;
-    VolumeKind                  kind = VolumeKind::Unknown;
-    DiskOperations::Result      result;
+    ImageContents               contents;
+    HRESULT                     hr   = S_OK;
     WIN32_FILE_ATTRIBUTE_DATA   file = {};
     uint64_t                    time = 0;
     uint64_t                    size = 0;
@@ -493,11 +492,11 @@ std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
         }
     }
 
-    result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+    hr = m_browser.m_catalog.Describe (imagePath, std::string(), contents);
 
-    if (!result.Succeeded() && result.message.find (s_kNoFileSystem) == std::string::npos)
+    if (FAILED (hr) && contents.result.message.find (s_kNoFileSystem) == std::string::npos)
     {
-        problem = DiskMessageText::FormatImageError (imagePath, result.message);
+        problem = contents.error;
     }
 
     m_imageProblems[imagePath] = ImageProblem { time, size, problem };
