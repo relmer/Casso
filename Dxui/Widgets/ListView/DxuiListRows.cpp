@@ -794,13 +794,27 @@ void DxuiListRows::Paint (
 
         if (look.fill != 0)
         {
-            painter.FillRoundedRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip), look.fill);
+            if (m_list.m_rowCornerDip > 0.0f)
+            {
+                painter.FillRoundedRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip), look.fill);
+            }
+            else
+            {
+                painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, look.fill);
+            }
         }
 
         if (look.edge != 0)
         {
-            painter.OutlineRoundedRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip),
-                                        DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            if (m_list.m_rowCornerDip > 0.0f)
+            {
+                painter.OutlineRoundedRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, m_list.m_scaler.ToPxf (m_list.m_rowCornerDip),
+                                            DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            }
+            else
+            {
+                painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, thisH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+            }
         }
 
         for (size_t c = 0; c < m_list.m_columns.size() && c < cells.size(); ++c)
