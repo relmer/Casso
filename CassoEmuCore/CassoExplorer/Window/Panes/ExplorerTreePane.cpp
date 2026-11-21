@@ -549,6 +549,7 @@ void ExplorerTreePane::RevealLocationInTree()
     std::wstring          link;
     int                   slot     = 0;
     int                   drive    = 0;
+    Location              highlighted;
 
 
 
@@ -588,6 +589,14 @@ void ExplorerTreePane::RevealLocationInTree()
             ScrollTreeToRow (row);
         }
 
+        return;
+    }
+
+    //  A node the user clicked that is at the location, a directory inside an
+    //  image among them, stays highlighted.
+    if (m_context.browser.TryGetNodeLocation (current, highlighted) && highlighted == location)
+    {
+        ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
 

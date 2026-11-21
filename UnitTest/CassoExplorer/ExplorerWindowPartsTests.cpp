@@ -149,6 +149,37 @@ public:
 
 
 
+    TEST_METHOD (TreeReveal_KeepsADirectoryInsideAnImageHighlighted)
+    {
+        Rig             rig;
+        std::wstring    image    = L"C:\\Disks\\prodos.po";
+        std::wstring    folderId = TreeModel::MakeDirectoryId (true, image, "SUBDIR");
+        DxuiTreeView  * tree     = nullptr;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", image.c_str());
+        rig.Open();
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+        rig.parts->treePane.ExpandNode (TreeModel::kCassoRootId);
+        rig.parts->treePane.ExpandNode (TreeModel::MakeFolderId (true, L"C:\\Disks"));
+        rig.parts->treePane.ExpandNode (TreeModel::MakeImageId (true, image));
+
+        tree = static_cast<DxuiTreeView *> (rig.parts->treePane.GetControl());
+        Assert::IsTrue (tree->FindRowById (folderId) >= 0, L"the image's directory is in the tree");
+
+        AssertSucceeded (rig.browser.SelectTreeNode (folderId));
+        tree->HighlightRow (tree->FindRowById (folderId));
+        rig.parts->treePane.RevealLocationInTree();
+
+        Assert::AreEqual (folderId, tree->GetHighlightedId(), L"the clicked directory stays highlighted");
+    }
+
+
+
     TEST_METHOD (Open_CreatesTheControlsAsChildren)
     {
         Rig  rig;
