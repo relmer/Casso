@@ -541,4 +541,11 @@ public:
         Assert::AreEqual (std::wstring (L"Show &hard disks in the drive dock"),    EmulatorCommands::GetDrivePlaceLabel (true,  true));
         Assert::AreEqual (std::wstring (L"Show &hard disks on the desk"),          EmulatorCommands::GetDrivePlaceLabel (true,  false));
     }
+
+
+    TEST_METHOD (Floppy_Pair_Row_Gives_Where_The_Pair_Goes)
+    {
+        Assert::AreEqual (std::wstring (L"Show floppy drives below the &monitor"),  EmulatorCommands::GetFloppyPairPlaceLabel (true));
+        Assert::AreEqual (std::wstring (L"Show floppy drives beside the &monitor"), EmulatorCommands::GetFloppyPairPlaceLabel (false));
+    }
 };

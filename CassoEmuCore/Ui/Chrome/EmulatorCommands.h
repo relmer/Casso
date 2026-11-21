@@ -111,6 +111,7 @@ public:
     // rows, returned by the live label query.
     static std::wstring  GetDrivePlaceLabel    (bool isHardDisk, bool isOnDesk);
     static std::wstring  GetRecorderPlaceLabel (bool isOnDesk);
+    static std::wstring  GetFloppyPairPlaceLabel (bool isBeside);
 
     // Shell sinks. Read live by every command's functors, so they can be
     // set or replaced at any time without rebuilding anything.

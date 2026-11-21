@@ -629,7 +629,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
-            case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
         }
@@ -709,7 +708,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         switch (commandId)
         {
-            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered() && m_scene->IsClassOnDesk (DeskDriveClass::Floppy); break;
 
             // A place row is for a class the machine has drives of.
             case IDM_VIEW_FLOPPIES_ON_DESK:   visible = m_scene->HasDriveClass (DeskDriveClass::Floppy);                            break;
@@ -778,6 +777,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_HARD_DISKS_ON_DESK:
             {
                 return EmulatorCommands::GetDrivePlaceLabel (true, m_scene->IsClassOnDesk (DeskDriveClass::HardDisk));
+            }
+
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE:
+            {
+                return EmulatorCommands::GetFloppyPairPlaceLabel (m_settings->GetPrefs().deskFloppyPairBeside);
             }
 
             case IDM_VIEW_RECORDER_ON_DESK:
