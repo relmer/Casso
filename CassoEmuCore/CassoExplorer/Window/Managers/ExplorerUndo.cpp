@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
@@ -285,15 +286,15 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
     switch (step.kind)
     {
         case ExplorerUndoStep::Kind::ImageRename:
-            m_context.commandManager.ReportOutcome (m_context.actions.RenameSelected (step.oldName), L"Undo rename");
+            m_context.verbs.ReportOutcome (m_context.actions.RenameSelected (step.oldName), L"Undo rename");
             break;
 
         case ExplorerUndoStep::Kind::ImageNewFolder:
-            m_context.commandManager.ReportOutcome (m_context.actions.DeleteSelected(), L"Undo new folder");
+            m_context.verbs.ReportOutcome (m_context.actions.DeleteSelected(), L"Undo new folder");
             break;
 
         case ExplorerUndoStep::Kind::ImagePut:
-            m_context.commandManager.ReportOutcome (m_context.actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
+            m_context.verbs.ReportOutcome (m_context.actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
             break;
 
         default:
@@ -303,7 +304,7 @@ bool ExplorerUndo::UndoInImage (const ExplorerUndoStep & step)
             }
 
             restored = m_context.actions.PutFiles (saved, m_context.prompts.MakeAddressPrompt());
-            m_context.commandManager.ReportOutcome (restored, L"Undo delete");
+            m_context.verbs.ReportOutcome (restored, L"Undo delete");
             finished = restored.IsWhole();
 
             if (finished)

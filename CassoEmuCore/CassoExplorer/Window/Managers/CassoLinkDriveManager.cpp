@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -577,7 +578,7 @@ void CassoLinkDriveManager::FormatAppleDisk (const Location & location)
     drive  = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
     choice = CassoExplorerNewDiskDialog::Ask (m_context.window.GetHwnd(), m_context.theme, true, {}, CassoExplorerNewDiskChoices::kFormatDos33, drive, true);
 
-    if (!choice.confirmed || !m_context.commandManager.TryPrepareBootDisk (choice.request))
+    if (!choice.confirmed || !m_context.imageTools.TryPrepareBootDisk (choice.request))
     {
         return;
     }

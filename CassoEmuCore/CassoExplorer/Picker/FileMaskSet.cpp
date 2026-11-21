@@ -91,7 +91,27 @@ bool FileMaskSet::Matches (std::wstring_view name) const
 
 std::wstring FileMaskSet::GetFirstExtension() const
 {
+    std::vector<std::wstring>  extensions = GetPlainExtensions();
+
+
+
+    return extensions.empty() ? std::wstring() : extensions.front();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMaskSet::GetPlainExtensions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> FileMaskSet::GetPlainExtensions() const
+{
     constexpr std::wstring_view  kPrefix = L"*.";
+    std::vector<std::wstring>    extensions;
 
 
 
@@ -104,11 +124,59 @@ std::wstring FileMaskSet::GetFirstExtension() const
 
         if (isPlain)
         {
-            return std::wstring (extension);
+            extensions.emplace_back (extension);
         }
     }
 
-    return std::wstring();
+    return extensions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMaskSet::ApplyToName
+//
+//  A type with no plain extension, such as "*.*", leaves the name as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMaskSet::ApplyToName (std::wstring_view name, const FileMaskSet & chosen, const std::vector<FileMaskSet> & all)
+{
+    std::vector<std::wstring>  extensions = chosen.GetPlainExtensions();
+    size_t                     dot        = name.find_last_of (L'.');
+    std::wstring_view          current    = (dot != std::wstring_view::npos && dot > 0) ? name.substr (dot + 1) : std::wstring_view();
+    std::wstring_view          stem       = name;
+    bool                       isKnown    = false;
+
+
+
+    if (extensions.empty())
+    {
+        return std::wstring (name);
+    }
+
+    for (const FileMaskSet & set : all)
+    {
+        for (const std::wstring & extension : set.GetPlainExtensions())
+        {
+            isKnown = isKnown || (!current.empty() && _wcsicmp (extension.c_str(), std::wstring (current).c_str()) == 0);
+        }
+    }
+
+    if (isKnown)
+    {
+        stem = name.substr (0, dot);
+    }
+
+    if (extensions.size() > 1)
+    {
+        return std::wstring (stem);
+    }
+
+    return std::wstring (stem) + L"." + extensions.front();
 }
 
 

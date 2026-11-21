@@ -1,10 +1,12 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/FileMaskSet.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -418,7 +420,7 @@ void ExplorerPickerMode::CreateNew()
         return;
     }
 
-    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.commandManager.CreateDiskForPicker (path);
+    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.imageTools.CreateDiskForPicker (path);
 
     if (isCreated && !path.empty())
     {
@@ -567,6 +569,21 @@ void ExplorerPickerMode::SetActiveFilter (size_t index)
     }
 
     m_scope.SetActiveFilter (index);
+
+    //  A save form's name takes the new type's extension.
+    if (m_context.app.picker->IsSave() && m_context.pickerBar.HasNameBox())
+    {
+        std::vector<FileMaskSet>  all;
+
+
+
+        for (const FileDialogFilter & filter : m_context.app.picker->filters)
+        {
+            all.emplace_back (filter.pattern);
+        }
+
+        m_context.pickerBar.SetNameText (FileMaskSet::ApplyToName (m_context.pickerBar.GetNameText(), all[index], all));
+    }
 
     hr = m_context.browser.Refresh();
     IGNORE_RETURN_VALUE (hr, S_OK);

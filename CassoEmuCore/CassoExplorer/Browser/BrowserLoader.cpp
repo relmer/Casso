@@ -3,6 +3,7 @@
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
@@ -63,6 +64,7 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
     HRESULT                                    hr       = S_OK;
     size_t                                     index    = 0;
     std::unordered_map<std::wstring, int64_t>  loadedAt;
+    std::vector<HostFolderItem>                items;
 
 
 
@@ -87,7 +89,14 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         return hr;
     }
 
-    std::erase_if (m_hostEntries, [this] (const FileSystemEntry & entry) { return !m_folderOptions.IsShown (entry); });
+    m_browser.m_hostFolders.Classify (path, m_hostEntries, items);
+
+    m_hostEntries.clear();
+
+    for (const HostFolderItem & item : items)
+    {
+        m_hostEntries.push_back (item.entry);
+    }
 
     //  When Casso last loaded each image, for the Last used column.
     if (m_browser.m_recentLoads)
@@ -98,13 +107,12 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         }
     }
 
-    for (index = 0; index < m_hostEntries.size(); index++)
+    for (index = 0; index < items.size(); index++)
     {
-        const FileSystemEntry &  entry   = m_hostEntries[index];
-        bool                     isImage = !entry.isFolder && TreeModel::IsSupportedImage (entry.name);
+        const FileSystemEntry &  entry = items[index].entry;
 
-        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
-        m_browser.m_rows.back().isArchive = !entry.isFolder && !isImage && m_browser.m_tree.IsArchive (CassoExplorerBrowser::JoinPath (path, entry.name));
+        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, items[index].kind == HostFolderItem::Kind::Image, index));
+        m_browser.m_rows.back().isArchive = items[index].kind == HostFolderItem::Kind::Archive;
 
         //  An image's form factor and formatted size, from its first bytes, and
         //  read once while its length and time stay the same.
@@ -120,11 +128,10 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
             m_browser.m_rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
         }
 
-        //  A folder is listed by the name in its desktop.ini, as in the tree,
-        //  read only for a read-only or system folder on this computer.
-        if (entry.isFolder && (entry.isReadOnly || entry.isSystem) && !PathResolver::IsNetworkPath (path) && m_browser.m_tree.GetLocalizedNameLookup())
+        //  A folder is listed by the name in its desktop.ini, as in the tree.
+        if (items[index].label != entry.name)
         {
-            m_browser.m_rows.back().label = m_browser.m_tree.GetLocalizedNameLookup() (CassoExplorerBrowser::JoinPath (path, entry.name));
+            m_browser.m_rows.back().label = items[index].label;
         }
 
         //  The shell's own type name, as Explorer's Type column shows.
@@ -259,10 +266,10 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;
-        row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
+        row.isDiskImage  = !row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]);
 
         //  An image in a ZIP has no path on the disk, and opens by the ZIP's.
-        if (!row.isDirectory && row.hostPath.empty() && TreeModel::IsSupportedImage (row.name) && m_browser.m_previewer.IsLocalArchivePath (id))
+        if (row.hostPath.empty() && HostFolderReader::IsShellImage (items[index]) && m_browser.m_previewer.IsLocalArchivePath (id))
         {
             row.containerPath = MakeContainerPath (id, row.name);
             row.isDiskImage   = !row.containerPath.empty();
@@ -448,9 +455,8 @@ void BrowserLoader::GetAllRecycledIds (std::vector<std::wstring> & outIds) const
 
 std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
 {
-    VolumeListing               listing;
-    VolumeKind                  kind = VolumeKind::Unknown;
-    DiskOperations::Result      result;
+    ImageContents               contents;
+    HRESULT                     hr   = S_OK;
     WIN32_FILE_ATTRIBUTE_DATA   file = {};
     uint64_t                    time = 0;
     uint64_t                    size = 0;
@@ -486,11 +492,11 @@ std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
         }
     }
 
-    result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+    hr = m_browser.m_catalog.Describe (imagePath, std::string(), contents);
 
-    if (!result.Succeeded() && result.message.find (s_kNoFileSystem) == std::string::npos)
+    if (FAILED (hr) && contents.result.message.find (s_kNoFileSystem) == std::string::npos)
     {
-        problem = BrowserCells::FormatImageError (imagePath, result.message);
+        problem = contents.error;
     }
 
     m_imageProblems[imagePath] = ImageProblem { time, size, problem };
@@ -1099,10 +1105,10 @@ const wchar_t * BrowserLoader::GetCassoLinkHelp()
 
 HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string & directory)
 {
-    DiskOperations::Result  result;
-    HRESULT                 hrReadOnly = S_OK;
-    bool                    onCard     = PhysicalCards::IsOnCard (path);
-    bool                    cached     = !onCard && directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
+    ImageContents  contents;
+    HRESULT        hrReadOnly = S_OK;
+    bool           onCard     = PhysicalCards::IsOnCard (path);
+    bool           cached     = !onCard && directory.empty() && m_browser.m_model.TryGetCachedCatalog (path, m_browser.m_listing, m_browser.m_kind);
 
 
 
@@ -1113,17 +1119,22 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
     if (!cached)
     {
-        result = m_browser.m_operations.List (TextEncoding::WideToNarrow (path), directory, m_browser.m_listing, m_browser.m_kind);
+        HRESULT  hrDescribe = m_browser.m_catalog.Describe (path, directory, contents);
 
-        if (!result.Succeeded() && directory.empty() && LoadPartitions (path))
+        IGNORE_RETURN_VALUE (hrDescribe, S_OK);
+
+        m_browser.m_listing = std::move (contents.listing);
+        m_browser.m_kind    = contents.kind;
+
+        if (!contents.result.Succeeded() && AddPartitionRows (path, contents.layout, contents.partitions))
         {
             return S_OK;
         }
 
-        if (!result.Succeeded())
+        if (!contents.result.Succeeded())
         {
-            m_listError = BrowserCells::FormatImageError (path, result.message);
-            return result.hr;
+            m_listError = contents.error;
+            return contents.result.hr;
         }
 
         //  The cache holds an image's catalog, which is its volume directory,
@@ -1217,7 +1228,7 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
     {
         m_listError = std::format (L"Unable to open {}.", name);
     }
-    else if (entries.empty() || !LoadPartitions (path))
+    else if (!AddPartitionRows (path, kind, entries))
     {
         hr          = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
         m_listError = std::format (L"No Apple partitions were found on {}.", name);
@@ -1232,25 +1243,20 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserLoader::LoadPartitions
+//  BrowserLoader::AddPartitionRows
 //
 //  The partitions of an image that has no catalog, one row for each. False
 //  for an image with no partitions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BrowserLoader::LoadPartitions (const std::wstring & path)
+bool BrowserLoader::AddPartitionRows (const std::wstring & path, PartitionLayoutKind layout, const std::vector<PartitionEntry> & entries)
 {
-    std::vector<PartitionEntry>  entries;
-    PartitionLayoutKind          kind       = PartitionLayoutKind::None;
-    HRESULT                      hr         = S_OK;
-    HRESULT                      hrReadOnly = S_OK;
+    HRESULT  hrReadOnly = S_OK;
 
 
 
-    hr = ListPartitions (path, kind, entries);
-
-    if (FAILED (hr) || entries.empty())
+    if (entries.empty())
     {
         return false;
     }
@@ -1259,9 +1265,8 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     {
         CatalogRow  row;
 
-        row.name          = PhysicalCards::IsOnCard (path) ? TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false))
-                                                           : TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
-        row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (kind)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
+        row.name          = DiskImageCatalog::GetPartitionLabel (path, entry, false);
+        row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (layout)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
         row.sizeBytes     = entry.byteCount;
         row.isDiskImage   = true;
         row.isPartition   = true;
@@ -1327,9 +1332,20 @@ HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
 
     CBRF (found != nullptr, hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs && LoadPartitions (path))
+    if (found->partition.damaged)
     {
-        BAIL_OUT_IF (true, S_OK);
+        m_listError = DiskImageCatalog::DescribeDamagedPartition (path.substr (0, bar), *found);
+    }
+
+    CBRF (!found->partition.damaged, hr = HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs)
+    {
+        PartitionLayoutKind          innerLayout = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  inner;
+        HRESULT                      hrInner     = m_browser.m_catalog.ListPartitions (path, innerLayout, inner);
+
+        BAIL_OUT_IF (SUCCEEDED (hrInner) && AddPartitionRows (path, innerLayout, inner), S_OK);
     }
 
     row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (*found));
@@ -1368,11 +1384,9 @@ Error:
 
 HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries)
 {
-    HRESULT            hr        = S_OK;
-    std::vector<Byte>  bytes;
-    std::string        narrow    = TextEncoding::WideToNarrow (path);
-    int                drive     = 0;
-    int                partition = 0;
+    HRESULT  hr        = S_OK;
+    int      drive     = 0;
+    int      partition = 0;
 
 
 
@@ -1398,10 +1412,7 @@ HRESULT BrowserLoader::ListPartitions (const std::wstring & path, PartitionLayou
     }
     else
     {
-        hr = m_browser.m_operations.GetFileIo().ReadAllBytes (narrow, bytes);
-        CHR (hr);
-
-        hr = PartitionAccess::List (bytes, narrow, outKind, outEntries);
+        hr = m_browser.m_catalog.ListPartitions (path, outKind, outEntries);
         CHR (hr);
     }
 
@@ -1435,7 +1446,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 
     if (m_browser.m_links == nullptr || !parsed)
     {
-        m_listError = L"This drive could not be read.";
+        m_listError = DiskMessageText::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE), std::string());
         return HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE);
     }
 
@@ -1453,7 +1464,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 
     if (FAILED (hr))
     {
-        m_listError = BrowserCells::FormatLinkError (hr, message);
+        m_listError = DiskMessageText::FormatLinkError (hr, message);
         return hr;
     }
 

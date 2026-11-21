@@ -60,6 +60,16 @@ public:
     static constexpr int  kMinWindowWidthDip = 200;
     static constexpr int  kCascadeStepDip    = 32;   // a second window's offset from the saved placement
 
+    //  A picker's smallest size, as the standard file dialogs have one: room
+    //  for the navigation band and a save form's labels, boxes, note,
+    //  Verify box and buttons.
+    static constexpr int  kMinPickerWidthDip  = 640;
+    static constexpr int  kMinPickerHeightDip = 480;
+
+    //  How far a save form's bottom bar is mixed from the background toward
+    //  the text color.
+    static constexpr float  s_kSavePickerBarTint = 0.09f;
+
     //  How long to let a burst settle before re-reading. Copying a hundred
     //  files reports a hundred changes; re-reading once at the end is both
     //  faster and steadier to look at.

@@ -534,8 +534,10 @@ bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
 //
 //  The fresh nodes set the order and what each row shows. A node that was
 //  already there keeps whether it is open, and what was read under it -- merged
-//  in turn where the fresh node brings children of its own. A node that is not
-//  in the fresh set is gone, and whatever was under it with it.
+//  in turn where the fresh node brings children of its own. A node that was
+//  read and had no children is read again when the fresh node has children to
+//  read, as a storage card has once it opens. A node that is not in the fresh
+//  set is gone, and whatever was under it with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -558,7 +560,7 @@ void DxuiTreeView::MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<
             node.children = std::move (found->children);
             MergeNodes (node.children, std::move (children));
         }
-        else
+        else if (!found->childrenLoaded || !found->children.empty())
         {
             node.children       = std::move (found->children);
             node.childrenLoaded = found->childrenLoaded;

@@ -190,7 +190,7 @@ public:
         rig.app.outcome = &outcome;
         rig.Open();
 
-        Assert::AreEqual (ExplorerPickerBar::kBandDip + ExplorerPickerBar::kNoteDip, rig.parts->pickerBar.GetBandDip());
+        Assert::AreEqual (2 * ExplorerPickerBar::kRowPadDip + 3 * ExplorerPickerBar::kButtonDip + 2 * ExplorerPickerBar::kGapDip + ExplorerPickerBar::kNoteDip, rig.parts->pickerBar.GetBandDip(), L"the name, type and button rows, and the note");
         Assert::AreEqual (std::wstring (L"DSK"), rig.parts->pickerBar.GetFilterItemText (1), L"listed by name alone, with no patterns");
 
         down.kind  = DxuiKeyEventKind::Down;

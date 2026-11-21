@@ -96,6 +96,25 @@ public:
     }
 
 
+    //  Before the audio device starts, the rate is 0: loading clears the
+    //  recordings without reading them, and the drive is silent.
+    TEST_METHOD (Floppy35_LoadAtRateZero_IsSilent)
+    {
+        Floppy35AudioSource  source;
+
+
+
+        LoadTestSamples (source);
+
+        Assert::AreEqual (S_OK, source.LoadSamples (L"C:\\nowhere", 0));
+
+        source.SetSampleRate (kRate);
+        source.OnFloppy35Event (Event (Floppy35Op::MotorOn));
+
+        Assert::AreEqual (0.0f, Peak (source));
+    }
+
+
     TEST_METHOD (Floppy35_MotorSpinsUp_Runs_AndSpinsDown)
     {
         Floppy35AudioSource  source;

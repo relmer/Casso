@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -1393,7 +1394,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
-        m_context.commandManager.ReportOutcome (outcome, L"Put");
+        m_context.verbs.ReportOutcome (outcome, L"Put");
         RemoveVirtualFiles();
         return;
     }
@@ -1493,7 +1494,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         m_context.undo.PushPut (outcome, location.path, inner);
     }
 
-    m_context.commandManager.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
+    m_context.verbs.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
     m_context.folderSync.RefreshAfterHostChange();
 
     RemoveVirtualFiles();
@@ -1519,7 +1520,7 @@ void ExplorerDragDrop::BeginDragOut()
     DWORD                                    effect   = DROPEFFECT_NONE;
     DWORD                                    logical  = DROPEFFECT_NONE;
     bool                                     moved    = false;
-    HostFileNaming::Style                    style    = m_context.commandManager.GetNamingStyle();
+    HostFileNaming::Style                    style    = m_context.verbs.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
     std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu);
     POINT                                    start    = {};
@@ -1628,7 +1629,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  as Get does.
     if (!rawFolder.empty())
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
+        m_context.verbs.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
         m_context.window.Invalidate();
         return;
     }
@@ -1654,12 +1655,12 @@ void ExplorerDragDrop::BeginDragOut()
     {
         //  Deleted over the link, after the reads the drop made.
         outcome = m_context.actions.DeleteDriveEntries (entries);
-        m_context.commandManager.ReportOutcome (outcome, L"Move");
+        m_context.verbs.ReportOutcome (outcome, L"Move");
     }
     else if (moved && inImage && !paths.empty())
     {
         outcome = m_context.actions.DeleteEntries (image, paths);
-        m_context.commandManager.ReportOutcome (outcome, L"Move");
+        m_context.verbs.ReportOutcome (outcome, L"Move");
         m_context.folderSync.RefreshAfterHostChange();
     }
 
@@ -1773,7 +1774,7 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
     }
 
     m_context.undo.PushPut    (outcome, drop.location.path, drop.inner);
-    m_context.commandManager.ReportOutcome  (outcome, L"Put");
+    m_context.verbs.ReportOutcome  (outcome, L"Put");
     m_context.folderSync.RefreshAfterHostChange();
 
     RemoveVirtualFiles();
@@ -1796,6 +1797,6 @@ void ExplorerDragDrop::HandleDropFile (const std::wstring & path)
 
 
     m_context.undo.PushPut   (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
-    m_context.commandManager.ReportOutcome (outcome, L"Put");
+    m_context.verbs.ReportOutcome (outcome, L"Put");
     m_context.listPane.FillList();
 }

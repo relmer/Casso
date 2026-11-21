@@ -75,6 +75,13 @@ public:
     //  regular.
     void  SetBoldGlyphWidth (float widthDip) { m_boldGlyphWidthDip = widthDip; }
 
+    //  Test knob: the glyph width while GDI classic text is on, so text laid
+    //  out by GDI's advances measures wider than by DirectWrite's. Zero
+    //  measures both the same.
+    void  SetGdiGlyphWidth (float widthDip) { m_gdiGlyphWidthDip = widthDip; }
+
+    bool  SetGdiClassicText (bool on) override { return std::exchange (m_gdiClassic, on); }
+
     HRESULT  DrawString    (const wchar_t      * text,
                             float                xDip,
                             float                yDip,
@@ -152,6 +159,8 @@ private:
     std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;
     float                                  m_boldGlyphWidthDip  = 0.0f;
+    float                                  m_gdiGlyphWidthDip   = 0.0f;
+    bool                                   m_gdiClassic         = false;
     int                                    m_lastFramebufferW   = 0;
     int                                    m_lastFramebufferH   = 0;
 };

@@ -288,4 +288,17 @@ public:
         Assert::AreEqual (uint8_t (0), Casso::Video::ExtractB (out),
             L"Amber tint must always produce B = 0");
     }
+
+    TEST_METHOD (TintMonoToColor_ScalesTheThemeGreenByLuminance)
+    {
+        // The Phosphor theme's green, 0xFF5CE07A: white comes out as that
+        // color and black as black.
+        uint32_t  white = Casso::Video::TintMonoToColor (Casso::Video::MakePixel (255, 255, 255), 0xFF5CE07A);
+        uint32_t  black = Casso::Video::TintMonoToColor (Casso::Video::MakePixel (0, 0, 0), 0xFF5CE07A);
+
+        Assert::AreEqual (uint8_t (0x5C), Casso::Video::ExtractR (white));
+        Assert::AreEqual (uint8_t (0xE0), Casso::Video::ExtractG (white));
+        Assert::AreEqual (uint8_t (0x7A), Casso::Video::ExtractB (white));
+        Assert::AreEqual (uint8_t (0),    Casso::Video::ExtractG (black));
+    }
 };

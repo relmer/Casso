@@ -153,6 +153,87 @@ std::wstring DriveLabel::GetDetail (DeskDriveModel model, uint32_t diskBlocks, u
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveLabel::GetCaption
+//
+//  ProDOS addresses two drives a slot, so a numbered drive past those is
+//  given its unit number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DriveLabel::GetCaption (const DeskDrive & drive, bool numbered, uint32_t diskBlocks, uint32_t capacityBlocks)
+{
+    constexpr uint32_t  k35Blocks     = 1600;
+    constexpr uint32_t  kFloppyBlocks = 280;
+    std::wstring        label;
+    std::wstring        model;
+    std::wstring        size;
+    uint32_t            blocks        = 0;
+    std::wstring        caption;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::DiskII:
+            label  = std::format (L"Drive {}", drive.drive + 1);
+            model  = L"Apple Disk ][";
+            blocks = kFloppyBlocks;
+            break;
+
+        case DeskDriveModel::Disk2c:
+            label  = drive.onPort && !drive.builtIn ? std::format (L"S6,D{}", drive.drive + 1) : std::format (L"Drive {}", drive.drive + 1);
+            model  = drive.builtIn ? L"Built-in drive" : L"Disk IIc";
+            blocks = kFloppyBlocks;
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            model  = (drive.model == DeskDriveModel::UniDisk35)    ? L"UniDisk 3.5"
+                   : (drive.model == DeskDriveModel::Apple35Drive) ? L"Apple 3.5 drive"
+                   :                                                 L"Built-in 3.5 drive";
+            blocks = (diskBlocks != 0 && diskBlocks < k35Blocks) ? diskBlocks : k35Blocks;
+            break;
+
+        case DeskDriveModel::HardDisk20SC:
+            label  = std::format (L"SCSI-{}", drive.drive);
+            model  = L"Hard disk 20SC";
+            blocks = diskBlocks;
+            break;
+
+        case DeskDriveModel::ProFile:
+            model  = L"ProFile hard disk";
+            blocks = capacityBlocks;
+            break;
+    }
+
+    if (label.empty() && numbered)
+    {
+        label = (drive.drive < 2) ? std::format (L"S{},D{}", GetSlot (drive), drive.drive + 1) : std::format (L"Unit {}", drive.drive + 1);
+    }
+
+    if (blocks != 0)
+    {
+        size = FormatSize (blocks);
+        std::erase (size, L' ');
+    }
+
+    caption = label.empty() ? model : label + L": " + model;
+
+    if (!size.empty())
+    {
+        caption += L" (" + size + L")";
+    }
+
+    return caption;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DriveLabel::FormatSize
 //
 //  Kilobytes below a megabyte, whole megabytes above.
