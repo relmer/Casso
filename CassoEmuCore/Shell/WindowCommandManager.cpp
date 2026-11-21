@@ -951,21 +951,24 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_FLOPPIES_ON_DESK:
         case IDM_VIEW_HARD_DISKS_ON_DESK:
         {
+            // A move changes what the scene has to fit, so the view and the
+            // window are reset as Ctrl+0 resets them.
             m_shell.m_scene->ToggleClassOnDesk ((id == IDM_VIEW_FLOPPIES_ON_DESK) ? DeskDriveClass::Floppy : DeskDriveClass::HardDisk);
-            m_shell.m_scene->ResetSceneView();
+            OnViewCommand (IDM_VIEW_RESET_SIZE);
             break;
         }
 
         case IDM_VIEW_RECORDER_ON_DESK:
         {
             m_shell.m_scene->ToggleRecorderOnDesk();
-            m_shell.m_scene->ResetSceneView();
+            OnViewCommand (IDM_VIEW_RESET_SIZE);
             break;
         }
 
         case IDM_VIEW_FLOPPY_PAIR_BESIDE:
         {
             m_shell.m_scene->ToggleFloppyPairBeside();
+            OnViewCommand (IDM_VIEW_RESET_SIZE);
             break;
         }
 
