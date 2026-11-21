@@ -508,11 +508,12 @@ bool TapeDeckWidget::IsMagnifying() const
 //
 //  IsNearControls
 //
-//  Over the controls row as it is drawn right now -- magnified and spread,
-//  which reaches past the resting row -- or above it where a magnified
-//  control stands, or over the label strip under it. Measured against the
-//  resting row instead, moving onto an end control that had grown out past
-//  the row's edge dropped the magnification under the pointer.
+//  Before the row magnifies, over the resting controls only, so the name
+//  above them stays a target. Once it magnifies, over the controls as drawn
+//  -- magnified and spread, which reaches past the resting row -- or above
+//  it where a magnified control stands, or over the label strip under it.
+//  Measured against the resting row then, moving onto an end control that
+//  had grown out past the row's edge dropped the magnification.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,7 +524,7 @@ bool TapeDeckWidget::IsNearControls (int x, int y) const
     int         button = m_buttons[0].bottom - m_buttons[0].top;
     int         left   = m_buttons[0].left;
     int         right  = m_counterRect.right;
-    int         top    = m_buttons[0].top - (int) ((kMagnifyMax - 1.0f) * (float) button);
+    int         top    = m_buttons[0].top - (m_magnifier.IsNear() ? (int) ((kMagnifyMax - 1.0f) * (float) button) : 0);
     int         bottom = m_counterRect.bottom + (m_docked ? 0 : Scale (kLabelStripPx, m_dpi));
 
 

@@ -340,6 +340,26 @@ public:
     }
 
 
+    TEST_METHOD (NameJustAboveTheRestingButtonsOpensThePicker)
+    {
+        TapeDeckWidget  widget;
+        RECT            name = {};
+        int             x    = 0;
+        int             y    = 0;
+
+
+
+        LayOut (widget);
+        name = widget.GetNameRect();
+        x    = (name.left + name.right) / 2;
+        y    = name.bottom - 2;
+
+        widget.UpdateHover (x, y);
+
+        Assert::IsTrue (widget.GetHover() == TapeDeckRegion::Name, L"the resting row doesn't reach up over the name");
+    }
+
+
     TEST_METHOD (EmptyDeckCentersTheButtonsWithNoCounter)
     {
         TapeDeckWidget  widget;
