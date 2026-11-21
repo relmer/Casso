@@ -180,6 +180,43 @@ public:
 
 
 
+    TEST_METHOD (FolderOptionChange_KeepsTheTreeWhereItWas)
+    {
+        Rig             rig;
+        std::wstring    subId = TreeModel::MakeFolderId (true, L"C:\\Disks\\Sub");
+        DxuiTreeView  * tree  = nullptr;
+        FolderOptions   options;
+        int             top   = 0;
+
+
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\Sub\\Deeper\\note.txt", "x"));
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+        rig.parts->treePane.ExpandNode (TreeModel::kCassoRootId);
+        rig.parts->treePane.ExpandNode (TreeModel::MakeFolderId (true, L"C:\\Disks"));
+        rig.parts->treePane.ExpandNode (subId);
+
+        tree = static_cast<DxuiTreeView *> (rig.parts->treePane.GetControl());
+        tree->SelectRow (tree->FindRowById (subId));
+        top = tree->GetTopRow();
+
+        options.showHidden = !rig.browser.GetFolderOptions().showHidden;
+        rig.browser.SetFolderOptions (options);
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+
+        Assert::AreEqual (subId, tree->GetHighlightedId(), L"the highlight stays");
+        Assert::IsTrue   (tree->FindNodeById (subId) != nullptr && tree->FindNodeById (subId)->expanded, L"an open folder stays open");
+        Assert::AreEqual (top, tree->GetTopRow(), L"the tree stays scrolled where it was");
+    }
+
+
+
     TEST_METHOD (TreeSelect_MarksAnImageThatDoesNotOpen)
     {
         Rig                   rig;
