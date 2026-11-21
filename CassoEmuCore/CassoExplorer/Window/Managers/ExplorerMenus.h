@@ -86,6 +86,7 @@ public:
     //  The commands installed apps add to Explorer's menus, and New's choices.
     void  StartPackagedCommands   (HWND hwnd, UINT message, UINT assocMessage) { m_packagedCommands.Start (hwnd, message, assocMessage); }
     void  RefreshPackagedCommands ()                                          { m_packagedCommands.Refresh(); }
+
     void  AddPinMenuCommand     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
     void  AddOpenRows           (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen);
     void  AddNewChoices     (std::vector<DxuiPopupMenuItem> & items, const Location & target,
