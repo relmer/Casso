@@ -43,6 +43,7 @@ public:
     void  SetState        (SettingsPanelState * state);
     void  SetPopupHost    (DxuiHwndSource * host);
     void  SetOnCardChosen (CardChosenFn fn) { m_onCardChosen = std::move (fn); }
+    void  SetOnAnimate    (std::function<void()> fn) { m_onAnimate = std::move (fn); }
     void  Rebuild         ();
 
     // The Super Serial Card's switches and connection, on the card's slot.
@@ -63,6 +64,9 @@ public:
 
     const DxuiSegmentedControl  & GetFirmwareChoice () const { return m_firmware; }
 
+    // Whether a control on the page is moving and wants frame-rate ticks.
+    bool  IsAnimating () const { return m_firmware.WantsTick(); }
+
     // A slot's line in the list, "Slot 5: Apple II SCSI Card" or "Slot 2:
     // Empty". Exposed for unit tests.
     static std::wstring  MakeSlotLabel (const std::vector<HardwareEntry> & entries, int slot);
@@ -82,6 +86,7 @@ private:
 
     SettingsPanelState            * m_state          = nullptr;
     CardChosenFn                    m_onCardChosen;
+    std::function<void()>           m_onAnimate;
     RECT                            m_baseRect       = {};
     DxuiDpiScaler                   m_scaler;
 
@@ -91,7 +96,6 @@ private:
     DxuiLabel                             m_promptLabel;
     DxuiSegmentedControl                  m_firmware;
     DxuiLabel                             m_firmwareNote;
-    DxuiLabel                             m_drivesHeading;
     DxuiLabel                             m_countLabel;
     DxuiComboBox                          m_countDropdown;
     std::array<DxuiLabel,    kMaxPorts>   m_portLabels;

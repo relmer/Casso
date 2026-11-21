@@ -645,6 +645,7 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_slotsPage->SetOnAnimate    ([this] () { UpdateTickInterval(); });
     m_slotsPage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
 
     // Serial card page: the staged slot entry, the firmware's status in the
@@ -1143,7 +1144,7 @@ void SettingsSheet::UpdateTickInterval()
         wanted = m_controllersPage->GetPollIntervalMs();
     }
 
-    if (IsAnyTabSweeping())
+    if (IsAnyTabSweeping() || (m_slotsPage != nullptr && m_slotsPage->IsAnimating()))
     {
         wanted = std::min (wanted, kSparkleTickMs);
     }

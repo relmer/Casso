@@ -119,7 +119,6 @@ SlotsPage::SlotsPage (std::wstring title)
     Adopt (m_promptLabel);
     Adopt (m_firmware);
     Adopt (m_firmwareNote);
-    Adopt (m_drivesHeading);
     Adopt (m_countLabel);
     Adopt (m_countDropdown);
 
@@ -158,11 +157,8 @@ SlotsPage::SlotsPage (std::wstring title)
     });
 
     m_cardLabel.SetText         (L"Card:");
-    m_drivesHeading.SetText     (L"Drives");
-    m_drivesHeading.SetTextRole (DxuiTextRole::Heading);
     m_countLabel.SetText        (L"Drives:");
     m_firmware.SetSegments      ({ L"Casso's fast firmware", L"Apple's ROM" });
-    m_firmware.SetAnimationsEnabled (false);
     m_firmwareNote.SetText      (L"Casso's firmware moves each block straight into memory, as a card with "
                                  L"DMA would, so disks load at once. Apple's ROM moves each byte through "
                                  L"the 6502, as slowly as the real card did.");
@@ -171,7 +167,17 @@ SlotsPage::SlotsPage (std::wstring title)
 
     m_cardDropdown.SetSelect   ([this] (int index)    { ChooseCard (index);       });
     m_countDropdown.SetSelect  ([this] (int index)    { ChooseDriveCount (index); });
-    m_firmware.SetOnChange     ([this] (int index)    { SetAppleFirmware (index == 1); });
+    m_firmware.SetOnChange     ([this] (int index)
+    {
+        // The pill slides on the sheet's ticks, which run fast only while a
+        // page reports a control moving.
+        if (m_onAnimate)
+        {
+            m_onAnimate();
+        }
+
+        SetAppleFirmware (index == 1);
+    });
 
     m_cardDropdown.SetOnHighlightChange ([this] (int index)
     {
@@ -374,7 +380,13 @@ void SlotsPage::RebuildDetail()
             driveItems.push_back (Widen ((drive != nullptr) ? drive->label : device));
         }
 
-        m_firmware.SetSelected (selected->cassoFirmware ? 0 : 1);
+        // Only when it differs: a selection set here jumps the pill, which
+        // would cut short the slide a click started.
+        if (m_firmware.GetSelected() != (selected->cassoFirmware ? 0 : 1))
+        {
+            m_firmware.SetSelected (selected->cassoFirmware ? 0 : 1);
+        }
+
         m_isCounted = card->isChain || (card->drives.size() == 1 && !isScsi);
         m_portRows  = m_isCounted ? 0 : std::min ((size_t) card->portCount, kMaxPorts);
 
@@ -513,20 +525,23 @@ void SlotsPage::Relayout()
 
         if (showFirmware)
         {
+            float    noteDip  = 0.0f;
+            float    widthDip = (float) (right - x) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi;
+            int      noteH    = 3 * rowH;
+            HRESULT  hrNote   = m_firmwareNote.MeasureWrappedDip (widthDip, noteDip);
+
+
+
             y += rowH + gap;
 
-            m_firmwareNote.SetRect (MakeRect (x, y, right - x, 2 * rowH));
-            y += 2 * rowH + gap;
+            if (SUCCEEDED (hrNote))
+            {
+                noteH = (int) std::ceil (s.ToPxf (noteDip));
+            }
+
+            m_firmwareNote.SetRect (MakeRect (x, y, right - x, noteH));
+            y += noteH + 2 * gap;
         }
-    }
-
-    m_drivesHeading.SetDpi     (dpi);
-    m_drivesHeading.SetVisible (showBlock && m_portRows > 1);
-    m_drivesHeading.SetRect    (MakeRect (x, y, right - x, rowH));
-
-    if (m_drivesHeading.IsVisible())
-    {
-        y += rowH + gap;
     }
 
     m_countLabel.SetDpi        (dpi);
