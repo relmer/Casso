@@ -242,7 +242,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
         if (m_fields[i].shimmer >= 0.0f)
         {
-            PaintShimmer (painter, text, theme, shown, m_fields[i].shimmer, left, r, boxW, fontPx);
+            PaintShimmer (text, theme, shown, m_fields[i].shimmer, left, r, boxW, fontPx);
         }
     }
 }
@@ -260,7 +260,7 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiStatusBar::PaintShimmer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & shown, float phase, float left, const RECT & r, float boxW, float fontPx)
+void DxuiStatusBar::PaintShimmer (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & shown, float phase, float left, const RECT & r, float boxW, float fontPx)
 {
     static constexpr float  kAlphas[] = { 0.3f, 0.7f, 1.0f, 0.7f, 0.3f };
     HRESULT                 hr        = S_OK;
@@ -284,7 +284,8 @@ void DxuiStatusBar::PaintShimmer (IDxuiPainter & painter, IDxuiTextRenderer & te
         uint32_t  alpha  = (uint32_t) std::lround (255.0f * kAlphas[step]);
         uint32_t  color  = (theme.Accent() & 0x00FFFFFFu) | (alpha << 24);
 
-        painter.PushClipRect (sliceX, (float) r.top, sliceW, (float) (r.bottom - r.top));
+        hr = text.PushClipRect (sliceX, (float) r.top, sliceW, (float) (r.bottom - r.top));
+        CHR (hr);
 
         hr = text.DrawString (shown.c_str(), left, (float) r.top, boxW,
                               (float) (r.bottom - r.top), color, fontPx,
@@ -292,7 +293,8 @@ void DxuiStatusBar::PaintShimmer (IDxuiPainter & painter, IDxuiTextRenderer & te
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        painter.PopClipRect();
+        hr = text.PopClipRect();
+        CHR (hr);
     }
 
 Error:

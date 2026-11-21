@@ -85,5 +85,5 @@ private:
     bool                m_dividers = true;
     float               m_leadDip  = (float) kFieldPadDip;
 
-    void  PaintShimmer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & shown, float phase, float left, const RECT & r, float boxW, float fontPx);
+    void  PaintShimmer (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & shown, float phase, float left, const RECT & r, float boxW, float fontPx);
 };
