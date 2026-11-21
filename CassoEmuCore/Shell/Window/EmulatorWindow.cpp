@@ -366,7 +366,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_chrome->m_mainMenu);
     m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
 
-    m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_chrome->m_fpsReadout);
     m_host->GetRoot().Adopt (m_scene->m_sceneViewReadout);
     m_host->GetRoot().Adopt (m_scene->m_sceneDriveLabel[0]);
@@ -465,6 +464,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // of drives is drawn over the strip. The bar's zoom readout is drawn
     // over the bar.
     m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
+    m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());   // after the bar, so it is drawn inside its box
     m_chrome->HideDriveBar();
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);

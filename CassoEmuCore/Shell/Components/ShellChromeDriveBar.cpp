@@ -104,11 +104,11 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         m_shell.m_tapeDeck->GetWidget().Layout (RECT {}, scaler);
         tapeProbe = m_shell.m_tapeDeck->GetWidget().GetOuterRect();
         tapeW     = tapeProbe.right - tapeProbe.left;
-        rowW     += ((fan.GetClassCount() > 0) ? gap : 0) + tapeW;
+        rowW     += ((fan.GetClassCount() > 0) ? gap : 0) + tapeW + 2 * pad;
     }
 
     originX = std::max (0, (clientW - rowW) / 2);
-    tapeX   = originX + rowW - tapeW;
+    tapeX   = originX + rowW - tapeW - pad;
     rowTop  = std::max (clientH - bottomInsetPx, clientH - (int) slot.cy - bottomGap);
 
     fan.SetExpandAll (sliding);
@@ -133,11 +133,16 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         // At the top of the row, as each drive's widget is in its box, so
         // its name row and rail line up with theirs.
         m_shell.m_tapeDeck->SetAnchor ({ tapeX, rowTop, tapeX, rowTop }, barDpi);
+        m_driveBarFan.SetRecorderPanel ({ tapeX - pad, rowTop - pad, tapeX + tapeW + pad, rowTop + (int) slot.cy + pad });
+    }
+    else
+    {
+        m_driveBarFan.SetRecorderPanel (RECT {});
     }
 
     m_driveBarFan.SetDpi     (barDpi);
     m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, sliding ? stripBottom : clientH });
-    m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_driveBarSlideProgress > 0.0f));
+    m_driveBarFan.SetVisible ((fan.GetClassCount() > 0 || tapeDocked) && (!sliding || m_driveBarSlideProgress > 0.0f));
 
     PlaceDriveBarWidgets();
     (void) SyncDriveBarViews();

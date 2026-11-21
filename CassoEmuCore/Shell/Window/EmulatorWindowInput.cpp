@@ -1784,6 +1784,21 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (driveTook, S_OK);
 
+    // The recorder docked beside the drive bar is the flat widget, not a
+    // scene object.
+    if (DeskSceneActive() && m_tapeDeck->IsRecorderDocked())
+    {
+        tapeRegion = m_tapeDeck->GetWidget().HitTest (x, y);
+
+        if (tapeRegion != TapeDeckRegion::None)
+        {
+            m_tapeDeck->HandleTapeClick (tapeRegion);
+            driveTook = true;
+        }
+    }
+
+    BAIL_OUT_IF (driveTook, S_OK);
+
     // Drive clicks. Scene active: the 3D drives resolve through the hit
     // tester with the same region semantics (slot = eject + browse, body =
     // browse); otherwise the 2D widget walk. Either way the actions route
@@ -2089,6 +2104,11 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
         return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
                ? drive.drive
                : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
+    }
+
+    if (DeskSceneActive() && m_tapeDeck->IsRecorderDocked() && m_tapeDeck->GetWidget().HitTest (x, y) != TapeDeckRegion::None)
+    {
+        return kStorageMenuRecorder;
     }
 
     if (DeskSceneActive())
