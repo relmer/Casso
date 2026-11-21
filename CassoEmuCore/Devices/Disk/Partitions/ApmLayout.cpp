@@ -13,7 +13,9 @@
 //  ApmLayout::TryDetect
 //
 //  The entries are in the map's order. An empty entry, the
-//  Apple_partition_map entry and free space aren't partitions.
+//  Apple_partition_map entry and free space aren't partitions. Each is added
+//  with the count the map records, so one that ends past the end of the store
+//  is marked damaged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,12 +34,12 @@ HRESULT ApmLayout::TryDetect (IBlockStore & store, std::vector<Partition> & outP
 
     for (const ApplePartitionMap::Entry & entry : entries)
     {
-        if (entry.blockCount == 0 || entry.type == L"Apple_partition_map" || entry.type == L"Apple_Free")
+        if (entry.mapBlockCount == 0 || entry.type == L"Apple_partition_map" || entry.type == L"Apple_Free")
         {
             continue;
         }
 
-        hr = PartitionLayout::AppendBlockPartition (store, PartitionLayoutKind::Apm, entry.firstBlock, entry.blockCount,
+        hr = PartitionLayout::AppendBlockPartition (store, PartitionLayoutKind::Apm, entry.firstBlock, entry.mapBlockCount,
                                                     TextEncoding::WideToUtf8 (entry.name), outPartitions);
         CHR (hr);
 

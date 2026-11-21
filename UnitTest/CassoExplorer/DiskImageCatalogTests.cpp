@@ -89,6 +89,30 @@ public:
 
 
 
+    TEST_METHOD (Describe_MarksAPartitionThatEndsPastTheEndOfTheFileDamaged)
+    {
+        static constexpr size_t  kCutBytes = 2400 * 512;
+
+        Rig                rig;
+        ImageContents      contents;
+        FixtureProvider    fixtures;
+        std::vector<Byte>  bytes;
+        HRESULT            hr = S_OK;
+
+        AssertSucceeded (fixtures.OpenFixture ("CiderPress/turducken/MultiPart.hdv", bytes));
+        bytes.resize (kCutBytes);
+        rig.Seed ("C:\\Disks\\cut.hdv", bytes);
+
+        hr = rig.catalog.Describe (L"C:\\Disks\\cut.hdv", std::string(), contents);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        Assert::AreEqual ((size_t) 2, contents.partitions.size());
+        Assert::IsFalse  (contents.partitions[0].partition.damaged, L"the ProDOS partition is whole");
+        Assert::IsTrue   (contents.partitions[1].partition.damaged, L"the HFS partition ends past the end of the file");
+    }
+
+
+
     TEST_METHOD (Describe_MarksAFileThatIsNotADiskImageBroken)
     {
         Rig                rig;

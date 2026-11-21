@@ -187,11 +187,12 @@ bool ApplePartitionMap::TryRead (IBlockStore & store, vector<Entry> & outEntries
             break;
         }
 
-        entry.mapBlock   = i;
-        entry.firstBlock = ReadLong (block, kFirstBlock) * scale;
-        entry.blockCount = ReadLong (block, kBlockCount) * scale;
-        entry.name       = ReadText (block, kName);
-        entry.type       = ReadText (block, kType);
+        entry.mapBlock      = i;
+        entry.firstBlock    = ReadLong (block, kFirstBlock) * scale;
+        entry.blockCount    = ReadLong (block, kBlockCount) * scale;
+        entry.mapBlockCount = entry.blockCount;
+        entry.name          = ReadText (block, kName);
+        entry.type          = ReadText (block, kType);
 
         if (entry.firstBlock >= total)
         {
