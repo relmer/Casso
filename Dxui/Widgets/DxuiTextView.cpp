@@ -1457,6 +1457,40 @@ void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, const IDxuiTheme & th
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::DoColumnsFit
+//
+//  A row's last cell starts past the columns before it, and its natural
+//  width is its last character's place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::DoColumnsFit() const
+{
+    float  width = (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance;
+    bool   fits  = true;
+
+
+
+    for (size_t r = 0; fits && r < m_rows.size() && r < m_charX.size(); r++)
+    {
+        const Row &  row  = m_rows[r];
+        int          last = (int) row.cells.size() - 1;
+
+        if (last > 0 && (size_t) last < m_charX[r].size() && !m_charX[r][(size_t) last].empty())
+        {
+            fits = GetCellX (row, last) + m_charX[r][(size_t) last].back() <= width;
+        }
+    }
+
+    return fits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetPictureOutline
 //
 ////////////////////////////////////////////////////////////////////////////////

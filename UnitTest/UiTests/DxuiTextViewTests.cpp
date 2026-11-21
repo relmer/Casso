@@ -134,8 +134,28 @@ public:
     }
 
 
-    //  A row's wrap indent starts each wrapped line that many characters past
-    //  the last cell's first, as source code wraps under its operand.
+    //  A table fits when each row's cells fit at their natural widths; a
+    //  narrower view would wrap the last cell, so it doesn't fit.
+    TEST_METHOD (DoColumnsFit_OnlyWhenNoCellWraps)
+    {
+        DxuiTextView          view;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        view.SetProportional (true);
+        view.SetRows ({ MakeRow ({ L"Name", L"Weapon" }), MakeRow ({ L"IOLO", L"Dagger and sling" }) });
+
+        LayOut (view, 2000, 400);
+        view.Measure (text, theme);
+        Assert::IsTrue  (view.DoColumnsFit(), L"Wide enough");
+
+        LayOut (view, 60, 400);
+        view.Measure (text, theme);
+        Assert::IsFalse (view.DoColumnsFit(), L"Too narrow: the last cell would wrap");
+    }
+
+
+    //  A row's wrap indent starts each wrapped line that many characters past    //  the last cell's first, as source code wraps under its operand.
     TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)
     {
         DxuiTextView       view;

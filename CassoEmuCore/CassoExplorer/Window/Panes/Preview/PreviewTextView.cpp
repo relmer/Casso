@@ -86,9 +86,9 @@ void PreviewTextView::Layout (const RECT & content)
 
     m_text->Layout (content, m_context.scaler);
 
-    //  A document's tables change form at a width, so its rows are built
-    //  again when the pane crosses it.
-    if (tables && m_text->IsVisible() && IsWide() != m_wide)
+    //  A document's tables change form with the width, so its rows are built
+    //  again when the width changes.
+    if (tables && m_text->IsVisible() && content.right - content.left != m_tableWidth)
     {
         FillRows (preview);
     }
@@ -187,18 +187,42 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 //
 //  PreviewTextView::FillRows
 //
-//  A document's record tables as tables in a wide pane and as cards in a
-//  narrow one.
+//  A document's record tables as tables where the pane is wide enough and
+//  every column fits at its natural width, and as cards where not. The rows
+//  are measured as tables, and built as cards when a cell would wrap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewTextView::FillRows (const PreviewContent & preview)
 {
-    m_wide = IsWide();
+    SourceSyntax::Colors  colors = PreviewText::GetSourceColors (m_context.theme);
+    RECT                  bounds = m_text->GetBounds();
+
+
+
+    m_wide       = IsWide();
+    m_tableWidth = bounds.right - bounds.left;
     m_rowParagraph.clear();
 
-    m_text->SetRows (m_crossReference ? PreviewText::BuildCrossReferenceRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme))
-                                      : PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme), m_wide, &m_rowParagraph));
+    if (m_crossReference)
+    {
+        m_text->SetRows (PreviewText::BuildCrossReferenceRows (preview, m_context.prefs.lineAddresses, colors));
+        return;
+    }
+
+    m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, m_wide, &m_rowParagraph));
+
+    if (m_wide && m_context.theme != nullptr && m_context.window.GetTextRenderer() != nullptr)
+    {
+        m_text->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+
+        if (!m_text->DoColumnsFit())
+        {
+            m_wide = false;
+            m_rowParagraph.clear();
+            m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, false, &m_rowParagraph));
+        }
+    }
 }
 
 

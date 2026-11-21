@@ -159,6 +159,11 @@ public:
     //  whether the outline moved.
     bool  SetPictureOutline (int row, const RECT & pictureRect);
 
+    //  Whether every row of more than one cell fits the text's width with each
+    //  cell at its natural width, so no cell wraps: false for a table that
+    //  doesn't fit. True before the text is measured.
+    bool  DoColumnsFit () const;
+
     void          Select           (Position anchor, Position caret);
     void          SelectAll        ();
     void          ClearSelection   ();
