@@ -99,4 +99,25 @@ public:
             Assert::IsFalse  (theme.monochromeGlyphs);
         }
     }
+
+
+    TEST_METHOD (Phosphor_GreenMonitorMatchesItsText)
+    {
+        CassoTheme  theme = CassoTheme::MakeByName ("Phosphor", false);
+
+        Assert::AreEqual (theme.bodyText, theme.greenMonitor, L"the green monitor is drawn in the theme's green");
+    }
+
+
+    TEST_METHOD (OtherThemes_UsePureGreenMonitor)
+    {
+        CassoTheme  themes[] = { CassoTheme::MakeSkeuomorphic(),
+                                 CassoTheme::MakeDarkModern(),
+                                 CassoTheme::MakeRetroTerminal() };
+
+        for (const CassoTheme & theme : themes)
+        {
+            Assert::AreEqual ((uint32_t) 0, theme.greenMonitor, L"0 selects the pure green tint");
+        }
+    }
 };
