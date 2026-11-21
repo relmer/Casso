@@ -560,10 +560,22 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         return;
     }
 
+    //  A DOS 3.3 disk may also be a game's saved game, such as an Ultima IV
+    //  save disk, whose map is in sectors outside its files.
+    hasSave = kind == VolumeKind::Dos33 && TryDecodeDiskSave (imagePath, diskSave);
+
+    if (hasSave && m_savedGameShown)
+    {
+        PreviewDecoder::FromDecoded (diskSave, m_preview);
+        m_preview.hasSavedGame   = true;
+        m_preview.savedGameShown = true;
+        return;
+    }
+
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
     AddWozDetails (imagePath);
 
-    m_preview.hasSavedGame = FindSavedGame (listing, kind) != nullptr;
+    m_preview.hasSavedGame = hasSave || FindSavedGame (listing, kind) != nullptr;
 }
 
 
