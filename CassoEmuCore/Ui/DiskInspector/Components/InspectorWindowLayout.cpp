@@ -1,0 +1,78 @@
+#include "Pch.h"
+
+#include "Ui/DiskInspector/Components/InspectorWindowLayout.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWindowLayout::Plan
+//
+//  The platter is as large as its column allows, above a band for its
+//  corner groups. B's strip is under A's while comparing (FR-121).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorWindowLayout::Frames InspectorWindowLayout::Plan (const Inputs & in, const DxuiDpiScaler & scaler)
+{
+    const RECT  & b         = in.bounds;
+    int           margin    = scaler.ToPx (kMarginDip);
+    int           row       = scaler.ToPx (s_kRowDip);
+    int           width     = b.right - b.left;
+    int           splitX    = b.left + static_cast<int> (width * in.splitFraction);
+    int           bar       = in.isComparing ? scaler.ToPx (s_kBarDip) : 0;
+    int           top       = b.top + in.toolbarPx + bar;
+    int           strip     = scaler.ToPx (s_kStripDip);
+    int           band      = 2 * margin + strip + (in.isComparing ? strip + margin / 2 : 0) + margin / 2 + row;
+    int           bandTop   = std::max (top, static_cast<int> (b.bottom) - band);
+    int           x         = b.left + margin;
+    int           column    = splitX - b.left - 2 * margin;
+    int           areaH     = std::max (0, bandTop - top - 2 * margin);
+    int           side      = std::max (0, std::min (column, areaH));
+    int           minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), in.minColumnPx);
+    int           fitted    = 0;
+    int           y         = 0;
+    Frames        f;
+
+
+
+    if (column < minColumn)
+    {
+        column = std::max (0, std::min (minColumn, static_cast<int> (width * kMaxSplit) - 2 * margin));
+        splitX = b.left + 2 * margin + column;
+        side   = std::max (0, std::min (column, areaH));
+    }
+
+    fitted = std::max (minColumn, std::min (areaH, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - in.sectorsPx));
+
+    if (column > fitted)
+    {
+        column = fitted;
+        splitX = b.left + 2 * margin + column;
+        side   = std::min (column, areaH);
+    }
+
+    f.toolbar       = { b.left, b.top, b.right, b.top + in.toolbarPx };
+    f.findArea      = { b.left, top, b.right, bandTop };
+    f.splitter      = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
+    f.trackColumn   = { f.splitter.right + margin, top + margin, b.right - margin, bandTop - margin / 2 };
+    f.compareBar    = { b.left, top - bar, b.right, top };
+    f.platter       = { b.left + margin + (column - side) / 2, top + margin, b.left + margin + (column - side) / 2 + side, top + margin + side };
+    f.platter.bottom = std::max<LONG> (f.platter.top + 1, std::min<LONG> (f.platter.bottom, top + margin + areaH - in.cornerBandPx));
+    f.platterArea   = { b.left, top, splitX, bandTop };
+    f.platterColumn = { b.left + margin, top + margin, splitX - margin, top + margin + areaH };
+    f.trackArea     = { f.splitter.right, top, b.right, top };
+
+    y        = bandTop + margin;
+    f.strip  = { x, y, b.right - margin, y + strip };
+    y       += strip + margin / 2;
+    f.stripB = { x, y, b.right - margin, y + (in.isComparing ? strip : 0) };
+    y       += in.isComparing ? strip + margin / 2 : 0;
+
+    f.stripControls = { x, y, b.right - margin, y + row };
+    f.stripArea     = { b.left, bandTop, b.right, b.bottom };
+
+    return f;
+}

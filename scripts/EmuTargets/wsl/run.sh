@@ -6,6 +6,7 @@
 #   run.sh gsplus   <drive 1> <drive 2> <Windows host address> <TCP port>
 #   run.sh lancegs  <drive 1> <drive 2>
 #   run.sh uthernet <drive 1> <drive 2>
+#   run.sh harddisk <drive 1> <hard disk 1> <hard disk 2>
 #   run.sh stop
 #
 # KEGS and GSplus run a IIgs at 2.8 MHz with the modem port connected to the
@@ -20,6 +21,11 @@
 #
 # The Uthernet target is AppleWin's enhanced //e with the card in slot 3 over
 # libslirp, with UDP 6502 on the instance forwarded to the Apple.
+#
+# The hard disk target is AppleWin's enhanced //e with a Super Serial Card in
+# slot 2, its serial port on TCP port 1977 of the instance, and the hard disk
+# card in slot 7 with both drives. Slot 3 is emptied, since the Uthernet
+# target's card stays in AppleWin's settings between runs.
 #
 # Each runs for an hour at most.
 TARGET=$1
@@ -115,6 +121,15 @@ uthernet)
         -r 'Configuration\Slot 3.Card type=15' \
         --nat '3,udp,,6502,,6502' \
         --d1 "$2" --d2 "$3" > /root/applewin.log 2>&1
+    ;;
+harddisk)
+    stop_all
+    SDL_VIDEODRIVER=offscreen exec timeout 3600 /opt/applewin/build/sa2 --no-audio --no-imgui \
+        -r 'Configuration\Slot 2.Card type=2' \
+        -r 'Configuration\Slot 2.Serial Port Name=TCP' \
+        -r 'Configuration\Slot 3.Card type=0' \
+        -r 'Configuration\Slot 7.Card type=5' \
+        --d1 "$2" --h1 "$3" --h2 "$4" > /root/applewin.log 2>&1
     ;;
 *)
     echo "run.sh: unknown target $TARGET" >&2

@@ -154,6 +154,9 @@ struct HardwareEntry
     std::vector<std::string>  portImages;
     std::vector<bool>         portRealTiming;
 
+    // A hard disk card runs Casso's block firmware in place of Apple's ROM.
+    bool  cassoFirmware = false;
+
     // A Super Serial Card's DIP switches as "on off ..." text, and the host
     // file its first connector's attachment uses. Empty for every other card,
     // and BuildJson does not write the slot's keys while they are empty.
@@ -424,6 +427,7 @@ public:
     // A hard disk's real timing switch, by hardware entry and port. Fails on
     // a port without a drive that has the switch.
     HRESULT SetPortRealTiming (size_t index, size_t port, bool isOn);
+    HRESULT SetCassoFirmware  (size_t index, bool isOn);
 
     // The Machine tab's storage card edits; see SlotCards. Each takes a
     // machine reset to apply.
@@ -473,6 +477,7 @@ private:
     static constexpr const char *  kpszPortPathKey   = "path";
     static constexpr const char *  kpszPortImageKey  = "image";
     static constexpr const char *  kpszPortTimingKey = "realTiming";
+    static constexpr const char *  kpszCassoFirmwareKey = "cassoFirmware";
     static constexpr const char *  kpszPortBeforeKey = "beforePrinter";
     static constexpr const char *  kpszPortPathBeforeKey = "pathBeforePrinter";
     static constexpr const char *  kpszSwitchesKey   = "switches";

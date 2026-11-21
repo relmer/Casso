@@ -315,6 +315,10 @@ if ($Scenario) {
 
 $vstestArgs = @($testAssembly)
 
+# A test whose name starts with OnDemand_ runs only from a filter that
+# contains OnDemand. Every other run excludes it.
+$onDemandOff = 'FullyQualifiedName!~OnDemand_'
+
 if ($Filter) {
     # A bare word is the common case and the awkward one to type, so promote it
     # to a name-substring match; anything already containing filter grammar is
@@ -322,6 +326,10 @@ if ($Filter) {
     $expression = $Filter
     if ($Filter -notmatch '[~=!&|()]') {
         $expression = "FullyQualifiedName~$Filter"
+    }
+
+    if ($expression -notmatch 'OnDemand') {
+        $expression = "($expression)&$onDemandOff"
     }
 
     $vstestArgs += "/TestCaseFilter:$expression"
@@ -333,6 +341,9 @@ if ($Filter) {
     Write-Host "FILTERED RUN -- this is NOT the full suite." -ForegroundColor Yellow
     Write-Host "  filter: $expression" -ForegroundColor DarkGray
     Write-Host ''
+}
+else {
+    $vstestArgs += "/TestCaseFilter:$onDemandOff"
 }
 
 # A TEST RUN MUST LEAVE THE WORKING TREE EXACTLY AS IT FOUND IT.

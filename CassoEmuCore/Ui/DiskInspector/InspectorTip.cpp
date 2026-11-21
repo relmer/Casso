@@ -15,8 +15,9 @@
 
 
 
-static const std::wstring  s_kSeparator   = std::wstring (L" ") + s_kpszMiddleDot + L" ";
-static constexpr double    s_kHitReachPx = 5.0;
+static const std::wstring  s_kSeparator      = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+static constexpr double    s_kHitReachPx     = 5.0;
+static constexpr LPCWSTR   s_kpszBeyondReach = L"Track outside the range of Disk II's read/write head";
 
 
 
@@ -128,6 +129,15 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         tip.AddLine  (title);
         tip.AddColor (context.palette.colors.damaged, L"Damaged: " + FindingFormatter::FormatDamageReason (entry.damageReason));
     }
+    else if ((track == nullptr || track->framed.cellCount == 0) && entry.isBeyondHeadReach)
+    {
+        //  The swatch is the empty color under the dimming, as the platter
+        //  draws it.
+        tip.AddLine  (title);
+        tip.AddColor (DxuiColor::Mix (context.palette.colors.nothingRecorded, context.palette.colors.beyondReach | 0xFF000000u,
+                                      static_cast<float> (context.palette.colors.beyondReach >> 24) / 255.0f),
+                      s_kpszBeyondReach);
+    }
     else if (track == nullptr || track->framed.cellCount == 0)
     {
         tip.AddLine  (title);
@@ -147,6 +157,11 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         count    = (turnSpan >= 1.0) ? track->framed.cellCount : (last + track->framed.cellCount - first) % track->framed.cellCount + 1;
 
         tip.AddLine ((sector >= 0) ? title + s_kSeparator + L"Sector " + InspectorFormat::FormatSector (track->sectors[sector].sector) : title);
+
+        if (entry.isBeyondHeadReach)
+        {
+            tip.AddLine (s_kpszBeyondReach);
+        }
 
         if (track->sectorsFound > 0)
         {

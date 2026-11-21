@@ -151,6 +151,8 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="EmuTests\DiskCommandTextTests.cpp" />
+    <ClCompile Include="EmuTests\DiskFilePayloadTests.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -344,6 +346,15 @@
     <ClCompile Include="EmuTests\VolumeOracleTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorModelTests.cpp" />
     <ClCompile Include="EmuTests\BlockInspectorPanelTests.cpp" />
+    <ClCompile Include="EmuTests\BlockCommandSetTests.cpp" />
+    <ClCompile Include="EmuTests\BlockEditControllerTests.cpp" />
+    <ClCompile Include="EmuTests\BlockFileSessionTests.cpp" />
+    <ClCompile Include="EmuTests\BlockInspectorStateTests.cpp" />
+    <ClCompile Include="EmuTests\BlockRepairControllerTests.cpp" />
+    <ClCompile Include="EmuTests\BlockRepairTargetTests.cpp" />
+    <ClCompile Include="EmuTests\BlockPanelSplittersTests.cpp" />
+    <ClCompile Include="EmuTests\BlockJobQueueTests.cpp" />
+    <ClCompile Include="EmuTests\BlockHeaderTextTests.cpp" />
     <ClCompile Include="EmuTests\BlockBrowserTests.cpp" />
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />
     <ClCompile Include="EmuTests\BlockRepairTests.cpp" />
@@ -422,8 +433,11 @@
     <ClCompile Include="EmuTests\PlatterGeometryTests.cpp" />
     <ClCompile Include="EmuTests\PlatterViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorComponentTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorCommandSetTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorWindowLayoutTests.cpp" />
     <ClCompile Include="EmuTests\SelectionHistoryTests.cpp" />
     <ClCompile Include="EmuTests\StripGeometryTests.cpp" />
+    <ClCompile Include="EmuTests\StripHitTestTests.cpp" />
     <ClCompile Include="EmuTests\PlatterRendererTests.cpp" />
     <ClCompile Include="EmuTests\InspectorTrackBuilder.cpp" />
     <ClCompile Include="EmuTests\LatchFramerTests.cpp" />
@@ -952,6 +966,7 @@
     <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
     <ClCompile Include="BlockDeviceTests\DriveRuleMountAgreementTests.cpp" />
     <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
+    <ClCompile Include="BlockDeviceTests\CassoBlockFirmwareTests.cpp" />
     <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
     <ClCompile Include="BlockDeviceTests\AppleScsiCardTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />

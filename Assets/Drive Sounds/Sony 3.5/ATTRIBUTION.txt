@@ -1,0 +1,15 @@
+Sony 3.5-inch drive sounds
+==========================
+
+  35_spin_start_loaded.wav, 35_spin_loaded.wav, 35_spin_end.wav
+  35_step_1_1.wav, 35_seek_12ms.wav
+
+From MAME's floppy drive samples (samples/floppy), as shipped with MAME
+0.289. MAME team members and contributors recorded them from a real drive.
+
+Licensed under CC0 1.0 Universal (public domain dedication). To view a
+copy of the license, visit
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Source: https://www.mamedev.org/ (MAME's samples/README.md and
+samples/LICENSE)

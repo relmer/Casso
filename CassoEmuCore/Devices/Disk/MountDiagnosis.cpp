@@ -49,7 +49,7 @@ string MountDiagnosis::Describe() const
             //  The list is read off the container table rather than typed out:
             //  typed out, it named four kinds for a release that read five.
             text = "is not a disk image Casso can read. Casso reads "
-                 + DiskCommandRunner::FormatContainerWordList (".", "and") + " images";
+                 + BlankDiskSpecResolver::FormatContainerWordList (".", "and") + " images";
             break;
 
         case MountFailure::FileUnreadable:

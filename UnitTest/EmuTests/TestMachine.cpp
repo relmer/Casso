@@ -108,8 +108,9 @@ TestMachine::TestMachine (
 
             slot.slot     = card.slot;
             slot.device   = card.device;
-            slot.ports    = card.ports;
-            slot.firmware = spec->defaultFirmware;
+            slot.ports         = card.ports;
+            slot.firmware      = spec->defaultFirmware;
+            slot.cassoFirmware = card.cassoFirmware;
 
             std::erase_if (config.slots, [&card] (const SlotConfig & existing) { return existing.slot == card.slot; });
 
