@@ -138,6 +138,50 @@ public:
         Assert::AreEqual ("did-not-boot", BootProbe::GetVerdictName (BootVerdict::DidNotBoot));
     }
 
+    //  DOS's I/O ERROR at the end of a boot is a disk DOS couldn't read, as a
+    //  bad disk, or a faithful capture of one, ends.
+    TEST_METHOD (Judge_AnIoError_IsNotBootable)
+    {
+        BootProbe::Limits  limits;
+        std::string        reason;
+        BootProbe::Trace   bad    = MakeTrace (100, 1, 11, 22, 40);
+
+
+
+        bad.rows = { "", "I/O ERROR", "]" };
+
+        Assert::IsTrue   (BootProbe::Judge (bad, limits, reason) == BootVerdict::NotBootable);
+        Assert::AreEqual (std::string ("DOS reported an I/O error while loading from the disk."), reason);
+    }
+
+
+
+
+    //  With DOS loaded, a lone prompt can be a quiet greeting program, but
+    //  two prompts and nothing else, as Zork I's image ends, is a failed load.
+    TEST_METHOD (IsBarePrompt_WithDos_TakesTwoPrompts)
+    {
+        BootProbe::Trace  trace = MakeTrace (100, 1, 11, 22, 40);
+
+
+
+        trace.isTextMode = true;
+        trace.hasDos     = true;
+
+        trace.rows = { "", "]" };
+        Assert::IsFalse (BootProbe::IsBarePrompt (trace), L"One prompt with DOS");
+
+        trace.rows = { "]", "]" };
+        Assert::IsTrue  (BootProbe::IsBarePrompt (trace), L"Two prompts with DOS");
+
+        trace.hasDos = false;
+        trace.rows   = { "", "]" };
+        Assert::IsTrue  (BootProbe::IsBarePrompt (trace), L"One prompt without DOS");
+    }
+
+
+
+
     //  A text screen is blank with fewer than four characters and no prompt,
     //  as the Wizardry I boot disk's sector image ends, with an ampersand in
     //  the middle; a bare prompt is a boot to BASIC. A graphics screen is

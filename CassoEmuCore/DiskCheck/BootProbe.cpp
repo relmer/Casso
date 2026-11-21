@@ -329,6 +329,13 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
         verdict   = BootVerdict::NotBootable;
         outReason = "The disk has a ProDOS file system but no boot files.";
     }
+    else if (HasRow (trace.rows, "I/O ERROR"))
+    {
+        //  DOS couldn't read the disk: a bad disk, or a capture of one, ends
+        //  at a prompt after DOS's message.
+        verdict   = BootVerdict::NotBootable;
+        outReason = "DOS reported an I/O error while loading from the disk.";
+    }
     else if (HasRow (trace.rows, "HAS NO DOS TO BOOT"))
     {
         //  An Eamon adventure's disk is a data disk, run from the Eamon master,
@@ -349,7 +356,7 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     else if (IsBarePrompt (trace))
     {
         verdict   = BootVerdict::DidNotBoot;
-        outReason = "The machine stopped at a BASIC prompt with nothing else on the screen and no DOS loaded. A load that failed, or a failed copy-protection check, often ends this way.";
+        outReason = "The machine stopped at a BASIC prompt with nothing else on the screen. A load that failed, or a failed copy-protection check, often ends this way.";
     }
     else if (trace.samples.back().frameHash == trace.samples[(size_t) trace.driveStarted].frameHash)
     {
@@ -399,16 +406,20 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
 //
 //  BootProbe::IsBarePrompt
 //
+//  A screen of prompts alone. With DOS loaded, one prompt can be a boot
+//  whose greeting program prints nothing, so it takes two: a command that
+//  failed without a message, as Zork I's image ends.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BootProbe::IsBarePrompt (const Trace & trace)
 {
-    bool  hasPrompt   = false;
+    int   prompts     = 0;
     bool  onlyPrompts = true;
 
 
 
-    if (!trace.isTextMode || trace.hasDos)
+    if (!trace.isTextMode)
     {
         return false;
     }
@@ -424,11 +435,11 @@ bool BootProbe::IsBarePrompt (const Trace & trace)
         }
 
         //  A prompt is ] and at most the cursor after it.
-        hasPrompt   = hasPrompt || row[first] == ']';
-        onlyPrompts = onlyPrompts && row[first] == ']' && end - first <= 1;
+        prompts     += row[first] == ']' ? 1 : 0;
+        onlyPrompts  = onlyPrompts && row[first] == ']' && end - first <= 1;
     }
 
-    return hasPrompt && onlyPrompts;
+    return onlyPrompts && prompts >= (trace.hasDos ? 2 : 1);
 }
 
 
