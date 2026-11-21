@@ -148,8 +148,11 @@ foreach ($p in $processes) {
     $p.Process.WaitForExit()
 
     $log    = @(Get-Content $p.Log) + @(Get-Content "$($p.Log).err" -ErrorAction SilentlyContinue)
-    $total  = [int](($log | Select-String '^\s*Total tests:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
-    $passed = [int](($log | Select-String '^\s*Passed:\s*(\d+)' | Select-Object -Last 1).Matches.Groups[1].Value)
+    #  A shard whose test host crashed has no counts, and is counted as 0 run.
+    $totalHit  = $log | Select-String '^\s*Total tests:\s*(\d+)' | Select-Object -Last 1
+    $passedHit = $log | Select-String '^\s*Passed:\s*(\d+)' | Select-Object -Last 1
+    $total     = $totalHit  ? [int] $totalHit.Matches[0].Groups[1].Value  : 0
+    $passed    = $passedHit ? [int] $passedHit.Matches[0].Groups[1].Value : 0
 
     $totalRun  += $total
     $totalPass += $passed
