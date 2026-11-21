@@ -1551,21 +1551,25 @@ void CassoLinkManager::UpdateTransferTimer()
 
 void CassoLinkManager::HandleTransferTimer()
 {
-    int  fromPeak = 0;
+    int        fromPeak = 0;
+    ULONGLONG  now      = GetTickCount64();
+    bool       animated = DxuiSystemSettings::Instance().AreAnimationsEnabled();
 
 
 
     //  The last progress aged out, as in a Full Send waiting for disks.
     if (m_context.app.links == nullptr || !m_context.app.links->IsAnyTransferring())
     {
+        m_context.statusBar.SetShimmer (-1.0f);
         RefreshCassoLinkViews();
         return;
     }
 
-    m_pulseFrame = (m_pulseFrame + 1) % (kPulseFrames * 2);
+    m_pulseFrame = (int) ((now / kPulseFrameMs) % (kPulseFrames * 2));
     fromPeak     = std::abs (m_pulseFrame - kPulseFrames);
 
-    m_context.treePane.SetActivityPulse (DxuiSystemSettings::Instance().AreAnimationsEnabled() ? (float) fromPeak / kPulseFrames : 1.0f);
+    m_context.treePane.SetActivityPulse (animated ? (float) fromPeak / kPulseFrames : 1.0f);
+    m_context.statusBar.SetShimmer (animated ? (float) (now % kShimmerMs) / (float) kShimmerMs : -1.0f);
     m_context.window.Invalidate();
 }
 

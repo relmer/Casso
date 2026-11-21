@@ -95,8 +95,10 @@ private:
     void  UpdateUnseenFiles   ();
     void  UpdateTransferTimer ();
 
-    static constexpr UINT  kTransferFrameMs = 150;
+    static constexpr UINT  kTransferFrameMs = 33;
+    static constexpr UINT  kPulseFrameMs    = 150;
     static constexpr int   kPulseFrames     = 8;
+    static constexpr UINT  kShimmerMs       = 1600;   // one sweep across the progress text
 
     //  The cassette audio is sent again while no Ready from the shim has
     //  arrived a few seconds after it ends, up to kCassettePlays in all.

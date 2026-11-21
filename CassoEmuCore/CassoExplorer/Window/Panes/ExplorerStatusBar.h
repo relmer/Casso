@@ -52,6 +52,7 @@ public:
     void  SetHidden   (bool hidden) { m_status->SetVisible (!hidden); }
     void  Fill        ();
     void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
+    void  SetShimmer  (float phase)               { m_status->SetShimmer (kStatusDetail, phase); }
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
     void  UpdateTip   (const DxuiMouseEvent & ev, POINT point);
 

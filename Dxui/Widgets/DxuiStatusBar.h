@@ -38,13 +38,19 @@ public:
         //  and selection. Flowing fields come first; an empty one takes no
         //  room and draws no divider. Its own rectangle is not used.
         bool          flow     = false;
+
+        //  A highlight that sweeps across the text, from 0 at its left to 1
+        //  past its right, for a field whose work is under way. Off when
+        //  negative.
+        float         shimmer  = -1.0f;
     };
 
     DxuiStatusBar() = default;
     ~DxuiStatusBar() override = default;
 
-    void  SetFields (std::vector<Field> fields);
-    void  SetText   (size_t index, std::wstring text);
+    void  SetFields  (std::vector<Field> fields);
+    void  SetText    (size_t index, std::wstring text);
+    void  SetShimmer (size_t index, float phase);
 
     //  The line along the top and the lines between fields; on by default.
     void  SetDividers (bool dividers) { m_dividers = dividers; }
@@ -70,6 +76,7 @@ public:
     static constexpr float  kFlowGapDip  = 10.0f;   // text to divider, divider to the next field
     static constexpr float  kFlowRuleDip = 12.0f;   // the divider's height
     static constexpr float  kFontDip     = 12.0f;
+    static constexpr float  kShimmerDip  = 56.0f;   // the sweeping highlight's width
 
 private:
     std::vector<Field>  m_fields;
@@ -77,4 +84,6 @@ private:
     DxuiDpiScaler       m_scaler;
     bool                m_dividers = true;
     float               m_leadDip  = (float) kFieldPadDip;
+
+    void  PaintShimmer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & shown, float phase, float left, const RECT & r, float boxW, float fontPx);
 };

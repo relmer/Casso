@@ -63,6 +63,24 @@ void DxuiStatusBar::SetText (size_t index, std::wstring text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStatusBar::SetShimmer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::SetShimmer (size_t index, float phase)
+{
+    if (index < m_fields.size())
+    {
+        m_fields[index].shimmer = phase;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiStatusBar::GetFieldRect
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,7 +239,64 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                               DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
                               DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (m_fields[i].shimmer >= 0.0f)
+        {
+            PaintShimmer (painter, text, theme, shown, m_fields[i].shimmer, left, r, boxW, fontPx);
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStatusBar::PaintShimmer
+//
+//  The text again in the accent color, through a band that crosses it. The
+//  band's edges are dimmer than its middle, so the sweep has no hard line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStatusBar::PaintShimmer (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & shown, float phase, float left, const RECT & r, float boxW, float fontPx)
+{
+    static constexpr float  kAlphas[] = { 0.3f, 0.7f, 1.0f, 0.7f, 0.3f };
+    HRESULT                 hr        = S_OK;
+    float                   textW     = 0.0f;
+    float                   textH     = 0.0f;
+    float                   bandW     = m_scaler.ToPxf (kShimmerDip);
+    float                   sliceW    = bandW / (float) std::size (kAlphas);
+    float                   bandX     = 0.0f;
+
+
+
+    hr = text.MeasureString (shown.c_str(), fontPx, DxuiTheme::GetUiFace(), textW, textH);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    textW = (std::min) (textW, boxW);
+    bandX = left - bandW + phase * (textW + bandW);
+
+    for (size_t step = 0; step < std::size (kAlphas); step++)
+    {
+        float     sliceX = bandX + sliceW * (float) step;
+        uint32_t  alpha  = (uint32_t) std::lround (255.0f * kAlphas[step]);
+        uint32_t  color  = (theme.Accent() & 0x00FFFFFFu) | (alpha << 24);
+
+        painter.PushClipRect (sliceX, (float) r.top, sliceW, (float) (r.bottom - r.top));
+
+        hr = text.DrawString (shown.c_str(), left, (float) r.top, boxW,
+                              (float) (r.bottom - r.top), color, fontPx,
+                              DxuiTheme::GetUiFace(), DxuiTextHAlign::Left, DxuiTextVAlign::CenterOnCapHeight,
+                              DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        painter.PopClipRect();
+    }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
