@@ -40,7 +40,7 @@ public:
 
     //  False, with no entries, for a store with no map. First block and
     //  counts are in 512-byte blocks. blockCount is clipped to the store, and
-    //  mapBlockCount is the count the map records.
+    //  mapBlockCount is the count in the map.
     static bool  TryRead (IBlockStore & store, vector<Entry> & outEntries);
 
     static bool  IsDescriptor (BlockBytes bytes);

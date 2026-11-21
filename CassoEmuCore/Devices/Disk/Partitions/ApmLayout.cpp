@@ -14,8 +14,8 @@
 //
 //  The entries are in the map's order. An empty entry, the
 //  Apple_partition_map entry and free space aren't partitions. Each is added
-//  with the count the map records, so one that ends past the end of the store
-//  is marked damaged.
+//  with the count in the map, so one that ends past the end of the store is
+//  marked damaged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
