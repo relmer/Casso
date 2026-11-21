@@ -39,6 +39,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     std::array<DriveWidget, 2>           & widgets     = m_shell.m_disks->GetDriveChrome();
     DriveBarFan                          & fan         = m_driveBarFan.GetFan();
     UINT                                   barDpi      = 0;
+    UINT                                   baseDpi     = 0;
     DxuiDpiScaler                          scaler;
     DxuiDpiScaler                          unzoomed;
     RECT                                   probe       = {};
@@ -56,7 +57,6 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     int                                    tapeW       = 0;
     int                                    tapeX       = 0;
     int                                    rowW        = 0;
-    int                                    rowH        = 0;   // the taller of a drive box and a docked recorder
     RECT                                   tapeProbe   = {};
     std::vector<std::vector<DeskDrive>>    classes     = DriveBarFan::Group (m_shell.m_scene->GetDrivePlan());
 
@@ -73,12 +73,13 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     m_driveBarFan.SetCaptionWidthDip (s_kDriveBarCaptionDip);
 
     // A box's width at 100%, which caps the zoom so every box fits.
-    unzoomed.SetDpi (dpi);
+    baseDpi = (UINT) lroundf ((float) dpi * s_kDriveBarBaseScale);
+    unzoomed.SetDpi (baseDpi);
     widgets[0].Layout (RECT {}, unzoomed);
     probe                = widgets[0].GetOuterRect();
-    m_driveBarBoxWidthPx = (probe.right - probe.left) + MulDiv (2 * s_kDriveBarPadDp + s_kDriveBarArrowDp, (int) dpi, s_kBaseDpi);
+    m_driveBarBoxWidthPx = (probe.right - probe.left) + MulDiv (2 * s_kDriveBarPadDp + s_kDriveBarArrowDp, (int) baseDpi, s_kBaseDpi);
 
-    barDpi              = (UINT) lroundf ((float) dpi * GetDriveBarZoom());
+    barDpi              = (UINT) lroundf ((float) baseDpi * GetDriveBarZoom());
     m_driveBarZoomedDpi = barDpi;
     bottomGap           = MulDiv (s_kLabelBottomGapDp,  (int) barDpi, s_kBaseDpi);
     gapY                = MulDiv (4,                    (int) barDpi, s_kBaseDpi);
@@ -108,8 +109,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
 
     originX = std::max (0, (clientW - rowW) / 2);
     tapeX   = originX + rowW - tapeW;
-    rowH    = std::max ((int) slot.cy, (int) (tapeProbe.bottom - tapeProbe.top));
-    rowTop  = std::max (clientH - bottomInsetPx, clientH - rowH - bottomGap);
+    rowTop  = std::max (clientH - bottomInsetPx, clientH - (int) slot.cy - bottomGap);
 
     fan.SetExpandAll (sliding);
     fan.Layout       (originX, rowTop, slot, gap, gapY, pad, arrow);
@@ -123,7 +123,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         // the bottom of the strip's area: above the //c's switch strip in a
         // window, which is drawn over anything under it, and the window's
         // bottom edge in fullscreen.
-        rowTop = stripBottom - rowH - bottomGap
+        rowTop = stripBottom - (int) slot.cy - bottomGap
                + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }

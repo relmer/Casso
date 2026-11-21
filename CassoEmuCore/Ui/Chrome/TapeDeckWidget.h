@@ -31,9 +31,9 @@ enum class TapeDeckRegion
 //
 //  The flat 2D cassette recorder in the drive band, built the way the drive
 //  widgets are: a "TAPE" caption to the left, the tape's name as the control
-//  that opens the picker, and a rail under it that fills with the position
-//  through the tape. Under the rail, and no wider than it, sit the transport
-//  buttons and the tape counter; clicking the counter sets the position. The
+//  that opens the picker. Under the name, and no wider than it, sit the
+//  transport buttons and the tape counter; clicking the counter sets the
+//  position. The
 //  skeuomorphic theme draws the recorder in the desk scene instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,8 +122,6 @@ private:
     // Matched to the drive widgets so the band reads as one row of devices.
     static constexpr int    kNameWidthPx       = 140;
     static constexpr int    kNameHeightPx      = 20;
-    static constexpr int    kRailGapPx         = 3;
-    static constexpr int    kRailHeightPx      = 5;
     static constexpr int    kCaptionWidthPx    = 44;
     static constexpr int    kCaptionGapXPx     = 6;
     static constexpr int    kCaptionHeightPx   = 14;
@@ -142,8 +140,8 @@ private:
     static constexpr float    kMagnifyReachPitches   = 2.0f;
     static constexpr float    kMarqueeSpeedDipPerSec = 45.0f;
     static constexpr float    kMarqueeGapDip         = 25.0f;
-    // The transport row and counter, under the rail and within its width.
-    static constexpr int    kControlsGapYPx    = 5;
+    // The transport row and counter, under the name and within its width.
+    static constexpr int    kControlsGapYPx    = 2;
     static constexpr int    kButtonSizePx      = 16;
     static constexpr int    kButtonGapPx       = 2;
     static constexpr int    kCounterGapXPx     = 4;
@@ -153,8 +151,6 @@ private:
     static constexpr float  kMarkInsetRatio    = 0.28f;   // of the button, around each drawn mark
     static constexpr float  kDisabledAlpha     = 0.30f;
     static constexpr float  kArmedAlpha        = 0.55f;
-    static constexpr float  kRailTrackAlpha    = 0.14f;
-    static constexpr float  kRailFillAlpha     = 0.60f;
 
     static constexpr uint32_t  kRecordRedArgb = 0xFFE04848;
 
@@ -162,7 +158,6 @@ private:
     static bool     IsPointInRect  (const RECT & rect, int x, int y);
     static int64_t  GetNowMs       ();
 
-    void      PaintRail    (IDxuiPainter & painter, const CassoTheme & theme);
     void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const ControlBox (& rects)[kButtonCount + 1]);
 
     void      ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const;
@@ -177,7 +172,6 @@ private:
     RECT              m_captionRect           = {};
     RECT              m_nameRect              = {};
     RECT              m_bandRect              = {};
-    RECT              m_railRect              = {};
     RECT              m_counterRect           = {};
     RECT              m_buttons[kButtonCount] = {};
     TapeDeckRegion    m_hover                 = TapeDeckRegion::None;

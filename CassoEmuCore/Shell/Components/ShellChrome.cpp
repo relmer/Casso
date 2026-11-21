@@ -1251,7 +1251,7 @@ void ShellChrome::SyncChromeBands()
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.dockRecorderDp      = GetDockRecorderDp();
     inputs.chromeSceneScale    = m_chromeSceneScale;
-    inputs.driveBarZoom        = GetDriveBarZoom();
+    inputs.driveBarZoom        = GetDriveBarZoom() * s_kDriveBarBaseScale;
     inputs.toolbarBandDp       = m_toolbar.GetBandDp();
 
     // Measured against the CLIENT width, which is what the band will be given.
