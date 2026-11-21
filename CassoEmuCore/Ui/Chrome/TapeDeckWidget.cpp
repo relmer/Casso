@@ -101,6 +101,7 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     int   nameW    = Scale (kNameWidthPx, dpi);
     int   button   = Scale (kButtonSizePx, dpi);
     int   gap      = Scale (kButtonGapPx, dpi);
+    int   controlX = 0;
     int   controlY = 0;
 
 
@@ -121,22 +122,30 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     m_captionRect.top    = m_captionRect.bottom - Scale (kCaptionHeightPx, dpi);
 
     // The name band, caption included, is the control that opens the picker,
-    // as a drive's band is. It stops at the rail; the controls row is below.
+    // as a drive's band is. It stops at the rail; the controls row is below,
+    // or to the right when docked.
     m_bandRect = { x, y, nameX + nameW, m_railRect.bottom + Scale (kControlsGapYPx, dpi) / 2 };
+    controlX   = nameX;
+    controlY   = m_railRect.bottom + Scale (kControlsGapYPx, dpi);
 
-    // The buttons from the rail's left edge, the counter in what is left of
-    // its width, so the whole recorder is no wider than its name.
-    controlY = m_railRect.bottom + Scale (kControlsGapYPx, dpi);
+    if (m_docked)
+    {
+        m_bandRect.bottom = m_railRect.bottom + Scale (kDockedBottomPadPx, dpi);
+        controlX          = nameX + nameW + Scale (kDockedGapXPx, dpi);
+        controlY          = y;
+    }
 
+    // The buttons, then the counter, together as wide as the name, so the
+    // whole recorder is no wider than its name unless it is docked.
     for (size_t i = 0; i < kButtonCount; i++)
     {
-        int  left = nameX + (int) i * (button + gap);
+        int  left = controlX + (int) i * (button + gap);
 
         m_buttons[i] = { left, controlY, left + button, controlY + button };
     }
 
     m_counterRect = { m_buttons[kButtonCount - 1].right + Scale (kCounterGapXPx, dpi), controlY,
-                      nameX + nameW, controlY + button };
+                      controlX + nameW, controlY + button };
 
     SetBounds (GetOuterRect());
 }
@@ -207,6 +216,14 @@ RECT TapeDeckWidget::GetOuterRect() const
     }
 
     outer.bottom = m_counterRect.bottom + Scale (kLabelStripPx, m_dpi);
+
+    // Docked, the controls and the strip under them are within the band's
+    // height, to the right of it.
+    if (m_docked)
+    {
+        outer.right  = m_counterRect.right;
+        outer.bottom = std::max (m_bandRect.bottom, outer.bottom);
+    }
 
     return outer;
 }

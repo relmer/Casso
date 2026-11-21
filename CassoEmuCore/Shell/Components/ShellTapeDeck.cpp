@@ -275,6 +275,7 @@ void ShellTapeDeck::SyncTapeChrome()
 
 
     m_tapeChrome.SyncFromView (view);
+    m_tapeChrome.SetDocked (m_shell.DeskSceneActive() && IsRecorderDocked());
     m_shell.m_scene->SyncSceneTapeLabel();
 
     // A static guest screen presents no frames, and a program loading from

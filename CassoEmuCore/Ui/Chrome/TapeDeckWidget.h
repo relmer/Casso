@@ -59,6 +59,11 @@ public:
         m_hasTextClip = (clipPx != nullptr);
     }
 
+    // Docked beside drive boxes, the transport row and counter are to the
+    // right of the name and rail rather than under them, so the recorder is
+    // a drive box's height and its rail lines up with theirs.
+    void            SetDocked      (bool docked) { m_docked = docked; }
+
     TapeDeckRegion  HitTest        (int x, int y) const;
     RECT            GetOuterRect   () const;
     RECT            GetNameRect    () const { return m_nameRect; }
@@ -143,6 +148,8 @@ private:
     static constexpr int    kButtonSizePx      = 16;
     static constexpr int    kButtonGapPx       = 2;
     static constexpr int    kCounterGapXPx     = 4;
+    static constexpr int    kDockedGapXPx      = 10;      // docked: between the rail and the transport row
+    static constexpr int    kDockedBottomPadPx = 8;       // docked: under the rail, as under a drive box's
     static constexpr int    kLabelStripPx      = 13;      // under the controls, for the nearest one's name
     static constexpr float  kLabelFontDip      = 8.5f;
     static constexpr int    kLabelWidthPx      = 90;
@@ -179,6 +186,7 @@ private:
     TapeDeckRegion    m_hover                 = TapeDeckRegion::None;
     UINT              m_dpi                   = kBaseDpi;
     bool              m_hidden                = true;
+    bool              m_docked                = false;
     std::wstring      m_marqueeName;                          // the name the schedule below is for
     int64_t           m_marqueeStartMs        = 0;            // when its scroll begins
     int               m_mouseX                = INT_MIN / 2;  // the pointer, for the magnification

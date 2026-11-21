@@ -98,6 +98,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     // centered with it.
     if (tapeDocked)
     {
+        m_shell.m_tapeDeck->GetWidget().SetDocked (true);
         m_shell.m_tapeDeck->GetWidget().Layout (RECT {}, scaler);
         tapeProbe = m_shell.m_tapeDeck->GetWidget().GetOuterRect();
         tapeW     = tapeProbe.right - tapeProbe.left;
@@ -127,10 +128,9 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
 
     if (tapeDocked)
     {
-        int  tapeTop = rowTop + (int) slot.cy - (tapeProbe.bottom - tapeProbe.top);
-
-        // Bottom-aligned with the drives' boxes.
-        m_shell.m_tapeDeck->SetAnchor ({ tapeX, tapeTop, tapeX, tapeTop }, barDpi);
+        // At the top of the row, as each drive's widget is in its box, so
+        // its name row and rail line up with theirs.
+        m_shell.m_tapeDeck->SetAnchor ({ tapeX, rowTop, tapeX, rowTop }, barDpi);
     }
 
     m_driveBarFan.SetDpi     (barDpi);
@@ -165,6 +165,7 @@ int ShellChrome::GetDockRecorderDp() const
     if (m_shell.DeskSceneActive() && m_shell.m_tapeDeck->IsRecorderDocked())
     {
         scaler.SetDpi (s_kBaseDpi);
+        m_shell.m_tapeDeck->GetWidget().SetDocked (true);
         m_shell.m_tapeDeck->GetWidget().Layout (RECT {}, scaler);
         probe = m_shell.m_tapeDeck->GetWidget().GetOuterRect();
         dp    = (probe.bottom - probe.top) + s_kLabelBottomGapDp;
