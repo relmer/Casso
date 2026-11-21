@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
@@ -508,7 +509,7 @@ bool ExplorerFolderSync::UpdateStorageCards()
 
         for (const PartitionEntry & partition : partitions)
         {
-            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), TextEncoding::NarrowToWide (PartitionAccess::GetLabel (partition, true)) });
+            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), DiskImageCatalog::GetPartitionLabel (entry.path, partition, true) });
         }
 
         key += std::format (L"{}|{}|{}|{}|{}|{};", letters, card.drive.number, card.drive.bytes, entry.label, card.hasUnmounted ? 1 : 0, entry.partitions.size());

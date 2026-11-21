@@ -1440,7 +1440,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 
     if (m_browser.m_links == nullptr || !parsed)
     {
-        m_listError = L"This drive could not be read.";
+        m_listError = DiskMessageText::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE), std::string());
         return HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE);
     }
 
