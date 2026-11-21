@@ -113,13 +113,15 @@ public:
         Assert::AreEqual (std::wstring (L"Saved game: 1 character"), GetTexts (file)[1]);
 
         const Paragraph &  gandalf = FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil");
-        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      ") + s_kpszCheckMark + L" LONG SWORD");
-        const Paragraph &  armor   = FindParagraph (file, L"      ? ARMOR");
+        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)");
+        const Paragraph &  armor   = FindParagraph (file, L"      ARMOR (? unidentified)");
 
         Assert::IsTrue (gandalf.runs[0].bold);
         Assert::IsTrue (HasText (file, L"Status: OK   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
-        Assert::IsTrue (sword.runs[1].color == RunColor::Good, L"an equipped item's check is green");
-        Assert::IsTrue (armor.runs[2].italic && armor.runs[2].color == RunColor::Muted, L"one not identified is gray italics, by its unknown name");
+        Assert::IsTrue (sword.runs[3].color == RunColor::Good, L"equipped is green, with its check");
+        Assert::IsTrue (armor.runs[1].italic && armor.runs[1].color == RunColor::Muted, L"one not identified is gray italics, by its unknown name");
+        Assert::IsTrue (armor.runs[3].color == RunColor::Muted);
+        Assert::IsFalse (HasText (file, std::wstring (s_kpszCheckMark) + L" equipped     "), L"No legend");
         Assert::IsFalse (HasText (file, L"DELETED"));
         Assert::IsFalse (std::any_of (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return !p.picture.empty(); }),
                          L"no map, with no character in the maze");
@@ -151,6 +153,29 @@ public:
         Assert::IsTrue   (map != file.paragraphs.end());
         Assert::AreEqual (map->width, map->height);
         Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
+    }
+
+
+    //  Wizardry III adds 1000 to the item number of what a new character buys.
+    //  Such a character out in the maze with no square saved gets a note in
+    //  place of the map.
+    TEST_METHOD (Decode_ItemNumberPast1000_AndAPartyOutWithNoSquare)
+    {
+        std::vector<Byte>  bytes     = WizardryScenarioBuilder::MakeScenario();
+        size_t             character = WizardryScenarioBuilder::kCharacterBlock * WizardryScenario::kBlockBytes;
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        WizardryScenarioBuilder::PutWord (bytes, character + 32, 1);
+        WizardryScenarioBuilder::PutWord (bytes, character + 66, 1000);
+
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)"), L"Item 1000 is item 0");
+        Assert::IsTrue (HasText (file, L"Status: Out, in the maze   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
+        Assert::IsTrue (HasText (file, L"No map: the party is out in the maze, and the game hasn't saved where."));
     }
 
 

@@ -39,6 +39,10 @@ static constexpr int     s_kMaxPossessions     = 8;
 //  status can't join a party.
 static constexpr int     s_kStatusLost         = 7;
 
+//  Wizardry III adds this to the item number of some possessions, such as
+//  the ones a new character buys at the trading post.
+static constexpr int     s_kItemNumberBias     = 1000;
+
 //  Each scenario's title, by the name in its table of contents.
 static constexpr struct { const wchar_t * name; const wchar_t * title; }  s_kTitles[] =
 {
@@ -47,7 +51,7 @@ static constexpr struct { const wchar_t * name; const wchar_t * title; }  s_kTit
     { L"THE LEGACY OF LLYLGAMYN",              L"Wizardry III: Legacy of Llylgamyn"              },
 };
 
-//  The mark of an item that isn't identified, before its unknown name.
+//  The mark of an item that isn't identified.
 static constexpr const wchar_t *  s_kpszUnknownMark = L"?";
 
 //  The map's square size and border, and its colors, as 0xAARRGGBB.
@@ -305,6 +309,8 @@ bool WizardryScenario::Matches (const FileFacts & facts, std::span<const Byte> b
 //
 //  An item's name as it appears in a character's inventory: its true name
 //  once identified, its unknown name before, such as SWORD for a LONG SWORD.
+//  An item number past the table with s_kItemNumberBias added is the item
+//  the number less the bias.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,6 +320,11 @@ std::wstring WizardryScenario::GetItemName (std::span<const Byte> bytes, const C
     std::wstring  name = std::format (L"Item {}", item);
 
 
+
+    if (item >= contents.count[kZoneItem] && item - s_kItemNumberBias >= 0 && item - s_kItemNumberBias < contents.count[kZoneItem])
+    {
+        item -= s_kItemNumberBias;
+    }
 
     if (item >= 0 && item < contents.count[kZoneItem] && TryLocate (bytes, contents, kZoneItem, item, kItemBytes, at))
     {
@@ -334,10 +345,11 @@ std::wstring WizardryScenario::GetItemName (std::span<const Byte> bytes, const C
 //  Each character with a slot in use as a short block, which reads in a
 //  narrow pane: the name in bold and the level, race, class and alignment;
 //  the status, hit points, gold and experience; and a line for each item
-//  in its inventory, a green check for one equipped, a red skull for one
-//  cursed, and a question mark and the unknown name, in gray italics, for
-//  one not identified. A character in the maze has the game's status OUT,
-//  and one with a status other than OK is in red.
+//  in its inventory, its name followed by its states in parentheses: a
+//  green check for equipped, a red skull for cursed, and a question mark
+//  for unidentified, with the unknown name in gray italics. A character in
+//  the maze has the game's status OUT, and one with a status other than OK
+//  is in red.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -370,7 +382,7 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
             continue;
         }
 
-        shown = inMaze ? std::wstring (L"Out") : ToTitleCase (GetName (contents.statuses, status));
+        shown = inMaze ? std::wstring (L"Out, in the maze") : ToTitleCase (GetName (contents.statuses, status));
 
         roster.push_back (Paragraph());
         roster.push_back (MakeParagraph ({ Run { ReadString (bytes, at + s_kCharNameAt, kShortStringMax), true },
@@ -396,15 +408,11 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
             bool          cursed     = ReadWord (bytes, item + s_kPossCursedAt)     != 0;
             bool          identified = ReadWord (bytes, item + s_kPossIdentifiedAt) != 0;
             std::wstring  name       = GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified);
-            Run           mark;
+            Paragraph     line       = MakeParagraph ({ Run { L"      " },
+                                                        Run { name, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted } });
 
-            mark = cursed      ? Run { std::wstring (s_kpszSkull) + L" ",       false, false, false, RunColor::Bad   }
-                 : equipped    ? Run { std::wstring (s_kpszCheckMark) + L" ",   false, false, false, RunColor::Good  }
-                 : !identified ? Run { std::wstring (s_kpszUnknownMark) + L" ", false, false, false, RunColor::Muted }
-                               : Run { L"     " };
-
-            roster.push_back (MakeParagraph ({ Run { L"      " }, mark,
-                                               Run { name, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted } }));
+            AddItemStates (equipped, cursed, identified, line.runs);
+            roster.push_back (std::move (line));
         }
 
         listed++;
@@ -415,15 +423,58 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
     if (listed > 0)
     {
         ioParagraphs.insert (ioParagraphs.end(), roster.begin(), roster.end());
-        ioParagraphs.push_back (Paragraph());
-        ioParagraphs.push_back (MakeParagraph ({ Run { std::wstring (s_kpszCheckMark)   + L" equipped     ", false, false, false, RunColor::Good  },
-                                                 Run { std::wstring (s_kpszSkull)       + L" cursed     ",   false, false, false, RunColor::Bad   },
-                                                 Run { std::wstring (s_kpszUnknownMark) + L" not identified, by the name it has until it is", false, true, false, RunColor::Muted } }));
     }
     else
     {
         ioParagraphs.push_back (Paragraph());
         ioParagraphs.push_back (MakeParagraph ({ Run { L"No characters." } }));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::AddItemStates
+//
+//  An item's states after its name, in parentheses, each with its mark in
+//  its color, as "(equipped, cursed)" with a check before equipped and a
+//  skull before cursed. Nothing for an item in none of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::AddItemStates (bool equipped, bool cursed, bool identified, std::vector<Run> & ioRuns)
+{
+    std::vector<Run>  states;
+
+
+
+    if (equipped)
+    {
+        states.push_back (Run { std::wstring (s_kpszCheckMark) + L" equipped", false, false, false, RunColor::Good });
+    }
+
+    if (cursed)
+    {
+        states.push_back (Run { std::wstring (s_kpszSkull) + L" cursed", false, false, false, RunColor::Bad });
+    }
+
+    if (!identified)
+    {
+        states.push_back (Run { std::wstring (s_kpszUnknownMark) + L" unidentified", false, true, false, RunColor::Muted });
+    }
+
+    for (size_t i = 0; i < states.size(); i++)
+    {
+        ioRuns.push_back (Run { (i == 0) ? L" (" : L", " });
+        ioRuns.push_back (std::move (states[i]));
+    }
+
+    if (!states.empty())
+    {
+        ioRuns.push_back (Run { L")" });
     }
 }
 
@@ -644,11 +695,41 @@ bool WizardryScenario::FindParty (std::span<const Byte> bytes, const Contents & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WizardryScenario::IsPartyOut
+//
+//  Whether a character with a slot in use is out in the maze.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WizardryScenario::IsPartyOut (std::span<const Byte> bytes, const Contents & contents)
+{
+    bool  out = false;
+
+
+
+    for (int i = 0; !out && i < contents.count[kZoneCharacter]; i++)
+    {
+        size_t  at = 0;
+
+        out = TryLocate (bytes, contents, kZoneCharacter, i, kCharacterBytes, at) && bytes[at + s_kCharNameAt] != 0
+           && ReadWord (bytes, at + s_kCharStatusAt) != s_kStatusLost && ReadWord (bytes, at + s_kCharInMazeAt) != 0;
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WizardryScenario::DrawPartyLevel
 //
 //  The maze level the party is on as a picture, with the party's square
-//  marked, and what its colors indicate. Nothing when no character is in
-//  the maze.
+//  marked, and what its colors indicate. A party out in the maze with no
+//  square saved has a line instead: the game saves a square only when the
+//  party is lost there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -664,6 +745,12 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
 
     if (!FindParty (bytes, contents, x, y, level))
     {
+        if (IsPartyOut (bytes, contents))
+        {
+            ioParagraphs.push_back (Paragraph());
+            ioParagraphs.push_back (MakeParagraph ({ Run { L"No map: the party is out in the maze, and the game hasn't saved where.", false, false, false, RunColor::Muted } }));
+        }
+
         return;
     }
 
