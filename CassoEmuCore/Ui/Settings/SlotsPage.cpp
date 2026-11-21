@@ -649,35 +649,75 @@ RECT SlotsPage::GetRowRect (int row) const
 //
 //  SlotsPage::Paint
 //
-//  The panel under the selected slot's controls, then the controls, then a
-//  bridge in the panel's fill from the selected row to the panel, so the row
-//  and the panel read as one surface, like a tab pulled out of it.
+//  The controls, then one rounded outline around the selected slot's
+//  controls and the selected row in the list, so the row reads as a tab of
+//  the panel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SlotsPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    uint32_t  fill   = theme.ContentSelection();
-    float     radius = m_scaler.ToPxf (s_kPanelRadiusDp);
-    RECT      row    = GetRowRect (m_selectedSlot - kFirstSlot);
-    int       inset  = m_scaler.ToPx (s_kRowInsetDp);
+    RECT                     row       = GetRowRect (m_selectedSlot - kFirstSlot);
+    RECT                     panel     = m_panelRect;
+    float                    thickness = m_scaler.ToPxf (1.0f);
+    int                      inset     = m_scaler.ToPx (s_kRowInsetDp);
+    uint32_t                 argb      = theme.ContentSelection();
+    std::vector<DxuiPointF>  points;
 
 
-
-    if (m_panelRect.right > m_panelRect.left)
-    {
-        painter.FillRoundedRect ((float) m_panelRect.left, (float) m_panelRect.top,
-                                 (float) (m_panelRect.right - m_panelRect.left), (float) (m_panelRect.bottom - m_panelRect.top),
-                                 radius, fill);
-    }
 
     DxuiPanel::Paint (painter, text, theme);
 
-    if (row.bottom > row.top + 2 * inset && m_panelRect.right > m_panelRect.left)
+    if (panel.right <= panel.left)
     {
-        float  left = (float) row.right - 2.0f * radius;
+        return;
+    }
 
-        painter.FillRect (left, (float) (row.top + inset), (float) m_panelRect.left + radius - left, (float) (row.bottom - row.top - 2 * inset), fill);
+    // Clockwise from the panel's top left. With the row in view, the outline
+    // leaves the panel's left side, goes around the row and comes back, so
+    // the panel and the row are one shape. A row level with the panel's top
+    // or bottom takes that corner in place of a step.
+    row.top    += inset;
+    row.bottom -= inset;
+
+    if (row.bottom > row.top)
+    {
+        panel.top    = std::min (panel.top,    row.top);
+        panel.bottom = std::max (panel.bottom, row.bottom);
+    }
+
+    points.push_back ({ (float) panel.left,  (float) panel.top    });
+    points.push_back ({ (float) panel.right, (float) panel.top    });
+    points.push_back ({ (float) panel.right, (float) panel.bottom });
+    points.push_back ({ (float) panel.left,  (float) panel.bottom });
+
+    if (row.bottom > row.top)
+    {
+        if (row.bottom < panel.bottom)
+        {
+            points.push_back ({ (float) panel.left, (float) row.bottom });
+        }
+        else
+        {
+            points.pop_back();
+        }
+
+        points.push_back ({ (float) row.left, (float) row.bottom });
+        points.push_back ({ (float) row.left, (float) row.top    });
+
+        if (row.top > panel.top)
+        {
+            points.push_back ({ (float) panel.left, (float) row.top });
+        }
+        else
+        {
+            points.erase (points.begin());
+        }
+    }
+
+    for (const DxuiRoundedOutline::Segment & segment : DxuiRoundedOutline::GetSegments (points, m_scaler.ToPxf ((float) s_kPanelRadiusDp)))
+    {
+        painter.DrawLine (segment.from.x, segment.from.y, segment.to.x, segment.to.y, thickness, argb);
     }
 }
 
