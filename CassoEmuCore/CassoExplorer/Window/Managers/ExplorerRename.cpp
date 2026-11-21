@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
@@ -375,7 +376,7 @@ void ExplorerRename::EndRename (bool commit)
             m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::ImageRename, m_context.browser.GetLocation(), {}, oldName, newName });
         }
 
-        m_context.commandManager.ReportOutcome (renamed, L"Rename");
+        m_context.verbs.ReportOutcome (renamed, L"Rename");
         m_context.listPane.FillList();
 
         if (renamed.Succeeded())

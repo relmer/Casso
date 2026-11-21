@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -180,9 +181,9 @@ void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int righ
 
     addressRect.right -= (int) std::lround (scaler.ToPxf (ExplorerMetrics::kFindBoxRightInsetDip));
 
-    //  A picker's search box is above the list, so the address takes the
-    //  whole row.
-    if (m_context.IsPicker())
+    //  An open form's search box is above the list, so the address takes
+    //  the whole row.
+    if (m_context.pickerSearch.HasBox())
     {
         m_findBox->SetVisible (false);
         m_findBox->Layout     (RECT { addressRect.right, addressRect.top, addressRect.right, addressRect.bottom }, scaler);

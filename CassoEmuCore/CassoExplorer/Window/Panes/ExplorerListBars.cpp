@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "Core/AppMessages.h"
@@ -325,7 +326,7 @@ void ExplorerListBars::OfferArrived()
 
     for (const std::wstring & path : paths)
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.GetA2retroNet().ReplaceWithPo (path, written), L"Convert for A2Pico");
+        m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().ReplaceWithPo (path, written), L"Convert for A2Pico");
     }
 
     m_context.folderSync.RefreshAfterHostChange();
@@ -359,13 +360,13 @@ void ExplorerListBars::RunCardAction (size_t index)
     }
     else if (action == CardAction::Repair)
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
+        m_context.verbs.ReportOutcome (m_context.actions.RepairA2retroNetConfig (m_card.root), L"Repair A2retroNET.txt");
     }
     else
     {
         for (const std::wstring & path : m_convertible)
         {
-            m_context.commandManager.ReportOutcome (m_context.actions.GetA2retroNet().ConvertToPo (path, written), L"Write as .po");
+            m_context.verbs.ReportOutcome (m_context.actions.GetA2retroNet().ConvertToPo (path, written), L"Write as .po");
         }
 
         m_context.folderSync.RefreshAfterHostChange();

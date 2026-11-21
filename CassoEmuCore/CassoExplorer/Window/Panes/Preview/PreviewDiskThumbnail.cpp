@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
@@ -452,7 +453,7 @@ void PreviewDiskThumbnail::Create()
     m_inspect  = m_header->CreateChild<DxuiButton> (L"Inspect...");
 
     m_header->SetScrollbarShown (false);
-    m_inspect->SetOnClick       ([this] () { m_context.commandManager.InspectDiskImages ({ m_path }); });
+    m_inspect->SetOnClick       ([this] () { m_context.imageTools.InspectDiskImages ({ m_path }); });
 
     m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
@@ -1023,7 +1024,7 @@ bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
     {
-        m_context.commandManager.InspectDiskImages ({ m_path });
+        m_context.imageTools.InspectDiskImages ({ m_path });
     }
 
     return true;

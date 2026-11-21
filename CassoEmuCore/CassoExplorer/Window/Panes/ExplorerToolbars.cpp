@@ -163,7 +163,7 @@ void ExplorerToolbars::Create()
 
     m_toolbar->SetIconFace      (iconFace);
     m_toolbar->SetIconDip       (kNavIconDip);
-    m_toolbar->SetButtonPadDip  (ExplorerMetrics::kNavButtonPadDip);
+    m_toolbar->SetButtonPadDip  ((m_context.app.picker != nullptr && m_context.app.picker->IsSave()) ?ExplorerMetrics::kSaveNavButtonPadDip : ExplorerMetrics::kNavButtonPadDip);
     m_toolbar->SetBarPadDp      (ExplorerMetrics::kNavBarPadDp);
     m_toolbar->SetGroupGapDp    (ExplorerMetrics::kNavAddressGapDp);
 
@@ -586,13 +586,54 @@ std::vector<DxuiToolbar::Entry> ExplorerToolbars::GetCommandBarEntries (CassoExp
 
 
 
-    if (picker != nullptr)
+    if (picker == nullptr)
     {
-        std::erase_if (entries, [picker] (const DxuiToolbar::Entry & entry)
-        {
-            return entry.command != nullptr && !CassoExplorerCommands::IsAllowedInPicker (entry.command->id, picker->IsSave());
-        });
+        return entries;
     }
+
+    std::erase_if (entries, [picker] (const DxuiToolbar::Entry & entry)
+    {
+        return entry.command != nullptr && !CassoExplorerCommands::IsAllowedInPicker (entry.command->id, picker->IsSave());
+    });
+
+    if (!picker->IsSave())
+    {
+        return entries;
+    }
+
+    //  A save form's bar is the standard Save As dialog's: New folder first,
+    //  View as an icon at the right, and no Preview.
+    std::erase_if (entries, [] (const DxuiToolbar::Entry & entry)
+    {
+        return entry.command != nullptr && entry.command->id == CassoExplorerCommands::kTogglePreview;
+    });
+
+    for (DxuiToolbar::Entry & entry : entries)
+    {
+        if (entry.command != nullptr && entry.command->id == CassoExplorerCommands::kView)
+        {
+            entry.iconOnly = true;
+            entry.trailing = true;
+        }
+    }
+
+    {
+        auto                newFolder = std::make_shared<DxuiCommand> (*m_context.commands.Find (CassoExplorerCommands::kNewFolder));
+        DxuiToolbar::Entry  entry;
+
+        newFolder->label      = L"New folder";
+        newFolder->shortLabel = L"New folder";
+        newFolder->tip        = L"New folder";
+
+        entry.command    = newFolder;
+        entry.group      = 1;
+        entry.vectorIcon = &CassoExplorerIcons::s_kNew;
+        entry.pinned     = true;
+
+        entries.insert (entries.begin(), entry);
+    }
+
+    std::stable_partition (entries.begin(), entries.end(), [] (const DxuiToolbar::Entry & entry) { return !entry.trailing; });
 
     return entries;
 }

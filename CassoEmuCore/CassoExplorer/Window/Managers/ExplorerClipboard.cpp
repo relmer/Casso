@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -179,7 +180,7 @@ void ExplorerClipboard::FinishCut()
     outcome = cut.onDrive ? m_context.actions.RunDriveDeletion (cut.drive)
                           : m_context.actions.DeleteEntries (cut.image, cut.catalogPaths);
 
-    m_context.commandManager.ReportOutcome (outcome, L"Move");
+    m_context.verbs.ReportOutcome (outcome, L"Move");
     m_context.folderSync.RefreshAfterHostChange();
 }
 
@@ -251,7 +252,7 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
     {
         CassoExplorerActions::Outcome  outcome = m_context.actions.PasteVirtualFiles (data.Get(), folder, m_context.prompts.MakeCollisionPrompt(), pasted.created);
 
-        m_context.commandManager.ReportOutcome (outcome, L"Copy");
+        m_context.verbs.ReportOutcome (outcome, L"Copy");
         pasted.sources.assign (pasted.created.size(), std::wstring());
 
         //  A cut's files are deleted where they were, now they are here.
@@ -354,7 +355,7 @@ void ExplorerClipboard::PasteIntoVolume()
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
-        m_context.commandManager.ReportOutcome (outcome, L"Put");
+        m_context.verbs.ReportOutcome (outcome, L"Put");
         ReportPasted (data.Get(), outcome);
         m_context.dragDrop.RemoveVirtualFiles();
         return;
@@ -373,7 +374,7 @@ void ExplorerClipboard::PasteIntoVolume()
                                : m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
     m_context.undo.PushPut (outcome, location.path, inner);
-    m_context.commandManager.ReportOutcome (outcome, L"Put");
+    m_context.verbs.ReportOutcome (outcome, L"Put");
 
     //  Pasted back where it was cut from, nothing moved.
     if (!(source.fromImage && _wcsicmp (TextEncoding::NarrowToWide (source.image).c_str(), location.path.c_str()) == 0 && IsCutFrom (inner)))

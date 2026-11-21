@@ -27,6 +27,8 @@
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -1010,10 +1012,10 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         if (InspectorWindowSet::CanInspect (image))
         {
-            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.commandManager.InspectDiskImages ({ image }); });
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.imageTools.InspectDiskImages ({ image }); });
         }
 
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.imageTools.ExtractImageFiles (image); });
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
 
         //  Format and Krunch act on the image the list shows, so the image is
@@ -1021,7 +1023,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
         {
             m_context.addressBar.GoToLocation (location);
-            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Format);
+            m_context.verbs.RunVerb (CassoExplorerActions::Verb::Format);
         }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Format));
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
 
@@ -1030,7 +1032,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]()
             {
                 m_context.addressBar.GoToLocation (location);
-                m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Krunch);
+                m_context.verbs.RunVerb (CassoExplorerActions::Verb::Krunch);
             }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
         }
 
@@ -1125,10 +1127,10 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
             newFolder->label    = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::NewFolder);
             newFolder->menuSvg  = m_context.menus.GetMenuSvg (L"newfolder");
-            newFolder->dispatch = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.commandManager.RunVerb (CassoExplorerActions::Verb::NewFolder); };
+            newFolder->dispatch = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.verbs.RunVerb (CassoExplorerActions::Verb::NewFolder); };
             newDisk->label      = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::NewDisk);
             newDisk->menuSvg    = m_context.menus.GetMenuSvg (L"casso.floppy525");
-            newDisk->dispatch   = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.commandManager.RunVerb (CassoExplorerActions::Verb::NewDisk); };
+            newDisk->dispatch   = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.verbs.RunVerb (CassoExplorerActions::Verb::NewDisk); };
 
             m_context.menus.AddNewChoices (choices, location, newFolder, newDisk);
 

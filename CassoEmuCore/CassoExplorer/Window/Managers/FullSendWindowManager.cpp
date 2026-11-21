@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/DiskReportSender.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
@@ -497,7 +498,7 @@ void FullSendWindowManager::RunFullSendDisk (const std::string & file, FullSendD
         case FullSendDialog::DiskAction::Open:       m_context.opener.OpenSelectedEntries();                                                         break;
         case FullSendDialog::DiskAction::Inspect:    m_context.opener.InspectSelected();                                                             break;
         case FullSendDialog::DiskAction::Properties: m_context.properties.ShowWozProperties ((std::filesystem::path (folder) / name).wstring(), WozPropertiesDialog::kInfoTab); break;
-        case FullSendDialog::DiskAction::Repair:     m_context.commandManager.RepairDiskImage ((std::filesystem::path (folder) / name).wstring());                    break;
+        case FullSendDialog::DiskAction::Repair:     m_context.imageTools.RepairDiskImage ((std::filesystem::path (folder) / name).wstring());                    break;
         case FullSendDialog::DiskAction::Report:     ReportDisk (std::filesystem::path (folder) / name);                                                          break;
         default:                                                                                                                                     break;
     }

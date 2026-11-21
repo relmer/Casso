@@ -31,10 +31,11 @@ public:
     static constexpr int  kEdgePadDip    = DxuiButtonRow::kEdgePadDip;
     static constexpr int  kGapDip        = 8;
     static constexpr int  kFilterMinDip  = 320;
-    static constexpr int  kNameLabelDip  = 84;
     static constexpr int  kNameMinDip    = 160;
     static constexpr int  kVerifyDip     = 90;
     static constexpr int  kNoteDip       = 40;
+    static constexpr int  kSaveLabelDip  = 100;
+    static constexpr int  kRowPadDip     = 12;
 
     //  The band's height in the window: kBandDip in a picker, and kNoteDip
     //  more when a filter entry has a note; 0 otherwise.
@@ -78,6 +79,9 @@ public:
     bool  HandleButtonKey (int index, const DxuiKeyEvent & ev);
 
 private:
+    int                       LayoutButtons  (int top, int right);
+    void                      LayoutSaveRows (const RECT & band, int listLeft);
+    int                       GetSaveBoxLeft (const RECT & band, int listLeft) const;
     void                      FillFilterList ();
     bool                      HasFilterNotes () const;
     std::vector<DxuiButton *> GetButtons     () const;
@@ -90,6 +94,7 @@ private:
     DxuiLabel            * m_nameLabel        = nullptr;
     DxuiTextInput        * m_name             = nullptr;
     DxuiCheckbox         * m_verify           = nullptr;
+    DxuiLabel            * m_filterLabel      = nullptr;
     DxuiComboBox         * m_filter           = nullptr;
     DxuiLabel            * m_filterNote       = nullptr;
     std::vector<int>       m_filterRows;                 // each list row's filter entry, -1 for a heading

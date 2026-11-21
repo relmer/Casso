@@ -7,6 +7,8 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -76,7 +78,7 @@ ExplorerOpen::~ExplorerOpen()
 void ExplorerOpen::OpenSelectedEntries()
 {
     std::vector<std::wstring>  paths;
-    HRESULT                    hr    = CassoExplorerDragOut::WriteToTempFolder (m_context.browser, m_context.commandManager.GetNamingStyle(), paths);
+    HRESULT                    hr    = CassoExplorerDragOut::WriteToTempFolder (m_context.browser, m_context.verbs.GetNamingStyle(), paths);
 
 
 
@@ -281,7 +283,7 @@ void ExplorerOpen::MakeDiskRecording()
     }
 
     outcome = m_context.actions.MakeDiskRecording (m_context.cassoTarget.GetSelectedImagePath(), target, command, seconds);
-    m_context.commandManager.ReportOutcome (outcome, L"Convert to disk audio");
+    m_context.verbs.ReportOutcome (outcome, L"Convert to disk audio");
     m_context.folderSync.RefreshAfterHostChange();
 
     if (outcome.Succeeded() && !command.empty())
@@ -311,7 +313,7 @@ void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
 
     if (verb == CassoExplorerActions::Verb::AddToA2retroNet)
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.AddToA2retroNet (m_context.cassoTarget.GetSelectedImagePath()), L"Add to A2retroNET drives");
+        m_context.verbs.ReportOutcome (m_context.actions.AddToA2retroNet (m_context.cassoTarget.GetSelectedImagePath()), L"Add to A2retroNET drives");
     }
     else if (verb == CassoExplorerActions::Verb::ConvertToDiskAudio)
     {
@@ -319,7 +321,7 @@ void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
     }
     else if (PickTapeRecording (target))
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.MakeTapeRecording (target), L"Convert to tape audio");
+        m_context.verbs.ReportOutcome (m_context.actions.MakeTapeRecording (target), L"Convert to tape audio");
         m_context.folderSync.RefreshAfterHostChange();
     }
 }
@@ -764,7 +766,7 @@ void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
 
     if (saved)
     {
-        m_context.commandManager.ReportOutcome (outcome, L"A2retroNET drives");
+        m_context.verbs.ReportOutcome (outcome, L"A2retroNET drives");
     }
 
     m_context.listPane.FillList();
@@ -805,7 +807,7 @@ void ExplorerOpen::InspectSelected()
         m_context.browser.GetSelectedHostPaths (paths);
     }
 
-    m_context.commandManager.InspectDiskImages (paths);
+    m_context.imageTools.InspectDiskImages (paths);
 }
 
 
