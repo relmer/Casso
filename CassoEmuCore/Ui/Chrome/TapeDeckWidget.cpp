@@ -101,6 +101,9 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     int   gapY     = Scale (kControlsGapYPx, dpi);
     int   gap      = Scale (kButtonGapPx, dpi);
     int   controlY = 0;
+    int   counterW = 0;
+    int   rowW     = 0;
+    int   rowX     = 0;
 
 
 
@@ -118,19 +121,22 @@ void TapeDeckWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     // as a drive's band is. It stops at the name; the controls row is below.
     m_bandRect = { x, y, nameX + nameW, m_nameRect.bottom + gapY / 2 };
 
-    // The buttons from the name's left edge, the counter in what is left of
-    // its width, so the whole recorder is no wider than its name.
+    // The buttons and the counter, centered under the name. With no tape
+    // the counter has no width, so the buttons alone are centered.
     controlY = m_nameRect.bottom + gapY;
+    counterW = (m_view.transport != TapeTransport::Empty) ? Scale (kCounterGapXPx, dpi) + Scale (kCounterWidthPx, dpi) : 0;
+    rowW     = (int) kButtonCount * button + ((int) kButtonCount - 1) * gap + counterW;
+    rowX     = nameX + (nameW - rowW) / 2;
 
     for (size_t i = 0; i < kButtonCount; i++)
     {
-        int  left = nameX + (int) i * (button + gap);
+        int  left = rowX + (int) i * (button + gap);
 
         m_buttons[i] = { left, controlY, left + button, controlY + button };
     }
 
-    m_counterRect = { m_buttons[kButtonCount - 1].right + Scale (kCounterGapXPx, dpi), controlY,
-                      nameX + nameW, controlY + button };
+    m_counterRect = { m_buttons[kButtonCount - 1].right + (counterW > 0 ? Scale (kCounterGapXPx, dpi) : 0), controlY,
+                      m_buttons[kButtonCount - 1].right + counterW, controlY + button };
 
     SetBounds (GetOuterRect());
 }
@@ -797,7 +803,8 @@ void TapeDeckWidget::Paint (
         float   labelH  = (float) Scale (kLabelStripPx, m_dpi);
         float   labelY  = 0.0f;
 
-        for (size_t i = 0; i <= kButtonCount; i++)
+        // The counter has a label only while a tape is in.
+        for (size_t i = 0; i < (hasTape ? kButtonCount + 1 : kButtonCount); i++)
         {
             const RECT &  baseBox  = (i < kButtonCount) ? m_buttons[i] : m_counterRect;
             float         distance = fabsf ((float) m_mouseX - (float) (baseBox.left + baseBox.right) * 0.5f);
