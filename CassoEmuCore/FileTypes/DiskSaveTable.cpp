@@ -3,6 +3,7 @@
 #include "FileTypes/DiskSaveTable.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/InfocomSave.h"
+#include "Machines/Apple2/Common/Ultima3Save.h"
 
 
 
@@ -11,6 +12,7 @@
 static constexpr DiskSaveTable::Entry  s_kEntries[] =
 {
     { &DiskSaveTable::IsInfocomSave, &DiskSaveTable::DecodeInfocomSave },
+    { &DiskSaveTable::IsUltima3Save, &DiskSaveTable::DecodeUltima3Save },
 };
 
 
@@ -102,4 +104,41 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, Dec
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::IsUltima3Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskSaveTable::IsUltima3Save (const std::vector<Byte> & sectors)
+{
+    return Ultima3Save::IsFound (sectors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::DecodeUltima3Save
+//
+//  The player disk's saved game. No sector is known to be unreadable here,
+//  so no map row is striped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSaveTable::DecodeUltima3Save (const std::vector<Byte> & sectors, DecodedFile & outFile)
+{
+    std::wstring  error;
+
+
+
+    return Ultima3Save::Decode (sectors, {}, outFile, error);
 }

@@ -36,4 +36,6 @@ public:
 
     static bool     IsInfocomSave     (const std::vector<Byte> & sectors);
     static HRESULT  DecodeInfocomSave (const std::vector<Byte> & sectors, DecodedFile & outFile);
+    static bool     IsUltima3Save     (const std::vector<Byte> & sectors);
+    static HRESULT  DecodeUltima3Save (const std::vector<Byte> & sectors, DecodedFile & outFile);
 };

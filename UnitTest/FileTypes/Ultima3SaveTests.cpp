@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "FileTypes/DiskSaveTable.h"
 #include "Machines/Apple2/Common/Ultima3Save.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -220,8 +221,8 @@ public:
         Assert::AreEqual ((size_t) 1, CountOf (text, L"MANDI"), L"a member's roster slot isn't listed again");
         Assert::AreEqual ((size_t) 1, CountOf (text, L"LOKIL"));
         Assert::IsTrue (text.find (L"Elf paladin, male") != std::wstring::npos);
-        Assert::IsTrue (text.find (L"Hit points: 123 / 150") != std::wstring::npos);
-        Assert::IsTrue (text.find (L"Weapon: Bow") != std::wstring::npos);
+        Assert::IsTrue (text.find (L"HP 123 / 150") != std::wstring::npos);
+        Assert::IsTrue (text.find (L"Leather, Bow") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Party") < text.find (L"Roster"));
     }
 
@@ -277,6 +278,42 @@ public:
         pixel = decoded.paragraphs[pictureAt].picture[(size_t) (14 * tile) * (size_t) decoded.paragraphs[pictureAt].width + (size_t) (30 * tile)];
 
         Assert::IsTrue (pixel == 0xFF282828u || pixel == 0xFFC8C8C8u, L"a lost row is striped");
+    }
+
+
+    TEST_METHOD (EachMapTileHasALabelWithItsTerrainAndPlace)
+    {
+        std::vector<Byte>  disk = MakeDisk();
+        DecodedFile        decoded;
+        std::wstring       error;
+        size_t             at   = 0;
+
+        AssertSucceeded (Ultima3Save::Decode (disk, {}, decoded, error));
+
+        while (decoded.paragraphs[at].picture.empty())
+        {
+            at++;
+        }
+
+        const Paragraph &  map = decoded.paragraphs[at];
+
+        Assert::AreEqual (5, map.cellWidth);
+        Assert::AreEqual ((size_t) 64 * 64, map.cellLabels.size());
+        Assert::AreEqual (std::wstring (L"Water, column 3, row 0"),           map.labels[map.cellLabels[3]]);
+        Assert::AreEqual (std::wstring (L"Grass, column 20, row 30"),         map.labels[map.cellLabels[30 * 64 + 20]]);
+        Assert::AreEqual (std::wstring (L"The party, column 6, row 13"),   map.labels[map.cellLabels[13 * 64 + 6]]);
+    }
+
+
+    TEST_METHOD (TheSaveTableFindsAPlayerDisk)
+    {
+        std::vector<Byte>             disk  = MakeDisk();
+        const DiskSaveTable::Entry  * entry = DiskSaveTable::Find (disk);
+        DecodedFile                   decoded;
+
+        Assert::IsNotNull (entry);
+        AssertSucceeded (entry->decode (disk, decoded));
+        Assert::IsTrue (decoded.format == FileFormat::UltimaSave);
     }
 
 

@@ -103,5 +103,6 @@ private:
     static bool       IsBcd         (Byte value);
     static void       AddCharacter  (const Character & character, std::vector<Paragraph> & ioParagraphs);
     static void       AddLegend     (std::vector<Paragraph> & ioParagraphs);
+    static void       LabelMap      (std::span<const Byte> sectors, std::span<const bool> unreadable, int partyX, int partyY, Paragraph & ioMap);
     static Paragraph  MakeParagraph (std::vector<Run> runs);
 };

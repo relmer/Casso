@@ -16,9 +16,9 @@ static constexpr struct { uint32_t argb; const wchar_t * pszColor; const wchar_t
     { 0xFF96AA50, L"Olive",       L"brush"             },
     { 0xFF1E692D, L"Dark green",  L"forest"            },
     { 0xFF7D7369, L"Gray",        L"mountains"         },
-    { 0xFF3C2819, L"Brown",       L"dungeon entrances" },
-    { 0xFFDCBE3C, L"Gold",        L"towns"             },
-    { 0xFFF0F0F0, L"White",       L"castles"           },
+    { 0xFF3C2819, L"Brown",       L"dungeon entrance"  },
+    { 0xFFDCBE3C, L"Gold",        L"town"              },
+    { 0xFFF0F0F0, L"White",       L"castle"            },
 };
 
 static constexpr uint32_t        s_kOtherTile   = 0xFFC850C8;
@@ -491,17 +491,12 @@ void Ultima3Save::AddCharacter (const Character & character, std::vector<Paragra
     ioParagraphs.push_back (MakeParagraph ({ Run { character.name, true },
                                              Run { std::format (L"   {} {}, {}", GetRaceName (character.race), GetClassName (character.characterClass), sex),
                                                    false, false, false, RunColor::Muted } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"Status: " },
-                                             Run { GetStatusName (character.status), false, false, false, isGood ? RunColor::Text : RunColor::Bad } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Str / Dex / Int / Wis: {} / {} / {} / {}",
+    ioParagraphs.push_back (MakeParagraph ({ Run { GetStatusName (character.status), false, false, false, isGood ? RunColor::Text : RunColor::Bad },
+                                             Run { std::format (L"   HP {} / {}   MP {}", character.hitPoints, character.maxHitPoints, character.magic) } }));
+    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Str {}   Dex {}   Int {}   Wis {}",
                                                                 character.strength, character.dexterity, character.intelligence, character.wisdom) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Hit points: {} / {}", character.hitPoints, character.maxHitPoints) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Magic points: {}", character.magic) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Experience: {}", character.experience) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Food: {}", character.food) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Gold: {}", character.gold) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"Armor: " + GetArmorName (character.armor) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"Weapon: " + GetWeaponName (character.weapon) } }));
+    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Exp {}   Food {}   Gold {}", character.experience, character.food, character.gold) } }));
+    ioParagraphs.push_back (MakeParagraph ({ Run { GetArmorName (character.armor) + L", " + GetWeaponName (character.weapon) } }));
 }
 
 
@@ -512,21 +507,74 @@ void Ultima3Save::AddCharacter (const Character & character, std::vector<Paragra
 //
 //  Ultima3Save::AddLegend
 //
-//  What the map's colors indicate, one to a line.
+//  What the map's colors indicate, as one paragraph that wraps to the
+//  pane. Hovering over a tile shows its terrain, so the legend is short.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Ultima3Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
 {
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"White square with a black edge: the party", false, false, false, RunColor::Muted } }));
+    std::wstring  text = L"Party: white square   ";
+
+
 
     for (const auto & terrain : s_kTerrain)
     {
-        ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"{}: {}", terrain.pszColor, terrain.pszName), false, false, false, RunColor::Muted } }));
+        text += std::format (L"{}: {}   ", terrain.pszColor, terrain.pszName);
     }
 
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"Pink: monsters and ships",           false, false, false, RunColor::Muted } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"Stripes: rows that couldn't be read", false, false, false, RunColor::Muted } }));
+    text += L"Pink: monster or ship   Stripes: couldn't be read";
+
+    ioParagraphs.push_back (MakeParagraph ({ Run { text, false, false, false, RunColor::Muted } }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima3Save::LabelMap
+//
+//  A label for each of the map's tiles, shown as a tip when the pointer is
+//  over it: the terrain, or the party, a monster or ship, or a row that
+//  couldn't be read, and the tile's column and row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ultima3Save::LabelMap (std::span<const Byte> sectors, std::span<const bool> unreadable, int partyX, int partyY, Paragraph & ioMap)
+{
+    constexpr Byte  kTileStep = 4;
+
+
+
+    ioMap.cellWidth  = s_kTilePixels;
+    ioMap.cellHeight = s_kTilePixels;
+    ioMap.cellLabels.clear();
+    ioMap.labels.clear();
+
+    for (int y = 0; y < kMapSide; y++)
+    {
+        size_t  rowAt   = kMapAt + (size_t) y * (size_t) kMapSide;
+        size_t  sector  = rowAt / kSectorBytes;
+        bool    isLost  = sector < unreadable.size() && unreadable[sector];
+
+        for (int x = 0; x < kMapSide; x++)
+        {
+            Byte          tile    = sectors[rowAt + (size_t) x];
+            size_t        terrain = tile / kTileStep;
+            std::wstring  what    = (tile % kTileStep == 0 && terrain < std::size (s_kTerrain)) ? std::wstring (s_kTerrain[terrain].pszName) : std::wstring (L"monster or ship");
+
+            what = (x == partyX && y == partyY) ? std::wstring (L"the party")
+                 : isLost                       ? std::wstring (L"couldn't be read")
+                                                : what;
+
+            what[0] = (wchar_t) towupper (what[0]);
+
+            ioMap.cellLabels.push_back ((uint16_t) ioMap.labels.size());
+            ioMap.labels.push_back (std::format (L"{}, column {}, row {}", what, x, y));
+        }
+    }
 }
 
 
@@ -565,6 +613,7 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
     CBRAEx (isParty, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     RenderMap (sectors, unreadable, party.x, party.y, map.picture, map.width, map.height);
+    LabelMap  (sectors, unreadable, party.x, party.y, map);
 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Ultima III: Exodus", true } }));
     outFile.paragraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game, the party at column {}, row {}", party.x, party.y), false, false, false, RunColor::Muted } }));
