@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
@@ -107,7 +108,7 @@ void ExplorerPreviewOutput::SaveAs (ExplorerContext & context)
 
     if (inImage)
     {
-        converted = DragPayload::GetHostName (source.entry, source.kind, context.commandManager.GetNamingStyle(), altered, source.format);
+        converted = DragPayload::GetHostName (source.entry, source.kind, context.verbs.GetNamingStyle(), altered, source.format);
         stem      = std::filesystem::path (converted).stem().wstring();
     }
     else if (selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < context.browser.GetRows().size())

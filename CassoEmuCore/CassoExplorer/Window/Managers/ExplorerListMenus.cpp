@@ -20,6 +20,7 @@
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -534,7 +535,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             command->label    = ExplorerMenus::GetVerbLabel (verb);
             command->glyph    = ExplorerMenus::GetVerbGlyph (verb);
             command->menuSvg  = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
-            command->dispatch = [this, verb]() { m_context.commandManager.RunVerb (verb); };
+            command->dispatch = [this, verb]() { m_context.verbs.RunVerb (verb); };
 
             iconCommands.push_back (command);
             m_context.menus.GetMenuCommands().push_back (std::move (command));
@@ -554,7 +555,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             command->id       = (int) verb;
             command->label    = ExplorerMenus::GetVerbLabel (verb);
             command->menuSvg  = m_context.menus.GetMenuSvg ((verb == CassoExplorerActions::Verb::NewFolder) ? L"newfolder" : L"casso.floppy525");
-            command->dispatch = [this, verb]() { m_context.commandManager.RunVerb (verb); };
+            command->dispatch = [this, verb]() { m_context.verbs.RunVerb (verb); };
 
             if (verb == CassoExplorerActions::Verb::NewFolder)
             {
@@ -603,7 +604,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         command->label     = ExplorerMenus::GetVerbLabel (verb);
         command->menuGlyph = ExplorerMenus::GetVerbMenuGlyph (verb);
         command->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
-        command->dispatch  = [this, verb]() { m_context.commandManager.RunVerb (verb); };
+        command->dispatch  = [this, verb]() { m_context.verbs.RunVerb (verb); };
 
         if (verb == CassoExplorerActions::Verb::Open)
         {
@@ -654,7 +655,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
                 child->id       = (int) raw;
                 child->label    = ExplorerMenus::GetVerbLabel (raw);
-                child->dispatch = [this, raw]() { m_context.commandManager.RunRawVerb (raw); };
+                child->dispatch = [this, raw]() { m_context.verbs.RunRawVerb (raw); };
 
                 advanced.push_back (DxuiPopupMenuItem::ForCommand (child));
                 m_context.menus.GetMenuCommands().push_back (std::move (child));
@@ -736,7 +737,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     if (!m_context.browser.GetSelectedRows().empty() && m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open); }, L"Alt+Enter");
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.verbs.RunRecycleBinVerb (CassoExplorerActions::Verb::Open); }, L"Alt+Enter");
         m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
         m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }
@@ -920,7 +921,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             }
             else if (m_context.browser.TryGetSelectedShellIds (paths))
             {
-                hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), paths, screen, [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Rename); });
+                hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), paths, screen, [this]() { m_context.verbs.RunVerb (CassoExplorerActions::Verb::Rename); });
             }
 
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1961,7 +1962,7 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
     }
 
     raw->label    = L"&Raw bytes";
-    raw->dispatch = [this]() { m_context.clipboard.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle(), true); };
+    raw->dispatch = [this]() { m_context.clipboard.CopyEntriesToClipboard (m_context.verbs.GetNamingStyle(), true); };
 
     choices.push_back (DxuiPopupMenuItem::ForSeparator());
     choices.push_back (DxuiPopupMenuItem::ForCommand (raw));
@@ -1996,7 +1997,7 @@ void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
 
 
     command->label    = L"Con&vert BASIC and text files";
-    command->dispatch = [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::ConvertTo); };
+    command->dispatch = [this]() { m_context.verbs.RunVerb (CassoExplorerActions::Verb::ConvertTo); };
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_context.menus.GetMenuCommands().push_back (std::move (command));

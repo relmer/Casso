@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerImageTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -418,7 +419,7 @@ void ExplorerPickerMode::CreateNew()
         return;
     }
 
-    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.commandManager.CreateDiskForPicker (path);
+    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.imageTools.CreateDiskForPicker (path);
 
     if (isCreated && !path.empty())
     {

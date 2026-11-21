@@ -23,6 +23,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerClipboard.h"
 #include "CassoExplorer/Window/Managers/ExplorerDeletion.h"
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
@@ -256,7 +257,7 @@ void ExplorerListPane::Configure()
         //  A deleted item opens its properties, as Explorer's does.
         if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
-            m_context.commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
+            m_context.verbs.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
         }
         else if (row >= 0 && (size_t) row < m_context.browser.GetRows().size() && m_context.browser.GetRows()[(size_t) row].cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
         {
@@ -659,7 +660,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
         && m_context.browser.IsVolumeLocation() && !m_context.browser.GetSelectedRows().empty())
     {
-        m_context.clipboard.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle());
+        m_context.clipboard.CopyEntriesToClipboard (m_context.verbs.GetNamingStyle());
         return true;
     }
 
@@ -682,11 +683,11 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     {
         if (ev.vk == 'V')
         {
-            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Paste);
+            m_context.verbs.RunVerb (CassoExplorerActions::Verb::Paste);
         }
         else if (!m_context.browser.GetSelectedRows().empty())
         {
-            m_context.commandManager.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
+            m_context.verbs.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
         }
 
         return true;
@@ -694,7 +695,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
 
     if (ev.vk == VK_F2 && m_context.input.GetFocusPane() == ExplorerPane::List && m_menus.IsListVerbOffered (CassoExplorerActions::Verb::Rename))
     {
-        m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Rename);
+        m_context.verbs.RunVerb (CassoExplorerActions::Verb::Rename);
         return true;
     }
 
@@ -710,7 +711,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
         }
         else
         {
-            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Delete);
+            m_context.verbs.RunVerb (CassoExplorerActions::Verb::Delete);
         }
 
         return true;
