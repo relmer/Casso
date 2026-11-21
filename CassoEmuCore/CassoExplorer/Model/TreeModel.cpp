@@ -226,6 +226,21 @@ std::wstring TreeModel::MakeImageId (bool underCasso, const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::MakePartitionId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::MakePartitionId (bool underCasso, const std::wstring & path)
+{
+    return std::wstring (kPartitionPrefix) + (underCasso ? kCassoTag : kThisPcTag) + kSeparator + path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::MakeDirectoryId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1795,8 +1810,9 @@ HRESULT TreeModel::ListHostFolder (bool underCasso, const std::wstring & path, s
             node.label    = entry.name;
             node.location = Location::MakeDiskImage (JoinPath (path, entry.name));
 
-            hr = DescribeImage (underCasso, JoinPath (path, entry.name), node);
-            CHR (hr);
+            //  The image is read when it is expanded, not when its folder
+            //  is listed, so a folder of large images opens at once.
+            node.canExpand = true;
 
             images.push_back (node);
         }
@@ -1947,6 +1963,12 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id.rfind (kThisPcRootId, 0) == 0)
     {
         hr = ListHostFolder (false, id.substr (wcslen (kThisPcRootId)), outNodes);
+    }
+    else if (id.starts_with (kPartitionPrefix) && id.find (kSeparator) != std::wstring::npos)
+    {
+        //  A partition's children are the volumes in it.
+        underCasso = id.substr (wcslen (kPartitionPrefix), id.find (kSeparator) - wcslen (kPartitionPrefix)) == kCassoTag;
+        hr         = ListPartitionVolumes (underCasso, id.substr (id.find (kSeparator) + 1), outNodes);
     }
     else if (TryParseImageOrDirectoryId (id, underCasso, path, inner))
     {

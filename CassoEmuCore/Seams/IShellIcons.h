@@ -31,7 +31,7 @@ public:
     {
         ThisPc, Folder, File, Casso, RecycleBin, DiskImage, AppleMachine, AppleMachineOffline,
         AppleText, AppleApplesoft, AppleInteger, AppleBinary, AppleSystem, AppleRelocatable,
-        Search,
+        Search, Partition,
     };
 
     virtual ~IShellIcons () = default;
@@ -51,6 +51,10 @@ public:
     virtual std::shared_ptr<const DxuiIconImage>  GetForExtension    (const std::wstring & extension) { (void) extension; return nullptr; }
     virtual std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource)  { (void) resource; return nullptr; }
     virtual void                                  SetSizePx          (int sizePx)                     { (void) sizePx; }
+
+    //  Whether the icons are drawn on a dark surface, for an icon with a
+    //  version for each, such as the partition's.
+    virtual void                                  SetDarkSurface     (bool isDark)                    { (void) isDark; }
     virtual std::shared_ptr<const DxuiIconImage>  GetLinkBadge       () { return nullptr; }
 
     //  The icon as Explorer's navigation pane draws it: without the overlays

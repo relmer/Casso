@@ -306,14 +306,16 @@ void DxuiListHeader::PaintHeader (
         }
 
         //  File Explorer's sort indicator: a small chevron centered over the
-        //  column title, pointing up for ascending and down for descending.
+        //  column title, pointing up for ascending and down for descending,
+        //  its top half a DIP below the header's top edge, as File Explorer
+        //  draws it.
         if (hasSort)
         {
             float  halfW = (float) m_list.m_scaler.ToPxf (3.0f);
             float  halfH = (float) m_list.m_scaler.ToPxf (1.5f);
             float  thick = (float) m_list.m_scaler.ToPxf (0.75f);
             float  cx    = x + colOff + (float) colXPx[c] + shift + (float) colWPx[c] / 2.0f;
-            float  cy    = y + (float) m_list.m_scaler.ToPxf (6.0f);
+            float  cy    = y + (float) m_list.m_scaler.ToPxf (s_kSortGlyphCenterDip);
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
             float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 

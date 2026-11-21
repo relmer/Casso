@@ -99,6 +99,11 @@ struct PickerRequest
     //  with its drive's label, for the "In drive" mark.
     std::map<std::wstring, std::wstring>  mounted;
 
+    //  A Verify check box in the bar, and whether it starts checked. Its
+    //  state on confirm is PickerOutcome::verified.
+    bool                           offerVerify      = false;
+    bool                           verify           = false;
+
     bool  IsSave     () const { return form == PickerForm::ModalSave; }
     bool  IsForDrive () const { return receivingDrive.has_value(); }
 };
@@ -119,5 +124,6 @@ struct PickerOutcome
 {
     bool          isConfirmed = false;
     bool          isClosed    = false;
+    bool          verified    = false;   // the Verify check box was checked
     std::wstring  path;
 };

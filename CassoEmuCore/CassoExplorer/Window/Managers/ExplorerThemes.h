@@ -41,4 +41,5 @@ private:
     DxuiDarkTheme      m_darkTheme;
     CassoTheme         m_cassoTheme;
     bool               m_applying   = false;   // a theme being applied, which sends a theme change to the window
+    bool               m_isDark     = true;    // the surface the tree's icons were drawn for
 };

@@ -25,7 +25,7 @@ class FilesystemChoices;
 
 struct TreeNode
 {
-    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, CassoLinkConnection, AppleDrive, CassoLinkRoot, AddLink };
+    enum class Kind { CassoRoot, ThisPcRoot, RecycleBinRoot, KnownFolder, Drive, HostFolder, DiskImage, DiskDirectory, ShellRoot, CassoLinkConnection, AppleDrive, CassoLinkRoot, AddLink, Partition };
 
     std::wstring  id;
     Kind          kind         = Kind::HostFolder;
@@ -291,6 +291,11 @@ public:
 
     static bool  IsSupportedImage (const std::wstring & fileName);
 
+    //  A partition's label and its volume's, once the image it is in is
+    //  listed, or empty.
+    std::wstring  GetPartitionLabel (const std::wstring & path) const { auto found = m_partitions.find (path); return found == m_partitions.end() ? std::wstring() : found->second.label; }
+    std::wstring  GetVolumeLabel    (const std::wstring & path) const { auto found = m_partitions.find (path); return found == m_partitions.end() ? std::wstring() : found->second.volumeLabel; }
+
     //  What follows an image's file name when it loads but has no file system
     //  this browser reads.
     static constexpr const wchar_t *  kNoFilesystemText = L"can't be previewed because it doesn't have a recognized file system.";
@@ -312,11 +317,16 @@ public:
 
     static std::wstring  MakeFolderId    (bool underCasso, const std::wstring & path);
     static std::wstring  MakeImageId     (bool underCasso, const std::wstring & path);
+    static std::wstring  MakePartitionId (bool underCasso, const std::wstring & path);
     static std::wstring  MakeDirectoryId (bool underCasso, const std::wstring & path, const std::string & inner, size_t occurrence = 0);
 
     //  Whether a node is below Casso: a folder, a disk image or a directory in
     //  one, though not the Casso node itself.
     static bool          IsUnderCasso    (const std::wstring & id);
+
+    //  Reads an image node's file, which a folder's listing leaves unread,
+    //  and sets the node's error and whether it expands.
+    HRESULT              ReadImageNode   (TreeNode & inOutNode);
 
     static constexpr const wchar_t *  kCassoRootId  = L"casso:";
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
@@ -380,6 +390,7 @@ public:
 private:
     static constexpr const wchar_t *  kImagePrefix     = L"img:";
     static constexpr const wchar_t *  kDirectoryPrefix = L"dir:";
+    static constexpr const wchar_t *  kPartitionPrefix = L"part:";
     static constexpr const wchar_t *  kCassoTag        = L"casso";
     static constexpr const wchar_t *  kThisPcTag       = L"pc";
     static constexpr wchar_t          kSeparator       = L'|';
@@ -409,8 +420,8 @@ private:
 
     //  A node for each partition of an image file. The list is empty for a
     //  file with no partitions.
-    static void  ListPartitions (bool underCasso, const std::wstring & path, const std::vector<Byte> & fileBytes,
-                                 const std::string & name, std::vector<TreeNode> & outNodes);
+    void  ListPartitions (bool underCasso, const std::wstring & path, const std::vector<Byte> & fileBytes,
+                          const std::string & name, bool isInsideVolume, std::vector<TreeNode> & outNodes);
 
     //  An image's bytes, and the file name whose extension indicates their
     //  format. `path` is a host file, or a container path to an image inside
@@ -419,7 +430,9 @@ private:
 
     //  Reads and parses one image, producing either its directory children
     //  or the error on the node.
-    HRESULT  DescribeImage (bool underCasso, const std::wstring & path, TreeNode & inOutNode);
+    HRESULT          DescribeImage        (bool underCasso, const std::wstring & path, TreeNode & inOutNode);
+    HRESULT          ListPartitionVolumes (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
+    static TreeNode  MakeVolumeNode       (bool underCasso, const std::wstring & path, const std::wstring & label, bool canExpand);
 
     static std::wstring  JoinPath (const std::wstring & folder, const std::wstring & name);
     static std::wstring  GetLeaf  (const std::wstring & path);
@@ -437,15 +450,26 @@ private:
     FolderOptions                                    m_folderOptions;
     const FilesystemChoices                        * m_filesystemChoices = nullptr;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
-    int                                              m_fetchCount = 0;
-    IShellItemVerbs                                * m_shellVerbs = nullptr;
+
+    //  Each partition of an image listed so far, by its path.
+    struct PartitionInfo
+    {
+        std::wstring  label;
+        std::wstring  volumeLabel;
+        bool          hasFileSystem = false;
+        bool          isProDos      = false;
+    };
+
+    std::map<std::wstring, PartitionInfo>            m_partitions;
+    int                                              m_fetchCount     = 0;
+    IShellItemVerbs                                * m_shellVerbs     = nullptr;
     ShellFetch                                       m_shellFetch;
     HostFetch                                        m_hostFetch;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     bool                                             m_hasPresetRoots = false;
     NavPaneOptions                                   m_navOptions;
-    bool                                             m_showCassoLink = true;
+    bool                                             m_showCassoLink  = true;
     bool                                             m_showStockDisks = false;
     bool                                             m_showDemoDisks  = false;
     std::vector<LinkTreeEntry>                       m_links;

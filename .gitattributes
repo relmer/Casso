@@ -11,6 +11,12 @@
 .githooks/* text eol=lf
 
 ###############################################################################
+# The emulator targets' scripts run in a WSL instance from the checkout, so
+# they keep LF endings on Windows too.
+###############################################################################
+scripts/EmuTargets/wsl/* text eol=lf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

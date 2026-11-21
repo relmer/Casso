@@ -19,8 +19,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  FileTypeFixtureTests
 //
 //  Every file on the fixture disks identified, decoded and exported; each
-//  identified file must decode, and decode within half a second at up to
-//  64 KB, and a file of an import row must come back from its conversion
+//  identified file must decode, and decode within half a second of CPU time
+//  at up to 64 KB, and a file of an import row must come back from its conversion
 //  to the same conversion. CiderPress II's test disks are skipped when
 //  scripts/FetchCiderPressTestFiles.ps1 hasn't been run.
 //
@@ -29,6 +29,39 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (FileTypeFixtureTests)
 {
 public:
+
+#ifdef __SANITIZE_ADDRESS__
+    static constexpr ULONGLONG  kDecodeLimitMs = 2000;
+#else
+    static constexpr ULONGLONG  kDecodeLimitMs = 500;
+#endif
+
+
+
+
+    //  CPU time is measured rather than elapsed time, so other processes
+    //  running at the same time don't count against a decode.
+    static ULONGLONG GetThreadCpuMs()
+    {
+        FILETIME        created = {};
+        FILETIME        exited  = {};
+        FILETIME        kernel  = {};
+        FILETIME        user    = {};
+        ULARGE_INTEGER  total   = {};
+
+
+
+        GetThreadTimes (GetCurrentThread(), &created, &exited, &kernel, &user);
+
+        total.LowPart   = user.dwLowDateTime;
+        total.HighPart  = user.dwHighDateTime;
+        total.QuadPart += ((ULONGLONG) kernel.dwHighDateTime << 32) | kernel.dwLowDateTime;
+
+        return total.QuadPart / 10000;
+    }
+
+
+
 
     //  Each conversion written to the folder CASSO_FILETYPE_EXPORT has, when
     //  it is set, for a look at what the decoders draw.
@@ -177,9 +210,9 @@ public:
             facts              = FileFacts::From (entry, kind);
             facts.resourceFork = payload.resourceFork;
 
-            start = GetTickCount64();
+            start = GetThreadCpuMs();
             hr    = FileFormatTable::Decode (format, payload.bytes, facts, DecodeOptions(), decoded, error);
-            took  = GetTickCount64() - start;
+            took  = GetThreadCpuMs() - start;
 
             outLog += std::format ("{} -> {} {}\n", path, (int) format, SUCCEEDED (hr) ? "ok" : TextEncoding::WideToUtf8 (error));
 
@@ -189,7 +222,7 @@ public:
                 continue;
             }
 
-            if (payload.bytes.size() <= 65536 && took > 500)
+            if (payload.bytes.size() <= 65536 && took > kDecodeLimitMs)
             {
                 outFailures += std::format ("{}: took {} ms\n", path, took);
             }

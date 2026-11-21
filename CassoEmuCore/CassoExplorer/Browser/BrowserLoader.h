@@ -65,6 +65,7 @@ public:
     HRESULT  LoadRecycleBin        ();
     HRESULT  LoadShellFolder       (const std::wstring & id);
     HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);
+    HRESULT  LoadPartition         (const std::wstring & path);
     bool     LoadPartitions        (const std::wstring & path);
     HRESULT  LoadCard              (const std::wstring & path);
     HRESULT  LoadAppleDrive        (const Location & location);

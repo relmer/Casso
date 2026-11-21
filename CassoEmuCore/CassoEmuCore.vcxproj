@@ -191,6 +191,7 @@
     <ClCompile Include="Update\UpdateRuntime.cpp" />
     <ClCompile Include="Update\Win32UpdateHost.cpp" />
     <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
+    <ClCompile Include="Update\ModuleInstallEnvironment.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
     <ClCompile Include="Update\LocalFeedHttpClient.cpp" />
     <ClCompile Include="Update\PendingUpdateModel.cpp" />
@@ -200,8 +201,10 @@
     <ClCompile Include="Core\JsonValue.cpp" />
     <ClCompile Include="Core\JsonWriter.cpp" />
     <ClCompile Include="Core\MachineConfig.cpp" />
+    <ClCompile Include="Core\MachineConfigSource.cpp" />
     <ClCompile Include="Core\MachineConfigUpgrade.cpp" />
     <ClCompile Include="Core\MachineScanner.cpp" />
+    <ClCompile Include="Core\DataFolderResolver.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
@@ -500,6 +503,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTabManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerStatusBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerBar.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerSearch.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerChips.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPickerMode.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerThemes.cpp" />
@@ -965,6 +969,7 @@
     <ClCompile Include="Machines\Apple2\Common\HfsVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsWriter.cpp" />
     <ClCompile Include="Devices\Disk\BlockVolumeOpener.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\ApmLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\CffaLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\DosMasterLayout.cpp" />
     <ClCompile Include="Devices\Disk\Partitions\FocusDriveLayout.cpp" />
@@ -1175,6 +1180,7 @@
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindowRepair.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockNavigator.cpp" />
@@ -1448,6 +1454,7 @@
     <ClInclude Include="Update\UpdateResult.h" />
     <ClInclude Include="Update\IUpdateHost.h" />
     <ClInclude Include="Update\IUpdateResultPoster.h" />
+    <ClInclude Include="Update\ModuleInstallEnvironment.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
     <ClInclude Include="Update\LocalFeedHttpClient.h" />
     <ClInclude Include="Update\PendingUpdateModel.h" />
@@ -1461,8 +1468,10 @@
     <ClInclude Include="Core\ICycleSink.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
+    <ClInclude Include="Core\MachineConfigSource.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
     <ClInclude Include="Core\MachineScanner.h" />
+    <ClInclude Include="Core\DataFolderResolver.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\DramPowerOnPattern.h" />
@@ -1662,6 +1671,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTabManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerStatusBar.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerBar.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerSearch.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerChips.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPickerMode.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerThemes.h" />
@@ -1829,6 +1839,7 @@
     <ClInclude Include="Machines\Apple2\Common\HfsVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsWriter.h" />
     <ClInclude Include="Devices\Disk\BlockVolumeOpener.h" />
+    <ClInclude Include="Devices\Disk\Partitions\ApmLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\CffaLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\DosMasterLayout.h" />
     <ClInclude Include="Devices\Disk\Partitions\FocusDriveLayout.h" />

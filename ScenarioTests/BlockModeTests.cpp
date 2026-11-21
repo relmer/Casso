@@ -438,8 +438,8 @@ public:
 
             Assert::IsTrue (dos >= 3, std::format (L"{}: {} DOS volumes", name, dos).c_str());
 
-            //  The bands drawn above the map don't overlap: a volume inside a
-            //  partition isn't drawn over it.
+            //  The partitions at the top don't overlap: a volume inside a
+            //  partition is nested in it.
             for (const BlockBand & a : model.GetBands())
             {
                 for (const BlockBand & b : model.GetBands())

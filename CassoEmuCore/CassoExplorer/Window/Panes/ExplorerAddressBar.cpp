@@ -89,6 +89,9 @@ void ExplorerAddressBar::Configure()
         return isOpen ? PhysicalCards::FormatDrive (found) : std::format (L"Physical drive {}", drive);
     };
 
+    m_addressRoot.getPartitionLabel = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetPartitionLabel (path); };
+    m_addressRoot.getVolumeLabel    = [this] (const std::wstring & path) { return m_context.browser.GetTreeModel().GetVolumeLabel (path); };
+
     m_address->SetOnSegment ([this] (int index)
     {
         if (index >= 0 && index < (int) m_addressSegments.size())
@@ -176,6 +179,18 @@ void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int righ
 
 
     addressRect.right -= (int) std::lround (scaler.ToPxf (ExplorerMetrics::kFindBoxRightInsetDip));
+
+    //  A picker's search box is above the list, so the address takes the
+    //  whole row.
+    if (m_context.IsPicker())
+    {
+        m_findBox->SetVisible (false);
+        m_findBox->Layout     (RECT { addressRect.right, addressRect.top, addressRect.right, addressRect.bottom }, scaler);
+        m_address->Layout     (addressRect, scaler);
+
+        return;
+    }
+
     findWidth          = std::clamp ((int) std::lround (kFindBoxShare * (float) rightOfTreePx), scaler.ToPx (kFindBoxMinDip), scaler.ToPx (kFindBoxMaxDip));
     findRect           = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
 

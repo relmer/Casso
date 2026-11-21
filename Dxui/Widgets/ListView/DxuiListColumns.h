@@ -43,6 +43,10 @@ public:
     //  isn't a width the user chose.
     void  AutoFitColumnToContent     (size_t idx);
 
+    //  A fit of the column measures each value only up to `stop`, then adds
+    //  `extraDip`. An empty `stop` measures whole values again.
+    void  SetColumnFitStop           (size_t idx, const std::wstring & stop, int extraDip);
+
     void  FitAllColumnsToContent    ();
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
@@ -115,4 +119,12 @@ private:
     std::vector<size_t>       m_pendingVisibleFits;
     std::vector<size_t>       m_pendingVisibleGrows;
     std::vector<size_t>       m_pendingGrows;
+
+    struct FitStop
+    {
+        std::wstring  stop;
+        int           extraDip = 0;
+    };
+
+    std::map<size_t, FitStop>  m_fitStops;
 };

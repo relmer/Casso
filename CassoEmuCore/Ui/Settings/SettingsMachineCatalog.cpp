@@ -14,6 +14,7 @@
 #include "Config/IFileSystem.h"
 #include "Config/GlobalUserPrefs.h"
 
+#include "Core/MachineConfigSource.h"
 #include "Core/MachineScanner.h"
 #include "Core/PathResolver.h"
 
@@ -100,8 +101,6 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState()
     std::vector<std::filesystem::path>  searchPaths;
     std::filesystem::path               rel;
     std::filesystem::path               configPath;
-    std::ifstream                       configFile;
-    std::stringstream                   ss;
     std::string                         jsonText;
     JsonValue                           defaultJson;
     JsonValue                           mergedJson;
@@ -133,15 +132,12 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState()
 
     if (ok)
     {
-        configFile.open (configPath);
-        ok = configFile.good();
+        hr = MachineConfigSource::ReadConfigText (GetModuleHandleW (nullptr), machineNameW, configPath, jsonText);
+        ok = SUCCEEDED (hr);
     }
 
     if (ok)
     {
-        ss << configFile.rdbuf();
-        jsonText = ss.str();
-
         hr = JsonParser::Parse (jsonText, defaultJson, parseErr);
         ok = SUCCEEDED (hr);
     }
@@ -171,8 +167,8 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState()
 //
 //  Scans the search paths for machine configs and fills the machine dropdown.
 //
-//  Machines are DISCOVERED on disk rather than hard-coded, so dropping a new
-//  machine folder in makes it selectable with no code change -- and the same
+//  Machines are DISCOVERED on disk rather than hard-coded, but only those this
+//  build has an embedded config for are listed -- and the same
 //  search paths are used as everywhere else, so a development tree's machines
 //  are found the same way an installed layout's are.
 //
@@ -213,7 +209,8 @@ void SettingsMachineCatalog::PopulateMachineList()
                                                    PathResolver::GetWorkingDirectory());
     machinesInfo = MachineScanner::Scan (searchPaths,
                                          MachineScanner::ListDirectory,
-                                         MachineScanner::ReadFile);
+                                         MachineScanner::ReadFile,
+                                         AssetBootstrap::HasEmbeddedConfig);
 
     for (const MachineInfo & info : machinesInfo)
     {

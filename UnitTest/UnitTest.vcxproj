@@ -289,7 +289,9 @@
     <ClCompile Include="EmuTests\Phase7IntegrationTests.cpp" />
     <ClCompile Include="EmuTests\LanguageCardTests.cpp" />
     <ClCompile Include="EmuTests\RegistryTests.cpp" />
+    <ClCompile Include="EmuTests\DataFolderResolverTests.cpp" />
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
+    <ClCompile Include="EmuTests\MachineConfigSourceTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
@@ -469,6 +471,7 @@
     <ClCompile Include="CassoLink\LinkProgramTests.cpp" />
     <ClCompile Include="CassoLink\ShimSccTests.cpp" />
     <ClCompile Include="CassoLink\UniversalSccTests.cpp" />
+    <ClCompile Include="CassoLink\VirtualDriveDriverTests.cpp" />
     <ClCompile Include="CassoLink\UthernetLinkTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkClientTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkResendTests.cpp" />
@@ -867,6 +870,7 @@
     <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListHeaderSortGlyphTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewPanelRoutingTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />

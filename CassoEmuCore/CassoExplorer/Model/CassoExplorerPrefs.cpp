@@ -15,6 +15,7 @@ static constexpr const char *  s_kpszKindRoot          = "root";
 static constexpr const char *  s_kpszKindRecycleBin    = "recycleBin";
 static constexpr const char *  s_kpszKindShellFolder   = "shellFolder";
 static constexpr const char *  s_kpszKindAppleDrive    = "appleDrive";
+static constexpr const char *  s_kpszKindPartition     = "partition";
 
 
 
@@ -75,7 +76,7 @@ std::array<std::pair<const char *, CassoExplorerPrefs::NavOption>, 5> CassoExplo
 bool CassoExplorerPrefs::IsKnownTheme (const std::string & theme)
 {
     return theme == kThemeLight || theme == kThemeDark || theme == kThemeFollowSystem
-        || theme == kThemeSkeuomorphic || theme == kThemeDarkModern || theme == kThemeRetroTerminal;
+        || theme == kThemeSkeuomorphic || theme == kThemeDarkModern || theme == kThemeRetroTerminal || theme == kThemePhosphor;
 }
 
 
@@ -120,7 +121,7 @@ bool CassoExplorerPrefs::IsMonitorName (const std::string & name)
 
 std::string CassoExplorerPrefs::MapCassoTheme (const std::string & activeTheme)
 {
-    if (activeTheme == kThemeSkeuomorphic || activeTheme == kThemeDarkModern || activeTheme == kThemeRetroTerminal)
+    if (activeTheme == kThemeSkeuomorphic || activeTheme == kThemeDarkModern || activeTheme == kThemeRetroTerminal || activeTheme == kThemePhosphor)
     {
         return activeTheme;
     }
@@ -259,6 +260,7 @@ const char * CassoExplorerPrefs::GetLocationKindName (Location::Kind kind)
         case Location::Kind::RecycleBin:    name = s_kpszKindRecycleBin;    break;
         case Location::Kind::ShellFolder:   name = s_kpszKindShellFolder;   break;
         case Location::Kind::AppleDrive:    name = s_kpszKindAppleDrive;    break;
+        case Location::Kind::Partition:     name = s_kpszKindPartition;     break;
         default:                            break;
     }
 
@@ -284,6 +286,7 @@ bool CassoExplorerPrefs::TryGetLocationKind (const std::string & name, Location:
     else if (name == s_kpszKindRecycleBin)    { outKind = Location::Kind::RecycleBin; }
     else if (name == s_kpszKindShellFolder)   { outKind = Location::Kind::ShellFolder; }
     else if (name == s_kpszKindAppleDrive)    { outKind = Location::Kind::AppleDrive; }
+    else if (name == s_kpszKindPartition)     { outKind = Location::Kind::Partition; }
     else                                      { return false; }
 
     return true;
@@ -952,7 +955,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         double  place = bootSoundPlace;
 
         root.HasNumber ("bootSoundPlace", place);
-        bootSoundPlace = (place >= kBootSoundPc && place <= kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
+        bootSoundPlace = (place >= (double) kBootSoundPc && place <= (double) kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
     }
 
 

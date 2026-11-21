@@ -796,7 +796,7 @@ void ExplorerOpen::InspectSelected()
     {
         paths.push_back (wrapped);
     }
-    else if (m_context.browser.IsImageLocation())
+    else if (m_context.browser.IsImageLocation() || m_context.browser.IsPartitionListLocation())
     {
         paths.push_back (m_context.browser.GetLocation().path);
     }

@@ -177,4 +177,5 @@ private:
     bool    m_isClosed         = false;
     bool    m_isReloadPending  = false;
     bool    m_isCloseAfterSave = false;
+    bool    m_isDarkSurface    = true;     // the surface the icons were last drawn for
 };

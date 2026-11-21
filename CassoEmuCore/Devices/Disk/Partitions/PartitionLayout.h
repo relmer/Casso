@@ -18,6 +18,7 @@
 enum class PartitionLayoutKind
 {
     None,
+    Apm,
     Cffa,
     FocusDrive,
     MicroDrive,
@@ -77,6 +78,10 @@ struct Partition
 
     //  The name or description the map has for the partition, when it has one.
     std::string          name;
+
+    //  The type the map has for the partition, such as Apple_PRODOS, when it
+    //  has one.
+    std::string          type;
 
     PartitionSpan        span       = PartitionSpan::WholeBlocks;
 

@@ -920,16 +920,15 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, 
 
 HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs, bool & outReady)
 {
-    static constexpr int       kPromptRepeats    = 4;
     static constexpr uint64_t  kPromptIntervalMs = 1000;
 
 
 
-    HRESULT  hr          = S_OK;
-    uint64_t deadline    = m_session.m_factory.GetTickMs() + timeoutMs;
-    uint64_t prompted    = 0;
-    int      repeatsLeft = 0;
-    bool     waiting     = false;
+    HRESULT  hr        = S_OK;
+    uint64_t deadline  = m_session.m_factory.GetTickMs() + timeoutMs;
+    uint64_t prompted  = 0;
+    bool     repeating = false;
+    bool     waiting   = false;
 
 
 
@@ -945,26 +944,21 @@ HRESULT CassoLinkConnector::AwaitProgram (std::stop_token stop, DWORD timeoutMs,
         //  opened. A prompt is an envelope, which ADTPro's client, idle on
         //  the same line, would read as the start of its next reply.
         //
-        //  The prompt is sent again each second, a few times, until a Ready
-        //  arrives: the first step of a universal disk written before it
-        //  took any byte as the PC could miss the Idle's start byte at
-        //  115,200 baud, and wait on.
-        if (!m_prompted && waiting)
+        //  The prompt is sent again each second until a Ready arrives or the
+        //  attempt ends: an Apple that boots its disk after the first prompt
+        //  doesn't send a Ready unprompted, and the first step of a universal
+        //  disk written before it took any byte as the PC could miss the
+        //  Idle's start byte at 115,200 baud. A prompt goes out only between
+        //  packets, since ServeOne reads a whole one, so a Ready on its way
+        //  is read before the next prompt.
+        if (waiting && (!m_prompted || (repeating && m_session.m_factory.GetTickMs() - prompted >= kPromptIntervalMs)))
         {
             hr = m_session.m_host->PromptReady();
             CHR (hr);
 
-            m_prompted  = true;
-            prompted    = m_session.m_factory.GetTickMs();
-            repeatsLeft = kPromptRepeats;
-        }
-        else if (repeatsLeft > 0 && waiting && m_session.m_factory.GetTickMs() - prompted >= kPromptIntervalMs)
-        {
-            hr = m_session.m_host->PromptReady();
-            CHR (hr);
-
-            prompted = m_session.m_factory.GetTickMs();
-            repeatsLeft--;
+            m_prompted = true;
+            repeating  = true;
+            prompted   = m_session.m_factory.GetTickMs();
         }
 
         hr = m_session.m_host->ServeOne (CassoLinkSession::kIdlePollMs);

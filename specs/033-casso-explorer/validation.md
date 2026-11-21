@@ -849,7 +849,7 @@ MAME 0.289's `apple3`, headless, with the CassoLink SOS disk made from Apple's S
 
 Before this, a 140K block device's catalog was empty: the volume layer read its 280 blocks, which arrive in block order, as a DOS-order buffer. The SOS program's CRC in its Ready differed from the host's at first, since the CRC loop changes the operand of one of its instructions; a disk with that build would have failed to connect as another version. Apple's System Utilities disk has no .RS232 in its SOS.DRIVER, so on a disk made from it the Apple /// displays a message and the link doesn't connect.
 
-## The Uthernet and the LANceGS (T602, SC-059)
+## Story 28's emulator targets (T602, SC-059)
 
 ### The Uthernet in AppleWin, 2026-11-18
 
@@ -898,6 +898,98 @@ runs DHCP against a fake SMC91C96.
 The source build reads its settings from `./cfg`, not `~/.mame/cfg`, so it
 was started with `-cfg_directory`. Without it, MAME didn't open the TAP
 device, and each transmit wrote nothing.
+
+### A IIgs's modem port in MAME and KEGS, 2026-11-19
+
+The universal disk in drive 1 and a ProDOS disk with one file in drive 2,
+with the modem port on a TCP socket to a Wi-Fi modem connection at 9,600
+baud. `CassoLinkIIgsTests::AnAppleIIgs_RunsStory14sOperations` ran with
+`CASSO_IIGS_EMULATOR` set to each emulator:
+
+- MAME 0.289's `apple2gs` on Windows, with its null modem.
+- KEGS 1.38, built from source in the WSL instance `Ubuntu-CassoEmu`. Its
+  modem port was set to connect to the Windows host, and it ran at 2.8 MHz.
+
+| Story 14 operation | MAME | KEGS |
+|---|---|---|
+| Connect | The root's model is Apple IIgs | The same |
+| Read a disk to an image | Drive 2's image is its disk | The same |
+| Browse | Drive 2's catalog has HELLO | The same |
+| Copy a file from the Apple | HELLO is the disk's, byte for byte | The same |
+| Copy a file to the Apple | A 3,000-byte file written and read back | The same |
+| Rename, make a folder, delete | The catalog has HELLO and the folder | The same |
+| Write an image to a disk | Failed: "sector not found" in the read-back check of a written track | An image written to drive 2 and read back is the same |
+
+MAME 0.285 on Linux failed the write the same way. In MAME's `apple2gs`,
+DOS 3.3's INIT formats a disk that Casso lists, and Casso's written track has
+good address fields when decoded. KEGS passes the write and its read-back,
+and so does an emulated //e in Casso. The test skips the write on MAME. A
+real IIgs hasn't been tested.
+
+Found and fixed:
+
+1. Nothing came over the modem port: the shim and the universal disk had the
+   8530's channels swapped. Port 1 is channel A and port 2 channel B.
+2. The universal disk set the 8530's clock without the crystal bit in
+   register 11. `UniversalSccTests` found it against a fake 8530.
+
+Four changes to KEGS, made only in that instance, let it run the link:
+
+- The ROM 03 image was dumped from MAME's memory at $FC0000 to $FFFFFF.
+  MAME's two ROM files joined end to end have no reset vector at the end.
+- With no disk in slot 7, KEGS boots slot 5 and skips slot 6.
+  Its fallback was changed to slot 6.
+- Unthrottled, KEGS ran at about 4,500 MHz, and the shim's waits, which are
+  counted in instructions, ran out. It ran at 2.8 MHz instead.
+- KEGS drops each $00 byte from a socket, which suits a terminal and breaks
+  a binary link: a page of the program arrived 15 bytes short. A raw
+  outgoing connection now passes them.
+
+### Every target through scripts/EmuTargets, 2026-11-19
+
+The targets are started by `scripts/EmuTargets/Mame.ps1` (MAME on Windows)
+and `scripts/EmuTargets/Wsl.ps1` (the WSL instance), and the tests start
+them the same way. `Wsl.ps1 -Setup` built KEGS, GSplus, MAME 0.285 and
+AppleWin in the instance from `scripts/EmuTargets/wsl/`, with the KEGS
+patches applied by `kegs-patch.py`; KEGS and GSplus take a ROM 03 image
+dumped from MAME's apple2gs by `DumpIIgsRom.lua`.
+
+| Target | Interface | Test | Result |
+|---|---|---|---|
+| MAME 0.289 `apple2gs` | Modem port | `CassoLinkIIgsTests`, `mame` | Passed, the whole-disk write skipped |
+| MAME 0.289 `apple2gs` | Super Serial Card in slot 7 | `CassoLinkIIgsTests`, `mame-ssc` | Passed, the whole-disk write skipped |
+| KEGS 1.38 | Modem port | `CassoLinkIIgsTests`, `kegs` | Passed, write included |
+| GSplus 1.38.0 | Modem port | `CassoLinkIIgsTests`, `gsplus` | Passed, write included |
+| MAME 0.285 `apple2ee` | LANceGS in slot 3, UDP | `CassoLinkEthernetTests`, `lancegs` | Passed, write included |
+| AppleWin `sa2` | Uthernet in slot 3, UDP | `CassoLinkEthernetTests`, `uthernet` | Passed, write included |
+
+Each test runs Story 14's operations: connect, read drive 2 to an image,
+browse, copy a file each way, rename, make a folder, delete, and write an
+image to drive 2 and read it back. The LANceGS's MAC address is the shim's
+02:43:41:53:53:01, set in MAME's `apple2ee.cfg`; the universal disk salts it
+for each Apple, as `TheUniversalDisk_TakesADhcpAddress_SaltsItsMac_AndAnnounces`
+tests.
+
+GSplus is KEGS 1.38 with an SDL3 front end, and its stock build has the same
+two faults as KEGS, so it takes the same patches.
+
+Found along the way:
+
+- A Super Serial Card with a dial command waits for a modem's reply line
+  before its Ready. MAME's card connects straight to Casso, so no reply
+  comes; the test boots the universal disk with no dial command, MAME's
+  socket listens, and a TCP connection is made to it.
+- A serial, TCP or UDP connection prompted five times in the first seconds
+  of an attempt and then waited for a Ready, so an Apple that booted the
+  universal disk later linked only on the next attempt, 25 seconds on. The
+  connection now prompts each second until a Ready arrives or the attempt
+  ends. `AnAppleThatBootsLate_IsPromptedUntilTheAttemptEnds` tests it, and
+  the Super Serial Card and network tests start the connection with the
+  emulator.
+- MAME doesn't start the Super Serial Card without its ROM, 341-0065-A, in
+  `roms\a2ssc`; `Mame.ps1` copies it from Casso's data folder.
+- GSplus running offscreen doesn't end on SIGTERM, so `run.sh stop` kills
+  what remains after a second.
 
 ## A2Pico cards (Story 41, SC-070)
 

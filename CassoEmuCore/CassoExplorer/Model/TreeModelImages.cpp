@@ -21,7 +21,8 @@
 //  children and give it an expand affordance; a DOS 3.3 volume has none; a
 //  file that will not parse gets the error as its tooltip and no affordance.
 //  The partitions of a partitioned image follow the directories, and a file
-//  that has partitions is not an error.
+//  that has partitions is not an error. Volumes inside a volume, such as DOS
+//  Master's, are volumes; any other image's are partitions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,7 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     SectorDecodeReport     report;
     MountDiagnosis         diagnosis;
     bool                   loaded     = false;
+    bool                   isRead     = false;
     VolumeKind             kind       = VolumeKind::Unknown;
     std::vector<TreeNode>  children;
     std::vector<TreeNode>  partitions;
@@ -44,12 +46,11 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     inOutNode.broken    = false;
     inOutNode.loadError.clear();
 
-    hr = ReadImage (path, fileBytes, name);
+    hr     = ReadImage (path, fileBytes, name);
+    isRead = SUCCEEDED (hr);
 
-    if (SUCCEEDED (hr))
+    if (isRead)
     {
-        ListPartitions (underCasso, path, fileBytes, name, partitions);
-
         hr     = VolumeImage::Load (fileBytes, name, sectors, report, diagnosis);
         loaded = SUCCEEDED (hr);
     }
@@ -67,6 +68,11 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
         {
             hr = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME);
         }
+    }
+
+    if (isRead)
+    {
+        ListPartitions (underCasso, path, fileBytes, name, kind != VolumeKind::Unknown, partitions);
     }
 
     if (FAILED (hr) && partitions.empty())
@@ -92,6 +98,21 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     m_children[inOutNode.id] = children;
 
     return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ReadImageNode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ReadImageNode (TreeNode & inOutNode)
+{
+    return DescribeImage (IsUnderCasso (inOutNode.id), inOutNode.location.path, inOutNode);
 }
 
 
@@ -146,9 +167,10 @@ Error:
 //
 //  TreeModel::ListPartitions
 //
-//  A ProDOS partition has an expander before its directories are read: they
-//  are read when the node is expanded. A partition that ends past the end of
-//  the image is listed as damaged.
+//  A partition is a node with the volumes in it below it, and a volume
+//  inside a volume is a volume. A ProDOS volume has an expander before its
+//  directories are read: they are read when the node is expanded. A
+//  partition that ends past the end of the image is listed as damaged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,6 +179,7 @@ void TreeModel::ListPartitions (
     const std::wstring      & path,
     const std::vector<Byte> & fileBytes,
     const std::string       & name,
+    bool                      isInsideVolume,
     std::vector<TreeNode>   & outNodes)
 {
     PartitionLayoutKind          layout  = PartitionLayoutKind::None;
@@ -174,14 +197,31 @@ void TreeModel::ListPartitions (
 
     for (const PartitionEntry & entry : entries)
     {
-        TreeNode      node;
-        std::wstring  partitionPath = path + kSeparator + TextEncoding::NarrowToWide (entry.step);
+        TreeNode       node;
+        std::wstring   partitionPath = path + kSeparator + TextEncoding::NarrowToWide (entry.step);
+        std::wstring   volumeLabel   = TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (entry));
+        bool           isProDos      = !entry.partition.damaged && entry.partition.volumeKind == VolumeKind::ProDos;
+        PartitionInfo  info;
 
-        node.id        = MakeImageId (underCasso, partitionPath);
-        node.kind      = TreeNode::Kind::DiskImage;
-        node.label     = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, true));
-        node.location  = Location::MakeDiskImage (partitionPath);
-        node.canExpand = !entry.partition.damaged && entry.partition.volumeKind == VolumeKind::ProDos;
+        if (isInsideVolume)
+        {
+            node = MakeVolumeNode (underCasso, partitionPath, volumeLabel, isProDos);
+        }
+        else
+        {
+            info.label         = TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
+            info.volumeLabel   = volumeLabel;
+            info.hasFileSystem = entry.partition.volumeKind != VolumeKind::Unknown || entry.partition.isHfs;
+            info.isProDos      = isProDos;
+
+            m_partitions[partitionPath] = info;
+
+            node.id        = MakePartitionId (underCasso, partitionPath);
+            node.kind      = TreeNode::Kind::Partition;
+            node.label     = info.label;
+            node.location  = Location::MakePartition (partitionPath);
+            node.canExpand = !entry.partition.damaged;
+        }
 
         if (entry.partition.damaged)
         {
@@ -191,6 +231,71 @@ void TreeModel::ListPartitions (
 
         outNodes.push_back (node);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::MakeVolumeNode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TreeNode TreeModel::MakeVolumeNode (bool underCasso, const std::wstring & path, const std::wstring & label, bool canExpand)
+{
+    TreeNode  node;
+
+
+
+    node.id        = MakeImageId (underCasso, path);
+    node.kind      = TreeNode::Kind::DiskImage;
+    node.label     = label;
+    node.location  = Location::MakeDiskImage (path);
+    node.canExpand = canExpand;
+
+    return node;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::ListPartitionVolumes
+//
+//  The volume in a partition, or for a partition with no file system Casso
+//  reads, the partitions inside it, such as an 800K UniDOS disk's two
+//  volumes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT TreeModel::ListPartitionVolumes (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes)
+{
+    HRESULT        hr     = S_OK;
+    auto           found  = m_partitions.find (path);
+    PartitionInfo  info   = (found != m_partitions.end()) ? found->second : PartitionInfo { GetLeaf (path), L"Untitled", true, false };
+    TreeNode       volume = MakeVolumeNode (underCasso, path, info.volumeLabel, info.isProDos);
+
+
+
+    outNodes = { volume };
+
+    if (!info.hasFileSystem)
+    {
+        hr = DescribeImage (underCasso, path, volume);
+        CHR (hr);
+
+        if (!m_children[volume.id].empty())
+        {
+            outNodes = m_children[volume.id];
+        }
+    }
+
+Error:
+    return hr;
 }
 
 

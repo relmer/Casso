@@ -78,6 +78,8 @@ public:
 
         //  The display name of a card's drive. None: "Physical drive N".
         std::function<std::wstring (int drive)>          getCardLabel;
+        std::function<std::wstring (const std::wstring & path)>  getPartitionLabel;   // empty when the partition isn't known
+        std::function<std::wstring (const std::wstring & path)>  getVolumeLabel;
     };
 
     size_t  OpenTab   (const Location & location);

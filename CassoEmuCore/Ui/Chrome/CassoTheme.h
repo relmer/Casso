@@ -309,14 +309,72 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = kDim;
         theme.tooltipText               = kNormal;
         theme.errorText                 = 0xFFFF6B6B;
-        theme.diskInspector                 = DiskInspectorColors::MakeDark();
-        theme.diskInspector.sync            = 0xFF24503A;
-        theme.diskInspector.nothingRecorded = 0xFF0A140C;
-        theme.diskInspector.mapFree         = kWash;
-        theme.diskInspector.timingNominal   = 0xFF2E5038;
-        theme.diskInspector.pendingPattern  = kRule;
-        theme.diskInspector.selection       = kBright;
+        theme.diskInspector = MakePhosphorInspector (kRule, kDim, kNormal, kBright, kWash);
         return theme;
+    }
+
+
+    //  The disk inspector on the monochrome terminal: the kinds are greens,
+    //  plus olive and teal so that every pair of kinds differs visibly. Only
+    //  an error is red, as the theme's error text is.
+    static DiskInspectorColors MakePhosphorInspector (uint32_t rule, uint32_t dim, uint32_t normal, uint32_t bright, uint32_t wash)
+    {
+        constexpr uint32_t  kFaint  = 0xFF0F2A17;
+        constexpr uint32_t  kMid    = 0xFF3FA85C;
+        constexpr uint32_t  kHigh   = 0xFF8CF0A0;
+        constexpr uint32_t  kError  = 0xFFFF6B6B;
+
+        DiskInspectorColors  c;
+
+
+
+        c.sync             = 0xFF285412;
+        c.addressMark      = 0xFF68DF68;
+        c.addressField     = 0xFF3A7E78;
+        c.dataMark         = 0xFF33C1AA;
+        c.dataField        = 0xFF209748;
+        c.failedChecksum   = kError;
+        c.other            = 0xFF87871D;
+        c.noise            = 0xFFD4D435;
+        c.randomBits       = 0xFFC7E5E3;
+        c.nothingRecorded  = 0xFF0A140C;
+
+        c.sectorGood       = normal;
+        c.sectorBad        = kError;
+        c.sectorNotChecked = kMid;
+        c.sectorNoData     = kHigh;
+
+        c.mapFree          = wash;
+        c.mapBoot          = 0xFF46D8CC;
+        c.mapVolumeHeader  = 0xFFF1F1BC;
+        c.mapDirectory     = 0xFF89E689;
+        c.mapUnusedCatalog = 0xFF4D4D19;
+        c.mapBitmap        = 0xFFB9B927;
+        c.mapSubdirectory  = 0xFF20978E;
+        c.mapIndex         = 0xFFCAE2E0;
+        c.mapFileData      = 0xFF1E7140;
+        c.mapBadBlocks     = 0xFF7A2A2A;
+        c.mapUnowned       = 0xFF7B7B28;
+        c.mapOwnedFree     = 0xFF35A12B;
+        c.mapCrossLinked   = kError;
+
+        c.timingFast       = bright;
+        c.timingNominal    = 0xFF2E5038;
+        c.timingSlow       = kFaint;
+
+        c.pendingEdit      = bright;
+        c.difference       = kHigh;
+        c.damaged          = 0xFF3A1414;
+        c.damageHatch      = kError;
+        c.pendingPattern   = rule;
+        c.headIdle         = dim;
+        c.headReading      = normal;
+        c.headWriting      = kError;
+        c.headScanning     = bright;
+        c.selection        = bright;
+        c.findHit          = kHigh;
+
+        return c;
     }
 
 

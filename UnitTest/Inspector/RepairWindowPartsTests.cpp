@@ -52,7 +52,7 @@ public:
 
 
 
-    static void Open (Map & map, const vector<Byte> & image, UINT dpi)
+    static void Open (Map & map, const vector<Byte> & image, UINT dpi, const RECT & areaDip = kAreaDip)
     {
         Images::Analyze (image, false, map.session.analysis);
 
@@ -61,7 +61,7 @@ public:
         map.session.diskTab         = kTabFileMap;
         map.session.repairPlan      = DiskRepair::Plan (map.session.analysis, {});
         map.scaler.SetDpi (dpi);
-        map.area = { map.scaler.ToPx (kAreaDip.left), map.scaler.ToPx (kAreaDip.top), map.scaler.ToPx (kAreaDip.right), map.scaler.ToPx (kAreaDip.bottom) };
+        map.area = { map.scaler.ToPx (areaDip.left), map.scaler.ToPx (areaDip.top), map.scaler.ToPx (areaDip.right), map.scaler.ToPx (areaDip.bottom) };
 
         map.files.Create();
         map.files.RefreshFileList();
@@ -100,6 +100,30 @@ public:
 
 
     using Images = FileMapTestImages;
+
+
+
+    //  In a view too narrow for the verdict between the file picker and Copy
+    //  map, the verdict is hidden rather than drawn over the picker; the
+    //  status band's verdict chip remains.
+    TEST_METHOD (InANarrowView_TheVerdictIsHidden_NotDrawnOverThePicker)
+    {
+        static constexpr RECT  kNarrowDip = { 0, 0, 560, 600 };
+
+        for (UINT dpi : { 96u, 144u })
+        {
+            Map  map;
+
+            Open (map, RepairFixtures::MakeDos33Bitmap().damaged, dpi, kNarrowDip);
+
+            Assert::IsFalse (map.files.GetVerdictLink().IsVisible(), std::format (L"no verdict over the picker at {} dpi", dpi).c_str());
+            Assert::IsTrue  (map.files.GetFilePicker().GetBounds().right <= map.files.GetCopyButton().GetBounds().left, L"the picker, then Copy map");
+
+            map.files.Layout ({ map.scaler.ToPx (kAreaDip.left), map.scaler.ToPx (kAreaDip.top), map.scaler.ToPx (kAreaDip.right), map.scaler.ToPx (kAreaDip.bottom) }, map.scaler);
+            Assert::IsTrue  (map.files.GetVerdictLink().IsVisible(), L"the verdict again once the view is wide enough");
+        }
+    }
+
 
 
 
@@ -466,26 +490,26 @@ public:
     {
         for (UINT dpi : { 96u, 144u })
         {
-            InspectorSession  session;
-            IssuesView        issues  { session.context };
+            auto              session = std::make_unique<InspectorSession>();
+            auto              issues  = std::make_unique<IssuesView> (session->context);
             DxuiDpiScaler     scaler;
             DxuiMouseEvent    ev;
             RECT              before  = {};
             RECT              after   = {};
             POINT             divider = {};
 
-            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
-            session.context.hasDisk = true;
+            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
+            session->context.hasDisk = true;
             scaler.SetDpi (dpi);
 
-            issues.Refresh();
-            issues.Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
+            issues->Refresh();
+            issues->Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
 
             //  The divider at the Category column's right edge, in the header.
-            Assert::IsTrue (issues.GetList().GetCellRectPx (0, 2, before));
-            divider = { issues.GetList().GetBounds().left + before.right - 1, issues.GetList().GetBounds().top + issues.GetList().GetHeaderHeightPx() / 2 };
+            Assert::IsTrue (issues->GetList().GetCellRectPx (0, 2, before));
+            divider = { issues->GetList().GetBounds().left + before.right - 1, issues->GetList().GetBounds().top + issues->GetList().GetHeaderHeightPx() / 2 };
 
-            Assert::IsTrue (issues.GetCursorForPoint (divider) == IDC_SIZEWE, std::format (L"the resize arrows over the divider at {} dpi", dpi).c_str());
+            Assert::IsTrue (issues->GetCursorForPoint (divider) == IDC_SIZEWE, std::format (L"the resize arrows over the divider at {} dpi", dpi).c_str());
 
             ev.button = DxuiMouseButton::Left;
 
@@ -493,10 +517,10 @@ public:
             {
                 ev.kind        = step.first;
                 ev.positionDip = { divider.x + scaler.ToPx (step.second), divider.y };
-                (void) issues.OnMouse (ev);
+                (void) issues->OnMouse (ev);
             }
 
-            Assert::IsTrue   (issues.GetList().GetCellRectPx (0, 2, after));
+            Assert::IsTrue   (issues->GetList().GetCellRectPx (0, 2, after));
             Assert::AreEqual (static_cast<long> (scaler.ToPx (40)), (after.right - after.left) - (before.right - before.left), L"the column is as much wider as the drag");
         }
     }

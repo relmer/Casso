@@ -35,6 +35,9 @@ public:
     explicit ExplorerListPane (ExplorerContext & context);
     ~ExplorerListPane ();
 
+    //  Whether the list's icons are drawn on a dark surface.
+    void  SetDarkSurface (bool isDark);
+
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
     void  Create             ();
@@ -87,6 +90,7 @@ public:
     static std::wstring                      GetEmptyLocationMessage (Location::Kind kind);
     void                                     UpdateTip               (const DxuiMouseEvent & ev, POINT point);
     void                                     RefreshTip              ();
+    static bool                              IsHostFileRow           (const CatalogRow & row, std::wstring & outPath);
     std::vector<DxuiPopupMenuItem>           GetScrollbarMenu        (const DxuiMouseEvent & ev) const;
     bool                                     UpdateScrollbarHover    (POINT at) { return m_list->SetScrollbarHover (at); }
     LPCWSTR                                  GetCursorForPoint       (POINT clientPx) const;
@@ -162,6 +166,8 @@ private:
     Location                     m_grownLocation;   // the folder whose columns were last fitted to its rows
     static constexpr size_t      s_kFitAllRowsMax  = 500;    // past this many rows, only those on screen are measured
     static constexpr uint64_t    s_kArrivalWaitMs  = 10000;
+
+    static constexpr int  s_kFolderPathPeekDip = 60;   // room past a picker's folder name, to show a path follows
 
     std::wstring               m_arrivalFolder;   // see SelectWhenListed
     std::vector<std::wstring>  m_arrivalNames;

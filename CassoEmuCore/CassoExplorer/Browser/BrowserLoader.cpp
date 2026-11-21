@@ -60,8 +60,9 @@ void BrowserLoader::ReloadAfterNavigation()
 
 HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
 {
-    HRESULT  hr    = S_OK;
-    size_t   index = 0;
+    HRESULT                                    hr       = S_OK;
+    size_t                                     index    = 0;
+    std::unordered_map<std::wstring, int64_t>  loadedAt;
 
 
 
@@ -88,6 +89,15 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
 
     std::erase_if (m_hostEntries, [this] (const FileSystemEntry & entry) { return !m_folderOptions.IsShown (entry); });
 
+    //  When Casso last loaded each image, for the Last used column.
+    if (m_browser.m_recentLoads)
+    {
+        for (const DiskMru::Entry & recent : m_browser.m_recentLoads())
+        {
+            loadedAt.emplace (CassoImagesListing::MakePathKey (recent.path.wstring()), recent.lastLoadedUnix);
+        }
+    }
+
     for (index = 0; index < m_hostEntries.size(); index++)
     {
         const FileSystemEntry &  entry   = m_hostEntries[index];
@@ -104,6 +114,10 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
                                                                                TextEncoding::WideToUtf8 (CassoExplorerBrowser::JoinPath (path, entry.name)),
                                                                                entry.sizeBytes,
                                                                                entry.modifiedUnix);
+
+            auto  loaded = loadedAt.find (CassoImagesListing::MakePathKey (CassoExplorerBrowser::JoinPath (path, entry.name)));
+
+            m_browser.m_rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
         }
 
         //  A folder is listed by the name in its desktop.ini, as in the tree,
@@ -639,6 +653,8 @@ HRESULT BrowserLoader::LoadCassoImages()
     std::vector<std::wstring>    folders;
     std::vector<DiskMru::Entry>  recent;
     std::vector<CatalogRow>      rows;
+    std::vector<CatalogRow>      stock;
+    std::set<std::wstring>       listed;
 
 
 
@@ -661,6 +677,41 @@ HRESULT BrowserLoader::LoadCassoImages()
     }
 
     CassoImagesListing::Build (m_browser.m_fs, m_browser.m_fileIo, m_browser.m_imageClasses, folders, recent, rows);
+
+    for (const CatalogRow & row : rows)
+    {
+        listed.insert (CassoImagesListing::MakePathKey (row.hostPath));
+    }
+
+    //  A picker's stock and demo disks are listed too, under their node's label.
+    for (const TreeNode & node : nodes)
+    {
+        if (node.id != TreeModel::kStockDisksId && node.id != TreeModel::kDemoDisksId)
+        {
+            continue;
+        }
+
+        StockDisksListing::Build ((node.id == TreeModel::kStockDisksId) ? m_browser.m_stockDisks : m_browser.m_demoDisks, stock);
+
+        for (CatalogRow & row : stock)
+        {
+            if (!row.hostPath.empty() && !listed.insert (CassoImagesListing::MakePathKey (row.hostPath)).second)
+            {
+                continue;
+            }
+
+            for (const DiskMru::Entry & entry : recent)
+            {
+                if (CassoImagesListing::MakePathKey (entry.path.wstring()) == CassoImagesListing::MakePathKey (row.hostPath))
+                {
+                    row.lastUsedUnix = entry.lastLoadedUnix;
+                }
+            }
+
+            row.folderShown = node.label;
+            rows.push_back (std::move (row));
+        }
+    }
 
     for (CatalogRow & row : rows)
     {
@@ -1208,10 +1259,12 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     {
         CatalogRow  row;
 
-        row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false));
+        row.name          = PhysicalCards::IsOnCard (path) ? TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false))
+                                                           : TextEncoding::NarrowToWide (PartitionAccess::GetPartitionLabel (entry.partition));
         row.typeText      = TextEncoding::NarrowToWide (PartitionLayout::GetLayoutName (kind)) + (entry.partition.damaged ? L" partition, damaged" : L" partition");
         row.sizeBytes     = entry.byteCount;
         row.isDiskImage   = true;
+        row.isPartition   = true;
         row.containerPath = path + L"|" + TextEncoding::NarrowToWide (entry.step);
         row.sourceIndex   = m_browser.m_rows.size();
 
@@ -1228,6 +1281,74 @@ bool BrowserLoader::LoadPartitions (const std::wstring & path)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::LoadPartition
+//
+//  The volume in a partition of an image, a row that opens it, or for a
+//  partition with no file system Casso reads, the partitions inside it, such
+//  as an 800K UniDOS disk's two volumes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::LoadPartition (const std::wstring & path)
+{
+    HRESULT                      hr         = S_OK;
+    HRESULT                      hrReadOnly = S_OK;
+    size_t                       bar        = path.rfind (L'|');
+    std::string                  step       = TextEncoding::WideToNarrow (path.substr (bar + 1));
+    PartitionLayoutKind          kind       = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+    const PartitionEntry       * found      = nullptr;
+    CatalogRow                   row;
+
+
+
+    CBREx (bar != std::wstring::npos, E_INVALIDARG);
+
+    hr = ListPartitions (path.substr (0, bar), kind, entries);
+    CHRF (hr, m_listError = std::format (L"Unable to open {}.", path.substr (bar + 1)));
+
+    for (const PartitionEntry & entry : entries)
+    {
+        found = (found == nullptr && entry.step == step) ? &entry : found;
+    }
+
+    if (found == nullptr)
+    {
+        m_listError = std::format (L"Unable to open {}.", path.substr (bar + 1));
+    }
+
+    CBRF (found != nullptr, hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    if (found->partition.volumeKind == VolumeKind::Unknown && !found->partition.isHfs && LoadPartitions (path))
+    {
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    row.name          = TextEncoding::NarrowToWide (PartitionAccess::GetVolumeLabel (*found));
+    row.typeText      = TextEncoding::NarrowToWide (std::string (VolumeImage::GetSystemName (found->partition.isHfs ? VolumeKind::Hfs : found->partition.volumeKind))) + L" volume";
+    row.sizeBytes     = found->byteCount;
+    row.isDiskImage   = true;
+    row.containerPath = path;
+    row.sourceIndex   = 0;
+
+    m_browser.m_rows.push_back (std::move (row));
+
+    m_browser.m_isPartitionList = true;
+    m_writeProtected            = false;
+
+    hrReadOnly = m_browser.m_fs.GetReadOnlyAttribute (path.substr (0, path.find (L'|')), m_writeProtected);
+    IGNORE_RETURN_VALUE (hrReadOnly, S_OK);
+
+Error:
+    return hr;
 }
 
 
@@ -1471,7 +1592,8 @@ bool BrowserLoader::IsOnMissingDrive (const Location & location) const
 {
     bool  hostPath = location.kind == Location::Kind::HostFolder
                   || location.kind == Location::Kind::DiskImage
-                  || location.kind == Location::Kind::DiskDirectory;
+                  || location.kind == Location::Kind::DiskDirectory
+                  || location.kind == Location::Kind::Partition;
 
 
 

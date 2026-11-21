@@ -22,6 +22,10 @@ New code goes in the **core libraries** (`CassoCore` / `CassoEmuCore`), NOT an e
 
 See the Constitution's Principle VI (Thin Executable, Testable Core) and Principle II (Testing Discipline).
 
+### Class Design
+
+A `.cpp` file stays under about 2,000 lines. Split a class that outgrows it into component classes that call each other through small scoped interfaces, not friends, and delete the old methods rather than forwarding them. The principles, examples and steps for a split are in `docs/class-design.md`; read it before designing a new class or splitting one.
+
 ## C++ Specific Guidelines
 
 ### Precompiled Headers
@@ -986,6 +990,12 @@ in conversation.
   fully drivable, because posted `WM_MOUSEMOVE` / `WM_LBUTTONDOWN` and
   `PrintWindow` capture need neither focus nor foreground. When the user
   asks to start Casso, launch it in the foreground as usual.
+- **A developer build stores its data in `CassoData\` at its repo root,**
+  not in `%LOCALAPPDATA%\Casso`. The owner's `UserPrefs.json` is
+  the same after a test launch, so there is no backup and restore step. A new worktree
+  starts from defaults and has no ROMs until `scripts/FetchRoms.ps1` runs in
+  it. `CASSO_PROFILE_DIR` sets the folder for any build. The rules are in
+  [docs/testing.md](../docs/testing.md).
 - **Every agent launch of Casso passes `--title <label>`, without exception.**
   Several sessions run at once, each in its own worktree, and every caption
   otherwise reads `Casso - Apple //e`: the user cannot tell which window

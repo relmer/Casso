@@ -5,6 +5,7 @@
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
@@ -180,6 +181,68 @@ bool ExplorerListColumns::IsCassoImageList (const Location & location)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListColumns::IsUnderCassoNode
+//
+//  The stock and demo disks, and a folder in or below one of the Casso
+//  node's folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsUnderCassoNode (const Location & location) const
+{
+    HRESULT                hr      = S_OK;
+    std::vector<TreeNode>  nodes;
+    std::wstring           path;
+    std::wstring           folder;
+    bool                   isUnder = false;
+
+
+
+    if (location.kind == Location::Kind::Root)
+    {
+        return location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId;
+    }
+
+    if (location.kind != Location::Kind::HostFolder)
+    {
+        return false;
+    }
+
+    hr = m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    path = CassoImagesListing::MakePathKey (location.path);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (node.location.kind != Location::Kind::HostFolder || node.location.path.empty())
+        {
+            continue;
+        }
+
+        folder = CassoImagesListing::MakePathKey (node.location.path);
+
+        while (!folder.empty() && folder.back() == L'\\')
+        {
+            folder.pop_back();
+        }
+
+        isUnder = isUnder || path == folder || (path.starts_with (folder) && path.size() > folder.size() && path[folder.size()] == L'\\');
+    }
+
+    return isUnder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListColumns::IsResultsList
 //
 //  A list of files from several folders, which has the Folder column and
@@ -211,7 +274,7 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
 {
     bool  catalog     = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
     bool  recycled    = column == (size_t) CatalogModel::Column::OriginalLocation || column == (size_t) CatalogModel::Column::DateDeleted;
-    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive;
+    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive || kind == Location::Kind::Partition;
     bool  inBin       = kind == Location::Kind::RecycleBin;
 
 
@@ -587,8 +650,9 @@ void ExplorerListColumns::ApplyFolderView()
             m_chosen[(size_t) CatalogModel::Column::Folder] = true;
         }
 
-        //  The Casso node's images, with what each is and when Casso last loaded it.
-        if (IsCassoImageList (m_context.browser.GetLocation()) && m_chosen.size() > (size_t) CatalogModel::Column::LastUsed)
+        //  The Casso node's images, with what each is and when Casso last loaded
+        //  it, and in a picker, the images of every folder under the node.
+        if ((IsCassoImageList (m_context.browser.GetLocation()) || (m_context.IsPicker() && IsUnderCassoNode (m_context.browser.GetLocation()))) && m_chosen.size() > (size_t) CatalogModel::Column::LastUsed)
         {
             for (CatalogModel::Column column : { CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize, CatalogModel::Column::LastUsed })
             {

@@ -170,7 +170,7 @@ BlockPlace BlockBrowser::GetContainer (const BlockPlace & place) const
 
 
 
-    if (place.kind == BlockPlace::Kind::Card || place.kind == BlockPlace::Kind::Volume || place.kind == BlockPlace::Kind::Directory)
+    if (place.kind == BlockPlace::Kind::Card || place.kind == BlockPlace::Kind::Partition || place.kind == BlockPlace::Kind::Volume || place.kind == BlockPlace::Kind::Directory)
     {
         return place;
     }
@@ -207,8 +207,8 @@ BlockPlace BlockBrowser::GetContainer (const BlockPlace & place) const
 //
 //  BlockBrowser::GetVolumes
 //
-//  The volumes in the order of their partitions, or the one volume of an
-//  image with none.
+//  The volumes in the order of their partitions, after a volume the
+//  partitions are inside, or the one volume of an image with none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,9 +231,12 @@ vector<int> BlockBrowser::GetVolumes() const
         }
     }
 
-    if (volumes.empty() && m_model->GetVolumeCount() > 0 && !m_model->IsSectorVolume (0))
+    //  A file system over the whole image that the partitions are inside, as
+    //  DOS Master's ProDOS volume, is volume 0 and no partition's.
+    if (m_model->GetVolumeCount() > 0 && !m_model->IsSectorVolume (0) && std::find (volumes.begin(), volumes.end(), 0) == volumes.end()
+        && (volumes.empty() || (m_model->GetVolumeFirst (0) == 0 && m_model->GetVolumeSize (0) == m_model->GetBlockCount())))
     {
-        volumes.push_back (0);
+        volumes.insert (volumes.begin(), 0);
     }
 
     return volumes;
@@ -282,19 +285,39 @@ vector<DxuiTreeNode> BlockBrowser::BuildTree (const std::wstring & cardLabel) co
 {
     vector<DxuiTreeNode>  volumes;
     DxuiTreeNode          card;
-    bool                  isCard = HasCard();
+    bool                  isCard     = HasCard();
+    vector<int>           all        = GetVolumes();
+    vector<int>           containers = FindContainers (all);
 
 
 
-    for (int volume : GetVolumes())
+    if (isCard)
     {
-        DxuiTreeNode  node;
+        for (int band : GetPartitionBands())
+        {
+            DxuiTreeNode        node;
+            const BlockBand  &  part = m_model->GetBands()[(size_t) band];
 
-        node.id       = MakeId ({ BlockPlace::Kind::Volume, volume });
-        node.label    = GetVolumeName (volume);
-        node.expanded = !isCard;
-        node.children = BuildDirectoryNodes (volume, -1);
-        volumes.push_back (std::move (node));
+            node.id       = MakeId ({ BlockPlace::Kind::Partition, -1, band });
+            node.label    = part.label;
+            node.expanded = true;
+
+            if (part.volume >= 0 && std::find (all.begin(), all.end(), part.volume) != all.end())
+            {
+                node.children.push_back (BuildVolumeNode (part.volume, containers, false));
+            }
+
+            volumes.push_back (std::move (node));
+        }
+    }
+
+    //  A volume no partition has, such as the one volume of an image.
+    for (size_t i = 0; i < all.size(); i++)
+    {
+        if (containers[i] < 0 && (!isCard || FindPartitionOf (all[i]) < 0))
+        {
+            volumes.push_back (BuildVolumeNode (all[i], containers, !isCard));
+        }
     }
 
     if (!isCard)
@@ -308,6 +331,227 @@ vector<DxuiTreeNode> BlockBrowser::BuildTree (const std::wstring & cardLabel) co
     card.children = std::move (volumes);
 
     return { card };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::BuildVolumeNode
+//
+//  A volume with its directories below it, then the volumes inside it, such
+//  as DOS Master's volumes in a ProDOS partition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTreeNode BlockBrowser::BuildVolumeNode (int volume, const vector<int> & containers, bool isExpanded) const
+{
+    DxuiTreeNode  node;
+    vector<int>   all  = GetVolumes();
+
+
+
+    node.id       = MakeId ({ BlockPlace::Kind::Volume, volume });
+    node.label    = GetVolumeName (volume);
+    node.expanded = isExpanded;
+    node.children = BuildDirectoryNodes (volume, -1);
+
+    for (size_t i = 0; i < all.size(); i++)
+    {
+        if (containers[i] == volume)
+        {
+            node.children.push_back (BuildVolumeNode (all[i], containers, false));
+        }
+    }
+
+    return node;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::FindContainers
+//
+//  For each volume, the smallest other volume whose blocks include its
+//  blocks, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> BlockBrowser::FindContainers (const vector<int> & volumes) const
+{
+    vector<int>  containers (volumes.size(), -1);
+    uint32_t     first      = 0;
+    uint32_t     end        = 0;
+    uint32_t     outerFirst = 0;
+    uint32_t     outerEnd   = 0;
+    uint32_t     best       = 0;
+
+
+
+    for (size_t i = 0; i < volumes.size(); i++)
+    {
+        first = m_model->GetVolumeFirst (volumes[i]);
+        end   = first + m_model->GetVolumeSize (volumes[i]);
+        best  = UINT32_MAX;
+
+        for (size_t j = 0; j < volumes.size(); j++)
+        {
+            outerFirst = m_model->GetVolumeFirst (volumes[j]);
+            outerEnd   = outerFirst + m_model->GetVolumeSize (volumes[j]);
+
+            if (j != i && outerFirst <= first && end <= outerEnd && outerEnd - outerFirst > end - first && outerEnd - outerFirst < best)
+            {
+                containers[i] = volumes[j];
+                best          = outerEnd - outerFirst;
+            }
+        }
+    }
+
+    return containers;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::GetPartitionBands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> BlockBrowser::GetPartitionBands() const
+{
+    vector<int>                 bands;
+    vector<int>                 volumes    = GetVolumes();
+    vector<int>                 containers = FindContainers (volumes);
+    const vector<BlockBand>  &  all        = m_model->GetBands();
+    bool                        isInside   = false;
+
+
+
+    if (!HasCard())
+    {
+        return bands;
+    }
+
+    for (size_t i = 0; i < all.size(); i++)
+    {
+        auto  found = std::find (volumes.begin(), volumes.end(), all[i].volume);
+
+        isInside = found != volumes.end() && containers[(size_t) (found - volumes.begin())] >= 0;
+
+        if (!all[i].isMap && !all[i].isNested && !isInside)
+        {
+            bands.push_back ((int) i);
+        }
+    }
+
+    return bands;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::FindPartitionOf
+//
+//  The band of the partition a volume is the volume of, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockBrowser::FindPartitionOf (int volume) const
+{
+    for (int band : GetPartitionBands())
+    {
+        if (m_model->GetBands()[(size_t) band].volume == volume)
+        {
+            return band;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::GetTopVolumes
+//
+//  The volumes that aren't inside another volume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> BlockBrowser::GetTopVolumes() const
+{
+    vector<int>  volumes    = GetVolumes();
+    vector<int>  containers = FindContainers (volumes);
+    vector<int>  top;
+
+
+
+    for (size_t i = 0; i < volumes.size(); i++)
+    {
+        if (containers[i] < 0)
+        {
+            top.push_back (volumes[i]);
+        }
+    }
+
+    return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::GetAncestors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<BlockPlace> BlockBrowser::GetAncestors (int volume) const
+{
+    vector<BlockPlace>  places;
+    vector<int>         volumes    = GetVolumes();
+    vector<int>         containers = FindContainers (volumes);
+    int                 at         = volume;
+    int                 band       = -1;
+
+
+
+    for (size_t step = 0; step <= volumes.size(); step++)
+    {
+        auto  found = std::find (volumes.begin(), volumes.end(), at);
+
+        if (found == volumes.end() || containers[(size_t) (found - volumes.begin())] < 0)
+        {
+            break;
+        }
+
+        at = containers[(size_t) (found - volumes.begin())];
+        places.push_back ({ BlockPlace::Kind::Volume, at });
+    }
+
+    band = HasCard() ? FindPartitionOf (at) : -1;
+
+    if (band >= 0)
+    {
+        places.push_back ({ BlockPlace::Kind::Partition, -1, band });
+    }
+
+    return places;
 }
 
 
@@ -354,7 +598,8 @@ vector<DxuiTreeNode> BlockBrowser::BuildDirectoryNodes (int volume, int director
 //
 //  BlockBrowser::MakeId
 //
-//  "card", "v1" for volume 1, or "v1d7" for its entry 7.
+//  "card", "p3" for the partition of band 3, "v1" for volume 1, or "v1d7"
+//  for its entry 7.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -363,6 +608,7 @@ std::wstring BlockBrowser::MakeId (const BlockPlace & place)
     switch (place.kind)
     {
         case BlockPlace::Kind::Card:      return L"card";
+        case BlockPlace::Kind::Partition: return std::format (L"p{}", place.entry);
         case BlockPlace::Kind::Volume:    return std::format (L"v{}", place.volume);
         case BlockPlace::Kind::Directory: return std::format (L"v{}d{}", place.volume, place.entry);
         default:                          break;
@@ -395,6 +641,12 @@ bool BlockBrowser::ParseId (const std::wstring & id, BlockPlace & outPlace)
         return true;
     }
 
+    if (id.size() >= 2 && id[0] == L'p')
+    {
+        outPlace = { BlockPlace::Kind::Partition, -1, _wtoi (id.substr (1).c_str()) };
+        return true;
+    }
+
     if (id.size() < 2 || id[0] != L'v')
     {
         return false;
@@ -422,6 +674,8 @@ BlockListing BlockBrowser::BuildListing (const BlockPlace & place, const std::ws
 {
     BlockListing  listing;
     bool          isVolume = m_model != nullptr && place.volume >= 0 && place.volume < m_model->GetVolumeCount();
+    bool          isBand   = m_model != nullptr && place.kind == BlockPlace::Kind::Partition && place.entry >= 0 && (size_t) place.entry < m_model->GetBands().size();
+    int           held     = isBand ? m_model->GetBands()[(size_t) place.entry].volume : -1;
 
 
 
@@ -436,7 +690,7 @@ BlockListing BlockBrowser::BuildListing (const BlockPlace & place, const std::ws
 
         for (int volume : GetVolumes())
         {
-            if (place.kind == BlockPlace::Kind::Card || volume == place.volume)
+            if (place.kind == BlockPlace::Kind::Card || volume == place.volume || (isBand && volume == held))
             {
                 AddSearchRows (listing, volume, query);
             }
@@ -448,7 +702,15 @@ BlockListing BlockBrowser::BuildListing (const BlockPlace & place, const std::ws
     switch (place.kind)
     {
         case BlockPlace::Kind::Card:
-            AddCardRows (listing);
+            AddCardRows (listing, GetTopVolumes());
+            break;
+
+        case BlockPlace::Kind::Partition:
+            if (held >= 0)
+            {
+                AddCardRows (listing, { held });
+            }
+
             break;
 
         case BlockPlace::Kind::Volume:
@@ -513,14 +775,14 @@ void BlockBrowser::SetEntryColumns (BlockListing & listing)
 //
 //  BlockBrowser::AddCardRows
 //
-//  A row for each partition with a volume of blocks; a kind of damage is
-//  one problem, however many blocks it is in.
+//  A row for each volume given; a kind of damage is one problem, however
+//  many blocks it is in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockBrowser::AddCardRows (BlockListing & listing) const
+void BlockBrowser::AddCardRows (BlockListing & listing, const vector<int> & volumes) const
 {
-    BlockListGroup        group  = { L"Partitions" };
+    BlockListGroup        group  = { L"Volumes" };
     std::set<SectorRole>  kinds;
     int                   number = 0;
     size_t                used   = 0;
@@ -528,10 +790,10 @@ void BlockBrowser::AddCardRows (BlockListing & listing) const
 
 
 
-    listing.columns  = { L"Partition", L"File system", L"Name", L"Blocks", L"Used", L"Findings" };
+    listing.columns  = { L"Volume", L"File system", L"Name", L"Blocks", L"Used", L"Findings" };
     listing.isNumber = { true, false, false, true, true, false };
 
-    for (int volume : GetVolumes())
+    for (int volume : volumes)
     {
         const BlockMap  & map = m_model->GetVolumeMap (volume);
         BlockListRow      row;
@@ -976,9 +1238,20 @@ vector<std::wstring> BlockBrowser::BuildCrumbs (const BlockPlace & place, const 
         add (cardLabel, { BlockPlace::Kind::Card });
     }
 
-    if (place.kind != BlockPlace::Kind::Card && volume >= 0 && volume < m_model->GetVolumeCount())
+    if (place.kind == BlockPlace::Kind::Partition && place.entry >= 0 && (size_t) place.entry < m_model->GetBands().size())
     {
-        const BlockMap  & map = m_model->GetVolumeMap (volume);
+        add (m_model->GetBands()[(size_t) place.entry].label, place);
+    }
+
+    if (place.kind != BlockPlace::Kind::Card && place.kind != BlockPlace::Kind::Partition && volume >= 0 && volume < m_model->GetVolumeCount())
+    {
+        const BlockMap      & map       = m_model->GetVolumeMap (volume);
+        vector<BlockPlace>    ancestors = GetAncestors (volume);
+
+        for (auto it = ancestors.rbegin(); it != ancestors.rend(); ++it)
+        {
+            add (it->kind == BlockPlace::Kind::Partition ? m_model->GetBands()[(size_t) it->entry].label : GetVolumeName (it->volume), *it);
+        }
 
         add (GetVolumeName (volume), { BlockPlace::Kind::Volume, volume });
 
@@ -1397,21 +1670,48 @@ vector<std::pair<std::wstring, BlockPlace>> BlockBrowser::GetChildPlaces (const 
 
     if (place.kind == BlockPlace::Kind::Card)
     {
-        for (int volume : GetVolumes())
+        for (int band : GetPartitionBands())
         {
-            children.push_back ({ GetVolumeName (volume), { BlockPlace::Kind::Volume, volume } });
+            children.push_back ({ m_model->GetBands()[(size_t) band].label, { BlockPlace::Kind::Partition, -1, band } });
+        }
+
+        for (int volume : GetTopVolumes())
+        {
+            if (FindPartitionOf (volume) < 0)
+            {
+                children.push_back ({ GetVolumeName (volume), { BlockPlace::Kind::Volume, volume } });
+            }
+        }
+    }
+    else if (place.kind == BlockPlace::Kind::Partition && place.entry >= 0 && (size_t) place.entry < m_model->GetBands().size())
+    {
+        int  held = m_model->GetBands()[(size_t) place.entry].volume;
+
+        if (held >= 0 && held < m_model->GetVolumeCount())
+        {
+            children.push_back ({ GetVolumeName (held), { BlockPlace::Kind::Volume, held } });
         }
     }
     else if ((place.kind == BlockPlace::Kind::Volume || place.kind == BlockPlace::Kind::Directory) && place.volume >= 0 && place.volume < m_model->GetVolumeCount())
     {
-        const BlockMap  & map    = m_model->GetVolumeMap (place.volume);
-        int               parent = place.kind == BlockPlace::Kind::Volume ? -1 : place.entry;
+        const BlockMap  & map        = m_model->GetVolumeMap (place.volume);
+        int               parent     = place.kind == BlockPlace::Kind::Volume ? -1 : place.entry;
+        vector<int>       volumes    = GetVolumes();
+        vector<int>       containers = FindContainers (volumes);
 
         for (size_t entry = 0; entry < map.entries.size(); entry++)
         {
             if (map.entries[entry].parent == parent && map.entries[entry].isDirectory)
             {
                 children.push_back ({ map.entries[entry].name, { BlockPlace::Kind::Directory, place.volume, (int) entry } });
+            }
+        }
+
+        for (size_t i = 0; place.kind == BlockPlace::Kind::Volume && i < volumes.size(); i++)
+        {
+            if (containers[i] == place.volume)
+            {
+                children.push_back ({ GetVolumeName (volumes[i]), { BlockPlace::Kind::Volume, volumes[i] } });
             }
         }
     }

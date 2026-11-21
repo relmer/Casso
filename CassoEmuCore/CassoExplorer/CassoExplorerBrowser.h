@@ -156,8 +156,9 @@ public:
     void  GetFolderChildren  (const Location & location, std::vector<BrowserModel::AddressSegment> & outChildren) { BrowserModel::GetFolderChildren (m_fs, location, outChildren); }
 
     //  The folder holding a host path, or empty at a drive root.
-    static std::wstring  GetParentFolder (const std::wstring & path);
-    static std::wstring  JoinPath        (const std::wstring & folder, const std::wstring & name);
+    static std::wstring  GetParentFolder   (const std::wstring & path);
+    static std::wstring  JoinPath          (const std::wstring & folder, const std::wstring & name);
+    static bool          IsPartitionVolume (const std::wstring & path);
 
     void  SortByColumn     (int column);
 
@@ -371,6 +372,17 @@ public:
     IDiskFileIo           & GetFileIo            ()                              { return m_fileIo; }
     size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
 
+    //  A picker's name filter: the rows are those whose file name contains
+    //  every word of the text. On the Casso node, the stock and demo disks
+    //  that match are listed too. An empty text lists every row in the
+    //  picker's scope.
+    void                    SetNameFilter        (const std::wstring & text);
+    const std::wstring    & GetNameFilter        () const                        { return m_nameFilter; }
+
+    //  The words of a name filter, lowercase, and whether a name has them all.
+    static std::vector<std::wstring>  SplitFilterWords  (const std::wstring & text);
+    static bool                       IsNameFilterMatch (const std::wstring & name, const std::vector<std::wstring> & words);
+
     void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
     bool                    ApplyVolumeFacts     ();
 
@@ -450,6 +462,8 @@ private:
     int                      m_homeFirstTabRow = 0;
     void  GroupRows              ();
     void  FilterRows             ();
+    void  CaptureNameSource      (const Location & location);
+    void  ApplyNameFilter        ();
     void  ResortKeepingSelection ();
     bool  TryGetSelectedEntry    (const FileEntry *& outEntry) const;
 
@@ -492,6 +506,10 @@ private:
     std::vector<StockDiskRow>             m_stockDisks;
     std::vector<StockDiskRow>             m_demoDisks;
     size_t                              m_scopedOut      = 0;
+    std::wstring                        m_nameFilter;
+    std::vector<CatalogRow>             m_nameSource;               // a picker's rows before the name filter, extra stock and demo disks last
+    size_t                              m_nameSourceBase = 0;       // the rows of m_nameSource the location lists with no filter
+    bool                                m_isNameFilterable = false;
     bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;
     std::vector<int>                    m_selectedRows;

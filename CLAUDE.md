@@ -42,6 +42,16 @@ and check each hit. The `HitTest*` helpers, `GetItemRectPx`,
 `GetCellTextRectPx`, `GetScrollbarMenu` and `IsOverScrollbar` take
 list-relative points, so `ExplorerLayout::ToLocal` is correct for those calls.
 
+**A developer build stores its data in `CassoData\` at its repo root, not in
+`%LOCALAPPDATA%\Casso`.** An unsigned build, which includes every build from
+this tree, never reads or writes the owner's folder, so a test launch has no
+`UserPrefs.json` to back up. Two things follow. A fresh worktree has no ROMs
+until `scripts/FetchRoms.ps1` runs in it, and the first launch offers the
+download dialogs again. And the signed copy the owner runs is the one build
+that uses `%LOCALAPPDATA%\Casso`; its Authenticode signature selects that
+folder, and its location does not. `CASSO_PROFILE_DIR` overrides all of it. The
+rules are in `docs/testing.md`.
+
 **Speckit scripts find the feature from `.specify/feature.json`, not from the
 branch.** Checking out another branch does not change it, so in a checkout last
 used for one spec, `/speckit-plan` and the other scripts silently work on that
