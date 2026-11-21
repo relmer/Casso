@@ -52,12 +52,13 @@ public:
     }
 
 
-    //  Each paragraph's text, its runs joined.
+    //  Each paragraph's text, its runs joined, the roster's table as its
+    //  cards and details.
     static std::vector<std::wstring> GetTexts (const DecodedFile & file)
     {
         std::vector<std::wstring>  texts;
 
-        for (const Paragraph & paragraph : file.paragraphs)
+        for (const Paragraph & paragraph : FlattenRecordTables (file.paragraphs))
         {
             std::wstring  text;
 
@@ -82,14 +83,25 @@ public:
 
 
     //  The paragraph whose text is `text`, which must be there.
-    static const Paragraph & FindParagraph (const DecodedFile & file, const std::wstring & text)
+    static Paragraph FindParagraph (const DecodedFile & file, const std::wstring & text)
     {
         std::vector<std::wstring>  texts = GetTexts (file);
         auto                       found = std::find (texts.begin(), texts.end(), text);
 
         Assert::IsTrue (found != texts.end(), text.c_str());
 
-        return file.paragraphs[(size_t) (found - texts.begin())];
+        return FlattenRecordTables (file.paragraphs)[(size_t) (found - texts.begin())];
+    }
+
+
+    //  The roster's table, which must be there.
+    static const RecordTable & FindRoster (const DecodedFile & file)
+    {
+        auto  table = std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; });
+
+        Assert::IsTrue (table != file.paragraphs.end(), L"The roster is a table");
+
+        return *table->table;
     }
 
 
@@ -166,7 +178,7 @@ public:
         Assert::IsTrue   (map != file.paragraphs.end());
         Assert::AreEqual (map->width, map->height);
         Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
-        Assert::IsTrue   (map < std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return GetText (p) == L"GANDALF   Level 13 Elf Mage, Evil"; }),
+        Assert::IsTrue   (map < std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; }),
                           L"The map is above the party");
         Assert::IsFalse  (HasText (file, L"The party is the gold circle."), L"No legend: the map has tips");
     }
@@ -231,6 +243,31 @@ public:
         Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD\t") + s_kpszCheckMark + L" equipped"), L"Item 1000 is item 0");
         Assert::IsTrue (HasText (file, L"Status: Out, in the maze   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
         Assert::IsTrue (HasText (file, L"No map: the party is still in the maze, and no square is saved for it. To get them back, choose Recover in the boot disk's Utilities menu."));
+    }
+
+
+    //  The roster as a table: a column for each of the character's facts,
+    //  and the inventory under the character in either form.
+    TEST_METHOD (Decode_TheRosterIsATable)
+    {
+        std::vector<Byte>  bytes = WizardryScenarioBuilder::MakeScenario();
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        const RecordTable &  roster = FindRoster (file);
+
+        Assert::AreEqual ((size_t) 9, roster.headings.size());
+        Assert::AreEqual (std::wstring (L"Name"), roster.headings[0]);
+        Assert::AreEqual ((size_t) 1, roster.records.size(), L"The deleted character isn't a record");
+        Assert::AreEqual (std::wstring (L"GANDALF"), roster.records[0].cells[0].text);
+        Assert::IsTrue   (roster.records[0].cells[0].bold);
+        Assert::AreEqual (std::wstring (L"Mage"),  roster.records[0].cells[3].text);
+        Assert::AreEqual (std::wstring (L"40/52"), roster.records[0].cells[6].text);
+        Assert::AreEqual ((size_t) 2, roster.records[0].details.size(), L"Two items");
     }
 
 

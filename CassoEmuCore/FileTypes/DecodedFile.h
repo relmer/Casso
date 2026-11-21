@@ -169,20 +169,25 @@ struct PictureTip
 
 
 
+struct RecordTable;
+
+
+
 //  A picture's tips are a grid of tipCell-pixel cells from (tipLeft, tipTop),
-//  tipColumns wide, row by row.
+//  tipColumns wide, row by row. A paragraph with a table is the table alone.
 struct Paragraph
 {
-    Alignment                alignment  = Alignment::Left;
-    std::vector<Run>         runs;
-    std::vector<uint32_t>    picture;
-    int                      width      = 0;
-    int                      height     = 0;
-    std::vector<PictureTip>  tips;
-    int                      tipCell    = 0;
-    int                      tipLeft    = 0;
-    int                      tipTop     = 0;
-    int                      tipColumns = 0;
+    Alignment                           alignment  = Alignment::Left;
+    std::vector<Run>                    runs;
+    std::vector<uint32_t>               picture;
+    int                                 width      = 0;
+    int                                 height     = 0;
+    std::vector<PictureTip>             tips;
+    int                                 tipCell    = 0;
+    int                                 tipLeft    = 0;
+    int                                 tipTop     = 0;
+    int                                 tipColumns = 0;
+    std::shared_ptr<const RecordTable>  table;
 
     bool  operator== (const Paragraph &) const = default;
 
@@ -196,6 +201,72 @@ struct Paragraph
         return (column >= 0 && column < tipColumns && row >= 0 && index < (int) tips.size()) ? &tips[(size_t) index] : nullptr;
     }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordTable
+//
+//  Records, such as a game's characters, drawn as a table with a heading
+//  row and a row a record where the view is wide enough, and as each
+//  record's card where it isn't. A record has a run for each column, the
+//  lines of its card, and lines under it in either form, such as a
+//  character's inventory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct RecordTable
+{
+    struct Record
+    {
+        std::vector<Run>        cells;
+        std::vector<Paragraph>  card;
+        std::vector<Paragraph>  details;
+
+        bool  operator== (const Record &) const = default;
+    };
+
+    std::vector<std::wstring>  headings;
+    std::vector<Record>        records;
+
+    bool  operator== (const RecordTable &) const = default;
+};
+
+
+
+//  The paragraphs with each table as its records' cards and details, a
+//  blank line between records: the form a narrow view and a copy out use.
+inline std::vector<Paragraph> FlattenRecordTables (const std::vector<Paragraph> & paragraphs)
+{
+    std::vector<Paragraph>  flat;
+
+    for (const Paragraph & paragraph : paragraphs)
+    {
+        if (paragraph.table == nullptr)
+        {
+            flat.push_back (paragraph);
+            continue;
+        }
+
+        for (size_t i = 0; i < paragraph.table->records.size(); i++)
+        {
+            const RecordTable::Record &  record = paragraph.table->records[i];
+
+            if (i > 0)
+            {
+                flat.push_back (Paragraph());
+            }
+
+            flat.insert (flat.end(), record.card.begin(),    record.card.end());
+            flat.insert (flat.end(), record.details.begin(), record.details.end());
+        }
+    }
+
+    return flat;
+}
 
 
 

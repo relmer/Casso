@@ -78,7 +78,39 @@ void PreviewTextView::Configure()
 
 void PreviewTextView::Layout (const RECT & content)
 {
+    const PreviewContent  & preview = m_context.browser.GetPreview();
+    bool                    tables  = preview.kind == PreviewContent::Kind::Document
+                                   && std::any_of (preview.paragraphs.begin(), preview.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; });
+
+
+
     m_text->Layout (content, m_context.scaler);
+
+    //  A document's tables change form at a width, so its rows are built
+    //  again when the pane crosses it.
+    if (tables && m_text->IsVisible() && IsWide() != m_wide)
+    {
+        FillRows (preview);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::IsWide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewTextView::IsWide() const
+{
+    RECT  bounds = m_text->GetBounds();
+
+
+
+    return (bounds.right - bounds.left) >= m_context.scaler.ToPx (s_kWideTableDip);
 }
 
 
@@ -144,8 +176,29 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 
     //  A catalog is a table, so its rows stay whole and scroll sideways.
     m_text->SetNoWrap (preview.kind == PreviewContent::Kind::Catalog);
+    FillRows (preview);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::FillRows
+//
+//  A document's record tables as tables in a wide pane and as cards in a
+//  narrow one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewTextView::FillRows (const PreviewContent & preview)
+{
+    m_wide = IsWide();
+    m_rowParagraph.clear();
+
     m_text->SetRows (m_crossReference ? PreviewText::BuildCrossReferenceRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme))
-                                      : PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
+                                      : PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme), m_wide, &m_rowParagraph));
 }
 
 
@@ -254,9 +307,9 @@ void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
 
 
 
-    if (over && m_text->HitTestPicture (ev.positionDip, row, x, y) && row < (int) preview.paragraphs.size())
+    if (over && m_text->HitTestPicture (ev.positionDip, row, x, y) && row < (int) m_rowParagraph.size() && m_rowParagraph[(size_t) row] < (int) preview.paragraphs.size())
     {
-        tip = preview.paragraphs[(size_t) row].GetTipAt (x, y);
+        tip = preview.paragraphs[(size_t) m_rowParagraph[(size_t) row]].GetTipAt (x, y);
     }
 
     if (tip == nullptr || tip->lines.empty())

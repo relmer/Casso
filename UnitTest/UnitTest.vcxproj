@@ -392,6 +392,7 @@
     <ClCompile Include="FileTypes\DiskSaveTableTests.cpp" />
     <ClCompile Include="CassoExplorer\SavedGamePreviewTests.cpp" />
     <ClCompile Include="CassoExplorer\SavedGamePaneTests.cpp" />
+    <ClCompile Include="CassoExplorer\RecordTableRowsTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />
