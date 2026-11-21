@@ -1300,6 +1300,41 @@ std::wstring TreeModel::GetLinkDriveTitle (const std::wstring & driveId) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsThirteenSectorDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsThirteenSectorDrive (const std::wstring & driveId) const
+{
+    std::wstring  name;
+    int           slot   = 0;
+    int           drive  = 0;
+    bool          is13   = false;
+
+
+
+    if (!TryParseLinkId (driveId, name, slot, drive))
+    {
+        return is13;
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        for (const LinkTreeEntry::Drive & row : link.name == name ? link.drives : std::vector<LinkTreeEntry::Drive>())
+        {
+            is13 = is13 || (row.slot == slot && row.drive == drive && row.thirteenSector);
+        }
+    }
+
+    return is13;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListLinkFolders
 //
 ////////////////////////////////////////////////////////////////////////////////

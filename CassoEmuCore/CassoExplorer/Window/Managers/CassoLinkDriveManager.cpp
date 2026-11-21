@@ -87,13 +87,17 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    //  The Full Send page's list, and a 13-sector image, which Full Send
-    //  doesn't save.
+    //  The Full Send page's list, and for a 13-sector disk, a 13-sector
+    //  image, which Full Send doesn't save.
     spec.filters = CassoExplorerFullSendPage::GetFormatFilters();
-    spec.filters.push_back (FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
-                                               L"A Model T. It starts with a crank, and only on roads paved before 1980." });
-    spec.verify  = &verify;
 
+    if (m_context.browser.GetTreeModel().IsThirteenSectorDrive (target.path))
+    {
+        spec.filters.push_back (FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
+                                                   L"A Model T. It starts with a crank, and only on cobblestone roads." });
+    }
+
+    spec.verify           = &verify;
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
     spec.askToReplace     = false;

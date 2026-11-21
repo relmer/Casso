@@ -383,6 +383,9 @@ public:
     //  and its volume once known.
     std::wstring  GetLinkDriveTitle (const std::wstring & driveId) const;
 
+    //  Whether a drive of a link, by its id, has a 13-sector disk.
+    bool  IsThirteenSectorDrive (const std::wstring & driveId) const;
+
     //  A root's label in the tree, the tab and the address bar, or empty for
     //  an id that is no root.
     static std::wstring  GetRootLabel (const std::wstring & id);
