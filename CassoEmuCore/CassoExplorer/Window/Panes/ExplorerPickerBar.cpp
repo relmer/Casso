@@ -596,7 +596,8 @@ void ExplorerPickerBar::FillFilterList()
             m_filterRows.push_back (-1);
         }
 
-        rows.push_back (m_context.pickerMode.GetFilterLabel (index));
+        //  Entries with notes are listed by name alone, as Options lists them.
+        rows.push_back (HasFilterNotes() ? filter->name : m_context.pickerMode.GetFilterLabel (index));
         headings.push_back (false);
         notes.push_back ((filter != nullptr) ? filter->note : std::wstring());
         m_filterRows.push_back ((int) index);
