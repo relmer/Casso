@@ -586,20 +586,20 @@ void ExplorerPickerBar::FillFilterList()
 
     for (size_t index = 0; index < filters.size(); index++)
     {
-        const FileDialogFilter *  filter = &filters[index];
+        const FileDialogFilter &  filter = filters[index];
 
-        if (filter != nullptr && !filter->heading.empty())
+        if (!filter.heading.empty())
         {
-            rows.push_back (filter->heading);
+            rows.push_back (filter.heading);
             headings.push_back (true);
             notes.push_back (std::wstring());
             m_filterRows.push_back (-1);
         }
 
         //  Entries with notes are listed by name alone, as Options lists them.
-        rows.push_back (HasFilterNotes() ? filter->name : m_context.pickerMode.GetFilterLabel (index));
+        rows.push_back (HasFilterNotes() ? filter.name : m_context.pickerMode.GetFilterLabel (index));
         headings.push_back (false);
-        notes.push_back ((filter != nullptr) ? filter->note : std::wstring());
+        notes.push_back (filter.note);
         m_filterRows.push_back ((int) index);
     }
 
