@@ -1029,11 +1029,19 @@ ADTPro 2.1's Ethernet client ran on the same AppleWin setup through
 `Wsl.ps1 -Target Adtpro`, with 2 blocks at once and sound off, its server in
 the WSL instance. Speeds count the volume's bytes only.
 
-| Volume | CassoLink, program 105 | CassoLink, program 106 | CassoLink, program 107 | ADTPro 2.1 |
-|---|---|---|---|---|
-| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 91 kbps, 72 s | 50 kbps, 130 s |
-| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 231 kbps, 28.4 s | 105 kbps, 62 s |
-| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 233 kbps, 19.2 minutes | 108 kbps, 41.4 minutes |
+| Volume | CassoLink, program 105 | CassoLink, program 106 | CassoLink, program 107, Block runs | CassoLink, program 107, final | ADTPro 2.1 |
+|---|---|---|---|---|---|
+| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 91 kbps, 72 s | 167 kbps, 39.1 s | 50 kbps, 130 s |
+| 32 MB, free blocks random | | | | 167 kbps, 26.7 minutes | |
+| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 231 kbps, 28.4 s | 231 kbps, 28.4 s | 105 kbps, 62 s |
+| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 233 kbps, 19.2 minutes | 231 kbps, 19.3 minutes | 108 kbps, 41.4 minutes |
+
+The final program 107 sends Ethernet blocks with no CRC: each frame has
+Ethernet's CRC32, and a TCP or UDP checksum covers the PC's end, so the
+block's CRC-16 costs 15% of the speed and checks only the copy inside the
+Apple. A block with no runs is read into the datagram and sent from there,
+with no copy. After a block with runs, the next block is read into the block
+buffer, where the run search reads it. Serial reads are checked by the CRC.
 
 Program 107 sends a block with runs of a byte as Block runs, written whole
 into the datagram, or into the W5100's transmit memory, in one pass that finds
