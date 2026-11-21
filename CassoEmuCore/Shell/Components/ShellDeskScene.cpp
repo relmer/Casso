@@ -1634,6 +1634,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
     SIZE                                          cellPx    = { halfW * 2, stripH };
     IDxuiTextRenderer                           * text      = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
     float                                         fontPx    = fontDip * (float) m_shell.m_scaler.GetDpi() / (float) s_kBaseDpi;
+    bool                                          hoverOnly = onStrip || m_shell.IsDeskSlideActive();
 
 
 
@@ -1724,7 +1725,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         m_sceneDriveLabel[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveLabel[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_sceneDriveLabel[i].Layout         (nameRc, m_shell.m_scaler);
-        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene && !IsBelowStripArea (rc, onStrip));
+        m_sceneDriveLabel[i].SetVisible     (!name.empty() && !inScene && !IsBelowStripArea (rc, onStrip) && (!hoverOnly || m_sceneLabelHover == i));
 
         m_sceneDriveInfoIcon[i].SetText        (s_kpszMdl2Info);
         m_sceneDriveInfoIcon[i].SetFontFace    (DriveWidget::kInfoIconFamily);
@@ -1732,7 +1733,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         m_sceneDriveInfoIcon[i].SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
         m_sceneDriveInfoIcon[i].SetDpi         (m_shell.m_scaler.GetDpi());
         m_sceneDriveInfoIcon[i].Layout         (iconRc, m_shell.m_scaler);
-        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene && !IsBelowStripArea (rc, onStrip));
+        m_sceneDriveInfoIcon[i].SetVisible     (showIcon && !inScene && !IsBelowStripArea (rc, onStrip) && (!hoverOnly || m_sceneLabelHover == i));
 
         // The icon's own tooltip target, ahead of the name's.
         m_sceneInfoIconRect[i] = showIcon ? iconHit : RECT{};
@@ -1776,6 +1777,17 @@ void ShellDeskScene::SyncSceneDriveLabels()
     if (inScene)
     {
         SetSceneCaptionNames (comp, fullNames);
+    }
+
+    // In the dock, a drive's names show only while the pointer is on it.
+    for (int i = 0; hoverOnly && i < (int) m_sceneDriveLabel.size(); i++)
+    {
+        if (m_sceneLabelHover != i)
+        {
+            fullNames[(size_t) i].clear();
+            fullNames[(size_t) (kSceneInfoIconCell + i)].clear();
+            fullNames[(size_t) (s_kSceneCaptionCell + i)].clear();
+        }
     }
 
     SyncStripTapeLabels (comp, onStrip, fullNames);
