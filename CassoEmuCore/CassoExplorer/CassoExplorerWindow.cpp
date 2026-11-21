@@ -159,7 +159,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.title                    = title;
     params.hInstance                = instance;
     params.initialSizeDip           = { CassoExplorerShell::kDefaultWidthDip, CassoExplorerShell::kDefaultHeightDip };
-    params.minSizeDip               = { kMinWindowWidthDip, 400 };
+    params.minSizeDip               = (m_context.picker != nullptr && m_context.picker->IsSave()) ? SIZE { kMinSaveWidthDip, kMinSaveHeightDip } : SIZE { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.classNameOverride        = ExplorerWindowFinder::GetWindowClass();

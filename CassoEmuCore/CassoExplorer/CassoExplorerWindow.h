@@ -58,6 +58,12 @@ public:
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int  kCaptionIconPx     = 32;
     static constexpr int  kMinWindowWidthDip = 200;
+
+    //  A save form's smallest size, as the standard Save As dialog has one:
+    //  room for the navigation band and the bottom bar's labels, boxes,
+    //  note, Verify box and buttons.
+    static constexpr int  kMinSaveWidthDip  = 640;
+    static constexpr int  kMinSaveHeightDip = 480;
     static constexpr int  kCascadeStepDip    = 32;   // a second window's offset from the saved placement
 
     //  How far a save form's bottom bar is mixed from the background toward
