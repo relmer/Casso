@@ -1152,7 +1152,8 @@ void SearchExpression::CollectHighlights (const Node & node, bool contents, std:
         return;
     }
 
-    if (node.kind == Node::Kind::Term && inName && marks && node.regex < 0 && !node.invalidRegex && !node.wildcard && !node.value.empty())
+    if (node.kind == Node::Kind::Term && inName && marks && node.regex < 0 && !node.invalidRegex && !node.value.empty()
+        && (!node.wildcard || node.value.find (L'.') == std::wstring::npos))
     {
         ioWords.push_back (node.value);
     }

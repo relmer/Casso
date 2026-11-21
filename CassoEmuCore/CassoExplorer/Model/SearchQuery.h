@@ -82,6 +82,10 @@ public:
     static bool  MatchesPattern  (const wchar_t * name, const wchar_t * pattern);
     static bool  MatchesWildcard (const std::wstring & name, const std::wstring & pattern);
 
+    //  The parts of a lowercase name between a pattern's * marks, for a
+    //  pattern without a period; none when it doesn't match.
+    static void  FindWildcardRanges (const std::wstring & lower, const std::wstring & pattern, std::vector<std::pair<int, int>> & ioRanges);
+
 private:
     static constexpr wchar_t  s_kOptionsSeparator = L'\x1F';
 

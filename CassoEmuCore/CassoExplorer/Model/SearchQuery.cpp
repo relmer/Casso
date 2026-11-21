@@ -442,10 +442,18 @@ std::vector<std::pair<int, int>> SearchQuery::FindNameMatches (const std::wstrin
         lower += (wchar_t) towlower (c);
     }
 
-    //  A word with a wildcard is not marked, as in File Explorer.
+    //  A pattern with a period is not marked, as in File Explorer.
     for (const std::wstring & word : words)
     {
-        size_t  at = (word.empty() || word.find_first_of (L"*?") != std::wstring::npos) ? std::wstring::npos : lower.find (word);
+        bool    pattern = word.find_first_of (L"*?") != std::wstring::npos;
+        size_t  at      = (word.empty() || pattern) ? std::wstring::npos : lower.find (word);
+
+
+
+        if (pattern && word.find (L'.') == std::wstring::npos)
+        {
+            FindWildcardRanges (lower, word, ranges);
+        }
 
         if (at != std::wstring::npos)
         {
@@ -522,6 +530,86 @@ bool SearchQuery::MatchesWildcard (const std::wstring & name, const std::wstring
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::FindWildcardRanges
+//
+//  From the first word where the pattern matches, each run between * marks
+//  is at the first place it fits after the one before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SearchQuery::FindWildcardRanges (const std::wstring & lower, const std::wstring & pattern, std::vector<std::pair<int, int>> & ioRanges)
+{
+    std::vector<std::wstring>  runs;
+    std::wstring               open = pattern + L'*';
+    size_t                     at   = std::wstring::npos;
+    size_t                     from = 0;
+
+
+
+    for (size_t i = 0; i < lower.size() && at == std::wstring::npos; i++)
+    {
+        bool  wordStart = i == 0 || !iswalnum (lower[i - 1]) || (iswalpha (lower[i]) && !iswalpha (lower[i - 1]));
+
+
+
+        at = (wordStart && MatchesPattern (lower.c_str() + i, open.c_str())) ? i : std::wstring::npos;
+    }
+
+    if (at == std::wstring::npos)
+    {
+        return;
+    }
+
+    for (size_t start = 0; start <= pattern.size(); )
+    {
+        size_t  star = pattern.find (L'*', start);
+
+
+
+        star = (star == std::wstring::npos) ? pattern.size() : star;
+        runs.push_back (pattern.substr (start, star - start));
+        start = star + 1;
+    }
+
+    for (size_t r = 0; r < runs.size(); r++)
+    {
+        const std::wstring  & run   = runs[r];
+        size_t                place = (r == 0) ? at : from;
+        bool                  fits  = false;
+
+
+
+        if (run.empty())
+        {
+            continue;
+        }
+
+        for (; place + run.size() <= lower.size() && !fits; place += fits ? 0 : 1)
+        {
+            fits = std::equal (run.begin(), run.end(), lower.begin() + (std::ptrdiff_t) place, [] (wchar_t p, wchar_t c) { return p == L'?' || p == c; });
+
+            if (r == 0 && !fits)
+            {
+                return;
+            }
+        }
+
+        if (!fits)
+        {
+            return;
+        }
+
+        ioRanges.emplace_back ((int) place, (int) (place + run.size()));
+        from = place + run.size();
+    }
 }
 
 
