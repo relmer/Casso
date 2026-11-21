@@ -172,8 +172,8 @@ public:
         Assert::AreEqual (std::wstring (L"Saved game: 4 characters"), GetTexts (file)[1]);
         Assert::IsTrue   (HasLineStarting (file, L"THUG   Level 38 Human Fighter, Neutral"));
         Assert::IsTrue   (HasLineStarting (file, L"Status: OK   Hit points: 338/338   Gold: 121,657   Experience: 7,811,260"));
-        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      KOD'S GAUNTLETS (") + s_kpszCheckMark + L" equipped)"));
-        Assert::IsTrue   (HasLine (file, L"      DAMIEN STONE"), L"in the inventory, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      KOD'S GAUNTLETS\t") + s_kpszCheckMark + L" equipped"));
+        Assert::IsTrue   (HasLine (file, L"      DAMIEN STONE\t"), L"in the inventory, not equipped");
     }
 
 
@@ -208,8 +208,8 @@ public:
 
         Assert::AreEqual (std::wstring (L"Saved game: 5 characters"), GetTexts (file)[1]);
         Assert::IsTrue   (HasLineStarting (file, L"BART   Level 2 Human Samurai, Good"));
-        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      MURASAMA BLADE (") + s_kpszCheckMark + L" equipped)"));
-        Assert::IsTrue   (HasLine (file, L"      BLADE CUSINART'"), L"in the inventory, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      MURASAMA BLADE\t") + s_kpszCheckMark + L" equipped"));
+        Assert::IsTrue   (HasLine (file, L"      BLADE CUSINART'\t"), L"in the inventory, not equipped");
         Assert::IsTrue   (HasLineStarting (file, L"DIRTY DAN   Level 2 Gnome Samurai, Neutral"));
         Assert::IsFalse  (HasLineStarting (file, L"CHUNKY"), L"a deleted character");
         Assert::IsFalse  (HasPicture (file));

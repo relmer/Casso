@@ -1,7 +1,9 @@
 #include "Pch.h"
 #include "ExplorerWindowPartsRig.h"
+#include "../Dxui/MockDxuiTheme.h"
 #include "../EmuTests/InfocomSaveBuilder.h"
 #include "../FileTypes/WizardryScenarioBuilder.h"
+#include "FileTypes/WizardryScenario.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -31,12 +33,14 @@ public:
     static constexpr size_t           kDiskBytes = 143360;
 
 
-    //  A blank Pascal disk with one data file on it.
+    //  A blank Pascal disk with one data file on it: the built scenario, its
+    //  character dead at (1, 0) on level 1, so the level has a map.
     static std::vector<Byte> MakePascalDisk (const char * name)
     {
-        std::vector<Byte>  disk (kDiskBytes, 0);
+        std::vector<Byte>  disk      (kDiskBytes, 0);
         std::vector<Byte>  next;
         FilePayload        payload;
+        size_t             character = WizardryScenarioBuilder::kCharacterBlock * WizardryScenario::kBlockBytes;
 
 
 
@@ -44,6 +48,11 @@ public:
 
         payload.bytes = WizardryScenarioBuilder::MakeScenario();
         payload.type  = PascalVolume::kKindData;
+
+        WizardryScenarioBuilder::PutWord (payload.bytes, character + 40,  5);
+        WizardryScenarioBuilder::PutWord (payload.bytes, character + 200, 1);
+        WizardryScenarioBuilder::PutWord (payload.bytes, character + 202, 0);
+        WizardryScenarioBuilder::PutWord (payload.bytes, character + 204, 1);
 
         AssertSucceeded (PascalVolume (disk).Write (FilePath::Parse (name), payload, next));
 
@@ -59,10 +68,40 @@ public:
     }
 
 
+    //  Moves the pointer down the text, a few pixels a step, until the map's
+    //  tip is requested; false when it never is.
+    static bool HoverOverTheMap (Rig & rig, POINT & outPoint)
+    {
+        RECT            bounds = rig.parts->preview.GetText().GetControl()->GetBounds();
+        DxuiMouseEvent  move;
+        bool            shown  = false;
+        DxuiTextView  * view   = dynamic_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl());
+        MockDxuiTheme   theme;
+
+
+
+        //  The rig has no theme, so the text is measured here, as a paint
+        //  measures it.
+        view->Measure (*rig.window.GetTextRenderer(), theme);
+        move.kind = DxuiMouseEventKind::Move;
+
+        for (LONG y = bounds.top; !shown && y < bounds.bottom; y += 4)
+        {
+            move.positionDip = POINT { bounds.left + 40, y };
+            rig.parts->input.HandleMouse (move);
+            shown    = rig.parts->tips.GetOwner() == ExplorerTips::TipOwner::Preview;
+            outPoint = move.positionDip;
+        }
+
+        return shown;
+    }
+
+
     TEST_METHOD (SavedGameSwitch_ForEachKindOfDisk)
     {
         Rig    rig;
-        RECT   disk = {};
+        RECT   disk  = {};
+        POINT  onMap = {};
 
 
 
@@ -86,6 +125,12 @@ public:
         Assert::IsFalse  (rig.parts->preview.GetThumbnail().IsShown(), L"with no thumbnail");
         Assert::IsTrue   (rig.parts->preview.GetContentRect().top >= rig.parts->preview.GetSections().GetBounds().bottom, L"and the game below the switch");
         Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Document);
+
+        //  The map: a tip for the square under the pointer, and
+        //  the arrow over it rather than the text's I-beam.
+        Assert::IsTrue   (HoverOverTheMap (rig, onMap), L"A tip over the map");
+        Assert::IsTrue   (rig.parts->tips.GetTooltip().IsPending(), L"waiting out its delay");
+        Assert::IsTrue   (rig.parts->preview.GetText().GetCursorForPoint (onMap) == IDC_ARROW, L"The arrow over the map");
 
         //  A click on Disk: the catalog, and the switch above it.
         disk      = rig.parts->preview.GetSections().GetBounds();

@@ -39,6 +39,19 @@ public:
     }
 
 
+    static std::wstring GetText (const Paragraph & paragraph)
+    {
+        std::wstring  text;
+
+        for (const Run & run : paragraph.runs)
+        {
+            text += run.text;
+        }
+
+        return text;
+    }
+
+
     //  Each paragraph's text, its runs joined.
     static std::vector<std::wstring> GetTexts (const DecodedFile & file)
     {
@@ -113,8 +126,8 @@ public:
         Assert::AreEqual (std::wstring (L"Saved game: 1 character"), GetTexts (file)[1]);
 
         const Paragraph &  gandalf = FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil");
-        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)");
-        const Paragraph &  armor   = FindParagraph (file, L"      ARMOR (? unidentified)");
+        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      LONG SWORD\t") + s_kpszCheckMark + L" equipped");
+        const Paragraph &  armor   = FindParagraph (file, L"      ARMOR\t? unidentified");
 
         Assert::IsTrue (gandalf.runs[0].bold);
         Assert::IsTrue (HasText (file, L"Status: OK   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
@@ -153,6 +166,48 @@ public:
         Assert::IsTrue   (map != file.paragraphs.end());
         Assert::AreEqual (map->width, map->height);
         Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
+        Assert::IsTrue   (map < std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return GetText (p) == L"GANDALF   Level 13 Elf Mage, Evil"; }),
+                          L"The map is above the party");
+        Assert::IsFalse  (HasText (file, L"The party is the gold circle."), L"No legend: the map has tips");
+    }
+
+
+    //  Each square of the map has a tip: where it is, what is on it, and its
+    //  doors, each but the place with the color the map draws it in.
+    TEST_METHOD (Decode_TheMapsSquaresHaveTips)
+    {
+        std::vector<Byte>  bytes     = WizardryScenarioBuilder::MakeScenario();
+        size_t             character = WizardryScenarioBuilder::kCharacterBlock * WizardryScenario::kBlockBytes;
+        DecodedFile        file;
+        std::wstring       error;
+        constexpr int      kCell     = 24;
+        constexpr int      kBorder   = 4;
+
+
+
+        WizardryScenarioBuilder::PutWord (bytes, character + 40,  5);
+        WizardryScenarioBuilder::PutWord (bytes, character + 200, 1);
+        WizardryScenarioBuilder::PutWord (bytes, character + 202, 0);
+        WizardryScenarioBuilder::PutWord (bytes, character + 204, 1);
+
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        auto  map = std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return !p.picture.empty(); });
+
+        const PictureTip *  door   = map->GetTipAt (kBorder + kCell / 2,         kBorder + 19 * kCell + kCell / 2);
+        const PictureTip *  stairs = map->GetTipAt (kBorder + kCell + kCell / 2, kBorder + 19 * kCell + kCell / 2);
+        const PictureTip *  fight  = map->GetTipAt (kBorder + kCell / 2,         kBorder + 18 * kCell + kCell / 2);
+
+        Assert::IsNotNull (door);
+        Assert::AreEqual  (std::wstring (L"0 east, 0 north"), door->lines[0].second);
+        Assert::AreEqual  (0u, door->lines[0].first, L"The place has no swatch");
+        Assert::AreEqual  (std::wstring (L"Door to the east"), door->lines[1].second);
+        Assert::AreNotEqual (0u, door->lines[1].first, L"and a door has its color");
+
+        Assert::AreEqual  (std::wstring (L"The party"), stairs->lines[1].second);
+        Assert::AreEqual  (std::wstring (L"Stairs"),    stairs->lines[2].second);
+        Assert::AreEqual  (std::wstring (L"Fight zone"), fight->lines[1].second);
+        Assert::IsNull    (map->GetTipAt (1, 1), L"The border has no tip");
     }
 
 
@@ -173,7 +228,7 @@ public:
 
         AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
 
-        Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD (") + s_kpszCheckMark + L" equipped)"), L"Item 1000 is item 0");
+        Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD\t") + s_kpszCheckMark + L" equipped"), L"Item 1000 is item 0");
         Assert::IsTrue (HasText (file, L"Status: Out, in the maze   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
         Assert::IsTrue (HasText (file, L"No map: the party is still in the maze, and no square is saved for it. To get them back, choose Recover in the boot disk's Utilities menu."));
     }

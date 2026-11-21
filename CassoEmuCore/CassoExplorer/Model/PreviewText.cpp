@@ -113,7 +113,8 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
 //  PreviewText::BuildDocumentRows
 //
 //  A row for each paragraph, aligned as it is, a span for each styled or
-//  colored run, and a paragraph with a picture a row of the picture.
+//  colored run, and a paragraph with a picture a row of the picture. A tab
+//  in a run starts the row's next cell, so the cells line up in columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,28 +144,57 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
 
         for (const Run & run : paragraph.runs)
         {
-            uint32_t  argb = GetRunColor (run.color, colors);
+            uint32_t      argb = GetRunColor (run.color, colors);
+            std::wstring  text = run.text;
+            size_t        tab  = text.find (L'\t');
 
-            if (run.bold || run.italic || run.underline || argb != 0)
+            while (tab != std::wstring::npos)
             {
-                DxuiTextView::Span  span;
-
-                span.start     = (int) row.cells[0].size();
-                span.length    = (int) run.text.size();
-                span.argb      = argb;
-                span.bold      = run.bold;
-                span.italic    = run.italic;
-                span.underline = run.underline;
-                row.spans.push_back (span);
+                AddRunText (row, run, argb, text.substr (0, tab));
+                row.cells.push_back (std::wstring());
+                text = text.substr (tab + 1);
+                tab  = text.find (L'\t');
             }
 
-            row.cells[0] += run.text;
+            AddRunText (row, run, argb, text);
         }
 
         rows.push_back (std::move (row));
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddRunText
+//
+//  Text of a run at the end of the row's last cell, with a span when the
+//  run is styled or colored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddRunText (DxuiTextView::Row & ioRow, const Run & run, uint32_t argb, const std::wstring & text)
+{
+    if (!text.empty() && (run.bold || run.italic || run.underline || argb != 0))
+    {
+        DxuiTextView::Span  span;
+
+        span.cell      = (int) ioRow.cells.size() - 1;
+        span.start     = (int) ioRow.cells.back().size();
+        span.length    = (int) text.size();
+        span.argb      = argb;
+        span.bold      = run.bold;
+        span.italic    = run.italic;
+        span.underline = run.underline;
+        ioRow.spans.push_back (span);
+    }
+
+    ioRow.cells.back() += text;
 }
 
 

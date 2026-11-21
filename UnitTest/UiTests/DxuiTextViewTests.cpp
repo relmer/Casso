@@ -106,6 +106,34 @@ public:
     }
 
 
+    //  A point on a picture is its row and the picture's pixel there; a
+    //  point on a line of text isn't a picture.
+    TEST_METHOD (HitTestPicture_FindsThePixelUnderThePoint)
+    {
+        DxuiTextView       view;
+        DxuiTextView::Row  row     = MakeRow ({ L"" });
+        auto               picture = std::make_shared<DxuiTextView::Picture>();
+        int                hitRow  = 0;
+        int                x       = 0;
+        int                y       = 0;
+
+        picture->bgra.assign (10 * 40, 0xFF336699);
+        picture->width  = 10;
+        picture->height = 40;
+        row.picture     = picture;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
+
+        Assert::IsTrue   (view.HitTestPicture (POINT { 6 + 3, 6 + 16 + 5 }, hitRow, x, y), L"The picture starts on the second line");
+        Assert::AreEqual (1, hitRow);
+        Assert::AreEqual (3, x);
+        Assert::AreEqual (5, y);
+        Assert::IsFalse  (view.HitTestPicture (POINT { 6 + 3, 6 + 4 }, hitRow, x, y), L"The first line is text");
+        Assert::IsFalse  (view.HitTestPicture (POINT { 6 + 30, 6 + 16 + 5 }, hitRow, x, y), L"Past the picture's right edge");
+    }
+
+
     //  A row's wrap indent starts each wrapped line that many characters past
     //  the last cell's first, as source code wraps under its operand.
     TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)

@@ -149,6 +149,10 @@ public:
 
     Position  HitTest (POINT point) const;
 
+    //  The picture under a point, as its row and the pixel of the picture;
+    //  false off a picture.
+    bool  HitTestPicture (POINT point, int & outRow, int & outX, int & outY) const;
+
     void          Select           (Position anchor, Position caret);
     void          SelectAll        ();
     void          ClearSelection   ();

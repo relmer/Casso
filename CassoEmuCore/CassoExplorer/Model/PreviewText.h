@@ -99,4 +99,5 @@ public:
                                                               bool                          applesoft);
     static std::vector<SourceSyntax::Run>  GetBasicRuns      (const std::wstring & statements);
     static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
+    static void                            AddRunText        (DxuiTextView::Row & ioRow, const Run & run, uint32_t argb, const std::wstring & text);
 };

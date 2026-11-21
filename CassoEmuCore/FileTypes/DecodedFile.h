@@ -158,15 +158,43 @@ enum class Alignment { Left, Center, Right, Justified };
 
 
 
+//  What a cell of a picture is, as tooltip lines, each with the color it is
+//  drawn in, or 0 for a line with no color.
+struct PictureTip
+{
+    std::vector<std::pair<uint32_t, std::wstring>>  lines;
+
+    bool  operator== (const PictureTip &) const = default;
+};
+
+
+
+//  A picture's tips are a grid of tipCell-pixel cells from (tipLeft, tipTop),
+//  tipColumns wide, row by row.
 struct Paragraph
 {
-    Alignment              alignment = Alignment::Left;
-    std::vector<Run>       runs;
-    std::vector<uint32_t>  picture;
-    int                    width     = 0;
-    int                    height    = 0;
+    Alignment                alignment  = Alignment::Left;
+    std::vector<Run>         runs;
+    std::vector<uint32_t>    picture;
+    int                      width      = 0;
+    int                      height     = 0;
+    std::vector<PictureTip>  tips;
+    int                      tipCell    = 0;
+    int                      tipLeft    = 0;
+    int                      tipTop     = 0;
+    int                      tipColumns = 0;
 
     bool  operator== (const Paragraph &) const = default;
+
+    //  The tip of the cell at a pixel of the picture, or nullptr.
+    const PictureTip * GetTipAt (int x, int y) const
+    {
+        int  column = (tipCell > 0 && x >= tipLeft) ? (x - tipLeft) / tipCell : -1;
+        int  row    = (tipCell > 0 && y >= tipTop)  ? (y - tipTop)  / tipCell : -1;
+        int  index  = row * tipColumns + column;
+
+        return (column >= 0 && column < tipColumns && row >= 0 && index < (int) tips.size()) ? &tips[(size_t) index] : nullptr;
+    }
 };
 
 

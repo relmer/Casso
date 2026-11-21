@@ -70,7 +70,7 @@ bool DiskSaveTable::IsInfocomSave (const std::vector<Byte> & sectors)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, DecodedFile & outFile)
+HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
 {
     HRESULT                             hr        = S_OK;
     std::vector<InfocomSave::Position>  positions;
@@ -78,6 +78,8 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, Dec
     bool                                found     = false;
 
 
+
+    UNREFERENCED_PARAMETER (unreadable);
 
     InfocomSave::FindPositions (sectors, positions);
     found = !positions.empty();
