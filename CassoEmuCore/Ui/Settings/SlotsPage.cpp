@@ -20,7 +20,7 @@ static constexpr int  s_kDropdownWidthDp = 240;
 static constexpr int  s_kListHeightDp   = 260;
 static constexpr int  s_kButtonWidthDp  = 90;
 static constexpr int  s_kIndentDp       = 20;
-static constexpr int  s_kToggleWidthDp  = 44;
+static constexpr int  s_kFirmwareWidthDp = 320;
 
 
 
@@ -121,7 +121,6 @@ SlotsPage::SlotsPage (std::wstring title)
     Adopt (m_replaceButton);
     Adopt (m_cancelButton);
     Adopt (m_firmware);
-    Adopt (m_firmwareLabel);
     Adopt (m_firmwareNote);
     Adopt (m_drivesHeading);
     Adopt (m_countLabel);
@@ -164,7 +163,8 @@ SlotsPage::SlotsPage (std::wstring title)
     m_cardLabel.SetText         (L"Card:");
     m_drivesHeading.SetText     (L"Drives");
     m_drivesHeading.SetTextRole (DxuiTextRole::Heading);
-    m_countLabel.SetText        (L"Connected:");
+    m_countLabel.SetText        (L"Drives:");
+    m_firmware.SetSegments      ({ L"Casso's fast firmware", L"Apple's ROM" });
     m_cancelButton.SetLabel     (L"Cancel");
     m_firmwareNote.SetText      (L"Casso's firmware copies each block straight into memory, much faster than "
                                  L"Apple's ROM. Apple's ROM runs as slowly as the real card did.");
@@ -175,7 +175,7 @@ SlotsPage::SlotsPage (std::wstring title)
     m_cancelButton.SetOnClick  ([this] () { CancelReplace();  });
     m_cardDropdown.SetSelect   ([this] (int index)    { ChooseCard (index);       });
     m_countDropdown.SetSelect  ([this] (int index)    { ChooseDriveCount (index); });
-    m_firmware.SetOnChange     ([this] (bool checked) { SetAppleFirmware (checked); });
+    m_firmware.SetOnChange     ([this] (int index)    { SetAppleFirmware (index == 1); });
 
     m_cardDropdown.SetOnHighlightChange ([this] (int index)
     {
@@ -286,9 +286,10 @@ void SlotsPage::RebuildList()
 //  SlotsPage::RebuildDetail
 //
 //  The selected slot's card and the options that card has. A card the
-//  machine requires can't be changed; the prompt has the reason. A chain
-//  card and the Disk II have a number of drives connected; every other
-//  storage card has a kind of drive, or none, on each port.
+//  machine requires can't be changed; the prompt has the reason. A card
+//  that takes one kind of drive, and the Disk II, have a number of drives
+//  connected; a card with a choice of drives, or SCSI IDs, has a kind of
+//  drive, or none, on each port.
 //
 //  The Disk II's first drive can't be disconnected, so its count starts at
 //  one.
@@ -308,7 +309,7 @@ void SlotsPage::RebuildDetail()
 
 
     m_portRows  = 0;
-    m_isChain   = false;
+    m_isCounted = false;
     m_countBase = 0;
 
     if (m_state == nullptr)
@@ -357,7 +358,7 @@ void SlotsPage::RebuildDetail()
         bool  hasSecond = selected->ports.size() < 2 || !selected->ports[1].empty();
 
         m_countBase = 1;
-        m_countDropdown.SetItems    ({ L"1 drive", L"2 drives" });
+        m_countDropdown.SetItems    ({ L"1", L"2" });
         m_countDropdown.SetSelected (hasSecond ? 1 : 0);
     }
 
@@ -377,10 +378,9 @@ void SlotsPage::RebuildDetail()
             driveItems.push_back (Widen ((drive != nullptr) ? drive->label : device));
         }
 
-        m_firmware.SetChecked     (!selected->cassoFirmware);
-        m_firmwareLabel.SetText   (selected->cassoFirmware ? L"Use Casso's fast firmware" : L"Use Apple's ROM");
-        m_isChain  = card->isChain;
-        m_portRows = m_isChain ? 0 : std::min ((size_t) card->portCount, kMaxPorts);
+        m_firmware.SetSelected (selected->cassoFirmware ? 0 : 1);
+        m_isCounted = card->isChain || (card->drives.size() == 1 && !isScsi);
+        m_portRows  = m_isCounted ? 0 : std::min ((size_t) card->portCount, kMaxPorts);
 
         for (const std::string & device : selected->ports)
         {
@@ -389,10 +389,10 @@ void SlotsPage::RebuildDetail()
 
         for (int count = 0; count <= card->portCount; count++)
         {
-            countItems.push_back ((count == 1) ? std::wstring (L"1 drive") : std::format (L"{} drives", count));
+            countItems.push_back (std::to_wstring (count));
         }
 
-        if (m_isChain)
+        if (m_isCounted)
         {
             m_countDropdown.SetItems    (countItems);
             m_countDropdown.SetSelected ((int) connected);
@@ -466,7 +466,7 @@ void SlotsPage::Relayout()
     int                     labelW     = s.ToPx (s_kLabelWidthDp);
     int                     buttonW    = s.ToPx (s_kButtonWidthDp);
     int                     dropW      = s.ToPx (s_kDropdownWidthDp);
-    int                     toggleW    = s.ToPx (s_kToggleWidthDp);
+    int                     firmwareW  = s.ToPx (s_kFirmwareWidthDp);
     int                     indent     = s.ToPx (s_kIndentDp);
     int                     x          = rect.left + pad + listW + s.ToPx (s_kPanelGapDp);
     int                     right      = rect.right - pad;
@@ -476,7 +476,7 @@ void SlotsPage::Relayout()
     const HardwareEntry   * selected   = (m_state != nullptr && entry >= 0) ? &m_state->GetHardware()[(size_t) entry] : nullptr;
     const BlockCardSpec   * card       = (selected != nullptr) ? BlockDeviceCatalog::FindCard (selected->type) : nullptr;
     bool                    showBlock  = card != nullptr && !m_replacePending;
-    bool                    showCount  = !m_replacePending && ((showBlock && m_isChain) || IsDiskIiSelected());
+    bool                    showCount  = !m_replacePending && ((showBlock && m_isCounted) || IsDiskIiSelected());
     bool                    showSerial = IsSerialSelected() && !m_replacePending;
     int                     listBottom = 0;
 
@@ -518,23 +518,19 @@ void SlotsPage::Relayout()
         y += rowH + gap;
     }
 
-    // A storage card's firmware: the toggle at the left, the firmware it
-    // selects to its right, and the difference between them under both.
+    // A storage card's firmware, and the difference between the two under
+    // the choice.
     {
         bool  showFirmware = showBlock && card->hasCassoFirmware;
 
-        m_firmware.SetDpi          (dpi);
-        m_firmwareLabel.SetDpi     (dpi);
-        m_firmwareNote.SetDpi      (dpi);
-        m_firmware.SetVisible      (showFirmware);
-        m_firmwareLabel.SetVisible (showFirmware);
-        m_firmwareNote.SetVisible  (showFirmware);
-        m_firmware.SetRect         (MakeRect (x, y, toggleW, rowH));
-        m_firmwareLabel.SetRect    (MakeRect (x + toggleW + gap, y, right - x - toggleW - gap, rowH));
+        m_firmwareNote.SetDpi     (dpi);
+        m_firmware.SetVisible     (showFirmware);
+        m_firmwareNote.SetVisible (showFirmware);
+        m_firmware.Layout         (MakeRect (x, y, std::min (firmwareW, right - x), rowH), s);
 
         if (showFirmware)
         {
-            y += rowH;
+            y += rowH + gap;
 
             m_firmwareNote.SetRect (MakeRect (x, y, right - x, 2 * rowH));
             y += 2 * rowH + gap;
@@ -542,7 +538,7 @@ void SlotsPage::Relayout()
     }
 
     m_drivesHeading.SetDpi     (dpi);
-    m_drivesHeading.SetVisible (showBlock || showCount);
+    m_drivesHeading.SetVisible (showBlock && m_portRows > 1);
     m_drivesHeading.SetRect    (MakeRect (x, y, right - x, rowH));
 
     if (m_drivesHeading.IsVisible())
@@ -845,8 +841,8 @@ void SlotsPage::ChoosePortDrive (size_t port, int choice)
 //
 //  SlotsPage::ChooseDriveCount
 //
-//  The number of drives connected to a chain card or the Disk II, from the
-//  dropdown's position.
+//  The number of drives connected to the card, from the dropdown's
+//  position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -869,7 +865,23 @@ void SlotsPage::ChooseDriveCount (int choice)
     }
     else
     {
-        OnEdited (m_state->SetChainCount ((size_t) entry, (size_t) count));
+        const HardwareEntry  & e    = m_state->GetHardware()[(size_t) entry];
+        const BlockCardSpec  * card = BlockDeviceCatalog::FindCard (e.type);
+        HRESULT                hr   = S_OK;
+
+        if (card != nullptr && card->isChain)
+        {
+            hr = m_state->SetChainCount ((size_t) entry, (size_t) count);
+        }
+
+        // A card whose ports each take its one kind of drive has the first
+        // `count` ports filled.
+        for (size_t port = 0; card != nullptr && !card->isChain && SUCCEEDED (hr) && port < (size_t) card->portCount; port++)
+        {
+            hr = m_state->SetPortDrive ((size_t) entry, port, ((int) port < count) ? std::string (card->drives[0]) : std::string());
+        }
+
+        OnEdited (hr);
     }
 }
 

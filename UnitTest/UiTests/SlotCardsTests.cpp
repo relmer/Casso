@@ -327,11 +327,11 @@ public:
         page.SetState (&st);
         page.SelectSlot (7);
         Assert::AreEqual ((size_t) 7, page.GetPortRowCount());
-        Assert::AreEqual (std::wstring (L"Use Apple's ROM"), page.GetFirmwareLabel().GetText());
+        Assert::AreEqual (1, page.GetFirmwareChoice().GetSelected(), L"Apple's ROM");
 
         page.SetAppleFirmware (false);
         Assert::IsTrue   (st.GetHardware()[(size_t) scsi].cassoFirmware);
-        Assert::AreEqual (std::wstring (L"Use Casso's fast firmware"), page.GetFirmwareLabel().GetText());
+        Assert::AreEqual (0, page.GetFirmwareChoice().GetSelected(), L"Casso's fast firmware");
         Assert::AreEqual (1, page.GetPortDropdown (6).GetSelectedIndex(), L"the HD20SC is at ID 6");
         Assert::AreEqual (0, page.GetPortDropdown (2).GetSelectedIndex());
 

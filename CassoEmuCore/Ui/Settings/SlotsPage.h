@@ -63,7 +63,8 @@ public:
     size_t                GetPortRowCount  () const { return m_portRows; }
     DxuiComboBox        & GetPortDropdown  (size_t port) { return m_portDropdowns[port]; }
     DxuiComboBox        & GetCountDropdown ()       { return m_countDropdown; }
-    const DxuiLabel     & GetFirmwareLabel () const { return m_firmwareLabel; }
+
+    const DxuiSegmentedControl  & GetFirmwareChoice () const { return m_firmware; }
 
     // A slot's line in the list, "Slot 5: Apple II SCSI Card" or "Slot 2:
     // Empty". Exposed for unit tests.
@@ -93,8 +94,7 @@ private:
     DxuiLabel                             m_promptLabel;
     DxuiButton                            m_replaceButton;
     DxuiButton                            m_cancelButton;
-    DxuiToggle                            m_firmware;
-    DxuiLabel                             m_firmwareLabel;
+    DxuiSegmentedControl                  m_firmware;
     DxuiLabel                             m_firmwareNote;
     DxuiLabel                             m_drivesHeading;
     DxuiLabel                             m_countLabel;
@@ -110,6 +110,6 @@ private:
     int                             m_selectedSlot   = kFirstSlot;
     int                             m_countBase      = 0;
     size_t                          m_portRows       = 0;
-    bool                            m_isChain        = false;
+    bool                            m_isCounted      = false;
     bool                            m_replacePending = false;
 };
