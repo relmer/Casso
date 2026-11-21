@@ -60,7 +60,7 @@ public:
     }
 
     // Docked beside drive boxes, the strip for the label under the nearest
-    // control takes no room, so the recorder is only as tall as its controls.
+    // control isn't counted in its height, so the recorder is only as tall as its controls.
     void            SetDocked      (bool docked) { m_docked = docked; }
 
     TapeDeckRegion  HitTest        (int x, int y) const;

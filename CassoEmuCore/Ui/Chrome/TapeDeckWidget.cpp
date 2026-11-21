@@ -207,7 +207,7 @@ RECT TapeDeckWidget::GetOuterRect() const
     }
 
     // Docked, the label under the nearest control is drawn over whatever is
-    // below the recorder while the row is magnified, so it takes no room.
+    // below the recorder while the row is magnified, and isn't counted in its height.
     outer.bottom = m_counterRect.bottom + (m_docked ? 0 : Scale (kLabelStripPx, m_dpi));
 
     return outer;
