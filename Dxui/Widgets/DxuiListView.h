@@ -478,8 +478,8 @@ public:
     void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
     // A host that marks the selected row itself, as the Slots page's outline
-    // does, turns off the row's selection fill and focus cue. Hover and
-    // press still paint.
+    // does, turns off the row's selection fill and focus cue. The hover
+    // and press fills are drawn.
     void  SetSelectionPainted      (bool enabled)                { m_selectionPainted = enabled; }
 
     // Selected rows in the accent selection color a text control uses, as a
