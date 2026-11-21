@@ -4,6 +4,14 @@
 #include "Core/TextEncoding.h"
 
 
+//  What a read that couldn't read every sector offers, above its buttons.
+static constexpr const wchar_t *  s_kOfferLines[] =
+{
+    L"The disk may be copy-protected. Try Capture raw, which saves every track as it is on the disk.",
+    L"Read again saves a sector image with the sectors that couldn't be read written as zeros.",
+};
+
+
 
 
 
@@ -408,7 +416,7 @@ float CassoLinkJobPanel::GetHeader (const CassoLinkJobView * view) const
 
     if (view != nullptr)
     {
-        rows += (float) view->summary.size() + (view->message.empty() ? 0.0f : 1.0f);
+        rows += (float) view->summary.size() + (view->message.empty() ? 0.0f : 1.0f) + (view->hasOffer ? (float) std::size (s_kOfferLines) : 0.0f);
     }
 
     return m_scaler.ToPxf (kTabsDip) + m_scaler.ToPxf (kPadDip) + line * rows + m_scaler.ToPxf (kSectionGapDip);
@@ -507,6 +515,15 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     {
         DrawLine (text, view->message, left, top, width, theme.Foreground(), kFontDip);
         top += line;
+    }
+
+    if (view->hasOffer)
+    {
+        for (const wchar_t * advice : s_kOfferLines)
+        {
+            DrawLine (text, advice, left, top, width, theme.Foreground(), kFontDip);
+            top += line;
+        }
     }
 
     for (const auto & [label, value] : view->summary)
