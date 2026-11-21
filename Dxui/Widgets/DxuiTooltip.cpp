@@ -50,6 +50,39 @@ static constexpr float     s_kTableTopLines   = 1.0f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PaintHatch
+//
+//  Light, with dark diagonal stripes two pixels wide every four, a pixel
+//  at a time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::PaintHatch (IDxuiPainter & painter, float left, float top, float side)
+{
+    int  count = (int) side;
+
+
+
+    painter.FillRect (left, top, side, side, DxuiTooltipSwatch::kHatchLight);
+
+    for (int y = 0; y < count; y++)
+    {
+        for (int x = 0; x < count; x++)
+        {
+            if ((x + y) % 4 < 2)
+            {
+                painter.FillRect (left + (float) x, top + (float) y, 1.0f, 1.0f, DxuiTooltipSwatch::kHatchDark);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComputeVisibleMs
 //
 //  How long a tip stays up: the system's tip lifetime, or long enough to
@@ -1344,8 +1377,18 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     //  balloon's own is visible against it.
     for (const DxuiTooltipSwatch & s : m_swatches)
     {
-        painter.FillRect    (padX, padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, s.argb);
-        painter.OutlineRect (padX, padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, borderPx, m_borderArgb);
+        float  top = padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f;
+
+        if (s.argb == DxuiTooltipSwatch::kHatchedArgb)
+        {
+            PaintHatch (painter, padX, top, swatch);
+        }
+        else
+        {
+            painter.FillRect (padX, top, swatch, swatch, s.argb);
+        }
+
+        painter.OutlineRect (padX, top, swatch, swatch, borderPx, m_borderArgb);
     }
 
     if (isWrapped)

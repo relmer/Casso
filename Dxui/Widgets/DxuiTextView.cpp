@@ -1420,17 +1420,34 @@ void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, const IDxuiTheme & th
 
     DxuiTextRowLayout::PaintPicture (text, picture, GetTextLeft(), top, width, m_scaler.ToPxf (1.0f));
 
-    //  The outline is drawn inside the cell's edge, so it isn't cut off at
-    //  the picture's.
-    if (row == m_outlineRow && m_paintPainter != nullptr)
+    //  The outline is drawn by the text renderer, which draws over the
+    //  picture, around the cell. A cell smaller than the minimum is outlined
+    //  a cell's width out from its edge, so the outline doesn't cover it.
+    if (row == m_outlineRow)
     {
-        scale = DxuiTextRowLayout::GetPictureScale (picture, width, m_scaler.ToPxf (1.0f));
+        float  minimum = m_scaler.ToPxf (s_kOutlineMinCellDip);
+        float  left    = 0.0f;
+        float  y       = 0.0f;
+        float  w       = 0.0f;
+        float  h       = 0.0f;
+        float  margin  = 0.0f;
 
-        m_paintPainter->OutlineRect (GetTextLeft() + (float) m_outlineRect.left * scale + stroke / 2.0f,
-                                     top + (float) m_outlineRect.top * scale + stroke / 2.0f,
-                                     (float) (m_outlineRect.right - m_outlineRect.left) * scale - stroke,
-                                     (float) (m_outlineRect.bottom - m_outlineRect.top) * scale - stroke,
-                                     stroke, theme.Accent());
+        scale  = DxuiTextRowLayout::GetPictureScale (picture, width, m_scaler.ToPxf (1.0f));
+        w      = (float) (m_outlineRect.right - m_outlineRect.left) * scale;
+        h      = (float) (m_outlineRect.bottom - m_outlineRect.top) * scale;
+        margin = (w < minimum) ? w : 0.0f;
+        left   = GetTextLeft() + (float) m_outlineRect.left * scale - margin - stroke;
+        y      = top + (float) m_outlineRect.top * scale - margin - stroke;
+        w     += 2.0f * (margin + stroke);
+        h     += 2.0f * (margin + stroke);
+
+        for (const auto & edge : { std::array<float, 4> { left, y, w, stroke },          std::array<float, 4> { left, y + h - stroke, w, stroke },
+                                   std::array<float, 4> { left, y, stroke, h },          std::array<float, 4> { left + w - stroke, y, stroke, h } })
+        {
+            HRESULT  hr = text.FillRect (edge[0], edge[1], edge[2], edge[3], theme.Accent());
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 }
 

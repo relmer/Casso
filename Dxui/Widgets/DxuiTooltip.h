@@ -30,6 +30,13 @@ class DxuiPopupHost;
 
 struct DxuiTooltipSwatch
 {
+    //  A swatch of this color is drawn as dark and light diagonal stripes, as
+    //  a picture marks what couldn't be read. Its alpha is 0, so it can't be
+    //  a real color.
+    static constexpr uint32_t  kHatchedArgb = 0x00FFFFFF;
+    static constexpr uint32_t  kHatchDark   = 0xFF282828;
+    static constexpr uint32_t  kHatchLight  = 0xFFC8C8C8;
+
     int       line = 0;
     uint32_t  argb = 0;
 };
@@ -50,6 +57,7 @@ public:
     static constexpr int  kMaxReadMs     = 30000;
 
     static int  ComputeVisibleMs (size_t textLength, int systemMs);
+    static void PaintHatch       (IDxuiPainter & painter, float left, float top, float side);
 
     //  How far the pointer's image reaches above and below its hot spot, in
     //  pixels: what a tip that follows the pointer must keep clear of.

@@ -35,8 +35,10 @@ static constexpr size_t  s_kPossIdentifiedAt   = 4;
 static constexpr size_t  s_kPossItemAt         = 6;
 static constexpr int     s_kMaxPossessions     = 8;
 
-//  The status of a character whose slot is free. A character with this
-//  status can't join a party.
+//  The statuses of a dead character, dead and ashes, and of one whose slot
+//  is free. A character with the last status can't join a party.
+static constexpr int     s_kStatusDead         = 5;
+static constexpr int     s_kStatusAshes        = 6;
 static constexpr int     s_kStatusLost         = 7;
 
 //  Wizardry III adds this to the item number of some possessions, such as
@@ -363,16 +365,17 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
 
     for (int i = 0; i < contents.count[kZoneCharacter]; i++)
     {
-        size_t               at     = 0;
-        int                  status = 0;
-        int                  items  = 0;
-        bool                 inMaze = false;
+        size_t               at        = 0;
+        int                  status    = 0;
+        int                  items     = 0;
+        bool                 inMaze    = false;
         std::wstring         shown;
         std::wstring         name;
         std::wstring         race;
         std::wstring         kind;
         std::wstring         align;
-        RunColor             color  = RunColor::Text;
+        RunColor             color     = RunColor::Text;
+        RunColor             nameColor = RunColor::Text;
         RecordTable::Record  record;
 
         if (!TryLocate (bytes, contents, kZoneCharacter, i, kCharacterBytes, at))
@@ -396,15 +399,18 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
         align = ToTitleCase (GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt)));
         color = (status == 0 && !inMaze) ? RunColor::Text : RunColor::Bad;
 
+        //  A dead character's name is red as well.
+        nameColor = (status == s_kStatusDead || status == s_kStatusAshes) ? RunColor::Bad : RunColor::Text;
+
         std::wstring  level = std::format (L"{}", ReadWord (bytes, at + s_kCharLevelAt));
         std::wstring  hits  = std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
         std::wstring  gold  = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt));
         std::wstring  exp   = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt));
 
-        record.cells = { Run { name, true }, Run { level }, Run { race }, Run { kind }, Run { align },
+        record.cells = { Run { name, true, false, false, nameColor }, Run { level }, Run { race }, Run { kind }, Run { align },
                          Run { shown, false, false, false, color }, Run { hits }, Run { gold }, Run { exp } };
 
-        record.card.push_back (MakeParagraph ({ Run { name, true },
+        record.card.push_back (MakeParagraph ({ Run { name, true, false, false, nameColor },
                                                 Run { std::format (L"   Level {} {} {}, {}", level, race, kind, align), false, false, false, RunColor::Muted } }));
         record.card.push_back (MakeParagraph ({ Run { L"Status: " },
                                                 Run { shown, false, false, false, color },
@@ -782,6 +788,13 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     ioParagraphs.push_back (Paragraph());
     ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", level, x, y), true } }));
     ioParagraphs.push_back (std::move (map));
+    ioParagraphs.push_back (MakeParagraph ({ Run { L"The party   ",     false, false, false, RunColor::Muted, s_kMapParty   },
+                                             Run { L"Door   ",          false, false, false, RunColor::Muted, s_kMapDoor    },
+                                             Run { L"Stairs   ",        false, false, false, RunColor::Muted, s_kMapStairs  },
+                                             Run { L"Darkness   ",      false, false, false, RunColor::Muted, s_kMapDark    },
+                                             Run { L"Rock or water   ", false, false, false, RunColor::Muted, s_kMapRock    },
+                                             Run { L"Fight zone   ",    false, false, false, RunColor::Muted, s_kMapFight   },
+                                             Run { L"Special square",   false, false, false, RunColor::Muted, s_kMapSpecial } }));
 }
 
 
