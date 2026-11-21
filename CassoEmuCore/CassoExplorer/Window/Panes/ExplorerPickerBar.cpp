@@ -120,7 +120,7 @@ void ExplorerPickerBar::Create()
     //  image the request takes.
     if (request->IsSave() && request->filters.size() > 1)
     {
-        m_filterLabel = m_context.window.CreateChild<DxuiLabel> (L"Save as type:");
+        m_filterLabel = m_context.window.CreateChild<DxuiLabel> (request->isImageContent ? L"Disk image type:" : L"Save as type:");
         m_filter      = m_context.window.CreateChild<DxuiComboBox>();
 
         m_filterLabel->SetTextAlign   (DxuiTextHAlign::Right, DxuiTextVAlign::Center);

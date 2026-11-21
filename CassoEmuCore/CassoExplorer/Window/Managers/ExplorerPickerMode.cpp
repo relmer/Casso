@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Picker/FileMaskSet.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
@@ -568,6 +569,21 @@ void ExplorerPickerMode::SetActiveFilter (size_t index)
     }
 
     m_scope.SetActiveFilter (index);
+
+    //  A save form's name takes the new type's extension.
+    if (m_context.app.picker->IsSave() && m_context.pickerBar.HasNameBox())
+    {
+        std::vector<FileMaskSet>  all;
+
+
+
+        for (const FileDialogFilter & filter : m_context.app.picker->filters)
+        {
+            all.emplace_back (filter.pattern);
+        }
+
+        m_context.pickerBar.SetNameText (FileMaskSet::ApplyToName (m_context.pickerBar.GetNameText(), all[index], all));
+    }
 
     hr = m_context.browser.Refresh();
     IGNORE_RETURN_VALUE (hr, S_OK);
