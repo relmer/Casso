@@ -603,11 +603,11 @@ void Ultima4Save::AddVirtues (std::span<const Byte> roster, std::vector<Paragrap
     }
 
     record.card.push_back (MakeParagraph ({ Run { line } }));
+    table->title = L"Virtues";
     table->records.push_back (std::move (record));
     paragraph.table = table;
 
     ioParagraphs.push_back (Paragraph());
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"Virtues", true } }));
     ioParagraphs.push_back (std::move (paragraph));
 }
 
@@ -673,10 +673,10 @@ HRESULT Ultima4Save::Decode (const std::vector<Byte> & sectors, std::span<const 
         }
     }
 
+    table->title     = L"Characters";
     characters.table = table;
 
     outFile.paragraphs.push_back (Paragraph());
-    outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Characters", true } }));
     outFile.paragraphs.push_back (std::move (characters));
 
     AddVirtues (roster, outFile.paragraphs);

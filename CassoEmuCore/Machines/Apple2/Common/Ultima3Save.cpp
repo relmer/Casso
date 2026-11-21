@@ -696,8 +696,8 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
     outFile.paragraphs.push_back (std::move (map));
     AddLegend (outFile.paragraphs);
 
-    outFile.paragraphs.push_back (Paragraph());
-    outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Party", true } }));
+    members->title = L"Party";
+    roster->title  = L"Roster";
 
     for (int i = 0; i < party.size; i++)
     {
@@ -707,9 +707,9 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
         }
     }
 
+    outFile.paragraphs.push_back (Paragraph());
     outFile.paragraphs.push_back (MakeTableParagraph (members));
     outFile.paragraphs.push_back (Paragraph());
-    outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Roster", true } }));
 
     for (int slot = 0; slot < kRosterSlots; slot++)
     {
