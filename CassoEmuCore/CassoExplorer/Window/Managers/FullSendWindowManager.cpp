@@ -598,7 +598,7 @@ void FullSendWindowManager::ReportDisk (const std::filesystem::path & image)
 
     sources.links    = m_context.app.links;
     sources.pictures = m_context.app.pictures;
-    sources.logFile  = PathResolver::GetLocalAppDataDir (L"Casso") / L"Logs" / CassoLinkLogFile::kFileName;
+    sources.logFile  = PathResolver::GetDataFolder() / L"Logs" / CassoLinkLogFile::kFileName;
     sources.select   = [this] (const std::filesystem::path & file)
     {
         m_context.addressBar.GoToLocation (Location::MakeHostFolder (file.parent_path().wstring()));
