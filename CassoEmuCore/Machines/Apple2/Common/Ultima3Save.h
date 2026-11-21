@@ -99,10 +99,12 @@ private:
     static constexpr size_t  kMapAt           = (3 * kSectorsPerTrack + 13) * kSectorBytes;
     static constexpr size_t  kMapBytes        = (size_t) kMapSide * kMapSide;
 
-    static int        ReadBcd       (std::span<const Byte> bytes, size_t at, size_t count);
-    static bool       IsBcd         (Byte value);
-    static void       AddCharacter  (const Character & character, std::vector<Paragraph> & ioParagraphs);
-    static void       AddLegend     (std::vector<Paragraph> & ioParagraphs);
-    static void       LabelMap      (std::span<const Byte> sectors, std::span<const bool> unreadable, int partyX, int partyY, Paragraph & ioMap);
-    static Paragraph  MakeParagraph (std::vector<Run> runs);
+    static int                           ReadBcd            (std::span<const Byte> bytes, size_t at, size_t count);
+    static bool                          IsBcd              (Byte value);
+    static void                          AddCharacter       (const Character & character, RecordTable & ioTable);
+    static void                          AddLegend          (std::vector<Paragraph> & ioParagraphs);
+    static void                          LabelMap           (std::span<const Byte> sectors, std::span<const bool> unreadable, int partyX, int partyY, Paragraph & ioMap);
+    static Paragraph                     MakeParagraph      (std::vector<Run> runs);
+    static Paragraph                     MakeTableParagraph (std::shared_ptr<const RecordTable> table);
+    static std::shared_ptr<RecordTable>  MakeTable          ();
 };

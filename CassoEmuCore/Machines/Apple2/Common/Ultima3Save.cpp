@@ -471,6 +471,51 @@ Paragraph Ultima3Save::MakeParagraph (std::vector<Run> runs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Ultima3Save::MakeTable
+//
+//  An empty table of characters with its column headings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<RecordTable> Ultima3Save::MakeTable()
+{
+    auto  table = std::make_shared<RecordTable>();
+
+
+
+    table->headings = { L"Name", L"Race", L"Class", L"Sex", L"Status", L"Str / Dex / Int / Wis",
+                        L"HP", L"MP", L"Exp", L"Food", L"Gold", L"Armor", L"Weapon" };
+
+    return table;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima3Save::MakeTableParagraph
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Paragraph Ultima3Save::MakeTableParagraph (std::shared_ptr<const RecordTable> table)
+{
+    Paragraph  paragraph;
+
+
+
+    paragraph.table = std::move (table);
+
+    return paragraph;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Ultima3Save::AddCharacter
 //
 //  One character as a short block, one fact to a line, which reads in a
@@ -480,23 +525,40 @@ Paragraph Ultima3Save::MakeParagraph (std::vector<Run> runs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ultima3Save::AddCharacter (const Character & character, std::vector<Paragraph> & ioParagraphs)
+void Ultima3Save::AddCharacter (const Character & character, RecordTable & ioTable)
 {
-    std::wstring  sex     = (character.sex == L'M') ? L"male" : (character.sex == L'F') ? L"female" : L"other";
-    bool          isGood  = character.status == L'G';
+    std::wstring         sex     = (character.sex == L'M') ? L"male" : (character.sex == L'F') ? L"female" : L"other";
+    bool                 isGood  = character.status == L'G';
+    RunColor             status  = isGood ? RunColor::Text : RunColor::Bad;
+    RecordTable::Record  record;
 
 
 
-    ioParagraphs.push_back (Paragraph());
-    ioParagraphs.push_back (MakeParagraph ({ Run { character.name, true },
-                                             Run { std::format (L"   {} {}, {}", GetRaceName (character.race), GetClassName (character.characterClass), sex),
-                                                   false, false, false, RunColor::Muted } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { GetStatusName (character.status), false, false, false, isGood ? RunColor::Text : RunColor::Bad },
-                                             Run { std::format (L"   HP {} / {}   MP {}", character.hitPoints, character.maxHitPoints, character.magic) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Str {}   Dex {}   Int {}   Wis {}",
-                                                                character.strength, character.dexterity, character.intelligence, character.wisdom) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Exp {}   Food {}   Gold {}", character.experience, character.food, character.gold) } }));
-    ioParagraphs.push_back (MakeParagraph ({ Run { GetArmorName (character.armor) + L", " + GetWeaponName (character.weapon) } }));
+    record.cells = { Run { character.name, true },
+                     Run { GetRaceName (character.race) },
+                     Run { GetClassName (character.characterClass) },
+                     Run { sex },
+                     Run { GetStatusName (character.status), false, false, false, status },
+                     Run { std::format (L"{} / {} / {} / {}", character.strength, character.dexterity, character.intelligence, character.wisdom) },
+                     Run { std::format (L"{} / {}", character.hitPoints, character.maxHitPoints) },
+                     Run { std::format (L"{}", character.magic) },
+                     Run { std::format (L"{}", character.experience) },
+                     Run { std::format (L"{}", character.food) },
+                     Run { std::format (L"{}", character.gold) },
+                     Run { GetArmorName (character.armor) },
+                     Run { GetWeaponName (character.weapon) } };
+
+    record.card.push_back (MakeParagraph ({ Run { character.name, true },
+                                            Run { std::format (L"   {} {}, {}", GetRaceName (character.race), GetClassName (character.characterClass), sex),
+                                                  false, false, false, RunColor::Muted } }));
+    record.card.push_back (MakeParagraph ({ Run { GetStatusName (character.status), false, false, false, status },
+                                            Run { std::format (L"   HP {} / {}   MP {}", character.hitPoints, character.maxHitPoints, character.magic) } }));
+    record.card.push_back (MakeParagraph ({ Run { std::format (L"Str {}   Dex {}   Int {}   Wis {}",
+                                                               character.strength, character.dexterity, character.intelligence, character.wisdom) } }));
+    record.card.push_back (MakeParagraph ({ Run { std::format (L"Exp {}   Food {}   Gold {}", character.experience, character.food, character.gold) } }));
+    record.card.push_back (MakeParagraph ({ Run { std::format (L"Armor: {}   Weapon: {}", GetArmorName (character.armor), GetWeaponName (character.weapon)) } }));
+
+    ioTable.records.push_back (std::move (record));
 }
 
 
@@ -610,6 +672,8 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
     Party      party;
     Character  character;
     Paragraph  map;
+    auto       members  = MakeTable();
+    auto       roster   = MakeTable();
     bool       isFound  = IsFound (sectors);
     bool       isParty  = false;
 
@@ -639,10 +703,11 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
     {
         if (TryReadCharacter (sectors.subspan (kMembersAt + (size_t) i * kRecordBytes, kRecordBytes), character))
         {
-            AddCharacter (character, outFile.paragraphs);
+            AddCharacter (character, *members);
         }
     }
 
+    outFile.paragraphs.push_back (MakeTableParagraph (members));
     outFile.paragraphs.push_back (Paragraph());
     outFile.paragraphs.push_back (MakeParagraph ({ Run { L"Roster", true } }));
 
@@ -652,10 +717,11 @@ HRESULT Ultima3Save::Decode (std::span<const Byte> sectors, std::span<const bool
 
         if (!isMember && TryReadCharacter (sectors.subspan (kRosterAt + (size_t) slot * kRecordBytes, kRecordBytes), character))
         {
-            AddCharacter (character, outFile.paragraphs);
+            AddCharacter (character, *roster);
         }
     }
 
+    outFile.paragraphs.push_back (MakeTableParagraph (roster));
 Error:
     return hr;
 }

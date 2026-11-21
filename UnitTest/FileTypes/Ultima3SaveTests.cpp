@@ -98,7 +98,7 @@ public:
     {
         std::wstring  text;
 
-        for (const Paragraph & paragraph : decoded.paragraphs)
+        for (const Paragraph & paragraph : FlattenRecordTables (decoded.paragraphs))
         {
             for (const Run & run : paragraph.runs)
             {
@@ -222,7 +222,7 @@ public:
         Assert::AreEqual ((size_t) 1, CountOf (text, L"LOKIL"));
         Assert::IsTrue (text.find (L"Elf paladin, male") != std::wstring::npos);
         Assert::IsTrue (text.find (L"HP 123 / 150") != std::wstring::npos);
-        Assert::IsTrue (text.find (L"Leather, Bow") != std::wstring::npos);
+        Assert::IsTrue (text.find (L"Armor: Leather   Weapon: Bow") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Party") < text.find (L"Roster"));
     }
 
@@ -312,6 +312,33 @@ public:
         Assert::AreEqual (std::wstring (L"Grass"),           grass->lines[1].second);
         Assert::AreEqual (std::wstring (L"The party"),       party->lines[1].second);
         Assert::AreEqual (std::wstring (L"Town"),            party->lines[2].second, L"and the terrain under the party");
+    }
+
+
+    TEST_METHOD (ThePartyAndRosterAreRecordTables)
+    {
+        std::vector<Byte>                 disk = MakeDisk();
+        DecodedFile                       decoded;
+        std::wstring                      error;
+        std::vector<const RecordTable *>  tables;
+
+        AssertSucceeded (Ultima3Save::Decode (disk, {}, decoded, error));
+
+        for (const Paragraph & paragraph : decoded.paragraphs)
+        {
+            if (paragraph.table != nullptr)
+            {
+                tables.push_back (paragraph.table.get());
+            }
+        }
+
+        Assert::AreEqual ((size_t) 2, tables.size(), L"one for the party and one for the rest of the roster");
+        Assert::AreEqual ((size_t) 13, tables[0]->headings.size());
+        Assert::AreEqual (std::wstring (L"Armor"), tables[0]->headings[11]);
+        Assert::AreEqual ((size_t) 2, tables[0]->records.size());
+        Assert::AreEqual ((size_t) 1, tables[1]->records.size());
+        Assert::AreEqual (std::wstring (L"Bow"), tables[0]->records[0].cells[12].text);
+        Assert::AreEqual ((size_t) 5, tables[0]->records[0].card.size());
     }
 
 
