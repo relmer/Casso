@@ -19,7 +19,6 @@ static constexpr int  s_kLabelWidthDp   = 90;
 static constexpr int  s_kDropdownWidthDp = 240;
 static constexpr int  s_kListHeightDp   = 260;
 static constexpr int  s_kIndentDp       = 20;
-static constexpr int  s_kFirmwareWidthDp = 320;
 
 
 
@@ -473,12 +472,12 @@ void SlotsPage::Relayout()
     int                     listW      = s.ToPx (s_kListWidthDp);
     int                     labelW     = s.ToPx (s_kLabelWidthDp);
     int                     dropW      = s.ToPx (s_kDropdownWidthDp);
-    int                     firmwareW  = s.ToPx (s_kFirmwareWidthDp);
     int                     indent     = s.ToPx (s_kIndentDp);
     int                     x          = rect.left + pad + listW + s.ToPx (s_kPanelGapDp);
     int                     right      = rect.right - pad;
     int                     y          = rect.top + pad;
     int                     controlsX  = x + labelW;
+    int                     colRight   = std::min (controlsX + dropW, right);
     int                     entry      = GetSelectedEntry();
     const HardwareEntry   * selected   = (m_state != nullptr && entry >= 0) ? &m_state->GetHardware()[(size_t) entry] : nullptr;
     const BlockCardSpec   * card       = (selected != nullptr) ? BlockDeviceCatalog::FindCard (selected->type) : nullptr;
@@ -501,7 +500,7 @@ void SlotsPage::Relayout()
     m_cardLabel.SetDpi     (dpi);
     m_cardDropdown.SetDpi  (dpi);
     m_cardLabel.SetRect    (MakeRect (x, y, labelW, rowH));
-    m_cardDropdown.SetRect (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
+    m_cardDropdown.SetRect (MakeRect (controlsX, y, colRight - controlsX, rowH));
     y += rowH + gap;
 
     m_promptLabel.SetDpi     (dpi);
@@ -521,12 +520,12 @@ void SlotsPage::Relayout()
         m_firmwareNote.SetDpi     (dpi);
         m_firmware.SetVisible     (showFirmware);
         m_firmwareNote.SetVisible (showFirmware);
-        m_firmware.Layout         (MakeRect (x, y, std::min (firmwareW, right - x), rowH), s);
+        m_firmware.Layout         (MakeRect (x, y, colRight - x, rowH), s);
 
         if (showFirmware)
         {
             float    noteDip  = 0.0f;
-            float    widthDip = (float) (right - x) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi;
+            float    widthDip = (float) (colRight - x) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi;
             int      noteH    = 3 * rowH;
             HRESULT  hrNote   = m_firmwareNote.MeasureWrappedDip (widthDip, noteDip);
 
@@ -539,7 +538,7 @@ void SlotsPage::Relayout()
                 noteH = (int) std::ceil (s.ToPxf (noteDip));
             }
 
-            m_firmwareNote.SetRect (MakeRect (x, y, right - x, noteH));
+            m_firmwareNote.SetRect (MakeRect (x, y, colRight - x, noteH));
             y += noteH + 2 * gap;
         }
     }
@@ -549,7 +548,7 @@ void SlotsPage::Relayout()
     m_countLabel.SetVisible    (showCount);
     m_countDropdown.SetVisible (showCount);
     m_countLabel.SetRect       (MakeRect (x, y, labelW, rowH));
-    m_countDropdown.SetRect    (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
+    m_countDropdown.SetRect    (MakeRect (controlsX, y, colRight - controlsX, rowH));
 
     if (showCount)
     {
@@ -573,7 +572,7 @@ void SlotsPage::Relayout()
         }
 
         m_portLabels[port].SetRect    (MakeRect (x, y, labelW, rowH));
-        m_portDropdowns[port].SetRect (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
+        m_portDropdowns[port].SetRect (MakeRect (controlsX, y, colRight - controlsX, rowH));
         y += rowH + gap;
 
         if (m_timingBoxes[port].IsVisible())
