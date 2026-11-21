@@ -153,11 +153,19 @@ void ExplorerLayout::ConfigureWidgets()
 
     m_context.treePane.HandleFocusChanged (true);
 
-    if (!m_context.app.request.openPath.empty())
+    if (!m_context.app.request.openPath.empty() || !m_context.app.request.selectPath.empty())
     {
         bool  onHome = m_context.browser.GetBrowserModel().GetTabCount() == 1 && m_context.browser.GetLocation().kind == Location::Kind::None;
 
-        m_context.tabManager.OpenPathInNewTab (m_context.app.request.openPath);
+        if (!m_context.app.request.openPath.empty())
+        {
+            m_context.tabManager.OpenPathInNewTab (m_context.app.request.openPath);
+        }
+
+        if (!m_context.app.request.selectPath.empty())
+        {
+            m_context.tabManager.SelectInFolder (m_context.app.request.selectPath);
+        }
 
         //  A window opened for a path alone has no Home tab beside it, as File
         //  Explorer's new window has none.
