@@ -60,6 +60,12 @@ public:
     static constexpr int  kMinWindowWidthDip = 200;
     static constexpr int  kCascadeStepDip    = 32;   // a second window's offset from the saved placement
 
+    //  A save form's smallest size, as the standard Save As dialog has one:
+    //  room for the navigation band and the bottom bar's labels, boxes,
+    //  note, Verify box and buttons.
+    static constexpr int  kMinSaveWidthDip  = 640;
+    static constexpr int  kMinSaveHeightDip = 480;
+
     //  How far a save form's bottom bar is mixed from the background toward
     //  the text color.
     static constexpr float  s_kSavePickerBarTint = 0.09f;

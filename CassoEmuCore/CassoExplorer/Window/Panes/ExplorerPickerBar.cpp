@@ -135,6 +135,7 @@ void ExplorerPickerBar::Create()
         {
             m_filterNote = m_context.window.CreateChild<DxuiLabel> (std::wstring());
             m_filterNote->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+            m_filterNote->SetElide     (DxuiElide::Tail);
         }
     }
 
