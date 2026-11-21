@@ -58,9 +58,26 @@ void ExplorerTips::ShowHoverTipBelow (TipOwner owner, const RECT & anchor, const
 void ExplorerTips::ShowHoverTip (TipOwner owner, const RECT & anchor, const std::wstring & text, float maxWidthDip)
 {
     m_tipOwner = owner;
+    m_tooltip.SetSwatches ({});
     m_tooltip.SetFollowPointer (true);
     m_tooltip.SetMaxTextWidthDip (maxWidthDip);
     m_tooltip.RequestShow (anchor, text, CassoExplorerWindow::GetNowMs());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTips::ShowSwatchTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTips::ShowSwatchTip (TipOwner owner, const RECT & anchor, const std::wstring & text, const std::vector<DxuiTooltipSwatch> & swatches)
+{
+    ShowHoverTip (owner, anchor, text);
+    m_tooltip.SetSwatches (swatches);
 }
 
 

@@ -82,9 +82,6 @@ static constexpr int  s_kSideWall       = 1;
 static constexpr int  s_kSideDoor       = 2;
 static constexpr int  s_kSideHiddenDoor = 3;
 
-static constexpr const wchar_t *  s_kpszMapLegend = L"The party is the gold circle. Walls are black, doors are brown, and hidden doors are dotted brown. "
-                                                    L"Blue squares are stairs, gray ones are dark, dark gray ones are rock or water, and pink ones are "
-                                                    L"fight zones. A dot marks any other special square.";
 
 
 
@@ -409,7 +406,8 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
             bool          identified = ReadWord (bytes, item + s_kPossIdentifiedAt) != 0;
             std::wstring  name       = GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified);
             Paragraph     line       = MakeParagraph ({ Run { L"      " },
-                                                        Run { name, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted } });
+                                                        Run { name, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted },
+                                                        Run { L"\t" } });
 
             AddItemStates (equipped, cursed, identified, line.runs);
             roster.push_back (std::move (line));
@@ -439,9 +437,9 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
 //
 //  WizardryScenario::AddItemStates
 //
-//  An item's states after its name, in parentheses, each with its mark in
-//  its color, as "(equipped, cursed)" with a check before equipped and a
-//  skull before cursed. Nothing for an item in none of them.
+//  An item's states, in the column after its name, each with its mark in
+//  its color: a check before equipped, a skull before cursed and a question
+//  mark before unidentified. Nothing for an item in none of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,13 +466,12 @@ void WizardryScenario::AddItemStates (bool equipped, bool cursed, bool identifie
 
     for (size_t i = 0; i < states.size(); i++)
     {
-        ioRuns.push_back (Run { (i == 0) ? L" (" : L", " });
-        ioRuns.push_back (std::move (states[i]));
-    }
+        if (i > 0)
+        {
+            ioRuns.push_back (Run { L"   " });
+        }
 
-    if (!states.empty())
-    {
-        ioRuns.push_back (Run { L")" });
+        ioRuns.push_back (std::move (states[i]));
     }
 }
 
@@ -761,11 +758,78 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     }
 
     RenderLevel (bytes.subspan (at, kMazeBytes), x, y, map.picture, map.width, map.height);
+    AddSquareTips (bytes.subspan (at, kMazeBytes), x, y, map);
 
     ioParagraphs.push_back (Paragraph());
     ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", level, x, y), true } }));
     ioParagraphs.push_back (std::move (map));
-    ioParagraphs.push_back (MakeParagraph ({ Run { s_kpszMapLegend, false, false, false, RunColor::Muted } }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::AddSquareTips
+//
+//  A tip for each square of the map: where it is, then the party, the
+//  square's kind, a fight zone, and each door, a line each, with the color
+//  the map draws it in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WizardryScenario::AddSquareTips (std::span<const Byte> level, int partyX, int partyY, Paragraph & ioMap)
+{
+    static constexpr struct { size_t at; const wchar_t * side; }  s_kSides[] =
+    {
+        { kNorthAt, L"north" }, { kEastAt, L"east" }, { kSouthAt, L"south" }, { kWestAt, L"west" },
+    };
+
+
+
+    ioMap.tipCell    = s_kMapCell;
+    ioMap.tipLeft    = s_kMapBorder;
+    ioMap.tipTop     = s_kMapBorder;
+    ioMap.tipColumns = kMazeSide;
+    ioMap.tips.assign ((size_t) kMazeSide * kMazeSide, PictureTip());
+
+    for (int y = 0; y < kMazeSide; y++)
+    {
+        for (int x = 0; x < kMazeSide; x++)
+        {
+            PictureTip &  tip   = ioMap.tips[(size_t) (kMazeSide - 1 - y) * kMazeSide + (size_t) x];
+            int           extra = ReadPacked (level, kExtraAt, kExtraRowBytes, kExtraBits, x, y);
+            int           type  = ReadPacked (level, kSquareTypesAt, 0, kExtraBits, 0, extra);
+
+            tip.lines.push_back ({ 0, std::format (L"{} east, {} north", x, y) });
+
+            if (x == partyX && y == partyY)          { tip.lines.push_back ({ s_kMapParty,   L"The party" });       }
+            if (type == s_kSquareStairs)             { tip.lines.push_back ({ s_kMapStairs,  L"Stairs" });          }
+            else if (type == s_kSquareDarkness)      { tip.lines.push_back ({ s_kMapDark,    L"Darkness" });        }
+            else if (type == s_kSquareRock)          { tip.lines.push_back ({ s_kMapRock,    L"Rock or water" });   }
+            else if (type > 0)                       { tip.lines.push_back ({ s_kMapSpecial, L"Special square" });  }
+
+            if (ReadPacked (level, kFightsAt, kFightRowBytes, kFightBits, x, y) != 0)
+            {
+                tip.lines.push_back ({ s_kMapFight, L"Fight zone" });
+            }
+
+            for (const auto & side : s_kSides)
+            {
+                int  kind = ReadPacked (level, side.at, kWallRowBytes, kWallBits, x, y);
+
+                if (kind == s_kSideDoor)
+                {
+                    tip.lines.push_back ({ s_kMapDoor, std::format (L"Door to the {}", side.side) });
+                }
+                else if (kind == s_kSideHiddenDoor)
+                {
+                    tip.lines.push_back ({ s_kMapDoor, std::format (L"Hidden door to the {}", side.side) });
+                }
+            }
+        }
+    }
 }
 
 
@@ -827,8 +891,14 @@ HRESULT WizardryScenario::Decode (std::span<const Byte> bytes, const FileFacts &
 
     outFile.paragraphs.push_back (MakeParagraph ({ Run { GetTitle (contents.name), true } }));
 
-    ListRoster     (bytes, contents, outFile.paragraphs, outFile.notes);
     DrawPartyLevel (bytes, contents, outFile.paragraphs, outFile.notes);
+
+    if (outFile.paragraphs.size() > 1)
+    {
+        outFile.paragraphs.push_back (Paragraph());
+    }
+
+    ListRoster     (bytes, contents, outFile.paragraphs, outFile.notes);
 
 Error:
     return hr;

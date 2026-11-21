@@ -11,6 +11,7 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "FileTypes/DiskSaveTable.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/IDiskFileIo.h"
@@ -573,8 +574,9 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 //
 //  BrowserPreviewer::TryDecodeDiskSave
 //
-//  The image's sectors decoded by the DiskSaveTable entry that accepts them.
-//  False for an image that can't be read or that no entry accepts.
+//  The image's sectors decoded by the DiskSaveTable entry that accepts them,
+//  with a flag for each sector the track layer couldn't read. False for an
+//  image that can't be read or that no entry accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -586,6 +588,8 @@ bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, Decode
     std::vector<Byte>             sectors;
     SectorDecodeReport            report;
     const DiskSaveTable::Entry  * entry  = nullptr;
+    size_t                        count  = 0;
+    std::unique_ptr<bool[]>       lost;
 
 
 
@@ -598,7 +602,20 @@ bool BrowserPreviewer::TryDecodeDiskSave (const std::wstring & imagePath, Decode
     entry = DiskSaveTable::Find (sectors);
     CBR (entry != nullptr);
 
-    hr = entry->decode (sectors, outFile);
+    if (report.HasDataLoss())
+    {
+        count = (size_t) report.GetTrackCount() * NibblizationLayer::kSectorsPerTrack;
+        lost  = std::make_unique<bool[]> (count);
+
+        for (size_t i = 0; i < count; i++)
+        {
+            int  track = (int) (i / NibblizationLayer::kSectorsPerTrack);
+
+            lost[i] = report.GetOutcome (track) == TrackDecodeOutcome::Partial && !report.IsSectorRecovered (track, (int) (i % NibblizationLayer::kSectorsPerTrack));
+        }
+    }
+
+    hr = entry->decode (sectors, std::span<const bool> (lost.get(), count), outFile);
     CHR (hr);
 
 Error:

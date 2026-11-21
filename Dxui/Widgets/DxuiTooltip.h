@@ -197,6 +197,8 @@ public:
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
+    const std::vector<DxuiTooltipSwatch>  & GetSwatches () const { return m_swatches; }
+
     void             Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     const wchar_t  * GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
 

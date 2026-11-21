@@ -140,5 +140,6 @@ private:
     static void          AddItemStates  (bool equipped, bool cursed, bool identified, std::vector<Run> & ioRuns);
     static void          DrawPartyLevel (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes);
     static bool          IsPartyOut     (std::span<const Byte> bytes, const Contents & contents);
+    static void          AddSquareTips  (std::span<const Byte> level, int partyX, int partyY, Paragraph & ioMap);
     static Paragraph     MakeParagraph  (std::vector<Run> runs);
 };

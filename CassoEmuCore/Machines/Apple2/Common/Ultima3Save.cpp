@@ -536,9 +536,10 @@ void Ultima3Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
 //
 //  Ultima3Save::LabelMap
 //
-//  A label for each of the map's tiles, shown as a tip when the pointer is
-//  over it: the terrain, or the party, a monster or ship, or a row that
-//  couldn't be read, and the tile's column and row.
+//  A tip for each of the map's tiles: its column and row, then what is
+//  there with the color the map draws it in. The party's tile has the
+//  party and the terrain under it, and a row an unreadable sector covers
+//  says so.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -548,10 +549,11 @@ void Ultima3Save::LabelMap (std::span<const Byte> sectors, std::span<const bool>
 
 
 
-    ioMap.cellWidth  = s_kTilePixels;
-    ioMap.cellHeight = s_kTilePixels;
-    ioMap.cellLabels.clear();
-    ioMap.labels.clear();
+    ioMap.tipCell    = s_kTilePixels;
+    ioMap.tipLeft    = 0;
+    ioMap.tipTop     = 0;
+    ioMap.tipColumns = kMapSide;
+    ioMap.tips.assign ((size_t) kMapSide * (size_t) kMapSide, PictureTip());
 
     for (int y = 0; y < kMapSide; y++)
     {
@@ -561,22 +563,31 @@ void Ultima3Save::LabelMap (std::span<const Byte> sectors, std::span<const bool>
 
         for (int x = 0; x < kMapSide; x++)
         {
-            Byte          tile    = sectors[rowAt + (size_t) x];
-            size_t        terrain = tile / kTileStep;
-            std::wstring  what    = (tile % kTileStep == 0 && terrain < std::size (s_kTerrain)) ? std::wstring (s_kTerrain[terrain].pszName) : std::wstring (L"monster or ship");
+            Byte          tile      = sectors[rowAt + (size_t) x];
+            size_t        terrain   = tile / kTileStep;
+            bool          isTerrain = tile % kTileStep == 0 && terrain < std::size (s_kTerrain);
+            PictureTip  & tip       = ioMap.tips[(size_t) y * (size_t) kMapSide + (size_t) x];
+            std::wstring  name      = isTerrain ? std::wstring (s_kTerrain[terrain].pszName) : std::wstring (L"monster or ship");
 
-            what = (x == partyX && y == partyY) ? std::wstring (L"the party")
-                 : isLost                       ? std::wstring (L"couldn't be read")
-                                                : what;
+            name[0] = (wchar_t) towupper (name[0]);
 
-            what[0] = (wchar_t) towupper (what[0]);
+            tip.lines.push_back ({ 0, std::format (L"Column {}, row {}", x, y) });
 
-            ioMap.cellLabels.push_back ((uint16_t) ioMap.labels.size());
-            ioMap.labels.push_back (std::format (L"{}, column {}, row {}", what, x, y));
+            if (isLost)
+            {
+                tip.lines.push_back ({ s_kHatchDark, L"Couldn't be read" });
+                continue;
+            }
+
+            if (x == partyX && y == partyY)
+            {
+                tip.lines.push_back ({ s_kPartyMark, L"The party" });
+            }
+
+            tip.lines.push_back ({ isTerrain ? s_kTerrain[terrain].argb : s_kOtherTile, name });
         }
     }
 }
-
 
 
 

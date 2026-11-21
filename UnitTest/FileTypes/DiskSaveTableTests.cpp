@@ -44,7 +44,7 @@ public:
 
 
         Assert::IsNotNull (entry);
-        AssertSucceeded   (entry->decode (disk, file));
+        AssertSucceeded   (entry->decode (disk, {}, file));
 
         Assert::IsTrue   (file.kind == DecodedFile::Kind::Document);
         Assert::AreEqual (std::wstring (L"Infocom saved game"), GetText (file.paragraphs[0]));
@@ -57,7 +57,7 @@ public:
     {
         std::vector<Byte>  blank (InfocomSaveBuilder::kDiskBytes, 0);
         DecodedFile        file;
-        HRESULT            decoded = DiskSaveTable::DecodeInfocomSave (blank, file);
+        HRESULT            decoded = DiskSaveTable::DecodeInfocomSave (blank, {}, file);
 
 
 

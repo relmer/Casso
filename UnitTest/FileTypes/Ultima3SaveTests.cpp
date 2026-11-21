@@ -297,11 +297,21 @@ public:
 
         const Paragraph &  map = decoded.paragraphs[at];
 
-        Assert::AreEqual (5, map.cellWidth);
-        Assert::AreEqual ((size_t) 64 * 64, map.cellLabels.size());
-        Assert::AreEqual (std::wstring (L"Water, column 3, row 0"),           map.labels[map.cellLabels[3]]);
-        Assert::AreEqual (std::wstring (L"Grass, column 20, row 30"),         map.labels[map.cellLabels[30 * 64 + 20]]);
-        Assert::AreEqual (std::wstring (L"The party, column 6, row 13"),   map.labels[map.cellLabels[13 * 64 + 6]]);
+        const PictureTip * water = map.GetTipAt (3 * 5 + 2, 2);
+        const PictureTip * grass = map.GetTipAt (20 * 5 + 2, 30 * 5 + 2);
+        const PictureTip * party = map.GetTipAt (6 * 5 + 2, 13 * 5 + 2);
+
+        Assert::AreEqual (5, map.tipCell);
+        Assert::AreEqual ((size_t) 64 * 64, map.tips.size());
+        Assert::IsNotNull (water);
+        Assert::IsNotNull (grass);
+        Assert::IsNotNull (party);
+        Assert::AreEqual (std::wstring (L"Column 3, row 0"), water->lines[0].second);
+        Assert::AreEqual (std::wstring (L"Water"),           water->lines[1].second);
+        Assert::AreEqual (0xFF2846A0u,                       water->lines[1].first, L"the swatch is the color the map draws water in");
+        Assert::AreEqual (std::wstring (L"Grass"),           grass->lines[1].second);
+        Assert::AreEqual (std::wstring (L"The party"),       party->lines[1].second);
+        Assert::AreEqual (std::wstring (L"Town"),            party->lines[2].second, L"and the terrain under the party");
     }
 
 
@@ -312,7 +322,7 @@ public:
         DecodedFile                   decoded;
 
         Assert::IsNotNull (entry);
-        AssertSucceeded (entry->decode (disk, decoded));
+        AssertSucceeded (entry->decode (disk, {}, decoded));
         Assert::IsTrue (decoded.format == FileFormat::UltimaSave);
     }
 

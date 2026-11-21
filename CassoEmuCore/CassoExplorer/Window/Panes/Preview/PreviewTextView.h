@@ -49,6 +49,11 @@ public:
 
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_text->OnKey (ev); }
 
+    //  Every mouse event in the window: a move over a document's picture with
+    //  tips, such as a Wizardry map, puts up the tip of the cell under the
+    //  pointer, and any other event hides it.
+    void            UpdatePictureTipAt    (const DxuiMouseEvent & ev);
+
 private:
     void  ShowContextMenu (int x, int y);
     bool  HandleTextMouse (const DxuiMouseEvent & ev);

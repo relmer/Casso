@@ -72,7 +72,7 @@ bool DiskSaveTable::IsInfocomSave (const std::vector<Byte> & sectors)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, DecodedFile & outFile)
+HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
 {
     HRESULT                             hr        = S_OK;
     std::vector<InfocomSave::Position>  positions;
@@ -80,6 +80,8 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, Dec
     bool                                found     = false;
 
 
+
+    UNREFERENCED_PARAMETER (unreadable);
 
     InfocomSave::FindPositions (sectors, positions);
     found = !positions.empty();
@@ -129,16 +131,16 @@ bool DiskSaveTable::IsUltima3Save (const std::vector<Byte> & sectors)
 //
 //  DiskSaveTable::DecodeUltima3Save
 //
-//  The player disk's saved game. No sector is known to be unreadable here,
-//  so no map row is striped.
+//  The player disk's saved game, with the map rows an unreadable sector
+//  covers striped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskSaveTable::DecodeUltima3Save (const std::vector<Byte> & sectors, DecodedFile & outFile)
+HRESULT DiskSaveTable::DecodeUltima3Save (const std::vector<Byte> & sectors, std::span<const bool> unreadable, DecodedFile & outFile)
 {
     std::wstring  error;
 
 
 
-    return Ultima3Save::Decode (sectors, {}, outFile, error);
+    return Ultima3Save::Decode (sectors, unreadable, outFile, error);
 }

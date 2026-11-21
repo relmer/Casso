@@ -1343,6 +1343,50 @@ void DxuiTextView::AddPictureLines (int row, float widthPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::HitTestPicture
+//
+//  The picture is drawn from its first line, scaled as PaintPicture scales
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::HitTestPicture (POINT point, int & outRow, int & outX, int & outY) const
+{
+    int    textTop = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip);
+    int    line    = (m_cellHeightPx > 0 && point.y >= textTop) ? m_topLine + (point.y - textTop) / m_cellHeightPx : -1;
+    int    first   = line;
+    float  scale   = 0.0f;
+    float  top     = 0.0f;
+
+
+
+    if (line < 0 || line >= (int) m_lines.size() || m_rows[(size_t) m_lines[(size_t) line].row].picture == nullptr)
+    {
+        return false;
+    }
+
+    while (first > 0 && m_lines[(size_t) first - 1].row == m_lines[(size_t) line].row)
+    {
+        first--;
+    }
+
+    const Picture &  picture = *m_rows[(size_t) m_lines[(size_t) line].row].picture;
+
+    scale  = DxuiTextRowLayout::GetPictureScale (picture, (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance, m_scaler.ToPxf (1.0f));
+    top    = (float) textTop + (float) ((first - m_topLine) * m_cellHeightPx);
+    outRow = m_lines[(size_t) line].row;
+    outX   = (int) (((float) point.x - GetTextLeft()) / scale);
+    outY   = (int) (((float) point.y - top) / scale);
+
+    return scale > 0.0f && outX >= 0 && outX < picture.width && outY >= 0 && outY < picture.height;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::PaintPicture
 //
 //  At the top of the picture's first line, which can be above the view.

@@ -8,6 +8,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
@@ -232,20 +233,75 @@ bool PreviewTextView::HandleTextMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewTextView::UpdatePictureTipAt
+//
+//  The tip is anchored on the pointer. Each line has a swatch of the color
+//  the picture draws that thing in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewTextView::UpdatePictureTipAt (const DxuiMouseEvent & ev)
+{
+    const PreviewContent            & preview = m_context.browser.GetPreview();
+    const PictureTip                * tip     = nullptr;
+    int                               row     = 0;
+    int                               x       = 0;
+    int                               y       = 0;
+    std::wstring                      text;
+    std::vector<DxuiTooltipSwatch>    swatches;
+    bool                              over    = m_text->IsVisible() && ev.kind == DxuiMouseEventKind::Move && preview.kind == PreviewContent::Kind::Document
+                                             && ExplorerLayout::Contains (m_text->GetBounds(), ev.positionDip);
+
+
+
+    if (over && m_text->HitTestPicture (ev.positionDip, row, x, y) && row < (int) preview.paragraphs.size())
+    {
+        tip = preview.paragraphs[(size_t) row].GetTipAt (x, y);
+    }
+
+    if (tip == nullptr || tip->lines.empty())
+    {
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Preview);
+        return;
+    }
+
+    for (size_t i = 0; i < tip->lines.size(); i++)
+    {
+        if (tip->lines[i].first != 0)
+        {
+            swatches.push_back (DxuiTooltipSwatch { (int) i, tip->lines[i].first });
+        }
+
+        text += (i > 0 ? L"\n" : L"") + tip->lines[i].second;
+    }
+
+    m_context.tips.ShowSwatchTip (ExplorerTips::TipOwner::Preview, RECT { ev.positionDip.x, ev.positionDip.y, ev.positionDip.x + 1, ev.positionDip.y + 1 }, text, swatches);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewTextView::GetCursorForPoint
 //
 //  The text selects as text does, so the cursor over it is the I-beam;
-//  over its scrollbars it is the arrow, so no control under them sets it.
+//  over its scrollbars and its pictures, such as a map, it is the arrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR PreviewTextView::GetCursorForPoint (POINT clientPx) const
 {
-    bool  inside = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx);
+    bool  inside  = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx);
+    int   row     = 0;
+    int   x       = 0;
+    int   y       = 0;
+    bool  picture = inside && m_text->HitTestPicture (clientPx, row, x, y);
 
 
 
-    return !inside ? nullptr : m_text->IsOverScrollbar (clientPx) ? IDC_ARROW : IDC_IBEAM;
+    return !inside ? nullptr : (picture || m_text->IsOverScrollbar (clientPx)) ? IDC_ARROW : IDC_IBEAM;
 }
 
 
