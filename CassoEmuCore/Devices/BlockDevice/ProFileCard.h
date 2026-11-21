@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/CassoBlockFirmware.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/ProFileDrive.h"
 #include "Machines/Apple2/Common/IExpansionRomCard.h"
@@ -35,6 +36,10 @@ struct DeviceConfig;
 //  falling while line 3 is set starts a handshake, and an access to $Cn00
 //  ends one. Instruction fetches from the page's first bytes, at boot, pass
 //  with line 3 clear, so they start nothing.
+//
+//  With Casso's firmware in place of the ROM, the slot page and the $C0n0
+//  window are CassoBlockFirmware's, and the drive is ProDOS's drive 1 and
+//  SmartPort's unit 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,9 +76,13 @@ public:
 
     //  The drive model sets the capacity; the card starts with a 5 MB drive.
     void            SetDrive      (std::unique_ptr<ProFileDrive> drive) { m_drive = std::move (drive); }
-    ProFileDrive  & GetDrive      () { return *m_drive; }
-    SlotRomPage   & GetSlotPage   () { return m_slotPage; }
-    Byte            GetLines      () const { return m_lines; }
+
+    HRESULT               UseCassoFirmware ();
+    bool                  IsCassoFirmware  () const { return m_casso.IsEnabled(); }
+    CassoBlockFirmware  & GetCassoFirmware ()       { return m_casso; }
+    ProFileDrive        & GetDrive         () { return *m_drive; }
+    SlotRomPage         & GetSlotPage      () { return m_slotPage; }
+    Byte                  GetLines         () const { return m_lines; }
 
 private:
     static constexpr Word  kSlotIoBase   = 0xC080;
@@ -86,6 +95,7 @@ private:
     Word                            m_ioStart  = 0;
     Word                            m_ioEnd    = 0;
     MemoryBus                     & m_bus;
+    CassoBlockFirmware              m_casso;
     SlotRomPage                     m_slotPage;
     std::unique_ptr<ProFileDrive>   m_drive;
     std::vector<Byte>               m_rom;

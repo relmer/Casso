@@ -21,6 +21,12 @@ struct FileDialogFilter
 {
     std::wstring  name;      // "Disk images"
     std::wstring  pattern;   // "*.dsk;*.woz"
+
+    //  Casso's picker only. A heading starts a group in the type list, above
+    //  this entry; a note is listed under the entry and shown under the list
+    //  while the entry is selected.
+    std::wstring  heading;
+    std::wstring  note;
 };
 
 
@@ -63,6 +69,11 @@ struct FileDialogSpec
     FileDialogContent              content      = FileDialogContent::Any;
     std::optional<ReceivingDrive>  receivingDrive;
     std::wstring                   driveLabel;
+
+    //  Images: when set, the picker's bar has a Verify check box, checked
+    //  as *verify is, and *verify is set to the box's state when a file is
+    //  picked.
+    bool                         * verify       = nullptr;
 };
 
 

@@ -41,15 +41,16 @@ static constexpr const char *  kpszStockImage            = "stock";
 
 struct BlockCardSpec
 {
-    const char                       * device          = nullptr;
-    const char                       * label           = nullptr;
-    const char                       * firmwareDir     = nullptr;
-    size_t                             firmwareSize    = 0;
-    const char                       * defaultFirmware = nullptr;
-    int                                portCount       = 0;
-    bool                               isChain         = false;
-    std::span<const char * const>      drives;
-    std::span<const char * const>      hosts;
+    const char                     * device           = nullptr;
+    const char                     * label            = nullptr;
+    const char                     * firmwareDir      = nullptr;
+    size_t                           firmwareSize     = 0;
+    const char                     * defaultFirmware  = nullptr;
+    int                              portCount        = 0;
+    bool                             isChain          = false;
+    std::span<const char * const>    drives;
+    std::span<const char * const>    hosts;
+    bool                             hasCassoFirmware = false;   // runs Casso's block firmware on request or without its ROM
 };
 
 

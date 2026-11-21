@@ -321,6 +321,10 @@ public:
     //  one, though not the Casso node itself.
     static bool          IsUnderCasso    (const std::wstring & id);
 
+    //  Reads an image node's file, which a folder's listing leaves unread,
+    //  and sets the node's error and whether it expands.
+    HRESULT              ReadImageNode   (TreeNode & inOutNode);
+
     static constexpr const wchar_t *  kCassoRootId  = L"casso:";
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
     static constexpr const wchar_t *  kShellRootTag = L"nav:";

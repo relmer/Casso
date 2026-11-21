@@ -13,33 +13,50 @@
 //
 //  Floppy35AudioSource
 //
-//  The sounds of a Sony 3.5-inch mechanism, synthesized: the spindle motor's
-//  hum while it runs, a click for each head step, the eject motor's whirr
-//  and the disk's thump going in. No recording of the drive under a license
-//  Casso can use was found (research R13).
+//  The sounds of a Sony 3.5-inch mechanism, from MAME's CC0 recordings: the
+//  spindle's spin-up, run and spin-down, a click for a single head step, and
+//  a seek's buzz for steps in quick succession. The mechanism steps every
+//  12 ms, so a seek uses the recording made at that rate. MAME has no eject
+//  recording, so eject and insert are silent.
 //
 //  The mechanism's events arrive on the emulation thread, which also mixes
-//  the audio, so no lock is taken. With `drive` -1 the source takes
-//  every drive's events, as for a card's two drives or a chain; otherwise
-//  events for other drives are ignored.
+//  the audio, so no lock is taken. With `drive` -1 the source takes every
+//  drive's events, as for a card's two drives or a chain; otherwise events
+//  for other drives are ignored.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class Floppy35AudioSource : public IDriveAudioSource, public IFloppy35EventSink
 {
 public:
+    enum class Sound : size_t
+    {
+        SpinStart,
+        SpinLoop,
+        SpinEnd,
+        Step,
+        Seek,
+        Count,
+    };
+
+    //  The recordings' folder under the drive sounds directory.
+    static constexpr const wchar_t  * kSampleFolder = L"Sony 3.5";
+
     explicit Floppy35AudioSource (int drive = -1) : m_drive (drive) {}
+
+    HRESULT  LoadSamples      (const fs::path & directory, uint32_t sampleRate);
+    void     SetSampleForTest (Sound sound, vector<float> && samples);
 
     // IFloppy35EventSink
     void  OnFloppy35Event (const Floppy35Event & event) override;
 
     // IDriveAudioSink: the Disk II's events, for the settings preview.
-    void  OnMotorEngaged    () override { m_motorOn = true; }
-    void  OnMotorDisengaged () override { m_motorOn = false; }
-    void  OnHeadStep        (int newQt) override { (void) newQt; m_stepLeft = kStepSamples; }
-    void  OnHeadBump        () override { m_stepLeft = kStepSamples; }
-    void  OnDiskInserted    () override { m_insertLeft = kInsertSamples; }
-    void  OnDiskEjected     () override { m_ejectLeft = kEjectSamples; }
+    void  OnMotorEngaged    () override { StartMotor(); }
+    void  OnMotorDisengaged () override { StopMotor(); }
+    void  OnHeadStep        (int newQt) override { (void) newQt; Step(); }
+    void  OnHeadBump        () override { Step(); }
+    void  OnDiskInserted    () override {}
+    void  OnDiskEjected     () override {}
 
     // IDriveAudioSource
     void   GeneratePCM (float * outMono, uint32_t numSamples) override;
@@ -47,38 +64,43 @@ public:
     float  GetPanRight () const override { return m_panRight; }
     void   SetPan      (float panLeft, float panRight) override { m_panLeft = panLeft; m_panRight = panRight; }
 
-    void  SetVolumes    (float motor, float head, float door) { m_motorVolume = motor; m_headVolume = head; m_doorVolume = door; }
+    void  SetVolumes    (float motor, float head, float door) { m_motorVolume = motor; m_headVolume = head; (void) door; }
     void  SetSampleRate (uint32_t rate);
 
     bool  IsMotorOn () const { return m_motorOn; }
-    bool  IsSilent  () const { return !m_motorOn && m_stepLeft == 0 && m_ejectLeft == 0 && m_insertLeft == 0 && m_motorLevel <= 0.0f; }
+    bool  IsSeeking () const { return m_seeking; }
+    bool  IsSilent  () const { return m_motor.buffer == nullptr && m_head.buffer == nullptr; }
 
 private:
-    static constexpr uint32_t  kDefaultRate     = 48'000;
-    static constexpr uint32_t  kStepMs          = 10;
-    static constexpr uint32_t  kEjectMs         = 450;
-    static constexpr uint32_t  kInsertMs        = 70;
-    static constexpr uint32_t  kStepSamples     = kDefaultRate * kStepMs / 1000;
-    static constexpr uint32_t  kEjectSamples    = kDefaultRate * kEjectMs / 1000;
-    static constexpr uint32_t  kInsertSamples   = kDefaultRate * kInsertMs / 1000;
+    struct Voice
+    {
+        const vector<float>  * buffer   = nullptr;
+        size_t                 position = 0;
+        bool                   isLoop   = false;
+    };
 
-    float  NextNoise ();
+    static constexpr uint32_t  kDefaultRate  = 48'000;
+    static constexpr uint32_t  kSeekGapMs    = 40;
+    static constexpr size_t    kSoundCount   = (size_t) Sound::Count;
 
-    int       m_drive        = -1;
-    uint32_t  m_rate         = kDefaultRate;
-    uint32_t  m_stepTotal    = kStepSamples;
-    uint32_t  m_ejectTotal   = kEjectSamples;
-    uint32_t  m_insertTotal  = kInsertSamples;
-    uint32_t  m_stepLeft     = 0;
-    uint32_t  m_ejectLeft    = 0;
-    uint32_t  m_insertLeft   = 0;
-    bool      m_motorOn      = false;
-    float     m_motorLevel   = 0.0f;
-    double    m_phase        = 0.0;
-    uint32_t  m_noise        = 0x1234567u;
-    float     m_motorVolume  = 1.0f;
-    float     m_headVolume   = 1.0f;
-    float     m_doorVolume   = 1.0f;
-    float     m_panLeft      = kCenterPan;
-    float     m_panRight     = kCenterPan;
+    static float  NextSample (Voice & voice);
+
+    void  StartMotor ();
+    void  StopMotor  ();
+    void  Step       ();
+    void  Play       (Voice & voice, Sound sound, bool isLoop);
+
+    int                                    m_drive         = -1;
+    uint32_t                               m_rate          = kDefaultRate;
+    uint32_t                               m_seekGap       = kDefaultRate * kSeekGapMs / 1000;
+    uint32_t                               m_sinceStep     = UINT32_MAX;
+    bool                                   m_motorOn       = false;
+    bool                                   m_seeking       = false;
+    std::array<vector<float>, kSoundCount> m_samples;
+    Voice                                  m_motor;
+    Voice                                  m_head;
+    float                                  m_motorVolume   = 1.0f;
+    float                                  m_headVolume    = 1.0f;
+    float                                  m_panLeft       = kCenterPan;
+    float                                  m_panRight      = kCenterPan;
 };

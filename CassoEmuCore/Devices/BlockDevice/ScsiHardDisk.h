@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/BlockDevice/ICassoBlockUnit.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/IScsiTarget.h"
 
@@ -27,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ScsiHardDisk : public IScsiTarget, public IBlockDeviceEventSource
+class ScsiHardDisk : public IScsiTarget, public IBlockDeviceEventSource, public ICassoBlockUnit
 {
 public:
     static constexpr Byte  kSenseNoSense        = 0x00;
@@ -55,11 +56,14 @@ public:
     // IBlockDeviceEventSource
     void  SetBlockDeviceEventSink (IBlockDeviceEventSink * sink) override { m_sink = sink; }
 
-    BlockDeviceMedia        & GetMedia ()       { return m_media; }
+    BlockDeviceMedia        & GetMedia ()       override { return m_media; }
     const BlockDeviceMedia  & GetMedia () const { return m_media; }
 
     //  Real timing at the CPU's clock rate. `powerOnCycle` is when the drive
     //  starts spinning up.
+    // ICassoBlockUnit
+    void  RecordFastAccess (BlockDeviceOp op, uint32_t block, Byte result, uint64_t now) override;
+
     void  SetRealTiming (bool isOn, uint32_t cpuClockHz, uint64_t powerOnCycle);
     bool  IsRealTiming  () const { return m_realTiming; }
 

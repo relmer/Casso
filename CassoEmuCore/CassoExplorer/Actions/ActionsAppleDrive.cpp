@@ -11,6 +11,7 @@
 #include "CassoLink/CassoLinkProDosDisk.h"
 #include "CassoLink/CassoLinkSosDisk.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/DiskFilePayload.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -194,7 +195,7 @@ HRESULT ActionsAppleDrive::ToHostBytes (FilePayload payload, ActionsTypes::Encod
 
     options.disk.encoding = encoding;
 
-    hr = DiskCommandRunner::ApplyEncoding (options, payload, result);
+    hr = DiskFilePayload::ApplyEncoding (options, payload, result);
     CHR (hr);
 
     outBytes = std::move (payload.bytes);
@@ -234,7 +235,7 @@ HRESULT ActionsAppleDrive::MakePayload (const std::wstring & hostPath, const Act
     options.disk.loadAddress    = plan.loadAddress;
     options.disk.encoding       = plan.encoding;
 
-    hr = DiskCommandRunner::BuildPutPayload (options, kind, bytes, outPayload, result);
+    hr = DiskFilePayload::BuildPutPayload (options, kind, bytes, outPayload, result);
     CHR (hr);
 
 Error:

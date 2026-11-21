@@ -291,8 +291,8 @@ public:
     {
         std::string  help  = DiskHelpPage::BuildHelpText();
         size_t       count = 0;
-        const DiskCommandRunner::ContainerName *  names =
-            DiskCommandRunner::GetAdvertisedContainers (count);
+        const BlankDiskSpecResolver::ContainerName *  names =
+            BlankDiskSpecResolver::GetAdvertisedContainers (count);
         size_t       at    = help.find ("Valid types are: ");
 
 

@@ -34,6 +34,7 @@ public:
     static bool  IsListColumnOffered        (size_t column, Location::Kind kind, bool searching = false, bool results = false);
     static bool  IsCassoImageList           (const Location & location);
     static bool  IsResultsList              (const Location & location);
+    bool         IsUnderCassoNode           (const Location & location) const;
     void         ApplyColumnOrder           ();
     void         ShowChosenColumns          ();
     void         ChooseAll                  (size_t count) { m_chosen.assign (count, true); }

@@ -16,7 +16,7 @@
 
 struct FocusStop
 {
-    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, PreviewToolbarEntry, Preview, CommandBarEntry };
+    enum class Kind { ToolbarEntry, Address, Tabs, Tree, List, PreviewToolbarEntry, Preview, CommandBarEntry, PickerSearch, PickerName, PickerButton };
 
     Kind  kind  = Kind::Tree;
     int   entry = -1;     // a toolbar entry's index; -1 for every other kind

@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/FocusRing.h"
@@ -67,6 +68,8 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_context.tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
     m_context.addressBar.HandleFocusChanged   (pane);
     m_context.pickerBar.HandleFocusChanged    (pane == ExplorerPane::PickerName);
+    m_context.pickerSearch.HandleFocusChanged (pane == ExplorerPane::PickerSearch);
+    m_context.pickerBar.SetButtonFocus        (pane == ExplorerPane::PickerButton ? m_pickerButton : -1);
     m_context.toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
     m_context.toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_context.preview.HandleFocusChanged  (pane);
@@ -97,6 +100,9 @@ FocusStop ExplorerInput::GetFocusStop() const
         case ExplorerPane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
         case ExplorerPane::List:    return FocusStop { FocusStop::Kind::List };
         case ExplorerPane::Preview: return FocusStop { FocusStop::Kind::Preview };
+        case ExplorerPane::PickerSearch: return FocusStop { FocusStop::Kind::PickerSearch };
+        case ExplorerPane::PickerName:   return FocusStop { FocusStop::Kind::PickerName };
+        case ExplorerPane::PickerButton: return FocusStop { FocusStop::Kind::PickerButton, m_pickerButton };
         default:            return FocusStop { FocusStop::Kind::Tree };
     }
 }
@@ -136,7 +142,15 @@ void ExplorerInput::SetFocusStop (const FocusStop & stop)
         case FocusStop::Kind::Tabs:    SetFocusPane (ExplorerPane::Tabs);    break;
         case FocusStop::Kind::List:    SetFocusPane (ExplorerPane::List);    break;
         case FocusStop::Kind::Preview: SetFocusPane (ExplorerPane::Preview); break;
-        default:                       SetFocusPane (ExplorerPane::Tree);    break;
+        case FocusStop::Kind::PickerSearch: m_context.pickerSearch.Focus(); break;
+        case FocusStop::Kind::PickerName:   SetFocusPane (ExplorerPane::PickerName); break;
+
+        case FocusStop::Kind::PickerButton:
+            m_pickerButton = stop.entry;
+            SetFocusPane (ExplorerPane::PickerButton);
+            break;
+
+        default:                      SetFocusPane (ExplorerPane::Tree);    break;
     }
 }
 
@@ -211,9 +225,10 @@ bool ExplorerInput::RouteCommandBarKey (const DxuiKeyEvent & ev)
 
 std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
 {
-    std::vector<bool>  enabled;
-    std::vector<bool>  previewEnabled;
-    std::vector<bool>  commandEnabled;
+    std::vector<bool>       enabled;
+    std::vector<bool>       previewEnabled;
+    std::vector<bool>       commandEnabled;
+    std::vector<FocusStop>  stops;
 
 
 
@@ -237,7 +252,29 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
         commandEnabled.push_back (m_context.commandManager.IsCommandBarEntryAvailable (i));
     }
 
-    return FocusRing::BuildStops (enabled, m_context.preview.IsShown(), previewEnabled, commandEnabled);
+    stops = FocusRing::BuildStops (enabled, m_context.preview.IsShown(), previewEnabled, commandEnabled);
+
+    //  A picker's search box sits above the list, and its bar along the
+    //  bottom of the window comes last.
+    if (m_context.pickerSearch.HasBox())
+    {
+        stops.insert (std::find (stops.begin(), stops.end(), FocusStop { FocusStop::Kind::List }), FocusStop { FocusStop::Kind::PickerSearch });
+    }
+
+    if (m_context.pickerBar.HasNameBox())
+    {
+        stops.push_back (FocusStop { FocusStop::Kind::PickerName });
+    }
+
+    for (int i = 0; i < m_context.pickerBar.GetButtonCount(); i++)
+    {
+        if (m_context.pickerBar.IsButtonEnabled (i))
+        {
+            stops.push_back (FocusStop { FocusStop::Kind::PickerButton, i });
+        }
+    }
+
+    return stops;
 }
 
 
@@ -713,6 +750,18 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A picker's search box above the list, as the search box above.
+    if (m_focus == ExplorerPane::PickerSearch)
+    {
+        handled = m_context.pickerSearch.HandleKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            m_context.window.Invalidate();
+            return handled;
+        }
+    }
+
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
         handled = m_context.preview.GetFind().HandleBoxKey (m_focus, ev);
@@ -844,6 +893,8 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         case ExplorerPane::Address: handled = m_context.addressBar.HandleKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_context.addressBar.HandleFindBoxKey (ev);  break;
         case ExplorerPane::PickerName:                                           break;
+        case ExplorerPane::PickerSearch:                                         break;
+        case ExplorerPane::PickerButton: handled = m_context.pickerBar.HandleButtonKey (m_pickerButton, ev); break;
         case ExplorerPane::Tabs:    handled = m_context.tabManager.HandleKey (ev); break;
         case ExplorerPane::Tree:    handled = m_context.treePane.HandleKey (ev); break;
         case ExplorerPane::List:    handled = m_context.listPane.HandleKey (ev); break;

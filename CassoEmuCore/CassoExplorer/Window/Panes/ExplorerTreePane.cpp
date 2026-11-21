@@ -627,11 +627,10 @@ void ExplorerTreePane::RevealLocationInTree()
     }
 
     //  A node the user clicked already shows the location, possibly under the
-    //  Casso root rather than This PC, so it stays highlighted, opened, and in
-    //  view.
+    //  Casso root rather than This PC, so it stays highlighted and in view. It
+    //  isn't expanded; its arrow expands it.
     if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
     {
-        m_tree->SetRowExpanded (m_tree->GetHighlight(), true);
         ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
@@ -712,9 +711,8 @@ void ExplorerTreePane::RevealLocationInTree()
 
     row = RevealPartitionSteps (row, path, !knownId.empty(), location.kind == Location::Kind::Partition);
 
-    //  The open folder's own row is opened too, as Explorer's is.
+    //  The open folder's row is highlighted, and only its parents expand.
     m_tree->HighlightRow (row);
-    m_tree->SetRowExpanded (row, true);
     ScrollTreeToRow (row);
 }
 

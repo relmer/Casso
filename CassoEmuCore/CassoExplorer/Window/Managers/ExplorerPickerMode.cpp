@@ -57,29 +57,6 @@ void ExplorerPickerMode::Start()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPickerMode::ShowStockDisksIfCassoIsEmpty
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerPickerMode::ShowStockDisksIfCassoIsEmpty()
-{
-    const Location &  location = m_context.browser.GetLocation();
-    bool              inCasso  = location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
-
-
-
-    if (m_context.IsPicker() && !m_context.app.picker->stockDisks.empty() && inCasso && m_context.browser.GetRows().empty())
-    {
-        m_context.browser.NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerPickerMode::TryGetRowFile
 //
 //  A file row of a folder on the disk, or of the Casso node's list, the
@@ -411,6 +388,7 @@ void ExplorerPickerMode::ConfirmPath (const std::wstring & path)
     if (m_context.app.outcome != nullptr)
     {
         m_context.app.outcome->isConfirmed = true;
+        m_context.app.outcome->verified    = m_context.pickerBar.IsVerifyChecked();
         m_context.app.outcome->path        = path;
     }
 
@@ -452,6 +430,7 @@ void ExplorerPickerMode::CreateNew()
         if (m_context.app.outcome != nullptr)
         {
             m_context.app.outcome->isConfirmed = true;
+            m_context.app.outcome->verified    = m_context.pickerBar.IsVerifyChecked();
         }
 
         m_context.window.CloseWindow();
@@ -594,45 +573,6 @@ void ExplorerPickerMode::SetActiveFilter (size_t index)
 
     m_context.listPane.FillList();
     m_context.pickerBar.Update();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPickerMode::GetHeaderText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ExplorerPickerMode::GetHeaderText() const
-{
-    return m_context.IsPicker() ? MakeHeaderText (*m_context.app.picker) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPickerMode::MakeHeaderText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ExplorerPickerMode::MakeHeaderText (const PickerRequest & request)
-{
-    std::wstring  accepted = request.receivingDrive.has_value() ? DriveImageRule::GetAcceptedText (*request.receivingDrive) : std::wstring();
-
-
-
-    if (request.driveLabel.empty())
-    {
-        return accepted;
-    }
-
-    return accepted.empty() ? request.driveLabel : request.driveLabel + L": " + accepted;
 }
 
 

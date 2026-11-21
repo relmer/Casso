@@ -1706,6 +1706,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     for (ProFileCard * proFileCard : m_host.GetRefs().proFileCards)
     {
         proFileCard->GetDrive().SetClock (m_host.GetCpu()->GetBusCyclePtr());
+        proFileCard->GetCassoFirmware().SetClock (m_host.GetCpu()->GetBusCyclePtr());
     }
 
     for (Apple35ControllerCard * apple35Card : m_host.GetRefs().apple35Cards)

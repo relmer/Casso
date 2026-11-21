@@ -2456,13 +2456,13 @@ public:
     //
     TEST_METHOD (Create_WritesEveryContainerItAdvertises)
     {
-        const DiskCommandRunner::ContainerName *  containers = nullptr;
-        size_t                                    count      = 0;
-        size_t                                    i          = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = nullptr;
+        size_t                                        count      = 0;
+        size_t                                        i          = 0;
 
 
 
-        containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0, L"the tool advertises at least one container");
 
@@ -2508,13 +2508,13 @@ public:
     //
     TEST_METHOD (Create_RefusesTheWrongFilesystemForAContainerWithoutAsserting)
     {
-        const DiskCommandRunner::ContainerName *  containers = nullptr;
-        size_t                                    count      = 0;
-        size_t                                    i          = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = nullptr;
+        size_t                                        count      = 0;
+        size_t                                        i          = 0;
 
 
 
-        containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         for (i = 0; i < count; i++)
         {
@@ -4313,18 +4313,6 @@ public:
             L"Windows text placed and read back as text is the identity");
     }
 
-    //  Text for the PC ends each line with CR LF, whether the conversion
-    //  wrote LF, as Apple text's does, or CR LF, as Pascal text's does.
-    TEST_METHOD (ToWindowsLineEndings_MakesEachLineEndCrLfOnce)
-    {
-        std::string   text  = "A\nB\r\nC\n\nD";
-        vector<Byte>  bytes (text.begin(), text.end());
-
-        DiskCommandRunner::ToWindowsLineEndings (bytes);
-
-        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\n\r\nD"), std::string (bytes.begin(), bytes.end()));
-    }
-
     TEST_METHOD (Put_WithTextAndNoNamedType_TakesTheFilesystemsOwnTextType)
     {
         // A caller who named no type gets the one that matches the conversion
@@ -5509,18 +5497,6 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus,
                           L"and a direct-boot disk that is not a WOZ is refused");
-    }
-
-
-    //  A file whose sectors cannot be gathered is damaged in its file
-    //  system's terms; any other failure has no damage to name.
-    TEST_METHOD (Damage_IsInTheFileSystemsTerms)
-    {
-        constexpr HRESULT  broken = HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
-
-        Assert::AreEqual (std::string ("the track/sector list is damaged"), DiskCommandRunner::DescribeDamage (broken, VolumeKind::Dos33));
-        Assert::AreEqual (std::string ("the index block is damaged"),       DiskCommandRunner::DescribeDamage (broken, VolumeKind::ProDos));
-        Assert::IsTrue   (DiskCommandRunner::DescribeDamage (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), VolumeKind::Dos33).empty());
     }
 
 

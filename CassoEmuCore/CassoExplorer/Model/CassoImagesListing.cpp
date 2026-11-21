@@ -33,6 +33,8 @@ void CassoImagesListing::Build (
     std::unordered_map<std::wstring, int64_t>  loadedAt;
     std::set<std::wstring>                     listed;
     std::vector<FileSystemEntry>               entries;
+    std::vector<std::wstring>                  pending;
+    std::wstring                               folder;
     HRESULT                                    hr        = S_OK;
 
 
@@ -44,8 +46,12 @@ void CassoImagesListing::Build (
         loadedAt.emplace (MakePathKey (entry.path.wstring()), entry.lastLoadedUnix);
     }
 
-    for (const std::wstring & folder : folders)
+    pending.assign (folders.rbegin(), folders.rend());
+
+    while (!pending.empty())
     {
+        folder = std::move (pending.back());
+        pending.pop_back();
         entries.clear();
 
         hr = fs.EnumerateAllEntries (folder, entries);
@@ -63,6 +69,12 @@ void CassoImagesListing::Build (
             CatalogRow    row;
 
 
+
+            if (entry.isFolder && !entry.isHidden && !entry.isSystem)
+            {
+                pending.push_back (path);
+                continue;
+            }
 
             if (entry.isFolder || !ImageClassifier::IsImageExtension (std::filesystem::path (entry.name).extension().wstring()))
             {

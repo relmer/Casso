@@ -53,6 +53,7 @@ struct PickerRequest;
 struct PickerOutcome;
 class ExplorerPickerMode;
 class ExplorerPickerBar;
+class ExplorerPickerSearch;
 
 
 
@@ -145,6 +146,7 @@ public:
     ExplorerTreePane            & treePane;
     ExplorerPickerMode          & pickerMode;
     ExplorerPickerBar           & pickerBar;
+    ExplorerPickerSearch        & pickerSearch;
 
     //  Whether the window is a picker, which lists and chooses and changes
     //  no file.

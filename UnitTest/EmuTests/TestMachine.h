@@ -122,9 +122,10 @@ public:
     //  is attached to its ports. Its firmware resolves out of the fixtures.
     struct BlockCard
     {
-        int                      slot = 0;
+        int                      slot          = 0;
         std::string              device;
         std::vector<PortConfig>  ports;
+        bool                     cassoFirmware = false;
     };
 
     //  The machine with each card in its slot, replacing what the slot had,

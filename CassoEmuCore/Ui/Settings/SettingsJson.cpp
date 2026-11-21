@@ -1152,6 +1152,7 @@ HRESULT SettingsJson::ExtractHardware (
                 CapabilityFlag::Optional);   // FR-015 default for slots
             hw.lockReason  = GetStringOpt (entry, "lockReason", "");
             hw.enabled     = TryGetBoolOpt   (entry, "enabled",    true);
+            hw.cassoFirmware = TryGetBoolOpt (entry, SettingsPanelState::kpszCassoFirmwareKey, false);
 
             {
                 const JsonValue *  portsArr = nullptr;
@@ -1315,7 +1316,7 @@ bool SettingsJson::IsCardSpecificKey (const std::string & key)
 {
     return key == "device" || key == "rom" || key == "firmware" || key == "capabilityFlag" || key == "lockReason"
         || key == SettingsPanelState::kpszPortsKey || key == SettingsPanelState::kpszSwitchesKey
-        || key == NetworkCardSettings::kpszJsonKey;
+        || key == NetworkCardSettings::kpszJsonKey || key == SettingsPanelState::kpszCassoFirmwareKey;
 }
 
 
@@ -1506,6 +1507,11 @@ JsonValue SettingsJson::BuildJson (
                             continue;
                         }
 
+                        if (srcEntry.first == SettingsPanelState::kpszCassoFirmwareKey && staged != nullptr)
+                        {
+                            continue;
+                        }
+
                         // A staged port list replaces the source's. An EMPTY
                         // staged list means the card never declared ports, so
                         // the source key (if any) passes through untouched --
@@ -1533,6 +1539,11 @@ JsonValue SettingsJson::BuildJson (
                     }
 
                     rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
+
+                    if (staged != nullptr && staged->cassoFirmware)
+                    {
+                        rebuilt.emplace_back (SettingsPanelState::kpszCassoFirmwareKey, JsonValue (true));
+                    }
 
                     // Default settings are not written, so looking at the card
                     // does not put a `network` object into the user's file.
@@ -1584,6 +1595,11 @@ JsonValue SettingsJson::BuildJson (
             added.emplace_back ("slot",    JsonValue ((double) hwEntry.slot));
             added.emplace_back ("device",  JsonValue (hwEntry.type));
             added.emplace_back ("enabled", JsonValue (hwEntry.enabled));
+
+            if (hwEntry.cassoFirmware)
+            {
+                added.emplace_back (SettingsPanelState::kpszCassoFirmwareKey, JsonValue (true));
+            }
 
             if (!hwEntry.ports.empty())
             {
@@ -1814,6 +1830,7 @@ bool SettingsJson::AreHardwareEqual (
              && a[i].ports       == b[i].ports
              && a[i].portImages     == b[i].portImages
              && a[i].portRealTiming == b[i].portRealTiming
+             && a[i].cassoFirmware  == b[i].cassoFirmware
              && a[i].portPath    == b[i].portPath
              && a[i].switchesSw1 == b[i].switchesSw1
              && a[i].switchesSw2 == b[i].switchesSw2

@@ -264,6 +264,11 @@ struct SlotConfig
     string              firmwarePath;
     SlotFirmwareStatus  firmwareStatus = SlotFirmwareStatus::None;
 
+    // A hard disk card runs Casso's block firmware in place of Apple's ROM,
+    // which copies each block straight to memory. Without the ROM the card
+    // runs it whatever this is.
+    bool                cassoFirmware  = false;
+
     // DIP switch positions as "on off ..." text, SW-1 first; empty means the
     // card's default.
     string              switchesSw1;
