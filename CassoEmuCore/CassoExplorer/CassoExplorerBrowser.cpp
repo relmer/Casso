@@ -25,7 +25,6 @@
 CassoExplorerBrowser::CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & fileIo)
     : m_fs         (fs),
       m_fileIo     (fileIo),
-      m_tree       (fs),
       m_operations (fileIo)
 {
     //  The tree reads network folders through the same readers as the list,
@@ -345,6 +344,7 @@ void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
     m_shellListings.SetProgressSetter ([] (CassoExplorerShellListings::Progress progress) { IShellItemVerbs::s_listingProgress = std::move (progress); });
     m_shellListings.SetStoppedSetter  ([] (CassoExplorerShellListings::Stopped stopped)   { IShellItemVerbs::s_listingStopped  = std::move (stopped); });
     m_tree.SetShellVerbs (verbs);
+    m_hostFolders.SetShellVerbs (verbs);
 
     m_tree.SetShellFetch ([this] (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
     {
@@ -2686,7 +2686,7 @@ bool CassoExplorerBrowser::NavigateToAddress (const std::wstring & text)
     {
         size_t  next = rooted.find (L'\\', end + 1);
 
-        if (m_tree.IsArchive (rooted.substr (0, next)))
+        if (m_hostFolders.IsArchive (rooted.substr (0, next)))
         {
             location = Location::MakeShellFolder (rooted, std::filesystem::path (rooted).filename().wstring());
             parsed   = true;

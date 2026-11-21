@@ -52,6 +52,7 @@ public:
 
     TreeModel        & GetTreeModel    ()       { return m_tree;  }
     const TreeModel  & GetTreeModel    () const { return m_tree;  }
+    HostFolderReader & GetHostFolders  ()       { return m_hostFolders; }
     BrowserModel     & GetBrowserModel ()       { return m_model; }
     DiskOperations   & GetOperations   ()       { return m_operations; }
     ImageClassCache  & GetImageClasses ()       { return m_imageClasses; }
@@ -433,8 +434,8 @@ public:
 
     //  Which hidden items the tree and the list show, and whether compressed
     //  items are colored. The next listing follows them.
-    void                   SetFolderOptions (const FolderOptions & options) { m_loader.m_folderOptions = options; m_tree.SetFolderOptions (options); }
-    const FolderOptions &  GetFolderOptions () const                        { return m_loader.m_folderOptions; }
+    void                   SetFolderOptions (const FolderOptions & options) { m_hostFolders.SetFolderOptions (options); }
+    const FolderOptions &  GetFolderOptions () const                        { return m_hostFolders.GetFolderOptions(); }
 
     static constexpr uint32_t  kCompressedDarkArgb  = 0xFF3A99E8u;
     static constexpr uint32_t  kCompressedLightArgb = 0xFF0000FFu;
@@ -480,7 +481,8 @@ private:
     ImageClassCache                     m_imageClasses;
     std::function<void ()>              m_onVolumeFacts;
     ImageVolumeFacts                    m_volumeFacts    { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
-    TreeModel                           m_tree;
+    HostFolderReader                    m_hostFolders;
+    TreeModel                           m_tree           { m_fs, m_hostFolders };
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
     DiskImageCatalog                    m_catalog        { m_operations };

@@ -64,6 +64,7 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
     HRESULT                                    hr       = S_OK;
     size_t                                     index    = 0;
     std::unordered_map<std::wstring, int64_t>  loadedAt;
+    std::vector<HostFolderItem>                items;
 
 
 
@@ -88,7 +89,14 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         return hr;
     }
 
-    std::erase_if (m_hostEntries, [this] (const FileSystemEntry & entry) { return !m_folderOptions.IsShown (entry); });
+    m_browser.m_hostFolders.Classify (path, m_hostEntries, items);
+
+    m_hostEntries.clear();
+
+    for (const HostFolderItem & item : items)
+    {
+        m_hostEntries.push_back (item.entry);
+    }
 
     //  When Casso last loaded each image, for the Last used column.
     if (m_browser.m_recentLoads)
@@ -99,13 +107,12 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         }
     }
 
-    for (index = 0; index < m_hostEntries.size(); index++)
+    for (index = 0; index < items.size(); index++)
     {
-        const FileSystemEntry &  entry   = m_hostEntries[index];
-        bool                     isImage = !entry.isFolder && TreeModel::IsSupportedImage (entry.name);
+        const FileSystemEntry &  entry = items[index].entry;
 
-        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
-        m_browser.m_rows.back().isArchive = !entry.isFolder && !isImage && m_browser.m_tree.IsArchive (CassoExplorerBrowser::JoinPath (path, entry.name));
+        m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, items[index].kind == HostFolderItem::Kind::Image, index));
+        m_browser.m_rows.back().isArchive = items[index].kind == HostFolderItem::Kind::Archive;
 
         //  An image's form factor and formatted size, from its first bytes, and
         //  read once while its length and time stay the same.
@@ -121,11 +128,10 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
             m_browser.m_rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
         }
 
-        //  A folder is listed by the name in its desktop.ini, as in the tree,
-        //  read only for a read-only or system folder on this computer.
-        if (entry.isFolder && (entry.isReadOnly || entry.isSystem) && !PathResolver::IsNetworkPath (path) && m_browser.m_tree.GetLocalizedNameLookup())
+        //  A folder is listed by the name in its desktop.ini, as in the tree.
+        if (items[index].label != entry.name)
         {
-            m_browser.m_rows.back().label = m_browser.m_tree.GetLocalizedNameLookup() (CassoExplorerBrowser::JoinPath (path, entry.name));
+            m_browser.m_rows.back().label = items[index].label;
         }
 
         //  The shell's own type name, as Explorer's Type column shows.
@@ -260,10 +266,10 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;
-        row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
+        row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && HostFolderReader::IsSupportedImage (row.hostPath);
 
         //  An image in a ZIP has no path on the disk, and opens by the ZIP's.
-        if (!row.isDirectory && row.hostPath.empty() && TreeModel::IsSupportedImage (row.name) && m_browser.m_previewer.IsLocalArchivePath (id))
+        if (!row.isDirectory && row.hostPath.empty() && HostFolderReader::IsSupportedImage (row.name) && m_browser.m_previewer.IsLocalArchivePath (id))
         {
             row.containerPath = MakeContainerPath (id, row.name);
             row.isDiskImage   = !row.containerPath.empty();

@@ -105,7 +105,6 @@ private:
     std::map<std::wstring, ULONGLONG> m_linkReadAt;  // when each linked machine or drive was last read again
     std::map<std::wstring, TreeNode>  m_nodes;
     std::vector<FileSystemEntry>      m_hostEntries;
-    FolderOptions                     m_folderOptions;
     std::vector<TreeNode>             m_rootChildren;
     bool                              m_writeProtected = false;
     std::wstring                      m_listError;

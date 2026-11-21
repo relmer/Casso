@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Model/FolderOptions.h"
+#include "CassoExplorer/Model/HostFolderReader.h"
 #include "CassoExplorer/Model/Location.h"
 #include "CassoExplorer/Model/TreeImageNodes.h"
 #include "Config/IFileSystem.h"
@@ -158,10 +158,7 @@ class TreeModel
 public:
     using DirectoryProbe = std::function<bool (const std::wstring & path)>;
 
-    //  A folder's localized name from its desktop.ini, or empty for none.
-    using LocalizedNameLookup = std::function<std::wstring (const std::wstring & path)>;
-
-    explicit TreeModel (IFileSystem & fs);
+    TreeModel (IFileSystem & fs, HostFolderReader & hostFolders);
 
     void                         SetKnownFolders        (std::vector<std::wstring> folders);
     bool                         IsKnownFolder          (const std::wstring & path) const;
@@ -171,12 +168,6 @@ public:
     void                         SetStorageCards        (std::vector<StorageCardTreeEntry> cards);
     void                         SetDirectoryProbe      (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool                         IsDirectory            (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
-    void                         SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
-    const LocalizedNameLookup  & GetLocalizedNameLookup () const { return m_localizedName; }
-
-    //  Which hidden folders and images are listed. A change applies to the
-    //  folders listed after it; the caller invalidates what is cached.
-    void  SetFolderOptions  (const FolderOptions & options) { m_folderOptions = options; }
 
 
     //  The shell's navigation roots and pinned folders, read again on each
@@ -213,10 +204,6 @@ public:
     void  SetHostFetch       (HostFetch fetch)         { m_hostFetch = std::move (fetch); }
     void  RefreshShellRoots  ();
     bool  IsPinnedFolder     (const std::wstring & path) const;
-
-    //  Whether a file opens as a folder, as File Explorer opens a zip. The
-    //  shell is asked once for each extension; a disk image is Casso's own.
-    bool  IsArchive          (const std::wstring & path) const;
 
     //  The roots the navigation pane's own menu shows or hides, as
     //  Explorer's does; all folders adds the Recycle Bin. A root with no
@@ -281,8 +268,6 @@ public:
     //  How many times a listing was actually produced, so a test can prove
     //  the cache answers the second expand.
     int   GetFetchCount () const { return m_fetchCount; }
-
-    static bool  IsSupportedImage (const std::wstring & fileName);
 
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
@@ -394,7 +379,6 @@ private:
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
 
-    static std::wstring  JoinPath (const std::wstring & folder, const std::wstring & name);
     static bool  TryParseImageOrDirectoryId (const std::wstring & id, bool & outUnderCasso,
                                              std::wstring & outPath, std::string & outInner);
 
@@ -404,9 +388,7 @@ private:
     std::vector<std::wstring>                        m_drives;
     std::vector<StorageCardTreeEntry>                m_storageCards;
     DirectoryProbe                                   m_directoryProbe;
-    mutable std::map<std::wstring, bool>             m_archiveExtensions;
-    LocalizedNameLookup                              m_localizedName;
-    FolderOptions                                    m_folderOptions;
+    HostFolderReader                               & m_hostFolders;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
     TreeImageNodes                                   m_images;
     int                                              m_fetchCount     = 0;

@@ -218,7 +218,7 @@ HRESULT ExplorerPickerHost::Open (HINSTANCE instance)
     m_watcher = std::make_unique<Win32FolderWatcher>();
 
     m_browser->GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
-    m_browser->GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
+    m_browser->GetHostFolders().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
     m_browser->GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());

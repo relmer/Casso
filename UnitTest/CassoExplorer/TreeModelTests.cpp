@@ -137,7 +137,8 @@ public:
     TEST_METHOD (Roots_CassoThisPcAndRecycleBin)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>      roots;
         std::vector<TreeNode>      binChildren;
         TreeModel::NavPaneOptions  options;
@@ -172,7 +173,8 @@ public:
     TEST_METHOD (ShellRoots_ReadAhead_AreListedInPlaceOfTheShells)
     {
         InMemoryFileSystem                fs;
-        TreeModel                         model (fs);
+        HostFolderReader                  hostFolders;
+        TreeModel                         model (fs, hostFolders);
         FakeRecycleBin                    shell;
         std::vector<TreeNode>             roots;
         IShellItemVerbs::ShellFolderItem  home  { L"::{HOME}", L"Home" };
@@ -205,7 +207,8 @@ public:
     TEST_METHOD (CassoRoot_ListsKnownFoldersAndDimsTheMissingOne)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
 
         SeedHost (fs);
@@ -227,7 +230,8 @@ public:
     TEST_METHOD (ThisPc_ListsStorageCardsAfterItsDrives)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
 
         SeedHost (fs);
@@ -249,7 +253,8 @@ public:
     TEST_METHOD (ThisPc_LeavesOutADriveLetterTheCardNodeStandsFor)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
         StorageCardTreeEntry   card { L"\\\\.\\PhysicalDrive2", L"Storage card (I:, Test, 64 MB)" };
 
@@ -271,7 +276,8 @@ public:
     TEST_METHOD (ThisPc_AnOpenStorageCardHasItsPartitionsAsChildren)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
         StorageCardTreeEntry   card { L"\\\\.\\PhysicalDrive2", L"Storage card (Test, 64 MB)" };
         std::wstring           cardId;
@@ -298,7 +304,8 @@ public:
     TEST_METHOD (ThisPc_ACardPartitionHasItsDirectoriesAsChildren)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         FakeDiskFileIo         io;
         DiskOperations         operations { io };
         DiskImageCatalog       catalog    { operations };
@@ -329,7 +336,8 @@ public:
     TEST_METHOD (Folder_ListsSubfoldersThenImagesAndNotPlainFiles)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         ImageCatalogRig        images (fs, model);
         std::vector<TreeNode>  nodes;
         std::vector<TreeNode>  children;
@@ -368,7 +376,8 @@ public:
     TEST_METHOD (NetworkFolder_IsReadThroughTheFetchAndNothingIsKeptWhilePending)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
         bool                   arrived = false;
         int                    fetches = 0;
@@ -406,7 +415,8 @@ public:
     TEST_METHOD (ProDosImage_ChildrenAreItsDirectories_Dos33HasNone)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         ImageCatalogRig        images (fs, model);
         std::vector<TreeNode>  folder;
         std::vector<TreeNode>  prodos;
@@ -436,7 +446,8 @@ public:
     TEST_METHOD (ProDosDirectory_ChildrenAreTheDirectoriesInsideIt)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         ImageCatalogRig        images (fs, model);
         std::vector<TreeNode>  folder;
         std::vector<TreeNode>  image;
@@ -474,7 +485,8 @@ public:
     TEST_METHOD (ProDosDirectory_ADuplicateNameStillReachesTheDirectory)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         ImageCatalogRig        images (fs, model);
         std::vector<TreeNode>  folder;
         std::vector<TreeNode>  image;
@@ -503,7 +515,8 @@ public:
     TEST_METHOD (Children_AreFetchedOnceUntilInvalidated)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  first;
         std::vector<TreeNode>  second;
         std::wstring           id = TreeModel::MakeFolderId (true, kDisks);
@@ -528,7 +541,8 @@ public:
     TEST_METHOD (ThisPc_ListsDrivesAndTheirFolders)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  drives;
         std::vector<TreeNode>  folders;
 
@@ -554,10 +568,6 @@ public:
     {
         Assert::AreNotEqual (TreeModel::MakeFolderId (true, kDisks), TreeModel::MakeFolderId (false, kDisks));
         Assert::AreNotEqual (TreeModel::MakeImageId (true, L"C:\\a.dsk"), TreeModel::MakeImageId (false, L"C:\\a.dsk"));
-        Assert::IsTrue      (TreeModel::IsSupportedImage (L"GAME.WOZ"));
-        Assert::IsTrue      (TreeModel::IsSupportedImage (L"disk.po"));
-        Assert::IsFalse     (TreeModel::IsSupportedImage (L"notes.txt"));
-        Assert::IsFalse     (TreeModel::IsSupportedImage (L"noext"));
     }
 
 
@@ -601,7 +611,8 @@ public:
     TEST_METHOD (Links_FollowThisPc_AsRoots_AfterCassoLink)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  roots;
 
         model.SetLinks (TwoLinks());
@@ -623,7 +634,8 @@ public:
     TEST_METHOD (AnAdtProServer_ListsItsFolder)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
         LinkTreeEntry          server;
 
@@ -645,7 +657,8 @@ public:
     TEST_METHOD (CassoLink_ListsTheFullSendFolder_OnceItExists)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
         LinkTreeEntry          apple;
 
@@ -670,7 +683,8 @@ public:
     TEST_METHOD (ATransfer_MarksTheConnectionAndItsReceivingFolder)
     {
         InMemoryFileSystem         fs;
-        TreeModel                  model (fs);
+        HostFolderReader           hostFolders;
+        TreeModel                  model (fs, hostFolders);
         LinkTreeEntry              apple;
         LinkTreeEntry              server;
         std::vector<TreeNode>      roots;
@@ -718,7 +732,8 @@ public:
     TEST_METHOD (IsLinkFolder_MatchesTheFullSendFolderAndAnAdtProServersFolder)
     {
         InMemoryFileSystem  fs;
-        TreeModel           model (fs);
+        HostFolderReader    hostFolders;
+        TreeModel           model (fs, hostFolders);
         LinkTreeEntry       server;
 
         server.name   = L"ADTPro server on COM3";
@@ -735,7 +750,8 @@ public:
     TEST_METHOD (AConnection_DoesNotListTheFullSendFolder)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  nodes;
         LinkTreeEntry          apple;
 
@@ -755,7 +771,8 @@ public:
     TEST_METHOD (CassoLink_ListsEveryLink_UnderIdsOfItsOwn)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  links;
 
         model.SetLinks (TwoLinks());
@@ -780,7 +797,8 @@ public:
     TEST_METHOD (LinkCopies_ListTheSameDrives_UnderTheirOwnIds)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  drives;
         std::wstring           name;
         int                    slot  = 0;
@@ -803,7 +821,8 @@ public:
     TEST_METHOD (Links_ListTheirDrives_WithSlotDriveAndVolume)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  drives;
 
         model.SetLinks (TwoLinks());
@@ -823,7 +842,8 @@ public:
     TEST_METHOD (Links_WithNoAppleReplying_HaveNoChildren_AndTheirStateIsForTheList)
     {
         InMemoryFileSystem     fs;
-        TreeModel              model (fs);
+        HostFolderReader       hostFolders;
+        TreeModel              model (fs, hostFolders);
         std::vector<TreeNode>  children;
         std::wstring           status;
 
@@ -840,7 +860,8 @@ public:
     TEST_METHOD (Links_SetAgain_ListTheirDrivesAgain)
     {
         InMemoryFileSystem          fs;
-        TreeModel                   model (fs);
+        HostFolderReader            hostFolders;
+        TreeModel                   model (fs, hostFolders);
         std::vector<TreeNode>       children;
         std::vector<LinkTreeEntry>  links = TwoLinks();
 
