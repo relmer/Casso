@@ -482,6 +482,10 @@ public:
     // and press fills are drawn.
     void  SetSelectionPainted      (bool enabled)                { m_selectionPainted = enabled; }
 
+    // Rounds the corners of a row's hover, press and selection box by this
+    // many DIPs. Zero, the default, leaves them square, as Explorer's are.
+    void  SetRowCornerDip          (float dip)                   { m_rowCornerDip = dip; }
+
     // Selected rows in the accent selection color a text control uses, as a
     // preview of a file's contents does, rather than the neutral fill a file
     // list uses.
@@ -711,6 +715,7 @@ private:
     int                        m_dropRow             = -1;
     bool                       m_alwaysShowSelection = false;
     bool                       m_selectionPainted    = true;
+    float                      m_rowCornerDip        = 0.0f;
     bool                       m_textSelectionColors = false;
     bool                       m_showHeader          = false;
     View                       m_view                = View::Details;

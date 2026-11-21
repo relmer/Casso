@@ -21,6 +21,7 @@ static constexpr int  s_kListHeightDp   = 260;
 static constexpr int  s_kIndentDp       = 20;
 static constexpr int  s_kPanelRadiusDp  = 6;
 static constexpr int  s_kRowInsetDp     = 2;
+static constexpr float s_kOutlineBrighten = 0.3f;   // how far the outline is mixed from the selection color toward the text color
 
 
 
@@ -150,6 +151,7 @@ SlotsPage::SlotsPage (std::wstring title)
     m_list.SetShowHeader          (false);
     m_list.SetAlwaysShowSelection (true);
     m_list.SetSelectionPainted    (false);
+    m_list.SetRowCornerDip        ((float) s_kPanelRadiusDp);
     m_list.SetOnSelectionChanged  ([this] (int row)
     {
         if (row >= 0 && row + kFirstSlot != m_selectedSlot)
@@ -662,7 +664,7 @@ void SlotsPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
     RECT                     panel     = m_panelRect;
     float                    thickness = m_scaler.ToPxf (1.0f);
     int                      inset     = m_scaler.ToPx (s_kRowInsetDp);
-    uint32_t                 argb      = theme.ContentSelection();
+    uint32_t                 argb      = DxuiColor::Mix (theme.ContentSelection(), theme.Foreground(), s_kOutlineBrighten);
     std::vector<DxuiPointF>  points;
 
 
