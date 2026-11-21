@@ -50,6 +50,13 @@ HRESULT Win32ComPort::Open (const std::wstring & port, const ComSettings & setti
     result = SetCommState (m_handle, &dcb);
     CWR (result);
 
+    //  The driver's default queue fills in a few hundred milliseconds on a
+    //  fast link, and it overflows when a read is that late, as on a machine
+    //  short of memory. This one fills in seconds. A driver that ignores the
+    //  request uses its default.
+    result = SetupComm (m_handle, s_kInQueueBytes, s_kOutQueueBytes);
+    IGNORE_RETURN_VALUE (result, TRUE);
+
     hr = SetReadTimeout (0);
     CHR (hr);
 
