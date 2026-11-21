@@ -352,18 +352,28 @@ std::wstring WizardryScenario::GetItemName (std::span<const Byte> bytes, const C
 
 void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents & contents, std::vector<Paragraph> & ioParagraphs, std::vector<std::wstring> & ioNotes)
 {
-    std::vector<Paragraph>  roster;
-    int                     listed = 0;
+    auto  roster = std::make_shared<RecordTable>();
+    int   listed = 0;
+
+
+
+    roster->headings = { L"Name", L"Level", L"Race", L"Class", L"Alignment", L"Status", L"Hit points", L"Gold", L"Experience" };
 
 
 
     for (int i = 0; i < contents.count[kZoneCharacter]; i++)
     {
-        size_t        at     = 0;
-        int           status = 0;
-        int           items  = 0;
-        bool          inMaze = false;
-        std::wstring  shown;
+        size_t               at     = 0;
+        int                  status = 0;
+        int                  items  = 0;
+        bool                 inMaze = false;
+        std::wstring         shown;
+        std::wstring         name;
+        std::wstring         race;
+        std::wstring         kind;
+        std::wstring         align;
+        RunColor             color  = RunColor::Text;
+        RecordTable::Record  record;
 
         if (!TryLocate (bytes, contents, kZoneCharacter, i, kCharacterBytes, at))
         {
@@ -380,21 +390,25 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
         }
 
         shown = inMaze ? std::wstring (L"Out, in the maze") : ToTitleCase (GetName (contents.statuses, status));
+        name  = ReadString (bytes, at + s_kCharNameAt, kShortStringMax);
+        race  = ToTitleCase (GetName (contents.races,      ReadWord (bytes, at + s_kCharRaceAt)));
+        kind  = ToTitleCase (GetName (contents.classes,    ReadWord (bytes, at + s_kCharClassAt)));
+        align = ToTitleCase (GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt)));
+        color = (status == 0 && !inMaze) ? RunColor::Text : RunColor::Bad;
 
-        roster.push_back (Paragraph());
-        roster.push_back (MakeParagraph ({ Run { ReadString (bytes, at + s_kCharNameAt, kShortStringMax), true },
-                                           Run { std::format (L"   Level {} {} {}, {}",
-                                                              ReadWord (bytes, at + s_kCharLevelAt),
-                                                              ToTitleCase (GetName (contents.races,      ReadWord (bytes, at + s_kCharRaceAt))),
-                                                              ToTitleCase (GetName (contents.classes,    ReadWord (bytes, at + s_kCharClassAt))),
-                                                              ToTitleCase (GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt)))),
-                                                 false, false, false, RunColor::Muted } }));
-        roster.push_back (MakeParagraph ({ Run { L"Status: " },
-                                           Run { shown, false, false, false, (status == 0 && !inMaze) ? RunColor::Text : RunColor::Bad },
-                                           Run { std::format (L"   Hit points: {}/{}   Gold: {}   Experience: {}",
-                                                              ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt),
-                                                              NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt)),
-                                                              NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt))) } }));
+        std::wstring  level = std::format (L"{}", ReadWord (bytes, at + s_kCharLevelAt));
+        std::wstring  hits  = std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
+        std::wstring  gold  = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt));
+        std::wstring  exp   = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt));
+
+        record.cells = { Run { name, true }, Run { level }, Run { race }, Run { kind }, Run { align },
+                         Run { shown, false, false, false, color }, Run { hits }, Run { gold }, Run { exp } };
+
+        record.card.push_back (MakeParagraph ({ Run { name, true },
+                                                Run { std::format (L"   Level {} {} {}, {}", level, race, kind, align), false, false, false, RunColor::Muted } }));
+        record.card.push_back (MakeParagraph ({ Run { L"Status: " },
+                                                Run { shown, false, false, false, color },
+                                                Run { std::format (L"   Hit points: {}   Gold: {}   Experience: {}", hits, gold, exp) } }));
 
         items = (std::clamp) (ReadWord (bytes, at + s_kCharItemCountAt), 0, s_kMaxPossessions);
 
@@ -404,15 +418,16 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
             bool          equipped   = ReadWord (bytes, item + s_kPossEquippedAt)   != 0;
             bool          cursed     = ReadWord (bytes, item + s_kPossCursedAt)     != 0;
             bool          identified = ReadWord (bytes, item + s_kPossIdentifiedAt) != 0;
-            std::wstring  name       = GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified);
+            std::wstring  itemName   = GetItemName (bytes, contents, ReadWord (bytes, item + s_kPossItemAt), identified);
             Paragraph     line       = MakeParagraph ({ Run { L"      " },
-                                                        Run { name, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted },
+                                                        Run { itemName, false, !identified, false, cursed ? RunColor::Bad : identified ? RunColor::Text : RunColor::Muted },
                                                         Run { L"\t" } });
 
             AddItemStates (equipped, cursed, identified, line.runs);
-            roster.push_back (std::move (line));
+            record.details.push_back (std::move (line));
         }
 
+        roster->records.push_back (std::move (record));
         listed++;
     }
 
@@ -420,7 +435,11 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
 
     if (listed > 0)
     {
-        ioParagraphs.insert (ioParagraphs.end(), roster.begin(), roster.end());
+        Paragraph  table;
+
+        table.table = roster;
+        ioParagraphs.push_back (Paragraph());
+        ioParagraphs.push_back (std::move (table));
     }
     else
     {

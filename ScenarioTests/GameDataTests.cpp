@@ -83,7 +83,7 @@ public:
     {
         std::vector<std::wstring>  texts = file.lines;
 
-        for (const Paragraph & paragraph : file.paragraphs)
+        for (const Paragraph & paragraph : FlattenRecordTables (file.paragraphs))
         {
             std::wstring  text;
 

@@ -54,10 +54,18 @@ public:
     //  pointer, and any other event hides it.
     void            UpdatePictureTipAt    (const DxuiMouseEvent & ev);
 
+    //  The width a document's record tables are drawn as tables from;
+    //  narrower, they are cards.
+    static constexpr int  s_kWideTableDip = 640;
+
 private:
     void  ShowContextMenu (int x, int y);
     bool  HandleTextMouse (const DxuiMouseEvent & ev);
+    bool  IsWide          () const;
+    void  FillRows        (const PreviewContent & preview);
 
-    DxuiTextView  * m_text           = nullptr;
-    bool            m_crossReference = false;
+    DxuiTextView      * m_text           = nullptr;
+    bool                m_crossReference = false;
+    bool                m_wide           = false;
+    std::vector<int>    m_rowParagraph;   // the document paragraph of each row
 };

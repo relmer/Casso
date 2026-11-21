@@ -98,7 +98,7 @@ public:
 
     static bool HasText (const PreviewContent & preview, const std::wstring & text)
     {
-        for (const Paragraph & paragraph : preview.paragraphs)
+        for (const Paragraph & paragraph : FlattenRecordTables (preview.paragraphs))
         {
             std::wstring  joined;
 
