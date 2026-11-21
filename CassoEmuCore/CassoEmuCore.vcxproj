@@ -582,6 +582,7 @@
     <ClCompile Include="Seams\ShellVerbs\Win32ShareSheet.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellTransfers.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
+    <ClCompile Include="Seams\Win32PackageWatcher.cpp" />
     <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
     <ClCompile Include="Seams\Win32ShellPreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\ArchiveProbe.cpp" />
@@ -635,6 +636,7 @@
     <ClCompile Include="FileTypes\OmfFile.cpp" />
     <ClCompile Include="FileTypes\VisiCalcSheet.cpp" />
     <ClCompile Include="FileTypes\ZMachineStory.cpp" />
+    <ClCompile Include="FileTypes\DiskSaveTable.cpp" />
     <ClCompile Include="FileTypes\WizardryScenario.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluator.cpp" />
     <ClCompile Include="FileTypes\GutenbergDocument.cpp" />
@@ -1805,6 +1807,7 @@
     <ClInclude Include="Seams\ShellVerbs\Win32ShellTransfers.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellVerbsTypes.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
+    <ClInclude Include="Seams\Win32PackageWatcher.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />
     <ClInclude Include="Seams\ShellItemId.h" />
     <ClInclude Include="Seams\Win32ShellPreview.h" />
@@ -1861,6 +1864,7 @@
     <ClInclude Include="FileTypes\OmfFile.h" />
     <ClInclude Include="FileTypes\VisiCalcSheet.h" />
     <ClInclude Include="FileTypes\ZMachineStory.h" />
+    <ClInclude Include="FileTypes\DiskSaveTable.h" />
     <ClInclude Include="FileTypes\WizardryScenario.h" />
     <ClInclude Include="FileTypes\VisiCalcEvaluator.h" />
     <ClInclude Include="FileTypes\GutenbergDocument.h" />

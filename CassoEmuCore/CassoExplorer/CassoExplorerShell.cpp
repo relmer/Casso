@@ -619,8 +619,9 @@ std::vector<CassoExplorerWindowRequest> CassoExplorerShell::PlanFirstLaunch (
         requests.push_back (std::move (request));
     }
 
-    requests.front().openPath = options.openPath.empty() ? options.selectPath : options.openPath;
-    requests.front().owner    = options.owner;
+    requests.front().openPath   = options.openPath;
+    requests.front().selectPath = options.selectPath;
+    requests.front().owner      = options.owner;
 
     return requests;
 }
@@ -641,10 +642,11 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 
 
-    request.openPath  = options.openPath;
-    request.owner     = options.owner;
-    request.placement = from;
-    request.cascade   = from.valid;
+    request.openPath   = options.openPath;
+    request.selectPath = options.selectPath;
+    request.owner      = options.owner;
+    request.placement  = from;
+    request.cascade    = from.valid;
 
     return request;
 }
@@ -1440,13 +1442,6 @@ void CassoExplorerShell::RunLaunch (const std::wstring & arguments)
     }
 
     BAIL_OUT_IF (tabbed, S_OK);
-
-    //  A new window on a /select opens the file's folder with the file
-    //  selected, as it opens a file's path.
-    if (options.openPath.empty())
-    {
-        options.openPath = options.selectPath;
-    }
 
     opened = OpenWindow (PlanForwardedLaunch (options, from));
     CBR (opened != nullptr);

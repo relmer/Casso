@@ -19,7 +19,8 @@ struct DxuiTheme;
 //
 //  A window to open. With no tabs it opens on Home, and on `openPath` when
 //  there is one; with tabs, on those, `activeTab` active, and `openPath` in
-//  a tab after them. It goes where `screenRect` is when that is set, a
+//  a tab after them. `selectPath` opens its parent folder in a tab with it
+//  selected, as File Explorer's /select does, a folder or disk image too. It goes where `screenRect` is when that is set, a
 //  torn-off tab's window; else where `placement` is when that is valid,
 //  stepped down and right with `cascade`; else at the default size. `owner`
 //  is the emulator window it serves, if any. With `isOwned` the window stays
@@ -32,6 +33,7 @@ struct CassoExplorerWindowRequest
     std::vector<BrowserModel::Tab>  tabs;
     size_t                          activeTab     = 0;
     std::wstring                    openPath;
+    std::wstring                    selectPath;
     CassoExplorerPrefs::Placement   placement;
     bool                            cascade       = false;
     RECT                            screenRect    = {};

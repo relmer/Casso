@@ -128,6 +128,19 @@ struct ExplorerWindowPartsRig
         io.stamps[narrow] = FileStamp { bytes.size(), 100 };
     }
 
+    //  Bytes at a path on the in-memory host.
+    void  SeedBytes (const std::vector<Byte> & bytes, const wchar_t * path)
+    {
+        std::string  narrow = TextEncoding::WideToNarrow (path);
+
+
+
+        AssertSucceeded (fs.WriteAllText (path, std::string (bytes.begin(), bytes.end())));
+
+        io.files[narrow]  = bytes;
+        io.stamps[narrow] = FileStamp { bytes.size(), 100 };
+    }
+
     //  A left click at the middle of the bounds, through the window's
     //  input, as a real click arrives: a move, a press and a release.
     void  Click (const RECT & bounds)
