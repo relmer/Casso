@@ -56,6 +56,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     int                                    tapeW       = 0;
     int                                    tapeX       = 0;
     int                                    rowW        = 0;
+    int                                    rowH        = 0;   // the taller of a drive box and a docked recorder
     RECT                                   tapeProbe   = {};
     std::vector<std::vector<DeskDrive>>    classes     = DriveBarFan::Group (m_shell.m_scene->GetDrivePlan());
 
@@ -107,7 +108,8 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
 
     originX = std::max (0, (clientW - rowW) / 2);
     tapeX   = originX + rowW - tapeW;
-    rowTop  = std::max (clientH - bottomInsetPx, clientH - (int) slot.cy - bottomGap);
+    rowH    = std::max ((int) slot.cy, (int) (tapeProbe.bottom - tapeProbe.top));
+    rowTop  = std::max (clientH - bottomInsetPx, clientH - rowH - bottomGap);
 
     fan.SetExpandAll (sliding);
     fan.Layout       (originX, rowTop, slot, gap, gapY, pad, arrow);
@@ -121,7 +123,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         // the bottom of the strip's area: above the //c's switch strip in a
         // window, which is drawn over anything under it, and the window's
         // bottom edge in fullscreen.
-        rowTop = stripBottom - (int) slot.cy - bottomGap
+        rowTop = stripBottom - rowH - bottomGap
                + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }

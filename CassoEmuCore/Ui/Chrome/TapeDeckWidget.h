@@ -59,9 +59,8 @@ public:
         m_hasTextClip = (clipPx != nullptr);
     }
 
-    // Docked beside drive boxes, the transport row and counter are to the
-    // right of the name and rail rather than under them, so the recorder is
-    // a drive box's height and its rail lines up with theirs.
+    // Docked beside drive boxes, the strip for the label under the nearest
+    // control takes no room, so the recorder is only as tall as its controls.
     void            SetDocked      (bool docked) { m_docked = docked; }
 
     TapeDeckRegion  HitTest        (int x, int y) const;
@@ -148,8 +147,6 @@ private:
     static constexpr int    kButtonSizePx      = 16;
     static constexpr int    kButtonGapPx       = 2;
     static constexpr int    kCounterGapXPx     = 4;
-    static constexpr int    kDockedGapXPx      = 10;      // docked: between the rail and the transport row
-    static constexpr int    kDockedBottomPadPx = 8;       // docked: under the rail, as under a drive box's
     static constexpr int    kLabelStripPx      = 13;      // under the controls, for the nearest one's name
     static constexpr float  kLabelFontDip      = 8.5f;
     static constexpr int    kLabelWidthPx      = 90;
