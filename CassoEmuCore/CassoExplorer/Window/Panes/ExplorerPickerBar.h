@@ -30,7 +30,7 @@ public:
     static constexpr int  kButtonDip     = DxuiButtonRow::kButtonHeightDip;
     static constexpr int  kEdgePadDip    = DxuiButtonRow::kEdgePadDip;
     static constexpr int  kGapDip        = 8;
-    static constexpr int  kFilterMaxDip  = 320;
+    static constexpr int  kFilterMinDip  = 320;
     static constexpr int  kNameLabelDip  = 84;
     static constexpr int  kNameMinDip    = 160;
     static constexpr int  kVerifyDip     = 90;

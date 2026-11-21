@@ -84,7 +84,9 @@ void ExplorerPickerBar::Create()
         m_verify->SetSingleLineLabel (true);
     }
 
-    if (request->filters.size() > 1)
+    //  Only a save form chooses a file type; an open form lists every
+    //  image the request takes.
+    if (request->IsSave() && request->filters.size() > 1)
     {
         m_filter = m_context.window.CreateChild<DxuiComboBox>();
         m_filter->SetElide     (DxuiElide::Middle);
@@ -173,7 +175,17 @@ void ExplorerPickerBar::Layout (const RECT & band, int listLeft)
     {
         int  inset = scaler.ToPx (DxuiComboBox::kTextInsetDip);
 
-        width = (std::min) (scaler.ToPx (kFilterMaxDip), (std::max) (0, right - left));
+        //  As wide as its longest entry needs, when there's room, and never
+        //  narrower than kFilterMinDip.
+        width = scaler.ToPx (kFilterMinDip);
+
+        if (m_context.window.GetTextRenderer() != nullptr)
+        {
+            m_filter->SetDpi (scaler.GetDpi());
+            width = (std::max) (width, (int) std::ceil (m_filter->GetFitWidthPx (*m_context.window.GetTextRenderer())));
+        }
+
+        width = (std::min) (width, (std::max) (0, right - left - (m_name != nullptr ? scaler.ToPx (kNameLabelDip + kNameMinDip) + gap : 0)));
 
         m_filter->Layout (RECT { left, top, left + width, top + height }, scaler);
 
@@ -618,7 +630,7 @@ bool ExplorerPickerBar::HasFilterNotes() const
 
 
 
-    return request != nullptr && request->filters.size() > 1
+    return request != nullptr && request->IsSave() && request->filters.size() > 1
         && std::any_of (request->filters.begin(), request->filters.end(), [] (const FileDialogFilter & filter) { return !filter.note.empty(); });
 }
 
