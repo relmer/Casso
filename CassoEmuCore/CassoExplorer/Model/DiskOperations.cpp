@@ -337,40 +337,18 @@ bool DiskOperations::TryEditCardVolume (const std::string & imagePath, const std
 
 DiskOperations::Result DiskOperations::List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind)
 {
-    DiskImageSession::OpenedImage  opened;
-    Result                         result;
-    HRESULT                        hr     = S_OK;
-    std::unique_ptr<IBlockStore>   store;
-    std::unique_ptr<IVolume>       blockVolume;
+    ListingVolume  opened;
+    Result         result = OpenForListing (imagePath, opened);
+    HRESULT        hr     = S_OK;
 
 
 
     outListing = VolumeListing();
-    outKind    = VolumeKind::Unknown;
-
-    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume, outKind))
-    {
-        hr      = blockVolume->EnumerateDirectory (FilePath::Parse (directory), outListing);
-
-        result.listingDamaged = !outListing.damage.empty();
-
-        if (FAILED (hr))
-        {
-            result.hr      = hr;
-            result.message = DiskCommandResult::FormatFailure (imagePath, "", "catalog could not be read");
-        }
-
-        return result;
-    }
-
-    result = OpenVolume (imagePath, opened);
+    outKind    = opened.kind;
 
     if (result.Succeeded())
     {
-        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
-
-        outKind = opened.kind;
-        hr      = volume->EnumerateDirectory (FilePath::Parse (directory), outListing);
+        hr = opened.volume->EnumerateDirectory (FilePath::Parse (directory), outListing);
 
         result.listingDamaged = !outListing.damage.empty();
 
@@ -379,6 +357,43 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, cons
             result.hr      = hr;
             result.message = DiskCommandResult::FormatFailure (imagePath, "", "catalog could not be read");
         }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::OpenForListing
+//
+//  A large block image is opened by the block, and any other image through
+//  the session. After a failure, outVolume.opened has the file's bytes when
+//  the file was read, so the caller can list the partitions of an image with
+//  no file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::OpenForListing (const std::string & imagePath, ListingVolume & outVolume)
+{
+    Result  result;
+
+
+
+    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), outVolume.store, outVolume.volume, outVolume.kind))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, outVolume.opened);
+
+    if (result.Succeeded())
+    {
+        outVolume.kind   = outVolume.opened.kind;
+        outVolume.volume = VolumeImage::CreateVolume (outVolume.opened.kind, outVolume.opened.sectors);
     }
 
     return result;
