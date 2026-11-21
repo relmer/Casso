@@ -401,7 +401,7 @@ public:
 
     // In fullscreen the fitted row is shrunk to this share of its size: at
     // the full screen width it covered too much of the picture.
-    static constexpr float  kFullscreenSlideScale  = 0.35f;
+    static constexpr float  kFullscreenSlideScale  = 0.175f;
 
     // In a window the fitted row is shrunk to half its size, so the drives
     // cover less of the monitor when they rise.
