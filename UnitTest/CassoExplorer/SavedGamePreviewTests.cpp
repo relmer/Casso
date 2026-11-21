@@ -126,6 +126,27 @@ public:
 
         Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
         Assert::IsTrue (HasText (preview, L"GANDALF"), L"with the roster");
+        Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
+    }
+
+
+    TEST_METHOD (ScenarioDisk_ShowingTheDisk_PreviewsItsCatalog)
+    {
+        Host  host;
+
+        host.Seed (MakeDisk ("SCENARIO.DATA", WizardryScenarioBuilder::MakeScenario()), "C:\\Disks\\scenario.dsk");
+        host.Select (L"scenario.dsk");
+
+        host.browser.SetPreviewSavedGame (false);
+
+        const PreviewContent &  preview = host.browser.GetPreview();
+
+        Assert::IsTrue  (preview.kind == PreviewContent::Kind::Catalog, L"The disk previews as its catalog");
+        Assert::IsTrue  (preview.hasSavedGame, L"with the saved game a choice");
+        Assert::IsFalse (preview.savedGameShown);
+
+        host.browser.SetPreviewSavedGame (true);
+        Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Document, L"and back");
     }
 
 
@@ -135,7 +156,8 @@ public:
 
         host.Seed (MakeDisk ("NOTES.DATA", WizardryScenarioBuilder::MakeScenario()), "C:\\Disks\\notes.dsk");
 
-        Assert::IsTrue (host.Select (L"notes.dsk").kind == PreviewContent::Kind::Catalog);
+        Assert::IsTrue  (host.Select (L"notes.dsk").kind == PreviewContent::Kind::Catalog);
+        Assert::IsFalse (host.browser.GetPreview().hasSavedGame, L"with no saved game to choose");
     }
 
 

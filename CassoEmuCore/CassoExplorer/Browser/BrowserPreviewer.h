@@ -65,11 +65,12 @@ public:
 
     //  Why an archive the shell lists nothing in is empty, by its name;
     //  empty when it has nothing in it.
-    std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
-    void          AddWozDetails        (const std::wstring & imagePath);
-    void          PreviewImageCatalog  (const std::wstring & imagePath);
-    bool          PreviewPartitions    (const std::wstring & imagePath);
-    bool          PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
+    std::wstring              DescribeEmptyArchive (const std::wstring & path) const;
+    void                      AddWozDetails        (const std::wstring & imagePath);
+    void                      PreviewImageCatalog  (const std::wstring & imagePath);
+    bool                      PreviewPartitions    (const std::wstring & imagePath);
+    bool                      PreviewSavedGame     (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
+    static const FileEntry  * FindSavedGame        (const VolumeListing & listing, VolumeKind kind);
 
     using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
 
@@ -129,6 +130,7 @@ public:
     static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
     static constexpr size_t           s_kTabStop               = 8;
     void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
+    void  SetSavedGameShown  (bool shown);
     void  PreviewSearchMatch (const CatalogRow & row);
     void  UpdatePreview      ();
 
@@ -149,6 +151,7 @@ private:
     PreviewDecoder::HexForm             m_hexForm        = PreviewDecoder::HexForm::Auto;
     std::wstring                        m_hexFormKey;
     ViewChoice                          m_viewAs         = ViewChoice::Default;
+    bool                                m_savedGameShown = true;   // a disk with a saved game previews as the saved game, not the disk
 
     //  The decode choices of each file one was made for, by file key.
     std::map<std::wstring, DecodeOptions>  m_decodeOptions;

@@ -529,14 +529,58 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         m_browser.m_model.CacheCatalog (imagePath, listing, kind);
     }
 
-    if (PreviewSavedGame (imagePath, listing, kind))
+    if (m_savedGameShown && PreviewSavedGame (imagePath, listing, kind))
     {
-        AddWozDetails (imagePath);
+        m_preview.hasSavedGame   = true;
+        m_preview.savedGameShown = true;
         return;
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
     AddWozDetails (imagePath);
+
+    m_preview.hasSavedGame = FindSavedGame (listing, kind) != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetSavedGameShown
+//
+//  Whether a disk with a saved game previews as the saved game or as the
+//  disk. The choice applies to every such disk until it is changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetSavedGameShown (bool shown)
+{
+    m_savedGameShown = shown;
+    UpdatePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::FindSavedGame
+//
+//  A Wizardry scenario disk's SCENARIO.DATA, or null for any other disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const FileEntry * BrowserPreviewer::FindSavedGame (const VolumeListing & listing, VolumeKind kind)
+{
+    auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
+                                   [] (const FileEntry & entry) { return !entry.isDirectory && _stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0; });
+
+
+
+    return (kind == VolumeKind::Pascal && scenario != listing.entries.end()) ? &*scenario : nullptr;
 }
 
 
@@ -555,12 +599,11 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
 
 bool BrowserPreviewer::PreviewSavedGame (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind)
 {
-    auto  scenario = std::find_if (listing.entries.begin(), listing.entries.end(),
-                                   [] (const FileEntry & entry) { return !entry.isDirectory && _stricmp (entry.name.c_str(), "SCENARIO.DATA") == 0; });
+    const FileEntry  * scenario = FindSavedGame (listing, kind);
 
 
 
-    if (kind != VolumeKind::Pascal || scenario == listing.entries.end())
+    if (scenario == nullptr)
     {
         return false;
     }
