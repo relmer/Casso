@@ -94,7 +94,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     if (m_context.browser.GetTreeModel().IsThirteenSectorDrive (target.path))
     {
         spec.filters.push_back (FileDialogFilter { L".d13: 13 sectors a track, for DOS 3.2 and earlier", L"*.d13", std::wstring(),
-                                                   L"A Model T. It starts with a crank, and only on cobblestone roads." });
+                                                   L"A Model T. It starts with a crank, and only on dirt or cobblestone roads." });
     }
 
     spec.verify           = &verify;
