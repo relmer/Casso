@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendProtection.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/LinkedDisk.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
@@ -162,6 +163,11 @@ struct LinkOperation
     //  is Done.
     std::vector<std::pair<std::string, std::string>>  summary;
     std::vector<int>                                  weakPositions;
+
+    //  Read disk and Capture disk: the drive as the job window draws it, a
+    //  Full Send status with that one drive, written on the session's thread
+    //  as the job goes; and whether the read chose its format.
+    std::shared_ptr<FullSendStatus>                   status;
 
     //  Check link disk: whether the drive has the link's boot disk.
     bool                             linkDisk = false;

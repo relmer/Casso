@@ -35,6 +35,13 @@ public:
     void  ShowWindow ();
     bool  HasJobs    () const { return !m_jobs.empty(); }
 
+    //  A read that couldn't read every sector: its tab offers a raw capture
+    //  of the disk or a read again with those sectors written as zeros.
+    void  SetOffer   (const std::string & link, std::function<void()> captureRaw, std::function<void()> readAgain);
+
+    //  The status bar's line for the running disk jobs, empty with none.
+    std::wstring  DescribeJobs () const;
+
 private:
     struct Job
     {
@@ -45,13 +52,22 @@ private:
         bool                            isUnseen  = false;
     };
 
+    struct Offer
+    {
+        std::function<void()>  captureRaw;
+        std::function<void()>  readAgain;
+    };
+
     void                           Show       (const std::string & link, bool activate);
+    CassoLinkJobView               MakeView   (const std::string & link, const LinkOperation & operation) const;
+    void                           TakeOffer  (const std::string & link, bool captureRaw);
     std::vector<CassoLinkJobView>  BuildViews ();
     void                           SelectFile (const std::wstring & imagePath, bool open);
     std::string                    GetNewest  () const;
 
     ExplorerContext                      & m_context;
     std::map<std::string, Job>             m_jobs;
+    std::map<std::string, Offer>           m_offers;
     std::string                            m_selected;
     std::unique_ptr<CassoLinkJobDialog>    m_window;
 };

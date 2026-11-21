@@ -183,22 +183,14 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     //  whatever drive the window has open by the time the first one fails.
     outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify, automatic] (const LinkOperation & operation, const std::string & link, int drive)
     {
-        std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
-        std::wstring                   message = TextEncoding::NarrowToWide (operation.message)
-                                               + L"\n\nThe disk may be copy-protected. Capture it raw as a WOZ image, which keeps every track as it is on the disk?"
-                                               + L"\n\nOr read it again, writing those sectors as zeros. Their list is saved beside the image as " + list + L".";
-        CassoExplorerActions::Outcome  again;
-        std::filesystem::path          woz     = picked;
-        int                            choice  = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Create image",
-                                                                 MB_YESNOCANCEL | MB_ICONWARNING | MB_DEFBUTTON1, { L"Capture raw", L"Read again", L"Cancel" });
+        std::filesystem::path  woz = picked;
 
-        if (choice == IDYES)
+        //  The job window's tab for the read offers what to do next.
+        woz.replace_extension (L".woz");
+
+        m_context.linkJobs.SetOffer (link, [this, link, drive, woz]() { CaptureToImage (TextEncoding::NarrowToWide (link), drive, woz); }, [this, link, drive, picked, forceVerify, automatic]()
         {
-            CaptureToImage (TextEncoding::NarrowToWide (link), drive, woz.replace_extension (L".woz"));
-        }
-        else if (choice == IDNO)
-        {
-            again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
+            CassoExplorerActions::Outcome  again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr, nullptr, automatic);
 
             if (!again.Succeeded())
             {
@@ -206,7 +198,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
             }
 
             m_context.cassoLinkManager.HandleConnectionChanged();
-        }
+        });
     }, isAuto ? std::function<void()>() : [this, target, picked] () { OfferRawCapture (target, picked); }, automatic);
 
     if (!outcome.Succeeded())

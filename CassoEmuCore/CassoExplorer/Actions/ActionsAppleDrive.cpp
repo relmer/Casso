@@ -652,7 +652,8 @@ ActionsTypes::Outcome ActionsAppleDrive::RunDeletion (const DriveDeletion & plan
 
             links->Invalidate (link, drive);
 
-            return FAILED (operation.result) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
+            //  A job canceled from the job window needs no message.
+        return FAILED (operation.result) && operation.state != LinkOperationState::Canceled && operation.result != HRESULT_FROM_WIN32 (ERROR_CANCELLED) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
         });
 
         if (SUCCEEDED (hr))
@@ -946,7 +947,8 @@ void ActionsAppleDrive::SubmitWrite (const std::string & link, int drive, CassoL
     {
         links->Invalidate (link, drive);
 
-        return FAILED (operation.result) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
+        //  A job canceled from the job window needs no message.
+        return FAILED (operation.result) && operation.state != LinkOperationState::Canceled && operation.result != HRESULT_FROM_WIN32 (ERROR_CANCELLED) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
     });
 
     if (SUCCEEDED (hr))
@@ -1168,7 +1170,8 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & li
             onRead();
         }
 
-        return FAILED (operation.result) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
+        //  A job canceled from the job window needs no message.
+        return FAILED (operation.result) && operation.state != LinkOperationState::Canceled && operation.result != HRESULT_FROM_WIN32 (ERROR_CANCELLED) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
     }));
 
     if (FAILED (hr))
@@ -1311,7 +1314,8 @@ ActionsTypes::Outcome ActionsAppleDrive::CreateImageFromAppleDrive (const std::s
     hr = links->Submit (link, [drive, narrow] (CassoLinkSession & session) { return session.ReadDisk (drive, narrow, false); },
                         [] (const LinkOperation & operation) -> std::wstring
     {
-        return FAILED (operation.result) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
+        //  A job canceled from the job window needs no message.
+        return FAILED (operation.result) && operation.state != LinkOperationState::Canceled && operation.result != HRESULT_FROM_WIN32 (ERROR_CANCELLED) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
     });
 
     if (FAILED (hr))

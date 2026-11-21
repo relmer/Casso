@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoLinkJobDialog.h"
+#include "CassoLink/Session/CassoLinkDiskStatus.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -13,8 +14,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CassoLinkJobViewTests
 //
-//  A disk job's tab in the job window: its heading, its track map and times,
-//  and what a finished capture found.
+//  A disk job's tab in the job window: its status line, its Apple and
+//  connection, its drive as the job's Full Send status has it, and what a
+//  finished capture found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +24,7 @@ TEST_CLASS (CassoLinkJobViewTests)
 {
 public:
 
-    TEST_METHOD (ARunningCapture_HasItsDriveAndFile_AndTracksReadSoFar)
+    TEST_METHOD (ARunningCapture_HasItsDriveAndConnection)
     {
         LinkOperation     operation;
         CassoLinkJobView  view;
@@ -33,63 +35,69 @@ public:
         operation.drive     = 2;
         operation.imagePath = "C:\\Disks\\Adventure.woz";
         operation.state     = LinkOperationState::Running;
-        operation.progress  = 40;
 
-        view = CassoLinkJobView::Build (operation, "COM3", L"Apple ][ plus", 20.0);
+        view = CassoLinkJobView::Build (operation, "Serial (any port)", L"Apple //c", LinkTransport::Serial, L"COM3");
 
-        Assert::AreEqual (std::wstring (L"Capturing Slot 6, Drive 2"), view.heading);
-        Assert::AreEqual (std::wstring (L"Apple ][ plus, COM3"), view.tabLabel);
-        Assert::IsTrue  (view.tracks[13] == FullSendTrackMark::Read, L"40% of 35 tracks is 14");
-        Assert::IsTrue  (view.tracks[14] == FullSendTrackMark::Unread);
-        Assert::AreEqual (30.0, view.left, 0.001, L"20 s for 40%, so 30 s for the rest");
-        Assert::IsTrue  (view.summary.empty(), L"Nothing found until it ends");
+        Assert::AreEqual (std::wstring (L"Capturing Slot 6, Drive 2"),        view.heading);
+        Assert::AreEqual (std::wstring (L"Apple //c (COM3)"),                 view.tabLabel);
+        Assert::AreEqual (std::wstring (L"Apple //c over serial on COM3"),    view.connection);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Adventure.woz"),         view.imagePath);
+        Assert::IsTrue   (view.drive.isJob);
+        Assert::IsTrue   (view.summary.empty(), L"Nothing found until it ends");
     }
 
 
 
 
-    TEST_METHOD (AFinishedCapture_ListsWhatItFound_AndMarksWeakTracks)
+    TEST_METHOD (ATracksMark_ArrivesAsTheJobGoes)
     {
         LinkOperation     operation;
         CassoLinkJobView  view;
 
 
 
-        operation.kind          = LinkOperationKind::CaptureDisk;
-        operation.imagePath     = "Adventure.woz";
-        operation.state         = LinkOperationState::Done;
-        operation.weakPositions = { 108 };
-        operation.summary       = { { "Reads", "105" } };
+        operation.kind   = LinkOperationKind::ReadDisk;
+        operation.drive  = 2;
+        operation.state  = LinkOperationState::Running;
+        operation.status = std::make_shared<FullSendStatus> ([] () { return 0.0; }, [] () { return std::string ("0:00"); });
 
-        view = CassoLinkJobView::Build (operation, "COM3", L"", 254.0);
+        operation.status->BeginDisk (2, false, std::span<const int>());
+        operation.status->MarkTrack (2, 1, FullSendTrackMark::Unreadable);
+
+        view = CassoLinkJobView::Build (operation, "COM3", L"", LinkTransport::Serial, L"");
+
+        Assert::IsTrue (view.drive.snapshot.drives[1].tracks[1] == FullSendTrackMark::Unreadable, L"Marked before the read ends");
+        Assert::IsTrue (view.drive.snapshot.drives[1].tracks[2] == FullSendTrackMark::Unread);
+    }
+
+
+
+
+    TEST_METHOD (AFinishedCapture_ListsWhatItFound)
+    {
+        LinkOperation     operation;
+        CassoLinkJobView  view;
+
+
+
+        operation.kind    = LinkOperationKind::CaptureDisk;
+        operation.state   = LinkOperationState::Done;
+        operation.summary = { { "Reads", "105" } };
+
+        view = CassoLinkJobView::Build (operation, "COM3", L"", LinkTransport::Serial, L"");
 
         Assert::AreEqual (std::wstring (L"Captured Slot 6, Drive 1"), view.heading);
-        Assert::AreEqual (std::wstring (L"COM3"), view.tabLabel, L"No model known");
-        Assert::AreEqual ((size_t) 1, view.weakTracks.size());
-        Assert::AreEqual (27, view.weakTracks[0], L"Position 108 is track 27");
         Assert::AreEqual (std::wstring (L"105"), view.summary[0].second);
-        Assert::IsTrue  (view.tracks[34] == FullSendTrackMark::Read, L"Every track read");
     }
 
 
 
 
-    TEST_METHOD (AFinishedRead_MarksItsUnreadableTracks)
+    TEST_METHOD (ATabLabel_IsTheAppleAndHowItsConnected)
     {
-        LinkOperation     operation;
-        CassoLinkJobView  view;
-
-
-
-        operation.kind       = LinkOperationKind::ReadDisk;
-        operation.imagePath  = "Disk.dsk";
-        operation.state      = LinkOperationState::Done;
-        operation.unreadable = { { 17, 3 } };
-
-        view = CassoLinkJobView::Build (operation, "COM3", L"", 30.0);
-
-        Assert::IsTrue   (view.tracks[17] == FullSendTrackMark::Unreadable);
-        Assert::AreEqual (std::wstring (L"1, written as zeros"), view.summary[0].second);
+        Assert::AreEqual (std::wstring (L"Apple //e (Ethernet)"),   CassoLinkJobView::DescribeTab (L"Apple //e", "Lab", LinkTransport::Uthernet, L""));
+        Assert::AreEqual (std::wstring (L"Lab (serial)"),           CassoLinkJobView::DescribeTab (L"", "Lab", LinkTransport::Serial, L""), L"No model or port known");
+        Assert::AreEqual (std::wstring (L"Apple //e over Ethernet on an Uthernet II"), CassoLinkJobView::DescribeConnection (L"Apple //e", LinkTransport::Uthernet, L""));
     }
 
 
@@ -106,10 +114,21 @@ public:
 
 
 
+    TEST_METHOD (ATracksMark_IsItsWorstRead)
+    {
+        Assert::IsTrue (CassoLinkDiskStatus::GetTrackMark (1, 1, true)  == FullSendTrackMark::Unreadable);
+        Assert::IsTrue (CassoLinkDiskStatus::GetTrackMark (0, 1, true)  == FullSendTrackMark::Unreliable);
+        Assert::IsTrue (CassoLinkDiskStatus::GetTrackMark (0, 0, true)  == FullSendTrackMark::Verified);
+        Assert::IsTrue (CassoLinkDiskStatus::GetTrackMark (0, 0, false) == FullSendTrackMark::Read);
+    }
+
+
+
+
     TEST_METHOD (ACaptureSummary_HasARowForEachFinding)
     {
-        CassoLinkCapture::Result  result;
-        auto                      rows = std::vector<std::pair<std::string, std::string>>();
+        CassoLinkCapture::Result                          result;
+        std::vector<std::pair<std::string, std::string>>  rows;
 
 
 

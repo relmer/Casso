@@ -946,14 +946,21 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     m_maps = {};
 
-    DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
-
-    if (!m_view.connection.empty())
+    if (m_view.isJob)
     {
-        DrawLine (text, m_view.connection, left, top, width, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+        column = width;
     }
+    else
+    {
+        DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
 
-    top += m_scaler.ToPxf (kHeadingDip) + section;
+        if (!m_view.connection.empty())
+        {
+            DrawLine (text, m_view.connection, left, top, width, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+        }
+
+        top += m_scaler.ToPxf (kHeadingDip) + section;
+    }
 
     //  A drive the Apple lacks is omitted, and the other one is at the left.
     first  = top;
@@ -984,10 +991,13 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
     top = PaintLegend (painter, text, theme, top) + section;
 
-    DrawLine (text, DescribeTotals (m_view.snapshot.totals), left, top, width, theme.Foreground());
-    top += m_scaler.ToPxf (kLineDip) + section;
+    if (!m_view.isJob)
+    {
+        DrawLine (text, DescribeTotals (m_view.snapshot.totals), left, top, width, theme.Foreground());
+        top += m_scaler.ToPxf (kLineDip) + section;
 
-    top = PaintDisks (painter, text, theme, top) + section;
+        top = PaintDisks (painter, text, theme, top) + section;
+    }
 
     PaintActivity (painter, text, theme, top);
 }

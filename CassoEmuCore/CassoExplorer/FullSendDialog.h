@@ -33,6 +33,11 @@ public:
         std::wstring      connection;
         std::wstring      machine;      // the Apple's model, as Apple //c (ROM 3); empty when it isn't known
         FullSendSnapshot  snapshot;
+
+        //  A single disk job's drive, as the job window draws it: its drive
+        //  across the whole width, the legend and the activity, without the
+        //  session's state line, totals or disks done.
+        bool              isJob = false;
     };
 
     static constexpr float  kHeadingDip     = 26.0f;

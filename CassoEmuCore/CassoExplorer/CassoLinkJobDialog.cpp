@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoLinkJobDialog.h"
-#include "CassoExplorer/FullSendDialog.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 
@@ -72,76 +71,81 @@ std::wstring CassoLinkJobView::DescribeConnection (const std::wstring & model, L
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkJobView::Build
-//
-//  A running job's tracks before its share done are read. Once a read ends,
-//  its unreadable sectors' tracks are marked, and a capture's tracks with
-//  weak bits are listed for the map.
+//  CassoLinkJobView::DescribeTab
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const std::string & link, const std::wstring & model, double elapsed)
+std::wstring CassoLinkJobView::DescribeTab (const std::wstring & model, const std::string & link, LinkTransport transport, const std::wstring & port)
+{
+    std::wstring  apple = model.empty() ? TextEncoding::NarrowToWide (link) : model;
+    std::wstring  how;
+
+
+
+    switch (transport)
+    {
+        case LinkTransport::Serial:       how = port.empty() ? std::wstring (L"serial") : port; break;
+        case LinkTransport::Tcp:          how = L"TCP";                                         break;
+        case LinkTransport::WifiModem:    how = L"Wi-Fi modem";                                 break;
+        case LinkTransport::Emulated:     how = L"Casso";                                       break;
+        case LinkTransport::Uthernet:
+        case LinkTransport::Udp:          how = L"Ethernet";                                    break;
+        case LinkTransport::AdtProServer: how = L"ADTPro";                                      break;
+        case LinkTransport::Cassette:     how = L"cassette";                                    break;
+    }
+
+    return how.empty() ? apple : std::format (L"{} ({})", apple, how);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobView::Build
+//
+//  The drive is the job's Full Send status, as the session's thread last
+//  wrote it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const std::string & link, const std::wstring & model, LinkTransport transport, const std::wstring & port)
 {
     CassoLinkJobView    view;
     LinkOperationState  state   = operation.state;
     std::wstring        drive   = DescribeDrive (operation.drive);
-    std::wstring        name    = TextEncoding::NarrowToWide (link);
-    int                 done    = 0;
     bool                isRead  = operation.kind == LinkOperationKind::ReadDisk;
     bool                isWrite = operation.kind == LinkOperationKind::WriteDisk;
 
 
 
-    view.link      = link;
-    view.tabLabel  = model.empty() ? name : model + L", " + name;
-    view.imagePath = TextEncoding::NarrowToWide (operation.imagePath);
-    view.percent   = std::clamp (operation.progress.load(), 0, 100);
-    view.elapsed   = elapsed;
-    view.hasMap    = IsDiskJob (operation.kind);
-    view.step      = TextEncoding::NarrowToWide (operation.GetDetail());
-    view.state     = state == LinkOperationState::Queued  ? State::Queued
-                   : state == LinkOperationState::Running ? State::Running
-                   : state == LinkOperationState::Done    ? State::Done
-                   : state == LinkOperationState::Failed  ? State::Failed
-                                                          : State::Canceled;
+    view.link       = link;
+    view.tabLabel   = DescribeTab (model, link, transport, port);
+    view.connection = DescribeConnection (model, transport, port);
+    view.imagePath  = TextEncoding::NarrowToWide (operation.imagePath);
+    view.state      = state == LinkOperationState::Queued  ? State::Queued
+                    : state == LinkOperationState::Running ? State::Running
+                    : state == LinkOperationState::Done    ? State::Done
+                    : state == LinkOperationState::Failed  ? State::Failed
+                                                           : State::Canceled;
 
     switch (view.state)
     {
-        case State::Queued:   view.heading = std::format (L"Waiting to {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);    break;
-        case State::Running:  view.heading = std::format (L"{} {}", isWrite ? L"Writing to" : isRead ? L"Reading" : L"Capturing", drive);     break;
-        case State::Done:     view.heading = std::format (L"{} {}", isWrite ? L"Wrote to" : isRead ? L"Read" : L"Captured", drive);           break;
-        case State::Failed:   view.heading = std::format (L"Couldn't {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);  break;
+        case State::Queued:   view.heading = std::format (L"Waiting to {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);       break;
+        case State::Running:  view.heading = std::format (L"{} {}", isWrite ? L"Writing to" : isRead ? L"Reading" : L"Capturing", drive);        break;
+        case State::Done:     view.heading = std::format (L"{} {}", isWrite ? L"Wrote to" : isRead ? L"Read" : L"Captured", drive);              break;
+        case State::Failed:   view.heading = std::format (L"Couldn't {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);     break;
         case State::Canceled: view.heading = std::format (L"Canceled {} {}", isWrite ? L"writing to" : isRead ? L"reading" : L"capturing", drive); break;
     }
 
-    done = (view.state == State::Done) ? kTracks : view.percent * kTracks / 100;
-
-    for (int track = 0; track < done && track < kTracks; track++)
+    if (operation.status != nullptr)
     {
-        view.tracks[(size_t) track] = FullSendTrackMark::Read;
+        view.drive.snapshot = operation.status->GetSnapshot();
     }
 
-    for (const SectorMark & mark : operation.marks)
-    {
-        if (mark.track >= 0 && mark.track < kTracks)
-        {
-            view.tracks[(size_t) mark.track] = mark.mark == 'X' ? FullSendTrackMark::Unreadable : FullSendTrackMark::Unreliable;
-        }
-    }
-
-    for (const auto & [track, sector] : operation.unreadable)
-    {
-        if (track >= 0 && track < kTracks)
-        {
-            view.tracks[(size_t) track] = FullSendTrackMark::Unreadable;
-        }
-    }
-
-    //  A capture's step has its own estimate of the time left.
-    if (view.IsRunning() && view.percent > 0 && view.step.find (L" left") == std::wstring::npos)
-    {
-        view.left = elapsed * (100 - view.percent) / view.percent;
-    }
+    view.drive.isJob   = true;
+    view.drive.machine = model;
 
     if (view.state == State::Failed)
     {
@@ -151,11 +155,6 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
     if (view.IsRunning())
     {
         return view;
-    }
-
-    for (int position : operation.weakPositions)
-    {
-        view.weakTracks.push_back (position / 4);
     }
 
     for (const auto & [label, value] : operation.summary)
@@ -181,9 +180,9 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkJobPanel::Init()
+void CassoLinkJobPanel::Init (DxuiTooltip * tooltip)
 {
-    m_tabs.SetStyle (DxuiTabStripStyle::Explorer);
+    m_tabs.SetStyle (DxuiTabStripStyle::Standard);
     m_tabs.SetOnChange ([this] (int index)
     {
         if (index >= 0 && (size_t) index < m_views.size())
@@ -204,7 +203,10 @@ void CassoLinkJobPanel::Init()
         }
     });
 
+    m_drive.SetTooltip (tooltip);
+
     Adopt (m_tabs);
+    Adopt (m_drive);
 }
 
 
@@ -224,6 +226,7 @@ void CassoLinkJobPanel::SetViews (std::vector<CassoLinkJobView> views, const std
 {
     std::vector<DxuiTabStrip::Tab>  tabs;
     int                             index = 0;
+    const CassoLinkJobView        * shown = nullptr;
 
 
 
@@ -243,7 +246,112 @@ void CassoLinkJobPanel::SetViews (std::vector<CassoLinkJobView> views, const std
     m_tabs.SetTabs (std::move (tabs));
     m_tabs.SetSelected (index);
 
+    shown = GetSelected();
+
+    if (shown != nullptr)
+    {
+        m_drive.SetView (shown->drive);
+    }
+
     LayTabs();
+    LayDrive();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::GetSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const CassoLinkJobView * CassoLinkJobPanel::GetSelected() const
+{
+    for (const CassoLinkJobView & view : m_views)
+    {
+        if (view.link == m_selected)
+        {
+            return &view;
+        }
+    }
+
+    return m_views.empty() ? nullptr : &m_views.front();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::OnMouse
+//
+//  A click on the image's link selects it in its folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkJobPanel::OnMouse (const DxuiMouseEvent & ev)
+{
+    POINT                      point = { (LONG) ev.positionDip.x, (LONG) ev.positionDip.y };
+    const CassoLinkJobView   * view  = GetSelected();
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_isOverLink = ev.kind == DxuiMouseEventKind::Move && PtInRect (&m_linkPx, point);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left && PtInRect (&m_linkPx, point) && view != nullptr && m_onOpenFile)
+    {
+        m_onOpenFile (view->imagePath);
+        return true;
+    }
+
+    return DxuiPanel::OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR CassoLinkJobPanel::GetCursorForPoint (POINT clientPx) const
+{
+    return PtInRect (&m_linkPx, clientPx) ? IDC_HAND : DxuiPanel::GetCursorForPoint (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
+{
+    RECT  tabs = boundsPx;
+
+
+
+    SetBounds (boundsPx);
+
+    m_scaler    = scaler;
+    tabs.bottom = tabs.top + scaler.ToPx (kTabsDip);
+    m_tabsPx    = tabs;
+
+    LayTabs();
+    LayDrive();
 }
 
 
@@ -285,21 +393,26 @@ void CassoLinkJobPanel::LayTabs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkJobPanel::GetSelected
+//  CassoLinkJobPanel::GetHeader
+//
+//  The height above the drive: the tabs, the status line, the link, the
+//  connection, and once the job ends, what it found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const CassoLinkJobView * CassoLinkJobPanel::GetSelected() const
+float CassoLinkJobPanel::GetHeader (const CassoLinkJobView * view) const
 {
-    for (const CassoLinkJobView & view : m_views)
+    float  line = m_scaler.ToPxf (kLineDip);
+    float  rows = 3.0f;
+
+
+
+    if (view != nullptr)
     {
-        if (view.link == m_selected)
-        {
-            return &view;
-        }
+        rows += (float) view->summary.size() + (view->message.empty() ? 0.0f : 1.0f);
     }
 
-    return m_views.empty() ? nullptr : &m_views.front();
+    return m_scaler.ToPxf (kTabsDip) + m_scaler.ToPxf (kPadDip) + line * rows + m_scaler.ToPxf (kSectionGapDip);
 }
 
 
@@ -308,72 +421,22 @@ const CassoLinkJobView * CassoLinkJobPanel::GetSelected() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkJobPanel::OnMouse
+//  CassoLinkJobPanel::LayDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkJobPanel::OnMouse (const DxuiMouseEvent & ev)
+void CassoLinkJobPanel::LayDrive()
 {
-    int64_t  now    = (int64_t) GetTickCount64();
-    float    grow   = (float) (m_mapPx.bottom - m_mapPx.top) * (kMagnifyMax - 1.0f);
-    bool     isNear = false;
+    RECT  bounds = GetBounds();
+    LONG  pad    = m_scaler.ToPx (kPadDip);
+    RECT  drive  = { bounds.left + pad, bounds.top + (LONG) GetHeader (GetSelected()), bounds.right - pad, bounds.bottom };
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    if (drive.bottom > drive.top)
     {
-        m_isOverLink = ev.kind == DxuiMouseEventKind::Move && PtInRect (&m_linkPx, POINT { (LONG) ev.positionDip.x, (LONG) ev.positionDip.y });
-
-        isNear = ev.kind == DxuiMouseEventKind::Move && m_mapPx.right > m_mapPx.left
-              && ev.positionDip.x >= m_mapPx.left && ev.positionDip.x < m_mapPx.right
-              && ev.positionDip.y >= (float) m_mapPx.top - grow && ev.positionDip.y < m_mapPx.bottom;
-
-        if (isNear)
-        {
-            m_pointerX = (float) ev.positionDip.x;
-        }
-
-        m_magnifier.SetNear (isNear, now);
+        m_drive.Layout (drive, m_scaler);
     }
-
-    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left && PtInRect (&m_linkPx, POINT { (LONG) ev.positionDip.x, (LONG) ev.positionDip.y }) && m_onOpenFile)
-    {
-        const CassoLinkJobView  * view = GetSelected();
-
-        if (view != nullptr)
-        {
-            m_onOpenFile (view->imagePath);
-        }
-
-        return true;
-    }
-
-    return DxuiPanel::OnMouse (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkJobPanel::Layout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkJobPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
-{
-    RECT  tabs = boundsPx;
-
-
-
-    SetBounds (boundsPx);
-
-    m_scaler    = scaler;
-    tabs.bottom = tabs.top + scaler.ToPx (kTabsDip);
-    m_tabsPx    = tabs;
-
-    LayTabs();
 }
 
 
@@ -386,14 +449,14 @@ void CassoLinkJobPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkJobPanel::DrawLine (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip, DxuiFontWeight weight) const
+void CassoLinkJobPanel::DrawLine (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip) const
 {
     HRESULT  hr = S_OK;
 
 
 
     hr = text.DrawString (line.c_str(), left, top, width, m_scaler.ToPxf (kLineDip), color, m_scaler.ToPxf (fontDip), FullSendPanel::s_kpszFont,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, weight, false);
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -415,8 +478,8 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float                      width  = (float) (bounds.right - bounds.left) - pad * 2.0f;
     float                      top    = (float) bounds.top + m_scaler.ToPxf (kTabsDip) + pad;
     float                      line   = m_scaler.ToPxf (kLineDip);
+    float                      labelW = std::min (m_scaler.ToPxf (kLabelWidthDip), width / 2.0f);
     const CassoLinkJobView   * view   = GetSelected();
-    std::wstring               times;
 
 
 
@@ -427,48 +490,27 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         return;
     }
 
-    DrawLine (text, view->heading, left, top, width, theme.Foreground(), kHeadingFontDip, DxuiFontWeight::SemiBold);
-    top += line + m_scaler.ToPxf (4.0f);
+    DrawLine (text, view->heading, left, top, width, theme.Foreground(), kStatusFontDip);
+    top += line;
 
     PaintLink (painter, text, theme, view->imagePath, left, top, width);
     top += line;
 
-    DrawLine (text, view->connection, left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
+    DrawLine (text, view->connection, left, top, width, theme.ForegroundMuted(), kFontDip);
     top += line;
-
-    if (view->IsRunning() && !view->step.empty())
-    {
-        DrawLine (text, view->step, left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
-    }
-
-    top += line + m_scaler.ToPxf (kSectionGapDip);
-
-    if (view->hasMap)
-    {
-        top = PaintMap (painter, text, theme, *view, left, top, width);
-    }
-
-    painter.FillRect (left, top, width, m_scaler.ToPxf (kBarDip), theme.Divider());
-    painter.FillRect (left, top, width * (float) (view->state == CassoLinkJobView::State::Done ? 100 : view->percent) / 100.0f, m_scaler.ToPxf (kBarDip), FullSendPanel::kBarArgb);
-    top += m_scaler.ToPxf (kBarDip) + m_scaler.ToPxf (6.0f);
-
-    times = FullSendPanel::FormatSeconds (view->elapsed) + (view->IsRunning() ? L" elapsed" : L" in all");
-
-    if (view->left >= 0.0)
-    {
-        times += L", about " + FullSendPanel::FormatSeconds (view->left) + L" left";
-    }
-
-    DrawLine (text, std::format (L"{}%   {}", view->state == CassoLinkJobView::State::Done ? 100 : view->percent, times), left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
-    top += line + m_scaler.ToPxf (kSectionGapDip);
 
     if (!view->message.empty())
     {
-        DrawLine (text, view->message, left, top, width, theme.Foreground(), kFontDip, DxuiFontWeight::Normal);
+        DrawLine (text, view->message, left, top, width, theme.Foreground(), kFontDip);
         top += line;
     }
 
-    PaintSummary (text, theme, *view, left, top, width);
+    for (const auto & [label, value] : view->summary)
+    {
+        DrawLine (text, label, left, top, labelW, theme.ForegroundMuted(), kFontDip);
+        DrawLine (text, value, left + labelW, top, width - labelW, theme.Foreground(), kFontDip);
+        top += line;
+    }
 }
 
 
@@ -479,8 +521,7 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //
 //  CassoLinkJobPanel::PaintLink
 //
-//  The image's path in the link color, underlined under the pointer; a click
-//  on it selects the image in its folder.
+//  The image's path in the link color, underlined under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -513,117 +554,6 @@ void CassoLinkJobPanel::PaintLink (IDxuiPainter & painter, IDxuiTextRenderer & t
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkJobPanel::GetCursorForPoint
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LPCWSTR CassoLinkJobPanel::GetCursorForPoint (POINT clientPx) const
-{
-    return PtInRect (&m_linkPx, clientPx) ? IDC_HAND : DxuiPanel::GetCursorForPoint (clientPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkJobPanel::PaintMap
-//
-//  A cell a track, in Full Send's colors; a track with weak bits has a
-//  stripe across its foot. Returns the bottom.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float CassoLinkJobPanel::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const CassoLinkJobView & view, float left, float top, float width) const
-{
-    float                                                     gap     = m_scaler.ToPxf (kMapGapDip);
-    float                                                     cellW   = (width - gap * (float) (CassoLinkJobView::kTracks - 1)) / (float) CassoLinkJobView::kTracks;
-    float                                                     cellH   = m_scaler.ToPxf (kMapCellDip);
-    float                                                     foot    = std::max (2.0f, std::floor (cellH / 4.0f));
-    float                                                     room    = cellH * (kMagnifyMax - 1.0f);
-    HRESULT                                                   hr      = S_OK;
-    std::array<DxuiMagnifiedItem, CassoLinkJobView::kTracks>  items   = {};
-    std::array<DxuiMagnifiedSpan, CassoLinkJobView::kTracks>  spans   = {};
-    DxuiMagnifiedRow::Options                                 options;
-
-
-
-    top     += room;
-    m_mapPx  = RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + cellH) };
-
-    for (int track = 0; track < CassoLinkJobView::kTracks; track++)
-    {
-        items[(size_t) track].left     = left + (cellW + gap) * (float) track;
-        items[(size_t) track].width    = cellW;
-        items[(size_t) track].maxScale = kMagnifyMax;
-    }
-
-    options.reach  = (cellW + gap) * kMagnifyReachTracks;
-    options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
-
-    DxuiMagnifiedRow::Lay (items, m_pointerX, m_magnifier.GetStrength ((int64_t) GetTickCount64()), options, spans);
-
-    //  A cell grows up from the map's foot.
-    for (int track = 0; track < CassoLinkJobView::kTracks; track++)
-    {
-        const DxuiMagnifiedSpan  & span    = spans[(size_t) track];
-        float                      height  = cellH * span.scale;
-        float                      cellTop = top + cellH - height;
-
-        painter.FillRect (span.left, cellTop, span.width, height, FullSendPanel::GetColor (view.tracks[(size_t) track], theme));
-
-        if (std::find (view.weakTracks.begin(), view.weakTracks.end(), track) != view.weakTracks.end())
-        {
-            painter.FillRect (span.left, top + cellH - foot, span.width, foot, kWeakArgb);
-        }
-    }
-
-    top += cellH + m_scaler.ToPxf (4.0f);
-
-    DrawLine (text, L"Track 0", left, top, width, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
-    hr = text.DrawString (L"34", left, top, width, m_scaler.ToPxf (kLineDip), theme.ForegroundMuted(), m_scaler.ToPxf (kFontDip), FullSendPanel::s_kpszFont,
-                          DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    return top + m_scaler.ToPxf (kLineDip) + m_scaler.ToPxf (kSectionGapDip);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkJobPanel::PaintSummary
-//
-//  A row a finding: its label, then its value. Returns the bottom.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float CassoLinkJobPanel::PaintSummary (IDxuiTextRenderer & text, const IDxuiTheme & theme, const CassoLinkJobView & view, float left, float top, float width) const
-{
-    float  labelW = std::min (m_scaler.ToPxf (kLabelWidthDip), width / 2.0f);
-    float  line   = m_scaler.ToPxf (kLineDip);
-
-
-
-    for (const auto & [label, value] : view.summary)
-    {
-        DrawLine (text, label, left, top, labelW, theme.ForegroundMuted(), kFontDip, DxuiFontWeight::Normal);
-        DrawLine (text, value, left + labelW, top, width - labelW, theme.Foreground(), kFontDip, DxuiFontWeight::Normal);
-        top += line;
-    }
-
-    return top;
 }
 
 
@@ -670,22 +600,47 @@ void CassoLinkJobDialog::Select (const std::string & link)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkJobDialog::RunOnSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobDialog::RunOnSelected (const LinkFn & action)
+{
+    const CassoLinkJobView  * view = m_panel->GetSelected();
+
+
+
+    if (view != nullptr && action)
+    {
+        action (view->link);
+    }
+
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkJobDialog::OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkJobDialog::OnCreate()
 {
-    m_panel = CreateDialogContent<CassoLinkJobPanel>();
-    m_panel->Init();
-    m_panel->SetOnSelect ([this] (const std::string & link) { Select (link); });
-    m_panel->SetOnOpenFile ([this] (const std::wstring & imagePath)
+    m_tooltip.SetPopupHost (GetPopupHost());
+    m_tooltip.SetFollowPointer (true);
+
+    if (m_theme != nullptr)
     {
-        if (m_actions.showInFolder)
-        {
-            m_actions.showInFolder (imagePath);
-        }
-    });
+        m_tooltip.SetTheme (*m_theme);
+    }
+
+    m_panel = CreateDialogContent<CassoLinkJobPanel>();
+    m_panel->Init (&m_tooltip);
+    m_panel->SetOnSelect ([this] (const std::string & link) { Select (link); });
     m_panel->SetOnClose ([this] (const std::string & link)
     {
         if (m_actions.closeTab)
@@ -695,21 +650,24 @@ void CassoLinkJobDialog::OnCreate()
 
         Refresh();
     });
+    m_panel->SetOnOpenFile ([this] (const std::wstring & imagePath)
+    {
+        if (m_actions.showInFolder)
+        {
+            m_actions.showInFolder (imagePath);
+        }
+    });
 
     m_cancelButton = AddDialogButton (L"Cancel job", kCancelId, DxuiButtonRow::Anchor::Left);
+    m_rawButton    = AddDialogButton (L"Capture raw", kRawId);
+    m_againButton  = AddDialogButton (L"Read again", kAgainId);
     m_openButton   = AddDialogButton (L"Open", kOpenId);
 
     AddDialogButton (L"Close", IDCANCEL);
 
-    m_cancelButton->SetOnClick ([this]()
-    {
-        const CassoLinkJobView  * view = m_panel->GetSelected();
-
-        if (view != nullptr && m_actions.cancel)
-        {
-            m_actions.cancel (view->link);
-        }
-    });
+    m_cancelButton->SetOnClick ([this]() { RunOnSelected (m_actions.cancel); });
+    m_rawButton->SetOnClick ([this]() { RunOnSelected (m_actions.captureRaw); });
+    m_againButton->SetOnClick ([this]() { RunOnSelected (m_actions.readAgain); });
     m_openButton->SetOnClick ([this]()
     {
         const CassoLinkJobView  * view = m_panel->GetSelected();
@@ -720,7 +678,7 @@ void CassoLinkJobDialog::OnCreate()
         }
     });
 
-    SetDialogTickIntervalMs (kTickMs);
+    SetDialogTickIntervalMs (kTipTickMs);
     Refresh();
 }
 
@@ -732,14 +690,19 @@ void CassoLinkJobDialog::OnCreate()
 //
 //  CassoLinkJobDialog::OnDialogTick
 //
+//  The window is drawn each frame while the map grows or shrinks, and the
+//  jobs are read again every kTickMs.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkJobDialog::OnDialogTick()
 {
     int64_t  now    = (int64_t) GetTickCount64();
-    UINT     tickMs = m_panel->IsMagnifying (now) ? kFrameMs : kTickMs;
+    UINT     tickMs = m_panel->IsMagnifying (now) ? kFrameMs : kTipTickMs;
 
 
+
+    m_tooltip.Tick (now);
 
     if (tickMs != m_tickMs)
     {
@@ -752,7 +715,7 @@ void CassoLinkJobDialog::OnDialogTick()
         m_refreshedMs = now;
         Refresh();
     }
-    else
+    else if (tickMs == kFrameMs)
     {
         Invalidate();
     }
@@ -766,21 +729,27 @@ void CassoLinkJobDialog::OnDialogTick()
 //
 //  CassoLinkJobDialog::Refresh
 //
-//  The window closes once no tab is left.
+//  The window closes once no tab is left. Capture raw and Read again are
+//  visible only while they are offered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkJobDialog::Refresh()
 {
-    std::vector<CassoLinkJobView>  views   = m_actions.views ? m_actions.views() : std::vector<CassoLinkJobView>();
-    const CassoLinkJobView       * shown   = nullptr;
-    bool                           isDone  = false;
+    std::vector<CassoLinkJobView>  views  = m_actions.views ? m_actions.views() : std::vector<CassoLinkJobView>();
+    const CassoLinkJobView       * shown  = nullptr;
+    bool                           isDone = false;
+    bool                           offer  = false;
 
 
 
     if (views.empty())
     {
-        PostMessageW (GetHwnd(), WM_CLOSE, 0, 0);
+        if (IsWindowVisible (GetHwnd()))
+        {
+            PostMessageW (GetHwnd(), WM_CLOSE, 0, 0);
+        }
+
         return;
     }
 
@@ -788,8 +757,11 @@ void CassoLinkJobDialog::Refresh()
 
     shown  = m_panel->GetSelected();
     isDone = shown != nullptr && shown->state == CassoLinkJobView::State::Done && !shown->imagePath.empty();
+    offer  = shown != nullptr && shown->hasOffer;
 
     m_cancelButton->SetEnabled (shown != nullptr && shown->IsRunning());
+    m_rawButton->SetVisible (offer);
+    m_againButton->SetVisible (offer);
     m_openButton->SetEnabled (isDone);
 
     Invalidate();
@@ -821,7 +793,7 @@ std::unique_ptr<CassoLinkJobDialog> CassoLinkJobDialog::Open (HWND owner, const 
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kWidthDip, kHeightDip };
     params.minSizeDip               = { kWidthDip, kHeightDip };
-    params.resizable                = false;
+    params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
     params.placement                = DxuiWindowPlacement::CenteredOnOwner;

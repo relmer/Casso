@@ -67,6 +67,9 @@ public:
     static bool     IsAutomaticRaw (const std::vector<Byte> & sectors, const std::vector<std::pair<int, int>> & unreadable, const FullSendProtectionChoices & choices);
 
     HRESULT  ReadWholeDisk      (LinkOperation & operation);
+    void     BeginStatus        (LinkOperation & operation, bool isCapture);
+    void     NoteTrack          (LinkOperation & operation, int track, size_t newUnreadable, size_t newMarks);
+    void     EndStatus          (LinkOperation & operation, const char * manifestStatus, size_t bytes);
     HRESULT  ChooseAutomatic    (LinkOperation & operation, const std::vector<Byte> & sectors, DiskFormat & outFormat, std::vector<CassoLinkHost::TrackMeasure> & outMeasures, int & outBitsPerTurn, bool & outRaw);
     HRESULT  CaptureWholeDisk   (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);

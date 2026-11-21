@@ -390,6 +390,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
     operation->verifyReads     = forceVerify || m_verifyReads;
     operation->autoVerify      = m_autoVerify;
     operation->automatic       = automatic;
+    operation->status          = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
 }
@@ -411,6 +412,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::CaptureDisk (int drive, const s
 
 
     operation->imagePath = imagePath;
+    operation->status    = std::make_shared<FullSendStatus> (CassoLinkFullSend::GetSeconds, CassoLinkFullSend::GetClockTime);
 
     return Queue (LinkOperationKind::CaptureDisk, drive, FilePath(), operation);
 }

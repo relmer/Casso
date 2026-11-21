@@ -1695,6 +1695,8 @@ std::wstring CassoLinkManager::DescribeJobs()
         text += (text.empty() ? L"" : L"     ") + FullSendPanel::DescribeSummary (view.snapshot, view.connection);
     }
 
+    text = text.empty() ? m_context.linkJobs.DescribeJobs() : text;
+
     return text.empty() ? CassoLinkConnectionText::DescribeJobs (m_context.app.links->GetPendingJobs()) : text;
 }
 

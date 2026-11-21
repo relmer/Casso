@@ -187,7 +187,13 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
             found->second.isUnseen = false;
         }
     };
-    actions.closeTab     = [this] (const std::string & closed) { m_jobs.erase (closed); };
+    actions.closeTab     = [this] (const std::string & closed)
+    {
+        m_jobs.erase (closed);
+        m_offers.erase (closed);
+    };
+    actions.captureRaw   = [this] (const std::string & offered) { TakeOffer (offered, true); };
+    actions.readAgain    = [this] (const std::string & offered) { TakeOffer (offered, false); };
     actions.cancel       = [this] (const std::string & canceled)
     {
         CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (canceled) : nullptr;
@@ -218,7 +224,6 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
 std::vector<CassoLinkJobView> CassoLinkJobManager::BuildViews()
 {
     std::vector<CassoLinkJobView>  views;
-    ULONGLONG                      now = GetTickCount64();
 
 
 
@@ -226,19 +231,9 @@ std::vector<CassoLinkJobView> CassoLinkJobManager::BuildViews()
 
     for (auto & [link, job] : m_jobs)
     {
-        CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (link) : nullptr;
-        std::wstring        model   = (session != nullptr) ? session->GetModelName() : std::wstring();
-        ULONGLONG           from    = (job.startedMs != 0) ? job.startedMs : now;
-        ULONGLONG           to      = (job.endedMs != 0) ? job.endedMs : now;
-        CassoLinkJobView    view    = CassoLinkJobView::Build (*job.operation, link, model, (double) (to - from) / 1000.0);
-        LinkTransport       kind    = LinkTransport::Serial;
+        CassoLinkJobView  view = MakeView (link, *job.operation);
 
-        for (const CassoLinkSettings & settings : m_context.app.links->GetLinks())
-        {
-            kind = (settings.name == link) ? settings.transport : kind;
-        }
-
-        view.connection = CassoLinkJobView::DescribeConnection (model, kind, (session != nullptr) ? session->GetPort() : std::wstring());
+        view.hasOffer = m_offers.contains (link);
 
         if (link == m_selected)
         {
@@ -251,6 +246,128 @@ std::vector<CassoLinkJobView> CassoLinkJobManager::BuildViews()
     }
 
     return views;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobManager::MakeView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoLinkJobView CassoLinkJobManager::MakeView (const std::string & link, const LinkOperation & operation) const
+{
+    CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (link) : nullptr;
+    std::wstring        model   = (session != nullptr) ? session->GetModelName() : std::wstring();
+    std::wstring        port    = (session != nullptr) ? session->GetPort() : std::wstring();
+    LinkTransport       kind    = LinkTransport::Serial;
+
+
+
+    for (const CassoLinkSettings & settings : (m_context.app.links != nullptr) ? m_context.app.links->GetLinks() : std::vector<CassoLinkSettings>())
+    {
+        kind = (settings.name == link) ? settings.transport : kind;
+    }
+
+    return CassoLinkJobView::Build (operation, link, model, kind, port);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobManager::SetOffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobManager::SetOffer (const std::string & link, std::function<void()> captureRaw, std::function<void()> readAgain)
+{
+    m_offers[link] = Offer { std::move (captureRaw), std::move (readAgain) };
+
+    Update();
+    Show (link, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobManager::TakeOffer
+//
+//  The offer is cleared before its action runs, which can start a new job
+//  on the same connection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobManager::TakeOffer (const std::string & link, bool captureRaw)
+{
+    auto                   found  = m_offers.find (link);
+    std::function<void()>  action;
+
+
+
+    if (found == m_offers.end())
+    {
+        return;
+    }
+
+    action = captureRaw ? found->second.captureRaw : found->second.readAgain;
+    m_offers.erase (found);
+
+    if (action)
+    {
+        action();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobManager::DescribeJobs
+//
+//  The status bar's line for each running disk job: its Apple and how it's
+//  connected, what it does, how far along it is, and its step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkJobManager::DescribeJobs() const
+{
+    std::wstring  text;
+
+
+
+    if (m_context.app.links == nullptr)
+    {
+        return text;
+    }
+
+    for (const auto & [link, operation] : m_context.app.links->GetPendingJobsByLink())
+    {
+        CassoLinkJobView  view   = MakeView (link, *operation);
+        std::wstring      step   = TextEncoding::NarrowToWide (operation->GetDetail());
+        std::wstring      line;
+
+        if (!CassoLinkJobView::IsDiskJob (operation->kind))
+        {
+            continue;
+        }
+
+        line  = std::format (L"{}: {}, {}%", view.tabLabel, view.heading, std::clamp (operation->progress.load(), 0, 100));
+        line += step.empty() ? std::wstring() : L", " + step;
+        text += (text.empty() ? L"" : L"     ") + line;
+    }
+
+    return text;
 }
 
 
