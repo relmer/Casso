@@ -583,9 +583,13 @@ DxuiListViewTypes::ScrollLayout DxuiListRows::MeasureForPaint (IDxuiTextRenderer
 
 
 
+    //  The columns are measured by GDI's advances, as the rows draw with them.
     if (m_list.m_theme != nullptr && !m_list.m_columns.empty())
     {
+        bool  wasGdi = text.SetGdiClassicText (true);
+
         m_list.m_columnSizing.EnsureMeasured (text);
+        text.SetGdiClassicText (wasGdi);
     }
 
     layout = m_list.m_scrollbars.ComputeScrollLayout();

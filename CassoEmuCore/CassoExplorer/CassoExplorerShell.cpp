@@ -938,7 +938,7 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
 {
     browser.GetTreeModel().SetKnownFolders (m_knownFolders);
     browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
-    browser.GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
+    browser.GetHostFolders().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
     browser.SetPhysicalCards (&m_cards);
 
     browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });

@@ -370,7 +370,7 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
     //  the window until the network times out: one that is not a disk image
     //  opens as a folder, and its list reports whatever its read finds.
     attributes = !PathResolver::IsNetworkPath (full) ? GetFileAttributesW (full.c_str())
-               : TreeModel::IsSupportedImage (full)  ? FILE_ATTRIBUTE_NORMAL
+               : HostFolderReader::IsSupportedImage (full)  ? FILE_ATTRIBUTE_NORMAL
                :                                       FILE_ATTRIBUTE_DIRECTORY;
 
     if (attributes == INVALID_FILE_ATTRIBUTES)
@@ -382,11 +382,11 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
     {
         m_context.browser.OpenInNewTab (Location::MakeHostFolder (full));
     }
-    else if (TreeModel::IsSupportedImage (full))
+    else if (HostFolderReader::IsSupportedImage (full))
     {
         m_context.browser.OpenInNewTab (Location::MakeDiskImage (full));
     }
-    else if (m_context.browser.GetTreeModel().IsArchive (full))
+    else if (m_context.browser.GetHostFolders().IsArchive (full))
     {
         m_context.browser.OpenInNewTab (Location::MakeShellFolder (full, std::filesystem::path (full).filename().wstring()));
     }

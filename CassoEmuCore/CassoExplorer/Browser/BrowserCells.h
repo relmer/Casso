@@ -75,16 +75,6 @@ public:
     //  then two spaces and the files' total size when any file is selected.
     static std::wstring  FormatSelected  (size_t selected, uint64_t bytes, bool anyFile);
 
-    //  An image's refusal as the list shows it: the file's name, then why.
-    static std::wstring  FormatImageError (const std::wstring & imagePath, const std::string & message);
-
-    //  The list's and the preview's text for a linked Apple's drive whose
-    //  listing failed: the operation's message when there is one.
-    static std::wstring  FormatLinkError (HRESULT result, const std::string & message);
-
-    //  A message with each full path in it cut to the name at its end.
-    static std::wstring  ShortenPaths     (const std::wstring & message);
-
     static std::wstring  FormatSize      (uint64_t bytes);
 
     //  A Content view line: the property's name, drawn muted, then its value.

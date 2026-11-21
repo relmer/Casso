@@ -949,7 +949,7 @@ bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Lo
         end    = path.find (L'\\', end + 1);
         prefix = path.substr (0, end);
 
-        if (TreeModel::IsSupportedImage (prefix) && fs.Exists (prefix))
+        if (HostFolderReader::IsSupportedImage (prefix) && fs.Exists (prefix))
         {
             found = true;
 
@@ -1063,7 +1063,7 @@ void BrowserModel::GetFolderChildren (IFileSystem & fs, const Location & locatio
         {
             outChildren.push_back (AddressSegment { entry.name, Location::MakeHostFolder (folder + L"\\" + entry.name) });
         }
-        else if (SUCCEEDED (hr) && TreeModel::IsSupportedImage (entry.name))
+        else if (SUCCEEDED (hr) && HostFolderReader::IsSupportedImage (entry.name))
         {
             images.push_back (AddressSegment { entry.name, Location::MakeDiskImage (folder + L"\\" + entry.name) });
         }

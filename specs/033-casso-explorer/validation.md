@@ -1351,3 +1351,29 @@ whether or not a disk is in it, since the drive isn't checked before then. The
 Apple's line read "Bad 0" while the window counted 1 disk with bad sectors.
 
 The walk on the owner's //c remains for both tasks.
+
+
+## A CFFA card on screen (T677, T772, 2026-11-20)
+
+Walked on the 2 GB CF card in a USB reader, in a copy of Casso Explorer started
+with `CASSO_PROFILE_DIR` set to a profile with no links, so no serial port was
+opened. Input was posted to the window and checked by capture. Nothing was
+written to the card.
+
+| Step | Result |
+|---|---|
+| Casso Explorer started with the card in the reader | This PC lists "Storage card (H:, SCM CF USB3.0 CF SD, 1.9 GB)" and hides H:, after the fix below |
+| The card opened | Casso Explorer's Administrator access prompt, then Windows' UAC prompt for Casso Storage Card Broker |
+| The card | four 32 MB CFFA partitions: NEWDISK, CARD2, CARD3 and CARD4 |
+| Partition 1 | the volume, 31.9 MB free, with the folder WALK |
+| WALK | the folder DEEP and the 21-byte text file HELLO |
+| Inspect disk image on partition 1 | "Block inspector - Partition 1: NEWDISK on SCM CF USB3.0 CF SD (1.9 GB)": block 0 is the ProDOS boot loader, with the volume bitmap, volume directory and WALK listed; 65,536 blocks, 25 used |
+
+A card already in the reader when Casso Explorer started wasn't listed: since
+the cards stopped being read every two seconds, they were read only when a
+drive letter changed or Windows reported a device change. They are now read
+once at the start.
+
+The card's node in the tree had no expander after the card was opened: a tree
+node read with nothing under it stayed that way when it was refreshed with
+children to read. Now the node opens to the four partitions.
