@@ -1634,7 +1634,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
     SIZE                                          cellPx    = { halfW * 2, stripH };
     IDxuiTextRenderer                           * text      = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
     float                                         fontPx    = fontDip * (float) m_shell.m_scaler.GetDpi() / (float) s_kBaseDpi;
-    bool                                          hoverOnly = onStrip || m_shell.IsDeskSlideActive();
+    bool                                          hoverOnly = !onStrip && !m_shell.IsDeskSlideActive();
 
 
 
@@ -1779,7 +1779,8 @@ void ShellDeskScene::SyncSceneDriveLabels()
         SetSceneCaptionNames (comp, fullNames);
     }
 
-    // In the dock, a drive's names show only while the pointer is on it.
+    // On the desk, a drive's names show only while the pointer is on it.
+    // In the dock they show all the time.
     for (int i = 0; hoverOnly && i < (int) m_sceneDriveLabel.size(); i++)
     {
         if (m_sceneLabelHover != i)
@@ -1787,6 +1788,15 @@ void ShellDeskScene::SyncSceneDriveLabels()
             fullNames[(size_t) i].clear();
             fullNames[(size_t) (kSceneInfoIconCell + i)].clear();
             fullNames[(size_t) (s_kSceneCaptionCell + i)].clear();
+        }
+    }
+
+    for (int i = 0; hoverOnly && i < kMaxDeskExtras; i++)
+    {
+        if (m_sceneLabelHover != s_kSceneExtraNameCell + i)
+        {
+            fullNames[(size_t) (s_kSceneExtraNameCell + i)].clear();
+            fullNames[(size_t) (s_kSceneExtraCaptionCell + i)].clear();
         }
     }
 
@@ -1941,6 +1951,14 @@ bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
             {
                 hovered = i;
                 break;
+            }
+        }
+
+        for (int i = 0; hovered < 0 && i < comp.extraCount && i < kMaxDeskExtras; i++)
+        {
+            if (PtInRect (&comp.extraRectPx[i], pt))
+            {
+                hovered = s_kSceneExtraNameCell + i;
             }
         }
 
