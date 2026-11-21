@@ -215,6 +215,8 @@ private:
 
     // Atomic flags (UI writes, CPU reads)
     atomic<ColorMode>             m_colorMode{ColorMode::Color};
+
+    // The theme's green monitor color; 0 is pure green.
     atomic<uint32_t>              m_greenMonitor{0};
 
     // Joined "<monitorConfigName>/<mode>" keys, indexed by color mode. All
