@@ -169,6 +169,49 @@ public:
     }
 
 
+    //  Filter entries with notes make the bar taller for the note line, and
+    //  the arrow keys on the filter list pass over a heading.
+    TEST_METHOD (Picker_FilterList_HasNotes_AndSkipsHeadings)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        PickerOutcome  outcome;
+        DxuiKeyEvent   down;
+        DxuiKeyEvent   enter;
+
+
+
+        request.form    = PickerForm::ModalSave;
+        request.filters = { { L"DSK", L"*.dsk", L"Common", L"DOS order" },
+                            { L"PO",  L"*.po",  L"",       L"ProDOS order" },
+                            { L"NIB", L"*.nib", L"Esoterica", L"Nibbles" } };
+
+        rig.app.picker  = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+
+        Assert::AreEqual (ExplorerPickerBar::kBandDip + ExplorerPickerBar::kNoteDip, rig.parts->pickerBar.GetBandDip());
+
+        down.kind  = DxuiKeyEventKind::Down;
+        down.vk    = VK_DOWN;
+        enter.kind = DxuiKeyEventKind::Down;
+        enter.vk   = VK_RETURN;
+
+        //  Down opens the list, Down moves to the next entry, Enter chooses it.
+        Assert::AreEqual (3, rig.parts->pickerBar.GetButtonCount(), L"the filter list, Save and Cancel");
+
+        rig.parts->pickerBar.SetButtonFocus (0);
+
+        for (int pass = 1; pass <= 2; pass++)
+        {
+            rig.parts->pickerBar.HandleButtonKey (0, down);
+            rig.parts->pickerBar.HandleButtonKey (0, down);
+            rig.parts->pickerBar.HandleButtonKey (0, enter);
+            Assert::AreEqual ((size_t) pass, rig.parts->pickerMode.GetActiveFilter(), L"the heading before the last entry is passed over");
+        }
+    }
+
+
     TEST_METHOD (Picker_OpensInSearch_AndTabReachesTheBar)
     {
         Rig                     rig;

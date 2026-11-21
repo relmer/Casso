@@ -21,6 +21,12 @@ struct FileDialogFilter
 {
     std::wstring  name;      // "Disk images"
     std::wstring  pattern;   // "*.dsk;*.woz"
+
+    //  Casso's picker only. A heading starts a group in the type list, above
+    //  this entry; a note is listed under the entry and shown under the list
+    //  while the entry is selected.
+    std::wstring  heading;
+    std::wstring  note;
 };
 
 
