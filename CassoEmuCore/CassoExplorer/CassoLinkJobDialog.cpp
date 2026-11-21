@@ -487,12 +487,18 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float                      line   = m_scaler.ToPxf (kLineDip);
     float                      labelW = std::min (m_scaler.ToPxf (kLabelWidthDip), width / 2.0f);
     const CassoLinkJobView   * view   = GetSelected();
+    float                      edge   = std::max (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
+    float                      pageT  = (float) bounds.top + m_scaler.ToPxf (kTabsDip);
+    uint32_t                   page   = DxuiColor::Mix (theme.Background(), theme.Foreground(), kPageShade);
 
 
 
-    //  The selected tab is the elevated color, so it stands out from the
-    //  window as a tab does.
-    m_tabs.SetSelectedFill (theme.BackgroundElevated());
+    //  The selected tab and the page under it are one lighter color with a
+    //  border, so the tab reads as the page's top, as in a tab control.
+    painter.FillRect ((float) bounds.left, pageT, (float) (bounds.right - bounds.left), (float) bounds.bottom - pageT, page);
+    painter.OutlineRect ((float) bounds.left, pageT, (float) (bounds.right - bounds.left), (float) bounds.bottom - pageT, edge, theme.Divider());
+
+    m_tabs.SetSelectedFill (page);
     m_tabs.SetStripFill (theme.Background());
 
     DxuiPanel::Paint (painter, text, theme);

@@ -89,6 +89,7 @@ public:
     static constexpr float  kLineDip       = 22.0f;
     static constexpr float  kLabelWidthDip = 220.0f;
     static constexpr float  kSectionGapDip = 12.0f;
+    static constexpr float  kPageShade     = 0.07f;   // the page and its tab, mixed this far toward the text color
 
     void  Init          (DxuiTooltip * tooltip);
     void  SetViews      (std::vector<CassoLinkJobView> views, const std::string & selected);
