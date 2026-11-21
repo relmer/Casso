@@ -299,6 +299,27 @@ public:
     }
 
 
+    //  A disk image the shell lists previews as its catalog, as it does in its
+    //  folder.
+    TEST_METHOD (ShellPreview_ADiskImagePreviewsAsItsCatalog)
+    {
+        Host                              host;
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  image;
+
+        image.name   = L"prodos.po";
+        image.path   = L"C:\\Disks\\prodos.po";
+        image.isFile = true;
+        shell.shellItems = { image };
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (L"::{test}", L"Test"));
+        host.browser.SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
+
+        Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
+    }
+
+
     //  A file of a type Windows previews gets Windows' preview; an assembler's
     //  source and an exported Apple file are Casso Explorer's own.
     TEST_METHOD (ShellPreview_ForTypesWindowsPreviews)
@@ -1248,7 +1269,7 @@ public:
         Host          host;
         std::wstring  folder;
 
-        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\bad.dsk", "not a disk"));
+        host.SeedBytes (std::vector<Byte> { 'n', 'o', 't', ' ', 'a', ' ', 'd', 'i', 's', 'k' }, L"C:\\Disks\\bad.dsk");
         folder = host.OpenDisksFolder();
 
         host.browser.SelectTreeNode (host.FindChildId (folder, L"bad.dsk"));
@@ -1256,40 +1277,6 @@ public:
         Assert::IsTrue  (host.browser.GetRows().empty());
         Assert::AreEqual (std::wstring (L"bad.dsk is not a valid .dsk image.\nFile size is 10 bytes but should be 143,360 bytes."),
                           host.browser.GetListError(), L"The file by its name, and why; the path is in the address bar");
-    }
-
-
-    TEST_METHOD (ImageError_NamesTheFileNotItsPath)
-    {
-        Assert::AreEqual (std::wstring (L"a.po is empty."),
-                          BrowserCells::FormatImageError (L"C:\\Disks\\a.po", "C:\\Disks\\a.po: is empty\n"));
-        Assert::AreEqual (std::wstring (L"Something else."),
-                          BrowserCells::FormatImageError (L"C:\\Disks\\a.po", "Something else"), L"A message of another form is kept");
-    }
-
-
-    TEST_METHOD (LinkError_DiffersForAnUnrecognizedDiskAndAnUnreadableOne)
-    {
-        Assert::AreEqual (std::wstring (L"The disk in this drive can't be previewed because it doesn't have a recognized file system."),
-                          BrowserCells::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), std::string()));
-        Assert::AreEqual (std::wstring (L"This drive could not be read."),
-                          BrowserCells::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_CRC), std::string()));
-        Assert::AreEqual (std::wstring (L"The connection is disconnected."),
-                          BrowserCells::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_NOT_CONNECTED), "The connection is disconnected."), L"A message is shown as it is");
-    }
-
-
-    TEST_METHOD (ShortenPaths_CutsEachPathToItsName)
-    {
-        Assert::AreEqual (std::wstring (L"broken.dsk: is 26 bytes but should be 143,360 bytes"),
-                          BrowserCells::ShortenPaths (L"C:\\Users\\me\\Temp\\t077\\ui\\broken.dsk: is 26 bytes but should be 143,360 bytes"));
-        Assert::AreEqual (std::wstring (L"a.po: HELLO: wrote out.bin."),
-                          BrowserCells::ShortenPaths (L"C:\\My Disks\\a.po: HELLO: wrote D:\\Out Dir\\out.bin."),
-                          L"Paths with spaces, mid-sentence, and before a period");
-        Assert::AreEqual (std::wstring (L"one\nDisks\ntwo.dsk"),
-                          BrowserCells::ShortenPaths (L"one\nC:\\Disks\\\nE:\\x\\two.dsk"), L"A folder keeps its own name");
-        Assert::AreEqual (std::wstring (L"No path at all, just a colon: see."),
-                          BrowserCells::ShortenPaths (L"No path at all, just a colon: see."));
     }
 
 

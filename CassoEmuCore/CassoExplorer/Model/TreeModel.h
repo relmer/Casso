@@ -2,12 +2,11 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Model/FolderOptions.h"
+#include "CassoExplorer/Model/HostFolderReader.h"
 #include "CassoExplorer/Model/Location.h"
+#include "CassoExplorer/Model/TreeImageNodes.h"
 #include "Config/IFileSystem.h"
 #include "Seams/IShellItemVerbs.h"
-
-class FilesystemChoices;
 
 
 
@@ -162,10 +161,7 @@ class TreeModel
 public:
     using DirectoryProbe = std::function<bool (const std::wstring & path)>;
 
-    //  A folder's localized name from its desktop.ini, or empty for none.
-    using LocalizedNameLookup = std::function<std::wstring (const std::wstring & path)>;
-
-    explicit TreeModel (IFileSystem & fs);
+    TreeModel (IFileSystem & fs, HostFolderReader & hostFolders);
 
     void                         SetKnownFolders        (std::vector<std::wstring> folders);
     bool                         IsKnownFolder          (const std::wstring & path) const;
@@ -175,15 +171,6 @@ public:
     void                         SetStorageCards        (std::vector<StorageCardTreeEntry> cards);
     void                         SetDirectoryProbe      (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool                         IsDirectory            (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
-    void                         SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
-    const LocalizedNameLookup  & GetLocalizedNameLookup () const { return m_localizedName; }
-
-    //  Which hidden folders and images are listed. A change applies to the
-    //  folders listed after it; the caller invalidates what is cached.
-    void  SetFolderOptions  (const FolderOptions & options) { m_folderOptions = options; }
-
-    //  The file systems chosen for images detection doesn't recognize.
-    void  SetFilesystemChoices (const FilesystemChoices * choices) { m_filesystemChoices = choices; }
 
 
     //  The shell's navigation roots and pinned folders, read again on each
@@ -220,10 +207,6 @@ public:
     void  SetHostFetch       (HostFetch fetch)         { m_hostFetch = std::move (fetch); }
     void  RefreshShellRoots  ();
     bool  IsPinnedFolder     (const std::wstring & path) const;
-
-    //  Whether a file opens as a folder, as File Explorer opens a zip. The
-    //  shell is asked once for each extension; a disk image is Casso's own.
-    bool  IsArchive          (const std::wstring & path) const;
 
     //  The roots the navigation pane's own menu shows or hides, as
     //  Explorer's does; all folders adds the Recycle Bin. A root with no
@@ -289,27 +272,9 @@ public:
     //  the cache answers the second expand.
     int   GetFetchCount () const { return m_fetchCount; }
 
-    static bool  IsSupportedImage (const std::wstring & fileName);
-
-    //  A partition's label and its volume's, once the image it is in is
-    //  listed, or empty.
-    std::wstring  GetPartitionLabel (const std::wstring & path) const { auto found = m_partitions.find (path); return found == m_partitions.end() ? std::wstring() : found->second.label; }
-    std::wstring  GetVolumeLabel    (const std::wstring & path) const { auto found = m_partitions.find (path); return found == m_partitions.end() ? std::wstring() : found->second.volumeLabel; }
-
-    //  What follows an image's file name when it loads but has no file system
-    //  this browser reads.
-    static constexpr const wchar_t *  kNoFilesystemText = L"can't be previewed because it doesn't have a recognized file system.";
-
-    //  What follows a partition's label when the partition ends past the end
-    //  of the image.
-    static constexpr const wchar_t *  kDamagedPartitionText = L"is damaged: it ends past the end of the image.";
-
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
     //  for the second and later entries of the same name, which one it is.
-    //  An image's error, the detail on a line after what is wrong.
-    static std::wstring  BreakAfterFirstSentence (std::wstring text);
-
     //  The known folders' labels in the tree: each folder's name, or for a name
     //  two folders share, that name after as many of the folders above it as
     //  make the two differ, such as Casso\Disks and ADTPro-2.1.0\disks.
@@ -327,6 +292,10 @@ public:
     //  Reads an image node's file, which a folder's listing leaves unread,
     //  and sets the node's error and whether it expands.
     HRESULT              ReadImageNode   (TreeNode & inOutNode);
+
+    TreeImageNodes &     GetImageNodes   () { return m_images; }
+
+    static std::wstring  GetLeaf         (const std::wstring & path);
 
     static constexpr const wchar_t *  kCassoRootId  = L"casso:";
     static constexpr const wchar_t *  kThisPcRootId = L"pc:";
@@ -415,30 +384,7 @@ private:
     bool             IsHiddenDrive      (const std::wstring & path) const;
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
-    HRESULT          ListImage          (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
-    HRESULT          ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes);
 
-    static void  ListDirectories (bool underCasso, const std::wstring & path, const std::vector<Byte> & sectors,
-                                  const std::string & inner, std::vector<TreeNode> & outNodes);
-
-    //  A node for each partition of an image file. The list is empty for a
-    //  file with no partitions.
-    void  ListPartitions (bool underCasso, const std::wstring & path, const std::vector<Byte> & fileBytes,
-                          const std::string & name, bool isInsideVolume, std::vector<TreeNode> & outNodes);
-
-    //  An image's bytes, and the file name whose extension indicates their
-    //  format. `path` is a host file, or a container path to an image inside
-    //  another file.
-    HRESULT  ReadImage (const std::wstring & path, std::vector<Byte> & outBytes, std::string & outName);
-
-    //  Reads and parses one image, producing either its directory children
-    //  or the error on the node.
-    HRESULT          DescribeImage        (bool underCasso, const std::wstring & path, TreeNode & inOutNode);
-    HRESULT          ListPartitionVolumes (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
-    static TreeNode  MakeVolumeNode       (bool underCasso, const std::wstring & path, const std::wstring & label, bool canExpand);
-
-    static std::wstring  JoinPath (const std::wstring & folder, const std::wstring & name);
-    static std::wstring  GetLeaf  (const std::wstring & path);
     static bool  TryParseImageOrDirectoryId (const std::wstring & id, bool & outUnderCasso,
                                              std::wstring & outPath, std::string & outInner);
 
@@ -448,22 +394,9 @@ private:
     std::vector<std::wstring>                        m_drives;
     std::vector<StorageCardTreeEntry>                m_storageCards;
     DirectoryProbe                                   m_directoryProbe;
-    mutable std::map<std::wstring, bool>             m_archiveExtensions;
-    LocalizedNameLookup                              m_localizedName;
-    FolderOptions                                    m_folderOptions;
-    const FilesystemChoices                        * m_filesystemChoices = nullptr;
+    HostFolderReader                               & m_hostFolders;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
-
-    //  Each partition of an image listed so far, by its path.
-    struct PartitionInfo
-    {
-        std::wstring  label;
-        std::wstring  volumeLabel;
-        bool          hasFileSystem = false;
-        bool          isProDos      = false;
-    };
-
-    std::map<std::wstring, PartitionInfo>            m_partitions;
+    TreeImageNodes                                   m_images;
     int                                              m_fetchCount     = 0;
     IShellItemVerbs                                * m_shellVerbs     = nullptr;
     ShellFetch                                       m_shellFetch;

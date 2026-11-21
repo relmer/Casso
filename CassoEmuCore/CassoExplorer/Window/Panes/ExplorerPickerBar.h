@@ -13,11 +13,13 @@ class ExplorerPickerChips;
 //
 //  ExplorerPickerBar
 //
-//  A picker's bar along the bottom of the window: the filter entries as a
-//  list when there are several, grouped under their headings and with the
-//  selected entry's note below, the create command when the request has
-//  one, and the confirm and cancel buttons. In a window that is not a
-//  picker it has no controls and its band has no height.
+//  A picker's bar along the bottom of the window. An open picker has the
+//  filter list when there are several filters, the create command when the
+//  request has one, and the confirm and cancel buttons. A save picker lays
+//  them out as the standard Save As dialog does: a labeled file name row, a
+//  labeled type row, the selected type's note, the Verify box when the
+//  request has one, and the buttons. In a window that is not a picker the
+//  bar has no controls and its band has no height.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

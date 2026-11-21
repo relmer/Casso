@@ -698,18 +698,18 @@ void ExplorerPickerBar::FillFilterList()
 
     for (size_t index = 0; index < filters.size(); index++)
     {
-        const FileDialogFilter *  filter = &filters[index];
+        const FileDialogFilter &  filter = filters[index];
 
-        if (filter != nullptr && !filter->heading.empty())
+        if (!filter.heading.empty())
         {
-            rows.push_back (filter->heading);
+            rows.push_back (filter.heading);
             headings.push_back (true);
             m_filterRows.push_back (-1);
         }
 
         //  Entries with notes are listed by name alone, and the selected
         //  entry's note is shown under the list.
-        rows.push_back (HasFilterNotes() ? filter->name : m_context.pickerMode.GetFilterLabel (index));
+        rows.push_back (HasFilterNotes() ? filter.name : m_context.pickerMode.GetFilterLabel (index));
         headings.push_back (false);
         m_filterRows.push_back ((int) index);
     }

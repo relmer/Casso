@@ -1029,11 +1029,19 @@ ADTPro 2.1's Ethernet client ran on the same AppleWin setup through
 `Wsl.ps1 -Target Adtpro`, with 2 blocks at once and sound off, its server in
 the WSL instance. Speeds count the volume's bytes only.
 
-| Volume | CassoLink, program 105 | CassoLink, program 106 | CassoLink, program 107 | ADTPro 2.1 |
-|---|---|---|---|---|
-| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 91 kbps, 72 s | 50 kbps, 130 s |
-| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 231 kbps, 28.4 s | 105 kbps, 62 s |
-| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 233 kbps, 19.2 minutes | 108 kbps, 41.4 minutes |
+| Volume | CassoLink, program 105 | CassoLink, program 106 | CassoLink, program 107, Block runs | CassoLink, program 107, final | ADTPro 2.1 |
+|---|---|---|---|---|---|
+| 800K, free blocks random (CASSO_BLOCK_RANDOM) | | 91 kbps, 72 s | 91 kbps, 72 s | 167 kbps, 39.1 s | 50 kbps, 130 s |
+| 32 MB, free blocks random | | | | 167 kbps, 26.7 minutes | |
+| 800K, mostly empty | 49 kbps | 91 kbps, 72 s | 231 kbps, 28.4 s | 231 kbps, 28.4 s | 105 kbps, 62 s |
+| 32 MB, mostly empty | | 91 kbps, 49.2 minutes | 233 kbps, 19.2 minutes | 231 kbps, 19.3 minutes | 108 kbps, 41.4 minutes |
+
+The final program 107 sends Ethernet blocks with no CRC: each frame has
+Ethernet's CRC32, and a TCP or UDP checksum covers the PC's end, so the
+block's CRC-16 costs 15% of the speed and checks only the copy inside the
+Apple. A block with no runs is read into the datagram and sent from there,
+with no copy. After a block with runs, the next block is read into the block
+buffer, where the run search reads it. Serial reads are checked by the CRC.
 
 Program 107 sends a block with runs of a byte as Block runs, written whole
 into the datagram, or into the W5100's transmit memory, in one pass that finds
@@ -1343,3 +1351,29 @@ whether or not a disk is in it, since the drive isn't checked before then. The
 Apple's line read "Bad 0" while the window counted 1 disk with bad sectors.
 
 The walk on the owner's //c remains for both tasks.
+
+
+## A CFFA card on screen (T677, T772, 2026-11-20)
+
+Walked on the 2 GB CF card in a USB reader, in a copy of Casso Explorer started
+with `CASSO_PROFILE_DIR` set to a profile with no links, so no serial port was
+opened. Input was posted to the window and checked by capture. Nothing was
+written to the card.
+
+| Step | Result |
+|---|---|
+| Casso Explorer started with the card in the reader | This PC lists "Storage card (H:, SCM CF USB3.0 CF SD, 1.9 GB)" and hides H:, after the fix below |
+| The card opened | Casso Explorer's Administrator access prompt, then Windows' UAC prompt for Casso Storage Card Broker |
+| The card | four 32 MB CFFA partitions: NEWDISK, CARD2, CARD3 and CARD4 |
+| Partition 1 | the volume, 31.9 MB free, with the folder WALK |
+| WALK | the folder DEEP and the 21-byte text file HELLO |
+| Inspect disk image on partition 1 | "Block inspector - Partition 1: NEWDISK on SCM CF USB3.0 CF SD (1.9 GB)": block 0 is the ProDOS boot loader, with the volume bitmap, volume directory and WALK listed; 65,536 blocks, 25 used |
+
+A card already in the reader when Casso Explorer started wasn't listed: since
+the cards stopped being read every two seconds, they were read only when a
+drive letter changed or Windows reported a device change. They are now read
+once at the start.
+
+The card's node in the tree had no expander after the card was opened: a tree
+node read with nothing under it stayed that way when it was refreshed with
+children to read. Now the node opens to the four partitions.

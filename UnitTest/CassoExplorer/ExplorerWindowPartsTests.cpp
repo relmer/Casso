@@ -121,6 +121,21 @@ public:
     }
 
 
+    TEST_METHOD (Open_ListsACardAlreadyInTheReader)
+    {
+        Rig               rig;
+        CountingCardHost  host;
+        PhysicalCards     cards (host);
+
+
+
+        rig.app.cards = &cards;
+        rig.Open();
+
+        Assert::IsTrue (host.volumeQueries > 0, L"a card in the reader when the window opens is listed");
+    }
+
+
     TEST_METHOD (Open_StartsTheFolderWatch)
     {
         Rig  rig;
@@ -130,6 +145,108 @@ public:
         rig.Open();
 
         Assert::IsTrue (rig.parts->folderSync.IsWatching());
+    }
+
+
+
+    TEST_METHOD (TreeReveal_KeepsADirectoryInsideAnImageHighlighted)
+    {
+        Rig             rig;
+        std::wstring    image    = L"C:\\Disks\\prodos.po";
+        std::wstring    folderId = TreeModel::MakeDirectoryId (true, image, "SUBDIR");
+        DxuiTreeView  * tree     = nullptr;
+
+
+
+        rig.Seed ("CassoExplorer/prodos.po", image.c_str());
+        rig.Open();
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+        rig.parts->treePane.ExpandNode (TreeModel::kCassoRootId);
+        rig.parts->treePane.ExpandNode (TreeModel::MakeFolderId (true, L"C:\\Disks"));
+        rig.parts->treePane.ExpandNode (TreeModel::MakeImageId (true, image));
+
+        tree = static_cast<DxuiTreeView *> (rig.parts->treePane.GetControl());
+        Assert::IsTrue (tree->FindRowById (folderId) >= 0, L"the image's directory is in the tree");
+
+        AssertSucceeded (rig.browser.SelectTreeNode (folderId));
+        tree->HighlightRow (tree->FindRowById (folderId));
+        rig.parts->treePane.RevealLocationInTree();
+
+        Assert::AreEqual (folderId, tree->GetHighlightedId(), L"the clicked directory stays highlighted");
+    }
+
+
+
+    TEST_METHOD (FolderOptionChange_KeepsTheTreeWhereItWas)
+    {
+        Rig             rig;
+        std::wstring    subId = TreeModel::MakeFolderId (true, L"C:\\Disks\\Sub");
+        DxuiTreeView  * tree  = nullptr;
+        FolderOptions   options;
+        int             top   = 0;
+
+
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\Sub\\Deeper\\note.txt", "x"));
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.Open();
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+        rig.parts->treePane.ExpandNode (TreeModel::kCassoRootId);
+        rig.parts->treePane.ExpandNode (TreeModel::MakeFolderId (true, L"C:\\Disks"));
+        rig.parts->treePane.ExpandNode (subId);
+
+        tree = static_cast<DxuiTreeView *> (rig.parts->treePane.GetControl());
+        tree->SelectRow (tree->FindRowById (subId));
+        top = tree->GetTopRow();
+
+        options.showHidden = !rig.browser.GetFolderOptions().showHidden;
+        rig.browser.SetFolderOptions (options);
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+
+        Assert::AreEqual (subId, tree->GetHighlightedId(), L"the highlight stays");
+        Assert::IsTrue   (tree->FindNodeById (subId) != nullptr && tree->FindNodeById (subId)->expanded, L"an open folder stays open");
+        Assert::AreEqual (top, tree->GetTopRow(), L"the tree stays scrolled where it was");
+    }
+
+
+
+    TEST_METHOD (TreeSelect_MarksAnImageThatDoesNotOpen)
+    {
+        Rig                   rig;
+        std::wstring          image   = L"C:\\Disks\\bad.dsk";
+        std::wstring          imageId = TreeModel::MakeImageId (true, image);
+        std::string           text    = "this is not a disk image";
+        DxuiTreeView        * tree    = nullptr;
+        const DxuiTreeNode  * node    = nullptr;
+
+
+
+        AssertSucceeded (rig.fs.WriteAllText (image, text));
+        rig.io.files["C:\\Disks\\bad.dsk"] = std::vector<Byte> (text.begin(), text.end());
+        rig.Open();
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+        rig.parts->treePane.ExpandNode (TreeModel::kCassoRootId);
+        rig.parts->treePane.ExpandNode (TreeModel::MakeFolderId (true, L"C:\\Disks"));
+
+        tree = static_cast<DxuiTreeView *> (rig.parts->treePane.GetControl());
+        node = tree->FindNodeById (imageId);
+        Assert::IsTrue (node != nullptr && DxuiTreeView::CanExpand (*node), L"an image has an expander before it is read");
+
+        tree->SelectRow (tree->FindRowById (imageId));
+        node = tree->FindNodeById (imageId);
+
+        Assert::IsTrue  (node->iconBroken, L"an image that doesn't open is marked once it is read");
+        Assert::IsFalse (DxuiTreeView::CanExpand (*node), L"and loses its expander");
     }
 
 

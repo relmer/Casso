@@ -132,6 +132,7 @@ void ExplorerTreePane::Configure()
 
         hr = m_context.browser.SelectTreeNode (id);
         IGNORE_RETURN_VALUE (hr, S_OK);
+        UpdateReadNode (id);
         m_context.listPane.FillList();
     });
 
@@ -551,6 +552,7 @@ void ExplorerTreePane::RevealLocationInTree()
     std::wstring          link;
     int                   slot     = 0;
     int                   drive    = 0;
+    Location              highlighted;
 
 
 
@@ -590,6 +592,14 @@ void ExplorerTreePane::RevealLocationInTree()
             ScrollTreeToRow (row);
         }
 
+        return;
+    }
+
+    //  A node the user clicked that is at the location, a directory inside an
+    //  image among them, stays highlighted.
+    if (m_context.browser.TryGetNodeLocation (current, highlighted) && highlighted == location)
+    {
+        ScrollTreeToRow (m_tree->GetHighlight());
         return;
     }
 
@@ -716,6 +726,39 @@ void ExplorerTreePane::RevealLocationInTree()
     //  The open folder's row is highlighted, and only its parents expand.
     m_tree->HighlightRow (row);
     ScrollTreeToRow (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::UpdateReadNode
+//
+//  An image is read when it is selected. Its node is marked when the image
+//  doesn't open, and its expander is removed when it has no children.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::UpdateReadNode (const std::wstring & id)
+{
+    DxuiTreeNode    fresh;
+    DxuiTreeNode  * node = m_tree->GetNodeAtMutable (m_tree->FindRowById (id));
+
+
+
+    if (node == nullptr || !m_context.browser.TryGetTreeNode (id, fresh))
+    {
+        return;
+    }
+
+    node->iconBroken = fresh.iconBroken;
+
+    if (fresh.childrenLoaded && !node->childrenLoaded)
+    {
+        m_tree->ReplaceChildren (id, {});
+    }
 }
 
 

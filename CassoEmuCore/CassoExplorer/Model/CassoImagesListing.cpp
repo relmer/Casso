@@ -88,7 +88,7 @@ void CassoImagesListing::Build (
                 continue;
             }
 
-            row              = CatalogModel::FromHostEntry (entry, TreeModel::IsSupportedImage (entry.name), outRows.size());
+            row              = CatalogModel::FromHostEntry (entry, HostFolderReader::IsSupportedImage (entry.name), outRows.size());
             row.hostPath     = path;
             row.folderPath   = folder;
             row.imageClass   = cache.Get (fileIo, TextEncoding::WideToUtf8 (path), entry.sizeBytes, entry.modifiedUnix);
