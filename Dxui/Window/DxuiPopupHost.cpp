@@ -2056,14 +2056,6 @@ void DxuiPopupHost::ApplyReveal (float t)
     if (m_revealFade)
     {
         m_revealAlpha = m_revealOut ? (1.0f - eased) : eased;
-
-        //  The acrylic backdrop fades with the card, or it would show alone,
-        //  blurred and empty, before the card's contents.
-        if (m_comp && m_comp->backdrop != nullptr)
-        {
-            m_comp->backdrop.Opacity (m_revealAlpha);
-        }
-
         RenderNow();
         return;
     }
