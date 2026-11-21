@@ -149,6 +149,7 @@ SlotsPage::SlotsPage (std::wstring title)
     m_list.SetColumns             (std::move (columns));
     m_list.SetShowHeader          (false);
     m_list.SetAlwaysShowSelection (true);
+    m_list.SetSelectionPainted    (false);
     m_list.SetOnSelectionChanged  ([this] (int row)
     {
         if (row >= 0 && row + kFirstSlot != m_selectedSlot)

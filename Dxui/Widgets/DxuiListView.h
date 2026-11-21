@@ -477,6 +477,11 @@ public:
     // selection visible regardless, like a real list view.
     void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
+    // A host that marks the selected row itself, as the Slots page's outline
+    // does, turns off the row's selection fill and focus cue. Hover and
+    // press still paint.
+    void  SetSelectionPainted      (bool enabled)                { m_selectionPainted = enabled; }
+
     // Selected rows in the accent selection color a text control uses, as a
     // preview of a file's contents does, rather than the neutral fill a file
     // list uses.
@@ -705,6 +710,7 @@ private:
     int                        m_hovered             = -1;
     int                        m_dropRow             = -1;
     bool                       m_alwaysShowSelection = false;
+    bool                       m_selectionPainted    = true;
     bool                       m_textSelectionColors = false;
     bool                       m_showHeader          = false;
     View                       m_view                = View::Details;

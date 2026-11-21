@@ -769,9 +769,10 @@ void DxuiListRows::Paint (
         const std::vector<DxuiListViewTypes::Cell>  & cells = m_list.GetRowCells (r);
         float                                         thisH = (float) GetRowHeightPx (r);
         bool                                          isHov = (r == m_list.m_hovered);
-        bool                       isSel = ((m_list.m_listFocused || m_list.m_alwaysShowSelection) &&
-                                            (m_list.m_multiSelect ? m_list.IsRowSelected (r) : r == m_list.m_selectedRow));
-        DxuiRowLook                look  = DxuiRowLook::Resolve (*m_list.m_theme, isSel, r == m_list.m_selectedRow && m_list.m_focusGroup < 0, isHov, m_list.m_listFocused);
+        bool                       isSel = m_list.m_selectionPainted && (m_list.m_listFocused || m_list.m_alwaysShowSelection) &&
+                                           (m_list.m_multiSelect ? m_list.IsRowSelected (r) : r == m_list.m_selectedRow);
+        bool                       isKey = m_list.m_selectionPainted && r == m_list.m_selectedRow && m_list.m_focusGroup < 0;
+        DxuiRowLook                look  = DxuiRowLook::Resolve (*m_list.m_theme, isSel, isKey, isHov, m_list.m_listFocused);
 
         //  A text-like list (a hex dump) selects as text does: the text
         //  selection color, no outline.
