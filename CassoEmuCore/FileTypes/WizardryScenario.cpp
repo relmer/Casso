@@ -70,8 +70,8 @@ static constexpr uint32_t  s_kMapStairs      = 0xFFCFE0FF;
 static constexpr uint32_t  s_kMapDark        = 0xFFA8A8A8;
 static constexpr uint32_t  s_kMapRock        = 0xFF6E6E6E;
 static constexpr uint32_t  s_kMapSpecial     = 0xFF8A8A8A;
-static constexpr uint32_t  s_kMapParty       = 0xFFE0A800;
-static constexpr uint32_t  s_kMapPartyEdge   = 0xFF7A5C00;
+static constexpr uint32_t  s_kMapParty       = 0xFF12B05A;
+static constexpr uint32_t  s_kMapPartyEdge   = 0xFF0A5C2E;
 
 //  The special square types the map fills: stairs, darkness, and rock or
 //  water.
@@ -564,7 +564,7 @@ std::wstring WizardryScenario::ToTitleCase (const std::wstring & name)
 //
 //  North at the top, each square s_kMapCell pixels: a pink fight zone, a
 //  blue stair square, a gray dark one and a dark gray rock or water one
-//  filled, a dot on any other special square, and a gold circle on the
+//  filled, a dot on any other special square, and a green circle on the
 //  party's. Each side is drawn by its type in the level: a black wall, a brown
 //  door in the middle of a wall, a dotted brown hidden door, or a faint
 //  grid line where it is open.
