@@ -192,17 +192,37 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
 //
 //  PreviewText::AddTableRows
 //
-//  Wide, a heading row in bold and a row a record, their cells in columns,
-//  each record's details under its row. Narrow, each record's card and
-//  details, a blank line between records.
+//  The title in bold first. Wide, a heading row in bold and a row a record,
+//  their cells in columns, each record's details under its row and a blank
+//  row between records. Narrow, a
+//  rule under the title, then each record's card and details, a blank line
+//  between records.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::Colors & colors, bool wide, std::vector<DxuiTextView::Row> & ioRows)
 {
+    auto  untitled = std::make_shared<RecordTable> (table);
+
+
+
+    untitled->title.clear();
+
+    if (!table.title.empty())
+    {
+        DxuiTextView::Row   title { { table.title } };
+        DxuiTextView::Span  span;
+
+        span.length = (int) table.title.size();
+        span.bold   = true;
+        title.spans = { span };
+        title.rule  = !wide;
+        ioRows.push_back (std::move (title));
+    }
+
     if (!wide)
     {
-        std::vector<Paragraph>          cards = FlattenRecordTables ({ Paragraph { .table = std::make_shared<RecordTable> (table) } });
+        std::vector<Paragraph>          cards = FlattenRecordTables ({ Paragraph { .table = untitled } });
         std::vector<DxuiTextView::Row>  rows  = BuildDocumentRows (cards, colors);
 
         ioRows.insert (ioRows.end(), rows.begin(), rows.end());
@@ -227,10 +247,16 @@ void PreviewText::AddTableRows (const RecordTable & table, const SourceSyntax::C
         ioRows.push_back (std::move (heading));
     }
 
-    for (const RecordTable::Record & record : table.records)
+    for (size_t i = 0; i < table.records.size(); i++)
     {
+        const RecordTable::Record &     record  = table.records[i];
         DxuiTextView::Row               row;
         std::vector<DxuiTextView::Row>  details = BuildDocumentRows (record.details, colors);
+
+        if (i > 0)
+        {
+            ioRows.push_back (DxuiTextView::Row { { std::wstring() } });
+        }
 
         for (const Run & run : record.cells)
         {

@@ -68,8 +68,8 @@ public:
     }
 
 
-    //  Moves the pointer down the text, a few pixels a step, until the map's
-    //  tip is requested; false when it never is.
+    //  Moves the pointer down the text, a few pixels a step, until the tip of a
+    //  map square with something on it is requested; false when it never is.
     static bool HoverOverTheMap (Rig & rig, POINT & outPoint)
     {
         RECT            bounds = rig.parts->preview.GetText().GetControl()->GetBounds();
@@ -89,7 +89,7 @@ public:
         {
             move.positionDip = POINT { bounds.left + 40, y };
             rig.parts->input.HandleMouse (move);
-            shown    = rig.parts->tips.GetOwner() == ExplorerTips::TipOwner::Preview;
+            shown    = rig.parts->tips.GetOwner() == ExplorerTips::TipOwner::Preview && !rig.parts->tips.GetTooltip().GetSwatches().empty();
             outPoint = move.positionDip;
         }
 
@@ -129,7 +129,8 @@ public:
         //  The map: a tip for the square under the pointer, and
         //  the arrow over it rather than the text's I-beam.
         Assert::IsTrue   (HoverOverTheMap (rig, onMap), L"A tip over the map");
-        Assert::IsTrue   (rig.parts->tips.GetTooltip().IsPending(), L"waiting out its delay");
+        Assert::IsFalse  (rig.parts->tips.GetTooltip().IsPending(), L"put up at once, with no delay to wait out");
+        Assert::IsFalse  (rig.parts->tips.GetTooltip().GetSwatches().empty(), L"with a color sample beside its lines");
         Assert::IsTrue   (rig.parts->preview.GetText().GetCursorForPoint (onMap) == IDC_ARROW, L"The arrow over the map");
 
         //  A click on Disk: the catalog, and the switch above it.

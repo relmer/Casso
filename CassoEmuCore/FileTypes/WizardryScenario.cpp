@@ -431,18 +431,18 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
         listed++;
     }
 
-    ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Saved game: {} {}", listed, (listed == 1) ? L"character" : L"characters"), false, false, false, RunColor::Muted } }));
+    roster->title = std::format (L"Saved game: {} {}", listed, (listed == 1) ? L"character" : L"characters");
 
     if (listed > 0)
     {
         Paragraph  table;
 
         table.table = roster;
-        ioParagraphs.push_back (Paragraph());
         ioParagraphs.push_back (std::move (table));
     }
     else
     {
+        ioParagraphs.push_back (MakeParagraph ({ Run { roster->title, true } }));
         ioParagraphs.push_back (Paragraph());
         ioParagraphs.push_back (MakeParagraph ({ Run { L"No characters." } }));
     }

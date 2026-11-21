@@ -19,11 +19,12 @@
 
 void DxuiTextView::SetRows (std::vector<Row> rows)
 {
-    m_rows     = std::move (rows);
-    m_anchor   = Position();
-    m_caret    = Position();
-    m_topLine  = 0;
-    m_dragging = false;
+    m_rows       = std::move (rows);
+    m_anchor     = Position();
+    m_caret      = Position();
+    m_topLine    = 0;
+    m_dragging   = false;
+    m_outlineRow = -1;
 
     m_leftColumn = 0;
 
@@ -1267,10 +1268,15 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     {
         if (line.first || lineIndex == m_topLine)
         {
-            PaintPicture (text, lineIndex);
+            PaintPicture (text, theme, lineIndex);
         }
 
         return;
+    }
+
+    if (row.rule && (lineIndex + 1 >= (int) m_lines.size() || m_lines[(size_t) lineIndex + 1].row != line.row))
+    {
+        painter.FillRect (left, (float) (y + m_cellHeightPx - m_scaler.ToPx (1)), (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance, (float) m_scaler.ToPx (1), theme.Divider());
     }
 
     if (line.first && row.warning)
@@ -1393,11 +1399,15 @@ bool DxuiTextView::HitTestPicture (POINT point, int & outRow, int & outX, int & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, int lineIndex) const
+void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex) const
 {
     int              first   = lineIndex;
-    const Picture &  picture = *m_rows[(size_t) m_lines[(size_t) lineIndex].row].picture;
+    int              row     = m_lines[(size_t) lineIndex].row;
+    const Picture &  picture = *m_rows[(size_t) row].picture;
     float            top     = 0.0f;
+    float            width   = (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance;
+    float            scale   = 0.0f;
+    float            stroke  = m_scaler.ToPxf (2.0f);
 
 
 
@@ -1408,7 +1418,42 @@ void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, int lineIndex) const
 
     top = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + (float) ((first - m_topLine) * m_cellHeightPx);
 
-    DxuiTextRowLayout::PaintPicture (text, picture, GetTextLeft(), top, (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance, m_scaler.ToPxf (1.0f));
+    DxuiTextRowLayout::PaintPicture (text, picture, GetTextLeft(), top, width, m_scaler.ToPxf (1.0f));
+
+    //  The outline is drawn inside the cell's edge, so it isn't cut off at
+    //  the picture's.
+    if (row == m_outlineRow && m_paintPainter != nullptr)
+    {
+        scale = DxuiTextRowLayout::GetPictureScale (picture, width, m_scaler.ToPxf (1.0f));
+
+        m_paintPainter->OutlineRect (GetTextLeft() + (float) m_outlineRect.left * scale + stroke / 2.0f,
+                                     top + (float) m_outlineRect.top * scale + stroke / 2.0f,
+                                     (float) (m_outlineRect.right - m_outlineRect.left) * scale - stroke,
+                                     (float) (m_outlineRect.bottom - m_outlineRect.top) * scale - stroke,
+                                     stroke, theme.Accent());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetPictureOutline
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::SetPictureOutline (int row, const RECT & pictureRect)
+{
+    bool  moved = row != m_outlineRow || (row >= 0 && !EqualRect (&pictureRect, &m_outlineRect));
+
+
+
+    m_outlineRow  = row;
+    m_outlineRect = pictureRect;
+
+    return moved;
 }
 
 
