@@ -18,7 +18,7 @@ static constexpr struct { uint32_t argb; const wchar_t * pszColor; const wchar_t
     { 0xFF7D7369, L"Gray",        L"mountains"         },
     { 0xFF3C2819, L"Brown",       L"dungeon entrance"  },
     { 0xFFDCBE3C, L"Gold",        L"town"              },
-    { 0xFFF0F0F0, L"White",       L"castle"            },
+    { 0xFFA8A8B4, L"Light gray",  L"castle"            },
 };
 
 static constexpr uint32_t        s_kOtherTile   = 0xFFC850C8;
