@@ -135,7 +135,7 @@ void ExplorerPickerBar::Create()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPickerBar::Layout (const RECT & band)
+void ExplorerPickerBar::Layout (const RECT & band, int listLeft)
 {
     const DxuiDpiScaler &  scaler = m_context.scaler;
     int                    height = scaler.ToPx (kButtonDip);
@@ -143,6 +143,7 @@ void ExplorerPickerBar::Layout (const RECT & band)
     int                    right  = band.right - scaler.ToPx (kEdgePadDip);
     int                    gap    = scaler.ToPx (kGapDip);
     int                    width  = 0;
+    int                    left   = 0;
 
 
 
@@ -164,19 +165,24 @@ void ExplorerPickerBar::Layout (const RECT & band)
         right -= width + gap;
     }
 
-    //  The filter list, with the selected entry's note under it.
+    //  The filter list at the list's left edge, with the selected entry's
+    //  note under it, its text in line with the list's.
+    left = (std::max) ((int) band.left + scaler.ToPx (kEdgePadDip), listLeft);
+
     if (m_filter != nullptr)
     {
-        width = scaler.ToPx (kFilterMaxDip);
+        int  inset = scaler.ToPx (DxuiComboBox::kTextInsetDip);
 
-        m_filter->Layout (RECT { right - width, top, right, top + height }, scaler);
+        width = (std::min) (scaler.ToPx (kFilterMaxDip), (std::max) (0, right - left));
+
+        m_filter->Layout (RECT { left, top, left + width, top + height }, scaler);
 
         if (m_filterNote != nullptr)
         {
-            m_filterNote->Layout (RECT { right - width, top + height + scaler.ToPx (kGapDip) / 2, band.right - scaler.ToPx (kEdgePadDip), band.bottom }, scaler);
+            m_filterNote->Layout (RECT { left + inset, top + height + scaler.ToPx (kGapDip) / 2, right, band.bottom }, scaler);
         }
 
-        right -= width + gap;
+        left += width + gap;
     }
 
     if (m_verify != nullptr)
@@ -192,7 +198,7 @@ void ExplorerPickerBar::Layout (const RECT & band)
         return;
     }
 
-    //  A save form has the file name box at the left.
+    //  A save form has the file name box after the filter list.
     if (!m_isNameConfigured && m_context.window.GetHwnd() != nullptr)
     {
         m_name->SetTextRenderer   (m_context.window.GetTextRenderer());
@@ -204,7 +210,6 @@ void ExplorerPickerBar::Layout (const RECT & band)
     }
 
     {
-        int  left  = band.left + scaler.ToPx (kEdgePadDip);
         int  label = left + scaler.ToPx (kNameLabelDip);
 
         m_nameLabel->Layout (RECT { left, band.top, label, band.bottom }, scaler);

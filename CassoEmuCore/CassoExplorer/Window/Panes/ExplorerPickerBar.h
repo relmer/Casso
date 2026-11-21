@@ -41,7 +41,8 @@ public:
     int   GetBandDip () const;
 
     void  Create      ();
-    void  Layout      (const RECT & band);
+    //  The filter list starts at `listLeft`, the left edge of the list.
+    void  Layout      (const RECT & band, int listLeft);
 
     //  The capsules of what a drive's picker lists, in the command bar's free
     //  area from the left edge of the list.

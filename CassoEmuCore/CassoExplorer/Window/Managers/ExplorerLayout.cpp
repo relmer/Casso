@@ -322,7 +322,7 @@ void ExplorerLayout::RecomputeLayout()
     }
 
     m_context.statusBar.Layout (m_statusBand.GetBounds());
-    m_context.pickerBar.Layout (m_pickerBand.GetBounds());
+    m_context.pickerBar.Layout (m_pickerBand.GetBounds(), m_context.listPane.GetListView()->GetBounds().left);
 
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_context.listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
