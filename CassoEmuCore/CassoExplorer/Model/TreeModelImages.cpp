@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
@@ -79,8 +80,8 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     {
         //  A file the loader refused says why, as the list does; one that
         //  loaded holds no file system this browser reads.
-        inOutNode.loadError = loaded ? GetLeaf (path) + L" " + kNoFilesystemText
-                                     : BreakAfterFirstSentence (diagnosis.FormatSentence (GetLeaf (path)) + L".");
+        inOutNode.loadError = loaded ? GetLeaf (path) + L" " + DiskMessageText::kNoFilesystemText
+                                     : DiskMessageText::BreakAfterFirstSentence (diagnosis.FormatSentence (GetLeaf (path)) + L".");
         inOutNode.broken         = !loaded;
         m_children[inOutNode.id] = children;
 
@@ -226,7 +227,7 @@ void TreeModel::ListPartitions (
         if (entry.partition.damaged)
         {
             node.broken    = true;
-            node.loadError = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false)) + L" " + kDamagedPartitionText;
+            node.loadError = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false)) + L" " + DiskMessageText::kDamagedPartitionText;
         }
 
         outNodes.push_back (node);

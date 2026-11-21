@@ -3,6 +3,7 @@
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
@@ -490,7 +491,7 @@ std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
 
     if (!result.Succeeded() && result.message.find (s_kNoFileSystem) == std::string::npos)
     {
-        problem = BrowserCells::FormatImageError (imagePath, result.message);
+        problem = DiskMessageText::FormatImageError (imagePath, result.message);
     }
 
     m_imageProblems[imagePath] = ImageProblem { time, size, problem };
@@ -1122,7 +1123,7 @@ HRESULT BrowserLoader::LoadImage (const std::wstring & path, const std::string &
 
         if (!result.Succeeded())
         {
-            m_listError = BrowserCells::FormatImageError (path, result.message);
+            m_listError = DiskMessageText::FormatImageError (path, result.message);
             return result.hr;
         }
 
@@ -1453,7 +1454,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
 
     if (FAILED (hr))
     {
-        m_listError = BrowserCells::FormatLinkError (hr, message);
+        m_listError = DiskMessageText::FormatLinkError (hr, message);
         return hr;
     }
 

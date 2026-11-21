@@ -169,33 +169,6 @@ bool TreeModel::IsSupportedImage (const std::wstring & fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::BreakAfterFirstSentence
-//
-//  A message about an image leads with what is wrong and follows with the
-//  detail on a line of its own.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring TreeModel::BreakAfterFirstSentence (std::wstring text)
-{
-    size_t  stop = text.find (L". ");
-
-
-
-    if (stop != std::wstring::npos)
-    {
-        text.replace (stop, 2, L".\n");
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TreeModel::MakeFolderId
 //
 ////////////////////////////////////////////////////////////////////////////////

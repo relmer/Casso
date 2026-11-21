@@ -5,6 +5,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/ArchiveProbe.h"
+#include "CassoExplorer/Model/DiskMessageText.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/PreviewViewChoices.h"
 #include "CassoExplorer/Model/SearchQuery.h"
@@ -72,7 +73,7 @@ bool BrowserPreviewer::PreviewAppleDrive (const CatalogRow & row)
     }
     else if (FAILED (result))
     {
-        m_preview.message = BrowserCells::FormatLinkError (result, message);
+        m_preview.message = DiskMessageText::FormatLinkError (result, message);
     }
     else
     {
@@ -522,7 +523,7 @@ void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
         if (!result.Succeeded())
         {
             m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = BrowserCells::FormatImageError (imagePath, result.message);
+            m_preview.message = DiskMessageText::FormatImageError (imagePath, result.message);
             return;
         }
 
@@ -1380,7 +1381,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     if (!result.Succeeded())
     {
         m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = BrowserCells::FormatImageError (imagePath, result.message);
+        m_preview.message = DiskMessageText::FormatImageError (imagePath, result.message);
         return;
     }
 
@@ -1475,7 +1476,7 @@ bool BrowserPreviewer::TryFindSearchMatch (const CatalogRow & row, BrowserSearch
 
         if (!result.Succeeded())
         {
-            outError = BrowserCells::FormatImageError (row.imagePath, result.message);
+            outError = DiskMessageText::FormatImageError (row.imagePath, result.message);
             return false;
         }
 
