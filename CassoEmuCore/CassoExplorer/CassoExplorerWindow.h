@@ -60,10 +60,9 @@ public:
     static constexpr int  kMinWindowWidthDip = 200;
     static constexpr int  kCascadeStepDip    = 32;   // a second window's offset from the saved placement
 
-    //  How far a save form's command bar and bottom bar are mixed from the
-    //  background toward the text color.
-    static constexpr float  s_kSaveCommandBarTint = 0.04f;
-    static constexpr float  s_kSavePickerBarTint  = 0.09f;
+    //  How far a save form's bottom bar is mixed from the background toward
+    //  the text color.
+    static constexpr float  s_kSavePickerBarTint = 0.09f;
 
     //  How long to let a burst settle before re-reading. Copying a hundred
     //  files reports a hundred changes; re-reading once at the end is both

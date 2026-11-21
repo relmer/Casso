@@ -100,7 +100,9 @@ void ExplorerPickerBar::Create()
         m_nameLabel = m_context.window.CreateChild<DxuiLabel> (L"File name:");
         m_name      = m_context.window.CreateChild<DxuiTextInput>();
 
-        m_nameLabel->SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+        m_nameLabel->SetTextAlign   (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+        m_nameLabel->SetFontFace    (kDialogFace);
+        m_nameLabel->SetFontSizeDip (kDialogFontDip);
 
         m_context.window.SetMouseHandler (m_name, [this] (const DxuiMouseEvent & ev) { return HandleNameMouse (ev); });
 
@@ -110,7 +112,7 @@ void ExplorerPickerBar::Create()
 
     if (request->offerVerify)
     {
-        m_verify = m_context.window.CreateChild<DxuiCheckbox> (L"Verify", request->verify);
+        m_verify = m_context.window.CreateChild<DxuiCheckbox> (request->verifyLabel.empty() ? std::wstring (L"Verify") : request->verifyLabel, request->verify);
         m_verify->SetSingleLineLabel (true);
     }
 
@@ -121,7 +123,9 @@ void ExplorerPickerBar::Create()
         m_filterLabel = m_context.window.CreateChild<DxuiLabel> (L"Save as type:");
         m_filter      = m_context.window.CreateChild<DxuiComboBox>();
 
-        m_filterLabel->SetTextAlign (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+        m_filterLabel->SetTextAlign   (DxuiTextHAlign::Right, DxuiTextVAlign::Center);
+        m_filterLabel->SetFontFace    (kDialogFace);
+        m_filterLabel->SetFontSizeDip (kDialogFontDip);
         m_filter->SetElide     (DxuiElide::Middle);
         m_filter->SetPopupHost (m_context.window.GetPopupHost());
 
@@ -306,8 +310,8 @@ void ExplorerPickerBar::LayoutSaveRows (const RECT & band, int listLeft)
     {
         m_name->SetTextRenderer   (m_context.window.GetTextRenderer());
         m_name->SetHwnd           (m_context.window.GetHwnd());
-        m_name->SetFont           (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
-        m_name->SetExplorerChrome (true);
+        m_name->SetFont           (kDialogFace, kDialogFontDip);
+        m_name->SetExplorerChrome (false);
 
         m_isNameConfigured = true;
     }
@@ -322,17 +326,8 @@ void ExplorerPickerBar::LayoutSaveRows (const RECT & band, int listLeft)
 
     top += height + gap;
 
-    //  As wide as its longest entry needs, and never narrower than
-    //  kFilterMinDip or wider than the name box.
-    width = scaler.ToPx (kFilterMinDip);
-
-    if (m_context.window.GetTextRenderer() != nullptr)
-    {
-        m_filter->SetDpi (scaler.GetDpi());
-        width = (std::max) (width, (int) std::ceil (m_filter->GetFitWidthPx (*m_context.window.GetTextRenderer())));
-    }
-
-    width = (std::min) (width, (std::max) (0, right - left));
+    //  As wide as the name box, as in the standard dialog.
+    width = (std::max) (scaler.ToPx (kNameMinDip), right - left);
 
     m_filterLabel->Layout (RECT { label, top, left - gap, top + height }, scaler);
     m_filter->Layout      (RECT { left, top, left + width, top + height }, scaler);
@@ -694,7 +689,6 @@ void ExplorerPickerBar::FillFilterList()
     const std::vector<FileDialogFilter> &  filters = m_context.app.picker->filters;
     std::vector<std::wstring>              rows;
     std::vector<bool>                      headings;
-    std::vector<std::wstring>              notes;
 
 
 
@@ -708,20 +702,18 @@ void ExplorerPickerBar::FillFilterList()
         {
             rows.push_back (filter->heading);
             headings.push_back (true);
-            notes.push_back (std::wstring());
             m_filterRows.push_back (-1);
         }
 
-        //  Entries with notes are listed by name alone, as Options lists them.
+        //  Entries with notes are listed by name alone, and the selected
+        //  entry's note is shown under the list.
         rows.push_back (HasFilterNotes() ? filter->name : m_context.pickerMode.GetFilterLabel (index));
         headings.push_back (false);
-        notes.push_back ((filter != nullptr) ? filter->note : std::wstring());
         m_filterRows.push_back ((int) index);
     }
 
     m_filter->SetItems            (rows);
     m_filter->SetItemHeadings     (headings);
-    m_filter->SetItemDescriptions (notes);
     m_filter->SetSelect           ([this] (int row)
     {
         if (row >= 0 && row < (int) m_filterRows.size() && m_filterRows[(size_t) row] >= 0)

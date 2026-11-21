@@ -74,6 +74,7 @@ struct FileDialogSpec
     //  as *verify is, and *verify is set to the box's state when a file is
     //  picked.
     bool                         * verify       = nullptr;
+    std::wstring                   verifyLabel;                 // the Verify box's text; "Verify" when empty
 };
 
 

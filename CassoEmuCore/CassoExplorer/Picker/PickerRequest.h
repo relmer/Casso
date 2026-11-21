@@ -103,6 +103,7 @@ struct PickerRequest
     //  state on confirm is PickerOutcome::verified.
     bool                           offerVerify      = false;
     bool                           verify           = false;
+    std::wstring                   verifyLabel;
 
     bool  IsSave     () const { return form == PickerForm::ModalSave; }
     bool  IsForDrive () const { return receivingDrive.has_value(); }
