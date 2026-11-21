@@ -389,6 +389,7 @@
     <ClCompile Include="FileTypes\VisiCalcSheetTests.cpp" />
     <ClCompile Include="FileTypes\ZMachineStoryTests.cpp" />
     <ClCompile Include="FileTypes\WizardryScenarioTests.cpp" />
+    <ClCompile Include="FileTypes\Ultima3SaveTests.cpp" />
     <ClCompile Include="FileTypes\VisiCalcEvaluatorTests.cpp" />
     <ClCompile Include="FileTypes\PascalCodefileTests.cpp" />
     <ClCompile Include="EmuTests\NuFxArchiveTests.cpp" />

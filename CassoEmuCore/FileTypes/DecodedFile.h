@@ -25,7 +25,7 @@ enum class FileFormat
     Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
     IigsFont, WizardryScenario, InfocomStory, HiResScreen,
-    DoubleHiResScreen, LoResScreen, MacPaint, Disassembly,
+    DoubleHiResScreen, LoResScreen, MacPaint, Disassembly, UltimaSave,
 };
 
 

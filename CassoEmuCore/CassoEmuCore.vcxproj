@@ -433,6 +433,7 @@
     <ClCompile Include="CassoExplorer\Model\FilesystemChoices.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
     <ClCompile Include="Machines\Apple2\Common\InfocomSave.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Ultima3Save.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosTypeNames.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolumeRemover.cpp" />
@@ -1637,6 +1638,7 @@
     <ClInclude Include="Machines\Apple2\Common\Dos33Geometry.h" />
     <ClInclude Include="CassoExplorer\Model\FilesystemChoices.h" />
     <ClInclude Include="Machines\Apple2\Common\InfocomSave.h" />
+    <ClInclude Include="Machines\Apple2\Common\Ultima3Save.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosTypeNames.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeRemover.h" />
