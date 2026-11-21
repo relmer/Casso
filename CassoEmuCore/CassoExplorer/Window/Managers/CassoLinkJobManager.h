@@ -46,10 +46,11 @@ private:
     struct Job
     {
         std::shared_ptr<LinkOperation>  operation;
-        ULONGLONG                       startedMs = 0;   // once it runs
-        ULONGLONG                       endedMs   = 0;   // once it ends
-        ULONGLONG                       seenMs    = 0;   // when it was first seen
-        bool                            isUnseen  = false;
+        ULONGLONG                       startedMs   = 0;   // once it runs
+        ULONGLONG                       endedMs     = 0;   // once it ends
+        ULONGLONG                       seenMs      = 0;   // when it was first seen
+        bool                            isUnseen    = false;
+        bool                            isCanceling = false;
     };
 
     struct Offer

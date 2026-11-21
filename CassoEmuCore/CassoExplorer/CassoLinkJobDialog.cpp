@@ -2,7 +2,6 @@
 
 #include "CassoExplorer/CassoLinkJobDialog.h"
 #include "Core/TextEncoding.h"
-#include "Core/UnicodeSymbols.h"
 
 
 
@@ -132,6 +131,7 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
 
     switch (view.state)
     {
+        case State::Canceling: view.heading = std::format (L"Canceling {} {}", isWrite ? L"writing to" : isRead ? L"reading" : L"capturing", drive); break;
         case State::Queued:   view.heading = std::format (L"Waiting to {} {}", isWrite ? L"write to" : isRead ? L"read" : L"capture", drive);       break;
         case State::Running:  view.heading = std::format (L"{} {}", isWrite ? L"Writing to" : isRead ? L"Reading" : L"Capturing", drive);        break;
         case State::Done:     view.heading = std::format (L"{} {}", isWrite ? L"Wrote to" : isRead ? L"Read" : L"Captured", drive);              break;
@@ -182,7 +182,7 @@ CassoLinkJobView CassoLinkJobView::Build (const LinkOperation & operation, const
 
 void CassoLinkJobPanel::Init (DxuiTooltip * tooltip)
 {
-    m_tabs.SetStyle (DxuiTabStripStyle::Standard);
+    m_tabs.SetStyle (DxuiTabStripStyle::Explorer);
     m_tabs.SetOnChange ([this] (int index)
     {
         if (index >= 0 && (size_t) index < m_views.size())
@@ -217,8 +217,7 @@ void CassoLinkJobPanel::Init (DxuiTooltip * tooltip)
 //
 //  CassoLinkJobPanel::SetViews
 //
-//  A tab's label has a dot while its job runs, and a star once it ends
-//  until its tab is selected.
+//  The drive is drawn from the selected tab's job.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,7 +236,7 @@ void CassoLinkJobPanel::SetViews (std::vector<CassoLinkJobView> views, const std
     {
         DxuiTabStrip::Tab  tab;
 
-        tab.label = m_views[i].tabLabel + (m_views[i].IsRunning() ? (std::wstring (L" ") + s_kpszBullet) : m_views[i].isUnseen ? L" *" : L"");
+        tab.label = m_views[i].tabLabel;
         index     = (m_views[i].link == m_selected) ? (int) i : index;
 
         tabs.push_back (tab);
@@ -483,6 +482,11 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
+    //  The selected tab is the elevated color, so it stands out from the
+    //  window as a tab does.
+    m_tabs.SetSelectedFill (theme.BackgroundElevated());
+    m_tabs.SetStripFill (theme.Background());
+
     DxuiPanel::Paint (painter, text, theme);
 
     if (view == nullptr)
@@ -699,8 +703,20 @@ void CassoLinkJobDialog::OnDialogTick()
 {
     int64_t  now    = (int64_t) GetTickCount64();
     UINT     tickMs = m_panel->IsMagnifying (now) ? kFrameMs : kTipTickMs;
+    POINT    cursor = {};
+    RECT     window = {};
 
 
+
+    //  A tip whose track the pointer left with the window is hidden then,
+    //  not left on the screen.
+    GetCursorPos (&cursor);
+    GetWindowRect (GetHwnd(), &window);
+
+    if (!PtInRect (&window, cursor) || !IsWindowVisible (GetHwnd()))
+    {
+        m_tooltip.HideImmediate();
+    }
 
     m_tooltip.Tick (now);
 
@@ -719,6 +735,23 @@ void CassoLinkJobDialog::OnDialogTick()
     {
         Invalidate();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobDialog::OnWindowClose
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkJobDialog::OnWindowClose()
+{
+    m_tooltip.HideImmediate();
+
+    DxuiDialogWindow::OnWindowClose();
 }
 
 
@@ -747,6 +780,7 @@ void CassoLinkJobDialog::Refresh()
     {
         if (IsWindowVisible (GetHwnd()))
         {
+            m_tooltip.HideImmediate();
             PostMessageW (GetHwnd(), WM_CLOSE, 0, 0);
         }
 
@@ -759,7 +793,7 @@ void CassoLinkJobDialog::Refresh()
     isDone = shown != nullptr && shown->state == CassoLinkJobView::State::Done && !shown->imagePath.empty();
     offer  = shown != nullptr && shown->hasOffer;
 
-    m_cancelButton->SetEnabled (shown != nullptr && shown->IsRunning());
+    m_cancelButton->SetEnabled (shown != nullptr && shown->IsRunning() && shown->state != CassoLinkJobView::State::Canceling);
     m_rawButton->SetVisible (offer);
     m_againButton->SetVisible (offer);
     m_openButton->SetEnabled (isDone);

@@ -198,9 +198,17 @@ void CassoLinkJobManager::Show (const std::string & link, bool activate)
     {
         CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (canceled) : nullptr;
 
+        auto                found   = m_jobs.find (canceled);
+
         if (session != nullptr)
         {
             session->Cancel();
+        }
+
+        //  The tab reads Canceling until the Apple stops at its next pause.
+        if (found != m_jobs.end())
+        {
+            found->second.isCanceling = true;
         }
     };
     actions.showInFolder = [this] (const std::wstring & imagePath) { m_context.tabManager.SelectInFolder (imagePath); };
@@ -232,6 +240,11 @@ std::vector<CassoLinkJobView> CassoLinkJobManager::BuildViews()
     for (auto & [link, job] : m_jobs)
     {
         CassoLinkJobView  view = MakeView (link, *job.operation);
+
+        if (job.isCanceling && view.state == CassoLinkJobView::State::Running)
+        {
+            view.state = CassoLinkJobView::State::Canceling;
+        }
 
         view.hasOffer = m_offers.contains (link);
 

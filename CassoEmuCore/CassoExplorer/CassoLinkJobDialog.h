@@ -26,7 +26,7 @@ class IDxuiTheme;
 
 struct CassoLinkJobView
 {
-    enum class State { Queued, Running, Done, Failed, Canceled };
+    enum class State { Queued, Running, Canceling, Done, Failed, Canceled };
 
     std::string                                         link;           // the connection, which keys its tab
     std::wstring                                        tabLabel;       // as Apple //c (COM3)
@@ -40,7 +40,7 @@ struct CassoLinkJobView
     bool                                                hasOffer  = false;   // a raw capture or a read again is offered
     FullSendPanel::View                                 drive;
 
-    bool  IsRunning () const { return state == State::Queued || state == State::Running; }
+    bool  IsRunning () const { return state == State::Queued || state == State::Running || state == State::Canceling; }
 
     //  The view of an operation on a connection. The model is the Apple's, as
     //  Apple //c, and empty when it isn't known; the port is the COM port a
@@ -175,8 +175,9 @@ public:
     static std::unique_ptr<CassoLinkJobDialog>  Open (HWND owner, const IDxuiTheme * theme, bool activate, Actions actions, const std::string & link);
 
 protected:
-    void  OnCreate     () override;
-    void  OnDialogTick () override;
+    void  OnCreate      () override;
+    void  OnDialogTick  () override;
+    void  OnWindowClose () override;
 
 private:
     void  Refresh       ();
