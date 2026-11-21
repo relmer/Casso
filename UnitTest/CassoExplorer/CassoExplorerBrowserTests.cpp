@@ -960,6 +960,7 @@ public:
 
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog, L"The image shows its catalog");
         Assert::IsFalse (host.browser.GetPreview().lines.empty());
+        Assert::IsTrue  (host.browser.AreSelectedRowsImages(), L"and is an image, for its thumbnail and inspector");
     }
 
 

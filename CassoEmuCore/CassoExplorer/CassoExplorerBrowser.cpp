@@ -2139,14 +2139,18 @@ bool CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newNam
 
 bool CassoExplorerBrowser::AreSelectedRowsImages() const
 {
-    if (m_isImage || m_selectedRows.empty() || GetLocation().kind != Location::Kind::HostFolder)
+    bool  search = AreSelectedRowsSearchFiles();
+
+
+
+    if (m_isImage || m_selectedRows.empty() || (GetLocation().kind != Location::Kind::HostFolder && !search))
     {
         return false;
     }
 
     for (int row : m_selectedRows)
     {
-        if (!m_rows[row].isDiskImage)
+        if (!m_rows[row].isDiskImage || (search && !m_rows[row].containerPath.empty()))
         {
             return false;
         }
