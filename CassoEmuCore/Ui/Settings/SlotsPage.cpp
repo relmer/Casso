@@ -4,7 +4,6 @@
 
 #include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
-#include "Ui/Settings/HardwarePage.h"
 #include "Ui/Settings/SlotCards.h"
 
 
@@ -17,7 +16,8 @@ static constexpr int  s_kPanelGapDp     = 16;
 static constexpr int  s_kRowHeightDp    = 28;
 static constexpr int  s_kRowGapDp       = 8;
 static constexpr int  s_kLabelWidthDp   = 90;
-static constexpr int  s_kDropdownWidthDp = 260;
+static constexpr int  s_kDropdownWidthDp = 240;
+static constexpr int  s_kListHeightDp   = 260;
 static constexpr int  s_kButtonWidthDp  = 90;
 static constexpr int  s_kIndentDp       = 20;
 
@@ -111,6 +111,10 @@ std::wstring SlotsPage::MakeSlotLabel (const std::vector<HardwareEntry> & entrie
 SlotsPage::SlotsPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
+    std::vector<DxuiListView::Column>  columns (1);
+
+
+
     Adopt (m_list);
     Adopt (m_cardLabel);
     Adopt (m_cardDropdown);
@@ -120,23 +124,18 @@ SlotsPage::SlotsPage (std::wstring title)
     Adopt (m_firmware);
     Adopt (m_drivesHeading);
 
-    for (size_t i = 0; i < kMaxDrives; i++)
+    for (size_t i = 0; i < kMaxPorts; i++)
     {
-        Adopt (m_driveLabels[i]);
-        Adopt (m_changeButtons[i]);
-        Adopt (m_ejectButtons[i]);
-        Adopt (m_removeButtons[i]);
+        Adopt (m_portLabels[i]);
+        Adopt (m_portDropdowns[i]);
+        Adopt (m_portToggles[i]);
         Adopt (m_timingBoxes[i]);
 
-        m_changeButtons[i].SetLabel (L"Change...");
-        m_ejectButtons[i].SetLabel  (L"Eject");
-        m_removeButtons[i].SetLabel (L"Remove");
-        m_timingBoxes[i].SetLabel   (L"Real spin-up and seek times");
+        m_timingBoxes[i].SetLabel (L"Real spin-up and seek times");
 
-        m_changeButtons[i].SetOnClick ([this, i] () { AttachImage (i); });
-        m_ejectButtons[i].SetOnClick  ([this, i] () { EjectImage (i);  });
-        m_removeButtons[i].SetOnClick ([this, i] () { RemoveDrive (i); });
-        m_timingBoxes[i].SetOnChange  ([this, i] (bool checked)
+        m_portDropdowns[i].SetSelect ([this, i] (int choice)   { ChoosePortDrive (i, choice); });
+        m_portToggles[i].SetOnChange ([this, i] (bool checked) { SetChainDrive (i, checked);  });
+        m_timingBoxes[i].SetOnChange ([this, i] (bool checked)
         {
             int  entry = GetSelectedEntry();
 
@@ -147,7 +146,6 @@ SlotsPage::SlotsPage (std::wstring title)
         });
     }
 
-    Adopt (m_addButton);
     Adopt (m_protectLabel);
 
     for (DxuiCheckbox & checkbox : m_writeProtect)
@@ -157,29 +155,27 @@ SlotsPage::SlotsPage (std::wstring title)
 
     Adopt (m_serial);
 
-    m_list.SetShowCheckboxes (false);
-    m_list.SetHorizontalScrollEnabled (false);
-    m_list.SetOnSelect ([this] (const std::wstring & id)
+    columns[0].stretch = true;
+    m_list.SetColumns             (std::move (columns));
+    m_list.SetShowHeader          (false);
+    m_list.SetAlwaysShowSelection (true);
+    m_list.SetOnSelectionChanged  ([this] (int row)
     {
-        int  slot = 0;
-
-        if (swscanf_s (id.c_str(), L"slot:%d", &slot) == 1 && slot != m_selectedSlot)
+        if (row >= 0 && row + kFirstSlot != m_selectedSlot)
         {
-            SelectSlot (slot);
+            SelectSlot (row + kFirstSlot);
         }
     });
 
-    m_cardLabel.SetText       (L"Card:");
-    m_drivesHeading.SetText   (L"Drives");
+    m_cardLabel.SetText         (L"Card:");
+    m_drivesHeading.SetText     (L"Drives");
     m_drivesHeading.SetTextRole (DxuiTextRole::Heading);
-    m_protectLabel.SetText    (L"Write protect:");
-    m_firmware.SetLabel       (L"Casso's fast firmware");
-    m_addButton.SetLabel      (L"Add drive");
-    m_cancelButton.SetLabel   (L"Cancel");
-    m_writeProtect[0].SetLabel (L"Drive 1");
-    m_writeProtect[1].SetLabel (L"Drive 2");
+    m_protectLabel.SetText      (L"Write protect:");
+    m_firmware.SetLabel         (L"Casso's fast firmware");
+    m_cancelButton.SetLabel     (L"Cancel");
+    m_writeProtect[0].SetLabel  (L"Drive 1");
+    m_writeProtect[1].SetLabel  (L"Drive 2");
 
-    m_addButton.SetOnClick     ([this] () { AddDrive();       });
     m_replaceButton.SetOnClick ([this] () { ConfirmReplace(); });
     m_cancelButton.SetOnClick  ([this] () { CancelReplace();  });
     m_cardDropdown.SetSelect   ([this] (int index) { ChooseCard (index); });
@@ -240,6 +236,11 @@ void SlotsPage::SetPopupHost (DxuiHwndSource * host)
 {
     m_cardDropdown.SetPopupHost (host);
     m_serial.SetPopupHost       (host);
+
+    for (DxuiComboBox & dropdown : m_portDropdowns)
+    {
+        dropdown.SetPopupHost (host);
+    }
 }
 
 
@@ -271,25 +272,24 @@ void SlotsPage::Rebuild()
 
 void SlotsPage::RebuildList()
 {
-    std::vector<DxuiTreeNode>  nodes;
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
 
 
 
     for (int slot = kFirstSlot; slot <= kLastSlot; slot++)
     {
-        DxuiTreeNode  node;
+        DxuiListView::Cell  cell;
 
 
 
-        node.id     = std::format (L"slot:{}", slot);
-        node.label  = (m_state != nullptr) ? MakeSlotLabel (m_state->GetHardware(), slot) : std::format (L"Slot {}: Empty", slot);
-        node.dimmed = m_state == nullptr || SlotCards::FindSlot (m_state->GetHardware(), slot) < 0;
+        cell.text = (m_state != nullptr) ? MakeSlotLabel (m_state->GetHardware(), slot) : std::format (L"Slot {}: Empty", slot);
+        cell.dim  = m_state == nullptr || SlotCards::FindSlot (m_state->GetHardware(), slot) < 0;
 
-        nodes.push_back (std::move (node));
+        rows.push_back ({ std::move (cell) });
     }
 
-    m_list.SetNodes  (std::move (nodes));
-    m_list.SelectRow (m_selectedSlot - kFirstSlot);
+    m_list.SetRows        (std::move (rows));
+    m_list.SetSelectedRow (m_selectedSlot - kFirstSlot);
 }
 
 
@@ -301,7 +301,9 @@ void SlotsPage::RebuildList()
 //  SlotsPage::RebuildDetail
 //
 //  The selected slot's card and the options that card has. A card the
-//  machine requires can't be changed; the prompt has the reason.
+//  machine requires can't be changed; the prompt has the reason. A chain
+//  card's drives are each connected or not; every other storage card has a
+//  kind of drive, or none, on each port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -317,7 +319,8 @@ void SlotsPage::RebuildDetail()
 
 
 
-    m_driveRows = 0;
+    m_portRows = 0;
+    m_isChain  = false;
 
     if (m_state == nullptr)
     {
@@ -358,29 +361,44 @@ void SlotsPage::RebuildDetail()
     m_cardDropdown.SetSelected     (cardIndex);
     m_cardDropdown.SetEnabled      (!isLocked && !m_replacePending);
 
-    if (isLocked && m_prompt.empty())
-    {
-        m_promptLabel.SetText (Widen (selected->lockReason));
-    }
-    else
-    {
-        m_promptLabel.SetText (m_prompt);
-    }
+    m_promptLabel.SetText ((isLocked && m_prompt.empty()) ? Widen (selected->lockReason) : m_prompt);
 
     if (card != nullptr)
     {
-        m_firmware.SetChecked (selected->cassoFirmware);
-        m_driveRows = std::min (selected->ports.size(), kMaxDrives);
+        std::vector<std::wstring>  driveItems = { L"Not connected" };
+        bool                       isScsi     = std::string (card->device) == kpszAppleScsiCardDevice;
 
-        for (size_t port = 0; port < m_driveRows; port++)
+
+
+        for (const char * device : card->drives)
         {
-            const BlockDriveSpec  * drive    = BlockDeviceCatalog::FindDrive (selected->ports[port]);
-            bool                    hasImage = port < selected->portImages.size() && !selected->portImages[port].empty();
+            const BlockDriveSpec  * drive = BlockDeviceCatalog::FindDrive (device);
 
-            m_driveLabels[port].SetText    (HardwarePage::MakeDriveLabel (*selected, port));
-            m_ejectButtons[port].SetEnabled (hasImage);
-            m_timingBoxes[port].SetChecked (port < selected->portRealTiming.size() && selected->portRealTiming[port]);
-            m_timingBoxes[port].SetVisible (drive != nullptr && drive->hasRealTiming);
+            driveItems.push_back (Widen ((drive != nullptr) ? drive->label : device));
+        }
+
+        m_firmware.SetChecked (selected->cassoFirmware);
+        m_isChain  = card->isChain;
+        m_portRows = std::min ((size_t) card->portCount, kMaxPorts);
+
+        for (size_t port = 0; port < m_portRows; port++)
+        {
+            std::string             device = (port < selected->ports.size()) ? selected->ports[port] : std::string();
+            const BlockDriveSpec  * drive  = BlockDeviceCatalog::FindDrive (device);
+            int                     choice = 0;
+
+            for (size_t i = 0; i < card->drives.size(); i++)
+            {
+                choice = (device == card->drives[i]) ? (int) i + 1 : choice;
+            }
+
+            m_portLabels[port].SetText        (isScsi ? std::format (L"SCSI ID {}:", port) : std::format (L"Drive {}:", port + 1));
+            m_portDropdowns[port].SetItems    (driveItems);
+            m_portDropdowns[port].SetSelected (choice);
+            m_portToggles[port].SetChecked    (drive != nullptr);
+            m_portToggles[port].SetLabel      ((drive != nullptr) ? L"Connected" : L"Not connected");
+            m_timingBoxes[port].SetChecked    (port < selected->portRealTiming.size() && selected->portRealTiming[port]);
+            m_timingBoxes[port].SetVisible    (drive != nullptr && drive->hasRealTiming);
         }
     }
 
@@ -435,6 +453,7 @@ void SlotsPage::Relayout()
     int                     listW      = s.ToPx (s_kListWidthDp);
     int                     labelW     = s.ToPx (s_kLabelWidthDp);
     int                     buttonW    = s.ToPx (s_kButtonWidthDp);
+    int                     dropW      = s.ToPx (s_kDropdownWidthDp);
     int                     indent     = s.ToPx (s_kIndentDp);
     int                     x          = rect.left + pad + listW + s.ToPx (s_kPanelGapDp);
     int                     right      = rect.right - pad;
@@ -446,7 +465,6 @@ void SlotsPage::Relayout()
     bool                    showBlock  = card != nullptr && !m_replacePending;
     bool                    showDisk   = IsDiskIiSelected() && !m_replacePending;
     bool                    showSerial = IsSerialSelected() && !m_replacePending;
-    bool                    isChain    = card != nullptr && card->isChain;
     int                     listBottom = 0;
 
 
@@ -457,13 +475,13 @@ void SlotsPage::Relayout()
     }
 
     m_list.SetDpi  (dpi);
-    m_list.SetRect (MakeRect (rect.left + pad, rect.top + pad, listW, (kLastSlot - kFirstSlot + 2) * m_list.GetRowHeight()));
+    m_list.SetRect (MakeRect (rect.left + pad, rect.top + pad, listW, s.ToPx (s_kListHeightDp)));
     listBottom = m_list.GetBounds().bottom;
 
-    m_cardLabel.SetDpi       (dpi);
-    m_cardDropdown.SetDpi    (dpi);
-    m_cardLabel.SetRect      (MakeRect (x, y, labelW, rowH));
-    m_cardDropdown.SetRect   (MakeRect (controlsX, y, std::min (s.ToPx (s_kDropdownWidthDp), right - controlsX), rowH));
+    m_cardLabel.SetDpi     (dpi);
+    m_cardDropdown.SetDpi  (dpi);
+    m_cardLabel.SetRect    (MakeRect (x, y, labelW, rowH));
+    m_cardDropdown.SetRect (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
     y += rowH + gap;
 
     m_promptLabel.SetDpi     (dpi);
@@ -487,7 +505,7 @@ void SlotsPage::Relayout()
         y += rowH + gap;
     }
 
-    // A storage card: its firmware switch and its drives.
+    // A storage card: its firmware switch and the drives connected to it.
     m_firmware.SetDpi     (dpi);
     m_firmware.SetVisible (showBlock && card->hasCassoFirmware);
     m_firmware.SetRect    (MakeRect (controlsX, y, right - controlsX, rowH));
@@ -506,50 +524,34 @@ void SlotsPage::Relayout()
         y += rowH + gap;
     }
 
-    for (size_t port = 0; port < kMaxDrives; port++)
+    for (size_t port = 0; port < kMaxPorts; port++)
     {
-        bool  show    = showBlock && port < m_driveRows;
-        int   buttonX = x + indent;
+        bool  isShown = showBlock && port < m_portRows;
 
-        m_driveLabels[port].SetDpi       (dpi);
-        m_changeButtons[port].SetDpi     (dpi);
-        m_ejectButtons[port].SetDpi      (dpi);
-        m_removeButtons[port].SetDpi     (dpi);
+        m_portLabels[port].SetDpi        (dpi);
+        m_portDropdowns[port].SetDpi     (dpi);
+        m_portToggles[port].SetDpi       (dpi);
         m_timingBoxes[port].SetDpi       (dpi);
-        m_driveLabels[port].SetVisible   (show);
-        m_changeButtons[port].SetVisible (show);
-        m_ejectButtons[port].SetVisible  (show);
-        m_removeButtons[port].SetVisible (show && isChain);
+        m_portLabels[port].SetVisible    (isShown);
+        m_portDropdowns[port].SetVisible (isShown && !m_isChain);
+        m_portToggles[port].SetVisible   (isShown && m_isChain);
 
-        if (!show)
+        if (!isShown)
         {
             m_timingBoxes[port].SetVisible (false);
             continue;
         }
 
-        // The drive and its image on one line, its buttons under it.
-        m_driveLabels[port].SetRect     (MakeRect (x, y, right - x, rowH));
-        y += rowH + gap;
-
-        m_changeButtons[port].Layout    (MakeRect (buttonX, y, buttonW, rowH));
-        m_ejectButtons[port].Layout     (MakeRect (buttonX + buttonW + gap, y, buttonW, rowH));
-        m_removeButtons[port].Layout    (MakeRect (buttonX + 2 * (buttonW + gap), y, buttonW, rowH));
+        m_portLabels[port].SetRect    (MakeRect (x, y, labelW, rowH));
+        m_portDropdowns[port].SetRect (MakeRect (controlsX, y, std::min (dropW, right - controlsX), rowH));
+        m_portToggles[port].SetRect   (MakeRect (controlsX, y, right - controlsX, rowH));
         y += rowH + gap;
 
         if (m_timingBoxes[port].IsVisible())
         {
-            m_timingBoxes[port].SetRect (MakeRect (x + indent, y, right - x - indent, rowH));
+            m_timingBoxes[port].SetRect (MakeRect (controlsX + indent, y, right - controlsX - indent, rowH));
             y += rowH + gap;
         }
-    }
-
-    m_addButton.SetDpi     (dpi);
-    m_addButton.SetVisible (showBlock && isChain);
-    m_addButton.Layout     (MakeRect (x, y, buttonW, rowH));
-
-    if (m_addButton.IsVisible())
-    {
-        y += rowH + gap;
     }
 
     // The Disk II controller: each drive's write protection.
@@ -599,26 +601,6 @@ void SlotsPage::Relayout()
 int SlotsPage::GetSelectedEntry() const
 {
     return (m_state != nullptr) ? SlotCards::FindSlot (m_state->GetHardware(), m_selectedSlot) : -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SlotsPage::IsChainSelected
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SlotsPage::IsChainSelected() const
-{
-    int                    entry = GetSelectedEntry();
-    const BlockCardSpec  * card  = (entry >= 0) ? BlockDeviceCatalog::FindCard (m_state->GetHardware()[(size_t) entry].type) : nullptr;
-
-
-
-    return card != nullptr && card->isChain;
 }
 
 
@@ -812,34 +794,29 @@ void SlotsPage::ApplyCard (const std::string & device)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SlotsPage::AttachImage
+//  SlotsPage::ChoosePortDrive
+//
+//  Choice 0 is no drive on the port; the others are the card's kinds
+//  of drive, in the order the dropdown lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SlotsPage::AttachImage (size_t port)
+void SlotsPage::ChoosePortDrive (size_t port, int choice)
 {
-    int          entry = GetSelectedEntry();
-    std::string  path;
-    std::string  device;
+    int                    entry  = GetSelectedEntry();
+    const BlockCardSpec  * card   = (entry >= 0) ? BlockDeviceCatalog::FindCard (m_state->GetHardware()[(size_t) entry].type) : nullptr;
+    std::string            device;
 
 
 
-    if (entry < 0 || !m_onBrowseImage)
+    if (card == nullptr || choice < 0 || (size_t) choice > card->drives.size())
     {
         return;
     }
 
-    {
-        const HardwareEntry  & e = m_state->GetHardware()[(size_t) entry];
+    device = (choice > 0) ? std::string (card->drives[(size_t) choice - 1]) : std::string();
 
-        path   = (port < e.portImages.size()) ? e.portImages[port] : std::string();
-        device = (port < e.ports.size())      ? e.ports[port]      : std::string();
-    }
-
-    if (m_onBrowseImage (device, path))
-    {
-        OnEdited (m_state->SetPortImage ((size_t) entry, port, path));
-    }
+    OnEdited (m_state->SetPortDrive ((size_t) entry, port, device));
 }
 
 
@@ -848,11 +825,14 @@ void SlotsPage::AttachImage (size_t port)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SlotsPage::EjectImage
+//  SlotsPage::SetChainDrive
+//
+//  A chain's drives are connected in order, so connecting a drive connects
+//  the ones ahead of it, and disconnecting one disconnects the ones after.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SlotsPage::EjectImage (size_t port)
+void SlotsPage::SetChainDrive (size_t port, bool connected)
 {
     int  entry = GetSelectedEntry();
 
@@ -860,54 +840,7 @@ void SlotsPage::EjectImage (size_t port)
 
     if (entry >= 0)
     {
-        OnEdited (m_state->SetPortImage ((size_t) entry, port, std::string()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SlotsPage::AddDrive
-//
-//  At the chain's limit, the prompt has the limit.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SlotsPage::AddDrive()
-{
-    int           entry = GetSelectedEntry();
-    std::wstring  error;
-
-
-
-    if (entry >= 0 && IsChainSelected())
-    {
-        OnEdited (m_state->AddChainDrive ((size_t) entry, error), error);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SlotsPage::RemoveDrive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SlotsPage::RemoveDrive (size_t port)
-{
-    int  entry = GetSelectedEntry();
-
-
-
-    if (entry >= 0 && IsChainSelected())
-    {
-        OnEdited (m_state->RemoveChainDrive ((size_t) entry, port));
+        OnEdited (m_state->SetChainCount ((size_t) entry, connected ? port + 1 : port));
     }
 }
 

@@ -279,15 +279,14 @@ public:
     }
 
 
-    //  A drive in the selected slot takes an image from the file dialog, and
-    //  a chain's Add drive stops at its limit with the limit in the prompt.
-    TEST_METHOD (Page_AttachesAnImageAndLimitsAChain)
+    //  A chain card lists every drive it can take, each connected or not,
+    //  and its drives are connected in chain order.
+    TEST_METHOD (Page_ConnectsAChainsDrivesInOrder)
     {
         SettingsPanelState  st;
         SlotsPage           page;
         JsonValue           machine = Parse (kMachineJson);
         std::wstring        error;
-        std::string         browsedFor;
         int                 liron   = -1;
 
 
@@ -297,24 +296,46 @@ public:
         liron = SlotCards::FindSlot (st.GetHardware(), 5);
 
         page.SetState (&st);
-        page.SetOnBrowseImage ([&browsedFor] (const std::string & device, std::string & path) { browsedFor = device; path = "C:/disks/800k.po"; return true; });
         page.SelectSlot (5);
-        Assert::AreEqual (5, page.GetSelectedSlot());
-        Assert::IsTrue (page.GetDriveRowCount() > 0);
-        Assert::IsFalse (page.GetEjectButton (0).IsEnabled(), L"the drive is empty");
+        Assert::AreEqual ((size_t) 4, page.GetPortRowCount(), L"the UniDisk 3.5 card's chain takes four drives");
+        Assert::IsTrue  (page.GetPortToggle (0).IsChecked());
+        Assert::IsFalse (page.GetPortToggle (1).IsChecked());
 
-        page.AttachImage (0);
-        Assert::IsTrue (page.GetEjectButton (0).IsEnabled());
-        Assert::AreEqual (std::string ("C:/disks/800k.po"), st.GetHardware()[(size_t) liron].portImages[0]);
-        Assert::AreEqual (std::string (kpszUniDisk35Device), browsedFor, L"the request has the port's drive, whose images the picker lists");
+        page.SetChainDrive (2, true);
+        Assert::AreEqual ((size_t) 3, st.GetHardware()[(size_t) liron].ports.size(), L"connecting drive 3 connects drive 2 too");
 
-        for (int i = 0; i < 4; i++)
-        {
-            page.AddDrive();
-        }
+        page.SetChainDrive (1, false);
+        Assert::AreEqual ((size_t) 1, st.GetHardware()[(size_t) liron].ports.size(), L"disconnecting drive 2 disconnects drive 3 too");
+        Assert::IsTrue (st.RequiresReset());
+    }
 
-        Assert::AreEqual ((size_t) 4, st.GetHardware()[(size_t) liron].ports.size());
-        Assert::IsTrue (page.GetStoragePrompt().find (L"at most 4") != std::wstring::npos, page.GetStoragePrompt().c_str());
+
+    //  Each SCSI ID takes a kind of drive, or none.
+    TEST_METHOD (Page_ChoosesADriveForEachScsiId)
+    {
+        SettingsPanelState  st;
+        SlotsPage           page;
+        JsonValue           machine = Parse (kMachineJson);
+        std::wstring        error;
+        int                 scsi    = -1;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Apple2e", machine, machine));
+        AssertSucceeded (st.SetSlotCard (7, kpszAppleScsiCardDevice, error));
+        scsi = SlotCards::FindSlot (st.GetHardware(), 7);
+
+        page.SetState (&st);
+        page.SelectSlot (7);
+        Assert::AreEqual ((size_t) 7, page.GetPortRowCount());
+        Assert::AreEqual (1, page.GetPortDropdown (6).GetSelectedIndex(), L"the HD20SC is at ID 6");
+        Assert::AreEqual (0, page.GetPortDropdown (2).GetSelectedIndex());
+
+        page.ChoosePortDrive (2, 1);
+        Assert::AreEqual (std::string (kpszHd20scDevice), st.GetHardware()[(size_t) scsi].ports[2]);
+
+        page.ChoosePortDrive (6, 0);
+        Assert::IsTrue (st.GetHardware()[(size_t) scsi].ports[6].empty());
     }
 
 

@@ -646,46 +646,6 @@ HRESULT SettingsSheet::OpenModeless (
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_slotsPage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
-    m_slotsPage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
-    {
-        FileDialogSpec          spec;
-        fs::path                picked;
-        bool                    isPicked = false;
-        HRESULT                 hr       = S_OK;
-        const BlockDriveSpec  * drive    = BlockDeviceCatalog::FindDrive (device);
-
-
-
-        spec.filters = { { L"Disk images", L"*.po;*.hdv;*.2mg;*.2img;*.dsk;*.dc;*.dc42;*.image;*.woz" }, { L"All files", L"*.*" } };
-        spec.content = FileDialogContent::Images;
-
-        //  The picker lists what the port's drive accepts: a hard disk up to
-        //  its capacity, or a 3.5-inch drive's disks.
-        if (drive != nullptr)
-        {
-            bool  isUniDisk = device == kpszUniDisk35Device;
-            bool  isApple35 = device == kpszApple35DriveDevice;
-
-            spec.receivingDrive = ReceivingDrive { isUniDisk ? ReceivingDriveKind::UniDisk35 : isApple35 ? ReceivingDriveKind::Apple35 : ReceivingDriveKind::HardDisk,
-                                                   (isUniDisk || isApple35) ? 0 : drive->maxBlocks };
-            spec.driveLabel     = TextEncoding::Utf8ToWide (drive->label);
-        }
-
-        if (!inOutPath.empty())
-        {
-            spec.initialFolder   = fs::path (TextEncoding::Utf8ToWide (inOutPath)).parent_path();
-            spec.defaultFileName = fs::path (TextEncoding::Utf8ToWide (inOutPath)).filename().wstring();
-        }
-
-        hr = m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
-
-        if (SUCCEEDED (hr) && isPicked)
-        {
-            inOutPath = TextEncoding::WideToUtf8 (picked.wstring());
-        }
-
-        return SUCCEEDED (hr) && isPicked;
-    });
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
