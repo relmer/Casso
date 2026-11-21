@@ -121,6 +121,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     }
 
     spec.verify           = &verify;
+    spec.verifyLabel      = L"Verify: read each track again and compare";
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = name;
     spec.askToReplace     = false;
@@ -357,6 +358,7 @@ void CassoLinkDriveManager::WriteImageToDisk (const Location & drive, bool force
     std::wstring           link;
     int                    number = 0;
     FileDialogSpec         spec;
+    bool                   verify = forceVerify;
 
 
 
@@ -375,12 +377,14 @@ void CassoLinkDriveManager::WriteImageToDisk (const Location & drive, bool force
     spec.title          = std::format (L"Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
     spec.content        = FileDialogContent::Images;
     spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+    spec.verify         = &verify;
+    spec.verifyLabel    = L"Verify: read the disk back and compare";
 
     hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    StartImageWrite (target, picked.wstring(), forceVerify);
+    StartImageWrite (target, picked.wstring(), verify);
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
