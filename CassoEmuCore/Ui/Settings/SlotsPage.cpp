@@ -673,10 +673,10 @@ void SlotsPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
         return;
     }
 
-    // Clockwise from the panel's top left. With the row in view, the outline
-    // leaves the panel's left side, goes around the row and comes back, so
-    // the panel and the row are one shape. A row level with the panel's top
-    // or bottom takes that corner in place of a step.
+    // Clockwise from the panel's top left. With the row in view, the points
+    // on the panel's left side step out around the row and back, so one
+    // outline encloses both. A row level with the panel's top or bottom
+    // replaces that corner with no step.
     row.top    += inset;
     row.bottom -= inset;
 
