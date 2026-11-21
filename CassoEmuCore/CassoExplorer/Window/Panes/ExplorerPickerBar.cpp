@@ -84,7 +84,9 @@ void ExplorerPickerBar::Create()
         m_verify->SetSingleLineLabel (true);
     }
 
-    if (request->filters.size() > 1)
+    //  Only a save form chooses a file type; an open form lists every
+    //  image the request takes.
+    if (request->IsSave() && request->filters.size() > 1)
     {
         m_filter = m_context.window.CreateChild<DxuiComboBox>();
         m_filter->SetElide     (DxuiElide::Middle);
@@ -135,7 +137,7 @@ void ExplorerPickerBar::Create()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPickerBar::Layout (const RECT & band)
+void ExplorerPickerBar::Layout (const RECT & band, int listLeft)
 {
     const DxuiDpiScaler &  scaler = m_context.scaler;
     int                    height = scaler.ToPx (kButtonDip);
@@ -143,6 +145,7 @@ void ExplorerPickerBar::Layout (const RECT & band)
     int                    right  = band.right - scaler.ToPx (kEdgePadDip);
     int                    gap    = scaler.ToPx (kGapDip);
     int                    width  = 0;
+    int                    left   = 0;
 
 
 
@@ -164,19 +167,34 @@ void ExplorerPickerBar::Layout (const RECT & band)
         right -= width + gap;
     }
 
-    //  The filter list, with the selected entry's note under it.
+    //  The filter list at the list's left edge, with the selected entry's
+    //  note under it, its text in line with the list's.
+    left = (std::max) ((int) band.left + scaler.ToPx (kEdgePadDip), listLeft);
+
     if (m_filter != nullptr)
     {
-        width = scaler.ToPx (kFilterMaxDip);
+        int  inset = scaler.ToPx (DxuiComboBox::kTextInsetDip);
 
-        m_filter->Layout (RECT { right - width, top, right, top + height }, scaler);
+        //  As wide as its longest entry needs, when there's room, and never
+        //  narrower than kFilterMinDip.
+        width = scaler.ToPx (kFilterMinDip);
+
+        if (m_context.window.GetTextRenderer() != nullptr)
+        {
+            m_filter->SetDpi (scaler.GetDpi());
+            width = (std::max) (width, (int) std::ceil (m_filter->GetFitWidthPx (*m_context.window.GetTextRenderer())));
+        }
+
+        width = (std::min) (width, (std::max) (0, right - left - (m_name != nullptr ? scaler.ToPx (kNameLabelDip + kNameMinDip) + gap : 0)));
+
+        m_filter->Layout (RECT { left, top, left + width, top + height }, scaler);
 
         if (m_filterNote != nullptr)
         {
-            m_filterNote->Layout (RECT { right - width, top + height + scaler.ToPx (kGapDip) / 2, band.right - scaler.ToPx (kEdgePadDip), band.bottom }, scaler);
+            m_filterNote->Layout (RECT { left + inset, top + height + scaler.ToPx (kGapDip) / 2, right, band.bottom }, scaler);
         }
 
-        right -= width + gap;
+        left += width + gap;
     }
 
     if (m_verify != nullptr)
@@ -192,7 +210,7 @@ void ExplorerPickerBar::Layout (const RECT & band)
         return;
     }
 
-    //  A save form has the file name box at the left.
+    //  A save form has the file name box after the filter list.
     if (!m_isNameConfigured && m_context.window.GetHwnd() != nullptr)
     {
         m_name->SetTextRenderer   (m_context.window.GetTextRenderer());
@@ -204,7 +222,6 @@ void ExplorerPickerBar::Layout (const RECT & band)
     }
 
     {
-        int  left  = band.left + scaler.ToPx (kEdgePadDip);
         int  label = left + scaler.ToPx (kNameLabelDip);
 
         m_nameLabel->Layout (RECT { left, band.top, label, band.bottom }, scaler);
@@ -579,7 +596,8 @@ void ExplorerPickerBar::FillFilterList()
             m_filterRows.push_back (-1);
         }
 
-        rows.push_back (m_context.pickerMode.GetFilterLabel (index));
+        //  Entries with notes are listed by name alone, as Options lists them.
+        rows.push_back (HasFilterNotes() ? filter->name : m_context.pickerMode.GetFilterLabel (index));
         headings.push_back (false);
         notes.push_back ((filter != nullptr) ? filter->note : std::wstring());
         m_filterRows.push_back ((int) index);
@@ -613,7 +631,7 @@ bool ExplorerPickerBar::HasFilterNotes() const
 
 
 
-    return request != nullptr && request->filters.size() > 1
+    return request != nullptr && request->IsSave() && request->filters.size() > 1
         && std::any_of (request->filters.begin(), request->filters.end(), [] (const FileDialogFilter & filter) { return !filter.note.empty(); });
 }
 

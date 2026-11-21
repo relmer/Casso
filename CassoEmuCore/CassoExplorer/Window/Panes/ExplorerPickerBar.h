@@ -30,7 +30,7 @@ public:
     static constexpr int  kButtonDip     = DxuiButtonRow::kButtonHeightDip;
     static constexpr int  kEdgePadDip    = DxuiButtonRow::kEdgePadDip;
     static constexpr int  kGapDip        = 8;
-    static constexpr int  kFilterMaxDip  = 320;
+    static constexpr int  kFilterMinDip  = 320;
     static constexpr int  kNameLabelDip  = 84;
     static constexpr int  kNameMinDip    = 160;
     static constexpr int  kVerifyDip     = 90;
@@ -41,7 +41,8 @@ public:
     int   GetBandDip () const;
 
     void  Create      ();
-    void  Layout      (const RECT & band);
+    //  The filter list starts at `listLeft`, the left edge of the list.
+    void  Layout      (const RECT & band, int listLeft);
 
     //  The capsules of what a drive's picker lists, in the command bar's free
     //  area from the left edge of the list.
@@ -65,6 +66,9 @@ public:
 
     //  Whether the Verify check box is checked; false when the bar has none.
     bool  IsVerifyChecked () const { return m_verify != nullptr && m_verify->IsChecked(); }
+
+    //  The filter list's text at a row, headings included; empty past the end.
+    std::wstring  GetFilterItemText (int row) const { return (m_filter != nullptr && row >= 0 && row < (int) m_filter->GetItems().size()) ? m_filter->GetItems()[(size_t) row] : std::wstring(); }
 
     //  The bar's controls as Tab stops, left to right: the Verify check box,
     //  the filter list, then the buttons. -1 clears the focus.

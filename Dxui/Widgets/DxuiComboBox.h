@@ -20,6 +20,9 @@ public:
     using SelectFn = std::function<void (int index)>;
 
     DxuiComboBox() { m_focusable = true; }
+
+    //  Where the closed box's text starts, past its left edge.
+    static constexpr int  kTextInsetDip = 8;
     ~DxuiComboBox() override = default;
 
     void  SetRect     (const RECT & rect) { SetBounds (rect); }
