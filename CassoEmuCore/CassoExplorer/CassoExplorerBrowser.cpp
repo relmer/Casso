@@ -2274,6 +2274,34 @@ bool CassoExplorerBrowser::TryGetNodeLocation (const std::wstring & id, Location
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::TryGetTreeNode
+//
+//  A tree node as it was last read, such as an image read when it was
+//  selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::TryGetTreeNode (const std::wstring & id, DxuiTreeNode & outNode) const
+{
+    auto  found = m_loader.m_nodes.find (id);
+    bool  has   = found != m_loader.m_nodes.end();
+
+
+
+    if (has)
+    {
+        outNode = BrowserCells::ToTreeNode (found->second, m_shellIcons);
+    }
+
+    return has;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::CanAddToCasso
 //
 //  Any host folder that is not already known, wherever it shows in the tree.

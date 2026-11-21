@@ -130,6 +130,7 @@ void ExplorerTreePane::Configure()
 
         hr = m_context.browser.SelectTreeNode (id);
         IGNORE_RETURN_VALUE (hr, S_OK);
+        UpdateReadNode (id);
         m_context.listPane.FillList();
     });
 
@@ -723,6 +724,39 @@ void ExplorerTreePane::RevealLocationInTree()
     //  The open folder's row is highlighted, and only its parents expand.
     m_tree->HighlightRow (row);
     ScrollTreeToRow (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::UpdateReadNode
+//
+//  An image is read when it is selected. Its node is marked when the image
+//  doesn't open, and its expander is removed when it has no children.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::UpdateReadNode (const std::wstring & id)
+{
+    DxuiTreeNode    fresh;
+    DxuiTreeNode  * node = m_tree->GetNodeAtMutable (m_tree->FindRowById (id));
+
+
+
+    if (node == nullptr || !m_context.browser.TryGetTreeNode (id, fresh))
+    {
+        return;
+    }
+
+    node->iconBroken = fresh.iconBroken;
+
+    if (fresh.childrenLoaded && !node->childrenLoaded)
+    {
+        m_tree->ReplaceChildren (id, {});
+    }
 }
 
 

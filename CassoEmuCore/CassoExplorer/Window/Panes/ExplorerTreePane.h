@@ -100,6 +100,7 @@ private:
     void  ScrollTreeToRow      (int row);
     int   WalkTreeLabels       (int row, const std::wstring & path);
     int   RevealPartitionSteps (int row, const std::wstring & path, bool underCasso, bool isPartition);
+    void  UpdateReadNode       (const std::wstring & id);
     void  ShowLabelTipAt       (POINT point);
     void  ShowTreeContextMenu  (int x, int y, const std::wstring & id);
     void  AddTreeIconRow       (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);

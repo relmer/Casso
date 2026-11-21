@@ -84,6 +84,7 @@ public:
     //  Where a tree node or a list row leads, without going there: a folder, a
     //  disk image, or a directory inside one. False for anything else.
     bool  TryGetNodeLocation (const std::wstring & id, Location & outLocation) const;
+    bool  TryGetTreeNode     (const std::wstring & id, DxuiTreeNode & outNode) const;
     bool  TryGetRowLocation  (int row, Location & outLocation);
 
     //  The path a row stands for, as Copy as path gives it: a host item's full

@@ -180,6 +180,40 @@ public:
 
 
 
+    TEST_METHOD (TreeSelect_MarksAnImageThatDoesNotOpen)
+    {
+        Rig                   rig;
+        std::wstring          image   = L"C:\\Disks\\bad.dsk";
+        std::wstring          imageId = TreeModel::MakeImageId (true, image);
+        std::string           text    = "this is not a disk image";
+        DxuiTreeView        * tree    = nullptr;
+        const DxuiTreeNode  * node    = nullptr;
+
+
+
+        AssertSucceeded (rig.fs.WriteAllText (image, text));
+        rig.io.files["C:\\Disks\\bad.dsk"] = std::vector<Byte> (text.begin(), text.end());
+        rig.Open();
+        rig.browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        rig.browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        rig.browser.GetTreeModel().InvalidateAll();
+        rig.parts->treePane.RefreshTree();
+        rig.parts->treePane.ExpandNode (TreeModel::kCassoRootId);
+        rig.parts->treePane.ExpandNode (TreeModel::MakeFolderId (true, L"C:\\Disks"));
+
+        tree = static_cast<DxuiTreeView *> (rig.parts->treePane.GetControl());
+        node = tree->FindNodeById (imageId);
+        Assert::IsTrue (node != nullptr && DxuiTreeView::CanExpand (*node), L"an image has an expander before it is read");
+
+        tree->SelectRow (tree->FindRowById (imageId));
+        node = tree->FindNodeById (imageId);
+
+        Assert::IsTrue  (node->iconBroken, L"an image that doesn't open is marked once it is read");
+        Assert::IsFalse (DxuiTreeView::CanExpand (*node), L"and loses its expander");
+    }
+
+
+
     TEST_METHOD (Open_CreatesTheControlsAsChildren)
     {
         Rig  rig;
