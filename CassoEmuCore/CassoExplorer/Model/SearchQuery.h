@@ -76,10 +76,11 @@ public:
     //  nothing.
     static std::vector<std::pair<int, int>>  FindNameMatches (const std::wstring & name, const std::vector<std::wstring> & words);
 
-    //  A word with * or ? matches the whole name as a pattern, as in File
-    //  Explorer's box; the index is left out of such a search.
-    static bool  HasWildcards   (const std::wstring & query);
-    static bool  MatchesPattern (const wchar_t * name, const wchar_t * pattern);
+    //  A word with * or ? matches as a pattern, as in File Explorer's box; the
+    //  index is left out of such a search.
+    static bool  HasWildcards    (const std::wstring & query);
+    static bool  MatchesPattern  (const wchar_t * name, const wchar_t * pattern);
+    static bool  MatchesWildcard (const std::wstring & name, const std::wstring & pattern);
 
 private:
     static constexpr wchar_t  s_kOptionsSeparator = L'\x1F';

@@ -414,7 +414,7 @@ bool SearchQuery::MatchesName (const std::wstring & name, const std::vector<std:
 
     return std::all_of (words.begin(), words.end(), [&lower] (const std::wstring & word)
     {
-        return (word.find_first_of (L"*?") != std::wstring::npos) ? MatchesPattern (lower.c_str(), word.c_str())
+        return (word.find_first_of (L"*?") != std::wstring::npos) ? MatchesWildcard (lower, word)
                                                                     : lower.find (word) != std::wstring::npos;
     });
 }
@@ -482,6 +482,46 @@ std::vector<std::pair<int, int>> SearchQuery::FindNameMatches (const std::wstrin
 bool SearchQuery::HasWildcards (const std::wstring & query)
 {
     return query.find_first_of (L"*?") != std::wstring::npos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::MatchesWildcard
+//
+//  A pattern with a period matches the whole name, so *.dsk finds only the
+//  .dsk files. Any other pattern matches from the start of any word in the
+//  name to anywhere after it, so wiz*scenario finds "Wizardry I scenario.woz".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::MatchesWildcard (const std::wstring & name, const std::wstring & pattern)
+{
+    std::wstring  open = pattern + L'*';
+
+
+
+    if (pattern.find (L'.') != std::wstring::npos)
+    {
+        return MatchesPattern (name.c_str(), pattern.c_str());
+    }
+
+    for (size_t i = 0; i < name.size(); i++)
+    {
+        bool  wordStart = i == 0 || !iswalnum (name[i - 1]) || (iswalpha (name[i]) && !iswalpha (name[i - 1]));
+
+
+
+        if (wordStart && MatchesPattern (name.c_str() + i, open.c_str()))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

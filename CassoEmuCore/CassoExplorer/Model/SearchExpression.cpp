@@ -1426,7 +1426,7 @@ bool SearchExpression::MatchesString (const Node & node, const std::wstring & lo
 
     if (node.wildcard)
     {
-        return SearchQuery::MatchesPattern (lowerValue.c_str(), node.value.c_str()) != negate;
+        return SearchQuery::MatchesWildcard (lowerValue, node.value) != negate;
     }
 
     switch (node.op)
