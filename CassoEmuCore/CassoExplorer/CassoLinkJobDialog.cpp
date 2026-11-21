@@ -5,6 +5,8 @@
 
 
 //  What a read that couldn't read every sector offers, above its buttons.
+static constexpr const wchar_t *  s_kpszResultHeading = L"Result";
+
 static constexpr const wchar_t *  s_kOfferLines[] =
 {
     L"The disk may be copy-protected. Try Capture raw, which saves every track as it is on the disk.",
@@ -402,24 +404,43 @@ void CassoLinkJobPanel::LayTabs()
 //
 //  CassoLinkJobPanel::GetHeader
 //
-//  The height above the drive: the tabs, the status line, the link, the
-//  connection, and once the job ends, what it found.
+//  The height above the drive: the tabs, the status line and connection,
+//  the link, and once the job ends, a Result heading over what it found.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float CassoLinkJobPanel::GetHeader (const CassoLinkJobView * view) const
 {
     float  line = m_scaler.ToPxf (kLineDip);
-    float  rows = 3.0f;
+    float  rows = 2.0f;
 
 
 
     if (view != nullptr)
     {
         rows += (float) view->summary.size() + (view->message.empty() ? 0.0f : 1.0f) + (view->hasOffer ? (float) std::size (s_kOfferLines) : 0.0f);
+        rows += HasResult (*view) ? 1.0f : 0.0f;
     }
 
     return m_scaler.ToPxf (kTabsDip) + m_scaler.ToPxf (kPadDip) + line * rows + m_scaler.ToPxf (kSectionGapDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkJobPanel::HasResult
+//
+//  The job has ended with a message or an offer to show under the Result
+//  heading.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkJobPanel::HasResult (const CassoLinkJobView & view)
+{
+    return !view.message.empty() || view.hasOffer;
 }
 
 
@@ -456,14 +477,15 @@ void CassoLinkJobPanel::LayDrive()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkJobPanel::DrawLine (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip) const
+void CassoLinkJobPanel::DrawLine (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip,
+                                  DxuiTextHAlign align, DxuiFontWeight weight) const
 {
     HRESULT  hr = S_OK;
 
 
 
     hr = text.DrawString (line.c_str(), left, top, width, m_scaler.ToPxf (kLineDip), color, m_scaler.ToPxf (fontDip), FullSendPanel::s_kpszFont,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                          align, DxuiTextVAlign::Center, weight, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -508,14 +530,18 @@ void CassoLinkJobPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
         return;
     }
 
-    DrawLine (text, view->heading, left, top, width, theme.Foreground(), kStatusFontDip);
+    DrawLine (text, view->heading, left, top, width * kHeadingShare, theme.Foreground(), kStatusFontDip);
+    DrawLine (text, view->connection, left + width * kHeadingShare, top, width * (1.0f - kHeadingShare), theme.ForegroundMuted(), kFontDip, DxuiTextHAlign::Right);
     top += line;
 
     PaintLink (painter, text, theme, view->imagePath, left, top, width);
     top += line;
 
-    DrawLine (text, view->connection, left, top, width, theme.ForegroundMuted(), kFontDip);
-    top += line;
+    if (HasResult (*view))
+    {
+        DrawLine (text, s_kpszResultHeading, left, top, width, theme.Foreground(), kStatusFontDip, DxuiTextHAlign::Left, DxuiFontWeight::SemiBold);
+        top += line;
+    }
 
     if (!view->message.empty())
     {

@@ -89,6 +89,7 @@ public:
     static constexpr float  kLineDip       = 22.0f;
     static constexpr float  kLabelWidthDip = 220.0f;
     static constexpr float  kSectionGapDip = 12.0f;
+    static constexpr float  kHeadingShare  = 0.6f;    // the status line's share of the first row; the connection is right-aligned in the rest
     static constexpr float  kPageShade     = 0.07f;   // the page and its tab, mixed this far toward the text color
 
     void  Init          (DxuiTooltip * tooltip);
@@ -109,8 +110,11 @@ private:
     void   LayTabs   ();
     void   LayDrive  ();
     float  GetHeader (const CassoLinkJobView * view) const;
-    void   PaintLink (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & path, float left, float top, float width) const;
-    void   DrawLine  (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip) const;
+
+    static bool  HasResult (const CassoLinkJobView & view);
+    void         PaintLink (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & path, float left, float top, float width) const;
+    void   DrawLine  (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, float fontDip,
+                      DxuiTextHAlign align = DxuiTextHAlign::Left, DxuiFontWeight weight = DxuiFontWeight::Normal) const;
 
     DxuiTabStrip                   m_tabs;
     FullSendPanel                  m_drive;
