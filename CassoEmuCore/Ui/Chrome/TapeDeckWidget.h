@@ -145,7 +145,7 @@ private:
     static constexpr int    kButtonSizePx      = 16;
     static constexpr int    kButtonGapPx       = 2;
     static constexpr int    kCounterGapXPx     = 4;
-    static constexpr int    kCounterWidthPx    = 34;
+    static constexpr int    kCounterWidthPx    = 30;
     static constexpr int    kLabelStripPx      = 13;      // under the controls, for the nearest one's name
     static constexpr float  kLabelFontDip      = 8.5f;
     static constexpr int    kLabelWidthPx      = 90;
