@@ -424,7 +424,7 @@ std::string DiskHelpPage::ApplyPrefixes (const std::string & text, char flagPref
         }
         else if (isPlaceholder && text[i + 1] == 'C')
         {
-            out += DiskCommandRunner::FormatContainerWordList ("", "or");
+            out += BlankDiskSpecResolver::FormatContainerWordList ("", "or");
             i++;
         }
         else

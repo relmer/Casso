@@ -178,6 +178,22 @@ public:
     static constexpr Byte    kWriteBlocks     = 0xF2;
     static constexpr size_t  kBlockSize       = 512;
 
+    //  A read's blocks come as Block plain, Block data's fields with no EOR
+    //  check, or Block runs. In both, a read asked for with no CRC
+    //  (kBlockNoCrc in the request's flags) has 0 for its CRC, which isn't
+    //  checked. Block runs: the block, its bytes with each run
+    //  of 4 or more of a byte as kRunEscape, the run's length less 4 and the
+    //  byte, and a kRunEscape alone as kRunEscape and kRunLiteral, then the
+    //  CRC of the block and the bytes as sent. The CRC covers the payload, so
+    //  its EOR is 0 and isn't checked.
+    static constexpr Byte    kBlockRuns       = 0xF8;
+    static constexpr Byte    kBlockPlain      = 0xF9;
+    static constexpr Byte    kRunEscape       = 0xDB;
+    static constexpr Byte    kRunLiteral      = 0xFF;
+    static constexpr size_t  kRunMinimum      = 4;
+    static constexpr Byte    kBlockVerify     = 0x01;
+    static constexpr Byte    kBlockNoCrc      = 0x02;
+
     //  The 13-sector module's Write nibble track: the drive, the track and the
     //  stream's length; an Acknowledge requests the stream, in a Nibble data
     //  packet with its CRC, and a Status ends it. In the stream, a byte with
@@ -291,6 +307,8 @@ public:
         { kReadBlocks,    "CMDBLKREAD"  },
         { kBlockData,     "CMDBLKDATA"  },
         { kWriteBlocks,   "CMDBLKWRITE" },
+        { kBlockRuns,     "CMDBLKRUNS"  },
+        { kBlockPlain,    "CMDBLKPLAIN" },
         { kWriteNibbleTrack, "CMDWNIBS"  },
         { kNibbleData,    "CMDNIBDATA"  },
         { kReadThirteenTrack, "CMDRD13" },
@@ -314,6 +332,12 @@ public:
     // The track, sector and 256 bytes of a Sector data packet, once its CRC
     // is checked.
     static HRESULT   ParseSectorData   (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);
+
+    // The block and its 512 bytes from a Block data, Block plain or Block runs
+    // packet, with its CRC checked when `checkCrc` is set. ERROR_INVALID_DATA
+    // for any other packet or one that doesn't decode to a whole block, and
+    // ERROR_CRC for a failed CRC.
+    static HRESULT   ParseBlock        (const CassoLinkPacket & packet, bool checkCrc, uint32_t & outBlock, std::vector<Byte> & outData);
 
     // Sector nibbles: the track, the sector, its data field's 343 nibbles as
     // NibblizationLayer encodes them, and their CRC. Write sectors sends

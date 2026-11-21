@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -217,6 +218,86 @@ void ExplorerThemes::Preview (int index)
     }
 
     Select (s_kpszThemeRows[index]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerThemes::GetCommandTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * ExplorerThemes::GetCommandTheme (int id)
+{
+    switch (id)
+    {
+        case CassoExplorerCommands::kThemeLight:         return CassoExplorerPrefs::kThemeLight;
+        case CassoExplorerCommands::kThemeDark:          return CassoExplorerPrefs::kThemeDark;
+        case CassoExplorerCommands::kThemeSystem:        return CassoExplorerPrefs::kThemeFollowSystem;
+        case CassoExplorerCommands::kThemeSkeuomorphic:  return CassoExplorerPrefs::kThemeSkeuomorphic;
+        case CassoExplorerCommands::kThemeDarkModern:    return CassoExplorerPrefs::kThemeDarkModern;
+        case CassoExplorerCommands::kThemeRetroTerminal: return CassoExplorerPrefs::kThemeRetroTerminal;
+        case CassoExplorerCommands::kThemePhosphor:      return CassoExplorerPrefs::kThemePhosphor;
+        default:                                         return nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerThemes::IsCommandChecked
+//
+//  Follow system is checked for any theme that isn't light, dark or one
+//  of Casso's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerThemes::IsCommandChecked (int id) const
+{
+    const char *         theme   = GetCommandTheme (id);
+    const std::string &  current = m_context.prefs.theme;
+
+
+
+    if (theme == nullptr)
+    {
+        return false;
+    }
+
+    if (id == CassoExplorerCommands::kThemeSystem)
+    {
+        return current != CassoExplorerPrefs::kThemeLight && current != CassoExplorerPrefs::kThemeDark && !IsCassoThemeName (current);
+    }
+
+    return current == theme;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerThemes::SelectForCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerThemes::SelectForCommand (int id)
+{
+    const char *  theme = GetCommandTheme (id);
+
+
+
+    if (theme != nullptr)
+    {
+        Select (theme);
+    }
 }
 
 

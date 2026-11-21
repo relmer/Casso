@@ -134,11 +134,11 @@ void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
 
 bool TreeModel::IsSupportedImage (const std::wstring & fileName)
 {
-    size_t                                    count      = 0;
-    const DiskCommandRunner::ContainerName  * containers = DiskCommandRunner::GetAdvertisedContainers (count);
-    size_t                                    dot        = fileName.rfind (L'.');
-    size_t                                    i          = 0;
-    std::string                               extension;
+    size_t                                        count      = 0;
+    const BlankDiskSpecResolver::ContainerName  * containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
+    size_t                                        dot        = fileName.rfind (L'.');
+    size_t                                        i          = 0;
+    std::string                                   extension;
 
 
 

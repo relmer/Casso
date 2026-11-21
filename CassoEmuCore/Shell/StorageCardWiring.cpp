@@ -3,6 +3,7 @@
 #include "StorageCardWiring.h"
 
 #include "Audio/DriveAudioMixer.h"
+#include "Audio/Floppy35AudioSource.h"
 #include "Audio/HardDiskAudioSource.h"
 #include "Core/MachineConfig.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
@@ -49,9 +50,9 @@ StorageCardWiring::StorageCardWiring (MachineBuilder & builder, MachineHost & ho
 //
 //  Connects an Apple II SCSI Card the registry just created: its firmware,
 //  its page and the expansion space, and an image on each SCSI ID its ports
-//  list. A missing firmware file leaves the card without firmware, so the
-//  slot scan passes over it. An image that fails to attach leaves its drive
-//  empty, with the reason added to the machine's media problems.
+//  list. A missing firmware file, or the machine file's cassoFirmware, puts
+//  Casso's block firmware in its place. When an image fails to attach, its
+//  drive is empty, and the reason is added to the machine's media problems.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +75,8 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
+    UseCassoFirmware (slot, card, L"SCSI card");
 
     m_builder.AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
 
@@ -132,6 +135,45 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UseCassoFirmware
+//
+//  Puts Casso's block firmware on a hard disk card when the machine file
+//  sets cassoFirmware or the card's ROM isn't installed. Without the ROM, a
+//  note about the firmware in use is added to the machine's media problems.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TCard>
+void StorageCardWiring::UseCassoFirmware (const SlotConfig & slot, TCard & card, const wchar_t * cardName)
+{
+    HRESULT  hr        = S_OK;
+    bool     isMissing = !card.HasFirmware();
+
+
+
+    if (!slot.cassoFirmware && !isMissing)
+    {
+        return;
+    }
+
+    hr = card.UseCassoFirmware();
+
+    if (FAILED (hr))
+    {
+        m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}: Casso's firmware for the {} can't be assembled.", slot.slot, cardName));
+    }
+    else if (isMissing && !slot.cassoFirmware)
+    {
+        m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}: Apple's {} ROM isn't installed, so Casso's fast firmware is used.", slot.slot, cardName));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RejectFloppyImage
 //
 //  A 140K, 400K or 800K image is a floppy disk, whatever its container, and
@@ -171,9 +213,10 @@ bool StorageCardWiring::RejectFloppyImage (BlockDeviceMedia & media, std::wstrin
 //  Connects a ProFile interface card: the drive its port lists, 5 or 10 MB,
 //  the ROM for that model, its page and the expansion space, and the drive's
 //  image. The 10 MB drive takes 341-0299-B from the same folder when the
-//  entry lists the 5 MB ROM or none. A missing ROM leaves the card without
-//  firmware; an image that fails to attach leaves the drive empty, with the
-//  reason added to the machine's media problems.
+//  entry lists the 5 MB ROM or none. A missing ROM, or the machine file's
+//  cassoFirmware, puts Casso's block firmware in its place. When an image
+//  fails to attach, the drive is empty, and the reason is added to the
+//  machine's media problems.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,6 +258,8 @@ void StorageCardWiring::WireProFileCard (const SlotConfig & slot, ProFileCard & 
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
+    UseCassoFirmware (slot, card, L"ProFile card");
 
     m_builder.AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
 
@@ -629,9 +674,21 @@ void StorageCardWiring::WireDeviceAudio()
         door  = *m_services.driveDoorVolume;
     }
 
-    // The 3.5-inch drives are silent: Floppy35AudioSource's synthesized
-    // motor, steps and eject didn't sound like a Sony drive, and they wait
-    // for recordings of one.
+    for (IFloppy35EventSource * source : refs.floppy35Sources)
+    {
+        auto     audio  = std::make_unique<Floppy35AudioSource>();
+        HRESULT  hrLoad = audio->LoadSamples (AssetBootstrap::GetDriveSoundsDirectory() / Floppy35AudioSource::kSampleFolder, rate);
+
+
+
+        IGNORE_RETURN_VALUE (hrLoad, S_OK);
+
+        audio->SetVolumes (motor, head, door);
+        source->SetFloppy35EventSink (audio.get());
+        m_services.driveAudioMixer->RegisterSource (audio.get());
+        m_services.deviceAudioSources->push_back (std::move (audio));
+    }
+
     for (AppleScsiCard * card : refs.scsiCards)
     {
         auto  audio = std::make_unique<HardDiskAudioSource> (kHd20scTick);

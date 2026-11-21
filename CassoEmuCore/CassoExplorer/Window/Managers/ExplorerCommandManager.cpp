@@ -541,14 +541,6 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kCrossReference:    return m_context.preview.GetText().IsCrossReference();
         case CassoExplorerCommands::kShowDisassembly:   return m_context.browser.GetPreview().disassembly;
         case CassoExplorerCommands::kShowBytes:         return m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && !m_context.browser.GetPreview().disassembly;
-        case CassoExplorerCommands::kThemeLight:        return m_context.prefs.theme == CassoExplorerPrefs::kThemeLight;
-        case CassoExplorerCommands::kThemeDark:         return m_context.prefs.theme == CassoExplorerPrefs::kThemeDark;
-        case CassoExplorerCommands::kThemeSystem:       return m_context.prefs.theme != CassoExplorerPrefs::kThemeLight && m_context.prefs.theme != CassoExplorerPrefs::kThemeDark
-                                                             && !ExplorerThemes::IsCassoThemeName (m_context.prefs.theme);
-        case CassoExplorerCommands::kThemeSkeuomorphic: return m_context.prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
-        case CassoExplorerCommands::kThemeDarkModern:   return m_context.prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
-        case CassoExplorerCommands::kThemeRetroTerminal: return m_context.prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
-        case CassoExplorerCommands::kThemePhosphor:     return m_context.prefs.theme == CassoExplorerPrefs::kThemePhosphor;
         case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode != PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kCharsetAppleText:  return m_context.browser.GetPreview().charset == Charset::AppleText;
@@ -570,7 +562,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
         case CassoExplorerCommands::kColumns4:          return m_context.prefs.hexColumns == 4;
         case CassoExplorerCommands::kColumns8:          return m_context.prefs.hexColumns == 8;
         case CassoExplorerCommands::kColumns16:         return m_context.prefs.hexColumns == 16;
-        default:                                  return false;
+        default:                                  return m_context.themes.IsCommandChecked (id);
     }
 }
 
@@ -805,13 +797,6 @@ void ExplorerCommandManager::Dispatch (int id)
             m_context.preview.FillPreview();
             break;
 
-        case CassoExplorerCommands::kThemeLight:         m_context.themes.Select (CassoExplorerPrefs::kThemeLight);         break;
-        case CassoExplorerCommands::kThemeDark:          m_context.themes.Select (CassoExplorerPrefs::kThemeDark);          break;
-        case CassoExplorerCommands::kThemeSystem:        m_context.themes.Select (CassoExplorerPrefs::kThemeFollowSystem);  break;
-        case CassoExplorerCommands::kThemeSkeuomorphic:  m_context.themes.Select (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
-        case CassoExplorerCommands::kThemeDarkModern:    m_context.themes.Select (CassoExplorerPrefs::kThemeDarkModern);    break;
-        case CassoExplorerCommands::kThemeRetroTerminal: m_context.themes.Select (CassoExplorerPrefs::kThemeRetroTerminal); break;
-        case CassoExplorerCommands::kThemePhosphor:      m_context.themes.Select (CassoExplorerPrefs::kThemePhosphor);      break;
         case CassoExplorerCommands::kPictureMonochrome:  m_context.preview.GetPicture().ShowForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       m_context.preview.GetPicture().ShowForm (true);                                break;
         case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;
@@ -926,7 +911,9 @@ void ExplorerCommandManager::Dispatch (int id)
 
             break;
 
+        //  A Theme menu row, or no command.
         default:
+            m_context.themes.SelectForCommand (id);
             break;
     }
 

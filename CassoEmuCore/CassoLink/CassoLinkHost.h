@@ -240,8 +240,10 @@ public:
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;
 
-    void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
-    void     ReportActivity  (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
+    void     SetActivitySink   (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
+    void     ReportActivity    (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
+    void     ReportVirtualDrop (bool sized) { if (!sized) { ReportActivity ("Dropped a virtual drive request: damaged, the Apple sends it again"); } }
+    void     ReportNak         (const CassoLinkPacket & packet, const std::string & item) { if (!packet.payload.empty() && packet.payload[0] == CassoLinkCodec::kNak) { ReportActivity ("Resent " + item + ": damaged on the Apple"); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
@@ -258,6 +260,10 @@ public:
     //  Whether the program sent to the Apple has the Fault command, which a
     //  Debug build's links and the tests of recovery turn on.
     void     SetFaultProgram (bool faults) { m_faultProgram = faults; m_program.clear(); }
+
+    //  Whether a read's blocks come with their CRC, checked here. A link over
+    //  Ethernet turns it off unless its settings ask for it.
+    void     SetBlockCrc    (bool crc) { m_blockCrc = crc; }
 
     //  A fault for what follows: a PC byte's offset is counted from now, and
     //  the Apple's fault is sent ahead of the request it is for, counted from
@@ -538,8 +544,8 @@ private:
 
             if (m_adtProServer.m_activity)
             {
-                m_adtProServer.m_activity (damaged ? "A reply from the Apple arrived damaged, so the request was sent again"
-                                                   : "The Apple did not take a request, so it was sent again");
+                m_adtProServer.m_activity (damaged ? "Resent a request: its reply was damaged"
+                                                   : "Resent a request: the Apple did not take it");
             }
         }
 
@@ -595,6 +601,7 @@ private:
     TraceFn                         m_trace;
     std::string                     m_tracedReady;     // text of the last Ready traced
     bool                            m_faultProgram    = false;
+    bool                            m_blockCrc        = true;
     LinkByteFault                   m_pcFault;
     std::optional<LinkFault>        m_appleFault;
     int                             m_requests        = 0;   // requests sent since the Apple's fault was armed

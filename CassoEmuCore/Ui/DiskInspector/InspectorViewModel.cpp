@@ -765,7 +765,7 @@ InspectorViewModel::View InspectorViewModel::GetBetweenView (const View & from, 
 
 
 
-    if (std::abs (from.zoom - to.zoom) < 1e-9)
+    if (from.zoom == to.zoom || std::abs (from.zoom - to.zoom) < 1e-9 || from.zoom <= 0 || to.zoom <= 0)
     {
         view.zoom  = to.zoom;
         view.pan.x = from.pan.x + (to.pan.x - from.pan.x) * t;

@@ -20,7 +20,7 @@ ExplorerBlockInspectorWindow::ExplorerBlockInspectorWindow (const std::wstring &
     m_fileIo (fileIo),
     m_window (std::make_unique<BlockInspectorWindow>())
 {
-    m_window->SetDisplayName (displayName);
+    m_window->GetFileSession().SetDisplayName (displayName);
 }
 
 
@@ -168,7 +168,7 @@ HRESULT ExplorerBlockInspectorWindow::RenderFrame()
 
 void ExplorerBlockInspectorWindow::ReloadDisk()
 {
-    m_window->Reload();
+    m_window->GetFileSession().Reload();
 }
 
 
@@ -183,7 +183,7 @@ void ExplorerBlockInspectorWindow::ReloadDisk()
 
 void ExplorerBlockInspectorWindow::NoteFileGone()
 {
-    m_window->NoteFileGone();
+    m_window->GetFileSession().NoteFileGone();
 }
 
 
@@ -228,5 +228,5 @@ HWND ExplorerBlockInspectorWindow::GetHwnd() const
 
 void ExplorerBlockInspectorWindow::CompareWith (const std::wstring & pathB)
 {
-    m_window->CompareWithFile (pathB);
+    m_window->GetFileSession().CompareWithFile (pathB);
 }

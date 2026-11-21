@@ -115,13 +115,13 @@ public:
     //
     TEST_METHOD (CheckSpec_AcceptsEveryContainerTheCommandLineAdvertises)
     {
-        const DiskCommandRunner::ContainerName *  containers = nullptr;
-        size_t                                    count      = 0;
-        size_t                                    i          = 0;
+        const BlankDiskSpecResolver::ContainerName  * containers = nullptr;
+        size_t                                        count      = 0;
+        size_t                                        i          = 0;
 
 
 
-        containers = DiskCommandRunner::GetAdvertisedContainers (count);
+        containers = BlankDiskSpecResolver::GetAdvertisedContainers (count);
 
         Assert::IsTrue (count > 0, L"the command line advertises at least one container");
 
