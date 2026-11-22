@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "DxuiTextLayout.h"
-#include "DxuiTextPictures.h"
+#include "Widgets/TextView/DxuiTextLayout.h"
+#include "Widgets/TextView/DxuiTextPictures.h"
 
 
 

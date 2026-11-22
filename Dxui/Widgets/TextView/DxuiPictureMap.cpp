@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DxuiPictureMap.h"
+#include "Widgets/TextView/DxuiPictureMap.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -34,8 +34,8 @@ void DxuiPictureMap::Begin (const Key & key)
 //
 //  DxuiPictureMap::ClampOrigin
 //
-//  Keeps the zoomed view inside the picture: the origin no farther right
-//  or down than leaves the view's width and height of picture showing.
+//  Clamps the origin so the zoomed view stays inside the picture: no
+//  farther right or down than the picture's size less the view's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

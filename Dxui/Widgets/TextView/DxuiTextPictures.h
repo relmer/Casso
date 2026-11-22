@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-#include "DxuiPictureMap.h"
+#include "Widgets/TextView/DxuiPictureMap.h"
 
 class   DxuiTextLayout;
 class   IDxuiTextGeometry;

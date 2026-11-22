@@ -3,7 +3,7 @@
 #include "Pch.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
-#include "DxuiTextPicture.h"
+#include "Widgets/TextView/DxuiTextPicture.h"
 
 
 

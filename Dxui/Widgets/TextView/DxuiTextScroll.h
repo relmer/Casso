@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "DxuiScrollbar.h"
-#include "DxuiTextViewInterfaces.h"
+#include "Widgets/DxuiScrollbar.h"
+#include "Widgets/TextView/DxuiTextViewInterfaces.h"
 
 class   DxuiTextLayout;
 class   IDxuiPainter;

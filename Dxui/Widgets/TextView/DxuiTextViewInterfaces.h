@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Pch.h"
-#include "DxuiTextLayout.h"
+#include "Widgets/TextView/DxuiTextLayout.h"
 
 class  DxuiDpiScaler;
 

@@ -1,8 +1,8 @@
 #include "Pch.h"
 
-#include "DxuiTextPainter.h"
-#include "DxuiTextViewInterfaces.h"
-#include "DxuiTextPictures.h"
+#include "Widgets/TextView/DxuiTextPainter.h"
+#include "Widgets/TextView/DxuiTextViewInterfaces.h"
+#include "Widgets/TextView/DxuiTextPictures.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Render/IDxuiPainter.h"

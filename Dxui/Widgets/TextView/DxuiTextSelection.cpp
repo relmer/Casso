@@ -1,7 +1,7 @@
 #include "Pch.h"
 
-#include "DxuiTextSelection.h"
-#include "DxuiTextViewInterfaces.h"
+#include "Widgets/TextView/DxuiTextSelection.h"
+#include "Widgets/TextView/DxuiTextViewInterfaces.h"
 #include "Core/DxuiClipboard.h"
 
 

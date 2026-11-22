@@ -1,8 +1,8 @@
 #include "Pch.h"
 
-#include "DxuiTextScroll.h"
-#include "DxuiTextLayout.h"
-#include "DxuiPopupMenu.h"
+#include "Widgets/TextView/DxuiTextScroll.h"
+#include "Widgets/TextView/DxuiTextLayout.h"
+#include "Widgets/DxuiPopupMenu.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiEvents.h"
 #include "Render/IDxuiPainter.h"
