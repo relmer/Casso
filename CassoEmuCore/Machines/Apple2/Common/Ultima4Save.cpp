@@ -581,6 +581,7 @@ RunColor Ultima4Save::GetHealthColor (int hitPoints, int maxHitPoints)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Ultima4Save::AddCharacter

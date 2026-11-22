@@ -567,6 +567,7 @@ RunColor Ultima3Save::GetHealthColor (int hitPoints, int maxHitPoints)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Ultima3Save::AddCharacter
