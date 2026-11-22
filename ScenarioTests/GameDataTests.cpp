@@ -655,6 +655,41 @@ public:
     }
 
 
+    //  Cutthroats begins with the player in bed, wearing a watch, and the
+    //  diving gear in the closet.
+    TEST_METHOD (Cutthroats_ThePlayerInBedHasTheWatch)
+    {
+        std::vector<InfocomSave::Position>  positions = SaveInfocomGame ("cutthroats.dsk", DiskFormat::Dsk, { "!N", "", "~", "", "SAVE", "!0", "!6", "!2", "" });
+
+
+
+        if (!positions.empty())
+        {
+            Assert::AreEqual (std::string ("Cutthroats (release 23): Your Room, time 8:00 AM"), InfocomSave::Describe (positions[0]));
+            Assert::IsTrue   (positions[0].carried == std::vector<InfocomSave::Item> ({ { 0, L"wrist watch" } }));
+            Assert::IsTrue   (positions[0].here[0] == InfocomSave::Item ({ 0, L"closet" }));
+            Assert::IsTrue   (positions[0].here[1] == InfocomSave::Item ({ 1, L"wet suit" }));
+        }
+    }
+
+
+    //  Spellbreaker's player object is called "it", and a global before it
+    //  has Sneffle, another character in the room.
+    TEST_METHOD (Spellbreaker_ThePlayerHasTheSpellBook)
+    {
+        std::vector<InfocomSave::Position>  positions = SaveInfocomGame ("spellbreaker.dsk", DiskFormat::Dsk, { "!N", "", "~", "", "SAVE", "!0", "!2", "!6", "!Y", "" });
+
+
+
+        if (!positions.empty())
+        {
+            Assert::AreEqual (std::string ("Spellbreaker (release 63): Council Chamber, score 0 of 600, 0 moves"), InfocomSave::Describe (positions[0]));
+            Assert::IsTrue   (positions[0].carried[0] == InfocomSave::Item ({ 0, L"spell book" }));
+            Assert::IsTrue   (std::find (positions[0].here.begin(), positions[0].here.end(), InfocomSave::Item ({ 0, L"Sneffle" })) != positions[0].here.end());
+        }
+    }
+
+
     //  Zork III's early interpreter asks for the position, slot and drive a
     //  key each, and saves from track 3. Its serial number is "ZORK 3".
     TEST_METHOD (ZorkIII_AnEarlyInterpretersSaveIsFound)

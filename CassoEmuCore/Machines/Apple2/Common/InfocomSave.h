@@ -28,8 +28,10 @@
 //
 //  The object tree is in dynamic memory too: what the player carries is the
 //  tree under the player, and what's in the room is the rest of the tree
-//  under the room. The player is the object in the room whose number is in
-//  a global variable after the status line's.
+//  under the room. The player is an object somewhere in the room whose
+//  number is in a global variable after the status line's: one called
+//  "cretin", "yourself" or another usual word for the player first, then
+//  one with something in it, then the lowest global's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,10 +98,13 @@ private:
     static constexpr int     kGlobals           = 240;
     static constexpr int     kMaxDepth          = 6;
     static constexpr size_t  kMaxItems          = 200;
+    static constexpr int     kNameScore         = 2;
 
     static Word  GetWord       (const std::vector<Byte> & memory, size_t at);
     static int   CountObjects  (const std::vector<Byte> & memory, Word objects);
     static int   GetObjectLink (const std::vector<Byte> & memory, Word objects, int count, int number, size_t which);
     static int   FindPlayer    (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int room);
+    static bool  IsInside      (const std::vector<Byte> & memory, Word objects, int count, int number, int room);
+    static bool  IsPlayerName  (const std::wstring & name);
     static void  AddTree       (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int parent, int skip, int depth, std::vector<Item> & ioItems);
 };

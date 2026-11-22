@@ -323,25 +323,37 @@ int InfocomSave::GetObjectLink (const std::vector<Byte> & memory, Word objects, 
 //
 //  InfocomSave::FindPlayer
 //
-//  The named object in the room that the lowest global variable after the
-//  room, score and moves has, or 0. Two globals can have the player, and
-//  the first is the one the parser started with.
+//  Of the objects with a name in the room, or in something in it, that a global
+//  variable after the room, score and moves has: the first with a player's
+//  name, else the first with something in it, else the first, or 0. The
+//  player can be in a bed or a car, and a global can have a pronoun's
+//  object or another character in the room.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int InfocomSave::FindPlayer (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int room)
 {
     int  player = 0;
+    int  best   = -1;
 
 
 
-    for (int g = 3; player == 0 && g < kGlobals && header.globals + 2u * (size_t) g + 1 < memory.size(); g++)
+    for (int g = 3; g < kGlobals && header.globals + 2u * (size_t) g + 1 < memory.size(); g++)
     {
-        int  value = GetWord (memory, header.globals + 2u * (size_t) g);
+        int           value = GetWord (memory, header.globals + 2u * (size_t) g);
+        bool          isIn  = value > 0 && value <= count && IsInside (memory, header.objects, count, value, room);
+        std::wstring  name  = isIn ? ZMachineStory::ReadObjectName (memory, header, (size_t) value) : std::wstring();
+        int           score = -1;
 
-        if (value > 0 && value <= count && GetObjectLink (memory, header.objects, count, value, 0) == room
-            && !ZMachineStory::ReadObjectName (memory, header, (size_t) value).empty())
+        if (!name.empty())
         {
+            score  = IsPlayerName (name) ? kNameScore : 0;
+            score += (GetObjectLink (memory, header.objects, count, value, 2) != 0) ? 1 : 0;
+        }
+
+        if (score > best)
+        {
+            best   = score;
             player = value;
         }
     }
@@ -355,11 +367,60 @@ int InfocomSave::FindPlayer (const std::vector<Byte> & memory, const ZMachineSto
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InfocomSave::IsInside
+//
+//  Whether the object is in the room, or in something in it, kMaxDepth
+//  levels down at most.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::IsInside (const std::vector<Byte> & memory, Word objects, int count, int number, int room)
+{
+    int  parent = GetObjectLink (memory, objects, count, number, 0);
+
+
+
+    for (int depth = 1; parent != 0 && parent != room && depth < kMaxDepth; depth++)
+    {
+        parent = GetObjectLink (memory, objects, count, parent, 0);
+    }
+
+    return number != room && parent == room;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::IsPlayerName
+//
+//  Whether the object is called what the player usually is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InfocomSave::IsPlayerName (const std::wstring & name)
+{
+    static constexpr const wchar_t *  s_kNames[] = { L"cretin", L"yourself", L"you", L"player", L"protagonist", L"adventurer", L"me" };
+
+
+
+    return std::any_of (std::begin (s_kNames), std::end (s_kNames), [&] (const wchar_t * known) { return _wcsicmp (name.c_str(), known) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InfocomSave::AddTree
 //
 //  The objects under parent, each followed by the objects under it, but for
-//  skip and objects without a name. A tree that loops or runs too deep is
-//  cut off.
+//  skip, objects without a name, and the empty objects called "it" that
+//  some games have for the pronoun. A tree that loops or runs too deep is cut
+//  off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -371,9 +432,10 @@ void InfocomSave::AddTree (const std::vector<Byte> & memory, const ZMachineStory
 
     for (int steps = 0; child != 0 && depth < kMaxDepth && ioItems.size() < kMaxItems && steps < count; steps++)
     {
-        std::wstring  name = ZMachineStory::ReadObjectName (memory, header, (size_t) child);
+        std::wstring  name    = ZMachineStory::ReadObjectName (memory, header, (size_t) child);
+        bool          isEmpty = GetObjectLink (memory, header.objects, count, child, 2) == 0;
 
-        if (child != skip && !name.empty())
+        if (child != skip && !name.empty() && !(isEmpty && name == L"it"))
         {
             ioItems.push_back (Item { depth, name });
             AddTree (memory, header, count, child, skip, depth + 1, ioItems);

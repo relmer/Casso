@@ -72,6 +72,41 @@ public:
         Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The box, and not the player");
     }
 
+    //  The player can be in something in the room, such as a bed, and a
+    //  lower global can have another character: the object with something
+    //  in it is the player. Objects 2 to 5 are a bed, a character, the
+    //  player in the bed, and a lamp the player has.
+    TEST_METHOD (TryReadPosition_FindsThePlayerInABed)
+    {
+        constexpr size_t       kEntries = InfocomSaveBuilder::kObjects + 31 * 2;
+        constexpr size_t       kSize    = 9;
+        std::vector<Byte>      memory   = InfocomSaveBuilder::MakeMemory (0);
+        InfocomSave::Position  position;
+
+
+
+        for (size_t n = 1; n <= 5; n++)
+        {
+            InfocomSaveBuilder::PutWord (memory, kEntries + (n - 1) * kSize + 7, (int) InfocomSaveBuilder::kNameTable);
+        }
+
+        memory[kEntries + 0 * kSize + 6] = 2;      // the hall has the bed
+        memory[kEntries + 1 * kSize + 4] = 1;
+        memory[kEntries + 1 * kSize + 5] = 3;      // and the character after it
+        memory[kEntries + 1 * kSize + 6] = 4;      // the bed has the player
+        memory[kEntries + 2 * kSize + 4] = 1;
+        memory[kEntries + 3 * kSize + 4] = 2;
+        memory[kEntries + 3 * kSize + 6] = 5;      // the player has the lamp
+        memory[kEntries + 4 * kSize + 4] = 4;
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 3 * 2, 3);
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 4 * 2, 4);
+
+        Assert::IsTrue (InfocomSave::TryReadPosition (InfocomSaveBuilder::MakeDisk (memory, 0), 0, position));
+        Assert::IsTrue (position.carried == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The lamp");
+        Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" }, { 0, L"hall" } }), L"The bed and the character, and not the player");
+    }
+
+
     //  A version 3 story with the timed flag has the hours and minutes in
     //  the globals of the score and the moves.
     TEST_METHOD (Describe_ATimedStoryHasTheTime)
