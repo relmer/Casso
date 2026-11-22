@@ -4,13 +4,13 @@
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
-#include "DxuiTextLayout.h"
-#include "DxuiTextPainter.h"
-#include "DxuiTextPicture.h"
-#include "DxuiTextPictures.h"
-#include "DxuiTextScroll.h"
-#include "DxuiTextSelection.h"
-#include "DxuiTextViewInterfaces.h"
+#include "Widgets/TextView/DxuiTextLayout.h"
+#include "Widgets/TextView/DxuiTextPainter.h"
+#include "Widgets/TextView/DxuiTextPicture.h"
+#include "Widgets/TextView/DxuiTextPictures.h"
+#include "Widgets/TextView/DxuiTextScroll.h"
+#include "Widgets/TextView/DxuiTextSelection.h"
+#include "Widgets/TextView/DxuiTextViewInterfaces.h"
 
 
 
@@ -36,7 +36,7 @@
 //  scrollbar. Proportional text always wraps.
 //
 //  A row can have a warning, which draws a warning mark before its first cell,
-//  and spans, runs of a cell's characters drawn in colors of their own, as
+//  and spans, runs of a cell's characters drawn in colors other than the text's, as
 //  source code's syntax is colored.
 //
 //  The host sets the character cell size, or the view measures it from the
@@ -59,7 +59,7 @@ public:
     using Row      = DxuiTextLayout::Row;
     using Position = DxuiTextLayout::Position;
 
-    //  Asked for a context menu at a point in the same coordinates as the bounds.
+    //  Called for a context menu at a point in the same coordinates as the bounds.
     using ContextMenuFn = std::function<void (POINT atPoint)>;
 
     DxuiTextView() { m_focusable = true; }

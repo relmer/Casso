@@ -110,7 +110,7 @@ int DxuiTextView::GetTextColumns (bool scrollbar) const
 //
 //  DxuiTextView::Rebuild
 //
-//  The drawn lines, laid out again narrower if they turn out to need the
+//  The drawn lines, laid out again narrower if they turn out to require the
 //  scrollbar.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,7 +159,7 @@ void DxuiTextView::Rebuild()
         }
 
         //  The horizontal bar takes a line of height, which can bring on the
-        //  vertical bar, which takes columns, so this is decided twice.
+        //  vertical bar, which takes columns, so the layout runs twice.
         for (int pass = 0; m_layout.IsNoWrap() && pass < 2; pass++)
         {
             m_scroll.SetHorzScrollbarVisible (m_layout.GetContentColumns() > GetTextColumns (m_scroll.IsScrollbarVisible()));
@@ -282,7 +282,7 @@ int DxuiTextView::GetContentHeightPx() const
 //
 //  DxuiTextView::EnsureCellSize
 //
-//  Measured at the size the face is drawn at, so cells and glyphs agree.
+//  Measured at the size the face is drawn at, so cells and glyphs match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

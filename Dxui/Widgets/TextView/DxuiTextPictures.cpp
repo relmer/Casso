@@ -1,9 +1,9 @@
 #include "Pch.h"
 
-#include "DxuiTextPictures.h"
-#include "DxuiTextPicture.h"
-#include "DxuiTextLayout.h"
-#include "DxuiTextViewInterfaces.h"
+#include "Widgets/TextView/DxuiTextPictures.h"
+#include "Widgets/TextView/DxuiTextPicture.h"
+#include "Widgets/TextView/DxuiTextLayout.h"
+#include "Widgets/TextView/DxuiTextViewInterfaces.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -162,15 +162,15 @@ bool DxuiTextPictures::SetOutline (int row, const RECT & pictureRect)
 
 void DxuiTextPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, int row) const
 {
-    const DxuiTextPicture  * picture = GetPicture (row);
+    const DxuiTextPicture  * picture    = GetPicture (row);
     DxuiPictureMap::Frame    frame;
-    DxuiPictureMap::Key      key     = GetKey (row);
-    float                    zoom    = m_map.GetZoom    (key);
-    float                    originX = m_map.GetOriginX (key);
-    float                    originY = m_map.GetOriginY (key);
-    float                    stroke  = m_geometry.GetScaler().ToPxf (2.0f);
-    float                    shown   = 0.0f;
-    HRESULT                  hr      = S_OK;
+    DxuiPictureMap::Key      key        = GetKey (row);
+    float                    zoom       = m_map.GetZoom    (key);
+    float                    originX    = m_map.GetOriginX (key);
+    float                    originY    = m_map.GetOriginY (key);
+    float                    stroke     = m_geometry.GetScaler().ToPxf (2.0f);
+    float                    drawnScale = 0.0f;
+    HRESULT                  hr         = S_OK;
 
 
 
@@ -179,7 +179,7 @@ void DxuiTextPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme
         return;
     }
 
-    shown = frame.scale * zoom;
+    drawnScale = frame.scale * zoom;
 
     hr = text.PushClipRect (frame.left, frame.top, (float) picture->width * frame.scale, (float) picture->height * frame.scale);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -187,19 +187,19 @@ void DxuiTextPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme
     if (picture->width > 0 && picture->height > 0 && picture->bgra.size() >= (size_t) picture->width * (size_t) picture->height)
     {
         hr = text.DrawFramebuffer (picture->bgra.data(), picture->width, picture->height,
-                                   frame.left - originX * shown, frame.top - originY * shown,
-                                   (float) picture->width * shown, (float) picture->height * shown);
+                                   frame.left - originX * drawnScale, frame.top - originY * drawnScale,
+                                   (float) picture->width * drawnScale, (float) picture->height * drawnScale);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     if (row == m_outlineRow)
     {
         float  minimum = m_geometry.GetScaler().ToPxf ((float) kOutlineMinCellDip);
-        float  w       = (float) (m_outlineRect.right - m_outlineRect.left) * shown;
-        float  h       = (float) (m_outlineRect.bottom - m_outlineRect.top) * shown;
+        float  w       = (float) (m_outlineRect.right - m_outlineRect.left) * drawnScale;
+        float  h       = (float) (m_outlineRect.bottom - m_outlineRect.top) * drawnScale;
         float  margin  = (w < minimum) ? w : 0.0f;
-        float  x       = frame.left + ((float) m_outlineRect.left - originX) * shown - margin - stroke;
-        float  y       = frame.top  + ((float) m_outlineRect.top  - originY) * shown - margin - stroke;
+        float  x       = frame.left + ((float) m_outlineRect.left - originX) * drawnScale - margin - stroke;
+        float  y       = frame.top  + ((float) m_outlineRect.top  - originY) * drawnScale - margin - stroke;
 
         w += 2.0f * (margin + stroke);
         h += 2.0f * (margin + stroke);
@@ -212,7 +212,7 @@ void DxuiTextPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme
         }
     }
 
-    m_map.PaintPing (text, theme, m_geometry.GetScaler(), picture->pingX, picture->pingY, frame.left - originX * shown, frame.top - originY * shown, shown);
+    m_map.PaintPing (text, theme, m_geometry.GetScaler(), picture->pingX, picture->pingY, frame.left - originX * drawnScale, frame.top - originY * drawnScale, drawnScale);
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -253,8 +253,8 @@ bool DxuiTextPictures::IsPinging() const
 //
 //  DxuiTextPictures::TickPing
 //
-//  The ping's animation: true when a frame changed, so the view needs
-//  painting.
+//  The ping's animation: true when a frame changed, so the view is to be
+//  painted again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

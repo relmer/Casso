@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Pch.h"
-#include "DxuiTextLayout.h"
-#include "DxuiTextViewInterfaces.h"
+#include "Widgets/TextView/DxuiTextLayout.h"
+#include "Widgets/TextView/DxuiTextViewInterfaces.h"
 
 
 
