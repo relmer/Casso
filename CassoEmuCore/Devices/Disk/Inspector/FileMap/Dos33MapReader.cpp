@@ -618,7 +618,7 @@ void Dos33MapReader::CheckCount (FileMapWriter & writer, int file, const Entry &
 
     if (!mapped.isDeleted && mapped.chainReason == ChainReason::None && recorded > 0 && apart > s_kCountTolerance)
     {
-        writer.AddFinding (FindingKind::Dos33EntryCountDiffers, entry.cell, std::format (L"{}: the catalog lists {} sectors, and the file has {}", mapped.path, recorded, used));
+        writer.AddFinding (FindingKind::Dos33EntryCountDiffers, entry.cell, std::format (L"{}: the catalog lists {} sectors, but the file has {}", mapped.path, recorded, used));
         writer.AddCount ({ entry.cell, entry.offset + s_kEntryCount, recorded, used, std::format (L"the catalog sector count of {}", mapped.path) });
     }
 }

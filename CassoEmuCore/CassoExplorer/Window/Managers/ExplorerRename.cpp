@@ -293,7 +293,7 @@ bool ExplorerRename::ResolveTakenName (const std::wstring & path, std::wstring &
 
         question   = std::format (L"Do you want to rename \"{}\" to \"{}\"?\n\nThere is already a file with the same name in this location.",
                                   source.filename().wstring(), free.filename().wstring());
-        isRenaming = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Rename file", MB_YESNO | MB_ICONQUESTION, { L"Yes", L"No" }) == IDYES;
+        isRenaming = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Rename File", MB_YESNO | MB_ICONQUESTION, { L"Yes", L"No" }) == IDYES;
 
         if (isRenaming)
         {
