@@ -21,6 +21,7 @@ static constexpr DiskSaveTable::Entry  s_kEntries[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::Find
@@ -43,6 +44,7 @@ const DiskSaveTable::Entry * DiskSaveTable::Find (const std::vector<Byte> & sect
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::IsInfocomSave
@@ -59,6 +61,7 @@ bool DiskSaveTable::IsInfocomSave (const std::vector<Byte> & sectors)
 
     return !positions.empty();
 }
+
 
 
 
@@ -110,6 +113,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::GetInfocomTitle
@@ -134,6 +138,7 @@ std::string DiskSaveTable::GetInfocomTitle (const std::vector<InfocomSave::Posit
 
     return isSame ? InfocomSave::GetFullTitle (title) : std::string ("Infocom");
 }
+
 
 
 
@@ -188,6 +193,7 @@ void DiskSaveTable::AddInfocomPosition (const InfocomSave::Position & position, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::AddInfocomItems
@@ -222,6 +228,7 @@ void DiskSaveTable::AddInfocomItems (const wchar_t * heading, const std::vector<
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::AddScoreBar
@@ -251,6 +258,7 @@ void DiskSaveTable::AddScoreBar (int score, int maxScore, std::vector<Run> & ioR
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::IsUltima3Save
@@ -261,6 +269,7 @@ bool DiskSaveTable::IsUltima3Save (const std::vector<Byte> & sectors)
 {
     return Ultima3Save::IsFound (sectors);
 }
+
 
 
 
@@ -286,6 +295,7 @@ HRESULT DiskSaveTable::DecodeUltima3Save (const std::vector<Byte> & sectors, std
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskSaveTable::IsUltima4Save
@@ -296,6 +306,7 @@ bool DiskSaveTable::IsUltima4Save (const std::vector<Byte> & sectors)
 {
     return Ultima4Save::IsFound (sectors);
 }
+
 
 
 
