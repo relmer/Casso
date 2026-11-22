@@ -378,7 +378,9 @@ private:
 
     //  A field's marks: D5 AA, then 96 for a 16-sector address field, B5 for
     //  a 13-sector one and AD for a data field. RDOS begins its address
-    //  fields D4 AA B7.
+    //  fields D4 AA B7. DOS ends a field DE AA.
+    static constexpr Byte    s_kEpilog0       = 0xDE;
+    static constexpr Byte    s_kEpilog1       = 0xAA;
     static constexpr Byte    s_kProlog0       = 0xD5;
     static constexpr Byte    s_kProlog1       = 0xAA;
     static constexpr Byte    s_kAddress16     = 0x96;
