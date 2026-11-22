@@ -780,6 +780,7 @@
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextLayoutTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextPainterTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextScrollTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextSelectionTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
@@ -1057,6 +1058,7 @@
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
     <ClInclude Include="UiTests\FakePictureHost.h" />
     <ClInclude Include="UiTests\FakeTextGeometry.h" />
+    <ClInclude Include="UiTests\FakeTextSelectionRange.h" />
     <ClInclude Include="UiTests\FakeTextViewport.h" />
     <ClInclude Include="CassoExplorer\FakeProcessLauncher.h" />
     <ClInclude Include="EmuTests\MemoryProbeHelpers.h" />

@@ -5,6 +5,7 @@
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
 #include "DxuiTextLayout.h"
+#include "DxuiTextPainter.h"
 #include "DxuiTextPicture.h"
 #include "DxuiTextScroll.h"
 #include "DxuiTextSelection.h"
@@ -117,8 +118,6 @@ public:
     std::wstring        GetAccessibleName () const override { return L"Text"; }
 
 private:
-    using Line = DxuiTextLayout::Line;
-
     static constexpr int  s_kPadDip             = 6;
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
@@ -139,35 +138,21 @@ private:
     int                      GetPictureTopLine      () const override         { return m_scroll.GetTopLine(); }
     int                      GetPictureLineHeight   () const override         { return m_layout.GetCellHeightPx(); }
     int                      GetPictureTextTop      () const override         { return (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip); }
-    float                    GetPictureTextLeft     () const override         { return GetTextLeft(); }
+    float                    GetPictureTextLeft     () const override         { return (float) GetTextOrigin().x - (float) m_scroll.GetLeftColumn() * m_layout.GetCellAdvance(); }
     float                    GetPictureTextWidth    () const override         { return (float) GetTextColumns (m_scroll.IsScrollbarVisible()) * m_layout.GetCellAdvance(); }
     const DxuiDpiScaler    & GetPictureScaler       () const override         { return m_scaler; }
     void                     Rebuild                ();
-    float                    GetTextLeft            () const;
     void                     EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
-    void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
-    void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
-    void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
-                                     int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
-                                     const std::vector<uint32_t> & colors) const;
-    std::vector<uint32_t>  GetRowColors (const Row & row) const;
-
-    //  The line being painted: its shift for its row's alignment, each
-    //  character's style bits, and the painter an underline and an inverse
-    //  fill are drawn with.
-    float                  m_paintShift    = 0.0f;
-    std::vector<uint8_t>   m_paintStyles;
-    IDxuiPainter         * m_paintPainter  = nullptr;
-    DxuiTextViewPictures   m_pictures      { *this };
-
-    DxuiTextLayout     m_layout;
-    DxuiTextScroll     m_scroll        { m_layout, *this };
-    float              m_zoom          = 1.0f;
-    float              m_textStrength  = 1.0f;
-    DxuiTextSelection  m_selection     { m_layout, *this, m_scroll };
-    HWND               m_hwnd          = nullptr;
-    const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
-    ContextMenuFn      m_onContextMenu;
-    DxuiDpiScaler      m_scaler;
+    DxuiTextLayout        m_layout;
+    DxuiTextScroll        m_scroll        { m_layout, *this };
+    DxuiTextSelection     m_selection     { m_layout, *this, m_scroll };
+    DxuiTextViewPictures  m_pictures      { *this };
+    DxuiTextPainter       m_painter       { m_layout, *this, m_scroll, m_selection, m_pictures };
+    float                 m_zoom          = 1.0f;
+    float                 m_textStrength  = 1.0f;
+    HWND                  m_hwnd          = nullptr;
+    const wchar_t       * m_iconFace      = L"Segoe MDL2 Assets";
+    ContextMenuFn         m_onContextMenu;
+    DxuiDpiScaler         m_scaler;
 };

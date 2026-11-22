@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "DxuiTextLayout.h"
 
 class  DxuiDpiScaler;
 
@@ -54,4 +55,26 @@ public:
     virtual bool  IsHorzScrollbarVisible () const     = 0;
     virtual void  ScrollLines            (int delta)  = 0;
     virtual void  ScrollColumns          (int delta)  = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IDxuiTextSelectionRange
+//
+//  The selected characters of a text view, from the first to past the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IDxuiTextSelectionRange
+{
+public:
+    virtual ~IDxuiTextSelectionRange() = default;
+
+    virtual bool                      HasSelection () const = 0;
+    virtual DxuiTextLayout::Position  GetFrom      () const = 0;
+    virtual DxuiTextLayout::Position  GetTo        () const = 0;
 };

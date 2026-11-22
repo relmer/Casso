@@ -56,40 +56,6 @@ public:
     }
 
 
-    //  A picture row is as many lines as the picture is tall, and the picture
-    //  is drawn once, a pixel a DIP.
-    TEST_METHOD (Picture_TakesTheLinesOfItsHeightAndIsDrawnOnce)
-    {
-        DxuiTextView          view;
-        DxuiTextView::Row     row     = MakeRow ({ L"" });
-        auto                  picture = std::make_shared<DxuiTextView::Picture>();
-        MockDxuiPainter       painter;
-        MockDxuiTextRenderer  text;
-        MockDxuiTheme         theme;
-        int                   drawn   = 0;
-
-        picture->bgra.assign (10 * 40, 0xFF336699);
-        picture->width  = 10;
-        picture->height = 40;
-        row.picture     = picture;
-
-        LayOut (view, 400, 400);
-        view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
-
-        Assert::AreEqual (5, view.GetLayout().GetLineCount(), L"a line above, three for 40 pixels of 16-pixel lines, and one below");
-
-        view.Paint (painter, text, theme);
-
-        for (const RecordedTextCall & call : text.Calls())
-        {
-            drawn += (call.kind == RecordedTextKind::DrawFramebuffer) ? 1 : 0;
-        }
-
-        Assert::AreEqual (1,  drawn);
-        Assert::AreEqual (10, text.GetLastFramebufferWidth());
-    }
-
-
     //  A zoomable picture with a ping, 100 pixels square, on the second line.
     static void  SetMapRows (DxuiTextView & view)
     {
@@ -144,74 +110,6 @@ public:
 
         Assert::IsFalse (view.GetPictures().IsPanning());
         Assert::IsTrue  (view.GetPictures().IsPinging());
-    }
-
-
-    //  A span draws its characters in its own color, and the rest of the cell
-    //  in the text color, each stretch of one color as one string.
-    TEST_METHOD (Span_DrawsItsCharactersInItsColor)
-    {
-        DxuiTextView           view;
-        DxuiTextView::Row      row     = MakeRow ({ L"10", L"LDA #1" });
-        MockDxuiPainter        painter;
-        MockDxuiTextRenderer   text;
-        MockDxuiTheme          theme;
-        bool                   colored = false;
-        bool                   plain   = false;
-
-        row.spans.push_back ({ 1, 0, 3, 0xFF112233 });
-
-        LayOut (view, 400, 400);
-        view.SetRows ({ row });
-        view.Paint (painter, text, theme);
-
-        for (const RecordedTextCall & call : text.Calls())
-        {
-            colored = colored || (call.text == L"LDA" && call.argb == 0xFF112233);
-            plain   = plain   || (call.text == L" #1" && call.argb != 0xFF112233);
-        }
-
-        Assert::IsTrue (colored, L"The span's characters are in its color");
-        Assert::IsTrue (plain,   L"and the rest of the cell in the text color");
-    }
-
-
-    //  An inverse span is filled with its color, and its characters are drawn
-    //  in the background color over the fill.
-    TEST_METHOD (Span_Inverse_FillsItsColorAndDrawsInTheBackground)
-    {
-        DxuiTextView           view;
-        DxuiTextView::Row      row     = MakeRow ({ L"10", L"PRINT \"^DX\"" });
-        DxuiTextView::Span     span;
-        MockDxuiPainter        painter;
-        MockDxuiTextRenderer   text;
-        MockDxuiTheme          theme;
-        bool                   filled  = false;
-        bool                   drawn   = false;
-
-        span.cell    = 1;
-        span.start   = 7;
-        span.length  = 2;
-        span.argb    = 0xFF112233;
-        span.inverse = true;
-        row.spans.push_back (span);
-
-        LayOut (view, 400, 400);
-        view.SetRows ({ row });
-        view.Paint (painter, text, theme);
-
-        for (const RecordedPaintCall & call : painter.Calls())
-        {
-            filled = filled || (call.kind == RecordedPaintKind::FillRect && call.argb == 0xFF112233 && call.width == 16.0f && call.height == 16.0f);
-        }
-
-        for (const RecordedTextCall & call : text.Calls())
-        {
-            drawn = drawn || (call.text == L"^D" && call.argb == theme.ContentBackground());
-        }
-
-        Assert::IsTrue (filled, L"The span's two cells are filled with its color");
-        Assert::IsTrue (drawn,  L"and its characters are drawn in the background color");
     }
 
 

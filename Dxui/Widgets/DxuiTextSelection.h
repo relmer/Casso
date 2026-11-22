@@ -2,9 +2,7 @@
 
 #include "Pch.h"
 #include "DxuiTextLayout.h"
-
-class  IDxuiTextGeometry;
-class  IDxuiTextViewport;
+#include "DxuiTextViewInterfaces.h"
 
 
 
@@ -24,7 +22,7 @@ class  IDxuiTextViewport;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextSelection
+class DxuiTextSelection : public IDxuiTextSelectionRange
 {
 public:
     using Position = DxuiTextLayout::Position;
@@ -37,9 +35,9 @@ public:
     void          SelectAll        ();
     void          ClearSelection   ();
     void          Reset            ();
-    bool          HasSelection     () const { return !(m_anchor == m_caret); }
-    Position      GetFrom          () const { return (std::min) (m_anchor, m_caret); }
-    Position      GetTo            () const { return (std::max) (m_anchor, m_caret); }
+    bool          HasSelection     () const override { return !(m_anchor == m_caret); }
+    Position      GetFrom          () const override { return (std::min) (m_anchor, m_caret); }
+    Position      GetTo            () const override { return (std::max) (m_anchor, m_caret); }
     std::wstring  GetSelectionText () const;
     void          CopySelection    (HWND hwnd) const;
     bool          IsDragging       () const { return m_dragging; }
