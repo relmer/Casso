@@ -135,7 +135,7 @@ public:
         Assert::IsTrue   (card.drives[4].problem.empty(), L"a drive with no image is like an empty drive");
         Assert::IsTrue   (card.drives[5].isWriteProtected);
 
-        Assert::AreEqual (std::wstring (L"A2Pico card. 5 of its 6 A2retroNET drives have an image. Drive 2: missing.po isn't on the card. Drive 3: A2retroNET reads only .po, .hdv and .2mg images. Drive 4: usb:/floppy.po isn't on this card. It may be on the other storage device."),
+        Assert::AreEqual (std::wstring (L"A2Pico card. 3 of its 6 A2retroNET drives have an image. Drive 2: missing.po isn't on the card. Drive 3: A2retroNET reads only .po, .hdv and .2mg images. Drive 4: usb:/floppy.po isn't on this card. It may be on the other storage device."),
                           ActionsA2retroNet::Summarize (card));
     }
 

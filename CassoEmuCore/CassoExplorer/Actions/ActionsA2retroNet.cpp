@@ -368,7 +368,7 @@ std::wstring ActionsA2retroNet::Summarize (const Card & card)
 
     for (const Drive & drive : card.drives)
     {
-        set += drive.path.empty() ? 0 : 1;
+        set += drive.isPresent ? 1 : 0;
     }
 
     text = std::format (L"A2Pico card. {} of its {} A2retroNET drives have an image.", set, card.drives.size());
