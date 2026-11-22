@@ -1212,7 +1212,7 @@ Fixed during the walk:
 
 ### 7f. CassoLink additions
 
-Walked on the emulator targets by the Story 23 to 29 tasks, recorded in the
+Walked on the emulator targets by the Story 23 to 29 tasks; the results are in the
 sections below. The steps on the owner's //c are left under T580 and T585.
 
 | Step | Result |
