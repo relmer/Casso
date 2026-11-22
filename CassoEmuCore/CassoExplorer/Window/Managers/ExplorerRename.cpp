@@ -275,8 +275,8 @@ void ExplorerRename::BeginTreeRename (const std::wstring & id)
 
 bool ExplorerRename::ResolveTakenName (const std::wstring & path, std::wstring & ioNewName)
 {
-    std::filesystem::path  source = path;
-    std::filesystem::path  target = source.parent_path() / ioNewName;
+    std::filesystem::path  source     = path;
+    std::filesystem::path  target     = source.parent_path() / ioNewName;
     std::filesystem::path  free;
     std::error_code        ec;
     std::wstring           question;

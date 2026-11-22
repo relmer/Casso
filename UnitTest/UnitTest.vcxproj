@@ -499,6 +499,7 @@
     <ClCompile Include="CassoLink\FullSendFolderTests.cpp" />
     <ClCompile Include="CassoLink\FullSendScreenTests.cpp" />
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendManifestTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
     <ClCompile Include="DiskCheck\GivenNamesTests.cpp" />
     <ClCompile Include="DiskCheck\DiskThumbnailCommandTests.cpp" />
@@ -1022,6 +1023,7 @@
     <ClInclude Include="CassoLink\FakeNetworkCards.h" />
     <ClInclude Include="CassoLink\FakeScc8530.h" />
     <ClInclude Include="CassoLink\IigsTestCpu.h" />
+    <ClInclude Include="CassoLink\FullSendRig.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
     <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />
