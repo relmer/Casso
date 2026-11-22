@@ -55,18 +55,20 @@ public:
     void            UpdatePictureTipAt    (const DxuiMouseEvent & ev);
 
     //  The width a document's record tables are drawn as tables from;
-    //  narrower, they are cards.
+    //  narrower, they are fields or cards.
     static constexpr int  s_kWideTableDip = 640;
 
 private:
-    void  ShowContextMenu (int x, int y);
-    bool  HandleTextMouse (const DxuiMouseEvent & ev);
-    bool  IsWide          () const;
-    void  FillRows        (const PreviewContent & preview);
+    void  ShowContextMenu  (int x, int y);
+    bool  HandleTextMouse  (const DxuiMouseEvent & ev);
+    bool  IsWide           () const;
+    void  FillRows         (const PreviewContent & preview, bool keepPlace = false);
+    void  GetPlace         (int & outParagraph, float & outWithin) const;
+    void  SetPlace         (int paragraph, float within);
+    int   GetLineParagraph (int line) const;
 
     DxuiTextView      * m_text           = nullptr;
     bool                m_crossReference = false;
-    bool                m_wide           = false;
     LONG                m_tableWidth     = 0;      // the text's width the rows were built for
     std::vector<int>    m_rowParagraph;   // the document paragraph of each row
 };

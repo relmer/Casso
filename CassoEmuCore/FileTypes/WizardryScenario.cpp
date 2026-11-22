@@ -397,24 +397,33 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
         race  = ToTitleCase (GetName (contents.races,      ReadWord (bytes, at + s_kCharRaceAt)));
         kind  = ToTitleCase (GetName (contents.classes,    ReadWord (bytes, at + s_kCharClassAt)));
         align = ToTitleCase (GetName (contents.alignments, ReadWord (bytes, at + s_kCharAlignAt)));
-        color = (status == 0 && !inMaze) ? RunColor::Text : RunColor::Bad;
+        color = (status == 0 && !inMaze) ? RunColor::Good : RunColor::Bad;
 
         //  A dead character's name is red as well.
         nameColor = (status == s_kStatusDead || status == s_kStatusAshes) ? RunColor::Bad : RunColor::Text;
 
-        std::wstring  level = std::format (L"{}", ReadWord (bytes, at + s_kCharLevelAt));
-        std::wstring  hits  = std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
-        std::wstring  gold  = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt));
-        std::wstring  exp   = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt));
+        std::wstring  level   = std::format (L"{}", ReadWord (bytes, at + s_kCharLevelAt));
+        std::wstring  hits    = std::format (L"{}/{}", ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
+        std::wstring  gold    = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt));
+        std::wstring  exp     = NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt));
+        RunColor      hpColor = GetHpColor (ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt));
 
-        record.cells = { Run { name, true, false, false, nameColor }, Run { level }, Run { race }, Run { kind }, Run { align },
-                         Run { shown, false, false, false, color }, Run { hits }, Run { gold }, Run { exp } };
+        record.cells = { Run { name, true, false, false, nameColor }, Run { level }, Run { race, false, true, false, RunColor::Muted },
+                         Run { kind, false, true, false, RunColor::Muted }, Run { align, false, true, false, RunColor::Muted },
+                         Run { shown, true, false, false, color }, Run { hits, true, false, false, hpColor }, Run { gold }, Run { exp } };
 
         record.card.push_back (MakeParagraph ({ Run { name, true, false, false, nameColor },
-                                                Run { std::format (L"   Level {} {} {}, {}", level, race, kind, align), false, false, false, RunColor::Muted } }));
-        record.card.push_back (MakeParagraph ({ Run { L"Status: " },
-                                                Run { shown, false, false, false, color },
-                                                Run { std::format (L"   Hit points: {}   Gold: {}   Experience: {}", hits, gold, exp) } }));
+                                                Run { L"   Level ", false, false, false, RunColor::Muted },
+                                                Run { level, true, false, false, RunColor::Keyword },
+                                                Run { std::format (L" {} {}, {}", race, kind, align), false, true, false, RunColor::Muted } }));
+        record.card.push_back (MakeParagraph ({ Run { L"Status ", false, false, false, RunColor::Muted },
+                                                Run { shown, true, false, false, color },
+                                                Run { L"   HP ", false, false, false, RunColor::Muted },
+                                                Run { hits, true, false, false, hpColor },
+                                                Run { L"   Gold ", false, false, false, RunColor::Muted },
+                                                Run { gold, true, false, false, RunColor::Keyword },
+                                                Run { L"   Exp ", false, false, false, RunColor::Muted },
+                                                Run { exp, true, false, false, RunColor::Keyword } }));
 
         items = (std::clamp) (ReadWord (bytes, at + s_kCharItemCountAt), 0, s_kMaxPossessions);
 
@@ -452,6 +461,36 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
         ioParagraphs.push_back (Paragraph());
         ioParagraphs.push_back (MakeParagraph ({ Run { L"No characters." } }));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WizardryScenario::GetHpColor
+//
+//  Green at full hit points, red at a quarter or less.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RunColor WizardryScenario::GetHpColor (int left, int max)
+{
+    RunColor  color = RunColor::Text;
+
+
+
+    if (max > 0 && left >= max)
+    {
+        color = RunColor::Good;
+    }
+    else if (left * 4 <= max)
+    {
+        color = RunColor::Bad;
+    }
+
+    return color;
 }
 
 

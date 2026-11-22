@@ -142,7 +142,7 @@ public:
         const Paragraph &  armor   = FindParagraph (file, L"      ARMOR\t? unidentified");
 
         Assert::IsTrue (gandalf.runs[0].bold);
-        Assert::IsTrue (HasText (file, L"Status: OK   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
+        Assert::IsTrue (HasText (file, L"Status OK   HP 40/52   Gold 14,321   Exp 2,500"));
         Assert::IsTrue (sword.runs[3].color == RunColor::Good, L"equipped is green, with its check");
         Assert::IsTrue (armor.runs[1].italic && armor.runs[1].color == RunColor::Muted, L"one not identified is gray italics, by its unknown name");
         Assert::IsTrue (armor.runs[3].color == RunColor::Muted);
@@ -177,7 +177,7 @@ public:
         Assert::IsTrue   (HasText (file, L"Maze level 1, the party at 1 east, 0 north"));
         Assert::IsTrue   (map != file.paragraphs.end());
         Assert::AreEqual (map->width, map->height);
-        Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
+        Assert::IsTrue   (FindParagraph (file, L"Status Dead   HP 40/52   Gold 14,321   Exp 2,500").runs[1].color == RunColor::Bad);
         Assert::IsTrue   (FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil").runs[0].color == RunColor::Bad, L"A dead character's name is red");
         Assert::IsTrue   (FindRoster (file).records[0].cells[0].color == RunColor::Bad, L"in the table too");
         Assert::IsTrue   (map < std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return p.table != nullptr; }),
@@ -243,7 +243,7 @@ public:
         AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
 
         Assert::IsTrue (HasText (file, std::wstring (L"      LONG SWORD\t") + s_kpszCheckMark + L" equipped"), L"Item 1000 is item 0");
-        Assert::IsTrue (HasText (file, L"Status: Out, in the maze   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
+        Assert::IsTrue (HasText (file, L"Status Out, in the maze   HP 40/52   Gold 14,321   Exp 2,500"));
         Assert::IsTrue (HasText (file, L"No map: the party is still in the maze, and no square is saved for it. To get them back, choose Recover in the boot disk's Utilities menu."));
     }
 

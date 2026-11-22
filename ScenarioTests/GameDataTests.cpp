@@ -171,7 +171,7 @@ public:
         Assert::AreEqual (std::wstring (L"Wizardry II: The Knight of Diamonds"), GetTexts (file)[0]);
         Assert::AreEqual (std::wstring (L"Saved game: 4 characters"), GetTexts (file)[1]);
         Assert::IsTrue   (HasLineStarting (file, L"THUG   Level 38 Human Fighter, Neutral"));
-        Assert::IsTrue   (HasLineStarting (file, L"Status: OK   Hit points: 338/338   Gold: 121,657   Experience: 7,811,260"));
+        Assert::IsTrue   (HasLineStarting (file, L"Status OK   HP 338/338   Gold 121,657   Exp 7,811,260"));
         Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      KOD'S GAUNTLETS\t") + s_kpszCheckMark + L" equipped"));
         Assert::IsTrue   (HasLine (file, L"      DAMIEN STONE\t"), L"in the inventory, not equipped");
     }
@@ -367,7 +367,7 @@ public:
 
         Assert::IsTrue (HasLineStarting (file, L"Saved game: 1 character"));
         Assert::IsTrue (HasLineStarting (file, std::format (L"CASSO   Level {} Human Fighter, Good", level)));
-        Assert::IsTrue (HasLineStarting (file, std::format (L"Status: OK   Hit points: {}/{}   Gold: {}   Experience: {}",
+        Assert::IsTrue (HasLineStarting (file, std::format (L"Status OK   HP {}/{}   Gold {}   Exp {}",
                                                             FindScreenNumber (sheet, "HITS"), FindScreenNumber (sheet, "HITS", true),
                                                             NumberFormat::FormatInteger (FindScreenNumber (sheet, "GOLD")),
                                                             NumberFormat::FormatInteger (FindScreenNumber (sheet, "EXP")))));
