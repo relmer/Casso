@@ -82,6 +82,9 @@ public:
     void  StopFlight  () { m_isFlying = false; }
     bool  IsFlying    () const { return m_isFlying; }
 
+    //  Whether the highlight, as Refresh last read it, is more than one block.
+    bool  HasSeveralHighlighted () const { return m_hasHighlight && (m_highlightBox.right - m_highlightBox.left) * (m_highlightBox.bottom - m_highlightBox.top) > 1; }
+
     //  What pointing at a cell reports.
     std::wstring  DescribeCell   (uint32_t cell) const;
     std::wstring  DescribeBlocks (uint32_t cell) const;

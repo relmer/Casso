@@ -14,6 +14,7 @@
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Core/NumberFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -742,6 +743,36 @@ public:
 
         panel.GoForward();
         Assert::AreEqual ((uint32_t) 3, model.GetBlock(), L"Forward draws block 3 again");
+    }
+
+
+    TEST_METHOD (Panel_SelectingABlockOfAStructureFliesTheMapToTheStructure)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        //  Block 2 is the volume directory's key block, so its row, blocks 2
+        //  to 5, is selected and highlighted.
+        panel.GoToBlock (2);
+        Assert::IsTrue (panel.GetMap().HasSeveralHighlighted());
+        Assert::IsTrue (panel.GetMap().IsFlying(), L"the map flies to blocks 2 to 5");
+
+        for (double ms = InspectorMarquee::GetClockMs(); panel.GetMap().StepFlight (ms); ms += InspectorViewModel::kFlightLegMs)
+        {
+        }
+
+        Assert::IsTrue (panel.GetMap().GetZoom() > 1.0, L"the flight ends zoomed in");
     }
 
 

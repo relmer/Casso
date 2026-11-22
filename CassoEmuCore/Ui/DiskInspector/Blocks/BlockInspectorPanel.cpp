@@ -167,8 +167,10 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
         m_map->Refresh();
 
         //  A new highlight chosen anywhere but on the map starts a flight to
-        //  it, as a sector chosen off the platter does.
-        if (m_isMapSelecting)
+        //  it, as a sector chosen off the platter does. A block clicked on
+        //  the map or gone to starts one too when its row covers several
+        //  blocks, such as the volume directory's for block 2.
+        if (m_isMapSelecting && !m_map->HasSeveralHighlighted())
         {
             m_map->StopFlight();
         }
