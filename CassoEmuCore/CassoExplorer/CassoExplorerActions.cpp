@@ -62,7 +62,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     size_t                     selected    = m_browser.GetSelectedRows().size();
     Location                   location    = m_browser.GetLocation();
     bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
-    bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
+    bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.GetSelection().AreSelectedRowsSearchFiles();
     std::wstring               partition;
     bool                       isPartition = m_partitions.TryGetTarget (partition);
 
@@ -93,7 +93,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     {
         bool  writable = !m_browser.IsWriteProtected();
 
-        m_browser.GetSelectedEntries (entries);
+        m_browser.GetSelection().GetSelectedEntries (entries);
 
         //  A file opens in the program Windows has for it, from a copy, as
         //  Explorer opens a file inside a zip; a folder opens here.
@@ -175,7 +175,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     {
         //  A linked Apple's drive: files copy out, in and about as an image's
         //  do. A write to a write-protected disk fails with the reason.
-        m_browser.GetSelectedEntries (entries);
+        m_browser.GetSelection().GetSelectedEntries (entries);
 
         if (!entries.empty())
         {
@@ -189,7 +189,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         verbs.push_back (Verb::Put);
     }
-    else if (m_browser.AreSelectedRowsImages() && selected == 1)
+    else if (m_browser.GetSelection().AreSelectedRowsImages() && selected == 1)
     {
         verbs.push_back (Verb::Open);
         verbs.push_back (Verb::InsertDrive1);
@@ -209,7 +209,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::Krunch);
         }
 
-        m_browser.GetSelectedHostPaths (imagePaths);
+        m_browser.GetSelection().GetSelectedHostPaths (imagePaths);
 
         if (imagePaths.size() == 1 && ActionsArchive::CanMakeShrinkItDisk (imagePaths[0]))
         {
@@ -228,7 +228,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         verbs.push_back (Verb::Test);
     }
-    else if (m_browser.AreSelectedRowsImages() && CanInspectSelected())
+    else if (m_browser.GetSelection().AreSelectedRowsImages() && CanInspectSelected())
     {
         verbs.push_back (Verb::InspectDiskImage);
 
@@ -391,7 +391,7 @@ bool CassoExplorerActions::CanInspectSelected() const
 
 
 
-    m_browser.GetSelectedHostPaths (paths);
+    m_browser.GetSelection().GetSelectedHostPaths (paths);
 
     return !paths.empty() && std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path) { return InspectorWindowSet::CanInspect (path); });
 }
@@ -430,7 +430,7 @@ bool CassoExplorerActions::CanInspect() const
         return InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
     }
 
-    return !m_browser.IsAppleDriveLocation() && m_browser.AreSelectedRowsImages() && CanInspectSelected();
+    return !m_browser.IsAppleDriveLocation() && m_browser.GetSelection().AreSelectedRowsImages() && CanInspectSelected();
 }
 
 
@@ -464,7 +464,7 @@ bool CassoExplorerActions::TryGetWrappedImage (std::wstring & outPath) const
 
     if (location.kind == Location::Kind::HostFolder)
     {
-        m_browser.GetSelectedHostPaths (paths);
+        m_browser.GetSelection().GetSelectedHostPaths (paths);
 
         if (paths.size() == 1 && WrappedImageFileIo::IsWrapped (TextEncoding::WideToUtf8 (paths[0])))
         {
@@ -535,7 +535,7 @@ void CassoExplorerActions::AddFilesystemVerbs (std::vector<Verb> & inOutVerbs) c
     {
         m_appleDrive.AddFilesystemVerbs (inOutVerbs);
     }
-    else if (!image.empty() && (m_browser.IsImageLocation() || m_browser.AreSelectedRowsImages()) && CanChooseFilesystem (image))
+    else if (!image.empty() && (m_browser.IsImageLocation() || m_browser.GetSelection().AreSelectedRowsImages()) && CanChooseFilesystem (image))
     {
         inOutVerbs.push_back ((m_browser.GetFilesystemChoices()->GetChoice (image) == VolumeKind::Unknown) ? Verb::ReadAsCpm : Verb::DetectFilesystem);
     }
@@ -1492,7 +1492,7 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
         return m_appleDrive.GetFromAppleDrive (hostFolder, style, collision);
     }
 
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -1562,7 +1562,7 @@ void CassoExplorerActions::FindCopyOptionRows (std::vector<CopyOptionRows::Row> 
 
 
     outRows.clear();
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -1769,7 +1769,7 @@ ActionsTypes::Outcome CassoExplorerActions::DeleteSelected()
         return m_appleDrive.DeleteOnAppleDrive();
     }
 
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     //  Last in the catalog first: deleting an entry moves the ones after it
     //  up, so an earlier entry's index is good until it is deleted. A DOS 3.3
@@ -1865,7 +1865,7 @@ std::vector<std::wstring> CassoExplorerActions::DescribeDeletePlan() const
 
 
 
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -1965,7 +1965,7 @@ ActionsTypes::Outcome CassoExplorerActions::BootSelected()
 
 
 
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     if (entries.size() != 1)
     {
@@ -2005,7 +2005,7 @@ ActionsTypes::Outcome CassoExplorerActions::RenameSelected (const std::wstring &
 
 
 
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     if (entries.size() != 1 || target.empty())
     {
@@ -2125,7 +2125,7 @@ ActionsTypes::Outcome CassoExplorerActions::SetLockedSelected (bool locked)
         return m_appleDrive.SetLockedOnAppleDrive (locked);
     }
 
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -2215,7 +2215,7 @@ ActionsTypes::Outcome CassoExplorerActions::ConvertSelected (std::string & outNe
 
 
     outNewName.clear();
-    m_browser.GetSelectedEntries (entries);
+    m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -2397,9 +2397,9 @@ std::wstring CassoExplorerActions::GetFormatTarget() const
         return m_browser.GetLocation().path;
     }
 
-    if (m_browser.AreSelectedRowsImages())
+    if (m_browser.GetSelection().AreSelectedRowsImages())
     {
-        m_browser.GetSelectedHostPaths (paths);
+        m_browser.GetSelection().GetSelectedHostPaths (paths);
 
         if (paths.size() == 1)
         {

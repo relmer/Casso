@@ -46,7 +46,7 @@ public:
         rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
         rig.Open();
         rig.browser.GetNavigator().NavigateToAddress (L"C:\\Disks");
-        rig.browser.SetSelectedRows ({ 0 });
+        rig.browser.GetSelection().SetSelectedRows ({ 0 });
         tabs = rig.browser.GetBrowserModel().GetTabCount();
 
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kDeleteItems), L"outside a picker, Delete is enabled for the selection");
@@ -104,11 +104,11 @@ public:
             image = rig.browser.GetRows()[(size_t) row].isDirectory ? image : row;
         }
 
-        rig.browser.SetSelectedRows ({ 1 - image });
+        rig.browser.GetSelection().SetSelectedRows ({ 1 - image });
         rig.parts->statusBar.Fill();
         Assert::IsFalse (rig.parts->pickerBar.IsConfirmEnabled(), L"a folder is selected");
 
-        rig.browser.SetSelectedRows ({ image });
+        rig.browser.GetSelection().SetSelectedRows ({ image });
         rig.parts->statusBar.Fill();
         Assert::IsTrue (rig.parts->pickerBar.IsConfirmEnabled(), L"the image is selected");
 
@@ -160,7 +160,7 @@ public:
             image = rig.browser.GetRows()[(size_t) row].isDirectory ? image : row;
         }
 
-        rig.browser.SetSelectedRows ({ image });
+        rig.browser.GetSelection().SetSelectedRows ({ image });
         rig.parts->statusBar.Fill();
         rig.parts->pickerMode.Confirm();
 
@@ -496,7 +496,7 @@ public:
         rig->browser.GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
         Assert::AreEqual ((size_t) 1, rig->browser.GetRows().size());
 
-        rig->browser.SetSelectedRows ({ 0 });
+        rig->browser.GetSelection().SetSelectedRows ({ 0 });
         Assert::IsTrue (rig->parts->pickerMode.CanConfirm());
 
         rig->parts->pickerMode.Confirm();
@@ -527,10 +527,10 @@ public:
         rig->Open();
         rig->browser.GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
 
-        rig->browser.SetSelectedRows ({ 0 });
+        rig->browser.GetSelection().SetSelectedRows ({ 0 });
         Assert::AreEqual (std::wstring (L"140 KB"), rig->browser.GetStatus().detail);
 
-        rig->browser.SetSelectedRows ({ 1 });
+        rig->browser.GetSelection().SetSelectedRows ({ 1 });
         Assert::AreEqual (std::wstring(), rig->browser.GetStatus().detail);
     }
 
@@ -563,7 +563,7 @@ public:
         Assert::IsTrue (rig.parts->pickerMode.CanConfirm());
 
         //  Selecting a file puts its name in the box.
-        rig.browser.SetSelectedRows ({ 0 });
+        rig.browser.GetSelection().SetSelectedRows ({ 0 });
         rig.parts->statusBar.Fill();
         Assert::AreEqual (std::wstring (L"dos33.dsk"), rig.parts->pickerBar.GetNameText());
 
@@ -731,6 +731,6 @@ public:
         rig.browser.GetNavigator().NavigateToLocation (Location::MakeRoot (TreeModel::kDemoDisksId));
         Assert::AreEqual ((size_t) 2, rig.browser.GetRows().size());
 
-        rig.browser.SetSelectedRows ({ 0 });
+        rig.browser.GetSelection().SetSelectedRows ({ 0 });
         Assert::IsTrue (rig.parts->pickerMode.CanConfirm(), L"a demo disk is picked as a file");
     }};

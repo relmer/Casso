@@ -544,38 +544,6 @@ void CassoExplorerBrowser::RemoveHomeRow (const std::wstring & shellId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::SelectRowsByKeys
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::SelectRowsByKeys (const std::vector<std::wstring> & names)
-{
-    std::unordered_set<std::wstring>  wanted (names.begin(), names.end());
-    std::vector<std::wstring>         keys;
-    std::vector<int>                  rows;
-    size_t                            row = 0;
-
-
-
-    GetRowKeys (keys);
-
-    for (row = 0; row < keys.size(); row++)
-    {
-        if (wanted.find (keys[row]) != wanted.end())
-        {
-            rows.push_back ((int) row);
-        }
-    }
-
-    SetSelectedRows (rows);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerBrowser::ReturnToTab
 //
 //  Returning to a tab lists what was last read there; Refresh, or going to
@@ -589,159 +557,7 @@ void CassoExplorerBrowser::ReturnToTab (const std::vector<std::wstring> & rowKey
     m_returningToTab     = true;
     m_loader.ReloadAfterNavigation();
     m_returningToTab     = false;
-    SelectRowsByKeys (rowKeys);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::GetRowKeys
-//
-//  ONE PASS, NOT ONE PER ROW. GetSelectionKey counts a name's earlier
-//  occurrences by walking every row, so asking it for each row in turn walked
-//  the listing once per file, and a folder of a few thousand cost millions of
-//  comparisons. The occurrences are counted as the rows go by instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::GetRowKeys (std::vector<std::wstring> & outKeys) const
-{
-    std::unordered_map<std::wstring, size_t>  seen;
-
-
-
-    outKeys.clear();
-    outKeys.reserve (m_rows.size());
-
-    for (const CatalogRow & row : m_rows)
-    {
-        if (row.hostPath.starts_with (TreeModel::kLinkRootTag))
-        {
-            outKeys.push_back (row.hostPath);
-            continue;
-        }
-
-        size_t  occurrence = seen[row.name]++;
-
-        outKeys.push_back (std::to_wstring (occurrence) + L":" + row.name);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::GetSelectionKey
-//
-//  The occurrence counts rows of the same name that come before this one in
-//  the listing rather than in the sorted view, so the key stays the same
-//  across a re-sort and a reload. GetRowKeys must build the same keys.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerBrowser::GetSelectionKey (size_t row) const
-{
-    size_t  occurrence = 0;
-
-
-
-    //  A linked machine's or drive's row is renamed once its disk is read,
-    //  so it is found again by its id.
-    if (m_rows[row].hostPath.starts_with (TreeModel::kLinkRootTag))
-    {
-        return m_rows[row].hostPath;
-    }
-
-    for (const CatalogRow & other : m_rows)
-    {
-        occurrence += (other.name == m_rows[row].name && other.sourceIndex < m_rows[row].sourceIndex) ? 1 : 0;
-    }
-
-    return std::to_wstring (occurrence) + L":" + m_rows[row].name;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::SetSelectedRows
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::SetSelectedRows (const std::vector<int> & rows)
-{
-    std::vector<std::wstring>  names;
-    std::set<std::wstring>     items;
-
-
-
-    m_selectedRows.clear();
-
-    //  An item that several groups list is acted on once, whichever of its
-    //  rows are selected.
-    for (int row : rows)
-    {
-        if (row >= 0 && row < (int) m_rows.size())
-        {
-            if (!items.insert (m_rows[(size_t) row].shellId + L"|" + m_rows[(size_t) row].hostPath + L"|" + m_rows[(size_t) row].folderPath + L"|" + m_rows[(size_t) row].name).second)
-            {
-                continue;
-            }
-
-            m_selectedRows.push_back (row);
-            names.push_back (GetSelectionKey ((size_t) row));
-        }
-    }
-
-    if (m_model.HasTabs())
-    {
-        m_model.SetSelection (names);
-    }
-
-    m_previewer.UpdatePreview();
-    m_cells.UpdateStatus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::TryGetSelectedEntry
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::TryGetSelectedEntry (const FileEntry *& outEntry) const
-{
-    size_t  source = 0;
-
-
-
-    outEntry = nullptr;
-
-    if ((!m_isImage && !m_isAppleDrive) || m_selectedRows.size() != 1)
-    {
-        return false;
-    }
-
-    source = m_rows[m_selectedRows[0]].sourceIndex;
-
-    if (source >= m_listing.entries.size())
-    {
-        return false;
-    }
-
-    outEntry = &m_listing.entries[source];
-
-    return true;
+    m_selection.SelectRowsByKeys (rowKeys);
 }
 
 
@@ -822,7 +638,7 @@ bool CassoExplorerBrowser::OpenRow (int row)
         //  A match in a directory opens that directory.
         m_model.NavigateTo (directory.empty() ? Location::MakeDiskImage (image) : Location::MakeDiskDirectory (image, directory));
         m_loader.ReloadAfterNavigation();
-        SelectRowsByKeys ({ L"0:" + name });
+        m_selection.SelectRowsByKeys ({ L"0:" + name });
         return true;
     }
 
@@ -894,108 +710,6 @@ void CassoExplorerBrowser::StopSearch()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::GetSelectedEntries
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::GetSelectedEntries (std::vector<FileEntry> & outEntries) const
-{
-    outEntries.clear();
-
-    if (!IsVolumeLocation())
-    {
-        return;
-    }
-
-    for (int row : m_selectedRows)
-    {
-        size_t  source = m_rows[row].sourceIndex;
-
-        if (source < m_listing.entries.size())
-        {
-            outEntries.push_back (m_listing.entries[source]);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::GetSelectedHostPaths
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const
-{
-    Location  location = GetLocation();
-
-
-
-    outPaths.clear();
-
-    //  Home's and a search's items are anywhere on the disk, and a cloud item
-    //  isn't on it.
-    if (IsHomeLocation() || AreSelectedRowsSearchFiles())
-    {
-        for (int row : m_selectedRows)
-        {
-            if (!m_rows[row].hostPath.empty())
-            {
-                outPaths.push_back (m_rows[row].hostPath);
-            }
-        }
-
-        return;
-    }
-
-    if (m_isImage || location.kind != Location::Kind::HostFolder)
-    {
-        return;
-    }
-
-    for (int row : m_selectedRows)
-    {
-        outPaths.push_back (BrowserRowPaths::JoinPath (location.path, m_rows[row].name));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::AreSelectedRowsSearchFiles
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::AreSelectedRowsSearchFiles() const
-{
-    if (m_selectedRows.empty() || !SearchQuery::IsId (GetLocation().path))
-    {
-        return false;
-    }
-
-    for (int row : m_selectedRows)
-    {
-        if (row < 0 || (size_t) row >= m_rows.size() || m_rows[(size_t) row].hostPath.empty() || !m_rows[(size_t) row].imagePath.empty())
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerBrowser::RenameSearchRow
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1039,38 +753,6 @@ bool CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newNam
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::AreSelectedRowsImages
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::AreSelectedRowsImages() const
-{
-    bool  search = AreSelectedRowsSearchFiles();
-
-
-
-    if (m_isImage || m_selectedRows.empty() || (GetLocation().kind != Location::Kind::HostFolder && !search))
-    {
-        return false;
-    }
-
-    for (int row : m_selectedRows)
-    {
-        if (!m_rows[row].isDiskImage || (search && !m_rows[row].containerPath.empty()))
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerBrowser::Reload
 //
 //  When every selected row is gone, as after a delete, the row now in the
@@ -1088,7 +770,7 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
 
     for (int row : m_selectedRows)
     {
-        names.push_back (GetSelectionKey ((size_t) row));
+        names.push_back (m_selection.GetSelectionKey ((size_t) row));
     }
 
     m_model.InvalidateAllCatalogs();
@@ -1099,32 +781,14 @@ HRESULT CassoExplorerBrowser::Reload (bool keepSelection)
         return hr;
     }
 
-    SelectRowsByKeys (names);
+    m_selection.SelectRowsByKeys (names);
 
     if (m_selectedRows.empty())
     {
-        SelectRowAt (first);
+        m_selection.SelectRowAt (first);
     }
 
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::SelectRowAt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::SelectRowAt (int row)
-{
-    if (row >= 0 && !m_rows.empty())
-    {
-        SetSelectedRows ({ (std::min) (row, (int) m_rows.size() - 1) });
-    }
 }
 
 
@@ -1254,51 +918,3 @@ bool CassoExplorerBrowser::CanRemoveFromCasso (const std::wstring & id) const
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::TryGetSelectedShellIds
-//
-//  The selection by the shell's names for it, when every selected row is a
-//  host file or an item the shell lists; false when any is inside a disk
-//  image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const
-{
-    const std::vector<CatalogRow> &  rows = GetRows();
-
-
-
-    outIds.clear();
-
-    if (GetLocation().kind == Location::Kind::HostFolder)
-    {
-        GetSelectedHostPaths (outIds);
-        return !outIds.empty();
-    }
-
-    //  CassoLink's items drag as the files they are written to.
-    if (TryGetSelectedCassoLinkPaths (outIds))
-    {
-        return true;
-    }
-
-    if (!HasShellRows (GetLocation().kind, IsHomeLocation()))
-    {
-        return false;
-    }
-
-    for (int row : GetSelectedRows())
-    {
-        if (row < 0 || (size_t) row >= rows.size() || !rows[(size_t) row].imagePath.empty())
-        {
-            outIds.clear();
-            return false;
-        }
-
-        outIds.push_back (rows[(size_t) row].hostPath.empty() ? rows[(size_t) row].shellId : rows[(size_t) row].hostPath);
-    }
-
-    return !outIds.empty();
-}

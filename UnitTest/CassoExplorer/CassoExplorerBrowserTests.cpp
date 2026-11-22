@@ -198,7 +198,7 @@ public:
         Assert::IsFalse  (cells[(size_t) CatalogModel::Column::DateDeleted].text.empty());
         Assert::AreEqual (std::wstring (L"Recycle Bin"), BrowserCells::GetLocationLabel (host.browser.GetLocation()));
 
-        host.browser.SetSelectedRows ({ row });
+        host.browser.GetSelection().SetSelectedRows ({ row });
 
         std::vector<std::wstring>  ids;
 
@@ -291,7 +291,7 @@ public:
             folder.isFolder = true;
             shell.shellItems = { file, folder };
 
-            host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
+            host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
 
             Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
             Assert::AreEqual ((size_t) 2, host.browser.GetPreview().rows.size());
@@ -315,7 +315,7 @@ public:
         host.browser.SetShellVerbs (&shell);
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"::{test}", L"Test"));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
 
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
     }
@@ -335,7 +335,7 @@ public:
         host.browser.SetShellVerbs (&shell);
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"report.pdf") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"report.pdf") });
         Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Shell);
         Assert::AreEqual (std::wstring (L"C:\\Disks\\report.pdf"), host.browser.GetPreview().hostPath);
 
@@ -343,11 +343,11 @@ public:
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"A failed shell preview is replaced by the bytes");
 
         shell.previewExtension = L".txt";
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO.Text.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"HELLO.Text.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text, L"An exported Apple file is Casso Explorer's");
 
         shell.previewExtension = L".a65";
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"demo.pdf.a65") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"demo.pdf.a65") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text, L"and so is an assembler's source");
     }
 
@@ -364,7 +364,7 @@ public:
         host.browser.SetShellVerbs (&shell);
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"broken.zip") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"broken.zip") });
         Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Error);
         Assert::AreEqual (std::wstring (L"broken.zip can't be opened because it is damaged."), host.browser.GetPreview().message);
 
@@ -385,13 +385,13 @@ public:
         host.browser.SetShellVerbs (&shell);
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.zip") });
         Assert::AreEqual (std::wstring (L"C:\\Disks\\notes.zip"), host.browser.GetExtractTarget());
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetExtractTarget().empty(), L"A plain file has none");
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.zip"), FindRow (host.browser, L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.zip"), FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetExtractTarget().empty(), L"nor does a selection of several");
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip\\docs", L"docs"));
@@ -415,7 +415,7 @@ public:
         host.browser.SetShellVerbs (&shell);
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"hello.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"hello.txt") });
 
         Assert::IsTrue   (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
         Assert::AreEqual ((size_t) 4, host.browser.GetPreview().bytes.size());
@@ -772,7 +772,7 @@ public:
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\GAME.as", std::string (bytes.begin(), bytes.end())));
 
         AssertSucceeded (host.browser.SelectTreeNode (folder));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"GAME.as") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"GAME.as") });
 
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Details);
 
@@ -787,7 +787,7 @@ public:
         Assert::IsTrue (typed, L"The aux type");
         Assert::IsTrue (dated, L"The date, counted from 2000");
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"Any other file still shows its bytes");
     }
 
@@ -821,7 +821,7 @@ public:
         host.browser.SetShellVerbs (&shell);
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"hello"), SearchQuery::GetLabel (kDisks)));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
 
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"The match previews as the program it is");
         Assert::IsFalse (host.browser.GetPreview().lines.empty());
@@ -930,7 +930,7 @@ public:
         host.browser.SetShellVerbs (&shell);
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"x"), SearchQuery::GetLabel (kDisks)));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, match.name.c_str()) });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, match.name.c_str()) });
 
         Assert::IsTrue (host.browser.GetPreview().kind != PreviewContent::Kind::Error, L"It previews from its directory");
 
@@ -957,11 +957,11 @@ public:
         host.browser.SetShellVerbs (&shell);
 
         host.browser.GetNavigator().NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (kDisks, L"dos"), SearchQuery::GetLabel (kDisks)));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
 
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog, L"The image shows its catalog");
         Assert::IsFalse (host.browser.GetPreview().lines.empty());
-        Assert::IsTrue  (host.browser.AreSelectedRowsImages(), L"and is an image, for its thumbnail and inspector");
+        Assert::IsTrue  (host.browser.GetSelection().AreSelectedRowsImages(), L"and is an image, for its thumbnail and inspector");
     }
 
 
@@ -972,14 +972,14 @@ public:
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Listing);
         Assert::IsFalse (host.browser.GetPreview().lines.empty());
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"PICTURE") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"PICTURE") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Picture);
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"ODD") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex);
         Assert::IsFalse (host.browser.GetPreview().disassembly, L"A binary file of data opens as bytes");
         Assert::IsFalse (host.browser.GetPreview().bytes.empty());
@@ -989,8 +989,8 @@ public:
         Assert::IsTrue (host.browser.GetPreview().disassembly);
         Assert::IsTrue (ExplorerPreviewManager::IsKnownPreview (host.browser.GetPreview()), L"as does its disassembly");
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"ODD") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"HELLO") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"ODD") });
         Assert::IsFalse (host.browser.GetPreview().disassembly, L"and it opens as bytes again after another file");
 
         PreviewContent  fallback;
@@ -1092,7 +1092,7 @@ public:
         std::wstring  folder = host.OpenDisksFolder();
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
-        host.browser.SetSelectedRows ({ 0, 1 });
+        host.browser.GetSelection().SetSelectedRows ({ 0, 1 });
 
         Assert::IsTrue (host.browser.GetPreview().lines.empty());
         Assert::AreEqual (0u, (unsigned) host.browser.GetStatus().selected.find (L"2 items selected"), L"the selection has a field of its own");
@@ -1104,7 +1104,7 @@ public:
         Host  host;
 
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"prodos.po") });
 
         Assert::IsTrue  (host.browser.GetPreview().kind == PreviewContent::Kind::Catalog);
         Assert::IsFalse (host.browser.GetPreview().rows.empty());
@@ -1118,7 +1118,7 @@ public:
         std::wstring  selected;
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
         host.browser.GetRowOrder().SortByColumn ((int) CatalogModel::Column::Name);
         Assert::IsTrue (host.browser.GetBrowserModel().GetActiveTab().sortDescending);
@@ -1140,7 +1140,7 @@ public:
         std::wstring                      selected;
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
         host.browser.GetRowOrder().SetGroupBy (RowGrouping::Field::Name, false);
         groups = host.browser.GetRowOrder().GetListGroups();
@@ -1240,12 +1240,12 @@ public:
         Host  host;
 
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"dos33.dsk") });
 
         Assert::IsTrue (host.browser.GetStatus().freeSpace.ends_with (L" free of 140 KB"));
         Assert::IsTrue (host.browser.GetStatus().freeSpaceTip.starts_with (L"dos33.dsk, DOS 3.3 volume "));
 
-        host.browser.SetSelectedRows ({});
+        host.browser.GetSelection().SetSelectedRows ({});
         Assert::IsTrue (host.browser.GetStatus().freeSpace.empty(), L"Nothing for a folder");
     }
 
@@ -1491,7 +1491,7 @@ public:
         std::wstring  folder = host.OpenDisksFolder();
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
         AssertSucceeded (host.browser.Reload (true));
 
@@ -1525,7 +1525,7 @@ public:
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
 
         drivePath = host.browser.GetRows()[0].hostPath;
-        host.browser.SetSelectedRows ({ 0 });
+        host.browser.GetSelection().SetSelectedRows ({ 0 });
 
         //  Reading the drive's catalog relabels it.
         link.drives[0].volume = L"DOS 3.3 volume 254";
@@ -1583,7 +1583,7 @@ public:
         std::wstring  folder = host.OpenDisksFolder();
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"NOTES") });
 
         //  A new tab opens at home, not on a copy of the tab it came from.
         Assert::AreEqual ((size_t) 1, host.browser.GetNavigator().NewTab());
@@ -1722,13 +1722,6 @@ public:
         Assert::IsFalse  (host.browser.GetRows()[(size_t) FindRow (host.browser, L"plan.pdf")].shellId.empty());
     }
 
-    TEST_METHOD (ShellRows_AreReachedOnHome_AndInShellFolders)
-    {
-        Assert::IsTrue  (CassoExplorerBrowser::HasShellRows (Location::Kind::None, true));
-        Assert::IsTrue  (CassoExplorerBrowser::HasShellRows (Location::Kind::ShellFolder, false));
-        Assert::IsFalse (CassoExplorerBrowser::HasShellRows (Location::Kind::HostFolder, false));
-    }
-
     TEST_METHOD (DesktopListing_DropsTheControlPanelCommandBesideTheFolder)
     {
         std::vector<IShellItemVerbs::ShellFolderItem>  items (4);
@@ -1849,7 +1842,7 @@ public:
             }
         }
 
-        host.browser.SetSelectedRows ({ first, second });
+        host.browser.GetSelection().SetSelectedRows ({ first, second });
         Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
 
         host.browser.GetRowOrder().SetGroupBy (RowGrouping::Field::None, false);
@@ -1915,24 +1908,24 @@ public:
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\big.txt",   std::string ("\xFE\xFF\0h\0i", 6)));
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"demo.a65") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"demo.a65") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text);
         Assert::IsTrue (host.browser.GetPreview().source, L"with its line numbers");
         Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"; caf\u00E9  x", L"        LDA #1" }),
                         L"The mark dropped, the letters decoded and the tabs expanded");
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"notes.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"notes.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text);
         Assert::IsFalse (host.browser.GetPreview().source);
         Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"a \u2014 b" }));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"wide.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"wide.txt") });
         Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"hi" }), L"UTF-16 with its mark, little-endian");
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"big.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"big.txt") });
         Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"hi" }), L"and big-endian");
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII text draws in the hex view");
         Assert::IsTrue (BrowserPreviewer::IsSourceName (L"STAGE2.S") && !BrowserPreviewer::IsSourceName (L"readme.txt"));
     }
@@ -1947,11 +1940,11 @@ public:
         AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\HELLO.Applesoft BASIC.txt", "10  PRINT \"HELLO\"\r\n"));
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"HELLO.Applesoft BASIC.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"HELLO.Applesoft BASIC.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Text, L"ASCII, read as lines");
         Assert::IsTrue (host.browser.GetPreview().lines == std::vector<std::wstring> ({ L"10  PRINT \"HELLO\"" }));
 
-        host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
+        host.browser.GetSelection().SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII without an export suffix opens in the hex view");
 
         Assert::IsTrue  (BrowserPreviewer::IsAppleExportName (L"GAME.Integer BASIC.txt"));

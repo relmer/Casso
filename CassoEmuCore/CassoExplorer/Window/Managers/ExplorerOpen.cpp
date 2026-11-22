@@ -805,7 +805,7 @@ void ExplorerOpen::InspectSelected()
     }
     else
     {
-        m_context.browser.GetSelectedHostPaths (paths);
+        m_context.browser.GetSelection().GetSelectedHostPaths (paths);
     }
 
     m_context.imageTools.InspectDiskImages (paths);

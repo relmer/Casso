@@ -765,7 +765,7 @@ public:
         Assert::IsFalse (isShown (CassoExplorerCommands::kInspectDiskImage), L"a text file");
 
         Assert::IsTrue  (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
-        rig.browser.SetSelectedRows ({ rig.browser.GetSelectedRows()[0], rig.browser.GetSelectedRows()[0] + 1 });
+        rig.browser.GetSelection().SetSelectedRows ({ rig.browser.GetSelectedRows()[0], rig.browser.GetSelectedRows()[0] + 1 });
         rig.parts->toolbars.UpdateCommandBar();
         Assert::AreEqual (std::wstring (L"b.dsk"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[1]].name);
         Assert::IsTrue  (isShown (CassoExplorerCommands::kInspectDiskImage), L"two images");

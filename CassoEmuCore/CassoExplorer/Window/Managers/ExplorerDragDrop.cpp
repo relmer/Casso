@@ -1547,7 +1547,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  image is dragged out.
     if (m_context.IsPicker())
     {
-        if (m_context.browser.TryGetSelectedShellIds (shellIds))
+        if (m_context.browser.GetSelection().TryGetSelectedShellIds (shellIds))
         {
             hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY, icon.get());
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1583,7 +1583,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  do: the shell's own data object, with its thumbnails, its drop words,
     //  and what each target does with it. Only an image's entries need the
     //  formats built here.
-    if (m_context.browser.TryGetSelectedShellIds (shellIds))
+    if (m_context.browser.GetSelection().TryGetSelectedShellIds (shellIds))
     {
         hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, images ? icon.get() : nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1601,7 +1601,7 @@ void ExplorerDragDrop::BeginDragOut()
     //  What a move would take away, read now: the drag may change the list.
     if (inImage || onDrive)
     {
-        m_context.browser.GetSelectedEntries (entries);
+        m_context.browser.GetSelection().GetSelectedEntries (entries);
 
         for (const FileEntry & entry : entries)
         {

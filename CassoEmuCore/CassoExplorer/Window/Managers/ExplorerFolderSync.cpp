@@ -61,7 +61,7 @@ void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
     {
         if (_wcsicmp (rows[i].name.c_str(), select.c_str()) == 0)
         {
-            m_context.browser.SetSelectedRows ({ (int) i });
+            m_context.browser.GetSelection().SetSelectedRows ({ (int) i });
             break;
         }
     }
@@ -822,7 +822,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
     }
 
     //  The view as it stands, in keys, before the rows under it change.
-    m_context.browser.GetRowKeys (before.keys);
+    m_context.browser.GetSelection().GetRowKeys (before.keys);
     m_context.listPane.CaptureView (before);
 
     //  Re-read without the browser's own restore: the anchor decides both the
@@ -832,10 +832,10 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The selection is set before the list is filled, so the preview pane
     //  doesn't close and reopen in between.
-    m_context.browser.GetRowKeys (keys);
+    m_context.browser.GetSelection().GetRowKeys (keys);
     after = RefreshAnchor::Compute (before, keys);
 
-    m_context.browser.SetSelectedRows (after.selected);
+    m_context.browser.GetSelection().SetSelectedRows (after.selected);
     m_context.listPane.FillList();
     m_context.listPane.RestoreView (after);
 

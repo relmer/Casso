@@ -518,7 +518,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFor
 
 
     TreeModel::TryParseLinkId (browser.GetLocation().path, link, slot, drive);
-    browser.GetSelectedEntries (entries);
+    browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -899,7 +899,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
     if (browser.IsImageLocation())
     {
-        browser.GetSelectedEntries (entries);
+        browser.GetSelection().GetSelectedEntries (entries);
 
         if (entries.empty())
         {
@@ -1099,7 +1099,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
         return formats;
     }
 
-    browser.GetSelectedHostPaths (hostPaths);
+    browser.GetSelection().GetSelectedHostPaths (hostPaths);
 
     if (hostPaths.empty())
     {

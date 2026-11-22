@@ -142,7 +142,7 @@ public:
             {
                 if (rows[i].name == name)
                 {
-                    browser->SetSelectedRows ({ (int) i });
+                    browser->GetSelection().SetSelectedRows ({ (int) i });
                     return;
                 }
             }
@@ -295,7 +295,7 @@ public:
 
         rig.Open (1);
         rig.Select (L"HELLO");
-        rig.browser->GetSelectedEntries (entries);
+        rig.browser->GetSelection().GetSelectedEntries (entries);
 
         AssertSucceeded (rig.actions->GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive).hr);
         Assert::IsTrue (rig.Finish().empty());

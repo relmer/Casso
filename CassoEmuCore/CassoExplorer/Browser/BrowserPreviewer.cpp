@@ -373,7 +373,7 @@ void BrowserPreviewer::UpdatePreview()
     m_preview = PreviewContent();
     m_preview.kind = PreviewContent::Kind::Text;
 
-    if (m_browser.TryGetSelectedEntry (entry))
+    if (m_browser.GetSelection().TryGetSelectedEntry (entry))
     {
         if (entry->isDirectory)
         {
@@ -812,7 +812,7 @@ std::wstring BrowserPreviewer::GetExtractTarget() const
     if (location.kind == Location::Kind::HostFolder && m_browser.m_selectedRows.size() == 1
         && m_browser.m_rows[(size_t) m_browser.m_selectedRows[0]].isArchive)
     {
-        m_browser.GetSelectedHostPaths (paths);
+        m_browser.GetSelection().GetSelectedHostPaths (paths);
         return paths.empty() ? std::wstring() : paths[0];
     }
 

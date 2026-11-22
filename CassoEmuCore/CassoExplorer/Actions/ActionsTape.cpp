@@ -156,7 +156,7 @@ ActionsTypes::Outcome ActionsTape::MakeRecording (const std::wstring & target)
 
 
 
-    browser.GetSelectedEntries (entries);
+    browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {

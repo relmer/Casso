@@ -84,7 +84,7 @@ void ExplorerImageTools::CompareSelectedDiskImages()
 
 
 
-    m_context.browser.GetSelectedHostPaths (paths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (paths);
 
     if (m_context.app.host != nullptr && m_context.theme != nullptr && paths.size() == 2 && rows.size() == 2)
     {
@@ -151,7 +151,7 @@ void ExplorerImageTools::MakeArchive (bool shrinkItDisk)
 
 
 
-    m_context.browser.GetSelectedHostPaths (hostPaths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
 
     if (hostPaths.empty() || (shrinkItDisk && hostPaths.size() != 1))
     {

@@ -9,6 +9,8 @@
 #include "CassoExplorer/Browser/BrowserNavigator.h"
 #include "CassoExplorer/Browser/BrowserRowOrder.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "CassoExplorer/Browser/BrowserSelection.h"
+#include "CassoExplorer/Browser/IBrowserSelectionSource.h"
 #include "CassoExplorer/Browser/IBrowserListing.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
@@ -49,7 +51,7 @@ class IDiskFileIo;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerBrowser : private IBrowserListing
+class CassoExplorerBrowser : private IBrowserListing, private IBrowserSelectionSource
 {
 public:
     using Status = BrowserStatus;
@@ -138,11 +140,10 @@ public:
     int                               GetTabTopRow          () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
     void                              SetTabTreeRow         (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }
     int                               GetTabTreeRow         () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
-    void                              SetSelectedRows       (const std::vector<int> & rows);
 
-    //  The row at a place in the list, or the last row when the list ends
-    //  before it; nothing for a negative place or an empty list.
-    void                              SelectRowAt     (int row);
+    //  The selected rows, and selecting them.
+    BrowserSelection        & GetSelection ()       { return m_selection; }
+    const BrowserSelection  & GetSelection () const { return m_selection; }
 
     //  The preview made again for the selection, as when a slow read arrives.
     void  RefreshPreview   () { m_previewer.UpdatePreview(); }
@@ -184,7 +185,7 @@ public:
     bool                      IsListLoading         () const { return m_loader.m_listError == s_kWorkingText; }
     const Status            & GetStatus             () const { return m_status;    }
     const std::vector<int>  & GetSelectedRows       () const { return m_selectedRows; }
-    Location                  GetLocation           () const;
+    Location                  GetLocation           () const override;
     VolumeKind                GetVolumeKind         () const { return m_kind; }
     bool                      IsAppleDriveLocation  () const { return m_isAppleDrive; }
     bool                      IsListingKept         () const { return m_listingKept; }
@@ -194,8 +195,8 @@ public:
     bool                             IsAppleDriveOpen () const { return GetLocation().kind == Location::Kind::AppleDrive; }
 
     //  An image or an Apple drive: a volume whose catalog is in the list.
-    bool  IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
-    bool  IsImageLocation  () const { return m_isImage; }
+    bool  IsVolumeLocation () const override { return m_isImage || m_isAppleDrive; }
+    bool  IsImageLocation  () const override { return m_isImage; }
 
     //  An image with no catalog, whose partitions are the rows.
     bool  IsPartitionListLocation () const { return m_isPartitionList; }
@@ -207,29 +208,14 @@ public:
     //  the commands that would write to it ask on every repaint, which is too
     //  often to hit the file system.
     bool                   IsWriteProtected () const { return m_loader.m_writeProtected; }
-    const VolumeListing  & GetListing       () const { return m_listing; }
-
-    //  The catalog entries behind the selected rows, in row order, when the
-    //  location is an image; empty otherwise.
-    void  GetSelectedEntries (std::vector<FileEntry> & outEntries) const;
-
-    //  The host paths behind the selected rows, when the location is a host
-    //  folder; empty otherwise.
-    void  GetSelectedHostPaths (std::vector<std::wstring> & outPaths) const;
+    const VolumeListing  & GetListing       () const override { return m_listing; }
 
     //  The selected CassoLink items written to their files, so they open and
     //  drag as files; false when any could not be written.
     bool  PrepareCassoLinkItems () { return m_loader.PrepareCassoLinkItems(); }
 
     //  The paths of the selection when every row is a CassoLink item.
-    bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const { return m_loader.TryGetSelectedCassoLinkPaths (outPaths); }
-
-    //  The selection by the shell's names for it, when every selected row is a
-    //  host file or an item the shell lists; false when any is inside a disk
-    //  image. Copy and the shell's commands reach a selected row by its place
-    //  in the shell, which a shell folder's and Home's rows have.
-    bool         TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const;
-    static bool  HasShellRows           (Location::Kind kind, bool home) { return kind == Location::Kind::ShellFolder || home; }
+    bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const override { return m_loader.TryGetSelectedCassoLinkPaths (outPaths); }
 
     //  The next list of a linked machine or drive reads its disks again, as
     //  a refresh does.
@@ -246,22 +232,12 @@ public:
     bool  AreSelectedRowsSearchMatches () const { return m_previewer.AreSelectedRowsSearchMatches(); }
     bool  TryFindSearchMatch           (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError) { return m_previewer.TryFindSearchMatch (row, outMatch, outError); }
 
-    //  Whether the selected rows are all disk images in a host folder.
-    bool  AreSelectedRowsImages() const;
-
-    //  Whether the selected rows are all files or folders on a disk that a
-    //  search found, which act as they do in their own folders.
-    bool  AreSelectedRowsSearchFiles() const;
-
     //  A search's row given the name a rename gave its file, without searching
     //  again: the index takes a while to have the new name. A name the query no
     //  longer matches removes the row, and false is returned.
     bool  RenameSearchRow (int row, const std::wstring & newName);
 
-    //  Every row's key, in row order, as a selection stores them: a name and
-    //  its occurrence among rows with that name. What a refresh matches rows
-    //  by, since an index moves whenever a row is added or removed above it.
-    void  GetRowKeys (std::vector<std::wstring> & outKeys) const;
+
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
 
@@ -381,14 +357,9 @@ private:
     void  QueueVolumeFacts       (const std::wstring & folder);
     Location                 m_homeParent;
     bool                     m_returningToTab  = false;
-    bool  TryGetSelectedEntry    (const FileEntry *& outEntry) const;
 
-    //  The key a selection stores for a row: its name and its occurrence among
-    //  rows with that name, since a DOS 3.3 catalog can repeat a name.
-    std::wstring  GetSelectionKey (size_t row) const;
-
-    //  Selects the rows whose keys are in `names`, in one pass over the rows.
-    void  SelectRowsByKeys (const std::vector<std::wstring> & names);
+    //  IBrowserSelectionSource, for the selection.
+    void      UpdatePreviewAndStatus () override                                         { m_previewer.UpdatePreview(); m_cells.UpdateStatus(); }
 
     //  IBrowserListing, for the navigator.
     void      ReloadAfterNavigation () override                                          { m_loader.ReloadAfterNavigation(); }
@@ -439,5 +410,6 @@ private:
     BrowserCells      m_cells          { *this };
     BrowserNavigator  m_navigator      { m_model, m_fs, m_hostFolders, *this };
     BrowserRowOrder   m_rowOrder       { m_model, m_rows, m_selectedRows, m_columnFilters, *this };
+    BrowserSelection  m_selection      { m_model, m_rows, m_selectedRows, *this };
 };
 

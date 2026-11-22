@@ -509,7 +509,7 @@ bool ExplorerPickerMode::HandleActivateRow (int row)
         return m_context.IsPicker() && m_context.browser.IsImageLocation();
     }
 
-    m_context.browser.SetSelectedRows ({ row });
+    m_context.browser.GetSelection().SetSelectedRows ({ row });
 
     //  In a save form the opened file's name is the name saved under.
     if (m_context.app.picker->IsSave())

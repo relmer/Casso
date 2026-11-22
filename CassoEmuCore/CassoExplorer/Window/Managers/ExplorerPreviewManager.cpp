@@ -376,7 +376,7 @@ void ExplorerPreviewManager::FillPreview()
     {
         bool          wasShown = m_thumbnail.IsShown();
         bool          isOne    = visible && !error && !preview.savedGameShown && m_context.browser.GetSelectedRows().size() == 1;
-        std::wstring  path     = isOne && m_context.browser.AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
+        std::wstring  path     = isOne && m_context.browser.GetSelection().AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
 
         if (isOne && m_context.browser.IsPartitionListLocation())
         {
@@ -1425,7 +1425,7 @@ void ExplorerPreviewManager::SetExpanded (bool expanded)
 
     if (expanded && selected.size() > 1)
     {
-        m_context.browser.GetRowKeys (keys);
+        m_context.browser.GetSelection().GetRowKeys (keys);
 
         for (int row : selected)
         {
@@ -1469,7 +1469,7 @@ int ExplorerPreviewManager::GetStepTarget (bool forward) const
 
 
 
-    m_context.browser.GetRowKeys (keys);
+    m_context.browser.GetSelection().GetRowKeys (keys);
 
     return PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, current, forward);
 }

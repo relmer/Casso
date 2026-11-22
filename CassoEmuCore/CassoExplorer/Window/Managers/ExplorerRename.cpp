@@ -369,7 +369,7 @@ void ExplorerRename::EndRename (bool commit)
 
         //  The row renamed is the one the box was over, whatever else is
         //  selected.
-        m_context.browser.SetSelectedRows ({ row });
+        m_context.browser.GetSelection().SetSelectedRows ({ row });
         renamed = m_context.actions.RenameSelected (newName);
 
         if (renamed.Succeeded())

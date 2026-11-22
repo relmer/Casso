@@ -48,7 +48,7 @@ std::wstring ExplorerCassoTarget::GetSelectedImagePath() const
 
 
 
-    m_context.browser.GetSelectedHostPaths (paths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (paths);
 
     return (paths.size() == 1) ? paths[0] : std::wstring();
 }

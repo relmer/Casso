@@ -123,7 +123,7 @@ void ExplorerProperties::ShowAppleProperties()
 
 
 
-    m_context.browser.GetSelectedEntries (entries);
+    m_context.browser.GetSelection().GetSelectedEntries (entries);
 
     AppleFilePropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, entries, m_context.browser.GetVolumeKind(), readOnly,
                                      [this] (const AppleFileProperties::Edits & edits, std::vector<FileEntry> & inOutEntries) -> std::wstring

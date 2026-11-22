@@ -126,7 +126,7 @@ void ExplorerClipboard::CutEntriesToClipboard (HostFileNaming::Style style)
     else
     {
         cut.image = TextEncoding::WideToNarrow (m_context.browser.GetLocation().path);
-        m_context.browser.GetSelectedEntries (entries);
+        m_context.browser.GetSelection().GetSelectedEntries (entries);
 
         for (const FileEntry & entry : entries)
         {

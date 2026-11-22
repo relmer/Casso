@@ -38,7 +38,7 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
         return false;
     }
 
-    context.browser.GetSelectedEntries (entries);
+    context.browser.GetSelection().GetSelectedEntries (entries);
 
     if (entries.size() != 1 || entries[0].isDirectory)
     {
@@ -74,7 +74,7 @@ bool ExplorerPreviewOutput::CanSaveAs (const ExplorerContext & context)
 
 
 
-    context.browser.GetSelectedEntries (entries);
+    context.browser.GetSelection().GetSelectedEntries (entries);
 
     return context.app.fs != nullptr && (viewable || (entries.size() == 1 && !entries[0].isDirectory));
 }

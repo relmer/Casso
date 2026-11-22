@@ -325,7 +325,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
                 break;
             }
 
-            if (m_context.browser.TryGetSelectedShellIds (hostPaths))
+            if (m_context.browser.GetSelection().TryGetSelectedShellIds (hostPaths))
             {
                 hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
             }
@@ -335,7 +335,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::Share:
-            m_context.browser.GetSelectedHostPaths (hostPaths);
+            m_context.browser.GetSelection().GetSelectedHostPaths (hostPaths);
             hr = hostPaths.empty() ? E_NOT_SET : m_context.shellVerbs.Share (m_context.window.GetHwnd(), hostPaths);
 
             if (FAILED (hr))

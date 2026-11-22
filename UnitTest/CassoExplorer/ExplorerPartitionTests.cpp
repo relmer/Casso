@@ -233,7 +233,7 @@ public:
         std::wstring  partition;
 
         host.OpenCard();
-        host.browser.SetSelectedRows ({ 1 });
+        host.browser.GetSelection().SetSelectedRows ({ 1 });
 
         Assert::IsTrue (host.actions.TryGetPartition (partition));
         Assert::AreEqual (std::wstring (kSecondPath), partition);

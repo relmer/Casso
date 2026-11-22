@@ -68,7 +68,7 @@ public:
             }
 
             Assert::AreNotEqual (-1, row, name);
-            browser.SetSelectedRows ({ row });
+            browser.GetSelection().SetSelectedRows ({ row });
 
             return browser.GetPreview();
         }

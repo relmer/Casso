@@ -348,7 +348,7 @@ ActionsTypes::Outcome ActionsAppleDrive::GetFromAppleDrive (const std::wstring &
         return outcome;
     }
 
-    m_actions.m_browser.GetSelectedEntries (entries);
+    m_actions.m_browser.GetSelection().GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
@@ -599,7 +599,7 @@ bool ActionsAppleDrive::TryPlanDeletion (std::vector<FileEntry> entries, DriveDe
 
     if (entries.empty())
     {
-        m_actions.m_browser.GetSelectedEntries (entries);
+        m_actions.m_browser.GetSelection().GetSelectedEntries (entries);
     }
 
     for (const FileEntry & entry : entries)
@@ -689,7 +689,7 @@ ActionsTypes::Outcome ActionsAppleDrive::RenameOnAppleDrive (const std::string &
 
 
 
-    m_actions.m_browser.GetSelectedEntries (entries);
+    m_actions.m_browser.GetSelection().GetSelectedEntries (entries);
 
     if (!TryGetAppleDrive (link, drive, directory) || entries.size() != 1)
     {
@@ -726,7 +726,7 @@ ActionsTypes::Outcome ActionsAppleDrive::SetLockedOnAppleDrive (bool locked)
 
 
 
-    m_actions.m_browser.GetSelectedEntries (entries);
+    m_actions.m_browser.GetSelection().GetSelectedEntries (entries);
 
     if (!TryGetAppleDrive (link, drive, directory) || entries.empty())
     {

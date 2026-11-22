@@ -1153,7 +1153,7 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
         folders += m_context.browser.GetRows()[(size_t) row].isDirectory ? 1 : 0;
     }
 
-    m_context.browser.GetSelectedHostPaths (outPaths);
+    m_context.browser.GetSelection().GetSelectedHostPaths (outPaths);
     outKind = (folders != 0) ? Win32PackagedCommands::ItemKind::Folder : Win32PackagedCommands::ItemKind::File;
 
     return !outPaths.empty() && (folders == 0 || folders == outPaths.size());

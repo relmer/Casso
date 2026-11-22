@@ -750,7 +750,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  Windows' own commands lead into Copy as path in one group, as in
         //  File Explorer; without them the group starts here.
-        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles())
+        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.GetSelection().AreSelectedRowsSearchFiles())
             && m_context.menus.GetSelectionKind (selectedPaths, kind))
         {
             std::vector<std::wstring>  homeIds;
@@ -777,7 +777,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  A search's file opens its folder with it selected, as File
         //  Explorer's Open file location does there.
-        if (m_context.browser.AreSelectedRowsSearchFiles() && m_context.browser.GetSelectedRows().size() == 1)
+        if (m_context.browser.GetSelection().AreSelectedRowsSearchFiles() && m_context.browser.GetSelectedRows().size() == 1)
         {
             AddOpenLocationRow (items, m_context.browser.GetSelectedRows()[0]);
         }
@@ -894,7 +894,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  A drive in This PC has them, and the shell's menu, as in File Explorer.
     moreOptions = moreOptions || selectedDrives;
 
-    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles() || selectedDrives))
+    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.GetSelection().AreSelectedRowsSearchFiles() || selectedDrives))
     {
         m_context.menus.AddPackagedCommands (items);
         m_context.menus.SetCommandItemIds ({});
@@ -920,7 +920,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                 hr = m_context.shellVerbs.ShowRecycledMenu (m_context.window.GetHwnd(), paths, screen);
                 m_context.folderSync.RefreshAfterHostChange();
             }
-            else if (m_context.browser.TryGetSelectedShellIds (paths))
+            else if (m_context.browser.GetSelection().TryGetSelectedShellIds (paths))
             {
                 hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), paths, screen, [this]() { m_context.verbs.RunVerb (CassoExplorerActions::Verb::Rename); });
             }

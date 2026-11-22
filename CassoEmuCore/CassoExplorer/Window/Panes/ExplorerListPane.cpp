@@ -988,7 +988,7 @@ bool ExplorerListPane::IsSelectionOpenable() const
 void ExplorerListPane::OnSelectionChanged()
 {
     m_context.preview.HandleSelectionChanged();
-    m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+    m_context.browser.GetSelection().SetSelectedRows (m_list->GetSelectedRows());
 
     //  A closed pane that may open for a folder, disk image or archive is
     //  filled after the double-click time, so the first press of a double-click
@@ -1648,7 +1648,7 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
         IGNORE_RETURN_VALUE (got, TRUE);
 
         m_list->SetSelectedRow (row);
-        m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+        m_context.browser.GetSelection().SetSelectedRows (m_list->GetSelectedRows());
         m_context.preview.FillPreview();
         m_menus.ShowListContextMenu (screen.x, screen.y, -1);
     }
@@ -1754,7 +1754,7 @@ void ExplorerListPane::SelectArrivals()
 
     m_arrivalNames.clear();
 
-    m_context.browser.SetSelectedRows (found);
+    m_context.browser.GetSelection().SetSelectedRows (found);
     m_list->SetSelectedRows (found, found[0]);
     m_list->EnsureVisible (found[0]);
 
@@ -1785,7 +1785,7 @@ bool ExplorerListPane::SelectRowNamed (const std::wstring & name)
     {
         if (_wcsicmp (rows[i].name.c_str(), name.c_str()) == 0)
         {
-            m_context.browser.SetSelectedRows ({ (int) i });
+            m_context.browser.GetSelection().SetSelectedRows ({ (int) i });
             m_list->SetSelectedRows ({ (int) i }, (int) i);
             m_list->EnsureVisible ((int) i);
 
@@ -1849,7 +1849,7 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
     {
         //  An archive's contents, read on a network, for the preview of the
         //  archive selected, if it is the selection.
-        m_context.browser.GetSelectedHostPaths (paths);
+        m_context.browser.GetSelection().GetSelectedHostPaths (paths);
 
         if (paths.size() == 1 && paths[0] == key.substr (wcslen (CassoExplorerBrowser::s_kPreviewKey)))
         {
