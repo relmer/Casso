@@ -111,6 +111,54 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewText::AddLegendRows
+//
+//  A legend's entries, a run each, `columns` to a row with a cell each, so
+//  an entry's swatch and name stay together and the entries line up in
+//  columns from row to row. The rows are a column group of their own, so
+//  their columns don't widen a table's or follow it. Zero columns is all of
+//  the entries in one row. Each entry's trailing spaces, a separator for a
+//  legend written as one run of text, are dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddLegendRows (const std::vector<Run> & entries, const SourceSyntax::Colors & colors, int columns, std::vector<DxuiTextView::Row> & ioRows)
+{
+    constexpr int  kLegendGroup = 1;
+    size_t         perRow       = (columns > 0) ? (size_t) columns : entries.size();
+
+
+
+    for (size_t first = 0; first < entries.size(); first += perRow)
+    {
+        DxuiTextView::Row  row { {} };
+
+        row.columnGroup = kLegendGroup;
+
+        for (size_t i = first; i < entries.size() && i < first + perRow; i++)
+        {
+            const Run &   entry = entries[i];
+            std::wstring  text  = entry.text;
+
+            while (!text.empty() && text.back() == L' ')
+            {
+                text.pop_back();
+            }
+
+            row.cells.push_back (std::wstring());
+            AddRunText (row, entry, GetRunColor (entry.color, colors), text);
+        }
+
+        ioRows.push_back (std::move (row));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewText::BuildDocumentRows
 //
 //  A row for each paragraph, aligned as it is, a span for each styled or
@@ -120,7 +168,7 @@ uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors,
-                                                               TableForm form, std::vector<int> * outRowParagraph)
+                                                               TableForm form, std::vector<int> * outRowParagraph, int legendColumns)
 {
     std::vector<DxuiTextView::Row>  rows;
 
@@ -130,6 +178,18 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
     {
         const Paragraph &  paragraph = paragraphs[index];
         DxuiTextView::Row  row       { { std::wstring() } };
+
+        if (paragraph.isLegend && !paragraph.runs.empty())
+        {
+            AddLegendRows (paragraph.runs, colors, legendColumns, rows);
+
+            if (outRowParagraph != nullptr)
+            {
+                outRowParagraph->resize (rows.size(), (int) index);
+            }
+
+            continue;
+        }
 
         if (paragraph.table != nullptr)
         {
@@ -443,7 +503,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const Previ
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors,
-                                                           TableForm form, std::vector<int> * outRowParagraph)
+                                                           TableForm form, std::vector<int> * outRowParagraph, int legendColumns)
 {
     std::vector<DxuiTextView::Row>  rows;
     std::vector<DxuiTextView::Row>  warnings;
@@ -476,7 +536,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
-        rows = BuildDocumentRows (preview.paragraphs, colors, form, outRowParagraph);
+        rows = BuildDocumentRows (preview.paragraphs, colors, form, outRowParagraph, legendColumns);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {

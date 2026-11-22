@@ -46,13 +46,14 @@ public:
     struct Row
     {
         std::vector<std::wstring>       cells;
-        bool                            warning    = false;
-        bool                            heading    = false;     // drawn in the accent color
+        bool                            warning     = false;
+        bool                            heading     = false;     // drawn in the accent color
         std::vector<Span>               spans;
-        DxuiTextHAlign                  alignment  = DxuiTextHAlign::Left;
-        int                             wrapIndent = 0;         // characters past the last cell's start that a wrapped line starts at
+        DxuiTextHAlign                  alignment   = DxuiTextHAlign::Left;
+        int                             wrapIndent  = 0;         // characters past the last cell's start that a wrapped line starts at
         std::shared_ptr<const Picture>  picture;
-        bool                            rule       = false;     // a line across the text under the row, in the divider color
+        bool                            rule        = false;     // a line across the text under the row, in the divider color
+        int                             columnGroup = 0;         // rows of one group line their cells up in columns; groups are apart
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -127,16 +128,38 @@ public:
     static DxuiFontWeight        GetWeight     (bool bold, bool italic);
 
 private:
-    std::vector<Row>   m_rows;
-    std::vector<Line>  m_lines;
-    std::vector<int>   m_columnCells;
+    //  A row's column group's widths, made when absent, or nullptr when absent.
+    template <typename T>
+    static std::vector<T> & GetGroupColumns (std::vector<std::vector<T>> & groups, const Row & row)
+    {
+        size_t  group = (size_t) (std::max) (0, row.columnGroup);
+
+        if (groups.size() <= group)
+        {
+            groups.resize (group + 1);
+        }
+
+        return groups[group];
+    }
+
+    template <typename T>
+    static const std::vector<T> * FindGroupColumns (const std::vector<std::vector<T>> & groups, const Row & row)
+    {
+        size_t  group = (size_t) (std::max) (0, row.columnGroup);
+
+        return (group < groups.size()) ? &groups[group] : nullptr;
+    }
+
+    std::vector<Row>               m_rows;
+    std::vector<Line>              m_lines;
+    std::vector<std::vector<int>>  m_columnCells;
 
     //  Proportional text: each row's cells' character places, the width of
     //  the characters before each, and each column's widest cell, in pixels.
     //  Empty until a paint measures them.
     bool                                          m_proportional = false;
     std::vector<std::vector<std::vector<float>>>  m_charX;
-    std::vector<float>                            m_columnPx;
+    std::vector<std::vector<float>>               m_columnPx;
 
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split

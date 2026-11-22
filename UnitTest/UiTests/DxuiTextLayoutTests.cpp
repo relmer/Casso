@@ -52,6 +52,22 @@ public:
 
 
     //  A picture row is as many lines as the picture is tall.
+    //  Rows of one column group line their cells up with each other only: a
+    //  wide cell in one group doesn't move the columns of another.
+    TEST_METHOD (ColumnGroups_LineUpApart)
+    {
+        DxuiTextLayout       layout;
+        DxuiTextLayout::Row  legend = MakeRow ({ L"Water", L"Grass" });
+        DxuiTextLayout::Row  wide   = MakeRow ({ L"A much wider cell", L"x" });
+
+        legend.columnGroup = 1;
+
+        Build (layout, { legend, wide }, 80);
+
+        Assert::AreEqual (5 + 2,  layout.GetCellStart (layout.GetRows()[0], 1), L"the legend's column is as wide as its own widest cell, and the gap");
+        Assert::AreEqual (17 + 2, layout.GetCellStart (layout.GetRows()[1], 1), L"the other group's is as wide as its cell");
+    }
+
     TEST_METHOD (Picture_TakesTheLinesOfItsHeight)
     {
         DxuiTextLayout       layout;

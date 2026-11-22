@@ -252,6 +252,7 @@ public:
         Assert::AreEqual (6 * tile + 2,  map.pingX, L"the ping is the middle of the party's tile");
         Assert::AreEqual (13 * tile + 2, map.pingY);
         Assert::IsTrue   (map.canZoom);
+        Assert::IsTrue   (decoded.paragraphs[pictureAt + 1].isLegend, L"the legend follows the map");
         Assert::AreEqual (0xFFFFFFFFu, map.picture[(size_t) (13 * tile + center) * (size_t) map.width + (size_t) (6 * tile + center)], L"the party's tile is white");
         Assert::AreEqual (0xFF5AA046u, map.picture[(size_t) (20 * tile + center) * (size_t) map.width + (size_t) (20 * tile + center)], L"grass is green");
         Assert::AreEqual (0xFF2846A0u, map.picture[(size_t) center * (size_t) map.width + (size_t) center], L"water is blue");

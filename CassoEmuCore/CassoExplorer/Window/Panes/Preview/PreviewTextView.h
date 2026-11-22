@@ -68,6 +68,8 @@ private:
     void  SetPlace         (int paragraph, float within);
     int   GetLineParagraph (int line) const;
 
+    static int  GetLegendEntryCount (const PreviewContent & preview);
+
     DxuiTextView      * m_text           = nullptr;
     bool                m_crossReference = false;
     LONG                m_tableWidth     = 0;      // the text's width the rows were built for

@@ -652,20 +652,23 @@ void Ultima4Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
 {
     static constexpr Byte  kShown[] = { 0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x17, 0x1E, 0x4C };
     std::vector<Run>       runs;
+    Paragraph              legend;
 
 
 
-    runs.push_back (Run { L"Party   ", false, false, false, RunColor::Muted, s_kPartyMark });
+    runs.push_back (Run { L"Party", false, false, false, RunColor::Muted, s_kPartyMark });
 
     for (Byte tile : kShown)
     {
-        runs.push_back (Run { GetTileName (tile) + L"   ", false, false, false, RunColor::Muted, GetTileColor (tile) });
+        runs.push_back (Run { GetTileName (tile), false, false, false, RunColor::Muted, GetTileColor (tile) });
     }
 
-    runs.push_back (Run { L"Other   ",         false, false, false, RunColor::Muted, s_kOtherTile });
+    runs.push_back (Run { L"Other",            false, false, false, RunColor::Muted, s_kOtherTile });
     runs.push_back (Run { L"Couldn't be read", false, false, false, RunColor::Muted, kHatchedSwatch });
 
-    ioParagraphs.push_back (MakeParagraph (std::move (runs)));
+    legend.runs     = std::move (runs);
+    legend.isLegend = true;
+    ioParagraphs.push_back (std::move (legend));
 }
 
 
