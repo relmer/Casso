@@ -1787,6 +1787,45 @@ public:
     }
 
 
+    //  ProDOS counts a directory block's header as entry 1, so the first file
+    //  record of the key block is entry 2 and the first record of a later
+    //  block is entry 1.
+    TEST_METHOD (Volume_CreateDirectory_PointsItsHeaderAtItsEntry)
+    {
+        vector<Byte>   disk    = MakeVolume();
+        vector<Byte>   next;
+        FilePayload    payload = MakeBinaryPayload (10, 0x6000);
+        size_t         record  = kKeyBlockEntry + 2 * 0x27;
+        int            key     = 0;
+        int            i       = 0;
+
+        AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse ("F0"), payload, next));
+        disk = next;
+
+        AssertSucceeded (ProDosVolume (disk).CreateDirectory (FilePath::Parse ("NEAR"), next));
+        disk = next;
+
+        key = WordAt (disk, kDirKeyBlock, record + 0x11);
+        Assert::AreEqual ((Byte) 0xD4,          At (disk, kDirKeyBlock, record),                   L"NEAR is the second file record");
+        Assert::AreEqual ((Word) kDirKeyBlock,  WordAt (disk, key, kKeyBlockEntry + 0x23),         L"parent pointer of NEAR");
+        Assert::AreEqual ((Byte) 3,             At (disk, key, kKeyBlockEntry + 0x25),             L"parent entry number of NEAR");
+
+        for (i = 1; i < 13; i++)
+        {
+            AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse (std::format ("F{}", i)), payload, next));
+            disk = next;
+        }
+
+        AssertSucceeded (ProDosVolume (disk).CreateDirectory (FilePath::Parse ("FAR"), next));
+        disk = next;
+
+        key = WordAt (disk, 3, record + 0x11);
+        Assert::AreEqual ((Byte) 0xD3,  At (disk, 3, record),                       L"FAR is the third record of the second block");
+        Assert::AreEqual ((Word) 3,     WordAt (disk, key, kKeyBlockEntry + 0x23), L"parent pointer of FAR");
+        Assert::AreEqual ((Byte) 3,     At (disk, key, kKeyBlockEntry + 0x25),     L"parent entry number of FAR");
+    }
+
+
     //  Builds the same tree the removal test uses: UTIL, UTIL/DEEP, and a file
     //  inside the deeper one.
     static vector<Byte> MakeTreeVolume()

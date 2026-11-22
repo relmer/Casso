@@ -244,7 +244,7 @@ $bytes[$hdr + 0x1F] = $entryLength
 $bytes[$hdr + 0x20] = $entriesPerBlock
 $bytes[$hdr + 0x21] = 0; $bytes[$hdr + 0x22] = 0                    # file count
 $bytes[$hdr + 0x23] = $dirKeyBlock; $bytes[$hdr + 0x24] = 0         # parent pointer
-$bytes[$hdr + 0x25] = [byte]$slotIndex                              # parent entry number
+$bytes[$hdr + 0x25] = [byte]($slotIndex + 1)                        # parent entry number; the header is entry 1
 $bytes[$hdr + 0x26] = $entryLength                                  # parent entry length
 
 # Mark the key block used and count the new entry.
