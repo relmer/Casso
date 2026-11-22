@@ -246,9 +246,135 @@ bool InfocomSave::TryReadPosition (const std::vector<Byte> & sectors, int number
         outPosition.score   = (int16_t) GetWord (memory, globals + 2u);
         outPosition.moves   = (int16_t) GetWord (memory, globals + 4u);
         outPosition.room    = (room > 0) ? ZMachineStory::ReadObjectName (memory, header, (size_t) room) : std::wstring();
+
+        int  count  = CountObjects (memory, header.objects);
+        int  player = FindPlayer (memory, header.objects, globals, count, room);
+
+        if (room > 0 && room <= count)
+        {
+            AddTree (memory, header, count, player, 0, 0, outPosition.carried);
+            AddTree (memory, header, count, room, player, 0, outPosition.here);
+        }
     }
 
     return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::CountObjects
+//
+//  The objects run up to the first property table, the lowest address an
+//  object's properties are at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::CountObjects (const std::vector<Byte> & memory, Word objects)
+{
+    size_t  lowest = memory.size();
+    int     count  = 0;
+
+
+
+    for (size_t at = objects + kDefaultsBytes; at + kObjectBytes <= lowest && count < 255; at += kObjectBytes)
+    {
+        size_t  properties = GetWord (memory, at + 7);
+
+        lowest = (properties > at) ? (std::min) (lowest, properties) : lowest;
+        count++;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::GetObjectLink
+//
+//  An object's parent, sibling or child, 0 to 2, or 0 for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::GetObjectLink (const std::vector<Byte> & memory, Word objects, int count, int number, size_t which)
+{
+    size_t  at   = objects + kDefaultsBytes + (size_t) (number - 1) * kObjectBytes + kParentAt + which;
+    int     link = (number >= 1 && number <= count && at < memory.size()) ? memory[at] : 0;
+
+
+
+    return (link <= count) ? link : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::FindPlayer
+//
+//  The first object in the room whose number is a global variable's, after
+//  the room, score and moves, or 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InfocomSave::FindPlayer (const std::vector<Byte> & memory, Word objects, Word globals, int count, int room)
+{
+    int  player = 0;
+
+
+
+    for (int child = GetObjectLink (memory, objects, count, room, 2); player == 0 && child != 0; child = GetObjectLink (memory, objects, count, child, 1))
+    {
+        for (int g = 3; player == 0 && g < kGlobals && globals + 2u * (size_t) g + 1 < memory.size(); g++)
+        {
+            player = (GetWord (memory, globals + 2u * (size_t) g) == child) ? child : 0;
+        }
+    }
+
+    return player;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::AddTree
+//
+//  The objects under parent, each followed by the objects under it, but for
+//  skip and objects without a name. A tree that loops or runs too deep is
+//  cut off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InfocomSave::AddTree (const std::vector<Byte> & memory, const ZMachineStory::Header & header, int count, int parent, int skip, int depth, std::vector<Item> & ioItems)
+{
+    int  child = (parent > 0) ? GetObjectLink (memory, header.objects, count, parent, 2) : 0;
+
+
+
+    for (int steps = 0; child != 0 && depth < kMaxDepth && ioItems.size() < kMaxItems && steps < count; steps++)
+    {
+        std::wstring  name = ZMachineStory::ReadObjectName (memory, header, (size_t) child);
+
+        if (child != skip && !name.empty())
+        {
+            ioItems.push_back (Item { depth, name });
+            AddTree (memory, header, count, child, skip, depth + 1, ioItems);
+        }
+
+        child = GetObjectLink (memory, header.objects, count, child, 1);
+    }
 }
 
 

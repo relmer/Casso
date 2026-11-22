@@ -42,6 +42,36 @@ public:
     }
 
 
+    //  The player is the object in the room that a global variable has, its
+    //  tree is what it carries, and the rest of the room's tree is what's
+    //  there. Every object is named "hall" by the builder's one name table.
+    TEST_METHOD (TryReadPosition_ReadsWhatIsCarriedAndWhatIsHere)
+    {
+        constexpr size_t       kEntries = InfocomSaveBuilder::kObjects + 31 * 2;
+        constexpr size_t       kSize    = 9;
+        std::vector<Byte>      memory   = InfocomSaveBuilder::MakeMemory (0);
+        InfocomSave::Position  position;
+
+
+
+        for (size_t n = 1; n <= 4; n++)
+        {
+            InfocomSaveBuilder::PutWord (memory, kEntries + (n - 1) * kSize + 7, (int) InfocomSaveBuilder::kNameTable);
+        }
+
+        memory[kEntries + 0 * kSize + 6] = 2;      // the hall has the player
+        memory[kEntries + 1 * kSize + 4] = 1;
+        memory[kEntries + 1 * kSize + 5] = 4;      // and the box after it
+        memory[kEntries + 1 * kSize + 6] = 3;      // the player has the lamp
+        memory[kEntries + 2 * kSize + 4] = 2;
+        memory[kEntries + 3 * kSize + 4] = 1;
+        InfocomSaveBuilder::PutWord (memory, InfocomSaveBuilder::kGlobals + 3 * 2, 2);
+
+        Assert::IsTrue (InfocomSave::TryReadPosition (InfocomSaveBuilder::MakeDisk (memory, 0), 0, position));
+        Assert::IsTrue (position.carried == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The lamp");
+        Assert::IsTrue (position.here    == std::vector<InfocomSave::Item> ({ { 0, L"hall" } }), L"The box, and not the player");
+    }
+
     //  A version 3 story with the timed flag has the hours and minutes in
     //  the globals of the score and the moves.
     TEST_METHOD (Describe_ATimedStoryHasTheTime)

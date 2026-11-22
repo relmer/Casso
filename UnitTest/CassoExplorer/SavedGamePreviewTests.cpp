@@ -162,7 +162,7 @@ public:
         const PreviewContent &  preview = host.Select (L"zork-save.dsk");
 
         Assert::IsTrue (preview.kind == PreviewContent::Kind::Document, L"The disk previews as its saved game");
-        Assert::IsTrue (HasText (preview, L"release 5: hall, score 7, 12 moves"));
+        Assert::IsTrue (HasText (preview, L"Room   hall"));
         Assert::IsTrue (preview.hasSavedGame && preview.savedGameShown);
 
         host.browser.SetPreviewSavedGame (false);

@@ -534,5 +534,10 @@ public:
 
         Assert::AreEqual ((size_t) 1, positions.size());
         Assert::AreEqual (std::string ("Zork I (release 88): Kitchen, score 10 of 350, 4 moves"), InfocomSave::Describe (positions[0]));
+
+        Assert::IsTrue (positions[0].carried.empty(), L"Nothing is carried yet");
+        Assert::IsTrue (positions[0].here == std::vector<InfocomSave::Item> ({ { 0, L"kitchen table" }, { 1, L"brown sack" }, { 2, L"lunch" }, { 2, L"clove of garlic" },
+                                                                            { 1, L"glass bottle" }, { 2, L"quantity of water" } }),
+                        L"The table, and the sack and bottle on it");
     }
 };

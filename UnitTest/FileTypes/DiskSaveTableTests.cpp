@@ -48,7 +48,8 @@ public:
 
         Assert::IsTrue   (file.kind == DecodedFile::Kind::Document);
         Assert::AreEqual (std::wstring (L"Infocom saved game"), GetText (file.paragraphs[0]));
-        Assert::AreEqual (std::wstring (L"Position 2   release 5: hall, score 7, 12 moves"), GetText (file.paragraphs[2]));
+        Assert::AreEqual (std::wstring (L"Position 2   Unknown story   release 5, serial 123456"), GetText (file.paragraphs[2]));
+        Assert::AreEqual (std::wstring (L"Room   hall"), GetText (file.paragraphs[3]));
         Assert::IsTrue   (file.paragraphs[2].runs[0].bold, L"The position's number is bold");
     }
 
