@@ -208,6 +208,40 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewTextView::GetLegendEntryCount
+//
+//  The most entries any legend in a document has, or 0 for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewTextView::GetLegendEntryCount (const PreviewContent & preview)
+{
+    int  most = 0;
+
+
+
+    if (preview.kind != PreviewContent::Kind::Document)
+    {
+        return 0;
+    }
+
+    for (const Paragraph & paragraph : preview.paragraphs)
+    {
+        if (paragraph.isLegend)
+        {
+            most = (std::max) (most, (int) paragraph.runs.size());
+        }
+    }
+
+    return most;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewTextView::FillRows
 //
 //  A document's record tables in the widest form whose columns all fit at
@@ -227,7 +261,9 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
     bool                  measure   = m_context.theme != nullptr && m_context.window.GetTextRenderer() != nullptr;
     TableForm             form      = IsWide() ? TableForm::Table : measure ? TableForm::FourFields : TableForm::Cards;
     bool                  done      = false;
+    bool                  fits      = false;
     int                   paragraph = -1;
+    int                   legend    = GetLegendEntryCount (preview);
     float                 within    = 0.0f;
 
 
@@ -249,7 +285,7 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
     while (!done)
     {
         m_rowParagraph.clear();
-        m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, form, &m_rowParagraph));
+        m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, form, &m_rowParagraph, 1));
 
         done = form == TableForm::Cards || !measure;
 
@@ -260,6 +296,24 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
             done = m_text->DoColumnsFit();
             form = done ? form : (TableForm) ((int) form - 1);
         }
+    }
+
+    //  A legend takes as many columns as fit with each entry whole: one an
+    //  entry, then one fewer until its rows fit, and one column when none
+    //  does. Its columns are apart from the table's, so the form stays.
+    for (int columns = legend; measure && !fits && columns > 1; columns--)
+    {
+        m_rowParagraph.clear();
+        m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, form, &m_rowParagraph, columns));
+        m_text->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+
+        fits = m_text->DoColumnsFit();
+    }
+
+    if (legend > 1 && measure && !fits)
+    {
+        m_rowParagraph.clear();
+        m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, colors, form, &m_rowParagraph, 1));
     }
 
     if (paragraph >= 0 && measure)

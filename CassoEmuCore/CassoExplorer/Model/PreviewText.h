@@ -50,11 +50,11 @@ public:
     //  `form` specifies the layout of a document's record tables;
     //  outRowParagraph, when given, has the paragraph of each row.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {},
-                                                              TableForm form = TableForm::Cards, std::vector<int> * outRowParagraph = nullptr);
+                                                              TableForm form = TableForm::Cards, std::vector<int> * outRowParagraph = nullptr, int legendColumns = 0);
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
     static std::vector<DxuiTextView::Row>  BuildWarningRows   (const std::wstring & warning);
     static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors = {},
-                                                              TableForm form = TableForm::Cards, std::vector<int> * outRowParagraph = nullptr);
+                                                              TableForm form = TableForm::Cards, std::vector<int> * outRowParagraph = nullptr, int legendColumns = 0);
 
     //  A document run's color: green for Good, red for Bad and the muted
     //  text color for Muted, from the source colors, or zero for the text
@@ -114,5 +114,6 @@ public:
     static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
     static void                            AddRunText        (DxuiTextView::Row & ioRow, const Run & run, uint32_t argb, const std::wstring & text);
     static void                            AddTableRows      (const RecordTable & table, const SourceSyntax::Colors & colors, TableForm form, std::vector<DxuiTextView::Row> & ioRows);
+    static void                            AddLegendRows     (const std::vector<Run> & entries, const SourceSyntax::Colors & colors, int columns, std::vector<DxuiTextView::Row> & ioRows);
     static void                            AddFieldRows      (const RecordTable & table, const SourceSyntax::Colors & colors, int perLine, std::vector<DxuiTextView::Row> & ioRows);
 };

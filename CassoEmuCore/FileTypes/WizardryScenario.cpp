@@ -800,6 +800,7 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     int        level = 0;
     size_t     at    = 0;
     Paragraph  map;
+    Paragraph  legend;
 
 
 
@@ -831,13 +832,16 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     ioParagraphs.push_back (Paragraph());
     ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", level, x, y), true } }));
     ioParagraphs.push_back (std::move (map));
-    ioParagraphs.push_back (MakeParagraph ({ Run { L"The party   ",     false, false, false, RunColor::Muted, s_kMapParty   },
-                                             Run { L"Door   ",          false, false, false, RunColor::Muted, s_kMapDoor    },
-                                             Run { L"Stairs   ",        false, false, false, RunColor::Muted, s_kMapStairs  },
-                                             Run { L"Darkness   ",      false, false, false, RunColor::Muted, s_kMapDark    },
-                                             Run { L"Rock or water   ", false, false, false, RunColor::Muted, s_kMapRock    },
-                                             Run { L"Fight zone   ",    false, false, false, RunColor::Muted, s_kMapFight   },
-                                             Run { L"Special square",   false, false, false, RunColor::Muted, s_kMapSpecial } }));
+    legend = MakeParagraph ({ Run { L"The party   ",     false, false, false, RunColor::Muted, s_kMapParty   },
+                              Run { L"Door   ",          false, false, false, RunColor::Muted, s_kMapDoor    },
+                              Run { L"Stairs   ",        false, false, false, RunColor::Muted, s_kMapStairs  },
+                              Run { L"Darkness   ",      false, false, false, RunColor::Muted, s_kMapDark    },
+                              Run { L"Rock or water   ", false, false, false, RunColor::Muted, s_kMapRock    },
+                              Run { L"Fight zone   ",    false, false, false, RunColor::Muted, s_kMapFight   },
+                              Run { L"Special square",   false, false, false, RunColor::Muted, s_kMapSpecial } });
+
+    legend.isLegend = true;
+    ioParagraphs.push_back (std::move (legend));
 }
 
 

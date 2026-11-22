@@ -179,6 +179,7 @@ public:
         Assert::AreEqual (kPartyX * 2 + 1, map.pingX, L"the ping is the middle of the party's tile");
         Assert::AreEqual (kPartyY * 2 + 1, map.pingY);
         Assert::IsTrue   (map.canZoom);
+        Assert::IsTrue   ((&map)[1].isLegend, L"the legend follows the map");
         Assert::AreEqual ((size_t) 256 * 256, map.tips.size());
         Assert::IsNotNull (party);
         Assert::AreEqual (std::wstring (L"Column 86, row 107"), party->lines[0].second);

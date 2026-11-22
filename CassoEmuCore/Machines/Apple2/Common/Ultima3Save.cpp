@@ -638,23 +638,26 @@ void Ultima3Save::AddCharacter (const Character & character, RecordTable & ioTab
 void Ultima3Save::AddLegend (std::vector<Paragraph> & ioParagraphs)
 {
     std::vector<Run>  runs;
+    Paragraph         legend;
 
 
 
-    runs.push_back (Run { L"Party   ", false, false, false, RunColor::Muted, s_kPartyMark });
+    runs.push_back (Run { L"Party", false, false, false, RunColor::Muted, s_kPartyMark });
 
     for (const auto & terrain : s_kTerrain)
     {
         std::wstring  name = terrain.pszName;
 
         name[0] = (wchar_t) towupper (name[0]);
-        runs.push_back (Run { name + L"   ", false, false, false, RunColor::Muted, terrain.argb });
+        runs.push_back (Run { name, false, false, false, RunColor::Muted, terrain.argb });
     }
 
-    runs.push_back (Run { L"Monster or ship   ", false, false, false, RunColor::Muted, s_kOtherTile });
+    runs.push_back (Run { L"Monster or ship", false, false, false, RunColor::Muted, s_kOtherTile });
     runs.push_back (Run { L"Couldn't be read",   false, false, false, RunColor::Muted, kHatchedSwatch });
 
-    ioParagraphs.push_back (MakeParagraph (std::move (runs)));
+    legend.runs     = std::move (runs);
+    legend.isLegend = true;
+    ioParagraphs.push_back (std::move (legend));
 }
 
 

@@ -228,12 +228,16 @@ void DxuiTextLayout::MeasureCharacters (IDxuiTextRenderer & text, const DxuiFont
 
             if (c + 1 < row.cells.size())
             {
-                if (m_columnPx.size() <= c)
+                std::vector<float> &  columns = GetGroupColumns (m_columnPx, row);
+
+
+
+                if (columns.size() <= c)
                 {
-                    m_columnPx.resize (c + 1, 0.0f);
+                    columns.resize (c + 1, 0.0f);
                 }
 
-                m_columnPx[c] = (std::max) (m_columnPx[c], places.back());
+                columns[c] = (std::max) (columns[c], places.back());
             }
         }
     }
@@ -273,14 +277,18 @@ void DxuiTextLayout::BuildColumnCells()
 
     for (const Row & row : m_rows)
     {
+        std::vector<int> &  columns = GetGroupColumns (m_columnCells, row);
+
+
+
         for (size_t c = 0; c + 1 < row.cells.size(); c++)
         {
-            if (m_columnCells.size() <= c)
+            if (columns.size() <= c)
             {
-                m_columnCells.resize (c + 1, 0);
+                columns.resize (c + 1, 0);
             }
 
-            m_columnCells[c] = (std::max) (m_columnCells[c], (int) row.cells[c].size());
+            columns[c] = (std::max) (columns[c], (int) row.cells[c].size());
         }
     }
 }
@@ -451,7 +459,8 @@ int DxuiTextLayout::FindLine (const Line & top) const
 
 float DxuiTextLayout::GetCellX (const Row & row, int cell) const
 {
-    float  x = row.warning ? (float) kWarningCells * m_cellAdvance : 0.0f;
+    float                       x       = row.warning ? (float) kWarningCells * m_cellAdvance : 0.0f;
+    const std::vector<float>  * columns = FindGroupColumns (m_columnPx, row);
 
 
 
@@ -460,9 +469,9 @@ float DxuiTextLayout::GetCellX (const Row & row, int cell) const
         return (float) GetCellStart (row, cell) * m_cellAdvance;
     }
 
-    for (int c = 0; c < cell && c < (int) m_columnPx.size(); c++)
+    for (int c = 0; columns != nullptr && c < cell && c < (int) columns->size(); c++)
     {
-        x += m_columnPx[(size_t) c] + (float) kColumnGapCells * m_cellAdvance;
+        x += (*columns)[(size_t) c] + (float) kColumnGapCells * m_cellAdvance;
     }
 
     return x;
@@ -549,13 +558,14 @@ int DxuiTextLayout::GetNearestChar (int row, int cell, int from, int to, float x
 
 int DxuiTextLayout::GetCellStart (const Row & row, int cell) const
 {
-    int  column = row.warning ? kWarningCells : 0;
+    int                       column  = row.warning ? kWarningCells : 0;
+    const std::vector<int>  * columns = FindGroupColumns (m_columnCells, row);
 
 
 
-    for (int c = 0; c < cell && c < (int) m_columnCells.size(); c++)
+    for (int c = 0; columns != nullptr && c < cell && c < (int) columns->size(); c++)
     {
-        column += m_columnCells[(size_t) c] + kColumnGapCells;
+        column += (*columns)[(size_t) c] + kColumnGapCells;
     }
 
     return column;
