@@ -290,7 +290,7 @@ HRESULT CassoExplorerBrowser::Refresh()
         m_scopedOut = std::erase_if (m_rows, [this] (const CatalogRow & row) { return !m_rowScope (row); });
     }
 
-    CaptureNameSource (location);
+    m_nameFilter.CaptureSource (location, m_rowScope != nullptr, m_rows.size());
 
     if (!m_mountedImages.empty() && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
     {
@@ -303,10 +303,10 @@ HRESULT CassoExplorerBrowser::Refresh()
         }
     }
 
-    if (m_isNameFilterable)
+    if (m_nameFilter.IsFilterable())
     {
-        m_nameSource = std::move (m_rows);
-        ApplyNameFilter();
+        m_nameFilter.SetSource (std::move (m_rows));
+        m_nameFilter.Apply (m_rows);
     }
 
     m_columnFilters.MarkRowsLoaded();
@@ -1050,157 +1050,24 @@ bool CassoExplorerBrowser::TryGetSelectedEntry (const FileEntry *& outEntry) con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::CaptureNameSource
-//
-//  A picker filters by name the rows of a folder, the Casso node and its
-//  stock and demo disks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::CaptureNameSource (const Location & location)
-{
-    bool  isCasso = location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
-    bool  isStock = location.kind == Location::Kind::Root && (location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId);
-
-
-
-    m_nameSource.clear();
-    m_nameSourceBase   = 0;
-    m_isNameFilterable = m_rowScope && (location.kind == Location::Kind::HostFolder || isCasso || isStock);
-
-    if (!m_isNameFilterable)
-    {
-        return;
-    }
-
-    m_nameSourceBase = m_rows.size();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::ApplyNameFilter
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerBrowser::ApplyNameFilter()
-{
-    std::vector<std::wstring>  words = SplitFilterWords (m_nameFilter);
-
-
-
-    m_rows.clear();
-
-    for (size_t index = 0; index < m_nameSource.size(); index++)
-    {
-        const CatalogRow &  row = m_nameSource[index];
-
-        if (words.empty() ? index < m_nameSourceBase : IsNameFilterMatch (row.name, words) || (!row.label.empty() && IsNameFilterMatch (row.label, words)))
-        {
-            m_rows.push_back (row);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerBrowser::SetNameFilter
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerBrowser::SetNameFilter (const std::wstring & text)
 {
-    if (text == m_nameFilter)
-    {
-        return;
-    }
-
-    m_nameFilter = text;
-
-    if (!m_isNameFilterable)
+    if (!m_nameFilter.SetText (text))
     {
         return;
     }
 
     m_selectedRows.clear();
-    ApplyNameFilter();
+    m_nameFilter.Apply (m_rows);
 
     m_columnFilters.MarkRowsLoaded();
     SortRows();
     m_previewer.UpdatePreview();
     m_cells.UpdateStatus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::SplitFilterWords
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> CassoExplorerBrowser::SplitFilterWords (const std::wstring & text)
-{
-    std::vector<std::wstring>  words;
-    std::wstring               word;
-
-
-
-    for (wchar_t c : text)
-    {
-        if (iswspace (c))
-        {
-            if (!word.empty())
-            {
-                words.push_back (std::move (word));
-                word.clear();
-            }
-
-            continue;
-        }
-
-        word += (wchar_t) towlower (c);
-    }
-
-    if (!word.empty())
-    {
-        words.push_back (std::move (word));
-    }
-
-    return words;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::IsNameFilterMatch
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::IsNameFilterMatch (const std::wstring & name, const std::vector<std::wstring> & words)
-{
-    std::wstring  lower;
-
-
-
-    for (wchar_t c : name)
-    {
-        lower += (wchar_t) towlower (c);
-    }
-
-    return std::all_of (words.begin(), words.end(), [&lower] (const std::wstring & word) { return lower.find (word) != std::wstring::npos; });
 }
 
 

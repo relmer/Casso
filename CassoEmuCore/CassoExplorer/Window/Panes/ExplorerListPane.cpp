@@ -1333,9 +1333,9 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
 
         //  A picker's search marks the words typed in each name.
-        if (!m_context.browser.GetNameFilter().empty())
+        if (!m_context.browser.GetNameFilter().GetText().empty())
         {
-            cells[0].matches = SearchQuery::FindNameMatches (cells[0].text, CassoExplorerBrowser::SplitFilterWords (m_context.browser.GetNameFilter()));
+            cells[0].matches = SearchQuery::FindNameMatches (cells[0].text, BrowserNameFilter::SplitFilterWords (m_context.browser.GetNameFilter().GetText()));
         }
 
         ApplyPropertyCells (row, cells);

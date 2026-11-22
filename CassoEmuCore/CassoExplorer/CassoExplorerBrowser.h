@@ -5,6 +5,7 @@
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Browser/BrowserColumnFilters.h"
+#include "CassoExplorer/Browser/BrowserNameFilter.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
@@ -372,12 +373,8 @@ public:
     //  every word of the text. On the Casso node, the stock and demo disks
     //  that match are listed too. An empty text lists every row in the
     //  picker's scope.
-    void                    SetNameFilter        (const std::wstring & text);
-    const std::wstring    & GetNameFilter        () const                        { return m_nameFilter; }
-
-    //  The words of a name filter, lowercase, and whether a name has them all.
-    static std::vector<std::wstring>  SplitFilterWords  (const std::wstring & text);
-    static bool                       IsNameFilterMatch (const std::wstring & name, const std::vector<std::wstring> & words);
+    void                       SetNameFilter        (const std::wstring & text);
+    const BrowserNameFilter  & GetNameFilter        () const                     { return m_nameFilter; }
 
     void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
     bool                    ApplyVolumeFacts     ();
@@ -457,8 +454,6 @@ private:
     bool                     m_returningToTab  = false;
     int                      m_homeFirstTabRow = 0;
     void  GroupRows              ();
-    void  CaptureNameSource      (const Location & location);
-    void  ApplyNameFilter        ();
     void  ResortKeepingSelection ();
     bool  TryGetSelectedEntry    (const FileEntry *& outEntry) const;
 
@@ -469,48 +464,44 @@ private:
     //  Selects the rows whose keys are in `names`, in one pass over the rows.
     void  SelectRowsByKeys (const std::vector<std::wstring> & names);
 
-    IFileSystem                       & m_fs;
-    IDiskFileIo                       & m_fileIo;
-    ImageClassCache                     m_imageClasses;
-    std::function<void ()>              m_onVolumeFacts;
-    ImageVolumeFacts                    m_volumeFacts    { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
-    HostFolderReader                    m_hostFolders;
-    TreeModel                           m_tree           { m_fs, m_hostFolders };
-    BrowserModel                        m_model;
-    DiskOperations                      m_operations;
-    DiskImageCatalog                    m_catalog        { m_operations };
-    TypedPathHistory                    m_typedPaths;
-    std::vector<CatalogRow>             m_rows;
-    std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped
-    BrowserColumnFilters                m_columnFilters;
-
-    size_t                                                            m_propertyCount  = 0;
-    PropertyKeyFn                                                     m_propertyKey;
-    PropertyKeyFn                                                     m_propertyPeek;     // a value already read, or none, without waiting for the file
-    VolumeListing                       m_listing;
-    VolumeKind                          m_kind           = VolumeKind::Unknown;
-    bool                                m_isImage        = false;
-    bool                                m_isAppleDrive   = false;
-    bool                                m_isPartitionList = false;
-    bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
-    CassoLinkConnections              * m_links          = nullptr;
-    PhysicalCards                     * m_cards          = nullptr;
-    RecentLoadsFn                       m_recentLoads;
-    RowScopeFn                          m_rowScope;
-    std::map<std::wstring, std::wstring>  m_mountedImages;   // by CassoImagesListing::MakePathKey
-    std::vector<StockDiskRow>             m_stockDisks;
-    std::vector<StockDiskRow>             m_demoDisks;
-    size_t                              m_scopedOut      = 0;
-    std::wstring                        m_nameFilter;
-    std::vector<CatalogRow>             m_nameSource;               // a picker's rows before the name filter, extra stock and demo disks last
-    size_t                              m_nameSourceBase = 0;       // the rows of m_nameSource the location lists with no filter
-    bool                                m_isNameFilterable = false;
-    bool                                m_cardOpenAllowed = false;
-    FilesystemChoices                 * m_filesystemChoices = nullptr;
-    std::vector<int>                    m_selectedRows;
-    Status                              m_status;
-    IShellIcons                       * m_shellIcons     = nullptr;
-    IShellItemVerbs                   * m_shellVerbs     = nullptr;
+    IFileSystem                           & m_fs;
+    IDiskFileIo                           & m_fileIo;
+    ImageClassCache                         m_imageClasses;
+    std::function<void ()>                  m_onVolumeFacts;
+    ImageVolumeFacts                        m_volumeFacts       { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
+    HostFolderReader                        m_hostFolders;
+    TreeModel                               m_tree              { m_fs, m_hostFolders };
+    BrowserModel                            m_model;
+    DiskOperations                          m_operations;
+    DiskImageCatalog                        m_catalog           { m_operations };
+    TypedPathHistory                        m_typedPaths;
+    std::vector<CatalogRow>                 m_rows;
+    std::vector<RowGrouping::Group>         m_rowGroups;       // each row's group, when grouped
+    BrowserColumnFilters                    m_columnFilters;
+    size_t                                  m_propertyCount     = 0;
+    PropertyKeyFn                           m_propertyKey;
+    PropertyKeyFn                           m_propertyPeek;   // a value already read, or none, without waiting for the file
+    VolumeListing                           m_listing;
+    VolumeKind                              m_kind              = VolumeKind::Unknown;
+    bool                                    m_isImage           = false;
+    bool                                    m_isAppleDrive      = false;
+    bool                                    m_isPartitionList   = false;
+    bool                                    m_listingKept       = false;   // an Apple drive's listing as last read, while it is read again
+    CassoLinkConnections                  * m_links             = nullptr;
+    PhysicalCards                         * m_cards             = nullptr;
+    RecentLoadsFn                           m_recentLoads;
+    RowScopeFn                              m_rowScope;
+    std::map<std::wstring, std::wstring>    m_mountedImages;   // by CassoImagesListing::MakePathKey
+    std::vector<StockDiskRow>               m_stockDisks;
+    std::vector<StockDiskRow>               m_demoDisks;
+    size_t                                  m_scopedOut         = 0;
+    BrowserNameFilter                       m_nameFilter;
+    bool                                    m_cardOpenAllowed   = false;
+    FilesystemChoices                     * m_filesystemChoices = nullptr;
+    std::vector<int>                        m_selectedRows;
+    Status                                  m_status;
+    IShellIcons                           * m_shellIcons        = nullptr;
+    IShellItemVerbs                       * m_shellVerbs        = nullptr;
 
     //  The browser's parts, each with the state it uses.
     friend class      BrowserLoader;

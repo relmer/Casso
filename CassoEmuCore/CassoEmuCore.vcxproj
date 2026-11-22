@@ -451,6 +451,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserCells.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserColumnFilters.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserNameFilter.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
@@ -1657,6 +1658,7 @@
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserCells.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserColumnFilters.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserNameFilter.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserTypes.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
