@@ -7,6 +7,7 @@
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -86,7 +87,7 @@ public:
         browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (L"C:\\Disks\\p.po"));
         row = FindRow (browser, L"NOTES");
 
-        Assert::IsTrue   (browser.TryGetRowLocation (row, target));
+        Assert::IsTrue   (BrowserRowPaths::TryGetRowLocation (browser.GetRowListing(), row, target));
         Assert::AreEqual (std::wstring (L"C:\\Disks\\p.po|NOTES"), target.path);
         Assert::IsTrue   (browser.OpenRow (row));
         Assert::IsTrue   (FindRow (browser, L"d0") >= 0, L"the archive's records are listed");

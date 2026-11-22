@@ -11,6 +11,7 @@
 #include "Config/IFileSystem.h"
 #include "Core/UnicodeSymbols.h"
 #include "Seams/IHostDialogs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -31,7 +32,7 @@ std::wstring ExplorerCollectionTools::GetFolder (const ExplorerContext & context
 
     if (selected.size() == 1)
     {
-        return (context.browser.TryGetRowLocation (selected[0], location) && location.kind == Location::Kind::HostFolder) ? location.path : std::wstring();
+        return (BrowserRowPaths::TryGetRowLocation (context.browser.GetRowListing(), selected[0], location) && location.kind == Location::Kind::HostFolder) ? location.path : std::wstring();
     }
 
     return (selected.empty() && context.browser.GetLocation().kind == Location::Kind::HostFolder) ? context.browser.GetLocation().path : std::wstring();

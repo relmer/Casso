@@ -17,6 +17,7 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -360,7 +361,7 @@ public:
         {
             if (rig.browser->GetRows()[(size_t) row].name == L"HELLO")
             {
-                Assert::IsTrue (rig.browser->TryGetRowPath (row, path));
+                Assert::IsTrue (BrowserRowPaths::TryGetRowPath (rig.browser->GetRowListing(), row, path));
                 Assert::IsTrue (path.ends_with (L"HELLO"), path.c_str());
                 return;
             }

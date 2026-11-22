@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -143,7 +144,7 @@ void BrowserCells::UpdateStatus()
         VolumeListing  listing;
         VolumeKind     kind = VolumeKind::Unknown;
 
-        if (m_browser.TryGetRowLocation (m_browser.m_selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
+        if (BrowserRowPaths::TryGetRowLocation (m_browser.GetRowListing(), m_browser.m_selectedRows[0], image) && image.kind == Location::Kind::DiskImage &&
             m_browser.m_operations.List (TextEncoding::WideToNarrow (image.path), std::string(), listing, kind).Succeeded())
         {
             DescribeVolumeSpace (image.path, listing, kind, m_browser.m_status);
@@ -858,7 +859,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
     //  where the icons are drawn as thumbnails.
     if (row.isDiskImage && !row.isDirectory && at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForDiskImage (CassoExplorerBrowser::JoinPath (at.path, row.name));
+        return icons.GetForDiskImage (BrowserRowPaths::JoinPath (at.path, row.name));
     }
 
     //  A partition of an image has the partition's icon.
@@ -896,7 +897,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
     if (at.kind == Location::Kind::HostFolder)
     {
-        return icons.GetForPath (CassoExplorerBrowser::JoinPath (at.path, row.name), row.isDirectory);
+        return icons.GetForPath (BrowserRowPaths::JoinPath (at.path, row.name), row.isDirectory);
     }
 
     //  A root's rows are its known folders and drives, with their own icons.

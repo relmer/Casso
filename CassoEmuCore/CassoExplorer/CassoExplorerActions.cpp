@@ -21,6 +21,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "FileTypes/FileFormatTable.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -1496,13 +1497,13 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     for (const FileEntry & entry : entries)
     {
         formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
-                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind,
-                                                                                                           m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry))));
+                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind,
+                                                                                                           m_browser.GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry))));
         hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
 
         if (converted)
         {
-            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)));
+            BasicListingOutput::RenameForOptions (hostNames.back(), m_browser.GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)));
         }
     }
 
@@ -1532,8 +1533,8 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
             continue;
         }
 
-        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)),
-                                                       image, m_browser.GetEntryPath (entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
+        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetDecodeOptions (m_browser.GetLocation().path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry)),
+                                                       image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
     }
 
     return outcome;
@@ -1570,7 +1571,7 @@ void CassoExplorerActions::FindCopyOptionRows (std::vector<CopyOptionRows::Row> 
             continue;
         }
 
-        format = CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind);
+        format = CopyOutConversion::Find (m_browser.GetOperations(), image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry, kind);
 
         CopyOptionRows::Add (format, GetEncoding (entry, kind), PreviewDecoder::IsExecutableType (entry.type, kind), outRows);
     }
@@ -1783,11 +1784,11 @@ ActionsTypes::Outcome CassoExplorerActions::DeleteSelected()
         //  window has already shown and been answered on. A file goes by name.
         if (entry.isDirectory)
         {
-            Append (outcome, m_browser.GetOperations().Rmdir (image, m_browser.GetEntryPath (entry), true));
+            Append (outcome, m_browser.GetOperations().Rmdir (image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), true));
         }
         else
         {
-            Append (outcome, m_browser.GetOperations().Delete (image, m_browser.GetEntryPath (entry), entry.catalogIndex));
+            Append (outcome, m_browser.GetOperations().Delete (image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), entry.catalogIndex));
         }
     }
 
@@ -1877,7 +1878,7 @@ std::vector<std::wstring> CassoExplorerActions::DescribeDeletePlan() const
         }
 
         built = m_browser.GetOperations().BuildRemovalPlan (TextEncoding::WideToNarrow (imagePath),
-                                                            m_browser.GetEntryPath (entry), plan);
+                                                            BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), plan);
 
         if (!built.Succeeded())
         {
@@ -2025,7 +2026,7 @@ ActionsTypes::Outcome CassoExplorerActions::RenameSelected (const std::wstring &
         return m_appleDrive.RenameOnAppleDrive (target);
     }
 
-    Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), m_browser.GetEntryPath (entries[0]), target,
+    Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entries[0]), target,
                                                        entries[0].catalogIndex));
 
     if (outcome.written > 0)
@@ -2128,7 +2129,7 @@ ActionsTypes::Outcome CassoExplorerActions::SetLockedSelected (bool locked)
 
     for (const FileEntry & entry : entries)
     {
-        Append (outcome, m_browser.GetOperations().SetAttributes (image, m_browser.GetEntryPath (entry), MakeLockAttributes (entry, locked), entry.catalogIndex));
+        Append (outcome, m_browser.GetOperations().SetAttributes (image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), MakeLockAttributes (entry, locked), entry.catalogIndex));
     }
 
     if (outcome.written > 0)
@@ -2168,7 +2169,7 @@ ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (std::vector<FileEnt
 
     if (edits.nameEdited && entries.size() == 1)
     {
-        Append (outcome, m_browser.GetOperations().Rename (image, m_browser.GetEntryPath (entries[0]), TextEncoding::WideToNarrow (edits.name),
+        Append (outcome, m_browser.GetOperations().Rename (image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entries[0]), TextEncoding::WideToNarrow (edits.name),
                                                            entries[0].catalogIndex));
 
         entries[0].name = TextEncoding::WideToNarrow (edits.name);
@@ -2178,7 +2179,7 @@ ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (std::vector<FileEnt
     {
         if (edits.ChangesAttributes() && outcome.Succeeded())
         {
-            Append (outcome, m_browser.GetOperations().SetAttributes (image, m_browser.GetEntryPath (entry),
+            Append (outcome, m_browser.GetOperations().SetAttributes (image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry),
                                                                       AppleFileProperties::MakeAttributes (entry, m_browser.GetVolumeKind(), edits), entry.catalogIndex));
         }
     }
@@ -2299,7 +2300,7 @@ ActionsTypes::Outcome CassoExplorerActions::ConvertOne (const FileEntry & entry,
         return m_appleDrive.ConvertOnAppleDrive (entry, kind, made, outNewName);
     }
 
-    Append (outcome, m_browser.GetOperations().Read (image, m_browser.GetEntryPath (entry), source, entry.catalogIndex));
+    Append (outcome, m_browser.GetOperations().Read (image, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), entry), source, entry.catalogIndex));
 
     if (!outcome.Succeeded())
     {
@@ -2336,7 +2337,7 @@ ActionsTypes::Outcome CassoExplorerActions::ConvertOne (const FileEntry & entry,
 
 bool CassoExplorerActions::IsNameTaken (const std::wstring & folder, const std::wstring & fileName) const
 {
-    return !folder.empty() && !fileName.empty() && m_fs.Exists (CassoExplorerBrowser::JoinPath (folder, fileName));
+    return !folder.empty() && !fileName.empty() && m_fs.Exists (BrowserRowPaths::JoinPath (folder, fileName));
 }
 
 
@@ -2352,7 +2353,7 @@ bool CassoExplorerActions::IsNameTaken (const std::wstring & folder, const std::
 ActionsTypes::Outcome CassoExplorerActions::CreateImage (const std::wstring & folder, const std::wstring & fileName, const DiskOperations::NewDiskRequest & request)
 {
     Outcome       outcome;
-    std::wstring  path = CassoExplorerBrowser::JoinPath (folder, fileName);
+    std::wstring  path = BrowserRowPaths::JoinPath (folder, fileName);
     HRESULT       hr   = S_OK;
 
 

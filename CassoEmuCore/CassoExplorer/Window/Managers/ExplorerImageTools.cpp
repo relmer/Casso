@@ -46,6 +46,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -621,7 +622,7 @@ bool ExplorerImageTools::CreateDiskForPicker (std::wstring & outPath)
         return false;
     }
 
-    outPath = CassoExplorerBrowser::JoinPath (location.path, newDisk.fileName);
+    outPath = BrowserRowPaths::JoinPath (location.path, newDisk.fileName);
 
     return true;
 }

@@ -22,6 +22,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "Core/AppMessages.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -208,7 +209,7 @@ bool ExplorerDragDrop::TryGetAppleDropDrive (int tag, POINT screen, Location & o
 
     row = m_context.listPane.IsVisible() ? m_context.listPane.HitTestRow (client) : -1;
 
-    if (row >= 0 && m_context.browser.TryGetRowLocation (row, location) && location.kind == Location::Kind::AppleDrive)
+    if (row >= 0 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, location) && location.kind == Location::Kind::AppleDrive)
     {
         outDrive = location;
         return true;
@@ -267,7 +268,7 @@ bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & out
 
         //  A disk image row in a folder, or a directory row in an image, takes
         //  the drop itself; anywhere else in the list, the location shown does.
-        if (row < 0 || !m_context.browser.TryGetRowLocation (row, outLocation) ||
+        if (row < 0 || !BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, outLocation) ||
             (outLocation.kind != Location::Kind::DiskDirectory && outLocation.kind != Location::Kind::DiskImage))
         {
             outLocation = m_context.browser.GetLocation();
@@ -328,7 +329,7 @@ bool ExplorerDragDrop::TryGetHostDropFolder (int tag, POINT screen, std::wstring
 
         //  A disk image's row takes the drop itself, so its folder is not the
         //  target; a drop on a file row that takes none goes to the listed folder.
-        if (row >= 0 && m_context.browser.TryGetRowLocation (row, location) && location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::RecycleBin)
+        if (row >= 0 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, location) && location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::RecycleBin)
         {
             return false;
         }
@@ -384,7 +385,7 @@ bool ExplorerDragDrop::IsShellDropFile (int row, std::wstring & outPath) const
 
     const CatalogRow &  item = m_context.browser.GetRows()[(size_t) row];
 
-    if (item.isDirectory || item.isDiskImage || !m_context.browser.TryGetRowPath (row, outPath))
+    if (item.isDirectory || item.isDiskImage || !BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, outPath))
     {
         return false;
     }
@@ -599,7 +600,7 @@ bool ExplorerDragDrop::IsDraggedFromFolder (IDataObject * data, const std::wstri
 
     return !paths.empty() && std::all_of (paths.begin(), paths.end(), [&folder] (const std::wstring & path)
     {
-        return ExplorerFolderSync::IsSameFolder (CassoExplorerBrowser::GetParentFolder (path), folder);
+        return ExplorerFolderSync::IsSameFolder (BrowserRowPaths::GetParentFolder (path), folder);
     });
 }
 
@@ -1143,7 +1144,7 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 
         std::wstring  target;
 
-        if (row >= 0 && ((m_context.browser.TryGetRowLocation (row, location) &&
+        if (row >= 0 && ((BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, location) &&
                           (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage
                            || location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::AppleDrive))
                          || IsShellDropFile (row, target)))
@@ -1604,7 +1605,7 @@ void ExplorerDragDrop::BeginDragOut()
 
         for (const FileEntry & entry : entries)
         {
-            paths.push_back (m_context.browser.GetEntryPath (entry));
+            paths.push_back (BrowserRowPaths::GetEntryPath (m_context.browser.GetLocation(), entry));
         }
     }
 

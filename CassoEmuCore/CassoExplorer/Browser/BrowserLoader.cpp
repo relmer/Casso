@@ -14,6 +14,7 @@
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -119,11 +120,11 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         if (!entry.isFolder && ImageClassifier::IsImageExtension (std::filesystem::path (entry.name).extension().wstring()))
         {
             m_browser.m_rows.back().imageClass = m_browser.m_imageClasses.Get (m_browser.m_fileIo,
-                                                                               TextEncoding::WideToUtf8 (CassoExplorerBrowser::JoinPath (path, entry.name)),
+                                                                               TextEncoding::WideToUtf8 (BrowserRowPaths::JoinPath (path, entry.name)),
                                                                                entry.sizeBytes,
                                                                                entry.modifiedUnix);
 
-            auto  loaded = loadedAt.find (CassoImagesListing::MakePathKey (CassoExplorerBrowser::JoinPath (path, entry.name)));
+            auto  loaded = loadedAt.find (CassoImagesListing::MakePathKey (BrowserRowPaths::JoinPath (path, entry.name)));
 
             m_browser.m_rows.back().lastUsedUnix = (loaded != loadedAt.end()) ? loaded->second : 0;
         }
@@ -137,7 +138,7 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         //  The shell's own type name, as Explorer's Type column shows.
         if (m_browser.m_shellIcons != nullptr)
         {
-            std::wstring  typeName = m_browser.m_shellIcons->GetTypeName (CassoExplorerBrowser::JoinPath (path, entry.name), entry.isFolder);
+            std::wstring  typeName = m_browser.m_shellIcons->GetTypeName (BrowserRowPaths::JoinPath (path, entry.name), entry.isFolder);
 
             //  A disk image has Casso's type for it, by its sector order.
             if (!typeName.empty() && CatalogModel::GetDiskImageTypeName (entry.name).empty())
@@ -1572,7 +1573,7 @@ bool BrowserLoader::TryGetImageLocation (int row, Location & outLocation) const
         return false;
     }
 
-    path = (location.kind == Location::Kind::HostFolder)  ? CassoExplorerBrowser::JoinPath (location.path, m_browser.m_rows[(size_t) row].name)
+    path = (location.kind == Location::Kind::HostFolder)  ? BrowserRowPaths::JoinPath (location.path, m_browser.m_rows[(size_t) row].name)
          : (location.kind == Location::Kind::ShellFolder) ? GetImagePath (m_browser.m_rows[(size_t) row])
                                                           : std::wstring();
 

@@ -8,6 +8,7 @@
 #include "CassoExplorer/Browser/BrowserNameFilter.h"
 #include "CassoExplorer/Browser/BrowserNavigator.h"
 #include "CassoExplorer/Browser/BrowserRowOrder.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Browser/IBrowserListing.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
@@ -90,11 +91,9 @@ public:
     //  disk image, or a directory inside one. False for anything else.
     bool  TryGetNodeLocation (const std::wstring & id, Location & outLocation) const;
     bool  TryGetTreeNode     (const std::wstring & id, DxuiTreeNode & outNode) const;
-    bool  TryGetRowLocation  (int row, Location & outLocation);
 
-    //  The path a row stands for, as Copy as path gives it: a host item's full
-    //  path, or an entry inside an image after the image's address.
-    bool  TryGetRowPath      (int row, std::wstring & outPath) const;
+    //  The listing BrowserRowPaths reads a row's location and path from.
+    BrowserRowPaths::Listing  GetRowListing ();
 
     //  The tabs, and Back, Forward, Up and the address bar.
     BrowserNavigator        & GetNavigator ()       { return m_navigator; }
@@ -116,11 +115,6 @@ public:
     //  What an address bar separator lists: the folders and images in a host
     //  folder.
     void  GetFolderChildren  (const Location & location, std::vector<BrowserModel::AddressSegment> & outChildren) { BrowserModel::GetFolderChildren (m_fs, location, outChildren); }
-
-    //  The folder holding a host path, or empty at a drive root.
-    static std::wstring  GetParentFolder   (const std::wstring & path);
-    static std::wstring  JoinPath          (const std::wstring & folder, const std::wstring & name);
-    static bool          IsPartitionVolume (const std::wstring & path);
 
     //  The rows' sort, Group by and Home sections.
     BrowserRowOrder        & GetRowOrder      ()       { return m_rowOrder; }
@@ -218,10 +212,6 @@ public:
     //  The catalog entries behind the selected rows, in row order, when the
     //  location is an image; empty otherwise.
     void  GetSelectedEntries (std::vector<FileEntry> & outEntries) const;
-
-    //  An entry's path as the volume layer addresses it: its name in the volume
-    //  directory, or the listed subdirectory's path and then its name.
-    std::string  GetEntryPath (const FileEntry & entry) const;
 
     //  The host paths behind the selected rows, when the location is a host
     //  folder; empty otherwise.

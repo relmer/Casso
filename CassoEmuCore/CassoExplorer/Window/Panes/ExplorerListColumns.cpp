@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Model/IconSizeSteps.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -1151,7 +1152,7 @@ void ExplorerListColumns::LoadPropertyColumns()
         std::wstring                     path;
 
         //  A shell item with no file, as a device in Network, goes by its id.
-        if (row < rows.size() && (m_context.browser.TryGetRowPath ((int) row, path) || !(path = rows[row].shellId).empty()))
+        if (row < rows.size() && (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), (int) row, path) || !(path = rows[row].shellId).empty()))
         {
             Win32PropertyColumns::Values  values = m_pane.GetPropertyValues().ReadNow (path, ExplorerListPane::GetPropertyStamp (rows[row]));
 
@@ -1172,7 +1173,7 @@ void ExplorerListColumns::LoadPropertyColumns()
 
         //  Grouping never waits: a device or a large folder can take seconds,
         //  so what isn't read yet is queued, and the rows regroup as it arrives.
-        if (row < rows.size() && (m_context.browser.TryGetRowPath ((int) row, path) || !(path = rows[row].shellId).empty())
+        if (row < rows.size() && (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), (int) row, path) || !(path = rows[row].shellId).empty())
             && m_pane.GetPropertyValues().TryGet (path, ExplorerListPane::GetPropertyStamp (rows[row]), values) && property < values.size())
         {
             key = values[property];

@@ -25,6 +25,7 @@
 #include "CassoExplorer/A2retroNetDrivesDialog.h"
 #include "CassoExplorer/CassoExplorerElevationDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -122,11 +123,11 @@ void ExplorerOpen::OpenEachSelected()
 
     for (int row : m_context.browser.GetSelectedRows())
     {
-        if (m_context.browser.TryGetRowLocation (row, place))
+        if (BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), row, place))
         {
             places.push_back (place);
         }
-        else if (written && !m_context.browser.IsImageLocation() && m_context.browser.TryGetRowPath (row, path))
+        else if (written && !m_context.browser.IsImageLocation() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
             files.push_back (path);
         }

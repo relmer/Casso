@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Seams/IShellIcons.h"
 #include "Seams/Win32ShellIcons.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -72,7 +73,7 @@ public:
         cells    = BrowserCells::ToCells (row, Location::MakeHostFolder (L"C:\\Disks"), &icons);
 
         Assert::AreEqual ((size_t) 1, icons.paths.size(), L"One question for one row");
-        Assert::AreEqual (CassoExplorerBrowser::JoinPath (L"C:\\Disks", L"GAMES.DSK"), icons.paths[0],
+        Assert::AreEqual (BrowserRowPaths::JoinPath (L"C:\\Disks", L"GAMES.DSK"), icons.paths[0],
             L"and it is the file's own path, so a disk image shows what its extension is registered to");
         Assert::IsTrue (cells[0].icon == icons.pathIcon, L"The name column shows it");
 

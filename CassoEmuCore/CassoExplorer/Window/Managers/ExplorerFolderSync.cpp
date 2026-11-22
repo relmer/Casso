@@ -16,6 +16,7 @@
 #include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -615,12 +616,12 @@ void ExplorerFolderSync::UpdateWatchedFolders()
 
         if (showing.path.size() > 3)
         {
-            folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+            folders.push_back (BrowserRowPaths::GetParentFolder (showing.path));
         }
     }
     else if (!showing.path.empty())
     {
-        folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
+        folders.push_back (BrowserRowPaths::GetParentFolder (showing.path));
     }
 
     for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
@@ -691,7 +692,7 @@ bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & fold
         return false;
     }
 
-    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : CassoExplorerBrowser::GetParentFolder (showing.path);
+    shown = (showing.kind == Location::Kind::HostFolder) ? showing.path : BrowserRowPaths::GetParentFolder (showing.path);
 
     return std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, shown); });
 }
@@ -728,7 +729,7 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
             && m_context.browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
             && (node->expanded || at.kind == Location::Kind::HostFolder))
         {
-            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : CassoExplorerBrowser::GetParentFolder (at.path);
+            std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : BrowserRowPaths::GetParentFolder (at.path);
 
             if (std::any_of (folders.begin(), folders.end(), [&] (const std::wstring & folder) { return IsSameFolder (folder, holder); }))
             {

@@ -14,6 +14,7 @@
 #include "Devices/Disk/IDiskFileIo.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -65,7 +66,7 @@ void ExplorerProperties::ShowRowProperties (int row)
         return;
     }
 
-    if (!m_context.browser.TryGetRowPath (row, path))
+    if (!BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
     {
         return;
     }

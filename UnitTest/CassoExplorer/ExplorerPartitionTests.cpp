@@ -11,6 +11,7 @@
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -106,10 +107,10 @@ public:
     //  of an archive to the folder.
     TEST_METHOD (Up_PartitionVolumeGoesToItsPartition)
     {
-        Assert::IsTrue  (CassoExplorerBrowser::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv|#1.po"));
-        Assert::IsTrue  (CassoExplorerBrowser::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv|#1.po|#3.do"));
-        Assert::IsFalse (CassoExplorerBrowser::IsPartitionVolume (L"C:\\walk\\Masters.zip|Master.dsk"));
-        Assert::IsFalse (CassoExplorerBrowser::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv"));
+        Assert::IsTrue  (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv|#1.po"));
+        Assert::IsTrue  (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv|#1.po|#3.do"));
+        Assert::IsFalse (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\Masters.zip|Master.dsk"));
+        Assert::IsFalse (BrowserRowPaths::IsPartitionVolume (L"C:\\walk\\MultiPart.hdv"));
     }
 
 
@@ -161,7 +162,7 @@ public:
 
         //  A partition opens as the list of its volume, and the volume as its
         //  catalog.
-        Assert::IsTrue (host.browser.TryGetRowLocation (1, target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), 1, target));
         Assert::IsTrue (target.kind == Location::Kind::Partition);
         Assert::AreEqual (std::wstring (kSecondPath), target.path);
 
@@ -170,7 +171,7 @@ public:
         Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
         Assert::AreEqual (std::wstring (L"SECOND"), host.browser.GetRows()[0].name);
         Assert::AreEqual (std::wstring (L"ProDOS volume"), host.browser.GetRows()[0].typeText);
-        Assert::IsTrue (host.browser.TryGetRowLocation (0, target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), 0, target));
         Assert::IsTrue (target.kind == Location::Kind::DiskImage);
         Assert::AreEqual (std::wstring (kSecondPath), target.path);
     }
@@ -217,7 +218,7 @@ public:
         Location  target;
 
         host.OpenCard();
-        Assert::IsTrue (host.browser.TryGetRowLocation (2, target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), 2, target));
 
         host.browser.GetNavigator().NavigateToLocation (target);
 

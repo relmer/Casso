@@ -16,6 +16,7 @@
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -383,11 +384,11 @@ void BrowserPreviewer::UpdatePreview()
 
         if (m_browser.m_isAppleDrive)
         {
-            PreviewAppleEntry (m_browser.GetEntryPath (*entry), *entry);
+            PreviewAppleEntry (BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), *entry), *entry);
         }
         else
         {
-            PreviewEntry (location.path, m_browser.GetEntryPath (*entry), *entry, m_browser.m_kind);
+            PreviewEntry (location.path, BrowserRowPaths::GetEntryPath (m_browser.GetLocation(), *entry), *entry, m_browser.m_kind);
         }
 
         return;
@@ -427,7 +428,7 @@ void BrowserPreviewer::UpdatePreview()
     //  A file on Home with a file on the disk previews as it does in its folder.
     else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
     {
-        folder = CassoExplorerBrowser::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+        folder = BrowserRowPaths::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
     }
     else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
     {
@@ -451,7 +452,7 @@ void BrowserPreviewer::UpdatePreview()
              && !m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
     {
         //  An image in the Casso node's list previews as it does in its folder.
-        folder = CassoExplorerBrowser::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+        folder = BrowserRowPaths::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
     }
     else if (m_browser.m_isImage || location.kind != Location::Kind::HostFolder || m_browser.m_selectedRows.size() != 1)
     {
@@ -461,7 +462,7 @@ void BrowserPreviewer::UpdatePreview()
     //  An archive previews as what it holds, as a disk image does.
     if (m_browser.m_rows[m_browser.m_selectedRows[0]].isArchive)
     {
-        PreviewArchive (CassoExplorerBrowser::JoinPath (folder, m_browser.m_rows[m_browser.m_selectedRows[0]].name));
+        PreviewArchive (BrowserRowPaths::JoinPath (folder, m_browser.m_rows[m_browser.m_selectedRows[0]].name));
         return;
     }
 
@@ -1676,7 +1677,7 @@ bool BrowserPreviewer::TryPreviewAppleSingle (const std::wstring & folder, const
         return false;
     }
 
-    hr = m_browser.m_fs.ReadAllText (CassoExplorerBrowser::JoinPath (folder, row.name), content);
+    hr = m_browser.m_fs.ReadAllText (BrowserRowPaths::JoinPath (folder, row.name), content);
 
     if (FAILED (hr))
     {
@@ -1719,7 +1720,7 @@ bool BrowserPreviewer::TryPreviewAppleSingle (const std::wstring & folder, const
 
 void BrowserPreviewer::PreviewHostFile (const std::wstring & folder, const CatalogRow & row)
 {
-    std::wstring             path    = CassoExplorerBrowser::JoinPath (folder, row.name);
+    std::wstring             path    = BrowserRowPaths::JoinPath (folder, row.name);
     FilePayload              payload;
     FileEntry                entry;
     bool                     typed   = false;

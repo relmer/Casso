@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/SearchQuery.h"
@@ -296,7 +297,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     {
         for (CatalogRow & row : m_rows)
         {
-            std::wstring  path  = !row.hostPath.empty() ? row.hostPath : JoinPath (location.path, row.name);
+            std::wstring  path  = !row.hostPath.empty() ? row.hostPath : BrowserRowPaths::JoinPath (location.path, row.name);
             auto          found = row.isDirectory ? m_mountedImages.end() : m_mountedImages.find (CassoImagesListing::MakePathKey (path));
 
             row.inDrive = (found != m_mountedImages.end()) ? found->second : std::wstring();
@@ -379,7 +380,7 @@ void CassoExplorerBrowser::QueueVolumeFacts (const std::wstring & folder)
 
     for (CatalogRow & row : m_rows)
     {
-        std::wstring  path = folder.empty() ? row.hostPath : JoinPath (folder, row.name);
+        std::wstring  path = folder.empty() ? row.hostPath : BrowserRowPaths::JoinPath (folder, row.name);
 
 
 
@@ -422,7 +423,7 @@ bool CassoExplorerBrowser::ApplyVolumeFacts()
     for (CatalogRow & row : m_rows)
     {
         std::wstring  path = !row.hostPath.empty()                  ? row.hostPath
-                           : (at.kind == Location::Kind::HostFolder) ? JoinPath (at.path, row.name)
+                           : (at.kind == Location::Kind::HostFolder) ? BrowserRowPaths::JoinPath (at.path, row.name)
                                                                      : std::wstring();
 
 
@@ -795,93 +796,6 @@ void CassoExplorerBrowser::SetMountedImages (const std::map<std::wstring, std::w
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::JoinPath
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerBrowser::JoinPath (const std::wstring & folder, const std::wstring & name)
-{
-    std::wstring  joined = folder;
-
-
-
-    if (!joined.empty() && joined.back() != L'\\')
-    {
-        joined += L'\\';
-    }
-
-    return joined + name;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::IsPartitionVolume
-//
-//  True for the path of a partition's volume, whose last step is a
-//  partition step such as `#3.po`, and false for a file in an archive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::IsPartitionVolume (const std::wstring & path)
-{
-    size_t  bar   = path.rfind (L'|');
-    int     index = 0;
-
-
-
-    return bar != std::wstring::npos && PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (path.substr (bar + 1)), index);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::GetParentFolder
-//
-//  A drive root such as C:\ has no parent; the folder directly under it
-//  keeps the trailing separator, since C: alone means the current directory.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerBrowser::GetParentFolder (const std::wstring & path)
-{
-    std::wstring  trimmed = path;
-    size_t        slash   = 0;
-
-
-
-    while (trimmed.size() > 3 && trimmed.back() == L'\\')
-    {
-        trimmed.pop_back();
-    }
-
-    if (trimmed.size() <= 3)
-    {
-        return std::wstring();
-    }
-
-    slash = trimmed.rfind (L'\\');
-
-    if (slash == std::wstring::npos)
-    {
-        return std::wstring();
-    }
-
-    return (slash <= 2) ? trimmed.substr (0, slash + 1) : trimmed.substr (0, slash);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerBrowser::OpenRow
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -914,7 +828,7 @@ bool CassoExplorerBrowser::OpenRow (int row)
 
     //  A disk image opens as one even when it cannot be listed, so the reason
     //  appears in the list rather than another program opening it.
-    if (!TryGetRowLocation (row, target) && !m_loader.TryGetImageLocation (row, target))
+    if (!BrowserRowPaths::TryGetRowLocation (GetRowListing(), row, target) && !m_loader.TryGetImageLocation (row, target))
     {
         return false;
     }
@@ -931,200 +845,15 @@ bool CassoExplorerBrowser::OpenRow (int row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::GetEntryPath
+//  CassoExplorerBrowser::GetRowListing
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoExplorerBrowser::GetEntryPath (const FileEntry & entry) const
+BrowserRowPaths::Listing CassoExplorerBrowser::GetRowListing()
 {
-    Location  location = GetLocation();
-
-
-
-    if ((location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::AppleDrive) && !location.innerPath.empty())
-    {
-        return location.innerPath + "/" + entry.name;
-    }
-
-    return entry.name;
+    return BrowserRowPaths::Listing { GetLocation(), m_rows, m_loader.m_rootChildren, m_isPartitionList, IsVolumeLocation(),
+                                      [this] (const std::wstring & path) { return m_loader.CanListImage (path); } };
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::TryGetRowLocation
-//
-//  A root's child, a folder in a host folder, or a disk image in one that can
-//  be listed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
-{
-    Location  location = GetLocation();
-    bool      found    = true;
-
-
-
-    if (row < 0 || row >= (int) m_rows.size())
-    {
-        found = false;
-    }
-    else if (m_isPartitionList)
-    {
-        //  A partition of an image opens as the list of its volumes, and a
-        //  volume or a card's partition as its catalog.
-        outLocation = (m_rows[row].isPartition && !PhysicalCards::IsOnCard (m_rows[row].containerPath)) ? Location::MakePartition (m_rows[row].containerPath)
-                                                                                                         : Location::MakeDiskImage (m_rows[row].containerPath);
-    }
-    else if (!IsVolumeLocation() && !m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
-    {
-        //  Not for a disk's entries, whatever root was listed before.
-        outLocation = m_loader.m_rootChildren[m_rows[row].sourceIndex].location;
-    }
-    else if ((location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory) && m_rows[row].isDirectory)
-    {
-        //  A directory inside an image opens below the one listed.
-        std::string  inner = (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string();
-
-        inner       += (inner.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name);
-        outLocation  = Location::MakeDiskDirectory (location.path, inner);
-    }
-    else if (location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory)
-    {
-        //  A file on an image that is itself an archive or an image, such as
-        //  a ShrinkIt archive, opens in place, as one in a ZIP file does.
-        std::wstring  inner = (location.kind == Location::Kind::DiskDirectory) ? TextEncoding::NarrowToWide (location.innerPath) + L"/" : std::wstring();
-        std::wstring  path  = location.path + (wchar_t) ContainerPath::kPathSeparator + inner + m_rows[row].name;
-
-        found = m_loader.CanListImage (path);
-
-        if (found)
-        {
-            outLocation = Location::MakeDiskImage (path);
-        }
-    }
-    else if (location.kind == Location::Kind::AppleDrive && m_rows[row].isDirectory)
-    {
-        outLocation = Location::MakeAppleDrive (location.path, location.innerPath + (location.innerPath.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name));
-    }
-    else if (location.kind == Location::Kind::ShellFolder)
-    {
-        //  A folder on a disk opens as one, with everything a disk folder has;
-        //  any other folder opens through the shell.
-        const CatalogRow &  item = m_rows[row];
-
-        if (item.isDirectory)
-        {
-            outLocation = item.hostPath.empty() ? Location::MakeShellFolder (item.shellId, item.name) : Location::MakeHostFolder (item.hostPath);
-        }
-        else if (item.isDiskImage && m_loader.CanListImage (BrowserLoader::GetImagePath (item)))
-        {
-            outLocation = Location::MakeDiskImage (BrowserLoader::GetImagePath (item));
-        }
-        else
-        {
-            found = false;
-        }
-    }
-    else if (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)
-    {
-        //  The Casso node's images, each by its own path.
-        found = m_rows[row].isDiskImage && !m_rows[row].hostPath.empty() && m_loader.CanListImage (m_rows[row].hostPath);
-
-        if (found)
-        {
-            outLocation = Location::MakeDiskImage (m_rows[row].hostPath);
-        }
-    }
-    else if (location.kind != Location::Kind::HostFolder)
-    {
-        found = false;
-    }
-    else if (m_rows[row].isDirectory)
-    {
-        outLocation = Location::MakeHostFolder (JoinPath (location.path, m_rows[row].name));
-    }
-    else if (m_rows[row].isDiskImage && m_loader.CanListImage (JoinPath (location.path, m_rows[row].name)))
-    {
-        outLocation = Location::MakeDiskImage (JoinPath (location.path, m_rows[row].name));
-    }
-    else if (m_rows[row].isArchive)
-    {
-        outLocation = Location::MakeShellFolder (JoinPath (location.path, m_rows[row].name), m_rows[row].name);
-    }
-    else
-    {
-        found = false;
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerBrowser::TryGetRowPath
-//
-//  A host item's full path; an entry inside an image after the image's
-//  address, as the address bar writes a directory inside one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
-{
-    Location  location = GetLocation();
-    bool      found    = row >= 0 && row < (int) m_rows.size();
-
-
-
-    if (!found)
-    {
-        return false;
-    }
-
-    if (m_rows[row].cassoLinkItem != CatalogRow::CassoLinkItem::None)
-    {
-        outPath = m_rows[row].hostPath;
-        found   = m_rows[row].cassoLinkItem != CatalogRow::CassoLinkItem::AddMachine;
-    }
-    else if (IsVolumeLocation())
-    {
-        //  A disk's entry, in an image or on a linked drive, goes by the
-        //  disk's address, whatever root was listed before.
-        outPath = JoinPath (BrowserModel::FormatAddress (location), m_rows[row].name);
-    }
-    else if (!m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
-    {
-        outPath = BrowserModel::FormatAddress (m_loader.m_rootChildren[m_rows[row].sourceIndex].location);
-    }
-    else if ((m_rows[row].homeGroup > 0 || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)) && !m_rows[row].hostPath.empty())
-    {
-        //  Home's items and the Casso node's images, each by its own path.
-        outPath = m_rows[row].hostPath;
-    }
-    else if (location.kind == Location::Kind::HostFolder)
-    {
-        outPath = JoinPath (location.path, m_rows[row].name);
-    }
-    else if (location.kind == Location::Kind::ShellFolder && !m_rows[row].hostPath.empty())
-    {
-        outPath = m_rows[row].hostPath;
-    }
-    else
-    {
-        found = false;
-    }
-
-    return found && !outPath.empty();
-}
-
 
 
 
@@ -1229,7 +958,7 @@ void CassoExplorerBrowser::GetSelectedHostPaths (std::vector<std::wstring> & out
 
     for (int row : m_selectedRows)
     {
-        outPaths.push_back (JoinPath (location.path, m_rows[row].name));
+        outPaths.push_back (BrowserRowPaths::JoinPath (location.path, m_rows[row].name));
     }
 }
 

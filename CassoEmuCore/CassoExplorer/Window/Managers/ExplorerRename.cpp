@@ -18,6 +18,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -324,7 +325,7 @@ void ExplorerRename::EndRename (bool commit)
 
     if (!m_context.browser.IsVolumeLocation())
     {
-        if (m_context.browser.TryGetRowPath (row, path))
+        if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
             hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), path, newName);
 

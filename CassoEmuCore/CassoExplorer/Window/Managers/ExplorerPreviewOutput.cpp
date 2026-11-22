@@ -13,6 +13,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -45,7 +46,7 @@ bool ExplorerPreviewOutput::TryGetSource (ExplorerContext & context, Source & ou
     }
 
     outSource.image       = TextEncoding::WideToNarrow (context.browser.GetLocation().path);
-    outSource.catalogPath = context.browser.GetEntryPath (entries[0]);
+    outSource.catalogPath = BrowserRowPaths::GetEntryPath (context.browser.GetLocation(), entries[0]);
     outSource.entry       = entries[0];
     outSource.kind        = context.browser.GetVolumeKind();
     outSource.format      = CopyOutConversion::Find (context.browser.GetOperations(), outSource.image, outSource.catalogPath, outSource.entry, outSource.kind,

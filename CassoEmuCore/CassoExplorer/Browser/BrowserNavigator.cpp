@@ -2,13 +2,13 @@
 
 #include "CassoExplorer/Browser/BrowserNavigator.h"
 #include "CassoExplorer/Browser/IBrowserListing.h"
-#include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/HostFolderReader.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Seams/IShellItemVerbs.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 
 
@@ -580,7 +580,7 @@ bool BrowserNavigator::CanGoUp() const
     switch (location.kind)
     {
         case Location::Kind::HostFolder:
-            return !CassoExplorerBrowser::GetParentFolder (location.path).empty();
+            return !BrowserRowPaths::GetParentFolder (location.path).empty();
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
@@ -635,7 +635,7 @@ bool BrowserNavigator::TryGetUpTarget (Location & outTarget) const
         outTarget = PhysicalCards::IsCardPath (location.path) ? Location::MakeRoot (TreeModel::kThisPcRootId)
                                                               : Location::MakeDiskImage (location.path.substr (0, location.path.find (L'|')));
     }
-    else if (location.kind == Location::Kind::DiskImage && CassoExplorerBrowser::IsPartitionVolume (location.path))
+    else if (location.kind == Location::Kind::DiskImage && BrowserRowPaths::IsPartitionVolume (location.path))
     {
         //  A partition's volume goes up to its partition.
         outTarget = Location::MakePartition (location.path);
@@ -681,7 +681,7 @@ bool BrowserNavigator::TryGetUpTarget (Location & outTarget) const
     }
     else
     {
-        outTarget = Location::MakeHostFolder (CassoExplorerBrowser::GetParentFolder (location.path));
+        outTarget = Location::MakeHostFolder (BrowserRowPaths::GetParentFolder (location.path));
     }
 
     return true;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/ShellItemId.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -469,7 +470,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     }
 
     //  A folder or a disk image opens in a new tab, as Explorer's items do.
-    if (m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location))
+    if (m_context.browser.GetSelectedRows().size() == 1 && BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), m_context.browser.GetSelectedRows()[0], location))
     {
         browsable = true;
 
@@ -673,7 +674,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  folder being shown, as the tree offers them from a node.
     if (m_context.browser.GetSelectedRows().size() == 1)
     {
-        folderForCasso = (m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location) &&
+        folderForCasso = (BrowserRowPaths::TryGetRowLocation (m_context.browser.GetRowListing(), m_context.browser.GetSelectedRows()[0], location) &&
                           location.kind == Location::Kind::HostFolder) ? location.path : std::wstring();
     }
     else if (m_context.browser.GetSelectedRows().empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -788,7 +789,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             for (int row : m_context.browser.GetSelectedRows())
             {
-                if (m_context.browser.TryGetRowPath (row, rowPath))
+                if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, rowPath))
                 {
                     rowPaths.push_back (rowPath);
                 }

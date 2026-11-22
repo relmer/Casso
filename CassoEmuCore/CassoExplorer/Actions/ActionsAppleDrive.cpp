@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/CrossVolumeCopy.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/CassoExplorerActions.h"
@@ -360,7 +361,7 @@ ActionsTypes::Outcome ActionsAppleDrive::GetFromAppleDrive (const std::wstring &
     {
         size_t           at                     = i++;
         std::wstring            hostPath    = entry.isDirectory ? std::wstring() : m_actions.m_copier.ResolveCopyOutPath (hostFolder, hostNames[at], collision, index, count);
-        std::string             entryPath   = m_actions.m_browser.GetEntryPath (entry);
+        std::string             entryPath   = BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entry);
         ActionsTypes::Encoding  encoding    = CassoExplorerActions::GetEncoding (entry, kind);
         bool                    appleSingle = style == HostFileNaming::Style::AppleSingle;
         AppleSingleFile         single      = appleSingle ? DragPayload::MakeAppleSingle (entry, kind) : AppleSingleFile();
@@ -494,7 +495,7 @@ void ActionsAppleDrive::PutItemsOnAppleDrive (const std::string & link, int driv
 
             for (const FileSystemEntry & child : children)
             {
-                childPaths.push_back (CassoExplorerBrowser::JoinPath (hostPath, child.name));
+                childPaths.push_back (BrowserRowPaths::JoinPath (hostPath, child.name));
             }
 
             if (SUCCEEDED (hr))
@@ -603,7 +604,7 @@ bool ActionsAppleDrive::TryPlanDeletion (std::vector<FileEntry> entries, DriveDe
 
     for (const FileEntry & entry : entries)
     {
-        outPlan.items.push_back (DriveDeletion::Item { m_actions.m_browser.GetEntryPath (entry), entry.name, entry.isDirectory });
+        outPlan.items.push_back (DriveDeletion::Item { BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entry), entry.name, entry.isDirectory });
     }
 
     return true;
@@ -697,7 +698,7 @@ ActionsTypes::Outcome ActionsAppleDrive::RenameOnAppleDrive (const std::string &
     }
 
     {
-        FilePath  path = FilePath::Parse (m_actions.m_browser.GetEntryPath (entries[0]));
+        FilePath  path = FilePath::Parse (BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entries[0]));
 
         SubmitWrite (link, drive, [drive, path, newName] (CassoLinkSession & session) { return session.Rename (drive, path, newName); }, outcome);
     }
@@ -735,7 +736,7 @@ ActionsTypes::Outcome ActionsAppleDrive::SetLockedOnAppleDrive (bool locked)
 
     for (const FileEntry & entry : entries)
     {
-        FilePath        path       = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        FilePath        path       = FilePath::Parse (BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entry));
         FileAttributes  attributes = CassoExplorerActions::MakeLockAttributes (entry, locked);
 
         SubmitWrite (link, drive, [drive, path, attributes] (CassoLinkSession & session) { return session.SetAttributes (drive, path, attributes); }, outcome);
@@ -774,7 +775,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ApplyPropertiesOnAppleDrive (std::vecto
     //  writes in the order they are submitted.
     if (edits.nameEdited && entries.size() == 1)
     {
-        FilePath     path = FilePath::Parse (m_actions.m_browser.GetEntryPath (entries[0]));
+        FilePath     path = FilePath::Parse (BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entries[0]));
         std::string  name = TextEncoding::WideToNarrow (edits.name);
 
         SubmitWrite (link, drive, [drive, path, name] (CassoLinkSession & session) { return session.Rename (drive, path, name); }, outcome);
@@ -784,7 +785,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ApplyPropertiesOnAppleDrive (std::vecto
 
     for (const FileEntry & entry : entries)
     {
-        FilePath        path       = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        FilePath        path       = FilePath::Parse (BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entry));
         FileAttributes  attributes = AppleFileProperties::MakeAttributes (entry, volume, edits);
 
         if (edits.ChangesAttributes())
@@ -840,7 +841,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ConvertOnAppleDrive (const FileEntry & 
     outNewName = BasicConversion::MakeName (entry.name, volume, kind, taken);
 
     {
-        FilePath     source = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        FilePath     source = FilePath::Parse (BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entry));
         FilePath     target = FilePath::Parse (directory.empty() ? outNewName : directory + "/" + outNewName);
         std::string  name   = entry.name;
 
@@ -974,7 +975,7 @@ void ActionsAppleDrive::SubmitWrite (const std::string & link, int drive, CassoL
 
 void ActionsAppleDrive::GetAppleSingle (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, ActionsTypes::Outcome & inOutOutcome)
 {
-    DiskOperations::Result  result = m_actions.m_browser.GetOperations().Get (image, m_actions.m_browser.GetEntryPath (entry), ActionsTypes::Encoding::Verbatim, "", entry.catalogIndex);
+    DiskOperations::Result  result = m_actions.m_browser.GetOperations().Get (image, BrowserRowPaths::GetEntryPath (m_actions.m_browser.GetLocation(), entry), ActionsTypes::Encoding::Verbatim, "", entry.catalogIndex);
     AppleSingleFile         single;
     std::vector<Byte>       bytes;
     HRESULT                 hr     = S_OK;

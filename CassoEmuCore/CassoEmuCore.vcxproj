@@ -456,6 +456,7 @@
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserRowOrder.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserRowPaths.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandler.cpp" />
@@ -1667,6 +1668,7 @@
     <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserRowOrder.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserRowPaths.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />

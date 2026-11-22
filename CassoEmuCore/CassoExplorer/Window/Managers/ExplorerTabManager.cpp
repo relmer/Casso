@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -284,7 +285,7 @@ void ExplorerTabManager::OpenInNewWindow (const std::wstring & path)
 
 void ExplorerTabManager::SelectInFolder (const std::wstring & path)
 {
-    std::wstring  folder = CassoExplorerBrowser::GetParentFolder (path);
+    std::wstring  folder = BrowserRowPaths::GetParentFolder (path);
     std::wstring  name   = std::filesystem::path (path).filename().wstring();
 
 
@@ -393,7 +394,7 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
     else
     {
         //  A file opens its folder with the file selected and previewed.
-        std::wstring  folder = CassoExplorerBrowser::GetParentFolder (full);
+        std::wstring  folder = BrowserRowPaths::GetParentFolder (full);
 
         m_context.browser.GetNavigator().OpenInNewTab (Location::MakeHostFolder (folder));
         m_context.listPane.SelectWhenListed (folder, { std::filesystem::path (full).filename().wstring() });

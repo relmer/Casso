@@ -19,6 +19,7 @@
 #include "Machines/Apple2/Common/AppleFileName.h"
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Update/ZipArchive.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -228,14 +229,14 @@ public:
         Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::ShellFolder);
         Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
 
-        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"Disks"), target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"Disks"), target));
         Assert::IsTrue (target == Location::MakeHostFolder (L"C:\\Disks"), L"A folder on a disk opens as one");
 
-        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"Documents"), target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"Documents"), target));
         Assert::IsTrue (target.kind == Location::Kind::ShellFolder, L"A library opens through the shell");
         Assert::AreEqual (std::wstring (L"Documents"), target.label);
 
-        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"SERVER"), target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"SERVER"), target));
         Assert::IsTrue (target == Location::MakeShellFolder (L"::{NET}\\SERVER", L""));
 
         saved.tabs.push_back (Location::MakeShellFolder (L"::{NET}\\SERVER", L"SERVER"));
@@ -275,9 +276,9 @@ public:
         Assert::IsFalse (children[1].childrenLoaded, L"An archive opens like a folder");
 
         AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
-        Assert::IsTrue (host.browser.TryGetRowLocation (FindRow (host.browser, L"notes.zip"), target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"notes.zip"), target));
         Assert::IsTrue (target == Location::MakeShellFolder (L"C:\\Disks\\notes.zip", L"notes.zip"));
-        Assert::IsFalse (host.browser.TryGetRowLocation (FindRow (host.browser, L"readme.txt"), target), L"A plain file does not open");
+        Assert::IsFalse (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"readme.txt"), target), L"A plain file does not open");
 
         //  Selected, it previews as what it holds, folders first.
         {
@@ -456,7 +457,7 @@ public:
         row = FindRow (browser, L"dos33.dsk");
 
         Assert::IsTrue (browser.GetRows()[(size_t) row].isDiskImage);
-        Assert::IsTrue (browser.TryGetRowLocation (row, target));
+        Assert::IsTrue (BrowserRowPaths::TryGetRowLocation (browser.GetRowListing(), row, target));
         Assert::IsTrue (target.kind == Location::Kind::DiskImage);
         Assert::AreEqual (std::wstring (L"C:\\Disks\\set.zip|disks/dos33.dsk"), target.path);
 
@@ -1464,11 +1465,11 @@ public:
 
     TEST_METHOD (ParentFolder_StopsAtTheDriveRoot)
     {
-        Assert::AreEqual (std::wstring (L"C:\\Disks"), CassoExplorerBrowser::GetParentFolder (L"C:\\Disks\\Sub"));
-        Assert::AreEqual (std::wstring (L"C:\\"),      CassoExplorerBrowser::GetParentFolder (L"C:\\Disks\\"));
-        Assert::IsTrue   (CassoExplorerBrowser::GetParentFolder (L"C:\\").empty());
-        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), CassoExplorerBrowser::JoinPath (L"C:\\Disks", L"a.dsk"));
-        Assert::AreEqual (std::wstring (L"C:\\a.dsk"),        CassoExplorerBrowser::JoinPath (L"C:\\", L"a.dsk"));
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), BrowserRowPaths::GetParentFolder (L"C:\\Disks\\Sub"));
+        Assert::AreEqual (std::wstring (L"C:\\"),      BrowserRowPaths::GetParentFolder (L"C:\\Disks\\"));
+        Assert::IsTrue   (BrowserRowPaths::GetParentFolder (L"C:\\").empty());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), BrowserRowPaths::JoinPath (L"C:\\Disks", L"a.dsk"));
+        Assert::AreEqual (std::wstring (L"C:\\a.dsk"),        BrowserRowPaths::JoinPath (L"C:\\", L"a.dsk"));
     }
 
 
@@ -1640,16 +1641,16 @@ public:
 
         AssertSucceeded (host.browser.SelectTreeNode (folder));
 
-        Assert::IsTrue   (host.browser.TryGetRowLocation (FindRow (host.browser, L"dos33.dsk"), location));
+        Assert::IsTrue   (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"dos33.dsk"), location));
         Assert::IsTrue   (location == Location::MakeDiskImage (L"C:\\Disks\\dos33.dsk"));
-        Assert::IsFalse  (host.browser.TryGetRowLocation (FindRow (host.browser, L"readme.txt"), location), L"A plain file leads nowhere");
+        Assert::IsFalse  (BrowserRowPaths::TryGetRowLocation (host.browser.GetRowListing(), FindRow (host.browser, L"readme.txt"), location), L"A plain file leads nowhere");
 
-        Assert::IsTrue   (host.browser.TryGetRowPath (FindRow (host.browser, L"readme.txt"), path));
+        Assert::IsTrue   (BrowserRowPaths::TryGetRowPath (host.browser.GetRowListing(), FindRow (host.browser, L"readme.txt"), path));
         Assert::AreEqual (std::wstring (L"C:\\Disks\\readme.txt"), path);
 
         AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
 
-        Assert::IsTrue   (host.browser.TryGetRowPath (FindRow (host.browser, L"NOTES"), path));
+        Assert::IsTrue   (BrowserRowPaths::TryGetRowPath (host.browser.GetRowListing(), FindRow (host.browser, L"NOTES"), path));
         Assert::IsTrue   (path.rfind (L"C:\\Disks\\dos33.dsk", 0) == 0, L"An entry in an image starts at the image");
         Assert::IsTrue   (path.size() > 5 && path.compare (path.size() - 5, 5, L"NOTES") == 0, L"and ends at the entry");
     }
@@ -1715,7 +1716,7 @@ public:
 
         Assert::IsTrue   (host.browser.IsHomeLocation());
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), host.browser.GetListError().c_str());
-        Assert::IsTrue   (host.browser.TryGetRowPath (FindRow (host.browser, L"memo.txt"), path));
+        Assert::IsTrue   (BrowserRowPaths::TryGetRowPath (host.browser.GetRowListing(), FindRow (host.browser, L"memo.txt"), path));
         Assert::AreEqual (std::wstring (L"C:\\Disks\\memo.txt"), path, L"not joined to any folder");
         Assert::IsTrue   (host.browser.GetRows()[(size_t) FindRow (host.browser, L"plan.pdf")].hostPath.empty());
         Assert::IsFalse  (host.browser.GetRows()[(size_t) FindRow (host.browser, L"plan.pdf")].shellId.empty());

@@ -4,6 +4,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerSearch.h"
+#include "CassoExplorer/Browser/BrowserRowPaths.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -294,7 +295,7 @@ void ExplorerListPane::Configure()
             std::wstring  path;
             HRESULT       hr = S_OK;
 
-            if (m_context.browser.PrepareCassoLinkItems() && m_context.browser.TryGetRowPath (row, path))
+            if (m_context.browser.PrepareCassoLinkItems() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
             {
                 hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), path);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -892,7 +893,7 @@ void ExplorerListPane::RefreshTip()
             //  A broken image's tip says why it is broken.
             details = m_rowProblems[(size_t) row];
         }
-        else if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+        else if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
                  || IsHostFileRow (row0, path))
         {
             //  Not yet read: the tip comes when it is, by a posted message.
@@ -1341,14 +1342,14 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         ApplyPropertyCells (row, cells);
 
         //  Cut and not yet pasted, it draws dimmed, as Explorer's does.
-        if (!m_cutPaths.empty() && m_context.browser.TryGetRowPath (row, path) &&
+        if (!m_cutPaths.empty() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path) &&
             std::any_of (m_cutPaths.begin(), m_cutPaths.end(), [&] (const std::wstring & cut) { return ExplorerFolderSync::IsSameFolder (cut, path); }))
         {
             cells[0].iconGhosted = true;
         }
 
         //  A disk image that is not one says so on its icon.
-        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
+        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
             m_rowProblems[(size_t) row] = m_context.browser.GetImageProblem (path);
             cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
@@ -1403,7 +1404,7 @@ bool ExplorerListPane::TryApplyContentDetails (int row, DxuiListView::Cell & nam
     host = rows[(size_t) row].folderPath.empty() && !rows[(size_t) row].isDrive
         && (m_rowLocation.kind == Location::Kind::HostFolder || !rows[(size_t) row].hostPath.empty());
 
-    if (!host || !m_context.browser.TryGetRowPath (row, path) || !m_contentDetails.TryGet (path, slots))
+    if (!host || !BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path) || !m_contentDetails.TryGet (path, slots))
     {
         return false;
     }
@@ -1616,7 +1617,7 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
 
     if (action == s_kOpenLocation && !item.hostPath.empty())
     {
-        std::wstring  folder = CassoExplorerBrowser::GetParentFolder (item.hostPath);
+        std::wstring  folder = BrowserRowPaths::GetParentFolder (item.hostPath);
 
         m_context.browser.GetNavigator().NavigateToLocation (Location::MakeHostFolder (folder));
         FillList();
@@ -2229,7 +2230,7 @@ void ExplorerListPane::FitColumnOnceRead (size_t column)
 
 bool ExplorerListPane::GetPropertyPath (int row, std::wstring & outPath) const
 {
-    if (m_context.browser.TryGetRowPath (row, outPath))
+    if (BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, outPath))
     {
         return true;
     }
