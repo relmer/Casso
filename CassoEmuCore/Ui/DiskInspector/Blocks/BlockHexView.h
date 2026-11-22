@@ -40,12 +40,16 @@ public:
     bool  OnKey   (const DxuiKeyEvent & ev) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
+    void  OnFocusChanged (bool isFocused) override { m_hasFocus = isFocused; }
+    bool  HasFocus       () const                  { return m_hasFocus; }
+
 private:
     TypeFn      m_onType;
     ClickFn     m_onClick;
     ClickFn     m_onOpen;
     NavigateFn  m_onNavigate;
     bool        m_isLowNibble = false;
+    bool        m_hasFocus    = false;
     uint64_t    m_nibbleAt    = 0;
     uint64_t    m_pressAt     = 0;   // the byte the last press was on
     int64_t     m_pressMs     = 0;   // and when, for a double-click

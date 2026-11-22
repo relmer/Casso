@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
 #include "Ui/DiskInspector/Blocks/BlockHeaderView.h"
+#include "Ui/DiskInspector/Blocks/BlockHexPane.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
@@ -826,6 +827,34 @@ public:
         Assert::AreEqual (before.top, after.top, L"the hex view stays where it was");
         Assert::AreEqual (std::wstring (L"Done"), panel.GetHeader().GetEdit().GetAccessibleName());
         Assert::IsTrue   (panel.GetHeader().GetUndo().IsVisible());
+    }
+
+
+    TEST_METHOD (HexPane_EditedCaretAndBothBytesEachLookDifferent)
+    {
+        BlockHexPane::EditColors     colors   = { 0xFF0078D4, 0xFF1E1E1E };
+        DxuiHexViewTypes::ByteStyle  plain;
+        DxuiHexViewTypes::ByteStyle  edited;
+        DxuiHexViewTypes::ByteStyle  caret;
+        DxuiHexViewTypes::ByteStyle  both;
+        DxuiHexViewTypes::ByteStyle  idle;
+
+
+
+        Assert::IsFalse (BlockHexPane::PickByteStyle (colors, false, false, BlockHexSource::kMarkNone, false, idle), L"a byte not edited, outside editing, is the hex view's");
+
+        Assert::IsTrue (BlockHexPane::PickByteStyle (colors, true, false, BlockHexSource::kMarkNone,    false, plain));
+        Assert::IsTrue (BlockHexPane::PickByteStyle (colors, true, false, BlockHexSource::kMarkChanged, false, edited));
+        Assert::IsTrue (BlockHexPane::PickByteStyle (colors, true, true,  BlockHexSource::kMarkNone,    true,  caret));
+        Assert::IsTrue (BlockHexPane::PickByteStyle (colors, true, true,  BlockHexSource::kMarkChanged, true,  both));
+
+        Assert::IsTrue  (plain.fill != 0 && plain.fill != colors.background, L"editable bytes have a tint");
+        Assert::IsTrue  (edited.isBold && !plain.isBold && !caret.isBold && both.isBold);
+        Assert::AreEqual (colors.accent, caret.fill, L"the caret byte has the accent behind it");
+        Assert::AreEqual (colors.accent, both.fill);
+        Assert::IsTrue  (caret.ink != both.ink, L"an edited caret byte's ink differs from a caret byte's");
+        Assert::IsTrue  (DxuiColor::ComputeContrastRatio (both.ink, both.fill) >= BlockHexPane::kMinContrast);
+        Assert::IsTrue  (DxuiColor::ComputeContrastRatio (edited.ink, edited.fill) >= BlockHexPane::kMinContrast);
     }
 
 

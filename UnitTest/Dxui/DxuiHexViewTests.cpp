@@ -131,6 +131,42 @@ public:
     }
 
 
+    TEST_METHOD (Paint_AStyledByteIsDrawnWithItsFillInkAndWeight)
+    {
+        VectorHexSource       source ("ABCD");
+        DxuiHexView           view;
+        DxuiDarkTheme         theme;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        int                   styled = 0;
+
+
+
+        view.SetSource    (&source);
+        LayOut (view);
+        view.SetByteStyle ([] (uint64_t offset, uint8_t mark, bool isSelected, DxuiHexViewTypes::ByteStyle & outStyle)
+        {
+            (void) mark;
+            (void) isSelected;
+
+            outStyle.fill   = 0xFF102030;
+            outStyle.ink    = 0xFFA0B0C0;
+            outStyle.isBold = true;
+
+            return offset == 1;
+        });
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            styled += (call.text == L"42" || call.text == L"B") && call.argb == 0xFFA0B0C0 && call.weight == DxuiFontWeight::Bold ? 1 : 0;
+        }
+
+        Assert::AreEqual (2, styled, L"the byte's digits and its character are drawn its way");
+    }
+
+
     TEST_METHOD (RowCount_CountsAPartialLastRow)
     {
         CountingHexSource  source (33);
