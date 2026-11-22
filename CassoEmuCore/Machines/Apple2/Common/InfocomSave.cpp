@@ -143,8 +143,8 @@ static constexpr InfocomSave::Story  s_kStories[] =
     {  15, "840518", "Zork III",                               7 },
     {  17, "840727", "Zork III",                               7 },
     {  25, "860811", "Zork III",                               7 },
-    {   2, "840207", "Mini-Zork I",                            0 },
-    {  34, "871124", "Mini-Zork I",                            0 },
+    {   2, "840207", "Mini-Zork I",                          350 },
+    {  34, "871124", "Mini-Zork I",                          350 },
     {   2, "871123", "Mini-Zork II",                           0 },
     {  15, "840330", "Zork I Demo",                            0 },
     {   5, "840512", "Sampler I",                              0 },
@@ -157,6 +157,49 @@ static constexpr InfocomSave::Story  s_kStories[] =
     {  97, "870601", "Sampler II",                             0 },
     {   8, "870601", "Sampler III",                            0 },
 };
+
+
+
+
+
+//  Each game's subtitle, from its box.
+static constexpr struct { const char * title; const char * subtitle; }  s_kSubtitles[] =
+{
+    { "Zork I",       "The Great Underground Empire" },
+    { "Zork II",      "The Wizard of Frobozz"        },
+    { "Zork III",     "The Dungeon Master"           },
+    { "Mini-Zork I",  "The Great Underground Empire" },
+    { "Suspended",    "A Cryogenic Nightmare"        },
+    { "Wishbringer",  "The Magick Stone of Dreams"   },
+    { "Seastalker",   "Jo Smith and the Ultramarine Bioceptor" },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InfocomSave::GetFullTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string InfocomSave::GetFullTitle (const std::string & title)
+{
+    std::string  full = title;
+
+
+
+    for (const auto & known : s_kSubtitles)
+    {
+        if (title == known.title)
+        {
+            full = title + ": " + known.subtitle;
+        }
+    }
+
+    return full;
+}
 
 
 

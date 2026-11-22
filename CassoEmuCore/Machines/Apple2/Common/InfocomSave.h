@@ -90,6 +90,10 @@ public:
     //  The story with this release and serial number, or nullptr.
     static const Story *  FindStory (int release, const std::string & serial);
 
+    //  A title with its subtitle, as "Zork I: The Great Underground Empire",
+    //  or the title alone for a game without one.
+    static std::string  GetFullTitle (const std::string & title);
+
 private:
     static constexpr size_t  kHeaderBytes       = 64;
     static constexpr size_t  kDefaultsBytes     = 62;     // a version 1 to 3 story's 31 property defaults

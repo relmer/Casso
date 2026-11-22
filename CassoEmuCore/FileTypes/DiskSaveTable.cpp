@@ -69,7 +69,9 @@ bool DiskSaveTable::IsInfocomSave (const std::vector<Byte> & sectors)
 //
 //  DiskSaveTable::DecodeInfocomSave
 //
-//  A heading, then each saved position: its number and the game in bold,
+//  The game's title and subtitle as the heading, or "Infocom" when the
+//  positions are of different games or one not in the table, then each
+//  saved position: its number and the game in bold,
 //  the release and serial in gray, the room, the score and moves or the
 //  time, a bar of the score out of the game's maximum, then what the player
 //  carries and what's in the room, nested as they are.
@@ -94,7 +96,7 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std
     outFile      = DecodedFile();
     outFile.kind = DecodedFile::Kind::Document;
 
-    heading.runs = { Run { L"Infocom saved game", true } };
+    heading.runs = { Run { TextEncoding::NarrowToWide (GetInfocomTitle (positions)) + L" saved game", true } };
     outFile.paragraphs.push_back (heading);
 
     for (const InfocomSave::Position & position : positions)
@@ -104,6 +106,35 @@ HRESULT DiskSaveTable::DecodeInfocomSave (const std::vector<Byte> & sectors, std
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskSaveTable::GetInfocomTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskSaveTable::GetInfocomTitle (const std::vector<InfocomSave::Position> & positions)
+{
+    std::string  title;
+    bool         isSame = true;
+
+
+
+    for (const InfocomSave::Position & position : positions)
+    {
+        const InfocomSave::Story *  story = InfocomSave::FindStory (position.release, position.serial);
+        std::string                 next  = story ? story->title : std::string();
+
+        isSame = isSame && !next.empty() && (title.empty() || title == next);
+        title  = next;
+    }
+
+    return isSame ? InfocomSave::GetFullTitle (title) : std::string ("Infocom");
 }
 
 

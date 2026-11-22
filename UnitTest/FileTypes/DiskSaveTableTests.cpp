@@ -35,6 +35,24 @@ public:
     }
 
 
+    //  A known game's title and subtitle are the heading.
+    TEST_METHOD (InfocomSaveDisk_HeadingIsTheGamesTitle)
+    {
+        std::vector<Byte>  memory = InfocomSaveBuilder::MakeMemory (0);
+        DecodedFile        file;
+
+
+
+        InfocomSaveBuilder::PutWord (memory, 0x02, 88);
+        memcpy (&memory[0x12], "840726", 6);
+
+        std::vector<Byte>  disk = InfocomSaveBuilder::MakeDisk (memory, 0);
+
+        AssertSucceeded  (DiskSaveTable::Find (disk)->decode (disk, {}, file));
+        Assert::AreEqual (std::wstring (L"Zork I: The Great Underground Empire saved game"), GetText (file.paragraphs[0]));
+    }
+
+
     TEST_METHOD (InfocomSaveDisk_IsFoundAndListsEachPosition)
     {
         std::vector<Byte>             disk  = InfocomSaveBuilder::MakeDisk (InfocomSaveBuilder::MakeMemory (0), 2);

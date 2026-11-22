@@ -51,7 +51,8 @@ private:
     static constexpr uint32_t  s_kScoreBarFill   = 0xFF12B05A;
     static constexpr uint32_t  s_kScoreBarRest   = 0xFF606060;
 
-    static void       AddInfocomPosition (const InfocomSave::Position & position, std::vector<Paragraph> & ioParagraphs);
-    static void       AddInfocomItems    (const wchar_t * heading, const std::vector<InfocomSave::Item> & items, std::vector<Paragraph> & ioParagraphs);
-    static Paragraph  MakeScoreBar       (int score, int maxScore);
+    static std::string  GetInfocomTitle    (const std::vector<InfocomSave::Position> & positions);
+    static void         AddInfocomPosition (const InfocomSave::Position & position, std::vector<Paragraph> & ioParagraphs);
+    static void         AddInfocomItems    (const wchar_t * heading, const std::vector<InfocomSave::Item> & items, std::vector<Paragraph> & ioParagraphs);
+    static Paragraph    MakeScoreBar       (int score, int maxScore);
 };
