@@ -171,11 +171,7 @@ public:
 
 
 
-    bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
     bool                 ConfirmElevation       (const PhysicalDrive & drive);
-    static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
-
-    static inline PhysicalCards * s_confirmedCards = nullptr;
 
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);

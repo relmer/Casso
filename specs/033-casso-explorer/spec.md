@@ -3911,8 +3911,7 @@ as they arrive.
   partition, or a card with no table, MUST appear as a storage card node.
   Administrator access MUST be requested only when the user first opens a
   storage card node, and once per Casso Explorer session. A tab restored at
-  launch MUST NOT request it. Each command that writes to a card MUST be
-  confirmed once, with the drive's model and size.
+  launch MUST NOT request it.
 - **FR-243**: Raw access MUST run in a separate elevated broker program that
   opens only storage cards: removable media on a USB, SD or MMC bus, with no
   Windows, boot, page file, hibernation or BitLocker volume. Hard disks,

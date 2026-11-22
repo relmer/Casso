@@ -254,11 +254,7 @@ void ExplorerImageTools::ReplacePartition()
         return;
     }
 
-    //  The question above covers the write to a card, so the card write
-    //  prompt is skipped.
-    m_context.opener.SetCardWriteConfirmed (true);
     outcome = m_context.actions.ReplacePartition (partition, picked.wstring());
-    m_context.opener.SetCardWriteConfirmed (false);
 
     m_context.verbs.ReportOutcome (outcome, L"Replace partition");
     m_context.listPane.FillList();

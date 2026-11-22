@@ -81,7 +81,6 @@ CassoExplorerShell::CassoExplorerShell()
         return folder;
     });
 
-    m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
     m_cards.SetConfirmElevation ([this] (const PhysicalDrive & drive) { return ConfirmElevation (drive); });
 
     StartBootWorker();
@@ -1777,61 +1776,6 @@ int CassoExplorerShell::RunMessageLoop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::ConfirmCardWrite
-//
-//  The prompt is sent to an Explorer window, as it is a window of the UI
-//  thread. On the UI thread one prompt covers every write of a command; from
-//  another thread it covers that thread's writes until their flush.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
-{
-    CassoExplorerWindow  * window   = GetWindowFor (GetForegroundWindow());
-    std::wstring           question = std::format (L"Write to {}? The card is changed in place.", PhysicalCards::FormatDrive (drive));
-    bool                   choice   = false;
-    UINT_PTR               timer    = 0;
-
-
-
-    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
-    {
-        if (window == nullptr && !slot->closed)
-        {
-            window = slot->window.get();
-        }
-    }
-
-    if (window == nullptr)
-    {
-        return false;
-    }
-
-    SendMessageW (window->GetHwnd(), (UINT) AppMessage::ExplorerCardWrite, (WPARAM) &choice, (LPARAM) &question);
-
-    //  The writes that follow in the same command are sent without a prompt.
-    //  On the UI thread the timer fires once the thread is back in its loop.
-    if (choice && GetCurrentThreadId() == m_uiThread)
-    {
-        s_confirmedCards = &m_cards;
-        m_cards.SetConfirmed (true);
-        timer = SetTimer (nullptr, 0, 0, &CassoExplorerShell::EndCardConfirmation);
-        IGNORE_RETURN_VALUE (timer, 0);
-    }
-    else if (choice)
-    {
-        m_cards.SetConfirmedThread (GetCurrentThreadId());
-    }
-
-    return choice;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::ConfirmElevation
 //
 //  Sent to the foreground window, or the first one open, so the explanation
@@ -1868,22 +1812,3 @@ bool CassoExplorerShell::ConfirmElevation (const PhysicalDrive & drive)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::EndCardConfirmation
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CALLBACK CassoExplorerShell::EndCardConfirmation (HWND, UINT, UINT_PTR id, DWORD)
-{
-    BOOL  killed = KillTimer (nullptr, id);
-
-
-
-    IGNORE_RETURN_VALUE (killed, TRUE);
-
-    if (s_confirmedCards != nullptr)
-    {
-        s_confirmedCards->SetConfirmed (false);
-    }
-}

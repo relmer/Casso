@@ -333,24 +333,6 @@ void ExplorerOpen::RunFileVerb (ActionsTypes::Verb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerOpen::SetCardWriteConfirmed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerOpen::SetCardWriteConfirmed (bool confirmed)
-{
-    if (m_context.app.cards != nullptr)
-    {
-        m_context.app.cards->SetConfirmed (confirmed);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerOpen::InitializeCard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -597,26 +579,6 @@ bool ExplorerOpen::ConfirmElevation (const std::wstring & card)
     }
 
     return confirmed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerOpen::ConfirmCardWrite
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerOpen::ConfirmCardWrite (const std::wstring & question)
-{
-    int  choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Write to card",
-                                  MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" });
-
-
-
-    return choice == IDOK;
 }
 
 
