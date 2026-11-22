@@ -63,7 +63,7 @@ public:
         LayOut (view, 12 + 16 * 8, 400);
         view.SetRows ({ MakeRow ({ L"10", L"PRINT AAAA BBBB CCCC" }) });
 
-        Assert::AreEqual (2, view.GetLineCount(), L"Sixteen columns less the number and its gap leave twelve, so the statement wraps once");
+        Assert::AreEqual (2, view.GetLayout().GetLineCount(), L"Sixteen columns less the number and its gap leave twelve, so the statement wraps once");
 
         //  The second line's fifth column is the first character after the
         //  number's column and gap, which is where the wrapped run begins.
@@ -92,7 +92,7 @@ public:
         LayOut (view, 400, 400);
         view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
 
-        Assert::AreEqual (5, view.GetLineCount(), L"a line above, three for 40 pixels of 16-pixel lines, and one below");
+        Assert::AreEqual (5, view.GetLayout().GetLineCount(), L"a line above, three for 40 pixels of 16-pixel lines, and one below");
 
         view.Paint (painter, text, theme);
 
@@ -163,27 +163,6 @@ public:
     }
 
 
-    //  A table fits when each row's cells fit at their natural widths; a
-    //  narrower view would wrap the last cell, so it doesn't fit.
-    TEST_METHOD (DoColumnsFit_OnlyWhenNoCellWraps)
-    {
-        DxuiTextView          view;
-        MockDxuiTextRenderer  text;
-        MockDxuiTheme         theme;
-
-        view.SetProportional (true);
-        view.SetRows ({ MakeRow ({ L"Name", L"Weapon" }), MakeRow ({ L"IOLO", L"Dagger and sling" }) });
-
-        LayOut (view, 2000, 400);
-        view.Measure (text, theme);
-        Assert::IsTrue  (view.DoColumnsFit(), L"Wide enough");
-
-        LayOut (view, 60, 400);
-        view.Measure (text, theme);
-        Assert::IsFalse (view.DoColumnsFit(), L"Too narrow: the last cell would wrap");
-    }
-
-
     //  A row's wrap indent starts each wrapped line that many characters past    //  the last cell's first, as source code wraps under its operand.
     TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)
     {
@@ -195,7 +174,7 @@ public:
         LayOut (view, 12 + 16 * 8, 400);
         view.SetRows ({ row });
 
-        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (2, view.GetLayout().GetLineCount());
         Assert::AreEqual (14, view.HitTest (POINT { 6 + 10 * 8, 6 + 16 + 4 }).offset, L"BBBB starts under the first A");
         Assert::AreEqual (15, view.HitTest (POINT { 6 + 11 * 8, 6 + 16 + 4 }).offset);
     }
@@ -312,11 +291,11 @@ public:
         view.SetProportional (true);
         view.SetRows ({ MakeRow ({ L"Format", L"WOZ 2" }), MakeRow ({ L"", L"second line" }) });
 
-        Assert::AreEqual (0, view.GetLineCount(), L"Nothing is laid out until a paint measures the characters");
+        Assert::AreEqual (0, view.GetLayout().GetLineCount(), L"Nothing is laid out until a paint measures the characters");
 
         view.Paint (painter, text, theme);
 
-        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (2, view.GetLayout().GetLineCount());
         Assert::AreEqual (0,  view.HitTest (POINT { 0, 6 + 4 }).offset, L"The row's left edge is its first character");
         Assert::AreEqual (12, view.HitTest (POINT { 399, 6 + 4 }).offset, L"and past its end is the end of its text");
 
@@ -419,7 +398,7 @@ public:
         LayOut (view, 400, 400);
         view.SetRows ({ MakeRow ({ L"Line 10: the file ends" }, true) });
 
-        Assert::AreEqual (0, view.HitTest (POINT { 6 + DxuiTextView::kWarningCells * 8, 6 + 4 }).offset,
+        Assert::AreEqual (0, view.HitTest (POINT { 6 + DxuiTextLayout::kWarningCells * 8, 6 + 4 }).offset,
             L"The first character is past the warning mark");
     }
 
@@ -432,7 +411,7 @@ public:
         view.SetNoWrap (true);
         view.SetRows ({ MakeRow ({ L"SYSTEM.APPLE 32 3-Sep-85 Datafile" }) });
 
-        Assert::AreEqual (1, view.GetLineCount());
+        Assert::AreEqual (1, view.GetLayout().GetLineCount());
         Assert::IsTrue   (view.IsHorzScrollbarVisible());
 
         view.ScrollColumns (7);
@@ -487,7 +466,7 @@ public:
         view.ScrollColumns (5);
         view.SetNoWrap (false);
 
-        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (2, view.GetLayout().GetLineCount());
         Assert::AreEqual (0, view.GetLeftColumn());
         Assert::IsFalse  (view.IsHorzScrollbarVisible());
     }

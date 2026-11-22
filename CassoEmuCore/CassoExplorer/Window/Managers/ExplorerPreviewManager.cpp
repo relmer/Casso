@@ -218,7 +218,7 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         //  The details scroll away by whole lines once the thumbnail is gone.
         if (m_summary->IsVisible())
         {
-            int  lineH  = (std::max) (1, m_summary->GetLineHeightPx());
+            int  lineH  = (std::max) (1, m_summary->GetLayout().GetCellHeightPx());
             int  hidden = (std::max) (0, m_headerScroll - height);
             int  lines  = (hidden + lineH - 1) / lineH;
 

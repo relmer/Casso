@@ -293,7 +293,7 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
 void PreviewTextView::GetPlace (int & outParagraph, float & outWithin) const
 {
     int  top   = m_text->GetTopLine();
-    int  row   = m_text->GetLineRow (top);
+    int  row   = m_text->GetLayout().GetLineRow (top);
     int  first = top;
     int  last  = top;
 
@@ -314,7 +314,7 @@ void PreviewTextView::GetPlace (int & outParagraph, float & outWithin) const
         first--;
     }
 
-    while (last + 1 < m_text->GetLineCount() && GetLineParagraph (last + 1) == outParagraph)
+    while (last + 1 < m_text->GetLayout().GetLineCount() && GetLineParagraph (last + 1) == outParagraph)
     {
         last++;
     }
@@ -341,7 +341,7 @@ void PreviewTextView::SetPlace (int paragraph, float within)
 
 
 
-    for (int line = 0; line < m_text->GetLineCount(); line++)
+    for (int line = 0; line < m_text->GetLayout().GetLineCount(); line++)
     {
         if (GetLineParagraph (line) == paragraph)
         {
@@ -368,7 +368,7 @@ void PreviewTextView::SetPlace (int paragraph, float within)
 
 int PreviewTextView::GetLineParagraph (int line) const
 {
-    int  row = m_text->GetLineRow (line);
+    int  row = m_text->GetLayout().GetLineRow (line);
 
 
 

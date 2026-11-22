@@ -31,11 +31,4 @@ public:
 
     //  The picture with its top left at `left` and `top`.
     static void   PaintPicture    (IDxuiTextRenderer & text, const DxuiTextView::Picture & picture, float left, float top, float widthPx, float pxPerDip);
-
-    //  A row's wrap indent in a last cell `avail` characters wide, or zero
-    //  when less than half of that width would remain for the wrapped text.
-    static int    GetWrapIndent   (const DxuiTextView::Row & row, int avail);
-
-    //  The weight of a run bold, italic, both or neither.
-    static DxuiFontWeight  GetWeight (bool bold, bool italic);
 };

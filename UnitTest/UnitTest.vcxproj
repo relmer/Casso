@@ -779,6 +779,7 @@
     <ClCompile Include="Dxui\DxuiModalScrimTests.cpp" />
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextLayoutTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiPictureMapTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewPicturesTests.cpp" />
