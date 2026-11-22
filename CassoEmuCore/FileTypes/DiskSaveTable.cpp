@@ -191,7 +191,7 @@ void DiskSaveTable::AddInfocomItems (const wchar_t * heading, const std::vector<
 
     for (const InfocomSave::Item & item : items)
     {
-        line.runs = { Run { std::wstring ((size_t) (item.depth + 1) * 3, L' ') + item.name } };
+        line.runs = { Run { std::wstring (3 + (size_t) item.depth * 5, L' ') + item.name } };
         ioParagraphs.push_back (line);
     }
 }
