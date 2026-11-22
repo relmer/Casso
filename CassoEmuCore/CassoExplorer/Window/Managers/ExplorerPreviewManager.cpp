@@ -222,8 +222,8 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
             int  hidden = (std::max) (0, m_headerScroll - height);
             int  lines  = (hidden + lineH - 1) / lineH;
 
-            m_summary->SetVerticalScrollbarHidden (true);
-            m_summary->SetTopLine (lines);
+            m_summary->GetScroll().SetVerticalScrollbarHidden (true);
+            m_summary->GetScroll().SetTopLine (lines);
 
             summaryPx = std::clamp (m_summary->GetContentHeightPx() - hidden, 0, (std::max) (0, static_cast<int> (content.bottom - content.top)));
         }
@@ -239,7 +239,7 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         //  pane's width, up to a share of the pane.
         if (m_summary->IsVisible())
         {
-            m_summary->SetVerticalScrollbarHidden (false);
+            m_summary->GetScroll().SetVerticalScrollbarHidden (false);
             summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
         }
     }

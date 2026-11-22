@@ -6,7 +6,9 @@
 #include "DxuiScrollbar.h"
 #include "DxuiTextLayout.h"
 #include "DxuiTextPicture.h"
+#include "DxuiTextScroll.h"
 #include "DxuiTextViewPictures.h"
+#include "DxuiTextViewInterfaces.h"
 #include "IDxuiTextPictureHost.h"
 
 
@@ -52,7 +54,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextView : public IDxuiControl, private IDxuiTextPictureHost
+class DxuiTextView : public IDxuiControl, private IDxuiTextGeometry, private IDxuiTextPictureHost
 {
 public:
     using Span     = DxuiTextLayout::Span;
@@ -69,6 +71,8 @@ public:
     //  Replaces the text, clearing the selection and scrolling to the top.
     void                    SetRows   (std::vector<Row> rows);
     const DxuiTextLayout &  GetLayout () const { return m_layout; }
+    DxuiTextScroll       &  GetScroll ()       { return m_scroll; }
+    const DxuiTextScroll &  GetScroll () const { return m_scroll; }
 
     //  One character cell, in the same coordinates as the bounds.
     void  SetCellSize      (int widthPx, int heightPx);
@@ -82,28 +86,13 @@ public:
     //  color goes from the background toward the theme's foreground (1 is
     //  the full foreground).
     void   SetZoom         (float zoom);
-
-    //  The vertical bar neither drawn nor hit-tested, for a host that scrolls
-    //  the view with another bar; its strip stays reserved. Off by
-    //  default.
-    void   SetVerticalScrollbarHidden (bool hidden)  { m_vertBarHidden = hidden; }
-    float  GetZoom                    () const               { return m_zoom; }
-    void   SetTextStrength            (float strength)       { m_textStrength = strength; }
-
-    int   GetLineCap   () const;
+    float  GetZoom         () const          { return m_zoom; }
+    void   SetTextStrength (float strength)  { m_textStrength = strength; }
 
     //  The text measured and laid out at its bounds' width before it is drawn,
     //  and the height its lines take there, for a view sized to its text.
     void  Measure            (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     int   GetContentHeightPx () const;
-    int   GetTopLine         () const { return m_topLine; }
-    void  SetTopLine         (int line);
-    void  ScrollLines        (int delta) { SetTopLine (m_topLine + delta); }
-
-    //  The character column at the view's left edge, when rows don't wrap.
-    int   GetLeftColumn   () const { return m_leftColumn; }
-    void  SetLeftColumn   (int column);
-    void  ScrollColumns   (int delta) { SetLeftColumn (m_leftColumn + delta); }
 
     Position  HitTest (POINT point) const;
 
@@ -124,31 +113,18 @@ public:
     std::wstring  GetSelectionText () const;
     void          CopySelection    () const;
 
-    bool  IsInteracting          () const { return m_dragging || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
-    bool  IsScrollbarVisible     () const { return m_layout.GetLineCount() > GetLineCap(); }
-    bool  IsHorzScrollbarVisible () const { return m_horzVisible; }
-
-    //  Whether a point is on the scrollbar, and the hover that widens it.
-    bool  IsOverScrollbar   (POINT pt) const override { return IsOverVertScrollbar (pt) || IsOverHorzScrollbar (pt); }
-    bool  SetScrollbarHover (POINT pt);
-    bool  TickScrollbars    (int64_t nowMs);
+    bool  IsInteracting   () const { return m_dragging || m_scroll.IsDragging(); }
+    bool  IsOverScrollbar (POINT pt) const override { return m_scroll.IsOverScrollbar (pt); }
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
-
-    //  Windows' scrollbar menu when the point is on one of the bars, in the
-    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
-    bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
-    bool                            OnKey             (const DxuiKeyEvent   & ev) override;
-    bool                            QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
-    bool                            InvokeCommand     (DxuiStandardCommand command) override;
-    DxuiAccessibleRole              GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
+    bool                ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, m_scroll.GetScrollbarMenu (pt)); }
+    bool                OnKey             (const DxuiKeyEvent & ev) override { return m_scroll.OnKey (ev); }
+    bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool                InvokeCommand     (DxuiStandardCommand command) override;
+    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Text"; }
-
-    static constexpr int  kWheelLines     = 3;
-    static constexpr int  kWheelColumns   = 6;
 
 private:
     using Line = DxuiTextLayout::Line;
@@ -157,23 +133,27 @@ private:
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
 
+    //  IDxuiTextGeometry: the bounds and the place of the text in them.
+    const RECT           & GetViewBounds  () const override { return m_boundsDip; }
+    POINT                  GetTextOrigin  () const override { return POINT { m_boundsDip.left + m_scaler.ToPx (s_kPadDip), m_boundsDip.top + m_scaler.ToPx (s_kPadDip) }; }
+    int                    GetTextColumns (bool scrollbar) const override;
+    int                    GetPadPx       () const override { return m_scaler.ToPx (s_kPadDip); }
+    int                    GetBarWidthPx  () const override { return m_scaler.ToPx (s_kScrollbarWidthDip); }
+    const DxuiDpiScaler  & GetScaler      () const override { return m_scaler; }
+
     //  IDxuiTextPictureHost: the lines, rows and geometry the pictures read.
     int                      GetPictureLineCount    () const override         { return m_layout.GetLineCount(); }
     int                      GetPictureLineRow      (int line) const override { return m_layout.GetLines()[(size_t) line].row; }
     int                      GetPictureRowCount     () const override         { return (int) m_layout.GetRows().size(); }
     const DxuiTextPicture  * GetRowPicture          (int row) const override  { return (row >= 0 && row < (int) m_layout.GetRows().size()) ? m_layout.GetRows()[(size_t) row].picture.get() : nullptr; }
-    int                      GetPictureTopLine      () const override         { return m_topLine; }
+    int                      GetPictureTopLine      () const override         { return m_scroll.GetTopLine(); }
     int                      GetPictureLineHeight   () const override         { return m_layout.GetCellHeightPx(); }
     int                      GetPictureTextTop      () const override         { return (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip); }
     float                    GetPictureTextLeft     () const override         { return GetTextLeft(); }
-    float                    GetPictureTextWidth    () const override         { return (float) GetTextColumns (IsScrollbarVisible()) * m_layout.GetCellAdvance(); }
+    float                    GetPictureTextWidth    () const override         { return (float) GetTextColumns (m_scroll.IsScrollbarVisible()) * m_layout.GetCellAdvance(); }
     const DxuiDpiScaler    & GetPictureScaler       () const override         { return m_scaler; }
     void                     Rebuild                ();
-    int                      GetTextColumns         (bool scrollbar) const;
     float                    GetTextLeft            () const;
-    bool                     IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y); }
-    bool                     IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
-    void                     SyncScrollbar          ();
     void                     EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void                     SelectWordAt           (Position pos);
     void                     GetWordBounds          (Position pos, Position & outFirst, Position & outLast) const;
@@ -197,13 +177,9 @@ private:
     DxuiTextViewPictures   m_pictures      { *this };
 
     DxuiTextLayout     m_layout;
+    DxuiTextScroll     m_scroll        { m_layout, *this };
     float              m_zoom          = 1.0f;
     float              m_textStrength  = 1.0f;
-    int                m_topLine       = 0;
-    int                m_leftColumn    = 0;
-    bool               m_horzVisible   = false;
-    float              m_wheelLines    = 0.0f;   // a touchpad's part notches, until they make a line
-    float              m_wheelColumns  = 0.0f;   // and until they make a column
     Position           m_anchor;
     Position           m_caret;
     Position           m_lastClick;
@@ -217,7 +193,4 @@ private:
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
-    DxuiScrollbar      m_vertScroll;
-    bool               m_vertBarHidden = false;
-    DxuiScrollbar      m_horzScroll;
 };

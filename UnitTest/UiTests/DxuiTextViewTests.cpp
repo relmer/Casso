@@ -148,7 +148,7 @@ public:
         Wheel (view, 6 + 50, 6 + 16 + 50, 4.0f);
 
         Assert::IsTrue   (view.GetPictures().GetMapZoom() > 1.0f);
-        Assert::AreEqual (0, view.GetTopLine(), L"the wheel zooms the map rather than scroll the text");
+        Assert::AreEqual (0, view.GetScroll().GetTopLine(), L"the wheel zooms the map rather than scroll the text");
 
         Mouse (view, DxuiMouseEventKind::Down, 6 + 50, 6 + 16 + 50);
         Mouse (view, DxuiMouseEventKind::Move, 6 + 40, 6 + 16 + 50);
@@ -367,30 +367,6 @@ public:
     }
 
 
-    TEST_METHOD (Wheel_ScrollsWhenTheLinesOutnumberTheView)
-    {
-        DxuiTextView                    view;
-        std::vector<DxuiTextView::Row>  rows;
-        DxuiMouseEvent                  ev;
-
-        for (int i = 0; i < 100; i++)
-        {
-            rows.push_back (MakeRow ({ std::to_wstring (i) }));
-        }
-
-        LayOut (view, 400, 12 + 16 * 10);
-        view.SetRows (std::move (rows));
-
-        Assert::IsTrue   (view.IsScrollbarVisible());
-
-        ev.kind       = DxuiMouseEventKind::Wheel;
-        ev.wheelDelta = -1.0f;
-        view.OnMouse (ev);
-
-        Assert::AreEqual (DxuiTextView::kWheelLines, view.GetTopLine());
-    }
-
-
     TEST_METHOD (WarningRow_StartsItsTextAfterTheMark)
     {
         DxuiTextView  view;
@@ -412,16 +388,16 @@ public:
         view.SetRows ({ MakeRow ({ L"SYSTEM.APPLE 32 3-Sep-85 Datafile" }) });
 
         Assert::AreEqual (1, view.GetLayout().GetLineCount());
-        Assert::IsTrue   (view.IsHorzScrollbarVisible());
+        Assert::IsTrue   (view.GetScroll().IsHorzScrollbarVisible());
 
-        view.ScrollColumns (7);
+        view.GetScroll().ScrollColumns (7);
 
-        Assert::AreEqual (7, view.GetLeftColumn());
+        Assert::AreEqual (7, view.GetScroll().GetLeftColumn());
         Assert::AreEqual (7, view.HitTest (POINT { 6, 6 + 4 }).offset, L"The character at the left edge is the one scrolled to");
 
-        view.ScrollColumns (1000);
+        view.GetScroll().ScrollColumns (1000);
 
-        Assert::AreEqual (33 - 16, view.GetLeftColumn(), L"The row's last character stops at the right edge");
+        Assert::AreEqual (33 - 16, view.GetScroll().GetLeftColumn(), L"The row's last character stops at the right edge");
     }
 
 
@@ -433,10 +409,10 @@ public:
         view.SetNoWrap (true);
         view.SetRows ({ MakeRow ({ L"SHORT" }) });
 
-        view.ScrollColumns (3);
+        view.GetScroll().ScrollColumns (3);
 
-        Assert::IsFalse  (view.IsHorzScrollbarVisible());
-        Assert::AreEqual (0, view.GetLeftColumn());
+        Assert::IsFalse  (view.GetScroll().IsHorzScrollbarVisible());
+        Assert::AreEqual (0, view.GetScroll().GetLeftColumn());
     }
 
 
@@ -451,8 +427,8 @@ public:
         view.SetNoWrap (true);
         view.SetRows (std::move (rows));
 
-        Assert::IsTrue (view.IsHorzScrollbarVisible());
-        Assert::IsTrue (view.IsScrollbarVisible());
+        Assert::IsTrue (view.GetScroll().IsHorzScrollbarVisible());
+        Assert::IsTrue (view.GetScroll().IsScrollbarVisible());
     }
 
 
@@ -463,29 +439,11 @@ public:
         LayOut (view, 12 + 16 * 8, 400);
         view.SetNoWrap (true);
         view.SetRows ({ MakeRow ({ L"PRINT AAAA BBBB CCCC DDDD" }) });
-        view.ScrollColumns (5);
+        view.GetScroll().ScrollColumns (5);
         view.SetNoWrap (false);
 
         Assert::AreEqual (2, view.GetLayout().GetLineCount());
-        Assert::AreEqual (0, view.GetLeftColumn());
-        Assert::IsFalse  (view.IsHorzScrollbarVisible());
-    }
-
-
-    TEST_METHOD (Wheel_WithShift_ScrollsSideways)
-    {
-        DxuiTextView    view;
-        DxuiMouseEvent  ev;
-
-        LayOut (view, 12 + 16 * 8, 400);
-        view.SetNoWrap (true);
-        view.SetRows ({ MakeRow ({ std::wstring (60, L'X') }) });
-
-        ev.kind       = DxuiMouseEventKind::Wheel;
-        ev.wheelDelta = -1.0f;
-        ev.shift      = true;
-        view.OnMouse (ev);
-
-        Assert::AreEqual (DxuiTextView::kWheelColumns, view.GetLeftColumn());
+        Assert::AreEqual (0, view.GetScroll().GetLeftColumn());
+        Assert::IsFalse  (view.GetScroll().IsHorzScrollbarVisible());
     }
 };

@@ -221,6 +221,7 @@
     <ClCompile Include="Widgets\DxuiAddressBar.cpp" />
     <ClCompile Include="Widgets\DxuiTextRowLayout.cpp" />
     <ClCompile Include="Widgets\DxuiTextLayout.cpp" />
+    <ClCompile Include="Widgets\DxuiTextScroll.cpp" />
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiPictureMap.cpp" />
     <ClCompile Include="Widgets\DxuiTextViewPictures.cpp" />
@@ -370,7 +371,9 @@
     <ClInclude Include="Widgets\DxuiAddressBar.h" />
     <ClInclude Include="Widgets\DxuiTextRowLayout.h" />
     <ClInclude Include="Widgets\DxuiTextLayout.h" />
+    <ClInclude Include="Widgets\DxuiTextScroll.h" />
     <ClInclude Include="Widgets\DxuiTextView.h" />
+    <ClInclude Include="Widgets\DxuiTextViewInterfaces.h" />
     <ClInclude Include="Widgets\DxuiPictureMap.h" />
     <ClInclude Include="Widgets\DxuiTextViewPictures.h" />
     <ClInclude Include="Widgets\DxuiTextPicture.h" />

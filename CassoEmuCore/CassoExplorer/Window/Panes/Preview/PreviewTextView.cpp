@@ -140,7 +140,7 @@ void PreviewTextView::Hide()
 
 bool PreviewTextView::UpdateScrollbarHover (POINT at)
 {
-    return m_text->SetScrollbarHover (at);
+    return m_text->GetScroll().SetScrollbarHover (at);
 }
 
 
@@ -173,7 +173,7 @@ bool PreviewTextView::IsPinging() const
 
 bool PreviewTextView::TickScrollbars (int64_t nowMs)
 {
-    bool  moved  = m_text->TickScrollbars (nowMs);
+    bool  moved  = m_text->GetScroll().TickScrollbars (nowMs);
     bool  pinged = m_text->GetPictures().TickPing (nowMs);
 
 
@@ -292,7 +292,7 @@ void PreviewTextView::FillRows (const PreviewContent & preview, bool keepPlace)
 
 void PreviewTextView::GetPlace (int & outParagraph, float & outWithin) const
 {
-    int  top   = m_text->GetTopLine();
+    int  top   = m_text->GetScroll().GetTopLine();
     int  row   = m_text->GetLayout().GetLineRow (top);
     int  first = top;
     int  last  = top;
@@ -352,7 +352,7 @@ void PreviewTextView::SetPlace (int paragraph, float within)
 
     if (first >= 0)
     {
-        m_text->SetTopLine (first + (int) (within * (float) count));
+        m_text->GetScroll().SetTopLine (first + (int) (within * (float) count));
     }
 }
 
@@ -566,7 +566,7 @@ bool PreviewTextView::TryGetScrollbarMenu (const DxuiMouseEvent & ev, std::vecto
         return false;
     }
 
-    outItems = m_text->GetScrollbarMenu (ev.positionDip);
+    outItems = m_text->GetScroll().GetScrollbarMenu (ev.positionDip);
     return true;
 }
 
