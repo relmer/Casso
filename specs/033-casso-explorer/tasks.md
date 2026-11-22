@@ -1,6 +1,6 @@
 # Tasks: Casso Explorer
 
-**Input**: Design documents from `/specs/033-cassque/`
+**Input**: Design documents from `/specs/033-casso-explorer/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
@@ -27,7 +27,7 @@
 - Build through `Casso.sln` with `scripts/Build.ps1`; `-Target Rebuild` after any virtual is added or removed.
 - EHM in every function that can fail; VerbNoun names, `OnXxx` exempt; helpers are class statics; non-ASCII via `Dxui/Core/UnicodeSymbols.h`; a new function spliced ahead of another goes ahead of its `////` banner.
 - No spec, FR or task references in code comments or identifiers.
-- Commit per phase; subjects in the form `feat(cassque): ...`, `feat(dxui): ...`, `feat(core): ...`, `feat(shell): ...`.
+- Commit per phase; subjects in the form `feat(explorer): ...`, `feat(dxui): ...`, `feat(core): ...`, `feat(shell): ...`.
 - Merge `origin/master` into the branch after each phase commit.
 
 ---
@@ -98,7 +98,7 @@
 - [x] T031 [P] [US4] Create `UnitTest/CassoExplorer/CassoTargetingTests.cpp`: owner with `ownerAlive` true, owner with it false and one running, several running picks the most recent, none running yields Launch with the default machine's drive count
 - [x] T032 [P] [US3] Create `UnitTest/CassoExplorer/DragPayloadTests.cpp`: Apple-to-Apple offers the private format and `CF_HDROP` for images only; host-bound offers descriptors with the naming rule; a directory entry yields nested descriptors with relative paths; a DOS 3.3 target refuses folders
 - [x] T033 Add every Phase 3 file to `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj`; build; run `scripts/RunTests.ps1 -Configuration Debug -Filter Casso Explorer`
-- [x] T034 Commit: `feat(cassque): browser model classes with byte-identity tests against the disk runner`
+- [x] T034 Commit: `feat(explorer): browser model classes with byte-identity tests against the disk runner`
 
 **Checkpoint**: every decision in the feature is implemented and tested; no window exists.
 
@@ -116,7 +116,7 @@
 - [x] T040 [P] [US5] Add the optional `DialogImage` to `CassoEmuCore/Ui/Dialogs/DialogDefinition.h` and paint it in `DialogBodyContent.cpp` above the body via `DrawIconBitmap`; Casso's About is unchanged
 - [x] T041 [P] [US4] Extend `UnitTest/UiTests/IntentChannelTests.cpp`: encode and decode of the two intents and six replies, size cap, unknown-byte refusal preserved
 - [x] T042 [P] [US1] Add to `UnitTest/UiTests/` a test that the picker's folder list is the union of `KnownFolderStore` and the MRU's distinct folders, in that order, on `InMemoryFileSystem`
-- [x] T043 Build; run the full suite Debug; launch Casso in the background with `--title 033-cassque`, insert a disk, confirm `KnownFolders.json` gains its folder; close Casso
+- [x] T043 Build; run the full suite Debug; launch Casso in the background with `--title 033-casso-explorer`, insert a disk, confirm `KnownFolders.json` gains its folder; close Casso
 - [x] T044 Commit: `feat(shell): insert and describe intents, known-folder store, process launcher, dialog image`
 
 **Checkpoint**: Casso answers `DescribeMachine` and accepts `InsertDisk`; its picker reads the shared file.
@@ -154,8 +154,8 @@
 - [x] T060 [US1] Add the project to `Casso.sln` with its twelve configuration lines
 - [x] T061 [US1] Create `CassoEmuCore/CassoExplorer/CassoExplorerMain.cpp` with `wWinMain` in GuiMain's order: DPI awareness, EHM hooks, command line (`--owner`, `--title`), asset bootstrap for themes, `CassoExplorerPrefs::Load`, then a `CassoExplorerShell` that opens an empty `CassoExplorerWindow` of class `CassoExplorerWindow` and runs the message loop; a second launch with a matching `--owner` fronts the existing window and exits
 - [x] T062 [US1] Create `CassoEmuCore/CassoExplorer/CassoExplorerShell.h/.cpp` with window creation, `OleInitialize`, theme pointer, placement from prefs, and nothing else yet
-- [x] T063 [US1] Build Debug and Release x64; run `CassoExplorer.exe --title 033-cassque` in the background and confirm a window appears; confirm `UnitTest.vcxproj` gained no reference to `CassoExplorer.vcxproj`; count functions in `CassoExplorer/Main.cpp` and assert zero
-- [x] T064 Commit: `feat(cassque): thin executable and entry point`
+- [x] T063 [US1] Build Debug and Release x64; run `CassoExplorer.exe --title 033-casso-explorer` in the background and confirm a window appears; confirm `UnitTest.vcxproj` gained no reference to `CassoExplorer.vcxproj`; count functions in `CassoExplorer/Main.cpp` and assert zero
+- [x] T064 Commit: `feat(explorer): thin executable and entry point`
 
 **Checkpoint**: an empty Casso Explorer window launches from a zero-function executable.
 
@@ -175,8 +175,8 @@
 - [x] T072 [US4] Wire `CassoTargeting` with `ownerAlive` from `IsWindow`, the intent sends and replies, `InsertRefused`, `ReloadConflict` and `ReloadRefused` as dialogs, `Append` to `KnownFolderStore` only for Open in new Casso (the running-instance paths are recorded by Casso in T036), and `Open in new Casso` through `IProcessLauncher`; the reload intent with the sender window after every write to an image -- done 2026-09-17: CassoTargeting chooses the target; every write states ReloadInPlace
 - [x] T073 [US5] Wire tabs (Ctrl+T, Ctrl+W, Ctrl+Tab), back and forward (Alt+Left, Alt+Right, toolbar buttons), open-tab restore from `CassoExplorerPrefs` on launch, per-tab preview scroll and disassembly toggle, full keyboard navigation, Shift+F10 and the application key, Alt+P; `CassoExplorerTheme` with the six choices and Follow system on the settings-change notification; Help, About with the cassowary image and the name explanation -- done 2026-09-17: Follow system reacts to WM_SETTINGCHANGE; Alt+P and per-tab disassembly were already in
 - [x] T074 [US1] Set an accessible name and role on every control in the shell
-- [x] T075 Build Debug and Release x64; run the full suite; run Casso Explorer in the background with `--title 033-cassque` and capture the window with `scripts/CaptureScreenshotMatrix.ps1`'s capture step for a first visual check in each theme
-- [x] T076 Commit: `feat(cassque): browser shell over the models and command widgets`
+- [x] T075 Build Debug and Release x64; run the full suite; run Casso Explorer in the background with `--title 033-casso-explorer` and capture the window with `scripts/CaptureScreenshotMatrix.ps1`'s capture step for a first visual check in each theme
+- [x] T076 Commit: `feat(explorer): browser shell over the models and command widgets`
 
 **Checkpoint**: every story is reachable in the window.
 

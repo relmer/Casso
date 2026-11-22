@@ -1,6 +1,6 @@
 # Feature Specification: Casso Explorer
 
-**Feature Branch**: `033-cassque`
+**Feature Branch**: `033-casso-explorer`
 
 **Created**: 2026-09-10
 
