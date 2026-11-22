@@ -20,6 +20,7 @@
 #include "Devices/Disk/Archives/ContainerDiskFileIo.h"
 #include "Update/ZipArchive.h"
 #include "CassoExplorer/Browser/BrowserRowPaths.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1263,6 +1264,65 @@ public:
 
         Assert::IsTrue (host.browser.GetLocation().kind == Location::Kind::HostFolder);
         Assert::AreEqual (std::wstring (kDisks), host.browser.GetLocation().path);
+    }
+
+
+
+    //  A card reader whose card can be put in or taken out. The card is never
+    //  opened.
+    struct ReaderCardHost : public IPhysicalCardHost
+    {
+        bool  hasCard = true;
+
+        HRESULT ListDrives (std::vector<PhysicalDrive> & outDrives) override
+        {
+            PhysicalDrive  drive;
+
+            drive.number    = 5;
+            drive.bytes     = 2'048'094'720;
+            drive.removable = true;
+
+            outDrives.clear();
+
+            if (hasCard)
+            {
+                outDrives.push_back (drive);
+            }
+
+            return S_OK;
+        }
+
+        HRESULT HasUnmountedPartition (int, bool & outHasUnmounted) override             { outHasUnmounted = true; return S_OK; }
+        HRESULT ListVolumes           (int, std::vector<WindowsVolume> & outVolumes) override { outVolumes.clear(); return S_OK; }
+        HRESULT FindVolumeDrive       (const std::wstring &, int &) override                { return E_NOTIMPL; }
+        HRESULT InitializeDrive       (int, HWND, uint64_t, const WriteProgress &) override { return E_NOTIMPL; }
+        HRESULT FormatFirstPartition  (int, const WriteProgress &, bool &) override         { return E_NOTIMPL; }
+        bool    IsBrokerRunning       () override                                           { return false; }
+        HRESULT OpenDrive             (int, HWND, PhysicalDrive &, std::unique_ptr<IBlockStore> &) override { return E_NOTIMPL; }
+    };
+
+
+    TEST_METHOD (LeaveMissingLocation_StaysOnACardUntilItIsTakenOut)
+    {
+        Host            host;
+        ReaderCardHost  reader;
+        PhysicalCards   cards (reader);
+        std::wstring    card = L"\\\\.\\PhysicalDrive5";
+
+        host.browser.SetPhysicalCards (&cards);
+        AssertSucceeded (host.browser.SelectTreeNode (host.OpenDisksFolder()));
+
+        host.browser.GetNavigator().NavigateToLocation (Location::MakeDiskImage (card + L"|#2.po"));
+        Assert::IsTrue   (host.browser.GetLoader().LeaveMissingLocation(), L"a partition of a card that is not open moves to the card");
+        Assert::AreEqual (card, host.browser.GetLocation().path);
+
+        Assert::IsFalse  (host.browser.GetLoader().LeaveMissingLocation(), L"a card that is not open stays until it is opened");
+        Assert::AreEqual (card, host.browser.GetLocation().path);
+
+        reader.hasCard = false;
+        Assert::IsTrue   (host.browser.GetLoader().LeaveMissingLocation(), L"a card taken out is left");
+        Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::Root);
+        Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), host.browser.GetLocation().path);
     }
 
 

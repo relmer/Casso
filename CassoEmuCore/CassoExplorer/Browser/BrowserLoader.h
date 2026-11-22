@@ -120,6 +120,7 @@ private:
 
     Location  GetLocation      () const { return m_parts.model.HasTabs() ? m_parts.model.GetActiveTab().location : Location(); }
     bool      IsVolumeLocation () const { return m_parts.list.isImage || m_parts.list.isAppleDrive; }
+    bool      IsCardInDrive    (int number);
 
     BrowserParts                         m_parts;
     IBrowserLoaderHost                 & m_host;

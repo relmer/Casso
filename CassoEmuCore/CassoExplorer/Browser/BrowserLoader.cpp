@@ -1227,6 +1227,12 @@ HRESULT BrowserLoader::LoadCard (const std::wstring & path)
     {
         m_parts.list.listError = std::format (L"Opening {} requires administrator access.", name);
     }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_READY) && m_parts.sources.cards != nullptr && !m_parts.sources.cardOpenAllowed)
+    {
+        //  A tab restored at launch is not opened, so no administrator prompt
+        //  is raised until the user opens the card.
+        m_parts.list.listError = std::format (L"Press F5 to open {}.", name);
+    }
     else if (FAILED (hr))
     {
         m_parts.list.listError = std::format (L"Unable to open {}.", name);
@@ -1506,20 +1512,34 @@ bool BrowserLoader::LeaveMissingLocation()
         return false;
     }
 
-    //  A card that is not open, such as one restored at launch, is left for
-    //  This PC rather than raising the administrator prompt. A card being
-    //  initialized is closed until the write ends, and is not left.
+    //  A tab on a card that is not open, such as one restored at launch, is
+    //  not moved, and a tab on one of its partitions moves to the card, so no
+    //  administrator prompt is raised. A card taken out of its drive is left
+    //  for This PC. A card being initialized is closed until the write
+    //  ends, and is not left.
     if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, part) != PhysicalCards::PathKind::None)
     {
         isOpen = m_parts.sources.cards != nullptr &&
                  (m_parts.sources.cards->IsOpen (drive) || m_parts.sources.cards->TryGetWork (drive, done, total));
 
-        if (!isOpen)
+        if (isOpen)
         {
-            m_host.NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+            return false;
         }
 
-        return !isOpen;
+        if (!IsCardInDrive (drive))
+        {
+            m_host.NavigateToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+            return true;
+        }
+
+        if (path == location.path)
+        {
+            return false;
+        }
+
+        m_host.NavigateToLocation (Location::MakeDiskImage (path));
+        return true;
     }
 
     if (path.empty() || m_parts.fs.Exists (path) || m_parts.tree.IsDirectory (path))
@@ -1549,6 +1569,41 @@ bool BrowserLoader::LeaveMissingLocation()
     m_host.NavigateToLocation (Location::MakeHostFolder (path));
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::IsCardInDrive
+//
+//  Read without administrator access. A drive with no card in it has no
+//  blocks, and is not listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserLoader::IsCardInDrive (int number)
+{
+    HRESULT                     hr      = S_OK;
+    bool                        inDrive = false;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    BAIL_OUT_IF (m_parts.sources.cards == nullptr, S_OK);
+
+    hr = m_parts.sources.cards->ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        inDrive = inDrive || drive.number == number;
+    }
+
+Error:
+    return inDrive;
 }
 
 
