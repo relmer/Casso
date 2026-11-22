@@ -1,9 +1,9 @@
 #include "Pch.h"
 
-#include "DxuiTextViewPictures.h"
+#include "DxuiTextPictures.h"
 #include "DxuiTextPicture.h"
-#include "DxuiTextRowLayout.h"
-#include "IDxuiTextPictureHost.h"
+#include "DxuiTextLayout.h"
+#include "DxuiTextViewInterfaces.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -14,7 +14,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::GetFrame
+//  DxuiTextPictures::GetFrame
 //
 //  Where a row's picture is drawn at its normal size: the text's left, the
 //  top of the row's first line, and the scale from the picture's pixels to
@@ -23,16 +23,16 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::GetFrame (int row, DxuiPictureMap::Frame & outFrame) const
+bool DxuiTextPictures::GetFrame (int row, DxuiPictureMap::Frame & outFrame) const
 {
-    const DxuiTextPicture  * picture = m_host.GetRowPicture (row);
+    const DxuiTextPicture  * picture = GetPicture (row);
     int                      first   = -1;
 
 
 
-    for (int i = 0; i < m_host.GetPictureLineCount() && first < 0; i++)
+    for (int i = 0; i < m_layout.GetLineCount() && first < 0; i++)
     {
-        first = (m_host.GetPictureLineRow (i) == row) ? i : -1;
+        first = (m_layout.GetLineRow (i) == row) ? i : -1;
     }
 
     if (first < 0 || picture == nullptr)
@@ -40,9 +40,9 @@ bool DxuiTextViewPictures::GetFrame (int row, DxuiPictureMap::Frame & outFrame) 
         return false;
     }
 
-    outFrame.left  = m_host.GetPictureTextLeft();
-    outFrame.top   = (float) m_host.GetPictureTextTop() + (float) ((first - m_host.GetPictureTopLine()) * m_host.GetPictureLineHeight());
-    outFrame.scale = DxuiTextRowLayout::GetPictureScale (*picture, m_host.GetPictureTextWidth(), m_host.GetPictureScaler().ToPxf (1.0f));
+    outFrame.left  = GetTextLeft();
+    outFrame.top   = (float) (int) m_geometry.GetTextOrigin().y + (float) ((first - m_viewport.GetTopLine()) * m_layout.GetCellHeightPx());
+    outFrame.scale = GetPictureScale (*picture, GetTextWidth(), m_geometry.GetScaler().ToPxf (1.0f));
 
     return outFrame.scale > 0.0f;
 }
@@ -53,16 +53,16 @@ bool DxuiTextViewPictures::GetFrame (int row, DxuiPictureMap::Frame & outFrame) 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::GetKey
+//  DxuiTextPictures::GetKey
 //
 //  What identifies a row's picture to the map: the row, and the picture's
 //  size and ping point, so a different picture in the row starts unzoomed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPictureMap::Key DxuiTextViewPictures::GetKey (int row) const
+DxuiPictureMap::Key DxuiTextPictures::GetKey (int row) const
 {
-    const DxuiTextPicture  * picture = m_host.GetRowPicture (row);
+    const DxuiTextPicture  * picture = GetPicture (row);
 
 
 
@@ -76,18 +76,18 @@ DxuiPictureMap::Key DxuiTextViewPictures::GetKey (int row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::HitTest
+//  DxuiTextPictures::HitTest
 //
 //  The picture under a point, as its row and the pixel of the picture,
 //  through any zoom; false off a picture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::HitTest (POINT point, int & outRow, int & outX, int & outY) const
+bool DxuiTextPictures::HitTest (POINT point, int & outRow, int & outX, int & outY) const
 {
-    int                      textTop = m_host.GetPictureTextTop();
-    int                      height  = m_host.GetPictureLineHeight();
-    int                      line    = (height > 0 && point.y >= textTop) ? m_host.GetPictureTopLine() + (point.y - textTop) / height : -1;
+    int                      textTop = (int) m_geometry.GetTextOrigin().y;
+    int                      height  = m_layout.GetCellHeightPx();
+    int                      line    = (height > 0 && point.y >= textTop) ? m_viewport.GetTopLine() + (point.y - textTop) / height : -1;
     int                      row     = 0;
     const DxuiTextPicture  * picture = nullptr;
     DxuiPictureMap::Frame    frame;
@@ -95,13 +95,13 @@ bool DxuiTextViewPictures::HitTest (POINT point, int & outRow, int & outX, int &
 
 
 
-    if (line < 0 || line >= m_host.GetPictureLineCount())
+    if (line < 0 || line >= m_layout.GetLineCount())
     {
         return false;
     }
 
-    row     = m_host.GetPictureLineRow (line);
-    picture = m_host.GetRowPicture (row);
+    row     = m_layout.GetLineRow (line);
+    picture = GetPicture (row);
 
     if (picture == nullptr || !GetFrame (row, frame))
     {
@@ -124,7 +124,7 @@ bool DxuiTextViewPictures::HitTest (POINT point, int & outRow, int & outX, int &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::SetOutline
+//  DxuiTextPictures::SetOutline
 //
 //  A rectangle of a row's picture, in its pixels, outlined in the accent
 //  color, as the cell under the pointer is; row -1 for none. Returns
@@ -132,7 +132,7 @@ bool DxuiTextViewPictures::HitTest (POINT point, int & outRow, int & outX, int &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::SetOutline (int row, const RECT & pictureRect)
+bool DxuiTextPictures::SetOutline (int row, const RECT & pictureRect)
 {
     bool  moved = row != m_outlineRow || (row >= 0 && !EqualRect (&pictureRect, &m_outlineRect));
 
@@ -150,7 +150,7 @@ bool DxuiTextViewPictures::SetOutline (int row, const RECT & pictureRect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::Paint
+//  DxuiTextPictures::Paint
 //
 //  A zoomed picture is drawn larger, shifted by its origin, and clipped to
 //  the place it has at its normal size. The outline is drawn over the
@@ -160,15 +160,15 @@ bool DxuiTextViewPictures::SetOutline (int row, const RECT & pictureRect)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextViewPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, int row) const
+void DxuiTextPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & theme, int row) const
 {
-    const DxuiTextPicture  * picture = m_host.GetRowPicture (row);
+    const DxuiTextPicture  * picture = GetPicture (row);
     DxuiPictureMap::Frame    frame;
     DxuiPictureMap::Key      key     = GetKey (row);
     float                    zoom    = m_map.GetZoom    (key);
     float                    originX = m_map.GetOriginX (key);
     float                    originY = m_map.GetOriginY (key);
-    float                    stroke  = m_host.GetPictureScaler().ToPxf (2.0f);
+    float                    stroke  = m_geometry.GetScaler().ToPxf (2.0f);
     float                    shown   = 0.0f;
     HRESULT                  hr      = S_OK;
 
@@ -194,7 +194,7 @@ void DxuiTextViewPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
 
     if (row == m_outlineRow)
     {
-        float  minimum = m_host.GetPictureScaler().ToPxf ((float) kOutlineMinCellDip);
+        float  minimum = m_geometry.GetScaler().ToPxf ((float) kOutlineMinCellDip);
         float  w       = (float) (m_outlineRect.right - m_outlineRect.left) * shown;
         float  h       = (float) (m_outlineRect.bottom - m_outlineRect.top) * shown;
         float  margin  = (w < minimum) ? w : 0.0f;
@@ -212,7 +212,7 @@ void DxuiTextViewPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
         }
     }
 
-    m_map.PaintPing (text, theme, m_host.GetPictureScaler(), picture->pingX, picture->pingY, frame.left - originX * shown, frame.top - originY * shown, shown);
+    m_map.PaintPing (text, theme, m_geometry.GetScaler(), picture->pingX, picture->pingY, frame.left - originX * shown, frame.top - originY * shown, shown);
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -224,17 +224,17 @@ void DxuiTextViewPictures::Paint (IDxuiTextRenderer & text, const IDxuiTheme & t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::IsPinging
+//  DxuiTextPictures::IsPinging
 //
 //  Whether a picture with a ping is in the rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::IsPinging() const
+bool DxuiTextPictures::IsPinging() const
 {
-    for (int row = 0; row < m_host.GetPictureRowCount(); row++)
+    for (int row = 0; row < (int) m_layout.GetRows().size(); row++)
     {
-        const DxuiTextPicture  * picture = m_host.GetRowPicture (row);
+        const DxuiTextPicture  * picture = GetPicture (row);
 
         if (picture != nullptr && picture->pingX >= 0 && picture->pingY >= 0)
         {
@@ -251,14 +251,14 @@ bool DxuiTextViewPictures::IsPinging() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::TickPing
+//  DxuiTextPictures::TickPing
 //
 //  The ping's animation: true when a frame changed, so the view needs
 //  painting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::TickPing (int64_t nowMs)
+bool DxuiTextPictures::TickPing (int64_t nowMs)
 {
     return m_map.TickPing (nowMs, IsPinging());
 }
@@ -269,14 +269,14 @@ bool DxuiTextViewPictures::TickPing (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::Zoom
+//  DxuiTextPictures::Zoom
 //
 //  The wheel over a zoomable picture; false off one, so the view scrolls
 //  there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::Zoom (POINT point, float notches)
+bool DxuiTextPictures::Zoom (POINT point, float notches)
 {
     int                    row   = 0;
     int                    x     = 0;
@@ -285,7 +285,7 @@ bool DxuiTextViewPictures::Zoom (POINT point, float notches)
 
 
 
-    if (!HitTest (point, row, x, y) || !m_host.GetRowPicture (row)->zoom || !GetFrame (row, frame))
+    if (!HitTest (point, row, x, y) || !GetPicture (row)->zoom || !GetFrame (row, frame))
     {
         return false;
     }
@@ -301,14 +301,14 @@ bool DxuiTextViewPictures::Zoom (POINT point, float notches)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::TryStartPan
+//  DxuiTextPictures::TryStartPan
 //
 //  A left press on a zoomable picture starts panning it; false off one, so
 //  the view selects text there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTextViewPictures::TryStartPan (POINT point)
+bool DxuiTextPictures::TryStartPan (POINT point)
 {
     int  row = 0;
     int  x   = 0;
@@ -316,7 +316,7 @@ bool DxuiTextViewPictures::TryStartPan (POINT point)
 
 
 
-    if (!HitTest (point, row, x, y) || !m_host.GetRowPicture (row)->zoom)
+    if (!HitTest (point, row, x, y) || !GetPicture (row)->zoom)
     {
         return false;
     }
@@ -332,19 +332,19 @@ bool DxuiTextViewPictures::TryStartPan (POINT point)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::Pan
+//  DxuiTextPictures::Pan
 //
 //  The panned picture follows the pointer, in its frame on the view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextViewPictures::Pan (POINT point)
+void DxuiTextPictures::Pan (POINT point)
 {
     DxuiPictureMap::Frame  frame;
 
 
 
-    for (int row = 0; row < m_host.GetPictureRowCount(); row++)
+    for (int row = 0; row < (int) m_layout.GetRows().size(); row++)
     {
         if (m_map.IsFor (GetKey (row)) && GetFrame (row, frame))
         {
@@ -359,18 +359,125 @@ void DxuiTextViewPictures::Pan (POINT point)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextViewPictures::GetLineCount
+//  DxuiTextPictures::GetPicture
 //
-//  How many of the view's lines a row's picture takes at a text width: as
+//  A row's picture, or null for a row of text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTextPicture * DxuiTextPictures::GetPicture (int row) const
+{
+    const std::vector<DxuiTextLayout::Row> &  rows = m_layout.GetRows();
+
+
+
+    return (row >= 0 && row < (int) rows.size()) ? rows[(size_t) row].picture.get() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextPictures::GetPictureLines
+//
+//  How many lines of `lineHeightPx` a picture takes at a text width: as
 //  many as it is tall at the scale it fits, at least one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiTextViewPictures::GetLineCount (int row, float widthPx, int lineHeightPx) const
+int DxuiTextPictures::GetPictureLines (const DxuiTextPicture & picture, float widthPx, float pxPerDip, int lineHeightPx)
 {
-    const DxuiTextPicture  * picture = m_host.GetRowPicture (row);
+    float  height = (float) picture.height * GetPictureScale (picture, widthPx, pxPerDip);
 
 
 
-    return (picture == nullptr) ? 0 : DxuiTextRowLayout::GetPictureLines (*picture, widthPx, m_host.GetPictureScaler().ToPxf (1.0f), lineHeightPx);
+    return (std::max) (1, (int) std::ceil (height / (float) (std::max) (1, lineHeightPx)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextPictures::GetTextLeft
+//
+//  Where a line's first character is drawn, which is off the view's left edge
+//  once a row that doesn't wrap has scrolled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextPictures::GetTextLeft() const
+{
+    return (float) m_geometry.GetTextOrigin().x - (float) m_viewport.GetLeftColumn() * m_layout.GetCellAdvance();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextPictures::PaintPicture
+//
+//  The picture with its top left at `left` and `top`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextPictures::PaintPicture (IDxuiTextRenderer & text, const DxuiTextPicture & picture, float left, float top, float widthPx, float pxPerDip)
+{
+    HRESULT  hr    = S_OK;
+    float    scale = GetPictureScale (picture, widthPx, pxPerDip);
+
+
+
+    if (picture.width > 0 && picture.height > 0 && picture.bgra.size() >= (size_t) picture.width * (size_t) picture.height)
+    {
+        hr = text.DrawFramebuffer (picture.bgra.data(), picture.width, picture.height, left, top, (float) picture.width * scale, (float) picture.height * scale);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextPictures::GetTextWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextPictures::GetTextWidth() const
+{
+    return (float) m_geometry.GetTextColumns (m_viewport.IsScrollbarVisible()) * m_layout.GetCellAdvance();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextPictures::GetPictureScale
+//
+//  Pixels on screen for each of the picture's: a DIP's, `pxPerDip`, or
+//  fewer to fit `widthPx`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextPictures::GetPictureScale (const DxuiTextPicture & picture, float widthPx, float pxPerDip)
+{
+    float  scale = pxPerDip;
+
+
+
+    if (picture.width > 0 && (float) picture.width * scale > widthPx)
+    {
+        scale = (std::max) (widthPx, 1.0f) / (float) picture.width;
+    }
+
+    return scale;
 }

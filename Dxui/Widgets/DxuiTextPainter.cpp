@@ -2,7 +2,7 @@
 
 #include "DxuiTextPainter.h"
 #include "DxuiTextViewInterfaces.h"
-#include "DxuiTextViewPictures.h"
+#include "DxuiTextPictures.h"
 #include "Core/DxuiDpiScaler.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Render/IDxuiPainter.h"

@@ -3,7 +3,7 @@
 #include "Pch.h"
 #include "DxuiTextLayout.h"
 
-class   DxuiTextViewPictures;
+class   DxuiTextPictures;
 class   IDxuiPainter;
 class   IDxuiTextGeometry;
 class   IDxuiTextRenderer;
@@ -33,7 +33,7 @@ public:
                      const IDxuiTextGeometry       & geometry,
                      const IDxuiTextViewport       & viewport,
                      const IDxuiTextSelectionRange & selection,
-                     const DxuiTextViewPictures    & pictures)
+                     const DxuiTextPictures        & pictures)
         : m_layout (layout), m_geometry (geometry), m_viewport (viewport), m_selection (selection), m_pictures (pictures) {}
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font,
@@ -57,7 +57,7 @@ private:
     const IDxuiTextGeometry        & m_geometry;
     const IDxuiTextViewport        & m_viewport;
     const IDxuiTextSelectionRange  & m_selection;
-    const DxuiTextViewPictures     & m_pictures;
+    const DxuiTextPictures         & m_pictures;
 
     //  The line being painted: its shift for its row's alignment, each
     //  character's style bits, the painter an underline and an inverse

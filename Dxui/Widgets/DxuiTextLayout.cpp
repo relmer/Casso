@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiTextLayout.h"
-#include "DxuiTextRowLayout.h"
+#include "DxuiTextPictures.h"
 
 
 
@@ -316,7 +316,7 @@ void DxuiTextLayout::BuildLines (int columns, float pxPerDip)
 
         if (row.picture != nullptr)
         {
-            for (int i = 0; i < DxuiTextRowLayout::GetPictureLines (*row.picture, (float) columns * m_cellAdvance, pxPerDip, m_cellHeightPx); i++)
+            for (int i = 0; i < DxuiTextPictures::GetPictureLines (*row.picture, (float) columns * m_cellAdvance, pxPerDip, m_cellHeightPx); i++)
             {
                 m_lines.push_back (Line { r, 0, 0, i == 0 });
             }
@@ -373,7 +373,7 @@ void DxuiTextLayout::BuildProportionalLines (float widthPx, float pxPerDip)
 
         if (row.picture != nullptr)
         {
-            for (int i = 0; i < DxuiTextRowLayout::GetPictureLines (*row.picture, widthPx, pxPerDip, m_cellHeightPx); i++)
+            for (int i = 0; i < DxuiTextPictures::GetPictureLines (*row.picture, widthPx, pxPerDip, m_cellHeightPx); i++)
             {
                 m_lines.push_back (Line { r, 0, 0, i == 0 });
             }

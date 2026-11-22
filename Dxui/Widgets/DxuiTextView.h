@@ -7,11 +7,10 @@
 #include "DxuiTextLayout.h"
 #include "DxuiTextPainter.h"
 #include "DxuiTextPicture.h"
+#include "DxuiTextPictures.h"
 #include "DxuiTextScroll.h"
 #include "DxuiTextSelection.h"
-#include "DxuiTextViewPictures.h"
 #include "DxuiTextViewInterfaces.h"
-#include "IDxuiTextPictureHost.h"
 
 
 
@@ -52,7 +51,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextView : public IDxuiControl, private IDxuiTextGeometry, private IDxuiTextPictureHost
+class DxuiTextView : public IDxuiControl, private IDxuiTextGeometry
 {
 public:
     using Span     = DxuiTextLayout::Span;
@@ -96,8 +95,8 @@ public:
 
     //  The rows' pictures: painting, hit testing, the outline, and the zoom,
     //  pan and ping of a picture shown as a map.
-    DxuiTextViewPictures        & GetPictures ()       { return m_pictures; }
-    const DxuiTextViewPictures  & GetPictures () const { return m_pictures; }
+    DxuiTextPictures        & GetPictures ()       { return m_pictures; }
+    const DxuiTextPictures  & GetPictures () const { return m_pictures; }
 
     //  Whether every row of more than one cell fits the text's width with each
     //  cell at its natural width, so no cell wraps: false for a table that
@@ -130,29 +129,18 @@ private:
     int                    GetBarWidthPx  () const override { return m_scaler.ToPx (s_kScrollbarWidthDip); }
     const DxuiDpiScaler  & GetScaler      () const override { return m_scaler; }
 
-    //  IDxuiTextPictureHost: the lines, rows and geometry the pictures read.
-    int                      GetPictureLineCount    () const override         { return m_layout.GetLineCount(); }
-    int                      GetPictureLineRow      (int line) const override { return m_layout.GetLines()[(size_t) line].row; }
-    int                      GetPictureRowCount     () const override         { return (int) m_layout.GetRows().size(); }
-    const DxuiTextPicture  * GetRowPicture          (int row) const override  { return (row >= 0 && row < (int) m_layout.GetRows().size()) ? m_layout.GetRows()[(size_t) row].picture.get() : nullptr; }
-    int                      GetPictureTopLine      () const override         { return m_scroll.GetTopLine(); }
-    int                      GetPictureLineHeight   () const override         { return m_layout.GetCellHeightPx(); }
-    int                      GetPictureTextTop      () const override         { return (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip); }
-    float                    GetPictureTextLeft     () const override         { return (float) GetTextOrigin().x - (float) m_scroll.GetLeftColumn() * m_layout.GetCellAdvance(); }
-    float                    GetPictureTextWidth    () const override         { return (float) GetTextColumns (m_scroll.IsScrollbarVisible()) * m_layout.GetCellAdvance(); }
-    const DxuiDpiScaler    & GetPictureScaler       () const override         { return m_scaler; }
-    void                     Rebuild                ();
-    void                     EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  Rebuild        ();
+    void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
-    DxuiTextLayout        m_layout;
-    DxuiTextScroll        m_scroll        { m_layout, *this };
-    DxuiTextSelection     m_selection     { m_layout, *this, m_scroll };
-    DxuiTextViewPictures  m_pictures      { *this };
-    DxuiTextPainter       m_painter       { m_layout, *this, m_scroll, m_selection, m_pictures };
-    float                 m_zoom          = 1.0f;
-    float                 m_textStrength  = 1.0f;
-    HWND                  m_hwnd          = nullptr;
-    const wchar_t       * m_iconFace      = L"Segoe MDL2 Assets";
-    ContextMenuFn         m_onContextMenu;
-    DxuiDpiScaler         m_scaler;
+    DxuiTextLayout     m_layout;
+    DxuiTextScroll     m_scroll        { m_layout, *this };
+    DxuiTextSelection  m_selection     { m_layout, *this, m_scroll };
+    DxuiTextPictures   m_pictures      { m_layout, *this, m_scroll };
+    DxuiTextPainter    m_painter       { m_layout, *this, m_scroll, m_selection, m_pictures };
+    float              m_zoom          = 1.0f;
+    float              m_textStrength  = 1.0f;
+    HWND               m_hwnd          = nullptr;
+    const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
+    ContextMenuFn      m_onContextMenu;
+    DxuiDpiScaler      m_scaler;
 };

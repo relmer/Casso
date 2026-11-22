@@ -785,7 +785,7 @@
     <ClCompile Include="UiTests\DxuiTextSelectionTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
     <ClCompile Include="UiTests\DxuiPictureMapTests.cpp" />
-    <ClCompile Include="UiTests\DxuiTextViewPicturesTests.cpp" />
+    <ClCompile Include="UiTests\DxuiTextPicturesTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabDragModelTests.cpp" />
     <ClCompile Include="Dxui\DxuiReorderStackTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabStripTests.cpp" />
@@ -1056,7 +1056,6 @@
     <ClInclude Include="ControllerTests\FakeControllerBackend.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
     <ClInclude Include="EmuTests\FakeIntentChannel.h" />
-    <ClInclude Include="UiTests\FakePictureHost.h" />
     <ClInclude Include="UiTests\FakeTextGeometry.h" />
     <ClInclude Include="UiTests\FakeTextSelectionRange.h" />
     <ClInclude Include="UiTests\FakeTextViewport.h" />

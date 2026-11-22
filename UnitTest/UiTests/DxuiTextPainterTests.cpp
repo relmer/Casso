@@ -2,7 +2,6 @@
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
-#include "FakePictureHost.h"
 #include "FakeTextGeometry.h"
 #include "FakeTextSelectionRange.h"
 #include "FakeTextViewport.h"
@@ -32,8 +31,7 @@ public:
         FakeTextGeometry        geometry  { 400, 400 };
         FakeTextViewport        viewport;
         FakeTextSelectionRange  selection;
-        FakePictureHost         host;
-        DxuiTextViewPictures    pictures  { host };
+        DxuiTextPictures        pictures  { layout, geometry, viewport };
         DxuiTextPainter         painter   { layout, geometry, viewport, selection, pictures };
         MockDxuiPainter         canvas;
         MockDxuiTextRenderer    text;
@@ -69,13 +67,10 @@ public:
         auto                 picture = std::make_shared<DxuiTextLayout::Picture>();
         int                  drawn   = 0;
 
+        picture->bgra.assign (10 * 40, 0xFF336699);
         picture->width  = 10;
         picture->height = 40;
         row.picture     = picture;
-
-        rig.host.picture.bgra.assign (10 * 40, 0xFF336699);
-        rig.host.picture.width  = 10;
-        rig.host.picture.height = 40;
 
         rig.Paint ({ MakeRow ({ L"above" }), row });
 
