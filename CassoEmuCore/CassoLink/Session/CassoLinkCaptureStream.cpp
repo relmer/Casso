@@ -586,8 +586,10 @@ size_t CassoLinkCapture::FindLength (std::span<const Byte> read)
 //  bytes again, marks ignored, between s_kShortestRevolution and
 //  s_kLongestRevolution later: a revolution, as an address field is once on
 //  its track. A shift-tolerant sample matches at almost any length on a
-//  track of one value repeated, which a protected disk's filler is. 0 for a
-//  read with no address field that repeats.
+//  track of one value repeated, which a protected disk's filler is. A field
+//  whose bytes come back sooner than a revolution is skipped: D5 AA B5 is
+//  some disks' data prolog, and the data fields of empty sectors match. 0
+//  for a read with no address field that repeats.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -605,25 +607,49 @@ size_t CassoLinkCapture::FindRepeat (std::span<const Byte> read)
         bool  disk   = first == s_kProlog0     && second == s_kProlog1 && (third == s_kAddress16 || third == s_kAddress13);
         bool  rdos   = first == s_kRdosProlog0 && second == s_kProlog1 && third == s_kRdosAddress;
 
-        if (!disk && !rdos)
+        if ((!disk && !rdos) || FindRepeatAt (read, at, 1, s_kShortestRevolution) != 0)
         {
             continue;
         }
 
-        for (size_t later = s_kShortestRevolution; length == 0 && later <= s_kLongestRevolution; later++)
-        {
-            size_t  same = 0;
-
-            while (same < s_kMarkerBytes && (read[at + same] | 0x80) == (read[at + later + same] | 0x80))
-            {
-                same++;
-            }
-
-            length = same == s_kMarkerBytes ? later : 0;
-        }
+        length = FindRepeatAt (read, at, s_kShortestRevolution, s_kLongestRevolution + 1);
     }
 
     return length;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindRepeatAt
+//
+//  The first distance from `from` up to, not including, `to` at which the
+//  s_kMarkerBytes bytes at `at` occur again, marks ignored, or 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::FindRepeatAt (std::span<const Byte> read, size_t at, size_t from, size_t to)
+{
+    size_t  found = 0;
+
+
+
+    for (size_t later = from; found == 0 && later < to && at + later + s_kMarkerBytes <= read.size(); later++)
+    {
+        size_t  same = 0;
+
+        while (same < s_kMarkerBytes && (read[at + same] | 0x80) == (read[at + later + same] | 0x80))
+        {
+            same++;
+        }
+
+        found = same == s_kMarkerBytes ? later : 0;
+    }
+
+    return found;
 }
 
 

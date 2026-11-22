@@ -244,6 +244,7 @@ private:
     static size_t               FindFramed     (std::span<const Byte> read, size_t limit);
     static size_t               FindLength     (std::span<const Byte> read);
     static size_t               FindRepeat     (std::span<const Byte> read);
+    static size_t               FindRepeatAt   (std::span<const Byte> read, size_t at, size_t from, size_t to);
     static size_t               CountDiffer    (std::span<const Byte> a, size_t aAt, std::span<const Byte> b, size_t bAt, size_t limit);
     static bool                 IsUnique       (std::span<const Byte> read, size_t start, size_t length);
     static std::vector<size_t>  FindAnchors    (std::span<const Byte> revolution, std::span<const Byte> read);
