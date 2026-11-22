@@ -176,6 +176,9 @@ public:
 
         Assert::IsTrue   (HasText (file, L"Maze level 1, the party at 1 east, 0 north"));
         Assert::IsTrue   (map != file.paragraphs.end());
+        Assert::IsTrue   (map->canZoom, L"The map zooms and pans");
+        Assert::IsTrue   (map->pingX > map->width / 16 && map->pingX < map->width / 8 && map->pingY > map->height - map->height / 16,
+                          L"The ping is at the party's square, the second from the left in the bottom row");
         Assert::AreEqual (map->width, map->height);
         Assert::IsTrue   (FindParagraph (file, L"Status Dead   HP 40/52   Gold 14,321   Exp 2,500").runs[1].color == RunColor::Bad);
         Assert::IsTrue   (FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil").runs[0].color == RunColor::Bad, L"A dead character's name is red");

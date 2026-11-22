@@ -824,6 +824,11 @@ void WizardryScenario::DrawPartyLevel (std::span<const Byte> bytes, const Conten
     RenderLevel (bytes.subspan (at, kMazeBytes), x, y, map.picture, map.width, map.height);
     AddSquareTips (bytes.subspan (at, kMazeBytes), x, y, map);
 
+    //  A ping at the middle of the party's square, and the map zooms and pans.
+    map.pingX   = s_kMapBorder + x * s_kMapCell + s_kMapCell / 2;
+    map.pingY   = s_kMapBorder + (kMazeSide - 1 - y) * s_kMapCell + s_kMapCell / 2;
+    map.canZoom = true;
+
     ioParagraphs.push_back (Paragraph());
     ioParagraphs.push_back (MakeParagraph ({ Run { std::format (L"Maze level {}, the party at {} east, {} north", level, x, y), true } }));
     ioParagraphs.push_back (std::move (map));
