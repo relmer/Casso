@@ -117,7 +117,7 @@ void ExplorerOpen::OpenEachSelected()
     std::vector<std::wstring>  files;
     Location                   place;
     std::wstring               path;
-    bool                       written = m_context.browser.PrepareCassoLinkItems();
+    bool                       written = m_context.browser.GetLoader().PrepareCassoLinkItems();
 
 
 

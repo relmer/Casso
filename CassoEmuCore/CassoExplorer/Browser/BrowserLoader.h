@@ -30,13 +30,20 @@ class BrowserLoader
 public:
     BrowserLoader (const BrowserParts & parts, IBrowserLoaderHost & host);
 
+    //  When the folder or image the active tab shows is gone from the disk,
+    //  moves to the nearest folder above it that is still there, as Explorer
+    //  does when the folder it shows is deleted. False, with nothing
+    //  changed, when the location still exists or is not on the host.
     bool  LeaveMissingLocation ();
 
     //  The partitions of an image, or of a card that is open.
     HRESULT  ListPartitions (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
 
+    //  The selected CassoLink items written to their files, so they open and
+    //  drag as files; false when any could not be written.
     bool  PrepareCassoLinkItems ();
 
+    //  The paths of the selection when every row is a CassoLink item.
     bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const;
 
     //  CassoLink's help, as the What's CassoLink item has it.
@@ -48,14 +55,19 @@ public:
     //  The help text a CassoLink root's or an ADTPro server's help item has.
     static const wchar_t *  GetHelpText   (CatalogRow::CassoLinkItem item);
 
+    //  The shell's ids for the Recycle Bin items selected.
     void  GetSelectedRecycledIds (std::vector<std::wstring> & outIds) const;
     void  GetAllRecycledIds      (std::vector<std::wstring> & outIds) const;
 
+    //  The catalog entry a row inside an image stands for.
     bool  TryGetRowEntry (int row, FileEntry & outEntry) const;
 
     //  What the disk runner says of a whole disk it finds no file system on.
     static constexpr const char *  s_kNoFileSystem = "does not have a recognized file system";
 
+    //  Why an image cannot be read as a disk at all, as the list's message
+    //  says it; empty for one that can, a whole disk with no file system to
+    //  list included, since that is a disk and not a broken file.
     std::wstring  GetImageProblem (const std::wstring & imagePath);
 
     //  Refresh for a navigation, whose failure is already in the list error.

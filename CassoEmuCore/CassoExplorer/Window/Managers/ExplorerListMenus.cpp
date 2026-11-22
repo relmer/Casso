@@ -916,7 +916,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
             {
-                m_context.browser.GetSelectedRecycledIds (paths);
+                m_context.browser.GetLoader().GetSelectedRecycledIds (paths);
                 hr = m_context.shellVerbs.ShowRecycledMenu (m_context.window.GetHwnd(), paths, screen);
                 m_context.folderSync.RefreshAfterHostChange();
             }

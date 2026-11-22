@@ -1574,7 +1574,7 @@ void ExplorerDragDrop::BeginDragOut()
         return;
     }
 
-    if (!m_context.browser.PrepareCassoLinkItems())
+    if (!m_context.browser.GetLoader().PrepareCassoLinkItems())
     {
         return;
     }

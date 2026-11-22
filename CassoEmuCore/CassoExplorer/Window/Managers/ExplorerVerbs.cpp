@@ -149,7 +149,7 @@ bool ExplorerVerbs::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
 
 
 
-    m_context.browser.GetSelectedRecycledIds (ids);
+    m_context.browser.GetLoader().GetSelectedRecycledIds (ids);
 
     switch (verb)
     {
@@ -164,7 +164,7 @@ bool ExplorerVerbs::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
             //  command bar's Restore all items does.
             if (ids.empty() && verb == Verb::Restore)
             {
-                m_context.browser.GetAllRecycledIds (ids);
+                m_context.browser.GetLoader().GetAllRecycledIds (ids);
             }
 
             BAIL_OUT_IF (ids.empty(), S_OK);
@@ -270,7 +270,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::GetWithOptions:
         {
             std::vector<CopyOptionRows::Row>  rows;
-            DecodeOptions                     options = m_context.browser.GetDefaultDecodeOptions();
+            DecodeOptions                     options = m_context.browser.GetPreviewer().GetDefaultDecodeOptions();
 
             m_context.actions.FindCopyOptionRows (rows);
 
@@ -280,7 +280,7 @@ void ExplorerVerbs::RunVerb (CassoExplorerActions::Verb verb)
             }
 
             m_context.prefs.copyOptions = options;
-            m_context.browser.SetDefaultDecodeOptions (options);
+            m_context.browser.GetPreviewer().SetDefaultDecodeOptions (options);
 
             hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
 

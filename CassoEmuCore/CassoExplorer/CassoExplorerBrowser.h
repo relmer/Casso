@@ -107,18 +107,18 @@ public:
     BrowserNavigator        & GetNavigator ()       { return m_navigator; }
     const BrowserNavigator  & GetNavigator () const { return m_navigator; }
 
-    std::vector<DxuiListView::Cell>  GetArchivePreviewCells (const CatalogRow & row) const { return m_previewer.GetArchivePreviewCells (row); }
-    std::wstring                     GetTabLabel            (size_t index) const           { return m_cells.GetTabLabel (index); }
+    //  The list's loading, the preview of the selection, and the cells and
+    //  status text.
+    BrowserLoader           & GetLoader    ()       { return m_loader; }
+    const BrowserLoader     & GetLoader    () const { return m_loader; }
+    BrowserPreviewer        & GetPreviewer ()       { return m_previewer; }
+    const BrowserPreviewer  & GetPreviewer () const { return m_previewer; }
+    BrowserCells            & GetCells     ()       { return m_cells; }
+    const BrowserCells      & GetCells     () const { return m_cells; }
 
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
     bool  OpenRow (int row);
-
-    //  When the folder or image the active tab shows is gone from the disk,
-    //  moves to the nearest folder above it that is still there, as Explorer
-    //  does when the folder it shows is deleted. False, with nothing
-    //  changed, when the location still exists or is not on the host.
-    bool  LeaveMissingLocation () { return m_loader.LeaveMissingLocation(); }
 
     //  What an address bar separator lists: the folders and images in a host
     //  folder.
@@ -151,42 +151,8 @@ public:
     BrowserSelection        & GetSelection ()       { return m_selection; }
     const BrowserSelection  & GetSelection () const { return m_selection; }
 
-    //  The preview made again for the selection, as when a slow read arrives.
-    void  RefreshPreview   () { m_previewer.UpdatePreview(); }
+    const std::vector<CatalogRow>  & GetRows () const { return m_list.rows; }
 
-    //  A shell preview that failed or took too long is replaced by the file's
-    //  bytes.
-    void  ShowShellPreviewBytes  () { m_previewer.ShowShellPreviewBytes(); }
-    void  SetHexForm             (PreviewDecoder::HexForm form) { m_previewer.SetHexForm (form); }
-    void  SetPreviewCharset      (Charset charset)              { m_previewer.SetCharset (charset); }
-    void  SetPreviewRecordLength (size_t recordLength)          { m_previewer.SetRecordLength (recordLength); }
-    void  SetPreviewFormulas     (bool formulas)                { m_previewer.SetFormulas (formulas); }
-    void  SetPreviewViewAs       (ViewChoice view)              { m_previewer.SetViewAs (view); }
-    void  SetPreviewSavedGame    (bool shown)                   { m_previewer.SetSavedGameShown (shown); }
-
-    DecodeOptions          GetDecodeOptions        (const std::wstring & imagePath, const std::string & entryPath) const { return m_previewer.GetDecodeOptions (imagePath, entryPath); }
-    void                   SetDefaultDecodeOptions (const DecodeOptions & options)                                       { m_previewer.SetDefaultDecodeOptions (options); }
-    const DecodeOptions  & GetDefaultDecodeOptions () const                                                              { return m_previewer.GetDefaultDecodeOptions(); }
-
-    const std::vector<CatalogRow>  & GetRows    () const { return m_list.rows;      }
-    const PreviewContent           & GetPreview () const { return m_previewer.GetPreview();   }
-
-    //  The monitor a picture preview is drawn for, with the custom monitor's
-    //  color; a change draws the current picture again.
-    void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb) { m_previewer.SetPreviewMonitor (monitor, customArgb); }
-    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewer.GetPreviewMonitor(); }
-
-    //  The monitor the current picture is drawn on: the chosen one, except
-    //  for a double hi-res picture, whose monitor follows its form. Its color
-    //  form is drawn on the color monitor, and its monochrome form on the
-    //  chosen monochrome monitor, or the white one when the color monitor is
-    //  chosen.
-    PicturePreview::Monitor  GetPictureMonitor () const { return m_previewer.GetPictureMonitor(); }
-
-    //  A double hi-res picture drawn in color or as its bits, whichever the
-    //  automatic choice was not; again to go back. False for any other preview.
-    bool                      TogglePictureColor    () { return m_previewer.TogglePictureColor(); }
-    bool                      CanTogglePictureColor () const { return m_previewer.CanTogglePictureColor(); }
     const std::wstring      & GetListError          () const { return m_list.listError; }
     bool                      IsListLoading         () const { return m_list.listError == s_kWorkingText; }
     const Status            & GetStatus             () const { return m_list.status;    }
@@ -216,33 +182,14 @@ public:
     bool                   IsWriteProtected () const { return m_list.writeProtected; }
     const VolumeListing  & GetListing       () const override { return m_list.listing; }
 
-    //  The selected CassoLink items written to their files, so they open and
-    //  drag as files; false when any could not be written.
-    bool  PrepareCassoLinkItems () { return m_loader.PrepareCassoLinkItems(); }
-
-    //  The paths of the selection when every row is a CassoLink item.
-    bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const override { return m_loader.TryGetSelectedCassoLinkPaths (outPaths); }
-
-    //  The next list of a linked machine or drive reads its disks again, as
-    //  a refresh does.
-    void  ForgetLinkVisit () { m_loader.ForgetLinkVisit(); }
-
-    //  The archive Extract all applies to, selected or open; empty for none.
-    std::wstring  GetExtractTarget () const { return m_previewer.GetExtractTarget(); }
-
     //  The files the selected rows are when they are a search's matches inside
     //  disk images, each with its image, found again in that image's catalog.
     using SearchMatch = BrowserSearchMatch;
-
-    void  GetSelectedSearchMatches     (std::vector<SearchMatch> & outMatches) { m_previewer.GetSelectedSearchMatches (outMatches); }
-    bool  AreSelectedRowsSearchMatches () const { return m_previewer.AreSelectedRowsSearchMatches(); }
-    bool  TryFindSearchMatch           (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError) { return m_previewer.TryFindSearchMatch (row, outMatch, outError); }
 
     //  A search's row given the name a rename gave its file, without searching
     //  again: the index takes a while to have the new name. A name the query no
     //  longer matches removes the row, and false is returned.
     bool  RenameSearchRow (int row, const std::wstring & newName);
-
 
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_sources.shellIcons = icons; }
@@ -298,8 +245,6 @@ public:
     void                    SetCardOpenAllowed   (bool allowed)                 { m_sources.cardOpenAllowed = allowed; }
     PhysicalCards         * GetPhysicalCards     () const                       { return m_sources.cards; }
 
-    HRESULT                 ListPartitions       (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries) { return m_loader.ListPartitions (path, outKind, outEntries); }
-
     //  What lists the Recycle Bin. None set, it shows empty.
     void  SetShellVerbs (IShellItemVerbs * verbs);
 
@@ -323,19 +268,10 @@ public:
     //  set, every host folder is read through the file system at once.
     static constexpr const wchar_t *  s_kHostListKey = L"hostlist:";
     static constexpr const wchar_t *  s_kHostTreeKey = L"hosttree:";
-    CassoExplorerHostListings &  GetHostListings  () { return m_loader.GetHostListings(); }
-
 
     //  Quick access as the shell keeps it, read again after a pin changes.
     bool  IsPinnedToQuickAccess (const std::wstring & folder) const { return m_tree.IsPinnedFolder (folder); }
     void  RefreshShellRoots     ()                                  { m_tree.RefreshShellRoots(); }
-
-    //  The shell's ids for the Recycle Bin items selected.
-    void  GetSelectedRecycledIds (std::vector<std::wstring> & outIds) const { m_loader.GetSelectedRecycledIds (outIds); }
-    void  GetAllRecycledIds      (std::vector<std::wstring> & outIds) const { m_loader.GetAllRecycledIds (outIds); }
-
-    //  The catalog entry a row inside an image stands for.
-    bool  TryGetRowEntry (int row, FileEntry & outEntry) const { return m_loader.TryGetRowEntry (row, outEntry); }
 
     //  Which hidden items the tree and the list show, and whether compressed
     //  items are colored. The next listing follows them.
@@ -345,21 +281,10 @@ public:
     static constexpr uint32_t  kCompressedDarkArgb  = 0xFF3A99E8u;
     static constexpr uint32_t  kCompressedLightArgb = 0xFF0000FFu;
 
-    //  Why an image cannot be read as a disk at all, as the list's message
-    //  says it; empty for one that can, a whole disk with no file system to
-    //  list included, since that is a disk and not a broken file.
-    std::wstring  GetImageProblem (const std::wstring & imagePath) { return m_loader.GetImageProblem (imagePath); }
-
-    //  A typed path with a root and no drive, put on the system drive.
-    static std::wstring  RootOnSystemDrive (const std::wstring & text);
-
-    //  A typed path with its environment variables expanded, as Explorer
-    //  reads "%TEMP%". An undefined variable stays as typed.
-    static std::wstring  ExpandVariables   (const std::wstring & text);
-
 private:
     //  IBrowserSelectionSource, for the selection.
-    void      UpdatePreviewAndStatus () override                                         { m_previewer.UpdatePreview(); m_cells.UpdateStatus(); }
+    bool      TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const override { return m_loader.TryGetSelectedCassoLinkPaths (outPaths); }
+    void      UpdatePreviewAndStatus       () override                                         { m_previewer.UpdatePreview(); m_cells.UpdateStatus(); }
 
     //  IBrowserListing, for the navigator.
     void      ReloadAfterNavigation () override                                          { m_loader.ReloadAfterNavigation(); }

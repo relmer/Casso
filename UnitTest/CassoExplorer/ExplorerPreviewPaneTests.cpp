@@ -577,7 +577,7 @@ public:
         Assert::IsTrue (isDrawn);
         rig.parts->preview.TakeThumbnail();
         Assert::AreEqual (std::wstring (L"DOS 3.3, damaged"), rig.parts->preview.GetThumbnail().GetFileSystemText());
-        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
+        Assert::IsTrue   (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
 
         for (const DxuiTextView::Row & row : static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->GetRows())
         {

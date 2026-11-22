@@ -83,6 +83,8 @@ public:
     //  The largest archive read whole for the reason it lists nothing.
     static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
 
+    //  A shell preview that failed or took too long is replaced by the file's
+    //  bytes.
     void  ShowShellPreviewBytes ();
     void  SetHexForm            (PreviewDecoder::HexForm form);
     void  SetViewAs             (ViewChoice view);
@@ -105,16 +107,26 @@ public:
 
     const PreviewContent  & GetPreview () const { return m_preview; }
 
+    //  The monitor a picture preview is drawn for, with the custom monitor's
+    //  color; a change draws the current picture again.
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
     PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
 
+    //  The monitor the current picture is drawn on: the chosen one, except
+    //  for a double hi-res picture, whose monitor follows its form. Its color
+    //  form is drawn on the color monitor, and its monochrome form on the
+    //  chosen monochrome monitor, or the white one when the color monitor is
+    //  chosen.
     PicturePreview::Monitor  GetPictureMonitor () const;
 
     static PicturePreview::Monitor  ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode);
 
+    //  A double hi-res picture drawn in color or as its bits, whichever the
+    //  automatic choice was not; again to go back. False for any other preview.
     bool  TogglePictureColor    ();
     bool  CanTogglePictureColor () const;
 
+    //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const;
 
     void  GetSelectedSearchMatches     (std::vector<BrowserSearchMatch> & outMatches);
@@ -139,6 +151,8 @@ public:
     void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
     void  SetSavedGameShown  (bool shown);
     void  PreviewSearchMatch (const CatalogRow & row);
+
+    //  The preview made again for the selection, as when a slow read arrives.
     void  UpdatePreview      ();
 
 private:

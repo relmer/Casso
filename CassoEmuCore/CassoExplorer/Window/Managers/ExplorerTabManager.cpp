@@ -501,7 +501,7 @@ void ExplorerTabManager::FillTabs()
 
         //  Tabs start below the strip's top, as Explorer's do, and reach its
         //  bottom, where the selected one joins the row below.
-        tab.label = m_context.browser.GetTabLabel (index);
+        tab.label = m_context.browser.GetCells().GetTabLabel (index);
         tab.rect  = RECT { strip.left + lead + (int) index * width, strip.top + m_context.scaler.ToPx (ExplorerMetrics::kTabTopDip), strip.left + lead + (int) (index + 1) * width, strip.bottom };
 
         switch (location.kind)
@@ -622,7 +622,7 @@ void ExplorerTabManager::SwitchToTab (size_t index)
     //  A tab left on a folder deleted since moves up as it is shown.
     if (m_context.browser.GetNavigator().SwitchTab (index))
     {
-        m_context.browser.LeaveMissingLocation();
+        m_context.browser.GetLoader().LeaveMissingLocation();
         m_context.preview.RestoreTabState();
         m_context.listPane.FillList();
 
@@ -1140,7 +1140,7 @@ void ExplorerTabManager::AcceptTab (BrowserModel::Tab tab)
     }
 
     m_context.browser.GetNavigator().InsertTab ((size_t) index, std::move (tab));
-    m_context.browser.LeaveMissingLocation();
+    m_context.browser.GetLoader().LeaveMissingLocation();
     m_context.listPane.FillList();
     CassoExplorerShell::FrontWindow (m_context.window.GetHwnd());
     m_context.window.SaveSession();

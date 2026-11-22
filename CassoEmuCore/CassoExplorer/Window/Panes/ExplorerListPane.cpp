@@ -295,7 +295,7 @@ void ExplorerListPane::Configure()
             std::wstring  path;
             HRESULT       hr = S_OK;
 
-            if (m_context.browser.PrepareCassoLinkItems() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
+            if (m_context.browser.GetLoader().PrepareCassoLinkItems() && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
             {
                 hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), path);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -706,7 +706,7 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
         //  inside a disk image or an Apple's drive every deletion is for good
         //  and confirmed first, and CassoLink's items are temp copies.
         if (ev.shift && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
-            && !m_context.browser.TryGetSelectedCassoLinkPaths (linkPaths))
+            && !m_context.browser.GetLoader().TryGetSelectedCassoLinkPaths (linkPaths))
         {
             m_context.deletion.DeleteSelectionPermanently();
         }
@@ -1351,7 +1351,7 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         //  A disk image that is not one says so on its icon.
         if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && BrowserRowPaths::TryGetRowPath (m_context.browser.GetRowListing(), row, path))
         {
-            m_rowProblems[(size_t) row] = m_context.browser.GetImageProblem (path);
+            m_rowProblems[(size_t) row] = m_context.browser.GetLoader().GetImageProblem (path);
             cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
         }
 
@@ -1853,7 +1853,7 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
 
         if (paths.size() == 1 && paths[0] == key.substr (wcslen (CassoExplorerBrowser::s_kPreviewKey)))
         {
-            m_context.browser.RefreshPreview();
+            m_context.browser.GetPreviewer().UpdatePreview();
             m_context.preview.FillPreview();
         }
     }

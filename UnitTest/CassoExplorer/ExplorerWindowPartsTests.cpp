@@ -1015,20 +1015,20 @@ public:
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
         rig.parts->preview.FillPreview();
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Listing);
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
         Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsDefault));
         Assert::AreEqual (std::wstring (L"BASIC listing (default)"), rig.parts->commandManager.GetCommandLabel (CassoExplorerCommands::kViewAsDefault));
 
         rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHex);
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Hex);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Hex);
         Assert::IsTrue (rig.parts->commandManager.IsChecked (CassoExplorerCommands::kViewAsHex));
 
         files = GetFileRows (rig);
         rig.parts->listPane.SetListSelection ({ files[0] == rig.browser.GetSelectedRows()[0] ? files[1] : files[0] });
 
-        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
     }
 
 
@@ -1053,7 +1053,7 @@ public:
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"PICTURE"));
         rig.parts->preview.FillPreview();
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture);
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kSavePreviewAs));
 
         rig.dialogs->path = L"C:\\Out\\picture.png";
@@ -1187,14 +1187,14 @@ public:
         Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kViewAs));
         rig.parts->commandManager.Dispatch (CassoExplorerCommands::kViewAsHiRes);
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Picture);
-        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::HiRes);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Picture);
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().viewAs == ViewChoice::HiRes);
 
         Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO#FC0801"));
         rig.parts->preview.FillPreview();
 
-        Assert::IsTrue (rig.browser.GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
-        Assert::IsTrue (rig.browser.GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().kind == PreviewContent::Kind::Listing, L"An exported BASIC program lists");
+        Assert::IsTrue (rig.browser.GetPreviewer().GetPreview().viewAs == ViewChoice::Default, L"Another file opens in its default view");
     }
 
 

@@ -245,7 +245,7 @@ public:
         AssertSucceeded (rig.browser->Refresh());
         Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read for a drive read moments ago");
 
-        rig.browser->ForgetLinkVisit();
+        rig.browser->GetLoader().ForgetLinkVisit();
         AssertSucceeded (rig.browser->Refresh());
 
         while (rig.apple.catalogReads == reads && std::chrono::steady_clock::now() < until)
@@ -271,7 +271,7 @@ public:
         rig.Open (1);
         rig.browser->GetNavigator().OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
         rig.Reload();
-        rig.browser->ForgetLinkVisit();
+        rig.browser->GetLoader().ForgetLinkVisit();
         rig.Settle();
         reads = rig.apple.catalogReads;
 

@@ -205,7 +205,7 @@ public:
     TEST_METHOD (Problem_DamagedPartitionHasTheDamagedReason)
     {
         CardHost      host;
-        std::wstring  problem = host.browser.GetImageProblem (kDamagedPath);
+        std::wstring  problem = host.browser.GetLoader().GetImageProblem (kDamagedPath);
 
         Assert::IsTrue (problem.ends_with (DiskMessageText::kDamagedPartitionText), problem.c_str());
         Assert::IsTrue (problem.find (L'|') == std::wstring::npos, problem.c_str());

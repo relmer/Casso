@@ -347,7 +347,7 @@ void ExplorerFolderSync::CheckDrives()
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_context.listPane.FillList();
     }
-    else if (m_context.browser.LeaveMissingLocation())
+    else if (m_context.browser.GetLoader().LeaveMissingLocation())
     {
         m_context.listPane.FillList();
     }
@@ -809,7 +809,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The folder shown was deleted: the change is its parent's, so the list
     //  moves up, as Explorer's does, rather than staying on what is gone.
-    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.LeaveMissingLocation())
+    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetLoader().LeaveMissingLocation())
     {
         m_context.listPane.FillList();
         return;
