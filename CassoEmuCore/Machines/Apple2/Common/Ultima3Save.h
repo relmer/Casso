@@ -105,6 +105,9 @@ private:
     static void                          AddLegend          (std::vector<Paragraph> & ioParagraphs);
     static void                          LabelMap           (std::span<const Byte> sectors, std::span<const bool> unreadable, int partyX, int partyY, Paragraph & ioMap);
     static Paragraph                     MakeParagraph      (std::vector<Run> runs);
+    static Run                           MakeLabel          (const std::wstring & text);
+    static Run                           MakeValue          (const std::wstring & text);
+    static RunColor                      GetHealthColor     (int hitPoints, int maxHitPoints);
     static Paragraph                     MakeTableParagraph (std::shared_ptr<const RecordTable> table);
     static std::shared_ptr<RecordTable>  MakeTable          ();
 };

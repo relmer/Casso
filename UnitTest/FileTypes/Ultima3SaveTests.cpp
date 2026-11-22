@@ -222,7 +222,7 @@ public:
         Assert::AreEqual ((size_t) 1, CountOf (text, L"LOKIL"));
         Assert::IsTrue (text.find (L"Elf paladin, male") != std::wstring::npos);
         Assert::IsTrue (text.find (L"HP 123 / 150") != std::wstring::npos);
-        Assert::IsTrue (text.find (L"Armor: Leather   Weapon: Bow") != std::wstring::npos);
+        Assert::IsTrue (text.find (L"Armor Leather   Weapon Bow") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Party") < text.find (L"Roster"));
     }
 

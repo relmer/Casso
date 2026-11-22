@@ -201,7 +201,7 @@ public:
         Assert::IsTrue (text.find (L"Mage, female") != std::wstring::npos);
         Assert::IsTrue (text.find (L"HP 300 / 300") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Level 3   Exp 240") != std::wstring::npos);
-        Assert::IsTrue (text.find (L"Armor: Cloth   Weapon: Sling") != std::wstring::npos);
+        Assert::IsTrue (text.find (L"Armor Cloth   Weapon Sling") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Honesty 50") != std::wstring::npos);
         Assert::IsTrue (text.find (L"Humility 57") != std::wstring::npos);
     }

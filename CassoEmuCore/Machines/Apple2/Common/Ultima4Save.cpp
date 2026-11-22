@@ -530,6 +530,59 @@ Paragraph Ultima4Save::MakeParagraph (std::vector<Run> runs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Ultima4Save::MakeLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Run Ultima4Save::MakeLabel (const std::wstring & text)
+{
+    return Run { text, false, false, false, RunColor::Muted };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima4Save::MakeValue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Run Ultima4Save::MakeValue (const std::wstring & text)
+{
+    return Run { text, true, false, false, RunColor::Keyword };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ultima4Save::GetHealthColor
+//
+//  Green at full hit points, red at a quarter or less, and the text color
+//  between.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RunColor Ultima4Save::GetHealthColor (int hitPoints, int maxHitPoints)
+{
+    constexpr int  kLowQuarters = 4;
+
+
+
+    return (maxHitPoints > 0 && hitPoints >= maxHitPoints)          ? RunColor::Good
+         : (hitPoints * kLowQuarters <= maxHitPoints)               ? RunColor::Bad
+                                                                    : RunColor::Text;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Ultima4Save::AddCharacter
 //
 //  A character as a table row, and as a card of five short lines for a
@@ -542,7 +595,8 @@ void Ultima4Save::AddCharacter (const Character & character, RecordTable & ioTab
 {
     constexpr int        kHitsPerLevel = 100;
     std::wstring         sex           = character.isFemale ? L"female" : L"male";
-    RunColor             status        = (character.status == L'G') ? RunColor::Text : RunColor::Bad;
+    RunColor             status        = (character.status == L'G') ? RunColor::Good : RunColor::Bad;
+    RunColor             health        = GetHealthColor (character.hitPoints, character.maxHitPoints);
     RunColor             nameColor     = (character.status == L'D') ? RunColor::Bad : RunColor::Text;
     int                  level         = character.maxHitPoints / kHitsPerLevel;
     RecordTable::Record  record;
@@ -552,9 +606,9 @@ void Ultima4Save::AddCharacter (const Character & character, RecordTable & ioTab
     record.cells = { Run { character.name, true, false, false, nameColor },
                      Run { GetClassName (character.classIndex) },
                      Run { sex },
-                     Run { GetStatusName (character.status), false, false, false, status },
+                     Run { GetStatusName (character.status), true, false, false, status },
                      Run { std::format (L"{} / {} / {}", character.strength, character.dexterity, character.intelligence) },
-                     Run { std::format (L"{} / {}", character.hitPoints, character.maxHitPoints) },
+                     Run { std::format (L"{} / {}", character.hitPoints, character.maxHitPoints), true, false, false, health },
                      Run { std::format (L"{}", character.magic) },
                      Run { std::format (L"{}", level) },
                      Run { std::format (L"{}", character.experience) },
@@ -562,13 +616,17 @@ void Ultima4Save::AddCharacter (const Character & character, RecordTable & ioTab
                      Run { GetWeaponName (character.weapon) } };
 
     record.card.push_back (MakeParagraph ({ Run { character.name, true, false, false, nameColor },
-                                            Run { std::format (L"   {}, {}", GetClassName (character.classIndex), sex), false, false, false, RunColor::Muted } }));
-    record.card.push_back (MakeParagraph ({ Run { GetStatusName (character.status), false, false, false, status },
-                                            Run { std::format (L"   HP {} / {}   MP {}", character.hitPoints, character.maxHitPoints, character.magic) } }));
-    record.card.push_back (MakeParagraph ({ Run { std::format (L"Str {}   Dex {}   Int {}", character.strength, character.dexterity, character.intelligence) } }));
-    record.card.push_back (MakeParagraph ({ Run { std::format (L"Level {}   Exp {}", level, character.experience) } }));
-    record.card.push_back (MakeParagraph ({ Run { std::format (L"Armor: {}   Weapon: {}", GetArmorName (character.armor), GetWeaponName (character.weapon)) } }));
-
+                                            Run { std::format (L"   {}, {}", GetClassName (character.classIndex), sex), false, true, false, RunColor::Muted } }));
+    record.card.push_back (MakeParagraph ({ Run { GetStatusName (character.status), true, false, false, status },
+                                            MakeLabel (L"   HP "), Run { std::format (L"{} / {}", character.hitPoints, character.maxHitPoints), true, false, false, health },
+                                            MakeLabel (L"   MP "), MakeValue (std::format (L"{}", character.magic)) }));
+    record.card.push_back (MakeParagraph ({ MakeLabel (L"Str "),    MakeValue (std::format (L"{}", character.strength)),
+                                            MakeLabel (L"   Dex "), MakeValue (std::format (L"{}", character.dexterity)),
+                                            MakeLabel (L"   Int "), MakeValue (std::format (L"{}", character.intelligence)) }));
+    record.card.push_back (MakeParagraph ({ MakeLabel (L"Level "),  MakeValue (std::format (L"{}", level)),
+                                            MakeLabel (L"   Exp "), MakeValue (std::format (L"{}", character.experience)) }));
+    record.card.push_back (MakeParagraph ({ MakeLabel (L"Armor "),     Run { GetArmorName (character.armor) },
+                                            MakeLabel (L"   Weapon "), Run { GetWeaponName (character.weapon) } }));
     ioTable.records.push_back (std::move (record));
 }
 
