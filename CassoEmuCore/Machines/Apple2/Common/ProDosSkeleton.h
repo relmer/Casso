@@ -57,6 +57,8 @@ public:
     static bool     IsValidVolumeSize     (size_t bufferBytes);
     static bool     IsBlockOrder          (size_t bufferBytes);
     static int      GetReservedBlockCount (size_t bufferBytes);
+    static int      GetReservedBlocks     (int volumeBlocks);
+    static int      GetVolumeBlockCount   (const BlockImage & volume);
     static size_t   GetBitmapByteOffset   (const BlockImage & buffer, uint32_t block);
 
     //  A directory's entries a block, from its header: 13 as ProDOS writes,

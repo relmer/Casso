@@ -197,15 +197,64 @@ void ProDosSkeleton::WriteWord (vector<Byte> & buffer, int block, size_t offsetI
 
 int ProDosSkeleton::GetReservedBlockCount (size_t bufferBytes)
 {
+    return GetReservedBlocks (GetBlockCount (bufferBytes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::GetReservedBlocks
+//
+//  The reserved blocks of a volume of this many blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosSkeleton::GetReservedBlocks (int volumeBlocks)
+{
     constexpr int  kBlocksPerBitmapBlock = kBlockByteSize * 8;
 
 
 
-    int  blocks = GetBlockCount (bufferBytes);
+    return kBitmapBlock + (volumeBlocks + kBlocksPerBitmapBlock - 1) / kBlocksPerBitmapBlock;
+}
 
 
 
-    return kBitmapBlock + (blocks + kBlocksPerBitmapBlock - 1) / kBlocksPerBitmapBlock;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosSkeleton::GetVolumeBlockCount
+//
+//  The total blocks in the volume directory header, as ProDOS uses them. A
+//  volume can be smaller than the buffer it is in, such as a 140K image
+//  written into a 32 MB partition, and the blocks past it aren't part of the
+//  volume or its bitmap. For a header with no usable count, the count is the
+//  buffer's blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosSkeleton::GetVolumeBlockCount (const BlockImage & volume)
+{
+    size_t  bufferBytes = volume.size();
+    int     blocks      = GetBlockCount (bufferBytes);
+    size_t  at          = 0;
+    int     total       = 0;
+
+
+
+    if (!IsBlockOrder (bufferBytes) || blocks <= kBitmapBlock)
+    {
+        return blocks;
+    }
+
+    at    = GetBlockByteOffset (bufferBytes, kDirKeyBlock, kOffFirstEntry + kHdrOffTotalBlocks);
+    total = volume[at] | (volume[at + 1] << 8);
+
+    return (total > kBitmapBlock && total < blocks) ? total : blocks;
 }
 
 

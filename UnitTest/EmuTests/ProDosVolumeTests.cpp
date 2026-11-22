@@ -3,6 +3,7 @@
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/MemoryBlockStore.h"
 
@@ -653,6 +654,44 @@ public:
         Assert::AreEqual (size_t (0), report.GetAllocatedButUnclaimed().size(),
             L"and nothing allocated may be unaccounted for");
         Assert::IsTrue (report.IsClean(), L"a freshly written volume is consistent");
+    }
+
+
+    //  A 140K image written over the start of a larger partition, past which
+    //  the old volume's blocks remain. The volume is the header's 280 blocks.
+    TEST_METHOD (Volume_SmallerThanItsBuffer_IsTheHeadersBlocks)
+    {
+        constexpr size_t  kPartitionBlocks = 800;
+
+        vector<Byte>           fresh     = MakeVolume ("FRESH");
+        vector<Byte>           freshBlocks;
+        vector<Byte>           partition (kPartitionBlocks * kBlockBytes, 0x00);
+        vector<Byte>           payload   (600, 0x33);
+        VolumeListing          listing;
+        VolumeIntegrityReport  report;
+        uint32_t               freeFresh = 0;
+
+        AssertSucceeded (ProDosSkeleton::Write (partition, "OLD"));
+        AssertSucceeded (ProDosFileWriter::WriteFile (fresh, "PROG", 0x06, 0x2000, payload));
+        freeFresh = FreeBlocks (fresh);
+
+        VolumeImage::DosLogicalToProDosFile (fresh, freshBlocks);
+        std::copy (freshBlocks.begin(), freshBlocks.end(), partition.begin());
+
+        {
+            ProDosVolume  volume (partition);
+
+            Assert::AreEqual (280, volume.GetBlockCount());
+            AssertSucceeded (volume.Enumerate (listing));
+            AssertSucceeded (volume.BuildIntegrityReport (report));
+        }
+
+        Assert::AreEqual (string ("FRESH"), listing.volumeName);
+        Assert::AreEqual (uint32_t (280), listing.totalUnits);
+        Assert::AreEqual (freeFresh, listing.freeUnits);
+        Assert::AreEqual (size_t (0), report.GetCrossLinked().size());
+        Assert::AreEqual (size_t (0), report.GetClaimedButFree().size());
+        Assert::AreEqual (size_t (0), report.GetAllocatedButUnclaimed().size());
     }
 
 
