@@ -14,6 +14,7 @@
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
+#include "CassoExplorer/Model/DiskImageCatalog.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
@@ -840,6 +841,25 @@ void CassoExplorerShell::StartLinkFaults()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::DescribeInspectedPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerShell::DescribeInspectedPath (const std::wstring & path)
+{
+    std::wstring  text = m_cards.DescribePartition (path);
+
+
+
+    return text.empty() ? DiskImageCatalog::GetPartitionTitle (m_containerIo, path) : text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::Initialize
 //
 //  COM first, because the drag source and drop target in each browser
@@ -866,7 +886,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
-    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return m_cards.DescribePartition (path); } });
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return DescribeInspectedPath (path); } });
 
 #if defined (_DEBUG)
     StartLinkFaults();

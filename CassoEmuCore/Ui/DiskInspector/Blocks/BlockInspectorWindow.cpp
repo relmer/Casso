@@ -76,6 +76,7 @@ HRESULT BlockInspectorWindow::Open (
 
     SetTheme (theme);
     m_tips->SetTheme (*theme);
+    m_panel->GetNavigator().SetRootLabel (m_session.GetFileName());
     Show (true);
     m_session.Open();
 

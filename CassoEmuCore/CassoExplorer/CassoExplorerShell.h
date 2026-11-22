@@ -221,6 +221,10 @@ private:
     bool                                     HasOpenWindows       () const;
     std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;
 
+    //  The text a block inspector's title has for `path`: a card's
+    //  partition, a partition of an image file, or empty for a file.
+    std::wstring  DescribeInspectedPath (const std::wstring & path);
+
     //  The open windows, then `closed`, written as the session.
     void  SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed);
 

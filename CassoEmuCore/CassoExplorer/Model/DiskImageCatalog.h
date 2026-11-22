@@ -5,6 +5,8 @@
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 
+class IDiskFileIo;
+
 
 
 
@@ -65,7 +67,9 @@ public:
     HRESULT  Describe       (const std::wstring & path, const std::string & directory, ImageContents & outContents);
     HRESULT  ListPartitions (const std::wstring & path, PartitionLayoutKind & outLayout, std::vector<PartitionEntry> & outEntries);
 
+    static HRESULT       ListFilePartitions       (IDiskFileIo & fileIo, const std::wstring & path, PartitionLayoutKind & outLayout, std::vector<PartitionEntry> & outEntries);
     static std::wstring  GetPartitionLabel        (const std::wstring & imagePath, const PartitionEntry & entry, bool withSize);
+    static std::wstring  GetPartitionTitle        (IDiskFileIo & fileIo, const std::wstring & path);
     static std::wstring  DescribeDamagedPartition (const std::wstring & imagePath, const PartitionEntry & entry);
 
 private:
